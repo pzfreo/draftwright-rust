@@ -622,7 +622,14 @@ fn placed(e: &Exact, s: f64, centre: [f64; 2], at: [f64; 2]) -> Exact {
 /// alone.
 pub fn embedded_spec(file: &[u8]) -> Option<Spec> {
     let text = String::from_utf8_lossy(file);
-    let json = if let Some(i) = text.find(crate::output::DXF_SPEC) {
+    // The DXF marker counts only as a whole 999 comment line: the SVG and PDF carry the spec's
+    // JSON, which never holds a raw line break, so a spec value quoting the marker cannot match.
+    let dxf = ["999\r\n", "999\n"].iter().find_map(|code| {
+        let i = text.find(&format!("{code}{}", crate::output::DXF_SPEC))?;
+        let end = i + code.len() + crate::output::DXF_SPEC.len();
+        matches!(text.as_bytes().get(end), Some(b'\r' | b'\n')).then_some(i + code.len())
+    });
+    let json = if let Some(i) = dxf {
         // DXF: the 999 comments after the marker, joined.
         let mut lines = text[i..]
             .split('\n')

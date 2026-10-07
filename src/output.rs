@@ -139,7 +139,8 @@ pub struct Drawing {
     pub link: Option<[f64; 4]>,
     pub text: Vec<TextRun>,
     /// The spec the drawing was made from (JSON), carried in the SVG's metadata, the DXF's
-    /// opening comments and the PDF's document information so the drawing can be resumed from the file alone.
+    /// opening comments and the PDF's document information so the drawing can be resumed from
+    /// the file alone.
     pub spec: Option<String>,
 }
 

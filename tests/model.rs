@@ -106,6 +106,8 @@ fn edits_apply_and_the_spec_travels_in_the_output() {
         &serde_json::json!([
             { "op": "set", "path": "views/iso/omit", "value": true },
             { "op": "set", "path": "sheet/title/material", "value": "6082-T6 ß ]]>" },
+            // Quoting the DXF's marker must not make the SVG or PDF read as a DXF.
+            { "op": "set", "path": "sheet/title/title", "value": draftwright::output::DXF_SPEC },
             { "op": "set", "path": "sheet/size", "value": "A3" },
             { "op": "remove", "path": "sheet/size" },
         ]),
