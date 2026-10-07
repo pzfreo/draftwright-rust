@@ -40,12 +40,20 @@ The port's sheet, scale and view placement (`src/layout.rs`) is draftwright's la
 - **The result, against the facts.** `tests/views.rs` plans each sampled part and compares the
   sheet, the scale, the view set, and each view's scale and centre with the captured sheet.
   Every difference is listed in `tests/fixtures/known_views.json` with a verdict and its reason,
-  and a listed difference that goes away must come off the list. Today the differences come from
-  the layout's inputs, not its arithmetic: the port reserves only the overall sizes' annotation
-  bands until features are ported, it has no turned-part view reduction, sections or details yet,
-  and it cannot re-plan on a finished drawing's lint as draftwright does (ADR 2 invariants 3
-  and 16). The test reads the corpus from `DRAFTWRIGHT_CORPUS` (by default
-  `~/repos/quiddity/tests/corpus`) and says it is skipped when that is absent.
+  and a listed difference that goes away must come off the list. The parts are read with their
+  features: Python quiddity's recognition for each is kept in
+  `tests/fixtures/recognition/corpus/` (written by `tools/recognise.py`; ctc04 has none, since the
+  bridge refuses it on one face's area). Today the differences come from the layout's inputs, not
+  its arithmetic: the port does not reserve the hole-callout band, angular footprints or the
+  annotation-scheme bands, has no detail views, does not choose draftwright's annotation-demand
+  arrangement profile, and cannot repack on measured annotations or re-plan on a finished
+  drawing's lint as draftwright does (ADR 2 invariants 3 and 16). The test reads the corpus from
+  `DRAFTWRIGHT_CORPUS` (by default `~/repos/quiddity/tests/corpus`) and says it is skipped when
+  that is absent.
+- **The bands, against draftwright's.** `tests/bands.rs` compares the bands the port reserves
+  from the features (`src/demand.rs`) and its step count with draftwright's first placement (the
+  first `_layout_geometry` call in `tests/fixtures/layout/`). Its differences are listed, with
+  verdicts, in `tests/fixtures/known_bands.json`.
 
 ## Recapturing
 

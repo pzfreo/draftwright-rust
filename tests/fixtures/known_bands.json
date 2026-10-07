@@ -1,0 +1,140 @@
+[
+  {
+    "part": "cgb245",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 34.369 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "connector109",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 22.579 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "connector109",
+    "fact": "right",
+    "verdict": "rust-wrong",
+    "reason": "The height ladder counts a slot per z-axis boss height: quiddity reports five bosses, draftwright's model four (its ownership rules give the ⌀122 boss at the first groove to the groove, `_boss_groove_floor_candidates`), so the port reserves one slot too many (185 mm against 168.5). The ownership rules are not ported."
+  },
+  {
+    "part": "ctc01",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 36.244 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "ctc04",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "The bridge refuses ctc04's recognition (face 367's area is 13.081 mm² in haecceity and 13.100 in OpenCascade, outside the bridge's 1e-3 proof), so the port plans it without features: draftwright's left band is its hole callout width (50.047 mm)."
+  },
+  {
+    "part": "ctc04",
+    "fact": "pv_halo",
+    "verdict": "rust-wrong",
+    "reason": "The bridge refuses ctc04's recognition (face 367's area is 13.081 mm² in haecceity and 13.100 in OpenCascade, outside the bridge's 1e-3 proof), so the port plans it without features: draftwright balloons the plan's scattered holes (21.5 mm ring)."
+  },
+  {
+    "part": "ctc04",
+    "fact": "right",
+    "verdict": "rust-wrong",
+    "reason": "The bridge refuses ctc04's recognition (face 367's area is 13.081 mm² in haecceity and 13.100 in OpenCascade, outside the bridge's 1e-3 proof), so the port plans it without features: draftwright's right band is its hole callout width (50.047 mm)."
+  },
+  {
+    "part": "ctc04",
+    "fact": "section",
+    "verdict": "rust-wrong",
+    "reason": "The bridge refuses ctc04's recognition (face 367's area is 13.081 mm² in haecceity and 13.100 in OpenCascade, outside the bridge's 1e-3 proof), so the port plans it without features: draftwright reserves section A–A for its blind z-axis holes."
+  },
+  {
+    "part": "ctc04",
+    "fact": "top",
+    "verdict": "rust-wrong",
+    "reason": "The bridge refuses ctc04's recognition (face 367's area is 13.081 mm² in haecceity and 13.100 in OpenCascade, outside the bridge's 1e-3 proof), so the port plans it without features: draftwright tiers 19 distinct X references above the plan (140 mm)."
+  },
+  {
+    "part": "ftc06",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 69.262 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "ftc06",
+    "fact": "sv_top",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: the side view's upper band (76 mm) holds draftwright's annotation-scheme demands above the side (y-axis boss heights, `_reserve_axial_boss_sizes`, and the Y location ladder of three tiers); the port reserves none there yet."
+  },
+  {
+    "part": "grm03",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 26.890 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "grm03",
+    "fact": "right",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 26.890 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "hanger",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 27.049 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "m1000",
+    "fact": "fv_top",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: m1000's circular seat (quiddity's section recess, draftwright's `circular_channel`) has its axis offsets dimensioned on the profile ladders (`_reserve_seat_offsets`): one more slot above the front (26.5 mm). The section-recess adapter is not ported."
+  },
+  {
+    "part": "m1000",
+    "fact": "right",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: m1000's circular seat (quiddity's section recess, draftwright's `circular_channel`) has its axis offsets dimensioned on the profile ladders (`_reserve_seat_offsets`): one more slot right of the front (53 mm against 36.5). The section-recess adapter is not ported."
+  },
+  {
+    "part": "m1000",
+    "fact": "sv_top",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: m1000's circular seat (quiddity's section recess, draftwright's `circular_channel`) has its axis offsets dimensioned on the profile ladders (`_reserve_seat_offsets`): one more slot above the side (26.5 mm). The section-recess adapter is not ported."
+  },
+  {
+    "part": "m10127",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 28.597 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "m10127",
+    "fact": "pv_bottom",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: m10127's through step has its two legs dimensioned in their own bands (`_reserve_through_step_legs`, from the planned dimensions), one below the plan (26.5 mm); the port has no planned dimensions yet."
+  },
+  {
+    "part": "m10127",
+    "fact": "sv_top",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: m10127's through step has its two legs dimensioned in their own bands (`_reserve_through_step_legs`, from the planned dimensions), one above the side (26.5 mm); the port has no planned dimensions yet."
+  },
+  {
+    "part": "spool132",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 67.609 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "spool132",
+    "fact": "right",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 67.609 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  },
+  {
+    "part": "string_post",
+    "fact": "left",
+    "verdict": "rust-wrong",
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 26.851 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+  }
+]

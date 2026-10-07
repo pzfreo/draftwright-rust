@@ -208,6 +208,107 @@ impl Strips {
     }
 }
 
+/// The band right of the front view for its height ladder (draftwright's
+/// `_est_right_strip_depth`): the overall height's slot, then one slot per step level and per
+/// other occupant (an axial boss height).
+pub fn right_strip_depth(n_steps: usize, n_extra: usize) -> f64 {
+    let n = (1 + n_steps + n_extra) as f64;
+    STRIP_GAP + SLOT_DIM_HEIGHT + (n - 1.0) * (STRIP_SPACING + SLOT_DIM_STEP)
+}
+
+/// The tiers above the plan for X-location dimensions, one per distinct reference and one spare
+/// (draftwright's `_est_pv_above_depth`); none without references.
+pub fn plan_above_depth(distinct_x_refs: usize) -> f64 {
+    if distinct_x_refs == 0 {
+        0.0
+    } else {
+        (distinct_x_refs + 1) as f64 * (FONT_SIZE + 2.0 * PAD)
+    }
+}
+
+/// The rows of Y-axis hole leaders below the front (draftwright's `front_hole_below` band).
+pub fn front_hole_rows_depth(rows: usize) -> f64 {
+    if rows == 0 {
+        0.0
+    } else {
+        let row = FONT_SIZE + 2.0 * PAD;
+        STRIP_GAP + rows as f64 * row + (rows - 1) as f64 * STRIP_SPACING
+    }
+}
+
+/// The balloon standoff ring around a plan whose holes are tabulated (draftwright's
+/// `_balloon_halo`): the first-line gap, one balloon (diameter three text heights) and a spacing.
+pub const PLAN_HALO: f64 = STRIP_GAP + 3.0 * FONT_SIZE + STRIP_SPACING;
+
+/// The end-on radial fan's reach beside the overall-height slot, for a Y-axis boss or step.
+pub const RADIAL_REACH: f64 = FONT_SIZE + 6.0 * PAD;
+
+/// The least page height a step must stand above the part's base to carry a dimension (text,
+/// two arrows, two text gaps), and the least page distance between two dimensioned steps.
+pub const MIN_STEP_DIM: f64 = FONT_SIZE + 2.0 * 2.7 + 2.0 * PAD;
+pub const MIN_STEP_SEP: f64 = FONT_SIZE + 2.0 * PAD;
+
+/// The step levels worth dimensioning at *scale* (draftwright's `_legible_steps`): each at least
+/// [`MIN_STEP_DIM`] above the base on the page and [`MIN_STEP_SEP`] above the last one kept.
+pub fn legible_steps(step_zs: &[f64], base: f64, scale: f64) -> Vec<f64> {
+    let mut zs = step_zs.to_vec();
+    zs.sort_by(f64::total_cmp);
+    let mut kept: Vec<f64> = Vec::new();
+    for z in zs {
+        if (z - base) * scale < MIN_STEP_DIM {
+            continue;
+        }
+        if kept
+            .last()
+            .is_some_and(|last| (z - last) * scale < MIN_STEP_SEP)
+        {
+            continue;
+        }
+        kept.push(z);
+    }
+    kept
+}
+
+/// Chooses the scale with a step band that matches the steps legible at it (draftwright's
+/// `_converge_step_sizing`): seeded with every step, re-gated at each chosen scale until the count
+/// repeats; a cycle reserves the largest count tried. *measure* gives the bands for a step count,
+/// *pick* the choice for them, *count* the legible steps at a scale.
+pub fn converge_steps(
+    initial: usize,
+    measure: &dyn Fn(usize) -> Strips,
+    pick: &dyn Fn(&Strips) -> Pick,
+    count: &dyn Fn(f64) -> usize,
+) -> (Pick, Strips, usize) {
+    let mut n = initial;
+    let mut seen = std::collections::BTreeSet::new();
+    let mut attempted = Vec::new();
+    for _ in 0..4.max(initial + 2) {
+        if !seen.insert(n) {
+            break;
+        }
+        attempted.push(n);
+        let strips = measure(n);
+        let chosen = pick(&strips);
+        let next = count(chosen.scale);
+        if next == n {
+            return (chosen, strips, n);
+        }
+        if seen.contains(&next) {
+            n = next;
+            break;
+        }
+        n = next;
+    }
+    let n = attempted
+        .iter()
+        .copied()
+        .chain([n])
+        .max()
+        .unwrap_or(initial);
+    let strips = measure(n);
+    (pick(&strips), strips, n)
+}
+
 /// What depends on the scale: angular dimensions' footprints about their view's centre, and the
 /// derived (detail) views' boxes.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -351,6 +452,8 @@ pub struct Geometry {
     pub iso_valid: bool,
     pub iso_fits: bool,
     pub title_block: Rect,
+    /// The section views' reserved blocks, left to right (the first centred on `section`).
+    pub section_boxes: Vec<Rect>,
     pub derived: Vec<(String, Rect)>,
     pub vertical_gutter: f64,
     pub side_gutter: f64,
@@ -668,7 +771,7 @@ fn geometry_with(
             )
         })
         .collect();
-    obstacles.extend(&section_boxes);
+    obstacles.extend(section_boxes.iter().copied());
     let view_footprints: Vec<Rect> = views
         .iter()
         .filter(|v| v.3)
@@ -699,7 +802,7 @@ fn geometry_with(
             }
         }
         derived_obstacles.push(tb_box);
-        derived_obstacles.extend(&section_boxes);
+        derived_obstacles.extend(section_boxes.iter().copied());
     }
     let mut derived = Vec::new();
     let mut derived_fit = true;
@@ -745,7 +848,7 @@ fn geometry_with(
 
     // Does the packed layout fit?
     let mut placed = view_footprints.clone();
-    placed.extend(&section_boxes);
+    placed.extend(section_boxes.iter().copied());
     let cx0 = placed.iter().map(|b| b[0]).fold(f64::INFINITY, f64::min);
     let cy0 = placed.iter().map(|b| b[1]).fold(f64::INFINITY, f64::min);
     let cx1 = placed
@@ -774,7 +877,7 @@ fn geometry_with(
     let iso_fits = !req.include_iso || (iso_valid && iso_fit >= iso_min_fit);
     let mut table_obstacles = view_footprints;
     table_obstacles.push(tb_box);
-    table_obstacles.extend(&section_boxes);
+    table_obstacles.extend(section_boxes.iter().copied());
     table_obstacles.extend(derived.iter().map(|d| d.1));
     if req.include_iso && iso_valid {
         table_obstacles.push(iso);
@@ -806,6 +909,7 @@ fn geometry_with(
             tb_cx + tb_w / 2.0,
             tb_bottom + TB_H,
         ],
+        section_boxes,
         derived,
         vertical_gutter,
         side_gutter,

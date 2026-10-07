@@ -5,17 +5,19 @@
 //! taken off the list.
 //!
 //! The parts are read from the corpus (`DRAFTWRIGHT_CORPUS`, by default
-//! `~/repos/quiddity/tests/corpus`).
+//! `~/repos/quiddity/tests/corpus`), with their features from Python quiddity's recognition
+//! (`tests/fixtures/recognition/corpus/`), as draftwright reads them.
 //!
 //! Tolerances: a view's centre within 0.01 mm on the page, its scale within 1e-6 relative. Both
 //! sides centre each view on the part's tight box, and the boxes agree to well under that (the
 //! test checks it); the facts are rounded to 1e-6.
 
+#[path = "common/corpus.rs"]
+mod corpus;
 #[path = "common/facts.rs"]
 mod facts;
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
 
 use draftwright::model::{self, Spec};
 use serde::Deserialize;
@@ -31,18 +33,9 @@ struct Known {
     reason: String,
 }
 
-fn corpus() -> Option<PathBuf> {
-    let dir = std::env::var_os("DRAFTWRIGHT_CORPUS")
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|h| PathBuf::from(h).join("repos/quiddity/tests/corpus"))
-        })?;
-    dir.is_dir().then_some(dir)
-}
-
 #[test]
 fn view_planning_matches_draftwright_or_is_known() {
-    let Some(corpus) = corpus() else {
+    let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };
@@ -71,7 +64,7 @@ fn view_planning_matches_draftwright_or_is_known() {
     let mut agree = 0;
     for name in facts::names() {
         let f = facts::load(&name);
-        let (_, analysis) = model::analyse(&corpus.join(&f.binding.file)).unwrap();
+        let (_, analysis) = corpus::analyse(&dir, &f.binding.file, &name);
         assert_eq!(analysis.binding.source_sha256, f.binding.sha256, "{name}");
         let plan = model::plan(&analysis, &Spec::default()).unwrap();
         let mut check = |fact: String, same: bool| {
