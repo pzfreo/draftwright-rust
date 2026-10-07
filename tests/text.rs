@@ -2,6 +2,7 @@
 //! in both of draftwright's fonts must have build123d's outline (within `common::TOL` both ways),
 //! bounding box and area.
 
+#[path = "common/text.rs"]
 mod common;
 
 #[test]

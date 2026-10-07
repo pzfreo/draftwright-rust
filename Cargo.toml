@@ -6,7 +6,11 @@ license = "AGPL-3.0-only"
 description = "Automated technical drawings from STEP B-rep: a Rust port of draftwright."
 
 [dependencies]
+dxf = { version = "0.6.2", features = ["serialize"] }
+flate2 = "1.1.10"
 haecceity = { git = "https://github.com/pzfreo/quiddity-rust", branch = "prototype/rust-port" }
+pdf-writer = "0.15"
+serde_json = "1.0.151"
 ttf-parser = "0.25.1"
 
 [dev-dependencies]

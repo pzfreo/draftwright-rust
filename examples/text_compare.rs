@@ -1,7 +1,7 @@
 //! Compare draftwright's text with build123d's (`tools/capture_text.py`), every score printed:
 //! `cargo run --release --example text_compare -- tests/fixtures/text.json.gz`.
 
-#[path = "../tests/common/mod.rs"]
+#[path = "../tests/common/text.rs"]
 mod common;
 
 fn main() {

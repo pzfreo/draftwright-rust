@@ -5,7 +5,7 @@ fully-annotated engineering drawings from STEP B-rep. No OpenCascade: geometry c
 [haecceity](https://github.com/pzfreo/quiddity-rust/tree/prototype/rust-port/crates/haecceity)
 kernel, shared with the Rust port of quiddity.
 
-**Status: proving the kernel pieces.** As with quiddity, the hard pieces are proved first,
+**Status: the four hard pieces are proved.** As with quiddity, the hard pieces are proved first,
 each against what the Python implementation produces:
 
 1. **Hidden-line projection**: `project_to_viewport` (OpenCascade `HLRBRep`), giving visible
@@ -19,7 +19,16 @@ each against what the Python implementation produces:
    Proved, in `src/text.rs`. Every sample label in both of draftwright's fonts has
    build123d's outline within 0.1 µm, its bounding box within 0.05 µm and its area
    (`tests/text.rs`, recorded by `tools/capture_text.py`).
-4. **Output**: PDF, SVG and DXF (reportlab and ezdxf in Python).
+4. **Output**: SVG, DXF and PDF as draftwright writes them (build123d's exporters, ezdxf,
+   svglib and reportlab). Proved, in `src/output.rs`, using the `dxf` and `pdf-writer` crates.
+   - Three real draftwright drawings were written from the same content
+     (`tools/capture_output.py`).
+   - Every SVG and DXF layer matches draftwright's: the same lines within 1 µm both ways
+     and the same styles (`tests/output.rs`).
+   - The PDFs render to the same ink within a pixel at 200 dpi, and their searchable text is
+     identical (`tools/compare_pdf.py`).
+   - Not yet done: PNG, font subsetting (the PDFs embed whole fonts) and DXF table head
+     handles (ezdxf adds them on audit).
 
 Feature recognition is bridged from Python quiddity's JSON results until the Rust quiddity
 covers the families and the aggregate draftwright needs.
