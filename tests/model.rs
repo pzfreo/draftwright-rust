@@ -105,7 +105,9 @@ fn edits_apply_and_the_spec_travels_in_the_output() {
         &Spec::default(),
         &serde_json::json!([
             { "op": "set", "path": "views/iso/omit", "value": true },
-            { "op": "set", "path": "sheet/title/material", "value": "6082-T6" },
+            { "op": "set", "path": "sheet/title/material", "value": "6082-T6 ß ]]>" },
+            // Quoting the DXF's marker must not make the SVG or PDF read as a DXF.
+            { "op": "set", "path": "sheet/title/title", "value": draftwright::output::DXF_SPEC },
             { "op": "set", "path": "sheet/size", "value": "A3" },
             { "op": "remove", "path": "sheet/size" },
         ]),
@@ -119,7 +121,7 @@ fn edits_apply_and_the_spec_travels_in_the_output() {
         std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
             .ok()
     });
-    for bytes in [drawing.svg().into_bytes(), pdf] {
+    for bytes in [drawing.svg().into_bytes(), drawing.dxf(), pdf] {
         let back = model::embedded_spec(&bytes).expect("the spec is embedded");
         assert_eq!(back, plan.spec);
         assert_eq!(

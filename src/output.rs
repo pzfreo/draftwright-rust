@@ -138,8 +138,9 @@ pub struct Drawing {
     /// The attribution link's rectangle (x0, y0, x1, y1), mm.
     pub link: Option<[f64; 4]>,
     pub text: Vec<TextRun>,
-    /// The spec the drawing was made from (JSON), carried in the SVG's metadata and the PDF's
-    /// document information so the drawing can be resumed from the file alone.
+    /// The spec the drawing was made from (JSON), carried in the SVG's metadata, the DXF's
+    /// opening comments and the PDF's document information so the drawing can be resumed from
+    /// the file alone.
     pub spec: Option<String>,
 }
 
@@ -180,6 +181,34 @@ pub fn layer_styles() -> [(&'static str, Style); 3] {
             },
         ),
     ]
+}
+
+/// The comment that opens the spec in a DXF file; the comments after it carry the spec's JSON.
+pub const DXF_SPEC: &str = "draftwright spec, JSON in the comments that follow";
+
+/// The spec as DXF comments (group code 999) ahead of the first section. AutoCAD reads and ignores
+/// them ("OPEN honors them and ignores the comments", DXF reference), as do ezdxf and the `dxf`
+/// crate, so the file opens as before; a re-save drops them, as it would any other application's
+/// note. The JSON is made ASCII (`\uXXXX`) and cut into lines of at most 255 characters, the
+/// oldest readers' limit for a string; no line is trimmed when it is read back.
+fn dxf_spec_comments(spec: &str) -> Vec<u8> {
+    let mut ascii = String::new();
+    for c in spec.chars() {
+        if c.is_ascii() {
+            ascii.push(c);
+        } else {
+            for unit in c.encode_utf16(&mut [0; 2]) {
+                let _ = write!(ascii, "\\u{unit:04x}");
+            }
+        }
+    }
+    let mut out = format!("999\r\n{DXF_SPEC}\r\n");
+    for line in ascii.as_bytes().chunks(255) {
+        out += "999\r\n";
+        out += std::str::from_utf8(line).expect("ASCII");
+        out += "\r\n";
+    }
+    out.into_bytes()
 }
 
 /// A number as the SVG carries it.
@@ -363,6 +392,9 @@ impl Drawing {
             }
         }
         let mut out = Vec::new();
+        if let Some(spec) = &self.spec {
+            out = dxf_spec_comments(spec);
+        }
         d.save(&mut out).expect("writes to memory");
         out
     }

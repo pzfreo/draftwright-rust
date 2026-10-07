@@ -1,52 +1,55 @@
-//! The command line over the document model (ADR R1). Each command prints JSON.
+//! The command line over the document model (ADR R1), through [`draftwright::api`]. Each command
+//! prints JSON.
 //!
 //! - `draftwright analyse part.step [--features r.json]`: the Analysis
 //! - `draftwright plan part.step [--features r.json] [--spec s.json]`: the Plan
 //! - `draftwright render part.step [--features r.json] [--spec s.json] -o out
 //!   [--formats svg,dxf,pdf]`: writes the files and prints what was written, with the plan's
 //!   problems
+//! - `draftwright review part.step [--features r.json] [--spec s.json]`: the drawing as SVG
+//!   text, with the problems
 //! - `draftwright edit s.json ops.json`: the edited Spec
-//! - `draftwright spec drawing.(svg|pdf)`: the Spec embedded in a rendered drawing
+//! - `draftwright spec drawing.(svg|dxf|pdf)`: the Spec embedded in a rendered drawing
+//! - `draftwright serve`: the JSON-lines service. One request per line on stdin, such as
+//!   `{"id": 1, "op": "plan", "step": "part.step", "spec": {…}}`, and one reply per line on
+//!   stdout: `{"id": 1, "ok": true, "result": …}` or `{"id": 1, "ok": false, "error": {"code",
+//!   "message", "choices"?}}`. `{"op": "hello"}` gives the protocol version and the operations;
+//!   the others, and their arguments, are those of [`draftwright::api::call`].
+//!
+//! `--features` names Python quiddity's recognition JSON for the same file
+//! (`tools/recognise.py`, read by [`draftwright::bridge`]).
 //!
 //! Exit codes: 0 done; 2 the request is invalid (the JSON error says what would be accepted);
 //! 1 something failed and nothing was written in its place.
 
-use std::path::{Path, PathBuf};
+use std::io::{BufRead, Write};
 use std::process::ExitCode;
 
-use draftwright::haecceity::Part;
-use draftwright::model::{self, Analysis, Spec};
-use draftwright::text::Font;
-use serde_json::json;
+use draftwright::api::{self, Error};
+use serde_json::{Value, json};
 
-const MONO: &[u8] = include_bytes!("../../fonts/IBMPlexMono-Regular.ttf");
+/// The service's protocol version, given by `hello`.
+const PROTOCOL: u32 = 1;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("serve") {
+        return serve();
+    }
     match run(&args) {
         Ok(out) => {
             println!("{}", serde_json::to_string_pretty(&out).expect("JSON"));
             ExitCode::SUCCESS
         }
-        Err((code, error)) => {
+        Err(error) => {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({ "ok": false, "error": error }))
                     .expect("JSON")
             );
-            ExitCode::from(code)
+            ExitCode::from(if error.code == "invalid" { 2 } else { 1 })
         }
     }
-}
-
-type Failure = (u8, serde_json::Value);
-
-fn invalid(message: impl Into<String>) -> Failure {
-    (2, json!({ "code": "invalid", "message": message.into() }))
-}
-
-fn failed(message: impl Into<String>) -> Failure {
-    (1, json!({ "code": "failed", "message": message.into() }))
 }
 
 /// The value after flag *name*, if given.
@@ -57,94 +60,82 @@ fn flag<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
         .map(String::as_str)
 }
 
-fn read_json<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, Failure> {
-    let text =
-        std::fs::read_to_string(path).map_err(|e| invalid(format!("cannot read {path}: {e}")))?;
-    serde_json::from_str(&text).map_err(|e| invalid(format!("{path} is not valid: {e}")))
+fn read_json(path: &str) -> Result<Value, Error> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| Error::invalid(format!("cannot read {path}: {e}")))?;
+    serde_json::from_str(&text).map_err(|e| Error::invalid(format!("{path} is not valid: {e}")))
 }
 
-fn spec_of(args: &[String]) -> Result<Spec, Failure> {
-    match flag(args, "--spec") {
-        Some(path) => read_json(path),
-        None => Ok(Spec::default()),
-    }
-}
-
-/// The part and its analysis, with features from `--features` (`tools/recognise.py`'s JSON).
-fn analyse(args: &[String], step: &str) -> Result<(Part, Analysis), Failure> {
-    model::analyse_with(Path::new(step), flag(args, "--features").map(Path::new)).map_err(invalid)
-}
-
-fn run(args: &[String]) -> Result<serde_json::Value, Failure> {
-    let usage = "usage: draftwright (analyse|plan|render|edit|spec) …";
-    let command = args.first().ok_or_else(|| invalid(usage))?;
+/// Runs the command, its arguments put as [`api::call`] takes them.
+fn run(args: &[String]) -> Result<Value, Error> {
+    let usage = "usage: draftwright (analyse|plan|render|review|edit|spec|serve) …";
+    let command = args.first().ok_or_else(|| Error::invalid(usage))?;
     let arg = |i: usize| {
         args.get(i)
             .map(String::as_str)
-            .ok_or_else(|| invalid(usage))
+            .ok_or_else(|| Error::invalid(usage))
     };
-    match command.as_str() {
-        "analyse" => {
-            let (_, analysis) = analyse(args, arg(1)?)?;
-            Ok(serde_json::to_value(analysis).expect("JSON"))
+    let spec = match flag(args, "--spec") {
+        Some(path) => read_json(path)?,
+        None => Value::Null,
+    };
+    let features = flag(args, "--features");
+    let request = match command.as_str() {
+        "analyse" | "plan" | "review" => {
+            json!({ "step": arg(1)?, "features": features, "spec": spec })
         }
-        "plan" => {
-            let (_, analysis) = analyse(args, arg(1)?)?;
-            let plan = model::plan(&analysis, &spec_of(args)?)
-                .map_err(|e| (2, serde_json::to_value(&e).expect("JSON")))?;
-            Ok(serde_json::to_value(plan).expect("JSON"))
+        "render" => json!({
+            "step": arg(1)?,
+            "features": features,
+            "spec": spec,
+            "output": flag(args, "-o").ok_or_else(|| Error::invalid("render needs -o <output stem>"))?,
+            "formats": flag(args, "--formats").unwrap_or("svg,dxf,pdf").split(',').collect::<Vec<_>>(),
+        }),
+        "edit" => json!({ "spec": read_json(arg(1)?)?, "ops": read_json(arg(2)?)? }),
+        "spec" => json!({ "drawing": arg(1)? }),
+        other => {
+            return Err(Error::invalid(format!(
+                "{other:?} is not a command. {usage}"
+            )));
         }
-        "render" => {
-            let (part, analysis) = analyse(args, arg(1)?)?;
-            let plan = model::plan(&analysis, &spec_of(args)?)
-                .map_err(|e| (2, serde_json::to_value(&e).expect("JSON")))?;
-            let out = PathBuf::from(
-                flag(args, "-o").ok_or_else(|| invalid("render needs -o <output stem>"))?,
-            );
-            let formats: Vec<&str> = flag(args, "--formats")
-                .unwrap_or("svg,dxf,pdf")
-                .split(',')
-                .collect();
-            let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
-            let drawing = model::render(&part, &analysis, &plan, &font);
-            let mut written = Vec::new();
-            for format in formats {
-                let bytes = match format {
-                    "svg" => drawing.svg().into_bytes(),
-                    "dxf" => drawing.dxf(),
-                    "pdf" => drawing
-                        .pdf(&|name| (name == "IBMPlexMono-Regular.ttf").then(|| MONO.to_vec())),
-                    other => {
-                        return Err(invalid(format!(
-                            "{other:?} is not a format; choose from svg, dxf, pdf"
-                        )));
-                    }
-                };
-                let path = out.with_extension(format);
-                // Written beside, then moved into place: a failure leaves any earlier file as it was.
-                let staged = out.with_extension(format!("{format}.part"));
-                std::fs::write(&staged, &bytes)
-                    .map_err(|e| failed(format!("cannot write {}: {e}", staged.display())))?;
-                std::fs::rename(&staged, &path)
-                    .map_err(|e| failed(format!("cannot write {}: {e}", path.display())))?;
-                written.push(path.display().to_string());
-            }
-            Ok(json!({ "written": written, "problems": plan.problems }))
+    };
+    api::call(command, &request)
+}
+
+/// Answers requests, one JSON object per line, until stdin closes.
+fn serve() -> ExitCode {
+    let stdout = std::io::stdout();
+    for line in std::io::stdin().lock().lines() {
+        let Ok(line) = line else { break };
+        if line.trim().is_empty() {
+            continue;
         }
-        "edit" => {
-            let spec: Spec = read_json(arg(1)?)?;
-            let ops: serde_json::Value = read_json(arg(2)?)?;
-            let edited = model::edit(&spec, &ops)
-                .map_err(|e| (2, serde_json::to_value(&e).expect("JSON")))?;
-            Ok(serde_json::to_value(edited).expect("JSON"))
+        let reply = match serde_json::from_str::<Value>(&line) {
+            Ok(request) => reply(&request),
+            Err(e) => json!({ "id": null, "ok": false, "error": Error::invalid(e.to_string()) }),
+        };
+        let mut out = stdout.lock();
+        if writeln!(out, "{reply}").and_then(|_| out.flush()).is_err() {
+            break;
         }
-        "spec" => {
-            let bytes = std::fs::read(arg(1)?)
-                .map_err(|e| invalid(format!("cannot read {}: {e}", arg(1).unwrap_or(""))))?;
-            let spec = model::embedded_spec(&bytes)
-                .ok_or_else(|| invalid("the file carries no draftwright spec"))?;
-            Ok(serde_json::to_value(spec).expect("JSON"))
-        }
-        other => Err(invalid(format!("{other:?} is not a command. {usage}"))),
+    }
+    ExitCode::SUCCESS
+}
+
+/// A request's reply: its result, or a structured error.
+fn reply(request: &Value) -> Value {
+    let Some(fields) = request.as_object() else {
+        let error = Error::invalid("a request is a JSON object");
+        return json!({ "id": null, "ok": false, "error": error });
+    };
+    let id = fields.get("id").cloned().unwrap_or(Value::Null);
+    let result = match fields.get("op").and_then(Value::as_str) {
+        Some("hello") => Ok(json!({ "protocol": PROTOCOL, "ops": api::OPERATIONS })),
+        Some(op) => api::call(op, request),
+        None => Err(Error::invalid("a request needs \"op\"")),
+    };
+    match result {
+        Ok(result) => json!({ "id": id, "ok": true, "result": result }),
+        Err(error) => json!({ "id": id, "ok": false, "error": error }),
     }
 }
