@@ -91,7 +91,7 @@
     adr: "ADR 1 invariant 6; archive 0008 Amendment 1, 0015"
     issues: [731]
     tests: ["test_turned_steps.py", "test_principal_profile_classifier.py"]
-  status: ported
+  status: pending
   rust_test: tests/dimension_rules.rs::a_holes_view_follows_from_its_axis
   rust_note: "Ported for holes (and their locations, pitches and callouts) and the overall extents; turned steps are not planned yet."
   port_note: "Keep: view routing is a pure function of feature axis and measurement kind in the planner; record it as the plan entry's basis."
@@ -725,7 +725,7 @@
     adr: "ADR 4 invariant 4; archive 0016 Amendment 1"
     issues: [923]
     tests: ["test_compiled_plan_boundary.py", "test_label_provenance.py (test_no_renderer_formats_a_number_the_compiler_did_not, test_the_ratchet_actually_bites)"]
-  status: ported
+  status: pending
   rust_test: tests/dimension_rules.rs::renderers_draw_only_from_the_plan
   rust_note: "Ported for dimensions and callouts (src/dims.rs: render draws each item's planned terms and ink). No PMI text exists yet."
   port_note: "Keep: renderers read only Plan entries' text; author-supplied PMI/GD&T text is carried verbatim in the Plan with a 'source-authored' basis."
@@ -762,7 +762,7 @@
     adr: "ADR 4 invariant 7; archive 0016 'Suppression changes what is shown'"
     issues: []
     tests: ["test_suppression_marks.py"]
-  status: ported
+  status: pending
   rust_test: tests/dimension_rules.rs::blind_and_through_holes_are_separate_requirements
   rust_note: "THRU is read from the feature's bottom, never from a missing depth. A callout is one plan item, so no term of it can be suppressed alone yet; the head-without-dependents validation arrives with per-term overrides."
   port_note: "Keep: feature facts (through, thread) live on the feature in Analysis/Spec; Plan omission of a parameter never changes them; head-without-dependents is a Spec validation error."
@@ -784,7 +784,7 @@
     adr: "ADR 4 invariant 9; archive 0016 Amendment 6"
     issues: [1215, 1234, 1216]
     tests: ["test_issue_1215_no_approved_tolerance_is_dropped.py"]
-  status: ported
+  status: pending
   rust_test: tests/dimension_rules.rs::nothing_approved_vanishes_when_its_view_is_omitted
   rust_note: "An undrawable item stays in the plan unplaced, with a view_plan_incomplete problem naming it. Tolerances are not planned yet."
   port_note: "Keep: every approved Plan dimension is either placed or has a problem with its id; a test joins Plan entries against rendered output."
@@ -1519,6 +1519,7 @@
     tests: []
   status: ported
   rust_test: tests/dimension_rules.rs::a_grid_of_holes_is_called_out_once_located_and_spaced
+  rust_note: "dims::plan asserts in every build that each dimension ID is unique and carried by exactly one view."
   port_note: "Keep: Plan validation - each dimension id appears in exactly one view."
 
 - id: ARCH0016-6

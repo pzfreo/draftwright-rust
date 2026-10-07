@@ -347,6 +347,99 @@ fn a_turned_part_states_its_diameter_and_length() {
     );
 }
 
+/// When the preferred view is omitted, a turned part's diameter moves to the other profile view
+/// and is drawn across the radial axis that view shows; the plan never says it is drawable and
+/// undrawable at once (R1 invariant 3).
+#[test]
+fn a_turned_parts_diameter_follows_its_view() {
+    let spec: Spec = serde_json::from_value(json!({"views": {"front": {"omit": true}}})).unwrap();
+    let plan = planned("turned", &recognition("turned"), &spec);
+    for id in [
+        "d:envelope/od.diameter@side",
+        "d:envelope/height.length@side",
+    ] {
+        let d = find(&plan, id);
+        assert!(d.placed.is_some(), "{id} is drawn");
+        assert_eq!(d.view, "v:side");
+        assert!(d.basis.contains("the front view is omitted"), "{}", d.basis);
+    }
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "view_plan_incomplete"),
+        "{:?}",
+        plan.problems
+    );
+    // With both profile views omitted, the message names both and why.
+    let spec: Spec =
+        serde_json::from_value(json!({"views": {"front": {"omit": true}, "side": {"omit": true}}}))
+            .unwrap();
+    let plan = planned("turned", &recognition("turned"), &spec);
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "view_plan_incomplete")
+        .expect("reported");
+    assert!(
+        p.subjects
+            .iter()
+            .any(|s| s == "d:envelope/od.diameter@front"),
+        "{:?}",
+        p.subjects
+    );
+    assert!(
+        p.message.contains("front or side view") && p.message.contains("omitted"),
+        "{}",
+        p.message
+    );
+}
+
+/// An ID names the view that carries its dimension, so omitting that view renames it; a spec
+/// still keyed by the old ID is refused, and the refusal names the new ID first.
+#[test]
+fn a_dimension_renamed_by_an_omitted_view_is_named_in_the_refusal() {
+    let spec: Spec = serde_json::from_value(json!({
+        "views": {"front": {"omit": true}},
+        "dimensions": {"d:envelope/width.length@front": {"omit": true}}
+    }))
+    .unwrap();
+    let (_, a) = analysed_with("plate", &recognition("plate"));
+    let e = model::plan(&a, &spec).unwrap_err();
+    assert_eq!(
+        e.choices[0], "d:envelope/width.length@plan",
+        "{:?}",
+        e.choices
+    );
+    assert!(
+        e.message.contains("d:envelope/width.length@plan")
+            && e.message.contains("front view is omitted"),
+        "{}",
+        e.message
+    );
+}
+
+/// A hole whose bottom recognition did not establish is called out blind to its depth, as
+/// draftwright does, and says so (accuracy over parity: no silent claim).
+#[test]
+fn an_unestablished_hole_bottom_is_reported() {
+    let mut json = recognition("plate");
+    json["quiddity"]["features"][0]["record"]["bottom"] = "unknown".into();
+    let plan = planned("plate", &json, &Spec::default());
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "hole_bottom_unknown")
+        .unwrap_or_else(|| panic!("reported: {:?}", plan.problems));
+    assert_eq!(p.severity, "info");
+    assert!(
+        !planned("plate", &recognition("plate"), &Spec::default())
+            .problems
+            .iter()
+            .any(|p| p.code == "hole_bottom_unknown")
+    );
+}
+
 /// R1 invariant 2 (ADR4-4) and ARCH0019-1: the renderer draws the plan's own label text and
 /// composes none; every dimension run it writes comes from a plan item's terms.
 #[test]

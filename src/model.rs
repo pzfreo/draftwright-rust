@@ -659,7 +659,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
     part_layer.extend(rect(tx0, ty0, tx1, ty1));
     let mut text = Vec::new();
     // The dimensions and callouts, drawn from the plan alone.
-    crate::dims::render(&plan.dimensions, font, &mut layers[2].items, &mut text);
+    crate::dims::render(&plan.dimensions, &mut layers[2].items, &mut text);
     let mut label = |s: &str, at: [f64; 2], size: f64, layer: &mut Vec<Item>| {
         let laid = font.text(s, size);
         let shift = |p: [f64; 2]| [p[0] + at[0], p[1] + at[1]];

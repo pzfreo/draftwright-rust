@@ -16,8 +16,9 @@
 //! below (horizontal) and right of (vertical) their view, sizes nearest, then locations by
 //! distance, then the overall extent outermost; callouts stack above their view with 45° leaders.
 //! Whatever then collides (labels with labels, lines through labels, labels over views, ink off
-//! the sheet) is reported as a problem on the dimension's ID, never silently moved or dropped. An
-//! item whose view is omitted is kept in the plan, unplaced, and reported (R1 invariant 3).
+//! the sheet) is reported as a problem on the dimension's ID, never silently moved or dropped.
+//! Lines crossing other views' outlines or other dimensions' lines are not checked yet. An item
+//! no shown view can carry is kept in the plan, unplaced, and reported (R1 invariant 3).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
@@ -185,6 +186,9 @@ struct Want {
     measurements: Vec<Measurement>,
     basis: String,
     shape: Shape,
+    /// For a turned part's diameter: its turning axis. The diameter is then drawn across
+    /// whichever radial axis the carrying view shows.
+    turning: Option<usize>,
 }
 
 fn want_id(feature: &str, parameter: &str, view: &str) -> String {
@@ -463,6 +467,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
                     parameter: "od.diameter".into(),
                     value: t.diameter,
                 }],
+                turning: Some(t.axis),
                 basis: format!(
                     "the part is turned whole about {}: its largest diameter is its overall size across the axis, in a view that shows the profile",
                     AXES[t.axis]
@@ -488,6 +493,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
                     parameter: format!("{name}.length"),
                     value: hi[k] - lo[k],
                 }],
+                turning: None,
                 basis: "the overall length along the turning axis, in a view that shows the profile; no step chain is planned yet to state it (as draftwright releases the overall length when its chain is dropped)".into(),
                 shape: Shape::Linear {
                     a: corner(k, lo[k], lo),
@@ -520,6 +526,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
                         parameter: format!("{name}.length"),
                         value: v,
                     }],
+                    turning: None,
                     basis: format!(
                         "every overall extent is stated once, outermost: the {name} ({} extent) in the {} view",
                         AXES[k], views[k][0]
@@ -541,7 +548,26 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
     let mut holes: Vec<Hole> = Vec::new();
     for f in analysis.features.iter().filter(|f| f.kind == "hole") {
         match hole(f, &frame) {
-            Ok(h) => holes.push(h),
+            Ok(h) => {
+                let bottom = f.parameters.get("bottom").and_then(Value::as_str);
+                if !matches!(bottom, Some("through" | "flat" | "drill_point")) {
+                    // Called out blind to its recognised depth, as draftwright does, but the
+                    // recogniser did not establish that it stops there.
+                    problems.push(Problem {
+                        id: format!("p:hole_bottom_unknown:{}", f.id),
+                        code: "hole_bottom_unknown".into(),
+                        severity: "info".into(),
+                        message: format!(
+                            "{} is called out blind to its recognised depth ({}), but recognition did not establish its bottom ({}); check whether it is through.",
+                            f.id,
+                            fmt(h.depth),
+                            bottom.unwrap_or("none given")
+                        ),
+                        subjects: vec![f.id.clone()],
+                    });
+                }
+                holes.push(h);
+            }
             Err(why) => problems.push(Problem {
                 id: format!("p:feature_not_dimensioned:{}", f.id),
                 code: "feature_not_dimensioned".into(),
@@ -721,6 +747,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
             value: first.diameter,
             terms,
             measurements,
+            turning: None,
             basis: format!("{why}; called out where it is seen end-on"),
             shape: Shape::Callout { sites },
         });
@@ -789,6 +816,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
             value: first.diameter,
             terms,
             measurements: members.iter().flat_map(|&m| holes[m].measurements()).collect(),
+            turning: None,
             basis: if members.len() > 1 {
                 format!("identical holes drilled from one face are called out once and counted, where they are seen end-on{note}")
             } else {
@@ -865,6 +893,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
                     value: d,
                 })
                 .collect(),
+            turning: None,
             basis: format!(
                 "located in {} from the part's {} face, in the view that looks along the hole{}",
                 AXES[k],
@@ -985,6 +1014,7 @@ fn pitch_want(
             parameter: parameter.into(),
             value: p,
         }],
+        turning: None,
         basis: format!(
             "the pattern's spacing in {}, between its first two members, counted across its {intervals} interval{}",
             AXES[along],
@@ -1396,33 +1426,82 @@ pub fn plan(
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
-    // The view that carries each: its first choice that is shown. A later choice renames it.
+    // The view that carries each: its first choice that is shown and does not look along it
+    // (a turned part's diameter turns to the radial axis the view shows). A later choice renames
+    // it. Those with none keep the views that were shown but look along them.
+    let [lo, hi] = analysis.envelope;
     let mut chosen: Vec<Option<&'static str>> = Vec::new();
+    let mut end_on: Vec<Vec<&'static str>> = Vec::new();
     for w in &mut wants {
-        let view = w.views.iter().copied().find(|v| frames.contains_key(v));
+        let mut view = None;
+        let mut along = Vec::new();
+        for v in w.views.clone() {
+            let Some(f) = frames.get(v) else { continue };
+            if let Shape::Linear { a, b, axis, .. } = &mut w.shape
+                && across(f, *axis).is_none()
+            {
+                let radial = w
+                    .turning
+                    .and_then(|t| (0..3).find(|&j| j != t && j != *axis && across(f, j).is_some()));
+                let Some(j) = radial else {
+                    along.push(v);
+                    continue;
+                };
+                *a = lo;
+                *b = lo;
+                b[j] = hi[j];
+                *axis = j;
+            }
+            view = Some(v);
+            break;
+        }
         if let Some(v) = view
             && v != w.views[0]
         {
             let (stem, _) = w.id.rsplit_once('@').expect("an ID names its view");
             w.id = format!("{stem}@{v}");
+            let why = if frames.contains_key(w.views[0]) {
+                "looks along it"
+            } else {
+                "is omitted"
+            };
             w.basis += &format!(
-                "; the {} view is omitted, so the {v} view carries it",
+                "; the {} view {why}, so the {v} view carries it",
                 w.views[0]
             );
         }
         chosen.push(view);
+        end_on.push(along);
     }
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
-    debug_assert_eq!(ids.len(), wants.len(), "dimension IDs are unique");
+    // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
+    // bug, checked in every build.
+    assert_eq!(ids.len(), wants.len(), "dimension IDs are unique");
     for (id, entry) in &spec.dimensions {
         if !ids.contains(id.as_str()) {
             let mut near: Vec<&str> = ids.iter().copied().collect();
             near.sort_by_key(|c| (levenshtein(id, c), *c));
             near.truncate(5);
-            return Err(Invalid {
-                message: format!("There is no dimension {id:?} on this part."),
-                choices: near.into_iter().map(String::from).collect(),
-            });
+            // An ID names the view that carries the dimension, so omitting that view renames it.
+            let stem = id.rsplit_once('@').map_or(id.as_str(), |(s, _)| s);
+            let moved = wants
+                .iter()
+                .find(|w| w.id.rsplit_once('@').is_some_and(|(s, _)| s == stem) && w.id != *id);
+            let mut choices: Vec<String> = moved.iter().map(|w| w.id.clone()).collect();
+            for c in near {
+                if !choices.iter().any(|x| x == c) {
+                    choices.push(c.into());
+                }
+            }
+            choices.truncate(5);
+            let message = match moved {
+                Some(w) => format!(
+                    "There is no dimension {id:?} on this part: an ID names the view that carries it, and that dimension is now {:?} ({}).",
+                    w.id, w.basis
+                ),
+                None => format!("There is no dimension {id:?} on this part."),
+            };
+            return Err(Invalid { message, choices });
         }
         if entry.omit && spec.dimension_source == DimensionSource::Authored {
             return Err(Invalid {
@@ -1435,7 +1514,7 @@ pub fn plan(
     }
     let mut omitted = Vec::new();
     let mut kept = Vec::new();
-    for (w, view) in wants.into_iter().zip(chosen) {
+    for ((w, view), along) in wants.into_iter().zip(chosen).zip(end_on) {
         let entry = spec.dimensions.get(&w.id);
         match spec.dimension_source {
             DimensionSource::Auto if entry.is_some_and(|e| e.omit) => omitted.push(Omitted {
@@ -1447,7 +1526,7 @@ pub fn plan(
                 basis: "authored: not in the spec's complete set (dimension_source authored)"
                     .into(),
             }),
-            _ => kept.push((w, entry.is_none(), view)),
+            _ => kept.push((w, entry.is_none(), view, along)),
         }
     }
 
@@ -1455,7 +1534,7 @@ pub fn plan(
     // (ARCH0009-5), then callouts by their tips, right to left.
     let mut strips: Lanes = BTreeMap::new();
     let mut sides: Vec<Option<Side>> = vec![None; kept.len()];
-    for (i, (w, _, view)) in kept.iter().enumerate() {
+    for (i, (w, _, view, _)) in kept.iter().enumerate() {
         let Some(view) = *view else { continue };
         let f = &frames[view];
         let (side, rank) = match &w.shape {
@@ -1490,9 +1569,11 @@ pub fn plan(
         }
     }
 
-    let mut missing: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+    // Undrawn items by the views that could carry them and those of them that look along them.
+    type Undrawn = (Vec<&'static str>, Vec<&'static str>);
+    let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
-    for (i, (w, default, chosen)) in kept.into_iter().enumerate() {
+    for (i, (w, default, chosen, along)) in kept.into_iter().enumerate() {
         let view = chosen.unwrap_or(w.views[0]);
         let placed = chosen.zip(sides[i]).and_then(|(v, side)| {
             let f = &frames[v];
@@ -1502,7 +1583,10 @@ pub fn plan(
             }
         });
         if placed.is_none() {
-            missing.entry(w.views[0]).or_default().push(w.id.clone());
+            missing
+                .entry((w.views.clone(), along))
+                .or_default()
+                .push(w.id.clone());
         }
         let basis = if default {
             w.basis
@@ -1526,15 +1610,46 @@ pub fn plan(
             placed,
         });
     }
-    for (view, ids) in missing {
+    for ((candidates, along), ids) in missing {
+        let n = ids.len();
+        let s = if n == 1 { "" } else { "s" };
+        let named = |v: &[&str]| v.join(" or ");
+        let omitted: Vec<&str> = candidates
+            .iter()
+            .copied()
+            .filter(|v| !along.contains(v))
+            .collect();
+        let mut why = Vec::new();
+        if !omitted.is_empty() {
+            why.push(format!(
+                "the {} view{} omitted",
+                named(&omitted),
+                if omitted.len() == 1 { " is" } else { "s are" }
+            ));
+        }
+        if !along.is_empty() {
+            why.push(format!(
+                "the {} view looks along {}",
+                named(&along),
+                if n == 1 { "it" } else { "them" }
+            ));
+        }
+        let fix = if omitted.is_empty() {
+            "Omit them, or show a view across them.".to_string()
+        } else {
+            format!(
+                "Restore the view (remove views/{}/omit) or omit them.",
+                omitted[0]
+            )
+        };
         problems.push(Problem {
-            id: format!("p:view_plan_incomplete:v:{view}"),
+            id: format!("p:view_plan_incomplete:v:{}", candidates.join("+v:")),
             code: "view_plan_incomplete".into(),
             severity: "error".into(),
             message: format!(
-                "{} dimension{} can only be drawn in the {view} view, which is omitted; they stay in the plan undrawn. Restore the view (remove views/{view}/omit) or omit them.",
-                ids.len(),
-                if ids.len() == 1 { "" } else { "s" }
+                "{n} dimension{s} can only be drawn in the {} view, but {}; they stay in the plan undrawn. {fix}",
+                named(&candidates),
+                why.join(" and ")
             ),
             subjects: ids,
         });
@@ -1699,12 +1814,13 @@ fn collisions(
 /// Draws the planned dimensions: lines, arrowheads and labels into *items* (the dims layer), and
 /// each label's text runs into *text*. Everything comes from the plan; nothing is measured or
 /// formatted here (R1 invariant 2).
-pub fn render(
-    dims: &[PlannedDimension],
-    font: &Font,
-    items: &mut Vec<Item>,
-    text: &mut Vec<TextRun>,
-) {
+///
+/// Labels are drawn with the same bundled font placement measured them with ([`FONT`]), so the
+/// label boxes the collision problems describe are the ink drawn. `⌀` is drawn as the font's `ø`,
+/// and its text run is `ø` too: the searchable text is what is printed. `↧`, `⌴` and `⌵` are
+/// strokes with no text run.
+pub fn render(dims: &[PlannedDimension], items: &mut Vec<Item>, text: &mut Vec<TextRun>) {
+    let font = font();
     for d in dims {
         let Some(p) = &d.placed else { continue };
         for l in &p.lines {

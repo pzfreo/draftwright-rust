@@ -2625,7 +2625,7 @@
       - "tests/test_issue_1596_bolt_circle_corroboration.py::test_a_feature_merely_nearby_does_not"
       - "tests/test_issue_1596_bolt_circle_corroboration.py::test_four_polar_holes_on_a_square_plate_do_not_establish_a_circular_datum"
     corpus_parts: []
-  status: ported
+  status: pending
   rust_test: tests/dimension_rules.rs::a_four_hole_bolt_circle_is_not_trusted
   rust_note: "Corroboration by five or more members only; corroboration by a concentric feature is not ported, so such a circle falls back to single holes."
   port_note: "Keep: scenario tests on synthetic plates (grid, 5-hole circle, flange with boss)."
