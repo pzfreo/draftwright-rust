@@ -2,7 +2,7 @@
 //! plan holds today (the sheet, the scale, the views and where they sit):
 //! `cargo run --release --example facts_compare -- <corpus> [name ...]`.
 //!
-//! A report, not a test: the port's placement is a first version, so differences are expected.
+//! A report, not a test: `tests/views.rs` holds the same comparison to its known differences.
 //! A view's position is compared like for like, as where each side puts the centre of the part's
 //! envelope on the page.
 
@@ -89,11 +89,6 @@ fn main() {
             mine.join(", "),
             tally(theirs == mine)
         );
-        let factor = ours
-            .scale
-            .split_once(':')
-            .and_then(|(n, m)| Some(n.parse::<f64>().ok()? / m.parse::<f64>().ok()?))
-            .unwrap_or(f64::NAN);
         // The envelope's centre, which the port centres each view on.
         let [lo, hi] = analysis.envelope;
         let centre = [0, 1, 2].map(|k| 0.5 * (lo[k] + hi[k]));
@@ -111,7 +106,7 @@ fn main() {
                 _ => false,
             };
             let at = t.page(centre);
-            let scale = t.scale.unwrap_or(f64::NAN);
+            let (scale, factor) = (t.scale.unwrap_or(f64::NAN), v.scale);
             match at {
                 Some(at) => {
                     let (dx, dy) = (v.at[0] - at[0], v.at[1] - at[1]);

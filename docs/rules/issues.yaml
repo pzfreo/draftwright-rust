@@ -2005,7 +2005,8 @@
       - "tests/test_issue_1395_degenerate_iso_region.py::test_a_nan_factor_is_refused_although_it_is_not_less_than_zero"
       - "tests/test_issue_1395_degenerate_iso_region.py::test_a_degenerate_zone_is_not_reported_as_an_infeasible_authored_scale"
     corpus_parts: ["issue_915_case_study_2.step"]
-  status: pending
+  status: ported
+  rust_test: a_degenerate_iso_rectangle_leaves_the_sheet_scale
   port_note: "Keep: view scale type rejects non-finite/non-positive; scenario issue_915 at 10:1."
 
 - id: ISSUE-1396-a

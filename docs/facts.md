@@ -17,8 +17,35 @@ are written to `tests/fixtures/sheets/<name>.json.gz`.
   cargo run --release --example facts_compare -- ~/repos/quiddity/tests/corpus [name ...]
   ```
 
-  It is a report, not a test. The port's placement is a first version, so differences are
-  expected until the real placement is ported.
+  It is a report; `tests/views.rs` is the same comparison as a test (below).
+
+## Views: the layout's arithmetic and its inputs
+
+The port's sheet, scale and view placement (`src/layout.rs`) is draftwright's layout authority,
+`compose.choose_scale` and `compose._layout_geometry`, ported whole. It is checked in two parts:
+
+- **The arithmetic, exactly.** `tools/capture_layout.py` builds the same sample in Python
+  draftwright and records every top-level call of those two functions, with all their inputs
+  (extents, annotation strip depths, views, sections, tables, derived views, gutters) and
+  results, at full precision, into `tests/fixtures/layout/<name>.json.gz`.
+  `tests/layout.rs` replays all of them (about 190 scale choices and 90 layouts) and holds the
+  port to 1e-9: the same scale, sheet and arrangement, view centres, isometric rectangle and fit
+  verdicts.
+
+  ```
+  PYTHONPATH=<draftwright>/src <draftwright>/.venv/bin/python tools/capture_layout.py \
+      <draftwright>/src ~/repos/quiddity/tests/corpus [name ...]
+  ```
+
+- **The result, against the facts.** `tests/views.rs` plans each sampled part and compares the
+  sheet, the scale, the view set, and each view's scale and centre with the captured sheet.
+  Every difference is listed in `tests/fixtures/known_views.json` with a verdict and its reason,
+  and a listed difference that goes away must come off the list. Today the differences come from
+  the layout's inputs, not its arithmetic: the port reserves only the overall sizes' annotation
+  bands until features are ported, it has no turned-part view reduction, sections or details yet,
+  and it cannot re-plan on a finished drawing's lint as draftwright does (ADR 2 invariants 3
+  and 16). The test reads the corpus from `DRAFTWRIGHT_CORPUS` (by default
+  `~/repos/quiddity/tests/corpus`) and says it is skipped when that is absent.
 
 ## Recapturing
 

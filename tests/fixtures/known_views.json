@@ -1,0 +1,518 @@
+[
+  {
+    "part": "cgb245",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 34.369 mm, plan balloon ring 21.5 mm, right of front/plan 201.5 mm, above plan 70 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "cgb245",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 34.369 mm, plan balloon ring 21.5 mm, right of front/plan 201.5 mm, above plan 70 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "cgb245",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 34.369 mm, plan balloon ring 21.5 mm, right of front/plan 201.5 mm, above plan 70 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "cgb245",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 34.369 mm, plan balloon ring 21.5 mm, right of front/plan 201.5 mm, above plan 70 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "cgb245",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 0.65): draftwright's staggered-side profile projects the isometric at 0.65 of the sheet scale before fitting it; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "connector109",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 22.579 mm, right of front/plan 201.5 mm, above plan 14 mm); draftwright's reduced view set."
+  },
+  {
+    "part": "connector109",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 22.579 mm, right of front/plan 201.5 mm, above plan 14 mm); draftwright's reduced view set; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "connector109",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 22.579 mm, right of front/plan 201.5 mm, above plan 14 mm); draftwright's reduced view set."
+  },
+  {
+    "part": "connector109",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 0.73035): draftwright's iso-growth profile lets the isometric grow to 1.5 (here 1.461), the port's default cap is 1.3; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "connector109",
+    "fact": "views",
+    "verdict": "undetermined",
+    "reason": "draftwright draws a turned part (turning axis z) as its profile and end views, front and plan, dropping the repeated radial side view (views decision: reduced, redundant_radial_view_removed, ADR2-13); the port has no turned-part recognition yet, so it keeps all three principals."
+  },
+  {
+    "part": "ctc01",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 36.244 mm, right of front/plan 69.5 mm, above plan 21 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; a repack on measured annotation blocks."
+  },
+  {
+    "part": "ctc01",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 36.244 mm, right of front/plan 69.5 mm, above plan 21 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; a repack on measured annotation blocks; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "ctc01",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 36.244 mm, right of front/plan 69.5 mm, above plan 21 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; a repack on measured annotation blocks."
+  },
+  {
+    "part": "ctc01",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 36.244 mm, right of front/plan 69.5 mm, above plan 21 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; a repack on measured annotation blocks."
+  },
+  {
+    "part": "ctc01",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 0.1963): draftwright's staggered-side profile projects the isometric at 0.65 of the sheet scale before fitting it; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "ctc04",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A2 at 1:5 vs A1 at 1:5); draftwright's annotation bands its features need (left 50.047 mm, plan balloon ring 21.5 mm, right of front/plan 119 mm, above plan 140 mm; angular dimensions, a planned section, hole tables); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "ctc04",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A2 at 1:5 vs A1 at 1:5); draftwright's annotation bands its features need (left 50.047 mm, plan balloon ring 21.5 mm, right of front/plan 119 mm, above plan 140 mm; angular dimensions, a planned section, hole tables); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "ctc04",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A2 at 1:5 vs A1 at 1:5); draftwright's annotation bands its features need (left 50.047 mm, plan balloon ring 21.5 mm, right of front/plan 119 mm, above plan 140 mm; angular dimensions, a planned section, hole tables); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "ctc04",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A2 at 1:5 vs A1 at 1:5); draftwright's annotation bands its features need (left 50.047 mm, plan balloon ring 21.5 mm, right of front/plan 119 mm, above plan 140 mm; angular dimensions, a planned section, hole tables); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "ctc04",
+    "fact": "sheet",
+    "verdict": "undetermined",
+    "reason": "Draftwright's first choice, with the annotation bands its features need (left 50.047 mm, plan balloon ring 21.5 mm, right of front/plan 119 mm, above plan 140 mm; angular dimensions, a planned section, hole tables), was A1 at 1:5. The port reserves only the bands of the overall sizes until features are ported, and so fits A2 at 1:5."
+  },
+  {
+    "part": "ftc06",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A1 at 1:1 vs A2 at 1:5); draftwright's annotation bands its features need (left 69.262 mm, right of front/plan 185 mm, above side 76 mm, above plan 28 mm; a planned section); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "ftc06",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A1 at 1:1 vs A2 at 1:5); draftwright's annotation bands its features need (left 69.262 mm, right of front/plan 185 mm, above side 76 mm, above plan 28 mm; a planned section); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "ftc06",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A1 at 1:1 vs A2 at 1:5); draftwright's annotation bands its features need (left 69.262 mm, right of front/plan 185 mm, above side 76 mm, above plan 28 mm; a planned section); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "ftc06",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A1 at 1:1 vs A2 at 1:5); draftwright's annotation bands its features need (left 69.262 mm, right of front/plan 185 mm, above side 76 mm, above plan 28 mm; a planned section); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "ftc06",
+    "fact": "scale",
+    "verdict": "undetermined",
+    "reason": "Draftwright's first choice, with the annotation bands its features need (left 69.262 mm, right of front/plan 185 mm, above side 76 mm, above plan 28 mm; a planned section), was A1 at 1:5, re-planned to A2 at 1:5 on its finished drawing's lint (scale decision: invalid). The port reserves only the bands of the overall sizes until features are ported, and so fits A1 at 1:1."
+  },
+  {
+    "part": "ftc06",
+    "fact": "scale:front",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A1 at 1:1 vs A2 at 1:5."
+  },
+  {
+    "part": "ftc06",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 0.25186): the sheet's scale differs (A1 at 1:1 vs A2 at 1:5); draftwright's staggered-side profile projects the isometric at 0.65 of the sheet scale before fitting it; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "ftc06",
+    "fact": "scale:plan",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A1 at 1:1 vs A2 at 1:5."
+  },
+  {
+    "part": "ftc06",
+    "fact": "scale:side",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A1 at 1:1 vs A2 at 1:5."
+  },
+  {
+    "part": "ftc06",
+    "fact": "sheet",
+    "verdict": "undetermined",
+    "reason": "Draftwright's first choice, with the annotation bands its features need (left 69.262 mm, right of front/plan 185 mm, above side 76 mm, above plan 28 mm; a planned section), was A1 at 1:5, re-planned to A2 at 1:5 on its finished drawing's lint (scale decision: invalid). The port reserves only the bands of the overall sizes until features are ported, and so fits A1 at 1:1."
+  },
+  {
+    "part": "ftc06",
+    "fact": "views",
+    "verdict": "undetermined",
+    "reason": "draftwright adds section A–A (section decision: placed); a section is planned from the part's hidden internal features, which are not ported yet."
+  },
+  {
+    "part": "grm03",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 2:1 vs A4 at 5:1); draftwright's annotation bands its features need (left 26.89 mm, right of front/plan 26.89 mm; a planned detail view); draftwright's reduced view set; the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "grm03",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 2:1 vs A4 at 5:1); draftwright's annotation bands its features need (left 26.89 mm, right of front/plan 26.89 mm; a planned detail view); draftwright's reduced view set; the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "grm03",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 2:1 vs A4 at 5:1); draftwright's annotation bands its features need (left 26.89 mm, right of front/plan 26.89 mm; a planned detail view); draftwright's reduced view set; the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "grm03",
+    "fact": "scale",
+    "verdict": "undetermined",
+    "reason": "The port makes draftwright's first choice, A4 at 2:1. Draftwright then re-planned to A4 at 5:1 on its finished drawing's lint (scale decision: automatic_replanned; ADR2-3 tries a larger scale on the chosen sheet before a larger sheet, ADR2-16 vetoes a sheet whose annotations overlap or overflow). The port has no annotations to judge yet."
+  },
+  {
+    "part": "grm03",
+    "fact": "scale:front",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 2:1 vs A4 at 5:1."
+  },
+  {
+    "part": "grm03",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 3.25): the sheet's scale differs (A4 at 2:1 vs A4 at 5:1); draftwright's staggered-side profile projects the isometric at 0.65 of the sheet scale before fitting it; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "grm03",
+    "fact": "scale:side",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 2:1 vs A4 at 5:1."
+  },
+  {
+    "part": "grm03",
+    "fact": "views",
+    "verdict": "undetermined",
+    "reason": "draftwright draws a turned part whose turning axis lies along x or y as its profile and end views, front and side, dropping the plan (views decision: reduced, redundant_radial_view_removed, ADR2-13); the port has no turned-part recognition yet, so it keeps all three principals."
+  },
+  {
+    "part": "grm05",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (right of front/plan 53 mm); draftwright's reduced view set; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "grm05",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 3): draftwright's iso-growth profile lets the isometric grow to 1.5 (here 1.5), the port's default cap is 1.3; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "grm05",
+    "fact": "views",
+    "verdict": "undetermined",
+    "reason": "draftwright draws a turned part (turning axis z) as front and plan, dropping the repeated radial side view (views decision: reduced, ADR2-13); the port has no turned-part recognition yet."
+  },
+  {
+    "part": "hanger",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 27.049 mm, right of front/plan 69.5 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "hanger",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 27.049 mm, right of front/plan 69.5 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "hanger",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 27.049 mm, right of front/plan 69.5 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "hanger",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 27.049 mm, right of front/plan 69.5 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "hanger",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 1): draftwright's staggered-side profile projects the isometric at 0.65 of the sheet scale before fitting it; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "hanger",
+    "fact": "views",
+    "verdict": "undetermined",
+    "reason": "draftwright adds detail view A (detail decision: placed); a detail view is planned from the features it enlarges, which are not ported yet."
+  },
+  {
+    "part": "m1000",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 2:1 vs A4 at 1:1); draftwright's annotation bands its features need (above front 26.5 mm, right of front/plan 102.5 mm, above side 26.5 mm); a repack on measured annotation blocks."
+  },
+  {
+    "part": "m1000",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 2:1 vs A4 at 1:1); draftwright's annotation bands its features need (above front 26.5 mm, right of front/plan 102.5 mm, above side 26.5 mm); a repack on measured annotation blocks; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "m1000",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 2:1 vs A4 at 1:1); draftwright's annotation bands its features need (above front 26.5 mm, right of front/plan 102.5 mm, above side 26.5 mm); a repack on measured annotation blocks."
+  },
+  {
+    "part": "m1000",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 2:1 vs A4 at 1:1); draftwright's annotation bands its features need (above front 26.5 mm, right of front/plan 102.5 mm, above side 26.5 mm); a repack on measured annotation blocks."
+  },
+  {
+    "part": "m1000",
+    "fact": "scale",
+    "verdict": "undetermined",
+    "reason": "Draftwright's first choice, with the annotation bands its features need (above front 26.5 mm, right of front/plan 102.5 mm, above side 26.5 mm), was A4 at 1:1. The port reserves only the bands of the overall sizes until features are ported, and so fits A4 at 2:1."
+  },
+  {
+    "part": "m1000",
+    "fact": "scale:front",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 2:1 vs A4 at 1:1."
+  },
+  {
+    "part": "m1000",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 1.5): the sheet's scale differs (A4 at 2:1 vs A4 at 1:1); draftwright's iso-growth profile lets the isometric grow to 1.5 (here 1.5), the port's default cap is 1.3; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "m1000",
+    "fact": "scale:plan",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 2:1 vs A4 at 1:1."
+  },
+  {
+    "part": "m1000",
+    "fact": "scale:side",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 2:1 vs A4 at 1:1."
+  },
+  {
+    "part": "m10046",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 1:1 vs A3 at 2:1); draftwright's annotation bands its features need (right of front/plan 53 mm; angular dimensions)."
+  },
+  {
+    "part": "m10046",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 1:1 vs A3 at 2:1); draftwright's annotation bands its features need (right of front/plan 53 mm; angular dimensions); the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "m10046",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 1:1 vs A3 at 2:1); draftwright's annotation bands its features need (right of front/plan 53 mm; angular dimensions)."
+  },
+  {
+    "part": "m10046",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 1:1 vs A3 at 2:1); draftwright's annotation bands its features need (right of front/plan 53 mm; angular dimensions)."
+  },
+  {
+    "part": "m10046",
+    "fact": "scale",
+    "verdict": "undetermined",
+    "reason": "Draftwright's first choice, with the annotation bands its features need (right of front/plan 53 mm; angular dimensions), was A3 at 2:1. The port reserves only the bands of the overall sizes until features are ported, and so fits A4 at 1:1."
+  },
+  {
+    "part": "m10046",
+    "fact": "scale:front",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
+  },
+  {
+    "part": "m10046",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 2.6): the sheet's scale differs (A4 at 1:1 vs A3 at 2:1); draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "m10046",
+    "fact": "scale:plan",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
+  },
+  {
+    "part": "m10046",
+    "fact": "scale:side",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
+  },
+  {
+    "part": "m10046",
+    "fact": "sheet",
+    "verdict": "undetermined",
+    "reason": "Draftwright's first choice, with the annotation bands its features need (right of front/plan 53 mm; angular dimensions), was A3 at 2:1. The port reserves only the bands of the overall sizes until features are ported, and so fits A4 at 1:1."
+  },
+  {
+    "part": "m10127",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 1:1 vs A3 at 2:1); draftwright's annotation bands its features need (left 28.597 mm, below plan 26.5 mm, right of front/plan 53 mm, above side 26.5 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "m10127",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 1:1 vs A3 at 2:1); draftwright's annotation bands its features need (left 28.597 mm, below plan 26.5 mm, right of front/plan 53 mm, above side 26.5 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "m10127",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 1:1 vs A3 at 2:1); draftwright's annotation bands its features need (left 28.597 mm, below plan 26.5 mm, right of front/plan 53 mm, above side 26.5 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "m10127",
+    "fact": "centre:side",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): the sheet and scale differ (A4 at 1:1 vs A3 at 2:1); draftwright's annotation bands its features need (left 28.597 mm, below plan 26.5 mm, right of front/plan 53 mm, above side 26.5 mm); the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "m10127",
+    "fact": "scale",
+    "verdict": "undetermined",
+    "reason": "The port makes draftwright's first choice, A4 at 1:1. Draftwright then re-planned to A3 at 2:1 on its finished drawing's lint (scale decision: automatic_replanned; ADR2-3 tries a larger scale on the chosen sheet before a larger sheet, ADR2-16 vetoes a sheet whose annotations overlap or overflow). The port has no annotations to judge yet."
+  },
+  {
+    "part": "m10127",
+    "fact": "scale:front",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
+  },
+  {
+    "part": "m10127",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 2.6): the sheet's scale differs (A4 at 1:1 vs A3 at 2:1); draftwright's staggered-side profile projects the isometric at 0.65 of the sheet scale before fitting it; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "m10127",
+    "fact": "scale:plan",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
+  },
+  {
+    "part": "m10127",
+    "fact": "scale:side",
+    "verdict": "undetermined",
+    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
+  },
+  {
+    "part": "m10127",
+    "fact": "sheet",
+    "verdict": "undetermined",
+    "reason": "The port makes draftwright's first choice, A4 at 1:1. Draftwright then re-planned to A3 at 2:1 on its finished drawing's lint (scale decision: automatic_replanned; ADR2-3 tries a larger scale on the chosen sheet before a larger sheet, ADR2-16 vetoes a sheet whose annotations overlap or overflow). The port has no annotations to judge yet."
+  },
+  {
+    "part": "spool132",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 67.609 mm, right of front/plan 69.5 mm, above plan 14 mm); draftwright's reduced view set; the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "spool132",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 67.609 mm, right of front/plan 69.5 mm, above plan 14 mm); draftwright's reduced view set; the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "spool132",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 67.609 mm, right of front/plan 69.5 mm, above plan 14 mm); draftwright's reduced view set; the staggered-side arrangement draftwright's annotation-demand profile chose; that profile's protected gutters."
+  },
+  {
+    "part": "spool132",
+    "fact": "views",
+    "verdict": "undetermined",
+    "reason": "draftwright draws a turned part (turning axis z) as front and plan, dropping the repeated radial side view (views decision: reduced, ADR2-13); the port has no turned-part recognition yet."
+  },
+  {
+    "part": "string_post",
+    "fact": "centre:front",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 26.851 mm, right of front/plan 69.5 mm, above plan 14 mm; a planned section); draftwright's reduced view set."
+  },
+  {
+    "part": "string_post",
+    "fact": "centre:iso",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 26.851 mm, right of front/plan 69.5 mm, above plan 14 mm; a planned section); draftwright's reduced view set; the isometric's rectangle, which is what the views leave."
+  },
+  {
+    "part": "string_post",
+    "fact": "centre:plan",
+    "verdict": "undetermined",
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls): draftwright's annotation bands its features need (left 26.851 mm, right of front/plan 69.5 mm, above plan 14 mm; a planned section); draftwright's reduced view set."
+  },
+  {
+    "part": "string_post",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 3): draftwright's iso-growth profile lets the isometric grow to 1.5 (here 1.5), the port's default cap is 1.3; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
+    "part": "string_post",
+    "fact": "views",
+    "verdict": "undetermined",
+    "reason": "draftwright draws a turned part (turning axis z) as front and plan, dropping the repeated radial side view (views decision: reduced, ADR2-13); the port has no turned-part recognition yet."
+  }
+]

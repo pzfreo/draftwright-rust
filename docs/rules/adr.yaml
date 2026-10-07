@@ -195,7 +195,8 @@
     adr: "ADR 2 Decision; archive 0004"
     issues: [121]
     tests: []
-  status: pending
+  status: ported
+  rust_test: layout_calls_match_draftwright
   port_note: "Keep: the planner sizes each view block including its annotations before choosing page/scale."
 
 - id: ADR2-D5
@@ -1093,7 +1094,8 @@
     adr: "archive 0004 'Relationship to retired ADR 0003'"
     issues: [94]
     tests: []
-  status: pending
+  status: ported
+  rust_test: views_keep_projection_alignment_and_their_areas_apart
   port_note: "Keep: principal-view arrangement is constrained by projection alignment in the planner (see ARCH0018-1 for first/third angle)."
 
 - id: ARCH0004-2

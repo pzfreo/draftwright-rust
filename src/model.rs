@@ -17,6 +17,7 @@ use haecceity::hlr::{Exact, View, project};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::layout::{self, Fallback, MARGIN, Principals, Request, Scaled};
 use crate::output::{
     Curve, Drawing, HAlign, Item, Layer, TextRun, VAlign, layer_styles, projected,
 };
@@ -44,6 +45,9 @@ pub struct Analysis {
     pub binding: Binding,
     /// The part's box in its own frame, mm.
     pub envelope: [[f64; 3]; 2],
+    /// The isometric's projected box (visible and hidden edges), `[x0, y0, x1, y1]` mm at 1:1,
+    /// about the projection of the envelope's centre: what the isometric is fitted by.
+    pub iso_bounds: [f64; 4],
 }
 
 /// What the author decided. Anything absent takes its default.
@@ -108,6 +112,12 @@ pub struct PlannedSheet {
     /// Width and height, mm.
     pub page: [f64; 2],
     pub scale: String,
+    /// The principal views' scale as a number (page mm per world mm).
+    pub scale_factor: f64,
+    /// Where the isometric sits relative to the orthographic row: `columns`, `stacked-iso`.
+    pub arrangement: String,
+    /// The title block's box, `[x0, y0, x1, y1]` mm.
+    pub title_block: [f64; 4],
     pub default: bool,
     pub basis: String,
     pub title: BTreeMap<String, String>,
@@ -119,8 +129,13 @@ pub struct PlannedView {
     /// Towards the viewer, and the view's up.
     pub direction: [f64; 3],
     pub up: [f64; 3],
-    /// The view's centre on the page, mm.
+    /// Where the centre of the part's box lands on the page, mm.
     pub at: [f64; 2],
+    /// The view's own scale: the sheet's, except an isometric resized to fill its space.
+    pub scale: f64,
+    /// The page area reserved for the view, `[x0, y0, x1, y1]` mm: a principal view's box with
+    /// its annotation bands, or the isometric's rectangle.
+    pub area: [f64; 4],
     pub default: bool,
     pub basis: String,
 }
@@ -166,36 +181,24 @@ const VIEWS: [(&str, [f64; 3], [f64; 3]); 4] = [
     ("side", [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     ("iso", [1.0, -1.0, 1.0], [0.0, 0.0, 1.0]),
 ];
-const SHEETS: [(&str, [f64; 2]); 5] = [
-    ("A4", [297.0, 210.0]),
-    ("A3", [420.0, 297.0]),
-    ("A2", [594.0, 420.0]),
-    ("A1", [841.0, 594.0]),
-    ("A0", [1189.0, 841.0]),
-];
-/// ISO 5455's recommended scales, largest first.
-const SCALES: [(&str, f64); 13] = [
-    ("10:1", 10.0),
-    ("5:1", 5.0),
-    ("2:1", 2.0),
-    ("1:1", 1.0),
-    ("1:2", 0.5),
-    ("1:5", 0.2),
-    ("1:10", 0.1),
-    ("1:20", 0.05),
-    ("1:50", 0.02),
-    ("1:100", 0.01),
-    ("1:200", 0.005),
-    ("1:500", 0.002),
-    ("1:1000", 0.001),
-];
-/// The border's distance from the page edge; the views' clearance inside it; the title block's
-/// band; the gap between views. All mm.
-const MARGIN: f64 = 10.0;
-const INSET: f64 = 10.0;
-const TITLE_BAND: f64 = 40.0;
-const GAP: f64 = 20.0;
 const LOADER: &str = concat!("haecceity via draftwright ", env!("CARGO_PKG_VERSION"));
+
+/// A scale as printed: `n:1` or `1:n`.
+fn scale_name(s: f64) -> String {
+    if s >= 1.0 {
+        format!("{}:1", fmt_ratio(s))
+    } else {
+        format!("1:{}", fmt_ratio(1.0 / s))
+    }
+}
+
+fn fmt_ratio(r: f64) -> String {
+    if (r - r.round()).abs() < 1e-9 {
+        format!("{}", r.round())
+    } else {
+        format!("{r:.3}")
+    }
+}
 
 /// Reads the STEP file at *path*: the part, and its analysis.
 pub fn analyse(path: &Path) -> Result<(Part, Analysis), String> {
@@ -203,7 +206,7 @@ pub fn analyse(path: &Path) -> Result<(Part, Analysis), String> {
     let part = haecceity::read_step(&bytes)
         .map_err(|e| format!("cannot read {} as STEP: {e:?}", path.display()))?;
     let b = part.bounds();
-    let analysis = Analysis {
+    let mut analysis = Analysis {
         schema: ANALYSIS_SCHEMA.into(),
         binding: Binding {
             source_sha256: Sha256::digest(&bytes)
@@ -217,7 +220,32 @@ pub fn analyse(path: &Path) -> Result<(Part, Analysis), String> {
             loader: LOADER.into(),
         },
         envelope: [b.min, b.max],
+        iso_bounds: [0.0; 4],
     };
+    let (_, toward, up) = VIEWS[3];
+    let iso = View::new(toward, up).expect("standard view");
+    let centre = extent(&analysis, &iso).1;
+    let mut bounds = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    for p in project(&part, &iso)
+        .iter()
+        .flat_map(|piece| piece.points.iter())
+    {
+        let q = [p[0] - centre[0], p[1] - centre[1]];
+        bounds = [
+            bounds[0].min(q[0]),
+            bounds[1].min(q[1]),
+            bounds[2].max(q[0]),
+            bounds[3].max(q[1]),
+        ];
+    }
+    if bounds[0].is_finite() {
+        analysis.iso_bounds = bounds;
+    }
     Ok((part, analysis))
 }
 
@@ -239,8 +267,14 @@ fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
     )
 }
 
-/// Plans the sheet: which views, where, at what scale and on what sheet. Each choice the spec
-/// leaves open is marked as a default, with the reason for it.
+/// Plans the sheet: which views, where, at what scale and on what sheet, as draftwright's layout
+/// does ([`layout`]): each principal view is a block of its box and the annotation bands reserved
+/// around it, packed third-angle; the isometric takes the largest space left. Each choice the
+/// spec leaves open is marked as a default, with the reason for it.
+///
+/// Until features are ported, the bands are those of a part with nothing but its overall sizes
+/// to dimension, and the scale and sheet are draftwright's first choice, before it re-plans on
+/// its finished drawing's findings.
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let mut problems = Vec::new();
     if let Some(b) = &spec.binding
@@ -263,128 +297,167 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             ));
         }
     }
-    let shown: Vec<_> = VIEWS
-        .iter()
-        .filter(|(name, ..)| !spec.views.get(*name).is_some_and(|v| v.omit))
-        .collect();
-    if shown.is_empty() {
+    let shown = |name: &str| !spec.views.get(name).is_some_and(|v| v.omit);
+    let principals = Principals {
+        front: shown("front"),
+        plan: shown("plan"),
+        side: shown("side"),
+    };
+    if !(principals.front || principals.plan || principals.side) {
         return Err(invalid(
-            "Every view is omitted; a sheet needs at least one.",
-            &[],
+            "Every principal view is omitted; a sheet needs front, plan or side.",
+            &["front", "plan", "side"],
         ));
     }
-    let size_of = |name: &str| {
-        shown
-            .iter()
-            .find(|v| v.0 == name)
-            .map(|(_, d, u)| extent(analysis, &View::new(*d, *u).expect("standard view")).0)
+    let page = match &spec.sheet.size {
+        Some(s) => Some(
+            layout::PAGES
+                .iter()
+                .find(|(n, ..)| n == s)
+                .map(|(_, w, h)| [*w, *h])
+                .ok_or_else(|| {
+                    invalid(
+                        format!("{s:?} is not a sheet size."),
+                        &layout::PAGES.map(|p| p.0),
+                    )
+                })?,
+        ),
+        None => None,
     };
-    // Third-angle: plan above front, side to its right, iso above side.
-    let none = [0.0, 0.0];
-    let (front, plan_, side, iso) = (
-        size_of("front").unwrap_or(none),
-        size_of("plan").unwrap_or(none),
-        size_of("side").unwrap_or(none),
-        size_of("iso").unwrap_or(none),
-    );
-    let (left_w, right_w) = (front[0].max(plan_[0]), side[0].max(iso[0]));
-    let (low_h, high_h) = (front[1].max(side[1]), plan_[1].max(iso[1]));
-    let fits = |page: [f64; 2], s: f64| {
-        let (w, h) = (s * (left_w + right_w), s * (low_h + high_h));
-        let gaps = |a: f64, b: f64| if a > 0.0 && b > 0.0 { GAP } else { 0.0 };
-        w + gaps(left_w, right_w) <= page[0] - 2.0 * (MARGIN + INSET)
-            && h + gaps(low_h, high_h) <= page[1] - 2.0 * (MARGIN + INSET) - TITLE_BAND
+    let scale = match &spec.sheet.scale {
+        Some(s) => Some(
+            layout::SCALES
+                .iter()
+                .copied()
+                .find(|k| scale_name(*k) == *s)
+                .ok_or_else(|| {
+                    let names = layout::SCALES.map(scale_name);
+                    invalid(
+                        format!("{s:?} is not a standard scale."),
+                        &names.iter().map(String::as_str).collect::<Vec<_>>(),
+                    )
+                })?,
+        ),
+        None => None,
     };
 
-    let sheets: Vec<(&str, [f64; 2])> =
-        match &spec.sheet.size {
-            Some(s) => vec![*SHEETS.iter().find(|(n, _)| n == s).ok_or_else(|| {
-                invalid(format!("{s:?} is not a sheet size."), &SHEETS.map(|s| s.0))
-            })?],
-            None => SHEETS.to_vec(),
-        };
-    let scales: Vec<(&str, f64)> = match &spec.sheet.scale {
-        Some(s) => vec![*SCALES.iter().find(|(n, _)| n == s).ok_or_else(|| {
-            invalid(
-                format!("{s:?} is not a standard scale."),
-                &SCALES.map(|s| s.0),
-            )
-        })?],
-        None => SCALES.to_vec(),
-    };
-    // The smallest sheet, then the largest scale, that holds the views.
-    let chosen = sheets.iter().find_map(|(name, page)| {
-        scales
-            .iter()
-            .find(|(_, s)| fits(*page, *s))
-            .map(|(scale, s)| (*name, *page, *scale, *s))
-    });
-    let (size, page, scale, s) = match chosen {
-        Some(c) => c,
-        None => {
-            let (name, page) = *sheets.last().expect("one sheet at least");
-            let (scale, s) = *scales.last().expect("one scale at least");
-            problems.push(Problem {
-                id: "p:views_do_not_fit:sheet".into(),
-                code: "views_do_not_fit".into(),
-                severity: "error".into(),
-                message: format!("The views do not fit {name} at {scale}."),
-                subjects: vec!["sheet".into()],
-            });
-            (name, page, scale, s)
-        }
-    };
+    let [lo, hi] = analysis.envelope;
+    let request = Request::new(
+        [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]],
+        principals,
+        shown("iso"),
+    );
+    let none = |_: f64| Scaled::default();
+    let pick = layout::choose(
+        &request,
+        &none,
+        scale,
+        page,
+        &layout::AUTOMATIC_ARRANGEMENTS,
+        None,
+    );
+    let size = layout::PAGES
+        .iter()
+        .find(|(_, w, h)| [*w, *h] == pick.page)
+        .map_or_else(
+            || format!("{}x{}", pick.page[0], pick.page[1]),
+            |p| p.0.into(),
+        );
+    let scale = scale_name(pick.scale);
+    match pick.fallback {
+        Some(Fallback::Computed) => problems.push(Problem {
+            id: "p:scale_fallback_applied:sheet".into(),
+            code: "scale_fallback_applied".into(),
+            severity: "warning".into(),
+            message: format!(
+                "No standard scale fits the views on {size}; the largest that fits, {scale}, is used."
+            ),
+            subjects: vec!["sheet".into()],
+        }),
+        Some(Fallback::Overflow) => problems.push(Problem {
+            id: "p:views_do_not_fit:sheet".into(),
+            code: "views_do_not_fit".into(),
+            severity: "error".into(),
+            message: format!("The views do not fit {size} at {scale}."),
+            subjects: vec!["sheet".into()],
+        }),
+        Some(Fallback::Uncertain) => problems.push(Problem {
+            id: "p:page_fit_uncertain:sheet".into(),
+            code: "page_fit_uncertain".into(),
+            severity: "warning".into(),
+            message: format!("The views may not fit {size} at {scale}, as the spec asks."),
+            subjects: vec!["sheet".into()],
+        }),
+        None => {}
+    }
     let basis = match (&spec.sheet.size, &spec.sheet.scale) {
         (None, None) => format!(
-            "the smallest sheet, at the largest standard scale, that holds the views ({size} at {scale})"
+            "the first sheet and scale on draftwright's ladder (every enlargement on the smallest sheet first, then reductions) whose views and their annotation bands fit: {size} at {scale}"
         ),
         (Some(_), None) => format!("the largest standard scale at which the views fit {size}"),
         (None, Some(_)) => format!("the smallest sheet that holds the views at {scale}"),
         (Some(_), Some(_)) => "as the spec asks".into(),
     };
 
-    // Columns and rows from the page's lower left, inside the border and above the title band.
-    let (x0, y0) = (MARGIN + INSET, MARGIN + INSET + TITLE_BAND);
-    let gap_x = if left_w > 0.0 && right_w > 0.0 {
-        GAP
-    } else {
-        0.0
-    };
-    let gap_y = if low_h > 0.0 && high_h > 0.0 {
-        GAP
-    } else {
-        0.0
-    };
-    let (cx_left, cx_right) = (
-        x0 + s * left_w / 2.0,
-        x0 + s * left_w + gap_x + s * right_w / 2.0,
+    let g = layout::geometry(
+        &request,
+        &Scaled::default(),
+        pick.scale,
+        pick.page,
+        pick.tb_w,
+        pick.arrangement,
+        None,
     );
-    let (cy_low, cy_high) = (
-        y0 + s * low_h / 2.0,
-        y0 + s * low_h + gap_y + s * high_h / 2.0,
-    );
-    let views = shown
+    let ib = analysis.iso_bounds.map(|b| b * pick.scale);
+    let iso_factor = layout::iso_factor(g.iso, g.iso_centre, ib);
+    let views = VIEWS
         .iter()
+        .filter(|(name, ..)| shown(name))
         .map(|(name, direction, up)| {
-            let (at, basis) = match *name {
-                "front" => ([cx_left, cy_low], "the principal view, lower left"),
+            let [fv, pv, sv] = g.blocks;
+            let (at, area, scale, basis) = match *name {
+                "front" => (
+                    g.front,
+                    fv.footprint(g.front[0], g.front[1]),
+                    pick.scale,
+                    "the principal view, its box and annotation bands packed from the lower left"
+                        .to_string(),
+                ),
                 "plan" => (
-                    [cx_left, cy_high],
-                    "third-angle: the plan sits above the front",
+                    g.plan,
+                    pv.footprint(g.plan[0], g.plan[1]),
+                    pick.scale,
+                    "third-angle: the plan sits above the front, past both views' bands".into(),
                 ),
                 "side" => (
-                    [cx_right, cy_low],
-                    "third-angle: the right side sits right of the front",
+                    g.side,
+                    sv.footprint(g.side[0], g.side[1]),
+                    pick.scale,
+                    "third-angle: the right side sits right of the front, past both views' bands"
+                        .into(),
                 ),
-                _ => ([cx_right, cy_high], "the isometric view, upper right"),
+                _ => (
+                    g.iso_centre,
+                    g.iso,
+                    pick.scale * iso_factor,
+                    if iso_factor == 1.0 {
+                        "the isometric, centred in the largest space the other views leave".into()
+                    } else {
+                        format!(
+                            "the isometric, centred in the largest space the other views leave and scaled ×{iso_factor} to fill it (not to scale)"
+                        )
+                    },
+                ),
             };
             PlannedView {
                 id: format!("v:{name}"),
                 direction: *direction,
                 up: *up,
                 at,
+                scale,
+                area,
                 default: !spec.views.contains_key(*name),
-                basis: basis.into(),
+                basis,
             }
         })
         .collect();
@@ -402,9 +475,12 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
         sheet: PlannedSheet {
-            size: size.into(),
-            page,
-            scale: scale.into(),
+            size,
+            page: pick.page,
+            scale,
+            scale_factor: pick.scale,
+            arrangement: pick.arrangement.name().into(),
+            title_block: g.title_block,
             default: spec.sheet.size.is_none() || spec.sheet.scale.is_none(),
             basis,
             title,
@@ -470,10 +546,6 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
 /// Draws the plan: each view projected with hidden lines, placed and scaled, and the title
 /// block. The spec travels in the output.
 pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Drawing {
-    let s = SCALES
-        .iter()
-        .find(|(n, _)| *n == plan.sheet.scale)
-        .map_or(1.0, |x| x.1);
     let mut layers: Vec<Layer> = layer_styles()
         .into_iter()
         .map(|(name, style)| Layer {
@@ -484,6 +556,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
         .collect();
     for v in &plan.views {
         let view = View::new(v.direction, v.up).expect("a planned view");
+        let s = v.scale;
         let centre = extent(analysis, &view).1;
         let place = |q: [f64; 2]| {
             [
@@ -510,7 +583,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
     };
     let part_layer = &mut layers[0].items;
     part_layer.extend(rect(MARGIN, MARGIN, w - MARGIN, h - MARGIN));
-    let (tx0, tx1, ty0, ty1) = (w - MARGIN - 180.0, w - MARGIN, MARGIN, MARGIN + 30.0);
+    let [tx0, ty0, tx1, ty1] = plan.sheet.title_block;
     part_layer.extend(rect(tx0, ty0, tx1, ty1));
     let mut text = Vec::new();
     let mut label = |s: &str, at: [f64; 2], size: f64, layer: &mut Vec<Item>| {
@@ -554,7 +627,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
     };
     let dims = &mut layers[2].items;
     let title = |k: &str| plan.sheet.title.get(k).cloned().unwrap_or_default();
-    label(&title("title"), [0.5 * (tx0 + tx1), ty1 - 10.0], 5.0, dims);
+    label(&title("title"), [0.5 * (tx0 + tx1), ty1 - 12.0], 5.0, dims);
     label(
         &format!(
             "{}   SCALE {}   {}",
