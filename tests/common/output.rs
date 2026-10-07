@@ -138,6 +138,7 @@ pub fn drawing(content: &Value) -> Drawing {
             .as_array()
             .map(|l| [0, 1, 2, 3].map(|i| l[i].as_f64().unwrap())),
         text,
+        spec: None,
     }
 }
 

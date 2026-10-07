@@ -30,6 +30,23 @@ each against what the Python implementation produces:
    - Not yet done: PNG, font subsetting (the PDFs embed whole fonts) and DXF table head
      handles (ezdxf adds them on audit).
 
+## Using it
+
+A drawing is three JSON documents: the Analysis, the Spec and the Plan. Five stateless
+operations work on them (`docs/model.md`, ADR R1):
+
+```
+draftwright analyse part.step                          # the Analysis
+draftwright plan part.step --spec part.drawing.json    # the Plan, every choice with its basis
+draftwright edit part.drawing.json ops.json            # apply edits to a Spec
+draftwright render part.step --spec part.drawing.json -o out   # out.svg, out.dxf, out.pdf
+draftwright spec out.pdf                               # the Spec a drawing was made from
+```
+
+It covers the views, sheet, scale and title block so far; dimensions and annotations come next.
+The plan, the ADRs (`docs/adr/`) and the rules catalogue that tracks what the Python version
+learnt (`docs/rules/`) are in `docs/`.
+
 Feature recognition is bridged from Python quiddity's JSON results until the Rust quiddity
 covers the families and the aggregate draftwright needs.
 

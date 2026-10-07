@@ -5,5 +5,6 @@
 
 pub use haecceity;
 
+pub mod model;
 pub mod output;
 pub mod text;

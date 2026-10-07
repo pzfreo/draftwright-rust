@@ -138,6 +138,9 @@ pub struct Drawing {
     /// The attribution link's rectangle (x0, y0, x1, y1), mm.
     pub link: Option<[f64; 4]>,
     pub text: Vec<TextRun>,
+    /// The spec the drawing was made from (JSON), carried in the SVG's metadata and the PDF's
+    /// document information so the drawing can be resumed from the file alone.
+    pub spec: Option<String>,
 }
 
 pub const LINK: &str = "https://github.com/pzfreo/draftwright";
@@ -193,7 +196,11 @@ impl Drawing {
         let mut s = String::new();
         let _ = write!(
             s,
-            "<?xml version='1.0' encoding='utf-8'?>\n<svg xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w:.3}mm\" height=\"{h:.3}mm\" viewBox=\"0 -{h:.3} {w:.3} {h:.3}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\"><!-- {GENERATED_BY}: {LINK} --><metadata><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><rdf:Description><dc:creator>draftwright</dc:creator><dc:source>{LINK}</dc:source><dc:description>{GENERATED_BY}</dc:description></rdf:Description></rdf:RDF></metadata>\n  <g transform=\"scale(1,-1)\" stroke-linecap=\"round\">\n"
+            "<?xml version='1.0' encoding='utf-8'?>\n<svg xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w:.3}mm\" height=\"{h:.3}mm\" viewBox=\"0 -{h:.3} {w:.3} {h:.3}\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\"><!-- {GENERATED_BY}: {LINK} --><metadata><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><rdf:Description><dc:creator>draftwright</dc:creator><dc:source>{LINK}</dc:source><dc:description>{GENERATED_BY}</dc:description></rdf:Description></rdf:RDF>{}</metadata>\n  <g transform=\"scale(1,-1)\" stroke-linecap=\"round\">\n",
+            self.spec.as_ref().map_or(String::new(), |j| format!(
+                "<draftwright:spec xmlns:draftwright=\"{LINK}\"><![CDATA[{}]]></draftwright:spec>",
+                j.replace("]]>", "]]]]><![CDATA[>")
+            ))
         );
         for layer in &self.layers {
             let st = &layer.style;
@@ -237,6 +244,28 @@ impl Drawing {
         let mut d = dxf::Drawing::new();
         d.header.version = AcadVersion::R2013;
         d.header.default_drawing_units = Units::Millimeters;
+        // The crate stamps the clock and random GUIDs: pin them, so the same drawing gives the
+        // same bytes (reportlab's `invariant` dates for draftwright's PDFs are 2000-01-01 too).
+        {
+            use chrono::TimeZone;
+            let local = chrono::Local
+                .with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
+                .earliest()
+                .expect("a fixed local time");
+            let utc = chrono::Utc
+                .with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
+                .single()
+                .expect("a fixed time");
+            (d.header.creation_date, d.header.update_date) = (local, local);
+            (
+                d.header.creation_date_universal,
+                d.header.update_date_universal,
+            ) = (utc, utc);
+            use sha2::Digest;
+            let digest = sha2::Sha256::digest(self.spec.as_deref().unwrap_or("").as_bytes());
+            let id = uuid::Uuid::from_slice(&digest[..16]).expect("16 bytes");
+            (d.header.fingerprint_guid, d.header.version_guid) = (id, id);
+        }
         // The crate builds a line weight of a given value only by deserialising one.
         let weight = |w: i16| -> dxf::LineWeight {
             serde_json::from_value(serde_json::json!({ "raw_value": w }))
@@ -365,10 +394,15 @@ impl Drawing {
         let mut pdf = Pdf::new();
         pdf.catalog(catalog).pages(tree);
         pdf.pages(tree).kids([page]).count(1);
-        pdf.document_info(info)
+        let mut doc_info = pdf.document_info(info);
+        doc_info
             .title(TextStr(GENERATED_BY))
             .creator(TextStr(GENERATED_BY))
             .producer(TextStr("draftwright"));
+        if let Some(spec) = &self.spec {
+            doc_info.pair(Name(b"DraftwrightSpec"), Str(spec.as_bytes()));
+        }
+        doc_info.finish();
 
         let mut c = Content::new();
         c.save_state();
@@ -795,6 +829,54 @@ fn bezier_pieces(
         pieces.iter_mut().for_each(|p| p.reverse());
     }
     pieces
+}
+
+/// A PDF literal string's text, from just after its opening parenthesis: escapes undone, ending
+/// at the parenthesis that balances it.
+pub fn pdf_unescape(s: &str) -> Option<String> {
+    let (mut out, mut depth, mut chars) = (Vec::new(), 1usize, s.bytes().peekable());
+    while let Some(c) = chars.next() {
+        match c {
+            b'\\' => {
+                let e = chars.next()?;
+                match e {
+                    b'n' => out.push(b'\n'),
+                    b'r' => out.push(b'\r'),
+                    b't' => out.push(b'\t'),
+                    b'b' => out.push(8),
+                    b'f' => out.push(12),
+                    b'0'..=b'7' => {
+                        let mut v = u32::from(e - b'0');
+                        for _ in 0..2 {
+                            match chars.peek() {
+                                Some(d @ b'0'..=b'7') => {
+                                    v = v * 8 + u32::from(d - b'0');
+                                    chars.next();
+                                }
+                                _ => break,
+                            }
+                        }
+                        out.push(v as u8);
+                    }
+                    b'\n' => {}
+                    other => out.push(other),
+                }
+            }
+            b'(' => {
+                depth += 1;
+                out.push(c);
+            }
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return String::from_utf8(out).ok();
+                }
+                out.push(c);
+            }
+            _ => out.push(c),
+        }
+    }
+    None
 }
 
 /// A Bézier's (homogeneous) poles raised to *degree*.
