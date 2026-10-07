@@ -22,6 +22,7 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
   source: { adr: "…", lint_code: "…", module: "…", issues: [1196], tests: ["…"], corpus_parts: ["…"] }
   status: pending                 # pending | ported | translated | retired
   port_note: "Keep: …"            # the extractor's suggestion
+  owner: draftwright              # set when ported, for recognition lessons: quiddity | draftwright
 ```
 
 - **drafting:** what the sheet must say, show or avoid. These are ported as checks on the plan
@@ -51,6 +52,11 @@ classifications and port notes are judgement calls. Settled with the maintainer 
   topology identities. The Spec's draftwright-owned IDs are allowed within one file. Across
   revisions the Spec carries quiddity's fingerprints (ADR R3), never face indices.
 
-Still open for review:
-- **Recognition lessons:** those about not claiming an unproven feature are classed trust; those
-  about how a recognised feature is dimensioned are classed drafting.
+- **Recognition lessons:** the split stands.
+  - Lessons about not claiming an unproven feature are classed trust.
+  - Lessons about how a recognised feature is dimensioned are classed drafting.
+  - As each "don't claim it" lesson is ported, it gains `owner:`:
+    - `quiddity` when recognition itself should refuse the feature, with its test in
+      quiddity-rust;
+    - `draftwright` when the drawing must say that recognition refused or was unsure, rather
+      than guess.
