@@ -73,8 +73,10 @@
     adr: "ADR 1 invariant 5"
     issues: []
     tests: ["test_detect_registry.py", "test_external_recognition_boundary.py"]
-  status: pending
+  status: translated
   port_note: "Translate: one analyse adapter from quiddity records to Analysis features, using exhaustive Rust match so a new record type fails to compile until homed."
+  rust_rule: "src/bridge.rs is the one adapter from quiddity's recognition JSON to the Analysis; its home() match gives every record type it knows one home (feature, evidence or refusal) and the read fails on any other type. The records arrive as JSON, so an unknown type fails at read time, not at compile time."
+  rust_test: refusals_and_evidence_are_not_features
 
 - id: ADR1-6
   statement: "Orientation is data: a feature group's view is derived from its frame by one rule, so X and Z are symmetric."

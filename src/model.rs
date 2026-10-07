@@ -17,6 +17,7 @@ use haecceity::hlr::{Exact, View, project};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::bridge::{Feature, Recognition};
 use crate::output::{
     Curve, Drawing, HAlign, Item, Layer, TextRun, VAlign, layer_styles, projected,
 };
@@ -44,6 +45,11 @@ pub struct Analysis {
     pub binding: Binding,
     /// The part's box in its own frame, mm.
     pub envelope: [[f64; 3]; 2],
+    /// Where the features came from; absent when none were recognised.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recognition: Option<Recognition>,
+    #[serde(default)]
+    pub features: Vec<Feature>,
 }
 
 /// What the author decided. Anything absent takes its default.
@@ -197,13 +203,19 @@ const TITLE_BAND: f64 = 40.0;
 const GAP: f64 = 20.0;
 const LOADER: &str = concat!("haecceity via draftwright ", env!("CARGO_PKG_VERSION"));
 
-/// Reads the STEP file at *path*: the part, and its analysis.
+/// Reads the STEP file at *path*: the part, and its analysis, without features.
 pub fn analyse(path: &Path) -> Result<(Part, Analysis), String> {
+    analyse_with(path, None)
+}
+
+/// Reads the STEP file at *path*, with its features from *recognition*: Python quiddity's JSON
+/// for the same file, written by `tools/recognise.py` ([`crate::bridge`]).
+pub fn analyse_with(path: &Path, recognition: Option<&Path>) -> Result<(Part, Analysis), String> {
     let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let part = haecceity::read_step(&bytes)
         .map_err(|e| format!("cannot read {} as STEP: {e:?}", path.display()))?;
     let b = part.bounds();
-    let analysis = Analysis {
+    let mut analysis = Analysis {
         schema: ANALYSIS_SCHEMA.into(),
         binding: Binding {
             source_sha256: Sha256::digest(&bytes)
@@ -217,7 +229,18 @@ pub fn analyse(path: &Path) -> Result<(Part, Analysis), String> {
             loader: LOADER.into(),
         },
         envelope: [b.min, b.max],
+        recognition: None,
+        features: Vec::new(),
     };
+    if let Some(r) = recognition {
+        let json =
+            std::fs::read_to_string(r).map_err(|e| format!("cannot read {}: {e}", r.display()))?;
+        let (recognition, features) =
+            crate::bridge::read(&part, &analysis.binding.source_sha256, &json)
+                .map_err(|e| format!("{}: {e}", r.display()))?;
+        analysis.recognition = Some(recognition);
+        analysis.features = features;
+    }
     Ok((part, analysis))
 }
 

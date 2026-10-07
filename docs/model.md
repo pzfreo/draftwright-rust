@@ -48,7 +48,16 @@ edited.
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.
 - **Features** come from Rust quiddity. Until a family is ported, Python quiddity's JSON fills in
-  through a bridge.
+  through a bridge (`src/bridge.rs`): `tools/recognise.py part.step -o r.json` writes it, and
+  `analyse`, `plan` and `render` take it as `--features r.json`. The bridge refuses JSON from
+  another file or whose faces (count, surface type, area) are not the part's. A feature's `n` is
+  its rank among its kind ordered by faces; `recognition` records the recogniser and the frame
+  quiddity's parameters are in. Every quiddity record type has one home: a feature, evidence
+  (`recognition.evidence`, e.g. face levels and risers) or a refusal (`recognition.refusals`,
+  with quiddity's reason); a record type the bridge does not know is refused. `recognition` and
+  `features` were added to `draftwright.analysis/1` as optional fields, so analyses written
+  before them still read. Rust quiddity's JSON carries no faces yet, so it cannot anchor
+  features.
 
 ### Spec: what the author decided
 
