@@ -40,8 +40,14 @@ draftwright analyse part.step                          # the Analysis
 draftwright plan part.step --spec part.drawing.json    # the Plan, every choice with its basis
 draftwright edit part.drawing.json ops.json            # apply edits to a Spec
 draftwright render part.step --spec part.drawing.json -o out   # out.svg, out.dxf, out.pdf
-draftwright spec out.pdf                               # the Spec a drawing was made from
+draftwright review part.step --spec part.drawing.json  # the drawing as SVG text, with problems
+draftwright spec out.dxf                               # the Spec a drawing (SVG, DXF, PDF) was made from
+draftwright serve                                      # the same operations as a JSON-lines service
+draftwright-mcp                                        # the same operations as an MCP server (stdio)
 ```
+
+To use the MCP server from an MCP client, register the `draftwright-mcp` binary as a stdio
+server (for Claude Code: `claude mcp add draftwright -- /path/to/draftwright-mcp`).
 
 It covers the views, sheet, scale and title block so far; dimensions and annotations come next.
 The plan, the ADRs (`docs/adr/`) and the rules catalogue that tracks what the Python version

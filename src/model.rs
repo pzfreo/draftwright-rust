@@ -618,10 +618,24 @@ fn placed(e: &Exact, s: f64, centre: [f64; 2], at: [f64; 2]) -> Exact {
     }
 }
 
-/// The spec embedded in a rendered SVG or PDF, so a drawing can be resumed from the file alone.
+/// The spec embedded in a rendered SVG, DXF or PDF, so a drawing can be resumed from the file
+/// alone.
 pub fn embedded_spec(file: &[u8]) -> Option<Spec> {
     let text = String::from_utf8_lossy(file);
-    let json = if let Some(i) = text.find("<draftwright:spec") {
+    let json = if let Some(i) = text.find(crate::output::DXF_SPEC) {
+        // DXF: the 999 comments after the marker, joined.
+        let mut lines = text[i..]
+            .split('\n')
+            .map(|l| l.strip_suffix('\r').unwrap_or(l));
+        lines.next();
+        let mut json = String::new();
+        while let (Some(code), Some(piece)) = (lines.next(), lines.next())
+            && code.trim() == "999"
+        {
+            json += piece;
+        }
+        json
+    } else if let Some(i) = text.find("<draftwright:spec") {
         let rest = &text[i..];
         let rest = &rest[rest.find("<![CDATA[")? + "<![CDATA[".len()..];
         let end = rest.find("</draftwright:spec>")?;
@@ -629,9 +643,20 @@ pub fn embedded_spec(file: &[u8]) -> Option<Spec> {
         rest[..end]
             .trim_end_matches("]]>")
             .replace("]]]]><![CDATA[>", "]]>")
+    } else if let Some(i) = text.find("/DraftwrightSpec (") {
+        crate::output::pdf_unescape(&text[i + "/DraftwrightSpec (".len()..])?
     } else {
-        let i = text.find("/DraftwrightSpec (")? + "/DraftwrightSpec (".len();
-        crate::output::pdf_unescape(&text[i..])?
+        // pdf-writer writes a string that is not all ASCII in hex.
+        let i = text.find("/DraftwrightSpec <")? + "/DraftwrightSpec <".len();
+        let digits: Vec<u8> = text[i..i + text[i..].find('>')?]
+            .bytes()
+            .filter(|b| !b.is_ascii_whitespace())
+            .collect();
+        let bytes = digits
+            .chunks(2)
+            .map(|d| u8::from_str_radix(std::str::from_utf8(d).ok()?, 16).ok())
+            .collect::<Option<Vec<u8>>>()?;
+        String::from_utf8(bytes).ok()?
     };
     serde_json::from_str(&json).ok()
 }

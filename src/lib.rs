@@ -5,6 +5,7 @@
 
 pub use haecceity;
 
+pub mod api;
 pub mod model;
 pub mod output;
 pub mod text;

@@ -142,14 +142,28 @@ Each operation is validated against the analysis:
 
 A caller may equally replace the whole spec.
 
-**Adapters:**
+**Adapters.** All three call one module, `src/api.rs`: the operations typed, and `api::call`,
+the same operations by name with JSON arguments. Requests carry their documents and name files by
+path, so no adapter keeps state between calls. Errors are `{"code": "invalid" | "failed",
+"message", "choices"?}`.
 
-- **CLI.** `draftwright analyse part.step`, `draftwright plan part.step --spec part.drawing.json`
-  and `draftwright render … -o out.pdf` all print JSON. Exit code 2 means invalid input; exit
-  code 1 means a write failed and the output was left as it was.
-- **JSON-lines service.** `draftwright serve` takes one request and gives one reply per line.
-  Requests carry their documents, so the service loses nothing if it is restarted.
-- **MCP server.** Its tools map one-to-one onto the operations.
+- **CLI.** `draftwright analyse part.step`, `draftwright plan part.step --spec part.drawing.json`,
+  `draftwright review …` and `draftwright render … -o out` all print JSON. Exit code 2 means
+  invalid input; exit code 1 means a write failed and the output was left as it was.
+- **JSON-lines service.** `draftwright serve` takes one request and gives one reply per line, in
+  the shape of specify-core's `serve`: `{"id": 1, "op": "plan", "step": "part.step", "spec": {…}}`
+  gives `{"id": 1, "ok": true, "result": …}` or `{"id": 1, "ok": false, "error": {…}}`, and
+  `{"op": "hello"}` gives the protocol version and the operations. A malformed line is answered,
+  and the service carries on.
+- **MCP server.** `draftwright-mcp` speaks MCP over stdio (JSON-RPC 2.0, one message per line).
+  Its tools map one-to-one onto the operations, each with an input schema and a description
+  written for an LLM. Results are the documents as JSON text; `review` adds the drawing as SVG
+  text. A refused request is a tool error (`isError`) carrying the message and the choices.
+
+**The spec in each output** (invariant 8): in the SVG's metadata, in the PDF's document
+information, and in the DXF as comments (group code 999) ahead of the first section. AutoCAD,
+ezdxf and the `dxf` crate read past such comments; a re-save drops them. `draftwright spec`
+reads it back from any of the three.
 
 ## IDs
 
