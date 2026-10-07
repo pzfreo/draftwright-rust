@@ -115,7 +115,9 @@
   source:
     module: "linting/issues.py"
     issues: [29, 623, 1018, 1127, 1711]
-  status: pending
+  status: ported
+  rust_test: review_reports_the_plates_unstated_holes
+  rust_note: "lint::LintIssue: id, code, severity, message, at (page), view, subjects, requirements (hole_requirement_ids), measurements, sources, stage, annotation, related, evidence (evidence_reason), fix (suggestion, in words). Measurement spans are not carried: the port's measurement IDs are per feature and parameter."
   port_note: "Adapt: define a Rust LintIssue struct with the same stable fields."
 
 - id: LINT-issues-pair_aggregation_ledger
@@ -158,7 +160,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_issue_1369_hole_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known
   port_note: "Keep: port as a coverage check run on the rendered plan."
 
 - id: LINT-hole_coverage-blind_depth
@@ -170,7 +173,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: a_blind_counterbored_or_countersunk_hole_states_its_recess
   port_note: "Keep."
 
 - id: LINT-hole_coverage-through_indicator
@@ -182,7 +186,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143, 1351]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: lint_finds_what_is_taken_off_a_captured_sheet
   port_note: "Keep."
 
 - id: LINT-hole_coverage-cbore_diameter_depth
@@ -194,7 +199,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: a_blind_counterbored_or_countersunk_hole_states_its_recess
   port_note: "Keep."
 
 - id: LINT-hole_coverage-spotface_diameter_depth
@@ -206,7 +212,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: a_blind_counterbored_or_countersunk_hole_states_its_recess
   port_note: "Keep."
 
 - id: LINT-hole_coverage-csink_diameter_angle
@@ -218,7 +225,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143, 1370]
     tests: [tests/test_issue_1370_countersink_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: a_blind_counterbored_or_countersunk_hole_states_its_recess
   port_note: "Keep."
 
 - id: LINT-hole_coverage-thread_and_profile
@@ -242,7 +250,9 @@
     module: "linting/hole_coverage.py"
     issues: [1143, 92]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py, tests/test_issue_1370_hole_pattern_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: holes_drilled_from_opposite_faces_are_separate_groups
+  rust_note: "Stated as n× on the diameter's callout, n the group's size. A pattern group is accepted only when exactly its recognised count of holes share its count, pitch, sizes, direction and opening level (the Analysis does not name a hole's pattern)."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-location
@@ -301,7 +311,8 @@
     module: "linting/hole_coverage.py"
     issues: [1223, 1229]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: holes_drilled_from_opposite_faces_are_separate_groups
   port_note: "Keep: group holes by spec and signed axis."
 
 - id: LINT-hole_coverage-requirement_count
@@ -357,7 +368,9 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_declare.py]
-  status: pending
+  status: ported
+  rust_test: lint_reads_the_drawings_annotations
+  rust_note: "Codes hole_requirement_missing and hole_requirement_unverifiable (a size claimed but not printed). hole_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-code-diameter_leader_target_mismatch

@@ -1,0 +1,132 @@
+[
+  {
+    "part": "cgb245",
+    "subject": "f:hole:8",
+    "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
+    "parameter": "bore.diameter",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
+  },
+  {
+    "part": "cgb245",
+    "subject": "f:hole:8",
+    "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
+    "parameter": "bore.through",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
+  },
+  {
+    "part": "cgb245",
+    "subject": "f:hole:8",
+    "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
+    "parameter": "grouping.count",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
+  },
+  {
+    "part": "cgb245",
+    "subject": "f:hole:9",
+    "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
+    "parameter": "bore.diameter",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
+  },
+  {
+    "part": "cgb245",
+    "subject": "f:hole:9",
+    "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
+    "parameter": "bore.through",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
+  },
+  {
+    "part": "cgb245",
+    "subject": "f:hole:9",
+    "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
+    "parameter": "grouping.count",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
+  },
+  {
+    "part": "spool132",
+    "subject": "f:hole:8",
+    "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
+    "parameter": "bore.diameter",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+  },
+  {
+    "part": "spool132",
+    "subject": "f:hole:8",
+    "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
+    "parameter": "bore.through",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+  },
+  {
+    "part": "spool132",
+    "subject": "f:hole:8",
+    "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
+    "parameter": "grouping.count",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+  },
+  {
+    "part": "spool132",
+    "subject": "f:hole:20",
+    "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
+    "parameter": "bore.diameter",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+  },
+  {
+    "part": "spool132",
+    "subject": "f:hole:20",
+    "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
+    "parameter": "bore.through",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+  },
+  {
+    "part": "spool132",
+    "subject": "f:hole:20",
+    "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
+    "parameter": "grouping.count",
+    "python": "hole_requirement_unverifiable",
+    "rust": null,
+    "verdict": "rust-correct",
+    "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+  },
+  {
+    "part": "ctc04",
+    "subject": "analysis",
+    "group": "the bridge refuses the recognition: face 367 has area 13.080631 here and 13.100238 in the recognition JSON",
+    "parameter": "*",
+    "python": null,
+    "rust": null,
+    "verdict": "not-applicable",
+    "reason": "The port cannot read ctc04's features, so lint has no requirements to judge: face 367 is a sphere whose area haecceity integrates as 13.0806 mm² against OpenCascade's 13.1002 mm² (0.15%), beyond the bridge's 1e-3 tolerance for analytic faces. A haecceity face_mass accuracy question like handoff item F, not a lint difference; Python's two hole findings on this sheet (both unverifiable, for oblique holes its IR declared on z) stay unjudged until the bridge reads the part."
+  }
+]

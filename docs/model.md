@@ -134,7 +134,7 @@ calls.
 | `plan` | Analysis, Spec | Plan (with problems); rebinds first if the spec's binding differs |
 | `edit` | Spec, ops | Spec, or a validation error |
 | `render` | Plan, formats | SVG, DXF, PDF (and PNG), each with the spec embedded |
-| `review` | Plan | a rendered image and the problems, for a visual check |
+| `review` | Plan | a rendered image, the problems and lint's findings on the drawing, for a check |
 
 **`edit` operations** are small and addressed by path:
 
@@ -215,5 +215,10 @@ Every plan item records which of these it is, so nothing changes without a trace
 - **A differential comparison** checks Rust's plan against Python's sheets, fact by fact
   (measurement identities, values, labels, views, findings), with a verdict for each
   difference. Layout is judged by rules, not by matching Python's positions.
-- **The ported lint rules** run on the rendered plan, independently of it: they judge Python's
-  sheets and Rust's alike.
+- **The ported lint rules** (`src/lint/`) run on the rendered drawing, independently of the plan:
+  they read only the Analysis and what the drawing prints and claims (its annotations), so they
+  judge Python's sheets and Rust's alike. A guard test fails if lint names the Plan or the Spec.
+  `review` replies with lint's findings (`LintIssue`: code, severity, message, subjects, the
+  requirements, evidence and a fix). `tests/lint.rs` runs them on Python's captured sheets and
+  lists every difference from Python's own lint, with a verdict, in
+  `tests/fixtures/known_lint.json`.

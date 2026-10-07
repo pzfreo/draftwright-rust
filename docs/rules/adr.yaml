@@ -125,7 +125,9 @@
     adr: "ADR 1 invariant 9 and Decision"
     issues: []
     tests: ["test_import_boundaries.py (test_linting_does_not_import_model)"]
-  status: pending
+  status: ported
+  rust_test: lint_never_reads_the_plan_or_the_spec
+  rust_note: "src/lint is a module; its guard (src/lint/guard.rs) refuses any Plan or Spec name and any crate path but the Analysis, the bridge and the rendered drawing; the_guard_catches_what_it_should proves the guard bites."
   port_note: "Keep: the lint/completeness crate depends on Analysis (recognition) and rendered output only, never on Plan/Spec as its denominator; enforce via crate deps."
 
 - id: ADR1-10
@@ -902,7 +904,9 @@
     adr: "ADR 5 invariant 2"
     issues: [1217]
     tests: ["test_import_boundaries.py (test_linting_does_not_import_model)", "test_issue_1217_the_facility_is_shared.py"]
-  status: pending
+  status: ported
+  rust_test: lint_never_reads_the_plan_or_the_spec
+  rust_note: "Hole coverage takes its requirements from the Analysis and its evidence from the rendered drawing's annotations; no claim is checked against the plan yet."
   port_note: "Keep: completeness = f(Analysis, rendered placement); claim-checking may read the Plan."
 
 - id: ADR5-3

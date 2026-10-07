@@ -130,6 +130,29 @@ pub struct TextRun {
     pub v_align: VAlign,
 }
 
+/// A measurement an annotation states: the feature (its Analysis ID) and the parameter, in the
+/// role vocabulary (`bore.diameter`, `counterbore.depth`, …).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Claim {
+    pub feature: String,
+    pub parameter: String,
+}
+
+/// What an annotation on the drawing is, for lint (`crate::lint`), which judges the drawing
+/// from what it draws rather than from the plan it was drawn from: its label's text runs, the
+/// view it belongs to and the measurements it claims to state. The claims are provenance, as
+/// Python draftwright's registry is; lint still checks the label's text against the part.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Annotation {
+    /// The plan item it draws, e.g. `d:f:hole:3/bore.diameter@plan`.
+    pub name: String,
+    /// The view, `v:<name>`; none for sheet furniture.
+    pub view: Option<String>,
+    /// Its label's runs, as indices into [`Drawing::text`].
+    pub runs: Vec<usize>,
+    pub claims: Vec<Claim>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Drawing {
     /// Page width and height, mm.
@@ -138,6 +161,8 @@ pub struct Drawing {
     /// The attribution link's rectangle (x0, y0, x1, y1), mm.
     pub link: Option<[f64; 4]>,
     pub text: Vec<TextRun>,
+    /// The annotations drawn, with what each states. Written to no file format.
+    pub annotations: Vec<Annotation>,
     /// The spec the drawing was made from (JSON), carried in the SVG's metadata, the DXF's
     /// opening comments and the PDF's document information so the drawing can be resumed from
     /// the file alone.

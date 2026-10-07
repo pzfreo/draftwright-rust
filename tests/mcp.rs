@@ -141,6 +141,8 @@ fn a_drawing_is_planned_edited_rendered_and_resumed() {
     let review = replies[1]["result"]["content"].as_array().unwrap();
     assert_eq!(review.len(), 2);
     assert!(review[1]["text"].as_str().unwrap().contains("<svg"));
+    let findings: Value = serde_json::from_str(review[0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(findings["lint"], json!([]), "{findings}");
     let reads: Vec<Value> = written
         .as_array()
         .unwrap()

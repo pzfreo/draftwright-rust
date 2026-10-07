@@ -15,7 +15,9 @@ use std::path::Path;
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use crate::lint::{self, LintIssue};
 use crate::model::{self, Analysis, Plan, Problem, Spec};
+use crate::output::Drawing;
 use crate::text::Font;
 
 const MONO: &[u8] = include_bytes!("../fonts/IBMPlexMono-Regular.ttf");
@@ -97,6 +99,19 @@ pub fn edit(spec: &Spec, ops: &Value) -> Result<Spec, Error> {
     Ok(model::edit(spec, ops)?)
 }
 
+/// The analysis, the plan and the drawing of the STEP file at *step* under *spec*.
+fn drawn(
+    step: &Path,
+    features: Option<&Path>,
+    spec: &Spec,
+) -> Result<(Analysis, Plan, Drawing), Error> {
+    let (part, analysis) = model::analyse_with(step, features).map_err(Error::invalid)?;
+    let plan = model::plan(&analysis, spec)?;
+    let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
+    let drawing = model::render(&part, &analysis, &plan, &font);
+    Ok((analysis, plan, drawing))
+}
+
 /// The plan, and the drawing in each of *formats* (from [`FORMATS`]) as bytes, each carrying the
 /// spec.
 pub fn render(
@@ -111,10 +126,7 @@ pub fn render(
             ..Error::invalid(format!("{other:?} is not a format."))
         });
     }
-    let (part, analysis) = model::analyse_with(step, features).map_err(Error::invalid)?;
-    let plan = model::plan(&analysis, spec)?;
-    let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
-    let drawing = model::render(&part, &analysis, &plan, &font);
+    let (_, plan, drawing) = drawn(step, features, spec)?;
     let files = formats
         .iter()
         .map(|&format| {
@@ -148,21 +160,25 @@ pub fn write(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<String>, Err
     Ok(written)
 }
 
-/// A drawing to look at: the plan rendered as SVG, with the plan's problems.
+/// A drawing to look at: the plan rendered as SVG, with the plan's problems and lint's findings
+/// on the drawing.
 #[derive(Clone, Debug, Serialize)]
 pub struct Review {
     pub svg: String,
     pub problems: Vec<Problem>,
+    /// What lint finds on the rendered drawing, judged against the part's analysis alone
+    /// ([`crate::lint`]): e.g. a hole whose sizes the sheet does not state.
+    pub lint: Vec<LintIssue>,
 }
 
-/// The drawing of the STEP file at *step* under *spec*, as SVG text, with its problems.
+/// The drawing of the STEP file at *step* under *spec*, as SVG text, with its problems and
+/// lint's findings.
 pub fn review(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Review, Error> {
-    let (plan, files) = render(step, features, spec, &["svg"])?;
-    let svg = String::from_utf8(files.into_iter().next().expect("one format").1)
-        .expect("the SVG is text");
+    let (analysis, plan, drawing) = drawn(step, features, spec)?;
     Ok(Review {
-        svg,
+        svg: drawing.svg(),
         problems: plan.problems,
+        lint: lint::lint(&analysis, &drawing),
     })
 }
 
@@ -182,7 +198,7 @@ pub fn spec(drawing: &Path) -> Result<Spec, Error> {
 /// | `plan` | `step`, `features`?, `spec`? | the Plan |
 /// | `edit` | `spec`, `ops` | the edited Spec |
 /// | `render` | `step`, `features`?, `spec`?, `output`, `formats`? | `{written, problems}` |
-/// | `review` | `step`, `features`?, `spec`? | `{svg, problems}` |
+/// | `review` | `step`, `features`?, `spec`? | `{svg, problems, lint}` |
 /// | `spec` | `drawing` | the Spec embedded in the drawing |
 ///
 /// `step`, `features`, `output` and `drawing` are file paths; `features` is Python quiddity's

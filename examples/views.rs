@@ -54,6 +54,7 @@ fn main() {
         layers,
         link: None,
         text: Vec::new(),
+        annotations: Vec::new(),
         spec: None,
     };
     let out = &args[2];

@@ -38,7 +38,8 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 
 When a rule is ported, its status becomes `ported` and it gains `rust_test:`, the test that
 checks it. When it is translated, it gains `rust_rule:`, the rule it became. When it is
-retired, it gains `why:`.
+retired, it gains `why:`. A ported rule may also carry `rust_note:`, saying what the port covers differently
+or not yet.
 
 ## Review
 
