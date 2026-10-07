@@ -10,6 +10,9 @@
 //! about faces that are not features, such as face levels), or a refusal (quiddity saw something
 //! and declined to call it a feature). A record type the bridge does not know is refused.
 //!
+//! quiddity's derived hole patterns are kept beside the features (`Recognition::patterns`), each
+//! naming its member holes by feature ID, as `f:hole_pattern:<n>`, ranked by faces.
+//!
 //! A feature's ID is `f:<kind>:<n>`: its rank, from 1, among the features of its kind ordered by
 //! their faces. Its fingerprint follows quiddity-rust's `docs/correspondence.md` until quiddity
 //! issues its own: family and subtype, intrinsic sizes, axis, position in the part's frame, and
@@ -40,6 +43,27 @@ pub struct Recognition {
     /// What quiddity declined to recognise, and why (in each record's parameters).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refusals: Vec<Record>,
+    /// quiddity's hole patterns (its derived `hole_patterns`): arrangements of hole features,
+    /// ordered by their faces.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub patterns: Vec<HolePattern>,
+}
+
+/// A hole pattern quiddity derived: which holes, and how they are arranged.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HolePattern {
+    /// `f:hole_pattern:<n>`: its rank, from 1, among the patterns ordered by their faces.
+    pub id: String,
+    /// `grid`, `bolt_circle` or `linear`, from the sizes quiddity gives it.
+    pub arrangement: String,
+    /// The member holes' feature IDs, in quiddity's order.
+    pub members: Vec<String>,
+    /// The members' faces, ascending.
+    pub faces: Vec<usize>,
+    /// quiddity's record without its member records (`holes`); points and directions are in
+    /// quiddity's frame (`Recognition::frame`).
+    pub parameters: Map<String, Value>,
 }
 
 /// A quiddity record that is not a feature, ordered by family, subtype and faces.
@@ -230,12 +254,14 @@ struct QInstance {
 #[derive(Deserialize)]
 struct Derived {
     #[serde(default)]
-    hole_patterns: Vec<HolePattern>,
+    hole_patterns: Vec<QHolePattern>,
 }
 
 #[derive(Deserialize)]
-struct HolePattern {
+struct QHolePattern {
     holes: Vec<Map<String, Value>>,
+    #[serde(flatten)]
+    rest: Map<String, Value>,
 }
 
 /// Reads recognition JSON for *part*, the STEP file whose sha256 is *sha256*.
@@ -358,6 +384,7 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
         };
         features[i].id = format!("f:{}:{n}", features[i].kind);
     }
+    let patterns = hole_patterns(&doc.derived.hole_patterns, &features)?;
     // Records with no ID are ordered by everything they carry.
     let key = |r: &Record| {
         (
@@ -374,6 +401,7 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
         frame,
         evidence,
         refusals,
+        patterns,
     };
     Ok((recognition, features))
 }
@@ -531,9 +559,62 @@ fn pattern(members: &[[f64; 3]]) -> Pattern {
     }
 }
 
+/// quiddity's hole patterns, each with its members found among *features* (the holes whose
+/// records quiddity lists, matched as [`hole_pattern`] matches them). A pattern whose member is
+/// not one of the holes is refused.
+fn hole_patterns(qs: &[QHolePattern], features: &[Feature]) -> Result<Vec<HolePattern>, String> {
+    let at = |r: &Map<String, Value>| (r.get("location").cloned(), r.get("diameter").cloned());
+    let mut out = Vec::new();
+    for q in qs {
+        let mut members = Vec::new();
+        let mut faces = Vec::new();
+        for h in &q.holes {
+            let hole = features
+                .iter()
+                .find(|f| f.kind == "hole" && at(&f.parameters) == at(h))
+                .ok_or("a hole pattern has a member that is not a recognised hole")?;
+            members.push(hole.id.clone());
+            faces.extend(hole.faces.iter().copied());
+        }
+        faces.sort_unstable();
+        faces.dedup();
+        let has = |k: &str| q.rest.contains_key(k);
+        let arrangement = if has("diameter") {
+            "bolt_circle"
+        } else if has("width") && has("height") {
+            "grid"
+        } else if has("pitch") {
+            "linear"
+        } else {
+            return Err(format!(
+                "a hole pattern has none of a bolt circle's, grid's or linear pattern's sizes ({:?})",
+                q.rest.keys().collect::<Vec<_>>()
+            ));
+        };
+        out.push(HolePattern {
+            id: String::new(),
+            arrangement: arrangement.into(),
+            members,
+            faces,
+            parameters: q.rest.clone(),
+        });
+    }
+    out.sort_by(|a, b| a.faces.cmp(&b.faces));
+    if let Some(w) = out.windows(2).find(|w| w[0].faces == w[1].faces) {
+        return Err(format!(
+            "quiddity reports two hole patterns on faces {:?}; they cannot be told apart",
+            w[0].faces
+        ));
+    }
+    for (n, p) in out.iter_mut().enumerate() {
+        p.id = format!("f:hole_pattern:{}", n + 1);
+    }
+    Ok(out)
+}
+
 /// The hole pattern a hole belongs to: quiddity lists its members' records.
 fn hole_pattern(
-    patterns: &[HolePattern],
+    patterns: &[QHolePattern],
     record: &Map<String, Value>,
 ) -> Result<Option<Pattern>, String> {
     let at = |r: &Map<String, Value>| (r.get("location").cloned(), r.get("diameter").cloned());

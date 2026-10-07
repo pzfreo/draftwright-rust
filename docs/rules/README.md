@@ -37,7 +37,7 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
   translated into the Analysis/Spec/Plan model.
 
 When a rule is ported, its status becomes `ported` and it gains `rust_test:`, the test that
-checks it. When it is translated, it gains `rust_rule:`, the rule it became. When it is
+checks it, and where the port covers only part of the rule, `rust_note:` says which part. When it is translated, it gains `rust_rule:`, the rule it became. When it is
 retired, it gains `why:`.
 
 ## Review

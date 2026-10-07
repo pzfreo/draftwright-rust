@@ -123,6 +123,40 @@ mention takes its default.
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.
 
+### Dimensions (first cut)
+
+`src/dims.rs` plans the dimensions draftwright's defaults would state for the families ported
+so far, each a Plan item `{id, kind, view, value, label, terms, measurements, default, basis,
+placed}`:
+
+- **Overall extents:** `d:envelope/width.length@front`, `depth.length@side`,
+  `height.length@front` for a prismatic part (each falling back to the plan or side view when its
+  view is omitted). A part turned whole states `od.diameter` (printed `ø…`) and its length along
+  the axis instead.
+- **Hole callouts** in draftwright's grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), in the view that
+  looks along the hole. Identical holes drilled the same way are grouped and counted; quiddity's
+  hole patterns (kept by the bridge in `recognition.patterns` as `f:hole_pattern:<n>`) are called
+  out as grids `(r×c)` or bolt circles `EQ SP ON øD BC` (five or more members), or as linear
+  patterns. THRU is the feature's fact (`bottom: through`).
+- **Locations** (`location.length.<axis>`) from the part's box, in the hole's view, one
+  dimension per distance; patterns by their centre (or a linear pattern by its first member), with
+  their pitches (`grid_pitch.length.row|col`, `pitch.length`). A hole or bolt circle on a turned
+  part's axis is not located across it.
+
+`placed` is the item's ink on the page (lines, arrowheads, the label's baseline origin, rotation
+and box); renderers draw it and the terms, and nothing else. Placement is simple: lanes outward
+from each view (draftwright's strips: below, and above the plan; right, and left of the plan),
+sizes nearest, locations by distance, overall extents, then callouts with 45° leaders. Whatever
+then collides is a problem on the item's ID (`annotation_overlap`, `annotation_ink_overlap`,
+`annotation_over_view`, `annotation_over_title_block`, `annotation_off_sheet`); an item whose
+view is omitted stays unplaced and is reported (`view_plan_incomplete`). The solver is later.
+
+The spec chooses the source (ADR4-5): `"dimension_source": "auto"` (the default: the defaults
+less `dimensions/<id>/omit`) or `"authored"` (exactly the IDs listed in `dimensions`, a complete
+set). Omitted items are listed in the Plan's `omitted` with their basis. In an edit path, the
+`/` inside a dimension's ID is written `~1`, as in a JSON pointer:
+`{"op": "set", "path": "dimensions/d:envelope~1width.length@front/omit", "value": true}`.
+
 ## The five operations
 
 These are one Rust core: pure functions over the documents, deterministic, with no state between

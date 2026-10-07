@@ -1,0 +1,322 @@
+//! The port's dimensions against draftwright's sheets (`tests/fixtures/sheets/`), item by item.
+//!
+//! In scope are the families the port plans: the overall extents (`width`, `depth`, `height`,
+//! a turned part's `od.diameter`), hole callouts (bore, counterbore, spotface, countersink and
+//! bolt-circle terms, on holes, patterns and turned bores), hole and pattern locations, and
+//! pattern pitches. Each of draftwright's annotations that states one of them is matched with
+//! a plan item of the same family, view and printed label whose measurement identity agrees:
+//! for an extent, a pitch or a location (whose family names its axis), the same value within
+//! half the printed unit; for a callout, every feature draftwright names sits where one of the
+//! item's features (or its pattern) does, within 0.01 mm across the view. Every difference is listed, with a count, a verdict and the reason, in
+//! `tests/fixtures/known_dimensions.json`; a listed difference that goes away must come off.
+//!
+//! The features come from Python quiddity 0.3.9 (draftwright's own recogniser for these sheets),
+//! through `tools/recognise.py`, stored in `tests/fixtures/recognition/sheets/`. ctc04 has none:
+//! the bridge refuses its recognition (face 367's area, 13.0806 here and 13.1002 in
+//! OpenCascade), so it is not compared. Set `DIMS_REPORT=1` to print every difference.
+
+#[path = "common/facts.rs"]
+mod facts;
+
+use std::collections::BTreeMap;
+use std::io::Read as _;
+use std::path::{Path, PathBuf};
+
+use draftwright::dims::{self, PlannedDimension};
+use draftwright::model::{self, Analysis, Spec};
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Known {
+    part: String,
+    /// `python` (on draftwright's sheet, not the port's) or `rust` (the other way).
+    side: String,
+    /// `envelope`, `callout`, `location.<axis>` or `pitch`.
+    family: String,
+    view: String,
+    label: String,
+    count: usize,
+    /// `rust-correct`, `rust-wrong`, `equivalent`, `undetermined` or `not-applicable`.
+    verdict: String,
+    reason: String,
+}
+
+fn corpus() -> Option<PathBuf> {
+    let dir = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|h| PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+        })?;
+    dir.is_dir().then_some(dir)
+}
+
+fn recognition(name: &str) -> Option<String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("tests/fixtures/recognition/sheets/{name}.json.gz"));
+    let mut text = String::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(path).ok()?)
+        .read_to_string(&mut text)
+        .unwrap();
+    Some(text)
+}
+
+fn analysed(corpus: &Path, file: &str, json: &str) -> Analysis {
+    let (part, mut a) = model::analyse(&corpus.join(file)).unwrap();
+    let (r, features) = draftwright::bridge::read(&part, &a.binding.source_sha256, json).unwrap();
+    a.recognition = Some(r);
+    a.features = features;
+    a
+}
+
+/// The family a draftwright measurement belongs to, if the port plans it.
+fn python_family(parameter: &str, kind: &str) -> Option<String> {
+    match parameter {
+        "width.length" | "depth.length" | "height.length" if kind == "envelope" => {
+            Some("envelope".into())
+        }
+        "od.diameter" => Some("envelope".into()),
+        "pitch.length" => Some("pitch".into()),
+        p if p.starts_with("grid_pitch.") => Some("pitch".into()),
+        p if p.starts_with("location") && (kind == "hole" || kind == "pattern") => {
+            Some(format!("location.{}", p.rsplit('.').next().unwrap_or("")))
+        }
+        p if [
+            "bore.",
+            "counterbore.",
+            "spotface.",
+            "countersink.",
+            "bolt_circle.",
+        ]
+        .iter()
+        .any(|r| p.starts_with(r)) =>
+        {
+            Some("callout".into())
+        }
+        _ => None,
+    }
+}
+
+fn rust_family(d: &PlannedDimension) -> String {
+    let parameter =
+        d.id.split('/')
+            .nth(1)
+            .unwrap_or("")
+            .split('@')
+            .next()
+            .unwrap_or("");
+    if d.id.starts_with("d:envelope/") {
+        "envelope".into()
+    } else if parameter.starts_with("location") {
+        format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
+    } else if parameter.contains("pitch") {
+        "pitch".into()
+    } else {
+        "callout".into()
+    }
+}
+
+/// The world axis a view looks along: its coordinate is not compared.
+fn depth_axis(view: &str) -> usize {
+    match view {
+        "side" => 0,
+        "front" => 1,
+        _ => 2,
+    }
+}
+
+struct Item {
+    family: String,
+    view: String,
+    label: String,
+    value: Option<f64>,
+    origins: Vec<[f64; 3]>,
+}
+
+type Diff = (String, String, String, String, String);
+
+fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, usize)> {
+    let f = facts::load(name);
+    let json = recognition(name)?;
+    let a = analysed(corpus, &f.binding.file, &json);
+    assert_eq!(a.binding.source_sha256, f.binding.sha256, "{name}");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+
+    let mut python: Vec<Item> = Vec::new();
+    let mut outside = 0;
+    for ann in &f.annotations {
+        let Some(family) = ann.measurements.iter().find_map(|m| {
+            python_family(
+                &m.parameter,
+                m.feature.as_ref().map_or("", |f| f.kind.as_str()),
+            )
+        }) else {
+            if matches!(
+                ann.kind.as_str(),
+                "Dimension" | "Leader" | "AngularDimension"
+            ) {
+                outside += 1;
+            }
+            continue;
+        };
+        let origins = ann
+            .measurements
+            .iter()
+            .filter_map(|m| m.feature.as_ref())
+            .filter(|f| f.kind == "hole" || f.kind == "pattern")
+            .filter_map(|f| f.origin)
+            .collect();
+        python.push(Item {
+            family,
+            view: ann.view.clone().unwrap_or_default(),
+            label: ann.label.clone().unwrap_or_default(),
+            value: ann.measurements.iter().find_map(|m| m.value),
+            origins,
+        });
+    }
+    let rust: Vec<Item> = plan
+        .dimensions
+        .iter()
+        .map(|d| Item {
+            family: rust_family(d),
+            view: d.view.trim_start_matches("v:").to_string(),
+            label: d.label.clone(),
+            value: Some(d.value),
+            origins: d
+                .measurements
+                .iter()
+                .map(|m| m.feature.as_str())
+                .chain(d.id.strip_prefix("d:").and_then(|s| s.split('/').next()))
+                .filter_map(|f| dims::feature_origin(&a, f))
+                .collect(),
+        })
+        .collect();
+
+    let same = |p: &Item, r: &Item| {
+        if (&p.family, &p.view, &p.label) != (&r.family, &r.view, &r.label) {
+            return false;
+        }
+        // Values agree within half the printed unit (the labels are already equal); a location's
+        // identity is its view, axis and distance; a callout's, where its features are.
+        match p.family.as_str() {
+            "callout" => {
+                let skip = depth_axis(&p.view);
+                p.origins.iter().all(|o| {
+                    r.origins
+                        .iter()
+                        .any(|q| (0..3).all(|k| k == skip || (o[k] - q[k]).abs() < 0.01))
+                })
+            }
+            _ => p.value.is_none_or(|v| (v - r.value.unwrap()).abs() < 0.05),
+        }
+    };
+    let mut used = vec![false; rust.len()];
+    let mut diffs: BTreeMap<Diff, usize> = BTreeMap::new();
+    let mut agree = 0;
+    for p in &python {
+        match (0..rust.len()).find(|&i| !used[i] && same(p, &rust[i])) {
+            Some(i) => {
+                used[i] = true;
+                agree += 1;
+            }
+            None => {
+                *diffs
+                    .entry((
+                        name.into(),
+                        "python".into(),
+                        p.family.clone(),
+                        p.view.clone(),
+                        p.label.clone(),
+                    ))
+                    .or_default() += 1
+            }
+        }
+    }
+    for (i, r) in rust.iter().enumerate() {
+        if !used[i] {
+            *diffs
+                .entry((
+                    name.into(),
+                    "rust".into(),
+                    r.family.clone(),
+                    r.view.clone(),
+                    r.label.clone(),
+                ))
+                .or_default() += 1;
+        }
+    }
+    Some((agree, diffs, outside))
+}
+
+#[test]
+fn dimensions_match_draftwright_or_are_known() {
+    let Some(corpus) = corpus() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let known: Vec<Known> = serde_json::from_str(
+        &std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/known_dimensions.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let verdicts = [
+        "rust-correct",
+        "rust-wrong",
+        "equivalent",
+        "undetermined",
+        "not-applicable",
+    ];
+    let mut listed: BTreeMap<Diff, usize> = BTreeMap::new();
+    for k in &known {
+        assert!(
+            verdicts.contains(&k.verdict.as_str()) && !k.reason.is_empty() && k.count > 0,
+            "{k:?}"
+        );
+        let key = (
+            k.part.clone(),
+            k.side.clone(),
+            k.family.clone(),
+            k.view.clone(),
+            k.label.clone(),
+        );
+        assert!(listed.insert(key, k.count).is_none(), "listed twice: {k:?}");
+    }
+    let mut found: BTreeMap<Diff, usize> = BTreeMap::new();
+    let (mut agree, mut compared, mut outside) = (0, 0, 0);
+    for name in facts::names() {
+        let Some((a, d, o)) = compare(&name, &corpus) else {
+            continue;
+        };
+        agree += a;
+        outside += o;
+        compared += 1;
+        found.extend(d);
+    }
+    if std::env::var_os("DIMS_REPORT").is_some() {
+        for ((part, side, family, view, label), n) in &found {
+            println!("{part}\t{side}\t{family}\t{view}\t{label}\t{n}");
+        }
+    }
+    eprintln!(
+        "{compared} sheets: {agree} of draftwright's in-scope items agree; {} differences listed; {outside} of its dimensions and callouts are outside this port's families",
+        found.values().sum::<usize>()
+    );
+    let unlisted: Vec<_> = found
+        .iter()
+        .filter(|(k, n)| listed.get(*k) != Some(n))
+        .collect();
+    let gone: Vec<_> = listed
+        .iter()
+        .filter(|(k, n)| found.get(*k) != Some(n))
+        .collect();
+    assert!(
+        unlisted.is_empty() && gone.is_empty(),
+        "differences not listed (or with another count): {unlisted:#?}\nlisted but not found (or with another count): {gone:#?}"
+    );
+    assert_eq!(
+        compared, 12,
+        "every sheet with recognition JSON is compared"
+    );
+}

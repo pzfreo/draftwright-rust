@@ -1,0 +1,412 @@
+[
+  {
+    "part": "cgb245",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "103.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "152.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "28.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "50.4",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "79.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "103.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "152.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "156.4",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "draftwright does not locate the two ⌀7 holes at y = 72.25 in y; its own lint reports it (feature_not_located: 2 holes; location_ref_dropped: 2 Y location dims too closely spaced). LINT-hole_coverage-location: every hole is located in both directions."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "28.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "50.4",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "54.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "draftwright does not locate the two ⌀5 holes at y = -29.72 in y; its own lint reports it (feature_not_located: 2 holes; location_ref_dropped: 2 Y location dims too closely spaced). LINT-hole_coverage-location: every hole is located in both directions."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "79.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "connector109",
+    "side": "python",
+    "family": "callout",
+    "view": "front",
+    "label": "ø94",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port."
+  },
+  {
+    "part": "connector109",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "⌀94 THRU",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port."
+  },
+  {
+    "part": "ctc01",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "225",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "225",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "50.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "78.7",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "location.z",
+    "view": "side",
+    "label": "127",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "location.z",
+    "view": "side",
+    "label": "88.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "location.x",
+    "view": "plan",
+    "label": "43.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The x location of the linear pattern's first member (4× ⌀7.1, pitch 72.4). draftwright drops it: its own lint reports location_ref_dropped (1 X location dim too closely spaced) and plan_incomplete. LINT-hole_coverage-pattern_location: a linear pattern is located by one physical member."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "50.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "78.7",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "location.z",
+    "view": "front",
+    "label": "127",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "location.z",
+    "view": "front",
+    "label": "88.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "envelope",
+    "view": "front",
+    "label": "10",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "grm03 is turned whole about x: its size across the axis is a diameter, which the port prints ø10. draftwright prints it as a plain height '10' (dim_height, its value unsettled in the facts)."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "23.5",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "draftwright states a turned part's length as its step chain (m_steplen*, outside this port's families); the port plans no chain yet and states the overall length, as draftwright itself releases the overall length when its chain is dropped (ISSUE-955-a). Revisit when step chains are ported: the overall length then becomes a contingency."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "ø10",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "grm03 is turned whole about x: its size across the axis is a diameter, which the port prints ø10. draftwright prints it as a plain height '10' (dim_height, its value unsettled in the facts)."
+  },
+  {
+    "part": "grm05",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "32",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "draftwright states a turned part's length as its step chain (m_steplen*, outside this port's families); the port plans no chain yet and states the overall length, as draftwright itself releases the overall length when its chain is dropped (ISSUE-955-a). Revisit when step chains are ported: the overall length then becomes a contingency."
+  },
+  {
+    "part": "m1000",
+    "side": "python",
+    "family": "envelope",
+    "view": "plan",
+    "label": "48.4",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "48.4",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "m10046",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "41.0",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The overall height. draftwright drops it: its own lint reports placement_unsatisfiable 'overall height dimension dropped (front-view right strip full)'. LINT-envelope_coverage-overall_extents: every non-zero extent is stated."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "callout",
+    "view": "front",
+    "label": "ø62",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "callout",
+    "view": "front",
+    "label": "ø70 BORE",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (↧ 10), which draftwright's two leaders do not."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "envelope",
+    "view": "front",
+    "label": "2× ø130",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Both state the ø130 outside diameter. draftwright folds the two ø130 flanges' step diameters into it ('2×'); step diameters are outside this port's families, so the port states the OD alone. Revisit when turned steps are ported."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "location.x",
+    "view": "plan",
+    "label": "65",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The bolt circles' centre lies on the turning axis, so its centre line locates it; the port does not dimension it (LINT-code-feature_not_located: holes on the part's turning axis need no locating dimension). draftwright measures 65 = half the ø130 from the box's edge."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "location.y",
+    "view": "plan",
+    "label": "65",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The bolt circles' centre lies on the turning axis, so its centre line locates it; the port does not dimension it (LINT-code-feature_not_located: holes on the part's turning axis need no locating dimension). draftwright measures 65 = half the ø130 from the box's edge."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "⌀62 THRU ⌴ ⌀70 ↧ 10",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (↧ 10), which draftwright's two leaders do not."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "ø130",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Both state the ø130 outside diameter. draftwright folds the two ø130 flanges' step diameters into it ('2×'); step diameters are outside this port's families, so the port states the OD alone. Revisit when turned steps are ported."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "location.x",
+    "view": "front",
+    "label": "3.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The cross hole lies on the turning axis (x = 0, half the ø7.5 from the box's edge), so its centre line locates it across the axis; the port locates it only along the axis (11.1), as LINT-hole_coverage-turned_axis_location states."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "14.8",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "draftwright states a turned part's length as its step chain (m_steplen*, outside this port's families); the port plans no chain yet and states the overall length, as draftwright itself releases the overall length when its chain is dropped (ISSUE-955-a). Revisit when step chains are ported: the overall length then becomes a contingency."
+  }
+]

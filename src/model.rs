@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::bridge::{Feature, Recognition};
+use crate::dims::{Omitted, PlannedDimension};
 use crate::layout::{self, Fallback, MARGIN, Principals, Request, Scaled};
 use crate::output::{
     Curve, Drawing, HAlign, Item, Layer, TextRun, VAlign, layer_styles, projected,
@@ -68,6 +69,38 @@ pub struct Spec {
     /// Per standard view (`front`, `plan`, `side`, `iso`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub views: BTreeMap<String, ViewSpec>,
+    /// Where the dimensions come from: `auto` (the defaults, less what `dimensions` omits) or
+    /// `authored` (exactly the dimensions listed, a complete set: ADR4-5).
+    #[serde(skip_serializing_if = "DimensionSource::is_auto")]
+    pub dimension_source: DimensionSource,
+    /// Per dimension, by its ID (`d:<feature>/<parameter>@<view>`).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub dimensions: BTreeMap<String, DimensionSpec>,
+}
+
+/// The two sources of dimension intent (ADR4-5).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DimensionSource {
+    /// The defaults, less what the spec omits.
+    #[default]
+    Auto,
+    /// Exactly the dimensions the spec lists.
+    Authored,
+}
+
+impl DimensionSource {
+    fn is_auto(&self) -> bool {
+        *self == DimensionSource::Auto
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct DimensionSpec {
+    /// Leave it off the sheet (in `auto` only; an authored set leaves out by not listing).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub omit: bool,
 }
 
 impl Default for Spec {
@@ -77,6 +110,8 @@ impl Default for Spec {
             binding: None,
             sheet: SheetSpec::default(),
             views: BTreeMap::new(),
+            dimension_source: DimensionSource::Auto,
+            dimensions: BTreeMap::new(),
         }
     }
 }
@@ -108,6 +143,12 @@ pub struct Plan {
     pub binding: Binding,
     pub sheet: PlannedSheet,
     pub views: Vec<PlannedView>,
+    /// Dimensions and callouts, each with its ID, value, label, default flag and basis.
+    #[serde(default)]
+    pub dimensions: Vec<PlannedDimension>,
+    /// Dimensions the spec leaves out, and why (ADR4-8: an authored omission says so).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub omitted: Vec<Omitted>,
     pub problems: Vec<Problem>,
     /// The spec the plan was made from, embedded in every output.
     pub spec: Spec,
@@ -274,7 +315,7 @@ pub fn analyse_with(path: &Path, recognition: Option<&Path>) -> Result<(Part, An
 }
 
 /// The box (width, height) and centre of the part's envelope seen in *view*, mm at 1:1.
-fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
+pub(crate) fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
     let [lo, hi] = analysis.envelope;
     let (mut min, mut max) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
     for i in 0..8 {
@@ -484,7 +525,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 basis,
             }
         })
-        .collect();
+        .collect::<Vec<PlannedView>>();
     let mut title = spec.sheet.title.clone();
     title
         .entry("title".into())
@@ -492,32 +533,38 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     title
         .entry("number".into())
         .or_insert_with(|| "DWG-001".into());
+    let sheet = PlannedSheet {
+        size,
+        page: pick.page,
+        scale,
+        scale_factor: pick.scale,
+        arrangement: pick.arrangement.name().into(),
+        title_block: g.title_block,
+        default: spec.sheet.size.is_none() || spec.sheet.scale.is_none(),
+        basis,
+        title,
+    };
+    let (dimensions, omitted, more) = crate::dims::plan(analysis, spec, &sheet, &views)?;
+    problems.extend(more);
     let mut spec = spec.clone();
     spec.schema = SPEC_SCHEMA.into();
     spec.binding = Some(analysis.binding.clone());
     Ok(Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
-        sheet: PlannedSheet {
-            size,
-            page: pick.page,
-            scale,
-            scale_factor: pick.scale,
-            arrangement: pick.arrangement.name().into(),
-            title_block: g.title_block,
-            default: spec.sheet.size.is_none() || spec.sheet.scale.is_none(),
-            basis,
-            title,
-        },
+        sheet,
         views,
+        dimensions,
+        omitted,
         problems,
         spec,
     })
 }
 
 /// Applies edit operations to a spec. Each operation is `{"op": "set" | "remove", "path":
-/// "a/b/c", "value": …}`, with paths into the spec's JSON. The result is validated whole, so an
-/// unknown field or a value of the wrong kind is refused with the reason.
+/// "a/b/c", "value": …}`, with paths into the spec's JSON; a `/` inside a key (a dimension's ID)
+/// is written `~1` and a `~` is written `~0`, as in a JSON pointer (RFC 6901). The result is
+/// validated whole, so an unknown field or a value of the wrong kind is refused with the reason.
 pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     let mut doc = serde_json::to_value(spec).expect("a spec serialises");
     let ops = ops
@@ -525,11 +572,12 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         .ok_or_else(|| invalid("Edits are a list of operations.", &[]))?;
     for op in ops {
         let kind = op["op"].as_str().unwrap_or("");
-        let path: Vec<&str> = op["path"]
+        let path: Vec<String> = op["path"]
             .as_str()
             .ok_or_else(|| invalid("An edit needs a \"path\".", &[]))?
             .split('/')
             .filter(|s| !s.is_empty())
+            .map(|s| s.replace("~1", "/").replace("~0", "~"))
             .collect();
         let Some((last, parents)) = path.split_last() else {
             return Err(invalid("An edit's path is empty.", &[]));
@@ -553,7 +601,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
                 object.insert(last.to_string(), op["value"].clone());
             }
             "remove" => {
-                object.remove(*last);
+                object.remove(last.as_str());
             }
             other => {
                 return Err(invalid(
@@ -610,6 +658,8 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
     let [tx0, ty0, tx1, ty1] = plan.sheet.title_block;
     part_layer.extend(rect(tx0, ty0, tx1, ty1));
     let mut text = Vec::new();
+    // The dimensions and callouts, drawn from the plan alone.
+    crate::dims::render(&plan.dimensions, font, &mut layers[2].items, &mut text);
     let mut label = |s: &str, at: [f64; 2], size: f64, layer: &mut Vec<Item>| {
         let laid = font.text(s, size);
         let shift = |p: [f64; 2]| [p[0] + at[0], p[1] + at[1]];

@@ -7,6 +7,7 @@ pub use haecceity;
 
 pub mod api;
 pub mod bridge;
+pub mod dims;
 pub mod layout;
 pub mod model;
 pub mod output;
