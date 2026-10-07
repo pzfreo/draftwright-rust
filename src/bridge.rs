@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 pub const RECOGNITION_FORMAT: &str = "draftwright.recognition/1";
-pub const FINGERPRINT_VERSION: &str = "draftwright-bridge/1";
+pub const FINGERPRINT_VERSION: &str = "draftwright-bridge/2";
 
 /// Where the features came from, and the frame quiddity's coordinates are in.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -136,6 +136,11 @@ pub struct Fingerprint {
     pub position: [f64; 3],
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pattern: Option<Pattern>,
+    /// The feature's neighbourhood in the attributed adjacency graph (Joshi & Chang): for each of
+    /// its faces and each face that face meets, `type>in|out:type:convex|concave|smooth|unknown`
+    /// (`in` when the neighbour is the feature's own), sorted. Rigid motion leaves it unchanged, and
+    /// it survives a feature moving or resizing (quiddity-rust docs/correspondence.md).
+    pub neighbourhood: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -326,6 +331,7 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
                     .map_err(|e| format!("a {}'s axis {e}", q.record_type))?,
                 position: centre(part, &faces).map(round),
                 pattern,
+                neighbourhood: neighbourhood(part, &faces),
             },
             faces,
             parameters,
@@ -480,6 +486,30 @@ fn point(v: &Value) -> Option<[f64; 3]> {
 }
 
 /// The centre of the box around *faces*, in the part's frame.
+/// The feature's attributed-adjacency neighbourhood: each of its faces, each face that one
+/// meets, and how they meet, as sorted strings.
+fn neighbourhood(part: &Part, faces: &[usize]) -> Vec<String> {
+    use haecceity::brep::Arc;
+    let kind = |f: usize| format!("{:?}", part.faces[f].surface.kind()).to_lowercase();
+    let mut out: Vec<String> = faces
+        .iter()
+        .flat_map(|&f| {
+            part.neighbours(f).into_iter().map(move |g| {
+                let arc = match part.arc(f, g) {
+                    Some(Arc::Convex) => "convex",
+                    Some(Arc::Concave) => "concave",
+                    Some(Arc::Smooth) => "smooth",
+                    _ => "unknown",
+                };
+                let side = if faces.contains(&g) { "in" } else { "out" };
+                format!("{}>{side}:{}:{arc}", kind(f), kind(g))
+            })
+        })
+        .collect();
+    out.sort();
+    out
+}
+
 fn centre(part: &Part, faces: &[usize]) -> [f64; 3] {
     let mut b = Bounds::empty();
     for &f in faces {

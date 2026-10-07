@@ -287,3 +287,33 @@ fn the_command_line_takes_features() {
     assert_eq!(code, Some(2));
     assert_eq!(e["error"]["code"], "invalid");
 }
+
+/// The AAG neighbourhood: repeats of one feature in like surroundings share it (position tells
+/// them apart), and features in different surroundings do not.
+#[test]
+fn neighbourhoods_describe_how_a_feature_meets_the_part() {
+    let plate = analysed("plate");
+    let through = ["cylinder>out:plane:convex", "cylinder>out:plane:convex"];
+    for f in &plate.features {
+        assert_eq!(f.fingerprint.neighbourhood, through, "{}", f.id);
+    }
+    let turned = analysed("turned");
+    let of = |id: &str| {
+        &turned
+            .features
+            .iter()
+            .find(|f| f.id == id)
+            .unwrap()
+            .fingerprint
+            .neighbourhood
+    };
+    assert_eq!(
+        of("f:fillet:1"),
+        &["torus>out:cylinder:smooth", "torus>out:plane:smooth"]
+    );
+    assert_eq!(
+        of("f:turned_step:1"),
+        &["cylinder>out:torus:smooth", "cylinder>out:torus:smooth"]
+    );
+    assert_ne!(of("f:fillet:1"), of("f:turned_step:1"));
+}

@@ -24,7 +24,8 @@ use crate::output::{
 };
 use crate::text::{Font, Segment};
 
-pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/1";
+/// Version 2 added the isometric box (`iso_bounds`) and the recognised features.
+pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/2";
 pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
 pub const PLAN_SCHEMA: &str = "draftwright.plan/1";
 
