@@ -668,6 +668,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
         layers,
         link: None,
         text,
+        annotations: Vec::new(),
         spec: Some(serde_json::to_string(&plan.spec).expect("a spec serialises")),
     }
 }

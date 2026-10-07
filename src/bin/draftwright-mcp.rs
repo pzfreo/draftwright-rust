@@ -116,8 +116,10 @@ fn tools() -> Value {
         {
             "name": "review",
             "description": "Draw a STEP file under a spec without writing a file, to check it by \
-                eye: returns the plan's problems as JSON, then the drawing as SVG text (page in \
-                mm; layers part, hidden and dims).",
+                eye: returns the plan's problems and lint's findings as JSON, then the drawing as \
+                SVG text (page in mm; layers part, hidden and dims). Lint judges the drawn sheet \
+                against the part alone: each finding names the features (subjects), what is \
+                wrong, and a fix.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -204,7 +206,7 @@ fn answer(message: &Value) -> Option<Value> {
             match api::call(name, &args) {
                 Ok(result) if name == "review" => json!({
                     "content": [
-                        text(&json!({ "problems": result["problems"] })),
+                        text(&json!({ "problems": result["problems"], "lint": result["lint"] })),
                         { "type": "text", "text": result["svg"] },
                     ],
                     "isError": false,

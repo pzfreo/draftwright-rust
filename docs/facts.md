@@ -47,6 +47,25 @@ The port's sheet, scale and view placement (`src/layout.rs`) is draftwright's la
   and 16). The test reads the corpus from `DRAFTWRIGHT_CORPUS` (by default
   `~/repos/quiddity/tests/corpus`) and says it is skipped when that is absent.
 
+## Lint: the port's checks on Python's sheets
+
+`tests/lint.rs` runs the port's lint (`src/lint/`) on each captured sheet and compares its hole
+findings with Python's (`lint` above). The Analysis is the part read with the recognition
+draftwright drew from: `tests/fixtures/recognition/sheets/<name>.json.gz`, written by
+`tools/recognise.py` with draftwright's own quiddity (0.3.9):
+
+```
+~/repos/draftwright/.venv/bin/python tools/recognise.py <corpus>/<file> -o <name>.json
+```
+
+Each annotation becomes a mark: its text runs, and the measurements its registry claims. A claim
+names its feature by geometry (`hole@(x,y,z)/axis[sizes]`, `pattern@(centre)/axis`), so it is
+joined to the Analysis only where exactly one hole (or hole group) fits: the axis, the opening on
+the axis line within 0.01 mm and within the hole's reach, and the diameter. Python's own findings
+name a group by its quantity, diameter and a point on its axis. Every difference is listed in
+`tests/fixtures/known_lint.json` with a verdict and the evidence; Python's "all N requirements
+unverifiable" counts against each requirement the port checks.
+
 ## Recapturing
 
 ```

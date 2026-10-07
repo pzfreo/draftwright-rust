@@ -7,7 +7,7 @@
 //!   [--formats svg,dxf,pdf]`: writes the files and prints what was written, with the plan's
 //!   problems
 //! - `draftwright review part.step [--features r.json] [--spec s.json]`: the drawing as SVG
-//!   text, with the problems
+//!   text, with the problems and lint's findings on the drawing
 //! - `draftwright edit s.json ops.json`: the edited Spec
 //! - `draftwright spec drawing.(svg|dxf|pdf)`: the Spec embedded in a rendered drawing
 //! - `draftwright serve`: the JSON-lines service. One request per line on stdin, such as

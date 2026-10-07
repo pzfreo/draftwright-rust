@@ -108,6 +108,8 @@ fn the_service_answers_each_line() {
             .starts_with("<?xml")
     );
     assert_eq!(replies[1]["result"]["problems"], json!([]));
+    // No features were given, so lint has no requirements to find unmet.
+    assert_eq!(replies[1]["result"]["lint"], json!([]));
     assert_eq!(replies[2]["error"]["choices"], json!(["svg", "dxf", "pdf"]));
     let reads: Vec<String> = written
         .iter()
