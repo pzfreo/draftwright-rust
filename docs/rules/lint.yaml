@@ -1,0 +1,1961 @@
+# Rules catalogue: drafting knowledge encoded in draftwright's linting package.
+# Source: pzfreo/draftwright origin/main @ 586628b96db6779454d499c7d92d37f1aa8f1df9
+#   src/draftwright/linting/ (read via git show; nothing checked out).
+# Where a coverage module derives its required parameters from an IR feature's parameters(),
+# the parameter vocabulary was read from src/draftwright/model/ir.py / ir_foundation.py and
+# is cited in the entry's detail.
+#
+# class:
+#   drafting  - what a complete/correct drawing must state or how it must be laid out
+#   trust     - evidence/provenance rules: what counts as proof that a requirement is met,
+#               and how unprovable cases are reported (fail closed)
+#   machinery - Python implementation plumbing (registries, orchestration, caches)
+#
+# Common conventions of the *_coverage modules (see LINT-_parameter_coverage-* entries):
+#   - every recognised physical requirement resolves to one outcome state: placed,
+#     satisfied_by_structured_note, suppressed, dropped, missing, unverifiable
+#     (plus inapplicable / unsupported in a few families);
+#   - the lint code is "<family>_requirement_<state>" for suppressed/missing/unverifiable;
+#     placed, satisfied and dropped states emit nothing (drops are already reported);
+#   - severity is "info" on a multi-solid part (assembly / GA drawing), else "warning".
+
+# ---------------------------------------------------------------------------------------
+# Shared requirement-outcome conventions
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-_parameter_coverage-outcome_states
+  statement: "Every recognised physical requirement of a feature resolves to exactly one outcome: placed on the sheet, satisfied by a structured note, deliberately suppressed by the author, dropped during placement, missing, or unverifiable."
+  detail: "Precedence is placed > satisfied_by_structured_note > suppressed > dropped > unverifiable/missing. 'unverifiable' is chosen over 'missing' when the feature owns an annotation whose measurement provenance cannot be read. Some families add 'inapplicable' (intrinsic exclusion, e.g. a location coincident with a datum) and 'unsupported' (recognised geometry with no drafting grammar)."
+  class: trust
+  source:
+    module: "linting/_coverage_common.py, linting/_parameter_coverage.py"
+    issues: [1018, 1351]
+    tests: [tests/test_lint_coverage_common.py]
+  status: pending
+  port_note: "Keep: one shared outcome enum and resolver used by every family ledger."
+
+- id: LINT-_parameter_coverage-report_uncovered_only
+  statement: "Coverage lint reports only requirements that are suppressed, missing or unverifiable; a placed, note-satisfied or dropped requirement produces no coverage finding."
+  detail: "Dropped requirements are not re-reported because the placement stage already emitted a specific *_dropped issue; reporting both would double-count one defect. Messages: suppressed='was deliberately omitted by the authored dimension set', missing='has no placed, suppressed, or dropped callout outcome', unverifiable='cannot be joined to measurement provenance without guessing'."
+  class: trust
+  source:
+    module: "linting/_parameter_coverage.py"
+    tests: [tests/test_lint_coverage_common.py]
+  status: pending
+  port_note: "Keep: emit '<family>_requirement_<state>' codes from the outcome ledger."
+
+- id: LINT-_coverage_common-assembly_severity
+  statement: "Missing-feature coverage findings on a multi-body (general-arrangement) drawing are informational, because a GA deliberately omits each part's detail dimensions; on a single-part drawing they are warnings."
+  detail: "assembly=None auto-detects: len(part.solids()) > 1 means assembly. Applies to feature_not_dimensioned, feature_count_mismatch, feature_no_centermark, feature_not_located, axial_length_missing, boss_height_missing, pad_footprint_not_defined, pocket_not_located, unrecognised_defining_geometry and every *_requirement_* family code."
+  class: drafting
+  source:
+    module: "linting/coverage.py"
+    issues: [69]
+    tests: [tests/test_lint_coverage.py]
+  status: pending
+  port_note: "Keep: severity switch keyed on drawing kind (part vs assembly)."
+
+- id: LINT-_coverage_common-exact_correspondence
+  statement: "A recognised feature is matched to its drawing feature only by exact retained geometry; labels, annotation names, views and page coordinates are never correspondence evidence, and an ambiguous or duplicate match is unverifiable rather than guessed."
+  detail: "Each family defines a key (axis, rounded location, sizes, orientation) used identically on the recognition record and the IR feature; a key is accepted only when exactly one source and one feature share it. Rounding is to 0.001 mm (the generated script's precision)."
+  class: trust
+  source:
+    module: "linting/_parameter_coverage.py"
+    issues: [1374, 1382, 1421]
+    tests: [tests/test_lint_coverage_common.py]
+  status: pending
+  port_note: "Keep: exact-key join with fail-closed ambiguity; do not port proximity matching."
+
+- id: LINT-issues-unjoined_requirement_count
+  statement: "When a recognised feature matches no drawing feature, all of its physical requirements are reported together as one unverifiable outcome that states how many requirements it stands for."
+  detail: "parameter_id is the sentinel '?' and requirement_count carries the cardinality; the message names 'all N physical measurements, which no IR feature claimed' (or 'of unknown number' when the inventory is corrupt). Fixes the old 'requirement ? cannot be joined' message."
+  class: trust
+  source:
+    module: "linting/issues.py"
+    issues: [1397]
+    tests: [tests/test_issue_1397_unverifiable_requirement_message.py]
+  status: pending
+  port_note: "Keep: unjoined outcome with explicit requirement count."
+
+- id: LINT-_registry-structured_note_satisfaction
+  statement: "A placed note satisfies a dimensional requirement only when it carries explicit measurement-identity provenance for that exact feature and parameter; note prose is never parsed for coverage."
+  detail: "Structured-note authority is narrower than a placed callout: for holes, synthetic THRU and count facts cannot be satisfied by a note, while the public 'location' unit can satisfy component location axes."
+  class: trust
+  source:
+    module: "linting/_registry.py, linting/hole_coverage.py"
+    issues: [1351]
+    tests: [tests/test_issue_1351_structured_note_coverage.py]
+  status: pending
+  port_note: "Keep: satisfaction by typed identity only."
+
+- id: LINT-schedule_evidence-verified_cells
+  statement: "A table or schedule cell counts as evidence for a requirement only when its rendered content agrees with the compiler-approved measurement for that row and column."
+  detail: "Unverified or stale cells cannot restore hole requirements, locations or counts; cells are checked including tolerances, THRU/blind content and quantity."
+  class: trust
+  source:
+    module: "linting/schedule_evidence.py, linting/evidence.py"
+    issues: [1543]
+    tests: [tests/test_issue_1543_schedule_requirements.py, tests/test_issue_1543_feature_schedules.py]
+  status: pending
+  port_note: "Keep: verify cell content before crediting schedule evidence."
+
+- id: LINT-issues-placement_drop_stage
+  statement: "An issue counts as a placement drop (a valid annotation that did not fit) when its outcome stage is 'placement', or, absent a stage, when its code ends in '_dropped'; a 'validation' stage means malformed input, not a layout failure."
+  class: trust
+  source:
+    module: "linting/issues.py"
+    issues: [1127]
+    tests: [tests/test_quality_components.py]
+  status: pending
+  port_note: "Keep: carry an explicit outcome stage on drop issues; avoid suffix inference in Rust."
+
+- id: LINT-issues-lintissue_schema
+  statement: "A lint finding carries severity, message, optional page location, stable code, fix suggestion, implicated measurement ids, source (AP242) ids, outcome stage, hole requirement ids, measurement spans, annotation name, view, evidence reason and related annotation names."
+  class: machinery
+  source:
+    module: "linting/issues.py"
+    issues: [29, 623, 1018, 1127, 1711]
+  status: pending
+  port_note: "Adapt: define a Rust LintIssue struct with the same stable fields."
+
+- id: LINT-issues-pair_aggregation_ledger
+  statement: "Pairwise layout findings record an opaque subject token per summary run so a score can group pair findings without changing the public issue list."
+  class: machinery
+  source:
+    module: "linting/issues.py"
+    issues: [1147]
+  status: pending
+  port_note: "Adapt or drop: only needed if the Rust quality score aggregates pair findings."
+
+- id: LINT-_registry-requirement_carriers
+  statement: "Each requirement outcome retains the names of the annotations (measurement, structured note, physical location, schedule cell) that carried it."
+  class: machinery
+  source:
+    module: "linting/_registry.py"
+  status: pending
+  port_note: "Adapt: keep carrier provenance on outcomes for reports."
+
+- id: LINT-requirements-source_families
+  statement: "Physical requirement ledgers exist for section recesses, chamfers, blends, bosses, channels, circular blind steps, fillets, paired ramp steps, through steps, turned steps, flats, grooves, gusset ribs, holes, hole patterns, oriented slots, pads, plates, polygonal bosses, polygonal stock, pockets, pocket patterns, rectangular blind slots, round-bottom blind slots, slots, slot patterns and outer-profile angles."
+  detail: "Records absorbed by another family's grammar are excluded (section recess owned by a channel step level; turned step owned by a groove); an unexpectedly-missing section recess has no grammar and earns no credit."
+  class: machinery
+  source:
+    module: "linting/requirements.py"
+    tests: [tests/test_document_report.py]
+  status: pending
+  port_note: "Adapt: single collector of family ledgers shared by lint and reports."
+
+# ---------------------------------------------------------------------------------------
+# Holes and hole patterns (hole_coverage.py; parameters from HoleFeature/PatternFeature)
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-hole_coverage-bore_diameter
+  statement: "Every recognised hole, or group of identical holes, has its bore diameter stated."
+  detail: "Parameter bore.diameter. A common machining specification needs one truthful statement for the group (any matched feature placed suffices)."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1143_hole_completeness.py, tests/test_issue_1369_hole_completeness_evidence.py]
+  status: pending
+  port_note: "Keep: port as a coverage check run on the rendered plan."
+
+- id: LINT-hole_coverage-blind_depth
+  statement: "A blind hole states its bore depth."
+  detail: "Parameter bore.depth, present only when the hole is not through."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1369_hole_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-through_indicator
+  statement: "A through hole's callout states THRU."
+  detail: "Synthetic requirement bore.through, proved by a diameter callout that declares the THRU fact; cannot be satisfied by a structured note; an authored omission of the through indicator is suppressed."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143, 1351]
+    tests: [tests/test_issue_1369_hole_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-cbore_diameter_depth
+  statement: "A counterbored hole's callout states the counterbore diameter and the counterbore depth."
+  detail: "Parameters counterbore.diameter and counterbore.depth (from HoleFeature.parameters)."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1369_hole_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-spotface_diameter_depth
+  statement: "A spotfaced hole's callout states the spotface diameter and the spotface depth."
+  detail: "Parameters spotface.diameter and spotface.depth."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1369_hole_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-csink_diameter_angle
+  statement: "A countersunk hole's callout states the countersink diameter and the countersink angle."
+  detail: "Parameters countersink.diameter and countersink.angle."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143, 1370]
+    tests: [tests/test_issue_1370_countersink_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-thread_and_profile
+  statement: "A threaded hole states its thread depth, and a profiled (double-D) bore states its across-flats size, as part of the hole's requirements."
+  detail: "HoleFeature.parameters adds thread.depth when a thread is present and profile_across_flats.length for a profiled bore; hole_coverage takes the feature's full parameter list as the requirement vocabulary."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143, 1061]
+    tests: [tests/test_issue_1370_double_d_completeness_evidence.py]
+  status: pending
+  port_note: "Keep: derive requirements from the feature's parameter list."
+
+- id: LINT-hole_coverage-grouping_count
+  statement: "A group of more than one identical hole states its quantity (n×), and the stated quantity equals the number of physical holes in the group."
+  detail: "Synthetic requirement grouping.count. When one grouped callout covers several features, the printed total must agree with the per-feature allocations or no count is credited."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143, 92]
+    tests: [tests/test_issue_1369_hole_completeness_evidence.py, tests/test_issue_1370_hole_pattern_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-location
+  statement: "Every hole is located from the datum in both directions perpendicular to its axis, and every member of a group is located."
+  detail: "Z-axis holes: location.location.x and .y; off-axis holes: the in-plane coordinate and z (location_off_axis.*). Location requires every separately declared physical member to be tied to a placed location mark; per-axis requirements are counted independently (2 per hole). Through holes ignore their along-axis coordinate."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143, 883]
+    tests: [tests/test_issue_1369_hole_completeness_evidence.py, tests/test_issue_1219_location_claims_its_own_axis.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-turned_axis_location
+  statement: "A cross hole lying on a turned part's axis is located along that axis by its centreline, and a centre mark in the hole's end-on view counts as locating it."
+  detail: "Recorded as two requirements (location_off_axis.centerline.<in-plane> and .centerline.z) so the denominator does not shrink; the turned axis is recovered from external cylinders supporting the turned-step ladder (unique best support)."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1143_hole_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-pattern_location
+  statement: "A bolt circle, or a grid whose members prove a centred lattice, is located by its centre; a linear pattern or non-centred grid is located by one physical member, with pitch locating the rest."
+  detail: "Parameters location_pattern.location.<in-plane axes>. Grid centre is credited only when every member matches its lattice site within 0.01 mm."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1370_hole_pattern_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-pattern_spacing
+  statement: "A hole pattern states its spacing: bolt-circle diameter for a bolt circle, pitch for a linear array, and row and column pitch for a rectangular grid."
+  detail: "From PatternFeature.parameters: bolt_circle diameter, pitch.length, grid_pitch row/col. Recognition-side count: grid adds 2 requirements, others 1."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_missing"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1370_hole_pattern_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-opposed_bores_distinct
+  statement: "Holes drilled from opposite faces, or along different oblique directions, are separate machining requirements even when every printed size matches."
+  detail: "Loose holes are grouped by spec plus signed axis; blind holes keep their axial coordinate in their identity, through holes do not."
+  class: drafting
+  source:
+    module: "linting/hole_coverage.py"
+    issues: [1223, 1229]
+    tests: [tests/test_issue_1369_hole_completeness_evidence.py]
+  status: pending
+  port_note: "Keep: group holes by spec and signed axis."
+
+- id: LINT-hole_coverage-requirement_count
+  statement: "An unjoined hole source counts its physical requirements as: diameter plus THRU-or-depth, two per counterbore, spotface or countersink, one for quantity when grouped, two datum locations, and one (linear/bolt circle) or two (grid) pattern spacings."
+  class: trust
+  source:
+    lint_code: "hole_requirement_unverifiable"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1143_hole_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-ownership_join
+  statement: "Recognised holes are joined to declared hole features by an exact cover of their opening positions; a blind declaration may instead be matched at its cutter centre only when exactly one source and one remaining feature are left."
+  detail: "Any overlap, partial or doubly-claimed owner fails closed as unverifiable."
+  class: trust
+  source:
+    lint_code: "hole_requirement_unverifiable"
+    module: "linting/hole_coverage.py"
+    issues: [1143, 1217]
+    tests: [tests/test_issue_1369_hole_completeness_evidence.py]
+  status: pending
+  port_note: "Keep the fail-closed principle; the exact algorithm may be simplified."
+
+- id: LINT-hole_coverage-bolt_circle_corroboration
+  statement: "A recognised bolt circle is treated as a pattern requirement only when it is physically corroborated or exactly declared; refused patterns fall back to individual holes."
+  class: trust
+  source:
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1370_hole_pattern_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-hole_coverage-second_countersink_unverifiable
+  statement: "A second countersink seat on the opposite face of a hole is a real requirement (diameter and angle) but is reported unverifiable because it cannot be attributed to a specific hole."
+  class: trust
+  source:
+    lint_code: "hole_requirement_unverifiable"
+    module: "linting/hole_coverage.py"
+    issues: [1229]
+    tests: [tests/test_issue_1370_countersink_completeness_evidence.py]
+  status: pending
+  port_note: "Adapt: if the Rust hole record holds two countersinks, make this a normal requirement."
+
+- id: LINT-code-hole_requirement_state
+  statement: "Uncovered hole requirements are reported per requirement as hole_requirement_missing, hole_requirement_suppressed or hole_requirement_unverifiable, naming quantity, diameter, THRU or blind depth and axis."
+  detail: "Severity info for assemblies, else warning. Message format: 'N× øD THRU holes, axis A at (x,y,z) requirement <id> <reason>'."
+  class: drafting
+  source:
+    lint_code: "hole_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/hole_coverage.py"
+    issues: [1143]
+    tests: [tests/test_issue_1143_hole_completeness.py, tests/test_declare.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-diameter_leader_target_mismatch
+  statement: "A hole diameter leader's tip touches the hole's own physical boundary edge as projected in that view."
+  detail: "Tolerance 0.002 (page units) from the nearest projected defining edge of the exact owning occurrence. Warning. Fidelity code."
+  class: drafting
+  source:
+    lint_code: "diameter_leader_target_mismatch"
+    module: "linting/hole_coverage.py"
+    issues: [1378]
+    tests: [tests/test_issue_1378_diameter_leader_targets.py]
+  status: pending
+  port_note: "Keep: check leader tips against projected feature edges."
+
+- id: LINT-code-diameter_leader_target_unverifiable
+  statement: "When a diameter leader's target cannot be checked (no same-run recognition, no view, no exact ownership, or no boundary edges) the drawing says so rather than passing it."
+  class: trust
+  source:
+    lint_code: "diameter_leader_target_unverifiable"
+    module: "linting/hole_coverage.py"
+    issues: [1378]
+    tests: [tests/test_issue_1378_diameter_leader_targets.py]
+  status: pending
+  port_note: "Keep."
+
+# ---------------------------------------------------------------------------------------
+# Coarse coverage checks (coverage.py)
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-code-feature_not_dimensioned
+  statement: "Every recognised cylindrical diameter on the part (bore, counterbore/spotface step, boss) has a diameter callout on the sheet."
+  detail: "Match tolerance 0.15 mm. Radius callouts do not count (an 'R5 TYP' note would mask an undimensioned bore); title blocks are skipped; structured callouts are not parsed as text (BCD suffixes are not feature coverage); diameters dropped by the callout cap are excluded; a boss diameter owned by a blend of the same face is excluded. Partial cylinders (slot ends, interrupted recesses) are not in the inventory."
+  class: drafting
+  source:
+    lint_code: "feature_not_dimensioned"
+    module: "linting/coverage.py"
+    issues: [80, 92, 1351, 1450]
+    tests: [tests/test_lint_coverage.py, tests/test_diameter_leaders.py, tests/test_issue_1505_diameter_coverage.py]
+  status: pending
+  port_note: "Keep as a coarse backstop to the semantic ledgers."
+
+- id: LINT-code-feature_count_mismatch
+  statement: "For each hole diameter, the quantities stated by structured callouts account for every physical occurrence on the part."
+  detail: "Each bore, counterbore and spotface occurrence counts one. Fires only when 0 < stated < required. A diameter covered by free text is exempt (text carries no count). Several representations of one owner are unioned, not summed. Disabled when the semantic hole ledger owns counts (Drawing.lint)."
+  class: drafting
+  source:
+    lint_code: "feature_count_mismatch"
+    module: "linting/coverage.py"
+    issues: [92]
+    tests: [tests/test_hole_pattern_callouts.py, tests/test_hole_table.py]
+  status: pending
+  port_note: "Keep only if a standalone coarse check is wanted; the hole ledger supersedes it."
+
+- id: LINT-code-feature_no_centermark
+  statement: "Every hole, including each pattern member, has a centre mark in the view looking along its axis."
+  detail: "Centre within 0.6 mm of the projected hole centre; Y-axis holes may use front or rear. One aggregated finding with the count of unmarked holes. Double-D bores included."
+  class: drafting
+  source:
+    lint_code: "feature_no_centermark"
+    module: "linting/coverage.py"
+    issues: [218]
+    tests: [tests/test_issue_1143_hole_completeness.py, tests/test_e2e_slice.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-feature_not_located
+  statement: "Every hole that is not part of a pattern and not on the part's centre/turning axis has a locating dimension on each perpendicular axis where it is off-centre."
+  detail: "An axis needs locating only if the hole is more than 1.0 mm from the part bbox centre on it. Pattern members are exempt (located by BCD/pitch). Evidence is a structured location fact for that feature and axis, a location note, or a dimension witness aligned within 0.6 mm; structured evidence, when present, is authoritative over coincident geometry."
+  class: drafting
+  source:
+    lint_code: "feature_not_located"
+    module: "linting/coverage.py"
+    issues: [218, 93]
+    tests: [tests/test_issue_1143_hole_completeness.py, tests/test_interior_label_placement.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-unrecognised_defining_geometry-principal_profile
+  statement: "Every inner opening and the outer boundary on a principal face is a profile the drawing vocabulary can dimension (circle, axis-aligned rectangle, obround, double-D), or it is flagged as undefined geometry."
+  detail: "Passages and prismatic pockets that exactly match the opening are reported by their own unsupported codes instead. An outer boundary with N equal, evenly spaced arcs on one circle is reported with that count (no gear standard inferred)."
+  class: drafting
+  source:
+    lint_code: "unrecognised_defining_geometry"
+    module: "linting/coverage.py"
+    issues: [1058, 1245, 1246]
+    tests: [tests/test_issue_1058_wheel_profile.py, tests/test_issue_1245_passage_disposition.py]
+  status: pending
+  port_note: "Keep: independent B-rep scan for undimensionable profiles."
+
+- id: LINT-code-unrecognised_defining_geometry-prismatic
+  statement: "Bounded blind recesses and stepped or slanted profile transitions present in the geometry are represented by drawing features, or flagged as undefined geometry."
+  detail: "Transitions are checked only when there are two or more shoulder stations (a lone transition may be owned by a plate-thickness scheme); channel walls and X/Y through-step bends count as owners."
+  class: drafting
+  source:
+    lint_code: "unrecognised_defining_geometry"
+    module: "linting/coverage.py"
+    issues: [885]
+    tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_declared_recognition_gate.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-pad_footprint_not_defined
+  statement: "Every rectangular raised pad has its footprint length and width, its height above the attachment face, and its in-plane location dimensioned."
+  detail: "Non-Z pads require structured evidence for pad_width, pad_length, pad_height and both location axes. Legacy Z pads may use geometric witnesses; a pad edge coincident with the part edge counts as located. One aggregated warning with the count."
+  class: drafting
+  source:
+    lint_code: "pad_footprint_not_defined"
+    module: "linting/coverage.py"
+    issues: [885]
+    tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_issue_1351_structured_note_coverage.py]
+  status: pending
+  port_note: "Keep (or fold into the pad ledger)."
+
+- id: LINT-code-pocket_not_located
+  statement: "Every lone blind pocket has a complete in-plane location scheme."
+  detail: "Per axis the pocket is located if it is symmetric about the part centre (within 1.0 mm), coincident with the datum edge, or a dimension spans from the datum (bbox minimum) to it. Edge-anchored pockets and pattern-located pockets are exempt; a pocket starting at the datum needs no long-axis centre dimension."
+  class: drafting
+  source:
+    lint_code: "pocket_not_located"
+    module: "linting/coverage.py"
+    issues: [885]
+    tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_issue_1485_rounded_pockets.py]
+  status: pending
+  port_note: "Keep (or fold into the pocket ledger)."
+
+- id: LINT-code-axial_length_missing
+  statement: "A turned profile with n axial steps has all n step lengths dimensioned so every shoulder is located."
+  detail: "Counted from profile-view dimensions whose witnesses sit on both shoulders, verified schedule cells or structured notes matched by axial span. A rendered groove-width callout covers its band. Each body-local profile is judged independently. Suppressed when the chain drop was already reported and the overall axial extent is dimensioned."
+  class: drafting
+  source:
+    lint_code: "axial_length_missing"
+    module: "linting/coverage.py"
+    issues: [223, 443, 1357]
+    tests: [tests/test_axial_dimensions.py, tests/test_issue_443_grm03_axial_coverage.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-boss_height_missing
+  statement: "Every boss with a modelled height has its height stated by a linear dimension; a diameter callout does not cover it."
+  detail: "Covered by a Dimension annotation, verified cell or structured note for boss_height. A height consolidated onto an overall extent counts only once that extent is verifiably placed; a suppression that hands the fact to nobody is reported."
+  class: drafting
+  source:
+    lint_code: "boss_height_missing"
+    module: "linting/coverage.py"
+    issues: [632, 1154, 964]
+    tests: [tests/test_issue_1154_one_owner_per_measurement.py, tests/test_issue_1511_turned_boss_heights.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-turned_profile_not_spanned
+  statement: "The declared steps of a turned profile describe the whole axial length of the body; any undescribed stretch is reported."
+  detail: "Warning. Only run for a caller-declared model (scoping choice, not immunity of the detection path). Hints that external cylinders on a prismatic part should be bosses."
+  class: drafting
+  source:
+    lint_code: "turned_profile_not_spanned"
+    module: "linting/coverage.py"
+    issues: [631, 1132]
+    tests: [tests/test_issue_1132_turned_profile_span_is_reported.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-declared_feature_absent
+  statement: "Every declared hole, boss or turned step corresponds to real geometry in the part, so no callout or centre mark points at solid material."
+  detail: "Match: same axis, diameter within 0.2 mm, in-plane position within 0.5 mm, and correct polarity (hole = bore, boss/step = external). Declared double-D bores must match a through double-D profile. Warning; declared models only. Fidelity code."
+  class: drafting
+  source:
+    lint_code: "declared_feature_absent"
+    module: "linting/coverage.py"
+    issues: [487]
+    tests: [tests/test_lint_reconciliation.py, tests/test_issue_1176_quality_fidelity.py]
+  status: pending
+  port_note: "Keep for declared (script) models."
+
+- id: LINT-coverage-coverage_state
+  statement: "The annotation passes record which callouts document hole patterns, which holes those cover, which scattered hole docs a table may replace, and which diameters/profiles the callout cap dropped."
+  class: machinery
+  source:
+    module: "linting/coverage.py"
+    issues: [138, 351, 647, 720]
+  status: pending
+  port_note: "Drop: side channel; derive from the plan/registry in Rust."
+
+- id: LINT-coverage-examinable_declared_kinds
+  statement: "The declared feature kinds that a truth check can examine against geometry are hole, boss, step and external spur gear."
+  class: machinery
+  source:
+    module: "linting/coverage.py"
+    issues: [1176]
+  status: pending
+  port_note: "Adapt: needed only by the fidelity component."
+
+# ---------------------------------------------------------------------------------------
+# Envelope, boss, plates, channels
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-envelope_coverage-overall_extents
+  statement: "Each non-zero overall extent of the part (width X, depth Y, height Z) is stated on the drawing."
+  detail: "Proved by one measurement spanning the full bbox interval on that axis, by a contiguous chain of step lengths that exactly partitions it (overlap does not count), or by a diameter of a coaxial rotational feature centred across it. Physical bbox is the denominator even when no envelope feature was detected. No lint code; feeds completeness."
+  class: drafting
+  source:
+    module: "linting/envelope_coverage.py"
+    issues: [1560]
+    tests: [tests/test_issue_1560_envelope_axes.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-missing_principal_dimension
+  statement: "Each principal part extent appears as the value of some dimension label on the sheet."
+  detail: "Tolerance max(0.5 mm, 0.1%); Y is skipped when X and Y are within 5% of each other; values are page extents divided by the drawing scale. Warning."
+  class: drafting
+  source:
+    lint_code: "missing_principal_dimension"
+    module: "linting/structural.py"
+    tests: [tests/test_prismatic_classification.py]
+  status: pending
+  port_note: "Keep only as a label-based backstop; prefer envelope_coverage."
+
+- id: LINT-boss_coverage-diameter_height
+  statement: "Each cylindrical boss states its diameter and its height."
+  detail: "Parameters boss.diameter and boss_height.length, joined through conversion-time ownership; no lint code (completeness ledger only)."
+  class: drafting
+  source:
+    module: "linting/boss_coverage.py"
+    issues: [1788]
+    tests: [tests/test_boss_ownership.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-plate_coverage-thickness
+  statement: "Each body-local slab (plate) whose thickness is not already the overall envelope states its thickness."
+  detail: "Parameter thickness.length."
+  class: drafting
+  source:
+    lint_code: "plate_requirement_missing"
+    module: "linting/plate_coverage.py"
+    issues: [1373]
+    tests: [tests/test_issue_1373_plate_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-plate_coverage-exclusions
+  statement: "A slab thickness is not separately required when it is the supporting slab of a polygonal boss spanning the rest of the envelope, a material web between slots of a slot pattern, or the upper wall of a U-channel already derivable from placed thickness, channel width and envelope."
+  detail: "Exclusions: polygonal_boss_owns_supporting_slab, slot_pattern_owns_material_web (requires exact provider replay of the slot pattern), and derived opposite wall (inapplicable once its dependencies are evidenced)."
+  class: drafting
+  source:
+    module: "linting/plate_coverage.py"
+    issues: [1373]
+    tests: [tests/test_issue_1373_plate_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-plate_requirement_state
+  statement: "Uncovered plate thicknesses are reported as plate_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "plate_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/plate_coverage.py"
+    issues: [1373]
+    tests: [tests/test_issue_1373_plate_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-channel_coverage-width_scheme
+  statement: "A full-span open channel in a base-plus-walls construction is dimensioned by its channel width, the thickness of the plate below it, and the overall extent across the width direction."
+  detail: "Applies only when recognition proves a multi-axis plate construction; otherwise the recess is a centred rebate owned by the step ladder. Parameters channel_width.length, plate thickness.length, envelope width/depth/height.length."
+  class: drafting
+  source:
+    lint_code: "channel_requirement_missing"
+    module: "linting/channel_coverage.py"
+    issues: [917]
+    tests: [tests/test_issue_917_open_channel.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-channel_requirement_state
+  statement: "Uncovered channel scheme measurements are reported as channel_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "channel_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/channel_coverage.py"
+    issues: [917]
+    tests: [tests/test_issue_917_open_channel.py]
+  status: pending
+  port_note: "Keep."
+
+# ---------------------------------------------------------------------------------------
+# Edge treatments
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-chamfer_coverage-size
+  statement: "Every chamfer has a size callout."
+  detail: "Parameter chamfer.length; the callout is C{leg} for an equal-leg 45° chamfer or {leg} × {angle}° otherwise (ChamferFeature). Join key includes axis, location, turned flag, both legs and angle."
+  class: drafting
+  source:
+    lint_code: "chamfer_requirement_missing"
+    module: "linting/chamfer_coverage.py"
+    issues: [1374, 560]
+    tests: [tests/test_issue_1374_chamfer_completeness_evidence.py, tests/test_edge_profile_coverage.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-chamfer_requirement_state
+  statement: "Uncovered chamfers are reported as chamfer_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "chamfer_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/chamfer_coverage.py"
+    issues: [1374]
+    tests: [tests/test_issue_1374_chamfer_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-fillet_coverage-radius
+  statement: "Every fillet has a radius callout."
+  detail: "Parameter fillet.radius."
+  class: drafting
+  source:
+    lint_code: "fillet_requirement_missing"
+    module: "linting/fillet_coverage.py"
+    issues: [1374]
+    tests: [tests/test_issue_1374_fillet_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-fillet_requirement_state
+  statement: "Uncovered fillets are reported as fillet_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "fillet_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/fillet_coverage.py"
+    issues: [1374]
+    tests: [tests/test_edge_profile_coverage.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-blend_coverage-radius
+  statement: "Every straight or circular-path blend chain has its radius stated."
+  detail: "Parameter blend.radius; one requirement per accepted physical blend occurrence."
+  class: drafting
+  source:
+    lint_code: "blend_requirement_missing"
+    module: "linting/blend_coverage.py"
+    issues: [1433, 1438]
+    tests: [tests/test_issue_1433_blend_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-blend_requirement_state
+  statement: "Uncovered blend radii are reported as blend_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "blend_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/blend_coverage.py"
+    issues: [1433]
+    tests: [tests/test_issue_1433_blend_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-radius_leader_target_mismatch
+  statement: "A straight blend's radius leader tip touches the blend's trimmed profile arc."
+  detail: "Measured against the complete trimmed edge, not the renderer's candidate site; circular-path (toroidal) blends have a different target contract and are not checked. Warning; fidelity code."
+  class: drafting
+  source:
+    lint_code: "radius_leader_target_mismatch"
+    module: "linting/blend_coverage.py"
+    issues: [1479]
+    tests: [tests/test_issue_1479_radius_leader_targets.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-radius_leader_target_unverifiable
+  statement: "When a radius leader's target arc cannot be verified the drawing reports it rather than passing it."
+  class: trust
+  source:
+    lint_code: "radius_leader_target_unverifiable"
+    module: "linting/blend_coverage.py"
+    issues: [1479]
+    tests: [tests/test_issue_1479_radius_leader_targets.py]
+  status: pending
+  port_note: "Keep."
+
+# ---------------------------------------------------------------------------------------
+# Turned features
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-turned_step_coverage-length_and_od
+  statement: "Each outside-diameter band of a turned profile states its axial length and its diameter."
+  detail: "Parameters step.length and step.diameter; bands owned by a groove are excluded; the diameter may be stated by the rotational feature's OD dimension. No lint code (completeness ledger only; axial_length_missing covers the chain)."
+  class: drafting
+  source:
+    module: "linting/turned_step_coverage.py"
+    issues: [1374]
+    tests: [tests/test_issue_1374_turned_step_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-groove_coverage-width_and_floor
+  statement: "Every turned groove states its axial width and its floor diameter."
+  detail: "Parameters groove.length and groove.diameter."
+  class: drafting
+  source:
+    lint_code: "groove_requirement_missing"
+    module: "linting/groove_coverage.py"
+    issues: [1372]
+    tests: [tests/test_groove_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-groove_requirement_state
+  statement: "Uncovered groove measurements are reported as groove_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "groove_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/groove_coverage.py"
+    issues: [1372, 1397]
+    tests: [tests/test_groove_completeness_evidence.py, tests/test_issue_1397_unverifiable_requirement_message.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-flat_coverage-across_flats
+  statement: "Each machined flat, or pair of flats on a double-D or hex, states its across-flats size."
+  detail: "Parameter flat.length. Two faces of one double-D/hex share one requirement; parallel, differently-directed or disjoint coaxial stock do not."
+  class: drafting
+  source:
+    lint_code: "flat_requirement_missing"
+    module: "linting/flat_coverage.py"
+    issues: [1018, 1371]
+    tests: [tests/test_flat_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-flat_requirement_state
+  statement: "Uncovered A/F requirements are reported as flat_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "flat_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/flat_coverage.py"
+    issues: [1018]
+    tests: [tests/test_flat_completeness.py, tests/test_flat_stock_identity.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-profiled_bore_coverage-double_d
+  statement: "A through double-D bore is called out with both its major diameter and its across-flats size; a diameter-only callout is insufficient, and the callouts account for every such bore."
+  detail: "Required parameters bore.diameter and profile_across_flats.length, matched on axis and flat direction. Dropped callouts are already reported as callout_dropped and only counted here to avoid double-reporting."
+  class: drafting
+  source:
+    lint_code: "profiled_bore_not_dimensioned"
+    module: "linting/profiled_bore_coverage.py"
+    issues: [1061]
+    tests: [tests/test_issue_1370_double_d_completeness_evidence.py, tests/test_issue_1351_structured_note_coverage.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-polygonal_stock_coverage-af_length
+  statement: "Whole-part hexagonal bar stock states its across-flats size and its stock length."
+  detail: "Parameters polygon_across_flats.length and stock_length.length."
+  class: drafting
+  source:
+    lint_code: "polygonal_stock_requirement_missing"
+    module: "linting/polygonal_stock_coverage.py"
+    issues: [1082, 1371]
+    tests: [tests/test_issue_1371_polygonal_stock_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-polygonal_stock_requirement_state
+  statement: "Uncovered polygonal-stock measurements are reported as polygonal_stock_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "polygonal_stock_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/polygonal_stock_coverage.py"
+    issues: [1371]
+    tests: [tests/test_issue_1082_polygonal_stock.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-section_recess_coverage-circular_seat
+  statement: "A circular seat (part-cylindrical channel) states its diameter, its run length, its swept angle, and its location in X, Y and Z."
+  detail: "Parameters seat_diameter.diameter, seat_run.length, seat_sweep.angle, seat_location.location.{x,y,z}. The run may be conveyed by the overall extent when the seat's ends are the envelope's end planes. A location axis on which the seat axis coincides with the stock datum is inapplicable."
+  class: drafting
+  source:
+    lint_code: "circular_channel_requirement_missing"
+    module: "linting/section_recess_coverage.py"
+    issues: [1613]
+    tests: [tests/test_issue_1613_circular_channel.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-circular_channel_requirement_state
+  statement: "Uncovered circular-seat requirements are reported as circular_channel_requirement_<state>."
+  detail: "Always warning (no assembly downgrade in this module)."
+  class: drafting
+  source:
+    lint_code: "circular_channel_requirement_{missing,suppressed,unverifiable,dropped}"
+    module: "linting/section_recess_coverage.py"
+    issues: [1613]
+    tests: [tests/test_issue_1613_circular_channel.py]
+  status: pending
+  port_note: "Keep; align severity convention with the other families."
+
+# ---------------------------------------------------------------------------------------
+# Prismatic features: bosses, pads, pockets, slots, steps
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-polygonal_boss_coverage-af_height
+  statement: "A polygonal (square or hex) boss states its across-flats size and its height above the attachment face."
+  detail: "Parameters polygon_across_flats.length and boss_height.length. An exact four-sided duplicate of a recognised pad adds no requirement; the pad ledger owns it."
+  class: drafting
+  source:
+    lint_code: "polygonal_boss_requirement_missing"
+    module: "linting/polygonal_boss_coverage.py"
+    issues: [1372, 676]
+    tests: [tests/test_polygonal_boss_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-polygonal_boss_requirement_state
+  statement: "Uncovered polygonal-boss measurements are reported as polygonal_boss_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "polygonal_boss_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/polygonal_boss_coverage.py"
+    issues: [1372]
+    tests: [tests/test_polygonal_boss_completeness_evidence.py, tests/test_issue_676_polygonal_boss.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-pad_coverage-size_height_location
+  statement: "A rectangular raised pad states its footprint width and length, its height from the attachment face, and its location in both in-plane directions."
+  detail: "Five requirements: pad_width.length, pad_length.length, pad_height.length, location_pad.location.{x,y} (Z pads) or location_pad.{long,width axis}. A location direction where the pad is coincident with the datum is inapplicable (compiler omission code pad_location_coincident_with_datum)."
+  class: drafting
+  source:
+    lint_code: "pad_requirement_missing"
+    module: "linting/pad_coverage.py"
+    issues: [1372]
+    tests: [tests/test_pad_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-pad_requirement_state
+  statement: "Uncovered pad measurements are reported as pad_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "pad_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/pad_coverage.py"
+    issues: [1372]
+    tests: [tests/test_pad_completeness_evidence.py, tests/test_pad_rendering.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-pocket_coverage-size_depth_location
+  statement: "A lone blind pocket states its width, length and depth, and its location in both in-plane directions."
+  detail: "pocket_width.length, pocket_length.length, pocket_depth.length (pocket_max_depth.length for a pocket open on a side mouth), location_pocket.location.{x,y}. Location is inapplicable for an edge-anchored pocket or where it is coincident with the datum (omission code pocket_location_coincident_with_datum). Pattern members are owned by the pocket-pattern ledger."
+  class: drafting
+  source:
+    lint_code: "pocket_requirement_missing"
+    module: "linting/pocket_coverage.py"
+    issues: [1372]
+    tests: [tests/test_pocket_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-pocket_requirement_state
+  statement: "Uncovered lone-pocket measurements are reported as pocket_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "pocket_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/pocket_coverage.py"
+    issues: [1372]
+    tests: [tests/test_pocket_completeness_evidence.py, tests/test_issue_1485_curved_pockets.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-pocket_pattern_coverage-requirements
+  statement: "A pattern of blind pockets is one requirement set: quantity, member width, length and depth, pitch (linear) or row and column pitch (grid), and the pattern's location in X and Y."
+  detail: "grouping.count, pocket_width/length/depth (or max_depth), pitch.length or grid_pitch.length.{row,col}, location_pocket_pattern.location.{x,y}. Non-Z patterns have no compiler location owner and are unverifiable."
+  class: drafting
+  source:
+    lint_code: "pocket_pattern_requirement_missing"
+    module: "linting/pocket_pattern_coverage.py"
+    issues: [1372]
+    tests: [tests/test_pocket_pattern_completeness_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-pocket_pattern_requirement_state
+  statement: "Uncovered pocket-pattern measurements are reported as pocket_pattern_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "pocket_pattern_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/pocket_pattern_coverage.py"
+    issues: [1372]
+    tests: [tests/test_pocket_pattern_completeness_evidence.py, tests/test_issue_1485_rounded_pockets.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-section_recess_coverage-hex_pocket
+  statement: "A hexagonal blind pocket states its across-flats size and its depth."
+  detail: "Parameters polygon_across_flats.length and pocket_depth.length."
+  class: drafting
+  source:
+    lint_code: "hex_pocket_requirement_missing"
+    module: "linting/section_recess_coverage.py"
+    issues: [1598]
+    tests: [tests/test_issue_1598_hex_pockets.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-hex_pocket_requirement_state
+  statement: "Uncovered hex-pocket requirements are reported as hex_pocket_requirement_<state>."
+  detail: "Always warning."
+  class: drafting
+  source:
+    lint_code: "hex_pocket_requirement_{missing,suppressed,unverifiable,dropped}"
+    module: "linting/section_recess_coverage.py"
+    issues: [1598]
+    tests: [tests/test_issue_1598_hex_pockets.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-slot_coverage-lone_slot
+  statement: "A lone through slot states its width, its length, its end radius when the ends are proven arcs (obround), and its location."
+  detail: "Roles slot_width, slot_length, optional slot_end_radius and the feature's location stem (<stem>.length). Recognition count: 3, or 4 with end radius."
+  class: drafting
+  source:
+    lint_code: "slot_requirement_missing"
+    module: "linting/slot_coverage.py"
+    issues: [1018]
+    tests: [tests/test_slot_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-slot_coverage-slot_pattern
+  statement: "A slot pattern states member width, length (and end radius if obround), pitch (linear) or row and column pitch (grid), and its location in X and Y; its members are not separate lone-slot requirements."
+  detail: "Recognition count: linear 5 (+1 radius), grid 6 (+1 radius). Non-Z patterns are unverifiable."
+  class: drafting
+  source:
+    lint_code: "slot_requirement_missing"
+    module: "linting/slot_coverage.py"
+    issues: [1018]
+    tests: [tests/test_slot_pattern.py, tests/test_slot_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-slot_requirement_state
+  statement: "Uncovered slot or slot-pattern measurements are reported as slot_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "slot_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/slot_coverage.py"
+    issues: [1018]
+    tests: [tests/test_slot_completeness.py, tests/test_issue_1351_structured_note_coverage.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-oriented_slot_coverage-width_length
+  statement: "A standalone free-direction (oriented) slot states its width and its length."
+  detail: "Parameters oriented_slot_width.length and oriented_slot_length.length; members of oriented slot patterns are consumed once and excluded."
+  class: drafting
+  source:
+    lint_code: "oriented_slot_requirement_missing"
+    module: "linting/oriented_slot_coverage.py"
+    issues: [1432]
+    tests: [tests/test_issue_1432_oriented_slot_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-oriented_slot_requirement_state
+  statement: "Uncovered oriented-slot measurements are reported as oriented_slot_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "oriented_slot_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/oriented_slot_coverage.py"
+    issues: [1432]
+    tests: [tests/test_issue_1432_oriented_slot_semantics.py, tests/test_issue_1432_boundary_failures.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-rectangular_blind_slot_coverage-requirements
+  statement: "A rectangular blind slot states its width, its mouth-to-end length and its depth."
+  detail: "Parameters rectangular_blind_slot_width/length/depth.length."
+  class: drafting
+  source:
+    lint_code: "rectangular_blind_slot_requirement_missing"
+    module: "linting/rectangular_blind_slot_coverage.py"
+    issues: [1421]
+    tests: [tests/test_blind_slot_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-rectangular_blind_slot_requirement_state
+  statement: "Uncovered rectangular blind-slot measurements are reported as rectangular_blind_slot_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "rectangular_blind_slot_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/rectangular_blind_slot_coverage.py"
+    issues: [1421]
+    tests: [tests/test_blind_slot_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-round_bottom_blind_slot_coverage-requirements
+  statement: "A round-bottom blind slot states its mouth-to-end length, its flat bottom width and its side/floor radius."
+  detail: "Parameters round_bottom_blind_slot_length.length, _flat_width.length, _radius.radius (opening width and depth are derived)."
+  class: drafting
+  source:
+    lint_code: "round_bottom_blind_slot_requirement_missing"
+    module: "linting/round_bottom_blind_slot_coverage.py"
+    issues: [1421]
+    tests: [tests/test_blind_slot_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-round_bottom_blind_slot_requirement_state
+  statement: "Uncovered round-bottom blind-slot measurements are reported as round_bottom_blind_slot_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "round_bottom_blind_slot_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/round_bottom_blind_slot_coverage.py"
+    issues: [1421]
+    tests: [tests/test_blind_slot_completeness.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-circular_blind_step_coverage-radius_depth
+  statement: "A circular (quarter-cylinder) blind step states its radius and its blind depth."
+  detail: "Parameters circular_step_radius.radius and circular_step_depth.length."
+  class: drafting
+  source:
+    lint_code: "circular_blind_step_requirement_missing"
+    module: "linting/circular_blind_step_coverage.py"
+    issues: [1382]
+    tests: [tests/test_circular_blind_step_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-circular_blind_step_requirement_state
+  statement: "Uncovered circular blind-step measurements are reported as circular_blind_step_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "circular_blind_step_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/circular_blind_step_coverage.py"
+    issues: [1382]
+    tests: [tests/test_circular_blind_step_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-paired_ramp_step_coverage-angle_run
+  statement: "A paired ramp step states its (equal) ramp angle and its open-to-terminal run length."
+  detail: "Parameters ramp_angle.angle and ramp_run.length."
+  class: drafting
+  source:
+    lint_code: "paired_ramp_step_requirement_missing"
+    module: "linting/paired_ramp_step_coverage.py"
+    issues: [1382]
+    tests: [tests/test_paired_ramp_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-paired_ramp_step_requirement_state
+  statement: "Uncovered paired-ramp measurements are reported as paired_ramp_step_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "paired_ramp_step_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/paired_ramp_step_coverage.py"
+    issues: [1382]
+    tests: [tests/test_paired_ramp_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-through_step_coverage-two_legs
+  statement: "A rectangular through step states both orthogonal legs of its open section."
+  detail: "Parameters through_step_leg.length.{x|y|z}. A leg may instead be proved by an alternative grammar: a plate thickness, a step height, a step position, or an envelope extent whose interval matches the leg within 0.5 mm. Two records resolving to the same alternative owners are ambiguous and fail closed."
+  class: drafting
+  source:
+    lint_code: "through_step_requirement_missing"
+    module: "linting/through_step_coverage.py"
+    issues: [1382]
+    tests: [tests/test_framed_step_family_evidence.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-through_step_requirement_state
+  statement: "Uncovered through-step legs are reported as through_step_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "through_step_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/through_step_coverage.py"
+    issues: [1382]
+    tests: [tests/test_framed_step_family_evidence.py, tests/test_issue_1543_schedule_requirements.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-gusset_rib_coverage-requirements
+  statement: "Each gusset rib states its thickness and each of its leg lengths, and a rib group states its pitch (linear) or spacing (mirror) and its location from the datum."
+  detail: "gusset_thickness and gusset_leg.{x,y,z} are one requirement per rib occurrence; gusset_pitch / gusset_spacing and gusset_location are one requirement for the group."
+  class: drafting
+  source:
+    lint_code: "gusset_rib_requirement_missing"
+    module: "linting/gusset_rib_coverage.py"
+    issues: [1705]
+    tests: [tests/test_gusset_rib_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-gusset_rib_requirement_state
+  statement: "Uncovered gusset-rib measurements are reported as gusset_rib_requirement_missing, _suppressed or _unverifiable."
+  class: drafting
+  source:
+    lint_code: "gusset_rib_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/gusset_rib_coverage.py"
+    issues: [1705]
+    tests: [tests/test_gusset_rib_semantics.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-angled_step_requirement_unsupported
+  statement: "A recognised angled blind step is reported as not represented by the drawing, so its angle, legs and run are reviewed outside automatic approval."
+  detail: "Warning per occurrence ('k of N'), with its angle and run length."
+  class: drafting
+  source:
+    lint_code: "angled_step_requirement_unsupported"
+    module: "linting/angled_step_coverage.py"
+    issues: [1247]
+    tests: [tests/test_issue_1247_angled_step_disposition.py]
+  status: pending
+  port_note: "Keep until Rust supports angled steps."
+
+- id: LINT-code-passage_requirement_unsupported
+  statement: "A recognised prismatic through-opening that the drawing vocabulary cannot dimension is reported as unsupported for manual review."
+  class: drafting
+  source:
+    lint_code: "passage_requirement_unsupported"
+    module: "linting/section_recess_coverage.py, linting/passage_coverage.py"
+    issues: [1245]
+    tests: [tests/test_issue_1245_passage_disposition.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-prismatic_pocket_requirement_unsupported
+  statement: "A recognised N-sided blind prismatic recess that the drawing vocabulary cannot dimension is reported as unsupported, with its depth."
+  class: drafting
+  source:
+    lint_code: "prismatic_pocket_requirement_unsupported"
+    module: "linting/section_recess_coverage.py, linting/prismatic_pocket_coverage.py"
+    issues: [1246]
+    tests: [tests/test_issue_1246_prismatic_pocket_disposition.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-section_recess_requirement_unsupported
+  statement: "Any other recognised section recess outside the supported grammars is reported as unsupported."
+  class: drafting
+  source:
+    lint_code: "section_recess_requirement_unsupported"
+    module: "linting/section_recess_coverage.py"
+    tests: [tests/test_recognition_boundary_failures.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-section_recess_recognition_refused
+  statement: "When section-recess recognition refuses a body, the refusal and its reason are reported rather than silently treated as no recesses."
+  class: trust
+  source:
+    lint_code: "section_recess_recognition_refused"
+    module: "linting/section_recess_coverage.py"
+    tests: [tests/test_section_recess_contract.py]
+  status: pending
+  port_note: "Keep."
+
+# ---------------------------------------------------------------------------------------
+# Angular dimensions and profile angles (angular.py)
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-angular-profile_angle_requirement
+  statement: "Each issued outer-profile corner angle is stated on the drawing."
+  detail: "Outcomes placed / satisfied_by_structured_note / suppressed / dropped (angular_dimension_dropped) / missing / unverifiable. Reported as angular_requirement_<state>: info when suppressed, else warning. A lost detected owner is missing even if stale annotation provenance survives."
+  class: drafting
+  source:
+    lint_code: "angular_requirement_{missing,suppressed,unverifiable}"
+    module: "linting/angular.py"
+    issues: [1177]
+    tests: [tests/test_canonical_angles.py, tests/test_issue_1177_angular_dimensions.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-angular_label_vs_geometry
+  statement: "An angular dimension's stated degrees agree with the angle between its reference rays."
+  detail: "Error. Never uses the renderer's measured_angle as the expected answer. Labels with a degree mark or 'deg' are angular."
+  class: drafting
+  source:
+    lint_code: "angular_label_vs_geometry"
+    module: "linting/angular.py"
+    issues: [1177]
+    tests: [tests/test_angular_rendering.py, tests/test_angle_patterns.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-angular_geometry_mismatch
+  statement: "An angular dimension draws a circular arc with arrow tips and extension lines at both rays of its selected sector, from usable reference geometry."
+  detail: "Error. Witness ink: a tip on the arc radius within 0.01 and a radial extension line straddling the ray beyond the arc. Also raised for unusable reference geometry or unreadable circular ink."
+  class: drafting
+  source:
+    lint_code: "angular_geometry_mismatch"
+    module: "linting/angular.py"
+    issues: [1177]
+    tests: [tests/test_angular_rendering.py, tests/test_canonical_angles.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-angular_support_mismatch
+  statement: "An angular dimension's rays correspond to the actual physical edges of the corner it claims, and a quantity mark (n×) on an angle accounts for that many distinct, equal physical corners."
+  detail: "Error. Detected groups need the provider's repetition proof; authored groups must name one face's actual corners; imported requirements are validated against their typed support roster."
+  class: drafting
+  source:
+    lint_code: "angular_support_mismatch"
+    module: "linting/angular.py"
+    issues: [1177]
+    tests: [tests/test_angular_rendering.py, tests/test_canonical_angles.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-angular_support_unverifiable
+  statement: "An angular dimension with no unique same-run physical support binding is reported as unverifiable."
+  detail: "Warning; fidelity code."
+  class: trust
+  source:
+    lint_code: "angular_support_unverifiable"
+    module: "linting/angular.py"
+    issues: [1177]
+    tests: [tests/test_angular_rendering.py]
+  status: pending
+  port_note: "Keep."
+
+# ---------------------------------------------------------------------------------------
+# Gears (gear_coverage.py)
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-gear_coverage-data_table
+  statement: "A declared external spur gear has exactly one gear data table bound to it, stating type, basic rack, tooth count, module, pressure angle, profile shift, face width, tooth thickness with tolerance, and flank tolerance class, each with its standard."
+  detail: "Rows: TYPE METRIC EXTERNAL SPUR (ISO 21771-1:2024), BASIC RACK (ISO 53:1998), TEETH z, MODULE m (ISO 54:1996), PRESSURE ANGLE, PROFILE SHIFT x, FACE WIDTH b, TOOTH THICKNESS s +upper/-lower (ISO 21771-2:2025), FLANK CLASS (ISO 1328-1:2013). Missing/duplicate table: gear_requirement_<state>."
+  class: drafting
+  source:
+    lint_code: "gear_requirement_missing"
+    module: "linting/gear_coverage.py"
+    issues: [1086]
+    tests: [tests/test_issue_1086_declared_gears.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-gear_requirement_mismatch
+  statement: "The placed gear data table preserves the current authored gear requirement values."
+  detail: "Fidelity code."
+  class: drafting
+  source:
+    lint_code: "gear_requirement_mismatch"
+    module: "linting/gear_coverage.py"
+    issues: [1086]
+    tests: [tests/test_issue_1086_declared_gears.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-gear_semantics_missing
+  statement: "A part with a repeating radial profile declares its gear type, geometry, tooth thickness and flank tolerance; otherwise it is reported as missing gear semantics."
+  class: drafting
+  source:
+    lint_code: "gear_semantics_missing"
+    module: "linting/gear_coverage.py"
+    issues: [1086, 1058]
+    tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1058_wheel_profile.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-gear_axis_mismatch
+  statement: "A declared gear's axis agrees with the independently proven axis of the repeating profile."
+  detail: "Fidelity code."
+  class: drafting
+  source:
+    lint_code: "gear_axis_mismatch"
+    module: "linting/gear_coverage.py"
+    issues: [1086]
+    tests: [tests/test_issue_1086_declared_gears.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-gear_repeat_count_mismatch
+  statement: "A declared gear's tooth count equals the independently proven repeat count of the profile."
+  detail: "Fidelity code."
+  class: drafting
+  source:
+    lint_code: "gear_repeat_count_mismatch"
+    module: "linting/gear_coverage.py"
+    issues: [1086]
+    tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1176_quality_fidelity.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-gear_correspondence_unverifiable
+  statement: "When no full-wire repeating-profile evidence is supplied, or no unique profile matches the gear by centre and axial span, the gear declaration is reported as unverifiable."
+  class: trust
+  source:
+    lint_code: "gear_correspondence_unverifiable"
+    module: "linting/gear_coverage.py"
+    issues: [1086]
+    tests: [tests/test_issue_1086_declared_gears.py]
+  status: pending
+  port_note: "Keep."
+
+# ---------------------------------------------------------------------------------------
+# Claimed-representation verification (evidence.py)
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-code-claimed_value_absent
+  statement: "Every annotation that claims to carry a measurement actually renders that measurement's compiler-approved value."
+  detail: "Warning; fidelity code. Expected numbers come from the approved display text (not the raw float); a location without text uses the span component on its declared axis; a limit dimension is one two-bound presentation. Tables are read by row with non-measurement columns removed. Known limits: presence not position; one rendered number can satisfy several claimed ids."
+  class: trust
+  source:
+    lint_code: "claimed_value_absent"
+    module: "linting/evidence.py"
+    issues: [1217, 1206, 1218]
+    tests: [tests/test_issue_1217_claimed_representations.py, tests/test_issue_1219_location_claims_its_own_axis.py]
+  status: pending
+  port_note: "Keep: verify rendered text against the compiled plan."
+
+- id: LINT-code-claimed_measurement_not_compiled
+  statement: "An annotation does not claim a measurement the compiler never approved."
+  detail: "Warning; fidelity code."
+  class: trust
+  source:
+    lint_code: "claimed_measurement_not_compiled"
+    module: "linting/evidence.py"
+    issues: [1217]
+    tests: [tests/test_issue_1217_claimed_representations.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-claimed_representation_no_expected_value
+  statement: "A claim on a measurement approved with no displayable value is reported as neither confirmed nor refuted."
+  detail: "Info."
+  class: trust
+  source:
+    lint_code: "claimed_representation_no_expected_value"
+    module: "linting/evidence.py"
+    issues: [1217]
+    tests: [tests/test_issue_1217_claimed_representations.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-claimed_representation_unreadable
+  statement: "A claim by an annotation that renders no readable text is reported as neither confirmed nor refuted."
+  detail: "Info."
+  class: trust
+  source:
+    lint_code: "claimed_representation_unreadable"
+    module: "linting/evidence.py"
+    issues: [1217]
+    tests: [tests/test_issue_1217_claimed_representations.py]
+  status: pending
+  port_note: "Keep."
+
+# ---------------------------------------------------------------------------------------
+# Structural / layout checks (structural.py, ink_overlap.py)
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-code-label_vs_measured
+  statement: "A dimension's stated value equals the length of the path it is drawn on, divided by that annotation's drawing scale."
+  detail: "Ignored when the label is correctly rounded (within half of the last displayed place, using the compiler's precision). Otherwise warning if the discrepancy exceeds 0.5%, error at 5% or more ('possible axis swap or wrong endpoint'). 'N× v' is a span of N pitches unless the producer tags a per-unit value; 'N× ⌀d' counts d-diameter features. Angular labels are excluded. Fidelity code."
+  class: drafting
+  source:
+    lint_code: "label_vs_measured"
+    module: "linting/structural.py"
+    issues: [1600, 1153, 1209, 1216]
+    tests: [tests/test_lint_structural.py, tests/test_issue_1006_measurement_comparison.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-nominal_rounded
+  statement: "Where the sheet's display precision prints a nominal the model does not have, this is reported once per sheet with the worst case named."
+  detail: "Info; shift floor 0.0005 mm. Not a fidelity defect: within a general tolerance it is ordinary drafting; advises raising places on dimensions that carry a fit."
+  class: drafting
+  source:
+    lint_code: "nominal_rounded"
+    module: "linting/structural.py"
+    issues: [1600, 1610]
+    tests: [tests/test_issue_1349_precision_display.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-scale_not_stated
+  statement: "A drawing states the scale it is drawn at."
+  detail: "Error. ISO 7200 presents the scale outside the title block (draftwright draws it beside the projection symbol); checked on the rendered result. Fidelity code."
+  class: drafting
+  source:
+    lint_code: "scale_not_stated"
+    module: "linting/structural.py"
+    tests: [tests/test_lint_structural.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-annotation_overlap
+  statement: "No two annotation label texts overlap."
+  detail: "Compares label text extents (not full boxes, which legitimately overlap for stacked dimensions); fires when overlap exceeds 0.5 mm in both directions. Warning. When the same pair also crosses line-work the message says to move what is drawn. Sheet frame and zone grid are excluded."
+  class: drafting
+  source:
+    lint_code: "annotation_overlap"
+    module: "linting/structural.py"
+    issues: [161, 1321, 1333]
+    tests: [tests/test_lint_structural.py, tests/test_issue_1332_overlap_remedy.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-annotation_ink_overlap
+  statement: "No dimension line, extension line or leader of one annotation runs through another annotation's label text."
+  detail: "Measured as the longest connected stroke length inside the label region; reported at 0.5 mm or more (MIN_CROSSING_MM). Both directions of a pair are reported. Diagonal dimensions without an exact label polygon are excluded (box too loose). Warning; hard layout code."
+  class: drafting
+  source:
+    lint_code: "annotation_ink_overlap"
+    module: "linting/ink_overlap.py, linting/structural.py"
+    issues: [1321, 1333, 1334]
+    tests: [tests/test_lint_ink_overlap.py, tests/test_remaining_ink_overlaps.py]
+  status: pending
+  port_note: "Keep: pure segment/box arithmetic, no CAD boolean."
+
+- id: LINT-code-leader_line_through_text
+  statement: "A leader's elbow does not lie inside its own label, so the leader does not pass through its own text."
+  detail: "Error."
+  class: drafting
+  source:
+    lint_code: "leader_line_through_text"
+    module: "linting/structural.py"
+    tests: [tests/test_lint_structural.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-label_centerline_overlap
+  statement: "A dimension label does not overlap a centreline or centre mark."
+  detail: "Warning; only the part of the centreline that actually reaches the label counts. The same predicate is used by balloon placement."
+  class: drafting
+  source:
+    lint_code: "label_centerline_overlap"
+    module: "linting/structural.py"
+    issues: [1144]
+    tests: [tests/test_issue_1142_hole_leader_labels.py]
+  status: pending
+  port_note: "Keep; share the predicate with placement."
+
+- id: LINT-code-dim_inside_part
+  statement: "A dimension is placed outside the part outline rather than inside the view."
+  detail: "Warning when more than 10% of the dimension's bounding box overlaps the part outline box."
+  class: drafting
+  source:
+    lint_code: "dim_inside_part"
+    module: "linting/structural.py"
+    tests: [tests/test_issue_1153_contradictory_dimensions.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-annotation_out_of_bounds
+  statement: "Every annotation, including the title block, lies within the drawable area of the page."
+  detail: "Error; complete ink is checked. Sheet frame and zone ruler are exempt by design."
+  class: drafting
+  source:
+    lint_code: "annotation_out_of_bounds"
+    module: "linting/structural.py"
+    issues: [767, 768]
+    tests: [tests/test_lint_structural.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-view_out_of_bounds
+  statement: "Every view lies within the drawable area of the page."
+  detail: "Error."
+  class: drafting
+  source:
+    lint_code: "view_out_of_bounds"
+    module: "linting/structural.py"
+    issues: [75]
+    tests: [tests/test_issue_1196_deterministic_view_names.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-view_overlap
+  statement: "Views do not overlap one another."
+  detail: "Warning; bounding boxes compared."
+  class: drafting
+  source:
+    lint_code: "view_overlap"
+    module: "linting/structural.py"
+    issues: [160]
+    tests: [tests/test_compose_then_pack.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-view_annotation_overlap
+  statement: "Annotation text does not cross a view's projected line-work."
+  detail: "Warning. Only label text is tested (witness lines, leader shafts, datum triangles and finish marks may enter the view); centrelines, datum targets, hatching and the sheet frame are exempt."
+  class: drafting
+  source:
+    lint_code: "view_annotation_overlap"
+    module: "linting/structural.py"
+    issues: [159, 76]
+    tests: [tests/test_e2e_standards.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-view_annotation_inside_extents
+  statement: "A callout placed inside a view's extents over blank face is legitimate and only noted."
+  detail: "Info; suppressed for an interior label whose region the placement solve proved clear."
+  class: drafting
+  source:
+    lint_code: "view_annotation_inside_extents"
+    module: "linting/structural.py"
+    issues: [76]
+    tests: [tests/test_issue_1204_multiscale_view_issues.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-interior_label_on_narrow_material
+  statement: "An interior label is not placed too close to the projected material boundary."
+  detail: "Warning."
+  class: drafting
+  source:
+    lint_code: "interior_label_on_narrow_material"
+    module: "linting/structural.py"
+    tests: [tests/test_interior_label_placement.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-leader_crosses_silhouette
+  statement: "A leader shaft, after leaving the feature it names, does not cut back into the part's material."
+  detail: "Info but treated as a physical collision veto. Judged against the filled projected material field (re-entry, not crossing); without a material field nothing is reported. Advises routing clear or using a detail view."
+  class: drafting
+  source:
+    lint_code: "leader_crosses_silhouette"
+    module: "linting/structural.py"
+    issues: [796, 798]
+    tests: [tests/test_issue_798_silhouette_lint.py, tests/test_diameter_leaders.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-leader_shaft_unverified
+  statement: "A leader shaft whose tip cannot be read is reported rather than passing the material check."
+  detail: "Warning."
+  class: trust
+  source:
+    lint_code: "leader_shaft_unverified"
+    module: "linting/structural.py"
+    issues: [798]
+    tests: [tests/test_issue_798_silhouette_lint.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-datum_leader_remote
+  statement: "A datum feature symbol sits close to the surface it identifies."
+  detail: "Warning when the shaft is longer than max(24 mm, 2.5 × the symbol's larger glyph dimension), in page space."
+  class: drafting
+  source:
+    lint_code: "datum_leader_remote"
+    module: "linting/structural.py"
+    issues: [2181]
+    tests: [tests/test_gdt_placement.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-detail_caption_clearance
+  statement: "A detail-view caption has readable clearance from neighbouring annotation text."
+  detail: "Warning when both the horizontal and vertical gaps are below the font-size-derived minimum (detail_caption_text_gap)."
+  class: drafting
+  source:
+    lint_code: "detail_caption_clearance"
+    module: "linting/structural.py"
+    issues: [2181]
+    tests: [tests/test_layout_safety.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-derived_view_identifier_reused
+  statement: "Each derived-view identifier (section or detail letter) names only one view."
+  detail: "Error; read from structured view keys, not caption text."
+  class: drafting
+  source:
+    lint_code: "derived_view_identifier_reused"
+    module: "linting/structural.py"
+    tests: [tests/test_detail_views.py, tests/test_lint_structural.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-title_field_overflow
+  statement: "Each title-block field's text fits within its cell; text is not shortened or shrunk, and long information belongs in a notes block."
+  detail: "Warning."
+  class: drafting
+  source:
+    lint_code: "title_field_overflow"
+    module: "linting/structural.py"
+    issues: [1536]
+    tests: [tests/test_issue_1536_title_overflow.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-structural-duck_typed_dispatch
+  statement: "Structural lint dispatches checks by annotation attributes (elbow, measured length, centreline flag, label box) and memoises per-item boxes and per-view edges."
+  class: machinery
+  source:
+    module: "linting/structural.py"
+    issues: [143, 161, 602, 701, 711]
+    tests: [tests/test_lint_box_cache.py]
+  status: pending
+  port_note: "Drop: replace with typed annotation enums in Rust."
+
+# ---------------------------------------------------------------------------------------
+# AP242 PMI and title-block source reconciliation (pmi_coverage.py)
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-code-pmi_present_but_ignored
+  statement: "When PMI is switched off but the STEP carries authored PMI, the drawing reports once that it was ignored."
+  detail: "Info."
+  class: trust
+  source:
+    lint_code: "pmi_present_but_ignored"
+    module: "linting/pmi_coverage.py"
+    issues: [623]
+    tests: [tests/test_pmi.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-pmi_not_extracted
+  statement: "Every source PMI requirement discovered in the STEP is extracted, or reported with its reason."
+  detail: "Info in report mode, error in annotate mode. Presentation-only labels are not requirements."
+  class: trust
+  source:
+    lint_code: "pmi_not_extracted"
+    module: "linting/pmi_coverage.py"
+    issues: [623]
+    tests: [tests/test_pmi.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-pmi_not_lowered
+  statement: "Every extracted PMI requirement reaches a typed drawing feature rather than remaining a raw fallback."
+  detail: "Info outside annotate mode; in annotate mode warning for unsupported manufacturing requirements, else error."
+  class: trust
+  source:
+    lint_code: "pmi_not_lowered"
+    module: "linting/pmi_coverage.py"
+    issues: [623]
+    tests: [tests/test_pmi.py, tests/test_pmi_manufacturing_finish.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-pmi_not_rendered
+  statement: "Every typed PMI requirement produces an annotation on the drawing unless a specific drop or omission reason is already reported."
+  detail: "Error, annotate mode. Not double-reported for sources already explained by dimension_kind_unsupported, authored_dim_degenerate or authored_dim_source_unresolved, or by a source-bearing *_dropped issue."
+  class: trust
+  source:
+    lint_code: "pmi_not_rendered"
+    module: "linting/pmi_coverage.py"
+    issues: [623, 1190]
+    tests: [tests/test_issue_1296_cylindrical_diameter_pmi.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-pmi_value_mismatch
+  statement: "A placed geometric tolerance frame states the same tolerance value and zone as its AP242 source, in both text layer and visible ink."
+  detail: "Error; fidelity code."
+  class: drafting
+  source:
+    lint_code: "pmi_value_mismatch"
+    module: "linting/pmi_coverage.py"
+    issues: [623]
+    tests: [tests/test_pmi_gtol_lowering.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-pmi_source_text_mismatch
+  statement: "A source-scoped manufacturing note or face-finish annotation states the AP242 requirement text it claims to carry."
+  detail: "Error; fidelity code (general notes must state edge conditions; finish marks must state the face finish label)."
+  class: drafting
+  source:
+    lint_code: "pmi_source_text_mismatch"
+    module: "linting/pmi_coverage.py"
+    tests: [tests/test_pmi_manufacturing_finish.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-pmi_source_site_mismatch
+  statement: "A source-scoped annotation is anchored at the face or edge its AP242 source references, and a STEP entity claim carries a resolvable source id."
+  detail: "Error; fidelity code. Covers finish marks not at the referenced face, general notes claiming non-edge sources or losing edge identity, and features claiming a Part21 id without a source_id."
+  class: drafting
+  source:
+    lint_code: "pmi_source_site_mismatch"
+    module: "linting/pmi_coverage.py"
+    tests: [tests/test_pmi_manufacturing_finish.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-pmi_unreconciled
+  statement: "Content claiming an AP242 origin with no source census available is reported as unverified, never as satisfied."
+  detail: "Error for source-linked finishes/document notes, else warning; unscored."
+  class: trust
+  source:
+    lint_code: "pmi_unreconciled"
+    module: "linting/pmi_coverage.py"
+    issues: [1563]
+    tests: [tests/test_issue_1563_sheet_pmi_reconciliation.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-pmi_source_unknown
+  statement: "A declaration does not claim an AP242 source id that the reconciled document does not contain."
+  detail: "Error; fidelity code (fabricated provenance)."
+  class: trust
+  source:
+    lint_code: "pmi_source_unknown"
+    module: "linting/pmi_coverage.py"
+    issues: [1563]
+    tests: [tests/test_issue_1563_sheet_pmi_reconciliation.py]
+  status: pending
+  port_note: "Keep if PMI is ported."
+
+- id: LINT-code-manufacturing_reference_unresolved
+  statement: "A short manufacturing reference tag on a thread or knurl leader is backed by its complete, source-matched row in the manufacturing requirements table."
+  detail: "Error; fidelity code. Table header must be (REF, MANUFACTURING REQUIREMENT); the printed row must equal the aspect's callout text and the knurl maximum must be visible. User-authored notes are not checked."
+  class: drafting
+  source:
+    lint_code: "manufacturing_reference_unresolved"
+    module: "linting/pmi_coverage.py"
+    issues: [1298]
+    tests: [tests/test_issue_1298_manufacturing_requirements.py]
+  status: pending
+  port_note: "Keep if manufacturing requirement tables are ported."
+
+- id: LINT-code-step_material_mismatch
+  statement: "When the STEP supplies the material, the title block states that material."
+  detail: "Error; fidelity code."
+  class: drafting
+  source:
+    lint_code: "step_material_mismatch"
+    module: "linting/pmi_coverage.py"
+    tests: [tests/test_title_block_units_format.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-step_material_disagreement
+  statement: "A caller-overridden title-block material that differs from the STEP material is reported."
+  detail: "Warning."
+  class: drafting
+  source:
+    lint_code: "step_material_disagreement"
+    module: "linting/pmi_coverage.py"
+    tests: [tests/test_title_block_units_format.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-step_material_unavailable
+  statement: "An unreadable or unusable STEP material is reported."
+  detail: "Warning."
+  class: trust
+  source:
+    lint_code: "step_material_unavailable"
+    module: "linting/pmi_coverage.py"
+    tests: [tests/test_title_block_units_format.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-step_material_ambiguous
+  statement: "When the STEP carries several material properties no material is selected and the ambiguity is reported."
+  detail: "Warning."
+  class: trust
+  source:
+    lint_code: "step_material_ambiguous"
+    module: "linting/pmi_coverage.py"
+    tests: [tests/test_title_block_units_format.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-step_general_tolerance_mismatch
+  statement: "When the general tolerance is taken from the STEP, the title block states that general tolerance."
+  detail: "Error; fidelity code."
+  class: drafting
+  source:
+    lint_code: "step_general_tolerance_mismatch"
+    module: "linting/pmi_coverage.py"
+    tests: [tests/test_title_block_units_format.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-code-step_general_tolerance_disagreement
+  statement: "A caller-supplied general tolerance that differs from the STEP general tolerance is reported."
+  detail: "Warning."
+  class: drafting
+  source:
+    lint_code: "step_general_tolerance_disagreement"
+    module: "linting/pmi_coverage.py"
+    tests: [tests/test_title_block_units_format.py]
+  status: pending
+  port_note: "Keep."
+
+- id: LINT-pmi_coverage-stage_summary
+  statement: "PMI coverage reports per-source stage inventories (discovered, extracted, lowered, rendered) as counts, not as an additive funnel."
+  class: machinery
+  source:
+    module: "linting/pmi_coverage.py"
+    issues: [623]
+  status: pending
+  port_note: "Adapt if PMI reporting is ported."
+
+# ---------------------------------------------------------------------------------------
+# Quality components (quality.py)
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-quality-four_components
+  statement: "Drawing quality is reported as four independent components (completeness, fidelity, legibility, restraint) and never composed into one score."
+  detail: "Completeness is an audited_score over recognised requirements with a semantic ledger (excludes unrecognised geometry and families without a ledger; unavailable rather than 1.0 when nothing auditable was recognised). Restraint is reported unavailable until measurement provenance is complete. Fidelity is unavailable, not perfect, when the drawing asserts nothing."
+  class: trust
+  source:
+    module: "linting/quality.py"
+    issues: [1127, 1176]
+    tests: [tests/test_quality_components.py, tests/test_issue_1176_quality_fidelity.py]
+  status: pending
+  port_note: "Keep the separation; decide scoring later."
+
+- id: LINT-quality-fidelity_codes
+  statement: "Findings meaning the drawing asserts something its source contradicts are classed as fidelity defects."
+  detail: "label_vs_measured, scale_not_stated, angular_label_vs_geometry, angular_geometry_mismatch, angular_support_unverifiable, angular_support_mismatch, radius/diameter_leader_target_mismatch/_unverifiable, declared_feature_absent, gear_repeat_count_mismatch, gear_axis_mismatch, gear_requirement_mismatch, pmi_source_unknown, pmi_source_site_mismatch, pmi_source_text_mismatch, pmi_value_mismatch, step_general_tolerance_mismatch, step_material_mismatch, manufacturing_reference_unresolved, claimed_value_absent, claimed_measurement_not_compiled. Omissions (*_missing, *_dropped) are gaps, not falsehoods."
+  class: trust
+  source:
+    module: "linting/quality.py"
+    issues: [1176]
+    tests: [tests/test_issue_1176_quality_fidelity.py]
+  status: pending
+  port_note: "Keep the classification as data."
+
+- id: LINT-quality-legibility_codes
+  statement: "Layout findings (overlaps, out-of-bounds, leader crossings, caption clearance, title overflow, view overlaps, page-fit and scale fallbacks) and placement drops are classed as legibility defects."
+  detail: "Codes: legibility_floor_breached, page_fit_uncertain, layout_repack_stalled, scale_fallback_applied, annotation_out_of_bounds, title_field_overflow, annotation_overlap, annotation_ink_overlap, datum_leader_remote, detail_caption_clearance, derived_view_identifier_reused, detail_unplaceable, dim_inside_part, feature_leader_crossing, feature_leader_fixed_ink_unverified, interior_label_on_narrow_material, label_centerline_overlap, leader_crosses_silhouette, leader_shaft_unverified, leader_line_through_text, overall_dim_withheld, placement_unsatisfiable, view_annotation_inside_extents, view_annotation_overlap, view_out_of_bounds, view_overlap, plus any placement-stage drop. Fidelity takes precedence over legibility."
+  class: trust
+  source:
+    module: "linting/quality.py"
+    issues: [1127, 1147]
+    tests: [tests/test_quality_components.py, tests/test_issue_1147_legibility_pair_aggregation.py]
+  status: pending
+  port_note: "Keep the classification as data."
+
+- id: LINT-quality-hard_layout_codes
+  statement: "Concrete page-bounds and ink-overlap defects at warning or error invalidate a settled page or scale before completeness is compared; leader/material crossings are a later tier."
+  detail: "Hard: annotation_ink_overlap, annotation_out_of_bounds, annotation_overlap, detail_caption_clearance, feature_leader_fixed_ink_unverified, label_centerline_overlap, leader_line_through_text, title_field_overflow, view_annotation_overlap, view_out_of_bounds, view_overlap. Physical collision codes feature_leader_crossing and leader_crosses_silhouette veto even at info severity."
+  class: drafting
+  source:
+    module: "linting/quality.py"
+    issues: [1338]
+    tests: [tests/test_issue_1338_scale_before_page_escalation.py]
+  status: pending
+  port_note: "Keep: used by page/scale escalation."
+
+- id: LINT-quality-unscored_and_stage_routed
+  statement: "Every emitted code belongs to exactly one register: fidelity, legibility, unscored, or stage-routed (a *_dropped code scored by its outcome stage)."
+  detail: "Stage-routed: callout_dropped, gdt_dropped, pmi_dropped, boss_dia_dropped, blend_dropped, chamfer_dropped, circular_blind_step_dropped, circular_channel_dropped, hex_pocket_dropped, diameter_dropped, fillet_dropped, paired_ramp_step_dropped, flat_dropped, groove_dropped, gusset_rib_dropped, pad_height_dropped, pocket_dropped, polygonal_boss_dropped, polygonal_stock_dropped, rectangular_blind_slot_dropped, round_bottom_blind_slot_dropped, oriented_slot_dropped, slot_dropped, slot_dim_dropped. Unscored includes the coverage omissions, *_withheld codes, PMI census codes, plan_incomplete, section_dropped (validation stage), and every <family>_requirement_ prefix."
+  class: machinery
+  source:
+    module: "linting/quality.py"
+    issues: [1176]
+    tests: [tests/test_issue_1176_quality_fidelity.py]
+  status: pending
+  port_note: "Adapt: an exhaustive Rust enum match makes this audit a compile-time check."
+
+- id: LINT-quality-recognised_inventory_registers
+  statement: "Every recognition inventory is either a requirement family, a permanent non-requirement inventory, or an explicitly undecided inventory surfaced at runtime."
+  detail: "Non-requirement: countersinks, cylinders, section_recess_refusals, risers, rotational, step_levels. Undecided: circular_face_patterns, freeform_surfaces, interior_voids, oblique_through_steps, oriented_chamfers, oriented_slot_patterns, sheet_metal_bodies, thin_wall_bodies."
+  class: trust
+  source:
+    module: "linting/quality.py"
+    issues: [1365, 1430, 1557]
+    tests: [tests/test_quality_components.py]
+  status: pending
+  port_note: "Keep the principle: no recognised inventory may silently join the blind spot."
+
+# ---------------------------------------------------------------------------------------
+# Orchestration and suggestions
+# ---------------------------------------------------------------------------------------
+
+- id: LINT-orchestration-finished_drawing_order
+  statement: "Finished-drawing lint runs structural checks, then claimed-representation checks, then physical coverage (common, profiles, remaining), then PMI reconciliation, then manufacturing references, then appends build-time issues and attaches fix suggestions."
+  detail: "Declared-model-only checks (declaration reconciliation, turned-profile span) run only for caller-declared models; structural lint runs once over all annotations with per-annotation scale so pairwise checks see across scale groups (#1216)."
+  class: machinery
+  source:
+    module: "linting/orchestration.py"
+    issues: [1928, 1216, 1204]
+  status: pending
+  port_note: "Adapt: keep a single ordered lint pipeline."
+
+- id: LINT-suggest-fix_snippets
+  statement: "Lint findings may carry a ready-to-paste fix hint in the public scripting API."
+  detail: "Hints exist for feature_not_dimensioned, feature_count_mismatch, hole_requirement_missing, hole_requirement_unverifiable, annotation_ink_overlap, annotation_overlap, dim_inside_part, step_dim_dropped, plate_thickness_dropped, chamfer_dropped, step_position_dropped."
+  class: machinery
+  source:
+    module: "linting/suggest.py"
+    issues: [29]
+    tests: [tests/test_lint_suggestions.py]
+  status: pending
+  port_note: "Drop or adapt to the Rust scripting surface."

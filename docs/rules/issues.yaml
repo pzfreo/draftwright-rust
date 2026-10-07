@@ -1,0 +1,2693 @@
+# Rules catalogue: lessons guarded by draftwright's issue-numbered regression tests.
+# Source: draftwright origin/main @ 586628b96db6779454d499c7d92d37f1aa8f1df9
+# Extracted from tests/test_issue_<n>_*.py module docstrings, test names and test docstrings.
+# class: drafting = what the sheet must show/avoid; trust = determinism, honest failure,
+#        reporting, provenance; machinery = Python-implementation structure (retire or translate).
+
+- id: ISSUE-367-a
+  statement: "Leader collision checks use the leader's rendered ink, including arrowhead flare and shaft stroke width, not the idealised zero-width centreline."
+  detail: "Arrowhead clearance is local to the tip, not the whole shaft; a zero-length leader still has a local ink extent."
+  class: drafting
+  source:
+    issues: [367]
+    tests:
+      - "tests/test_issue_367_leader_ink.py::test_arrowhead_flare_is_collision_evidence_beyond_the_idealised_segment"
+      - "tests/test_issue_367_leader_ink.py::test_heavy_shaft_width_is_collision_evidence_beyond_the_centreline"
+      - "tests/test_issue_367_leader_ink.py::test_arrowhead_clearance_is_local_to_the_tip_not_the_whole_shaft"
+      - "tests/test_issue_367_leader_ink.py::test_zero_length_leader_uses_its_local_ink_extent"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: unit test on the leader-ink collision primitive (arrow + stroked shaft polygons) used by the layout solver."
+
+- id: ISSUE-367-b
+  statement: "Caching rendered face/ink geometry never changes the drawing; a cache key or write failure falls back to uncached validation."
+  class: machinery
+  source:
+    issues: [367]
+    tests:
+      - "tests/test_issue_367_leader_ink.py::test_exact_face_cache_reuses_identical_ink_but_not_moved_ink"
+      - "tests/test_issue_367_leader_ink.py::test_face_cache_key_failure_falls_back_to_uncached_validation"
+      - "tests/test_issue_367_leader_ink.py::test_sheet_replay_reuses_exact_ink_without_changing_drawing"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: any memoisation in the Rust layout must be transparent (plan identical with/without cache)."
+
+- id: ISSUE-443-a
+  statement: "On a turned part's automatic sheet every turned shoulder is axially located; the automatic replan picks a layout with truthful step lengths without needlessly dropping the isometric."
+  detail: "GRM-03 detail caption must also fit the selected A4 sheet."
+  class: drafting
+  source:
+    issues: [443]
+    tests:
+      - "tests/test_issue_443_grm03_axial_coverage.py::test_grm03_replans_for_truthful_step_lengths_without_spending_the_iso"
+      - "tests/test_issue_443_grm03_axial_coverage.py::test_grm03_detail_caption_fits_the_selected_a4_sheet"
+    corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
+  status: pending
+  port_note: "Keep: scenario test GRM-03 STEP + default spec -> plan locates every shoulder, no axial-coverage problems, iso retained."
+
+- id: ISSUE-443-b
+  statement: "The automatic axial-coverage replan applies only to automatic dimensions; authored dimensions disable it."
+  class: drafting
+  source:
+    issues: [443]
+    tests:
+      - "tests/test_issue_443_grm03_axial_coverage.py::test_axial_replan_is_disabled_without_automatic_dimensions"
+      - "tests/test_issue_443_grm03_axial_coverage.py::test_authored_dimensions_disable_the_automatic_replan"
+      - "tests/test_issue_443_grm03_axial_coverage.py::test_plain_sheet_auto_views_keeps_the_automatic_replan"
+    corpus_parts: ["GRM-03"]
+  status: pending
+  port_note: "Keep: spec with authored dimensions -> planner does not silently re-layout them."
+
+- id: ISSUE-563-a
+  statement: "Authored dimension placement is expressed semantically (view, strip, side, corridor), never as page coordinates, and survives every stage to the rendered sheet."
+  detail: "Referential intent places dimensions on opposite sides as asked; distinct per-dimension view overrides are honoured; an override vetoes an automatic view reduction."
+  class: drafting
+  source:
+    issues: [563]
+    tests:
+      - "tests/test_issue_563_placement_intent.py::test_referential_intent_survives_ir_planner_compiler_and_places_opposite_sides"
+      - "tests/test_issue_563_placement_intent.py::test_independent_envelope_dimensions_honour_distinct_view_overrides"
+      - "tests/test_issue_563_placement_intent.py::test_referential_override_vetoes_an_automatic_view_reduction"
+      - "tests/test_issue_563_placement_intent.py::test_view_only_measured_override_preserves_the_derived_side"
+    corpus_parts: ["GRM-02"]
+  status: pending
+  port_note: "Keep: spec placement hints (view/side) by stable dimension ID -> plan honours them; no coordinate API."
+
+- id: ISSUE-563-b
+  statement: "Every explicitly placed or source linear dimension has its corridor reserved during view composition, outside the scaled view, without forcing an unnecessary scale reduction."
+  class: drafting
+  source:
+    issues: [563, 2192]
+    tests:
+      - "tests/test_issue_563_placement_intent.py::test_compose_reserves_every_supported_measured_corridor_family"
+      - "tests/test_issue_563_placement_intent.py::test_every_explicit_measured_corridor_stays_outside_scaled_view"
+      - "tests/test_issue_563_placement_intent.py::test_unhinted_source_linear_dimensions_reserve_their_render_routes_issue_2192"
+      - "tests/test_issue_563_placement_intent.py::test_plan_right_corridor_does_not_force_feasible_a4_scale_reduction"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: layout composition reserves annotation corridors from the plan before view placement."
+
+- id: ISSUE-563-c
+  statement: "Invalid or conflicting placement requests (unknown side, unavailable view, conflicting strip, pattern-pitch placement) fail clearly instead of silently moving the annotation."
+  class: trust
+  source:
+    issues: [563]
+    tests:
+      - "tests/test_issue_563_placement_intent.py::test_invalid_measured_placement_fails_clearly"
+      - "tests/test_issue_563_placement_intent.py::test_invalid_referential_strip_and_compound_conflict_fail_clearly"
+      - "tests/test_issue_563_placement_intent.py::test_location_unknown_side_unavailable_view_and_missing_planned_view_fail_clearly"
+      - "tests/test_issue_563_placement_intent.py::test_pattern_pitch_placement_policy_is_rejected_instead_of_moving_the_callout"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: spec validation returns structured problems for unsupported placement hints."
+
+- id: ISSUE-676-a
+  statement: "A polygonal prism boss is recognised only from proven evidence: regular opposed parallel flat pairs of equal width, concurrent midplanes, attached to one solid; anything weaker is not inferred as a boss."
+  detail: "Rejected: six-sided rings without opposed planes, sub-tolerance projections, blind polygonal recesses, standalone or detached prisms, unproved polygon classes."
+  class: trust
+  source:
+    issues: [676]
+    tests:
+      - "tests/test_issue_676_polygonal_boss.py::test_a_six_sided_ring_without_regular_opposed_planes_is_rejected"
+      - "tests/test_issue_676_polygonal_boss.py::test_opposed_pairs_with_different_widths_do_not_define_one_across_flats"
+      - "tests/test_issue_676_polygonal_boss.py::test_a_blind_polygonal_recess_is_not_a_boss"
+      - "tests/test_issue_676_polygonal_boss.py::test_a_detached_polygonal_component_is_not_a_boss_on_another_solid"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: analysis-level tests on synthetic solids (recognition lives in quiddity/haecceity; consumer must not widen it)."
+
+- id: ISSUE-676-b
+  statement: "A recognised hex boss is dimensioned directly by its across-flats (measured from the flats, invariant under in-plane rotation) and its height, with the axis line taken from the support planes."
+  class: drafting
+  source:
+    issues: [676]
+    tests:
+      - "tests/test_issue_676_polygonal_boss.py::test_in_plane_rotation_preserves_the_geometric_across_flats"
+      - "tests/test_issue_676_polygonal_boss.py::test_axis_line_comes_from_support_planes_not_side_face_centroids"
+      - "tests/test_issue_676_polygonal_boss.py::test_ctc01_has_one_100_af_polygonal_boss_with_50_height"
+      - "tests/test_issue_676_polygonal_boss.py::test_ctc01_drawing_directly_defines_the_hex_boss"
+      - "tests/test_issue_676_polygonal_boss.py::test_an_authored_set_controls_each_polygonal_boss_measurement"
+    corpus_parts: ["nist_ctc_01_asme1_ap203"]
+  status: pending
+  port_note: "Keep: scenario test CTC-01 -> plan has one A/F 100 and height 50 for the hex boss; each editable by ID."
+
+- id: ISSUE-676-c
+  statement: "A declared polygonal boss is validated at one boundary with the same evidence tolerance as recognition; malformed declarations are refused and a declaration never guesses from a detached prism."
+  class: trust
+  source:
+    issues: [676]
+    tests:
+      - "tests/test_issue_676_polygonal_boss_declare.py::test_every_invalid_ir_route_fails_at_the_one_waist"
+      - "tests/test_issue_676_polygonal_boss_declare.py::test_the_ir_does_not_narrow_the_recognisers_documented_evidence_tolerance"
+      - "tests/test_issue_676_polygonal_boss_declare.py::test_neither_public_declaration_surface_guesses_from_a_detached_prism"
+      - "tests/test_issue_676_polygonal_boss_declare.py::test_clockwise_and_counter_clockwise_regular_rings_are_equivalent_evidence"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: spec-level feature declarations validated in one place; Sheet verb / emitter round-trip tests retire."
+
+- id: ISSUE-740-a
+  statement: "Machined-feature leader callouts are assigned jointly: maximise the number placed first, then minimise total leader length, and a required callout always outlives optional ones."
+  class: drafting
+  source:
+    issues: [740]
+    tests:
+      - "tests/test_issue_740_leader_assignment.py::test_pure_assignment_maximises_cardinality_before_leader_length"
+      - "tests/test_issue_740_leader_assignment.py::test_pure_assignment_minimises_length_at_equal_cardinality"
+      - "tests/test_issue_740_leader_assignment.py::test_required_leader_outlives_two_optional_leaders_on_one_conflict"
+      - "tests/test_issue_740_leader_assignment.py::test_bounded_solver_matches_exhaustive_lexicographic_oracle"
+      - "tests/test_issue_740_leader_assignment.py::test_public_render_is_crossing_free_and_pair_budget_is_legacy_floor"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: unit test the leader assignment solver against an exhaustive oracle; scenario test for crossing-free result."
+
+- id: ISSUE-740-b
+  statement: "The leader assignment is work-bounded and deterministic: ties break on stable input order, sub-micron cost noise cannot reorder candidates, and budget exhaustion falls back to a greedy floor that keeps drop diagnostics."
+  class: trust
+  source:
+    issues: [740]
+    tests:
+      - "tests/test_issue_740_leader_assignment.py::test_sub_micron_cost_noise_reaches_stable_candidate_order_tie_break"
+      - "tests/test_issue_740_leader_assignment.py::test_state_budget_retains_the_legacy_greedy_incumbent"
+      - "tests/test_issue_740_leader_assignment.py::test_bounded_legacy_fallback_preserves_drop_diagnostic"
+      - "tests/test_issue_740_leader_assignment.py::test_pure_assignment_rejects_malformed_numeric_inputs"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: determinism + budget-fallback tests on the solver; budget exhaustion yields a structured problem, never a silent drop."
+
+- id: ISSUE-740-c
+  statement: "Joint leader assignment runs only after all feature leader jobs are collected; pre-drain stages keep immediate greedy semantics."
+  class: machinery
+  source:
+    issues: [740]
+    tests:
+      - "tests/test_issue_740_leader_assignment.py::test_late_joint_assignment_stays_scoped_to_the_post_drain_adapters"
+      - "tests/test_issue_740_leader_assignment.py::test_pre_drain_pattern_keeps_legacy_greedy_semantics"
+    corpus_parts: []
+  status: pending
+  port_note: "Retire: intent-drain staging; Rust plans all leaders in one solve."
+
+- id: ISSUE-798-a
+  statement: "A required callout is never lost for a routing reason: if no clear leader route exists the least-cutting acceptable candidate is placed; only a job with no acceptable candidate at all is dropped."
+  detail: "Policy B: a required callout at a logged cost beats a missing dimension. Lookahead for a clear route is a bounded preference."
+  class: drafting
+  source:
+    issues: [798, 1189]
+    tests:
+      - "tests/test_issue_798_floor_cardinality.py::test_a_callout_survives_when_every_held_candidate_fails_to_render"
+      - "tests/test_issue_798_floor_cardinality.py::test_the_held_fallback_places_the_least_cutting_candidate"
+      - "tests/test_issue_798_floor_cardinality.py::test_a_clear_route_still_wins_immediately"
+      - "tests/test_issue_798_floor_cardinality.py::test_a_job_with_no_acceptable_candidate_at_all_is_dropped"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: leader router unit test; plan records the crossing as a problem rather than dropping the callout."
+
+- id: ISSUE-798-b
+  statement: "Leader-through-material cost is a measured magnitude: only re-entry into material (a second body, or the body again) counts; exiting the leader's own body or passing over a through-hole or void does not."
+  class: drafting
+  source:
+    issues: [798]
+    tests:
+      - "tests/test_issue_798_material_field.py::test_a_leader_exiting_its_own_body_is_not_a_defect"
+      - "tests/test_issue_798_material_field.py::test_cutting_a_second_body_is_the_defect"
+      - "tests/test_issue_798_material_field.py::test_passing_over_a_through_hole_is_not_a_reentry"
+      - "tests/test_issue_798_material_field.py::test_the_defect_is_a_magnitude_not_a_flag"
+      - "tests/test_issue_798_material_field.py::test_a_crossing_segment_measures_only_the_traversed_part"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: unit tests on the projected material field / segment-span probe."
+
+- id: ISSUE-798-c
+  statement: "The material probe is exact and deterministic, and a part that cannot be meshed yields no material field rather than a partial one."
+  class: trust
+  source:
+    issues: [798]
+    tests:
+      - "tests/test_issue_798_material_field.py::test_repeated_probes_are_bit_identical"
+      - "tests/test_issue_798_material_field.py::test_the_probe_is_order_independent"
+      - "tests/test_issue_798_material_field.py::test_a_budget_overrun_yields_no_mesh_rather_than_a_subset"
+      - "tests/test_issue_798_material_field.py::test_random_scenes_and_probes_agree_exactly"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: property tests on the probe; partial tessellation must surface as 'unavailable', never as clear."
+
+- id: ISSUE-798-d
+  statement: "The leader router and the leader-crosses-silhouette check share one material predicate and reach the same verdict; a shaft re-entering the body is reported with its measured depth, and material is a preference, never an acceptance test."
+  detail: "An unreadable shaft does not pass cleanly (#2112); 'covers diameters' is no longer a blanket exemption."
+  class: drafting
+  source:
+    issues: [798, 2112]
+    tests:
+      - "tests/test_issue_798_silhouette_lint.py::test_a_shaft_re_entering_the_body_is_reported"
+      - "tests/test_issue_798_silhouette_lint.py::test_the_message_carries_the_measured_depth"
+      - "tests/test_issue_798_silhouette_lint.py::test_unreadable_shaft_does_not_pass_cleanly_issue_2112"
+      - "tests/test_issue_798_silhouette_lint.py::test_covers_diameters_is_no_longer_a_blanket_escape"
+      - "tests/test_issue_798_silhouette_lint.py::test_material_is_never_an_acceptance_test"
+    corpus_parts: ["nist_ctc_04_asme1_ap203", "nist_ctc_05_asme1_ap242"]
+  status: pending
+  port_note: "Keep: plan problem 'leader crosses silhouette' derived from the same predicate the router uses."
+
+- id: ISSUE-827-a
+  statement: "A real-part canary has a fixed semantic denominator (expected occurrences and measurements are fixture facts); successful export alone cannot pass it."
+  class: trust
+  source:
+    issues: [827]
+    tests:
+      - "tests/test_issue_827_real_part_canary.py::test_tuner_retains_occurrences_and_measurements_through_export"
+    corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
+  status: pending
+  port_note: "Keep: scenario test tuner STEP -> plan contains the hand-listed five-pocket measurements."
+
+- id: ISSUE-883-a
+  statement: "Each pattern member and each measured axis of a location has a distinct measurement identity that can be selected, omitted or compared individually."
+  detail: "Partial member omissions do not suppress an axis still requested; comparison detects a member swap with the same name and value; bolt-circle centre is distinct from a member."
+  class: drafting
+  source:
+    issues: [883]
+    tests:
+      - "tests/test_issue_883_location_identity.py::test_each_member_and_axis_has_a_distinct_measurement_identity"
+      - "tests/test_issue_883_location_identity.py::test_fine_location_selects_exactly_one_member_axis"
+      - "tests/test_issue_883_location_identity.py::test_partial_member_omissions_do_not_suppress_an_axis_that_is_still_requested"
+      - "tests/test_issue_883_location_identity.py::test_comparison_detects_a_member_swap_with_the_same_name_and_value"
+      - "tests/test_issue_883_location_identity.py::test_bolt_circle_centre_is_distinct_from_a_member"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: stable IDs for location components (feature, member, axis) in Plan; spec edits address them."
+
+- id: ISSUE-883-b
+  statement: "An invalid location selector is refused before intent is recorded, and a missing datum or view names exactly the requested location component."
+  class: trust
+  source:
+    issues: [883]
+    tests:
+      - "tests/test_issue_883_location_identity.py::test_invalid_location_selector_is_refused_before_intent_is_recorded"
+      - "tests/test_issue_883_location_identity.py::test_missing_datum_reports_the_requested_location_component"
+      - "tests/test_issue_883_location_identity.py::test_missing_view_names_only_the_selected_location_component"
+      - "tests/test_issue_883_location_identity.py::test_malformed_member_addresses_do_not_certify_a_physical_drop"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: spec edit API returns structured refusal naming the component."
+
+- id: ISSUE-885-a
+  statement: "Distinct raised pads are each dimensioned by their own footprint and local base; a full-span step is not a bounded pad, nested staircase ledges are not independent pads, and side-opening pockets get two in-plane location dimensions."
+  class: drafting
+  source:
+    issues: [885]
+    tests:
+      - "tests/test_issue_885_prismatic_coverage.py::test_rectangular_pad_analysis_recovers_distinct_footprints"
+      - "tests/test_issue_885_prismatic_coverage.py::test_full_span_step_is_not_misclassified_as_bounded_pad"
+      - "tests/test_issue_885_prismatic_coverage.py::test_nested_staircase_ledges_are_not_independent_pads"
+      - "tests/test_issue_885_prismatic_coverage.py::test_auto_drawing_defines_pad_footprints_and_pocket_locations"
+      - "tests/test_issue_885_prismatic_coverage.py::test_side_opening_pocket_gets_two_in_plane_location_dimensions"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario tests on synthetic prismatic parts -> plan dimensions every pad footprint and pocket location."
+
+- id: ISSUE-885-b
+  statement: "Sparse recognition must not imply completeness: a removed pad size is not credited from an aligned sibling, an unrelated dimension endpoint does not locate a pocket, and omitted furniture reports the coverage gaps."
+  class: trust
+  source:
+    issues: [885]
+    tests:
+      - "tests/test_issue_885_prismatic_coverage.py::test_removing_one_pad_size_is_not_credited_from_an_aligned_sibling"
+      - "tests/test_issue_885_prismatic_coverage.py::test_unrelated_dimension_endpoint_does_not_locate_side_pocket"
+      - "tests/test_issue_885_prismatic_coverage.py::test_omitting_furniture_reports_both_coverage_gaps_and_reduces_score"
+      - "tests/test_issue_885_prismatic_coverage.py::test_datum_starting_blind_slot_does_not_retain_the_superseded_pocket_callout"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: coverage problems keyed by requirement identity, not by coincident values."
+
+- id: ISSUE-909-a
+  statement: "A raised pad on a sloped-profile part reaches the drawing with its complete owned footprint, and removing a required pad dimension reports that specific requirement."
+  detail: "Only ledges at the recovered local base identify a nested staircase; touching lower ledges must not hide the pad."
+  class: drafting
+  source:
+    issues: [909]
+    tests:
+      - "tests/test_issue_909_sloped_profile.py::test_touching_lower_ledges_do_not_hide_the_case_studys_raised_pad"
+      - "tests/test_issue_909_sloped_profile.py::test_case_study_pad_reaches_the_drawing_with_complete_owned_footprint"
+      - "tests/test_issue_909_sloped_profile.py::test_removing_a_required_pad_dimension_reports_the_real_requirement"
+    corpus_parts: ["issue_909_basic_part_design_017_body.step"]
+  status: pending
+  port_note: "Keep: scenario test case-study STEP -> pad footprint in plan; spec omission -> named missing-requirement problem."
+
+- id: ISSUE-915-a
+  statement: "On a dense plan view all hole callouts share one spacing solve, and detail views use an empty region matching their shape, with each level's own face support defining its witness and crop."
+  detail: "A1 has enough wide, short space even though its largest square is too narrow."
+  class: drafting
+  source:
+    issues: [915]
+    tests:
+      - "tests/test_issue_915_dense_case.py::test_issue_915_hole_callouts_share_one_spacing_solve"
+      - "tests/test_issue_915_dense_case.py::test_issue_915_wide_detail_uses_a_matching_empty_region"
+      - "tests/test_issue_915_dense_case.py::test_issue_915_a2_detail_uses_each_levels_supporting_geometry"
+    corpus_parts: ["issue_915_case_study_2.step"]
+  status: pending
+  port_note: "Keep: scenario test; detail-view placement searches rectangular free regions, not just squares."
+
+- id: ISSUE-916-a
+  statement: "A pocket callout leader starts on the pocket rim on the axis matching the approved size and exits the part cleanly, independent of the pocket's orientation."
+  class: drafting
+  source:
+    issues: [916]
+    tests:
+      - "tests/test_issue_916_pocket_leader.py::test_issue_916_pocket_callout_starts_on_its_rim_and_exits_cleanly"
+      - "tests/test_issue_916_pocket_leader.py::test_pocket_rim_tip_is_axis_independent"
+      - "tests/test_issue_916_pocket_leader.py::test_approved_pocket_sizes_map_to_the_matching_rim_axis"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan leader tip lies on the pocket rim edge."
+
+- id: ISSUE-917-a
+  statement: "An open U-channel is one feature with a non-redundant defining chain (one independent wall thickness, the other derived); it requires a floor and opposed inner walls, and a bounded pocket or centred rebate is not a channel."
+  class: drafting
+  source:
+    issues: [917]
+    tests:
+      - "tests/test_issue_917_open_channel.py::test_corrected_fixture_has_one_channel_and_one_independent_wall_thickness"
+      - "tests/test_issue_917_open_channel.py::test_asymmetric_walls_keep_lower_wall_and_derive_the_opposite_wall"
+      - "tests/test_issue_917_open_channel.py::test_ordinary_bounded_pocket_does_not_become_a_channel"
+      - "tests/test_issue_917_open_channel.py::test_channel_requires_a_floor_and_opposed_inner_walls"
+      - "tests/test_issue_917_open_channel.py::test_wrong_channel_identity_cannot_clear_the_physical_transition_warning"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario test on synthetic channel parts -> plan has one channel chain without redundant wall dimension."
+
+- id: ISSUE-924-a
+  statement: "A shoulder coincident with its datum (zero length) is omitted and reported by the planner, never rendered as degenerate geometry; only the degenerate member of a chain is removed."
+  class: drafting
+  source:
+    issues: [924]
+    tests:
+      - "tests/test_issue_924_zero_length_shoulders.py::test_the_compiler_omits_a_shoulder_coincident_with_its_datum"
+      - "tests/test_issue_924_zero_length_shoulders.py::test_the_real_build_reports_the_omission_without_constructing_a_border"
+      - "tests/test_issue_924_zero_length_shoulders.py::test_only_the_degenerate_member_is_removed_from_a_mixed_shoulder_chain"
+      - "tests/test_issue_924_zero_length_shoulders.py::test_an_omitted_shoulder_does_not_require_its_directional_view"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan omission with basis 'coincident with datum'; renderer never sees zero-length dims."
+
+- id: ISSUE-955-a
+  statement: "When a Z-turned step chain is dropped, the overall height it suppressed is released as a planner-approved contingency; a surviving chain does not release a redundant height, and an authored omission never becomes a contingency."
+  class: drafting
+  source:
+    issues: [955]
+    tests:
+      - "tests/test_issue_955_height_contingency.py::test_a_dropped_chain_releases_the_height_and_clears_the_planner_omission"
+      - "tests/test_issue_955_height_contingency.py::test_a_surviving_z_chain_does_not_release_a_redundant_height"
+      - "tests/test_issue_955_height_contingency.py::test_an_authored_omission_never_becomes_a_contingency"
+      - "tests/test_issue_955_height_contingency.py::test_an_authored_overall_height_does_not_claim_the_shoulders_are_located"
+      - "tests/test_issue_955_height_contingency.py::test_an_unplaceable_fallback_is_a_drop_not_a_stale_suppression"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan default with basis 'contingency for dropped chain'; scenario test forcing the chain drop."
+
+- id: ISSUE-955-b
+  statement: "An unregistered contingency kind fails closed rather than releasing a dimension."
+  class: trust
+  source:
+    issues: [955]
+    tests:
+      - "tests/test_issue_955_height_contingency.py::test_an_unregistered_contingency_kind_fails_closed"
+      - "tests/test_issue_955_height_contingency.py::test_scheduled_height_cannot_release_an_unrequested_ordinary_fallback"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: contingency kinds are a closed Rust enum; the failure mode disappears by construction."
+
+- id: ISSUE-958-a
+  statement: "Recognition evidence must come from one physical solid: faces from separate bodies never form a slot, pad, pocket or channel, while real features on separate bodies are each preserved, independent of compound child order."
+  class: drafting
+  source:
+    issues: [958]
+    tests:
+      - "tests/test_issue_958_cross_solid_recognition.py::test_detached_body_does_not_create_slot_evidence"
+      - "tests/test_issue_958_cross_solid_recognition.py::test_detached_body_does_not_emit_plausible_but_false_dimensions"
+      - "tests/test_issue_958_cross_solid_recognition.py::test_faces_from_three_bodies_do_not_form_a_pocket"
+      - "tests/test_issue_958_cross_solid_recognition.py::test_real_slots_on_separate_bodies_are_each_preserved"
+      - "tests/test_issue_958_cross_solid_recognition.py::test_channel_geometry_order_does_not_depend_on_compound_child_order"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: multi-body synthetic scenarios -> no cross-body features in Analysis/Plan."
+
+- id: ISSUE-1000-a
+  statement: "Declaring the whole-part envelope on a sheet that already has a detected envelope reuses that feature rather than duplicating it or creating phantom suppressions; explicitly distinct envelope objects stay distinct."
+  class: machinery
+  source:
+    issues: [1000]
+    tests:
+      - "tests/test_issue_1000_envelope_reuse.py::test_from_part_no_arg_envelope_reuses_the_detected_feature_and_handle"
+      - "tests/test_issue_1000_envelope_reuse.py::test_reused_envelope_does_not_create_phantom_suppressions"
+      - "tests/test_issue_1000_envelope_reuse.py::test_explicit_subobject_envelope_remains_a_distinct_declaration"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: editing the envelope in Spec addresses the analysed envelope by stable ID; no duplicate-declaration path exists."
+
+- id: ISSUE-1006-a
+  statement: "Comparing two versions of a drawing judges preserved meaning by measurement owner, datum, span and tolerance, not by counts or labels: an owner substitution with the same label is a loss plus a gain, a tolerance change is not preservation, and a layout or scale change preserves measurements."
+  class: trust
+  source:
+    issues: [1006]
+    tests:
+      - "tests/test_issue_1006_measurement_comparison.py::test_same_kind_same_label_owner_substitution_is_a_loss_and_gain"
+      - "tests/test_issue_1006_measurement_comparison.py::test_a_layout_edit_preserves_compiled_measurements"
+      - "tests/test_issue_1006_measurement_comparison.py::test_a_datum_change_hidden_by_label_rounding_changes_meaning"
+      - "tests/test_issue_1006_measurement_comparison.py::test_a_tolerance_change_is_not_preservation"
+      - "tests/test_issue_1006_measurement_comparison.py::test_a_scale_change_preserves_real_dimension_measurements"
+      - "tests/test_issue_1006_measurement_comparison.py::test_rebuilt_equal_features_are_unknown_without_an_explicit_pair"
+    corpus_parts: ["grm04_drive_plate.step", "tuner_jig_blind_obround_pockets.step"]
+  status: pending
+  port_note: "Keep: plan diff keyed by stable measurement IDs with value/datum/tolerance; unknown when identity cannot be paired."
+
+- id: ISSUE-1058-a
+  statement: "A double-D bore is recognised from complete evidence and dimensioned with a compound callout carrying both diameter and across-flats; a part with one no longer gets a confident envelope-only result."
+  detail: "Orientation is not limited to global axes; blind double-D recesses are not certified as through bores; across-flats cannot survive without the compound callout head."
+  class: drafting
+  source:
+    issues: [1058]
+    tests:
+      - "tests/test_issue_1058_wheel_profile.py::test_real_wheel_fixture_proves_the_double_d_profile"
+      - "tests/test_issue_1058_wheel_profile.py::test_real_wheel_no_longer_gets_a_confident_envelope_only_result"
+      - "tests/test_issue_1058_wheel_profile.py::test_double_d_orientation_is_not_limited_to_global_flat_axes"
+      - "tests/test_issue_1058_wheel_profile.py::test_blind_double_d_recesses_are_not_certified_as_through_bores"
+      - "tests/test_issue_1058_wheel_profile.py::test_across_flats_cannot_survive_without_the_compound_callout_head"
+    corpus_parts: ["issue_1058_wheel_rh.step"]
+  status: pending
+  port_note: "Keep: scenario test wheel STEP -> plan has double-D callout (diameter + A/F) per bore."
+
+- id: ISSUE-1058-b
+  statement: "Double-D coverage is per physical bore: a diameter-only callout does not cover the profile requirement, a dropped counted callout records every occurrence, and one record cannot cover two coincident assembly occurrences."
+  class: trust
+  source:
+    issues: [1058]
+    tests:
+      - "tests/test_issue_1058_wheel_profile.py::test_diameter_only_authored_callout_does_not_cover_the_profile_requirement"
+      - "tests/test_issue_1058_wheel_profile.py::test_a_dropped_counted_callout_records_every_profile_occurrence"
+      - "tests/test_issue_1058_wheel_profile.py::test_one_public_record_cannot_cover_two_coincident_assembly_occurrences"
+      - "tests/test_issue_1058_wheel_profile.py::test_declared_model_cannot_omit_a_physical_double_d_bore_cleanly"
+    corpus_parts: ["issue_1058_wheel_rh.step"]
+  status: pending
+  port_note: "Keep: coverage problems per occurrence."
+
+- id: ISSUE-1073-a
+  statement: "Derived patterns preserve physical-body ownership: equal features on separate bodies never form one pattern, and an ambiguous body signature fails closed."
+  class: drafting
+  source:
+    issues: [1073]
+    tests:
+      - "tests/test_issue_1073_cross_body_patterns.py::test_separate_body_slots_do_not_form_one_pattern"
+      - "tests/test_issue_1073_cross_body_patterns.py::test_separate_body_pockets_do_not_form_one_pattern"
+      - "tests/test_issue_1073_cross_body_patterns.py::test_real_patterns_within_one_body_still_group"
+      - "tests/test_issue_1073_cross_body_patterns.py::test_ambiguous_body_signature_fails_closed"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: pattern grouping keyed by body; multi-body scenario test."
+
+- id: ISSUE-1082-a
+  statement: "Whole-part polygonal (e.g. hex) stock is dimensioned as stock by its geometric across-flats and axial length, not as an attached boss and not by bounding-box width."
+  class: drafting
+  source:
+    issues: [1082]
+    tests:
+      - "tests/test_issue_1082_polygonal_stock.py::test_whole_hex_stock_is_not_claimed_as_an_attached_boss"
+      - "tests/test_issue_1082_polygonal_stock.py::test_rotation_preserves_stock_across_flats_instead_of_using_bbox_width"
+      - "tests/test_issue_1082_polygonal_stock.py::test_whole_stock_compiles_its_form_and_axial_length_through_shared_placement"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario test rotated hex-bar STEP -> plan has A/F + length."
+
+- id: ISSUE-1082-b
+  statement: "A missing stock definition is reported, not mistaken for a clean sparse drawing; ambiguous or duplicate stock correspondence fails closed, and an authored suppression is distinct from a placement failure."
+  class: trust
+  source:
+    issues: [1082]
+    tests:
+      - "tests/test_issue_1082_polygonal_stock.py::test_missing_stock_definition_is_not_mistaken_for_a_clean_sparse_drawing"
+      - "tests/test_issue_1082_polygonal_stock.py::test_duplicate_stock_ir_correspondence_is_ambiguous_not_first_match_wins"
+      - "tests/test_issue_1082_polygonal_stock.py::test_authored_suppression_is_distinct_from_missing_stock_placement"
+      - "tests/test_issue_1082_polygonal_stock.py::test_rejected_stock_length_candidate_records_the_drop_with_measurement_identity"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: problems distinguish 'omitted by spec' from 'dropped by layout' from 'unverifiable'."
+
+- id: ISSUE-1086-a
+  statement: "A declared external spur gear places one standard gear data table (solver-placed) that survives vector export and prints every authored value exactly."
+  class: drafting
+  source:
+    issues: [1086]
+    tests:
+      - "tests/test_issue_1086_declared_gears.py::test_sheet_declaration_places_one_solver_owned_standard_table"
+      - "tests/test_issue_1086_declared_gears.py::test_standard_table_survives_vector_export"
+      - "tests/test_issue_1086_declared_gears.py::test_sheet_script_preserves_every_source_authored_gear_value_exactly"
+      - "tests/test_issue_1086_declared_gears.py::test_external_spur_gear_ir_rejects_incomplete_or_invalid_requirements"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: spec gear declaration -> plan table element with exact values."
+
+- id: ISSUE-1086-b
+  statement: "Gear semantics are audited against geometry: a repeating profile without declared semantics is incomplete, and a repeat-count, axis or correspondence mismatch or a removed table is never lint-clean."
+  class: trust
+  source:
+    issues: [1086]
+    tests:
+      - "tests/test_issue_1086_declared_gears.py::test_repeating_profile_without_declared_semantics_is_incomplete"
+      - "tests/test_issue_1086_declared_gears.py::test_declared_repeat_count_mismatch_is_not_lint_clean"
+      - "tests/test_issue_1086_declared_gears.py::test_declared_axis_mismatch_is_not_lint_clean"
+      - "tests/test_issue_1086_declared_gears.py::test_removed_gear_table_is_a_semantic_coverage_failure"
+      - "tests/test_issue_1086_declared_gears.py::test_normative_parameter_mutation_cannot_leave_a_stale_table_clean"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan problems for gear declaration/geometry mismatch."
+
+- id: ISSUE-1116-a
+  statement: "AP242 hole tolerances enrich the canonical hole dimension exactly once: symmetric limits print as ±, asymmetric limits keep limit form, and inch source values (already normalised to mm) are not rescaled."
+  class: drafting
+  source:
+    issues: [1116]
+    tests:
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_supported_deviation_forms_lower_to_one_bore_decoration"
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_symmetric_imported_limits_use_compact_plus_minus_callout"
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_asymmetric_imported_limits_retain_limit_callout"
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_normalized_inch_source_values_are_not_scaled_a_second_time"
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_ctc01_consumes_all_hole_tolerances_once_and_emits_provenance"
+    corpus_parts: ["nist_ctc_01_asme1_ap242"]
+  status: pending
+  port_note: "Keep: scenario CTC-01 AP242 -> each hole tolerance appears once in the plan label with source provenance."
+
+- id: ISSUE-1116-b
+  statement: "Member-specific PMI tolerances split a counted hole group rather than lying about siblings; unmatched or unsupported requirements remain materialised with an explicit reason, and conflicting sources fall back."
+  class: trust
+  source:
+    issues: [1116]
+    tests:
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_member_specific_requirements_split_a_count_group_without_lying_about_siblings"
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_unmatched_requirement_without_any_hole_owner_keeps_an_explicit_reason"
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_unsupported_source_requirements_remain_materialized_with_their_reason"
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_conflicting_sources_fall_back_and_other_aspects_follow_a_split_group"
+      - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_editable_callout_refuses_a_mixed_member_tolerance_pattern"
+    corpus_parts: ["nist_ctc_01_asme1_ap242"]
+  status: pending
+  port_note: "Keep: PMI lowering problems with reasons; grouping respects per-member tolerances."
+
+- id: ISSUE-1126-a
+  statement: "Requesting less never scores better: dropping declared features trades placement findings for completeness findings and raises geometry issues, so silence cannot be bought by removing annotations."
+  detail: "An agent loop optimising the score on geometry-only imports had degraded drawings (draftwright-io#432). The summary states the score is not a quality verdict."
+  class: trust
+  source:
+    issues: [1126]
+    tests:
+      - "tests/test_issue_1126_requesting_less_never_scores_better.py::test_dropping_declarations_never_improves_the_score"
+      - "tests/test_issue_1126_requesting_less_never_scores_better.py::test_dropping_declarations_costs_findings_rather_than_buying_silence"
+      - "tests/test_issue_1126_requesting_less_never_scores_better.py::test_the_geometry_issue_count_rises_when_content_is_dropped"
+      - "tests/test_issue_1126_requesting_less_never_scores_better.py::test_the_summary_says_the_score_is_not_a_quality_verdict"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: property test: removing spec items never reduces plan problems' completeness count."
+
+- id: ISSUE-1130-a
+  statement: "For a thin rotational plate, automatic view selection omits the redundant edge-on plan view and fits a smaller sheet (A2 at 1:1) while retaining every required outcome; the drawing and its independent check agree."
+  class: drafting
+  source:
+    issues: [1130]
+    tests:
+      - "tests/test_issue_1130_view_planning_evidence.py::test_the_automatic_result_is_a2_at_full_scale_and_reports_no_problem"
+      - "tests/test_issue_1130_view_planning_evidence.py::test_the_omitted_plan_repeats_the_front_and_carries_almost_nothing"
+      - "tests/test_issue_1130_view_planning_evidence.py::test_the_automatic_sheet_agrees_with_the_explicit_engine_verdict"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario test on synthetic thin plate -> plan omits redundant view, A2 1:1, no problems."
+
+- id: ISSUE-1132-a
+  statement: "A recognised turned profile that does not span the part is reported as a warning-level geometry issue naming the true total undescribed length; it never aborts drawing generation."
+  detail: "A forward walk stopping at the first gap overstated the shortfall (76.87 vs 23.69 mm on CADGenBench 109); malformed inputs must not crash the check."
+  class: trust
+  source:
+    issues: [1132]
+    tests:
+      - "tests/test_issue_1132_turned_profile_span_is_reported.py::test_the_shortfall_is_reported_rather_than_raised"
+      - "tests/test_issue_1132_turned_profile_span_is_reported.py::test_it_is_counted_as_a_geometry_issue"
+      - "tests/test_issue_1132_turned_profile_span_is_reported.py::test_the_reported_gap_is_the_real_one"
+      - "tests/test_issue_1132_turned_profile_span_is_reported.py::test_a_malformed_groove_does_not_raise"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan problem (geometry class, warning) with summed gap length."
+
+- id: ISSUE-1142-a
+  statement: "Every geometric hole callout carries a semantic label that covers every rendered branch of its compound text; long manufacturing suffixes wrap without losing the label."
+  class: drafting
+  source:
+    issues: [1142]
+    tests:
+      - "tests/test_issue_1142_hole_leader_labels.py::test_long_manufacturing_suffix_wraps_without_losing_its_source_label"
+      - "tests/test_issue_1142_hole_leader_labels.py::test_callout_semantic_label_covers_the_rendered_compound_grammar"
+      - "tests/test_issue_1142_hole_leader_labels.py::test_public_build_rejects_a_labelless_geometric_callout"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan callout elements are structured (terms), renderer wraps from structure."
+
+- id: ISSUE-1142-b
+  statement: "Coverage and de-duplication read structured callout facts, never suffix text: a bolt-circle label does not claim the circle as a feature, does not waive a count shortfall, and does not suppress an unrelated boss diameter."
+  class: trust
+  source:
+    issues: [1142]
+    tests:
+      - "tests/test_issue_1142_hole_leader_labels.py::test_structured_callout_label_does_not_claim_its_bolt_circle_as_a_feature"
+      - "tests/test_issue_1142_hole_leader_labels.py::test_structured_callout_label_does_not_waive_a_count_shortfall"
+      - "tests/test_issue_1142_hole_leader_labels.py::test_structured_bolt_circle_label_does_not_suppress_an_unrelated_boss_diameter"
+      - "tests/test_issue_1142_hole_leader_labels.py::test_centerline_overlap_uses_text_bbox_not_full_leader_footprint"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: never parse rendered text for semantics; plan carries structured claims."
+
+- id: ISSUE-1143-a
+  statement: "Recognition owns the hole-requirement denominator: deleting a declaration or callout cannot shrink it, and removing a required callout or location reduces completeness."
+  class: trust
+  source:
+    issues: [1143]
+    tests:
+      - "tests/test_issue_1143_hole_completeness.py::test_deleting_a_declaration_cannot_shrink_the_recognition_denominator"
+      - "tests/test_issue_1143_hole_completeness.py::test_removing_a_required_callout_or_location_reduces_completeness"
+      - "tests/test_issue_1143_hole_completeness.py::test_pattern_and_central_bore_have_a_complete_recognition_owned_ledger"
+      - "tests/test_issue_1143_hole_completeness.py::test_absent_recognition_has_no_physical_hole_denominator"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: completeness problems computed from Analysis, not from Spec; property test on spec deletions."
+
+- id: ISSUE-1143-b
+  statement: "Hole correspondence is exact and fails closed: opposite-face blind holes are two requirement groups, one declared hole cannot certify two physical bores, and ambiguous or reused owners never certify by tool-centre fallback."
+  class: trust
+  source:
+    issues: [1143]
+    tests:
+      - "tests/test_issue_1143_hole_completeness.py::test_opposite_face_blind_holes_remain_two_physical_requirement_groups"
+      - "tests/test_issue_1143_hole_completeness.py::test_one_declared_blind_hole_cannot_certify_two_opposed_physical_bores"
+      - "tests/test_issue_1143_hole_completeness.py::test_ambiguous_exact_bore_owners_cannot_escape_through_tool_centre_fallback"
+      - "tests/test_issue_1143_hole_completeness.py::test_oblique_recognised_hole_cannot_be_certified_by_lossy_principal_axis_ir"
+      - "tests/test_issue_1143_hole_completeness.py::test_hole_outcomes_ignore_rendered_names_and_labels_when_semantic_ids_survive"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: hole ownership by stable analysis IDs; mismatch -> 'unverifiable' problem."
+
+- id: ISSUE-1143-c
+  statement: "Hole patterns and grouped holes are fully located: a grid needs both independent pitches, off-axis and cross holes keep every member location, and a centre mark never replaces location dimensions."
+  class: drafting
+  source:
+    issues: [1143]
+    tests:
+      - "tests/test_issue_1143_hole_completeness.py::test_grid_pattern_accounts_for_both_independent_pitch_measurements"
+      - "tests/test_issue_1143_hole_completeness.py::test_grouped_off_axis_locations_require_every_physical_member_mark"
+      - "tests/test_issue_1143_hole_completeness.py::test_declared_step_cannot_make_plate_center_mark_replace_location_dimensions"
+      - "tests/test_issue_1143_hole_completeness.py::test_blind_depth_and_linear_pitch_have_exact_placed_outcomes"
+      - "tests/test_issue_1143_hole_completeness.py::test_compound_countersink_callout_accounts_for_every_printed_measurement"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario tests -> plan has both pitches / every member location."
+
+- id: ISSUE-1143-d
+  statement: "A hole table claims only the facts it prints: it prints every depth it claims, leaves an unauthored location axis blank rather than inventing it, and a failed table escalation restores the fallback evidence."
+  class: drafting
+  source:
+    issues: [1143]
+    tests:
+      - "tests/test_issue_1143_hole_completeness.py::test_blind_hole_table_prints_every_depth_it_claims"
+      - "tests/test_issue_1143_hole_completeness.py::test_public_hole_table_does_not_claim_a_blank_blind_depth"
+      - "tests/test_issue_1143_hole_completeness.py::test_hole_table_leaves_an_unauthored_location_axis_blank"
+      - "tests/test_issue_1143_hole_completeness.py::test_failed_hole_table_escalation_restores_semantic_fallback_evidence"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan table cells bound to measurement IDs; empty cell = no claim."
+
+- id: ISSUE-1143-e
+  statement: "An unmatched countersink is counted in the denominator but deliberately left unattributable rather than given an invented owner."
+  class: trust
+  source:
+    issues: [1143, 1229]
+    tests:
+      - "tests/test_issue_1143_hole_completeness.py::test_an_unmatched_countersink_is_still_counted_and_still_unattributable"
+      - "tests/test_issue_1143_hole_completeness.py::test_unattached_external_countersink_false_positive_is_not_a_hole_requirement"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: problem kind 'unverifiable' with count, no member attribution."
+
+- id: ISSUE-1144-a
+  statement: "Automatic hole-table escalation is transactional: it commits only with exactly one correctly-owned balloon per hole and no unsafe crossings, otherwise it rolls back and restores every fallback callout."
+  class: drafting
+  source:
+    issues: [1144]
+    tests:
+      - "tests/test_issue_1144_transactional_hole_table.py::test_table_commit_requires_exact_balloon_cardinality_and_owner"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_automatic_initial_table_failure_restores_every_fallback"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_automatic_partial_balloon_result_rolls_back_the_shared_table"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_automatic_transaction_rejects_a_real_required_shaft_crossing"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_real_constrained_a4_failure_keeps_valid_fallback_coverage"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: planner evaluates table vs callouts as alternative plans; never emits a partial table."
+
+- id: ISSUE-1144-b
+  statement: "An automatic hole table cannot resolve a dropped decorated or thread callout and preserves authored through-wording; a user-requested hole table is additive and keeps every balloon."
+  class: drafting
+  source:
+    issues: [1144]
+    tests:
+      - "tests/test_issue_1144_transactional_hole_table.py::test_automatic_table_cannot_resolve_a_dropped_decorated_callout"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_automatic_table_cannot_resolve_a_dropped_thread_callout"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_automatic_table_preserves_authored_through_wording"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_public_hole_table_remains_additive_and_keeps_every_balloon"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario tests on table eligibility."
+
+- id: ISSUE-1144-c
+  statement: "Hole-table balloon placement is work-bounded; exceeding a solver or carve budget rolls the automatic transaction back rather than committing a partial result."
+  class: trust
+  source:
+    issues: [1144]
+    tests:
+      - "tests/test_issue_1144_transactional_hole_table.py::test_guarded_solver_budget_rolls_the_automatic_table_transaction_back"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_guarded_carve_budget_rolls_the_automatic_table_transaction_back"
+      - "tests/test_issue_1144_transactional_hole_table.py::test_finalize_exception_restores_automatic_transaction_markers"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: bounded search with explicit budget-exhausted problem; no mutable rollback needed in a stateless planner."
+
+- id: ISSUE-1146-a
+  statement: "An explicit or automatic scale may not silently reduce completeness: by default the largest complete standard scale is used and the decision reported; a strict policy fails with machine-readable required outcomes; a permissive policy warns."
+  class: drafting
+  source:
+    issues: [1146, 1941]
+    tests:
+      - "tests/test_issue_1146_scale_completeness.py::test_fixture_proves_requested_scale_loses_an_outcome_but_half_scale_is_complete"
+      - "tests/test_issue_1146_scale_completeness.py::test_default_fallback_returns_largest_complete_standard_scale_and_reports_decision"
+      - "tests/test_issue_1146_scale_completeness.py::test_strict_policy_fails_with_machine_readable_required_outcomes"
+      - "tests/test_issue_1146_scale_completeness.py::test_permissive_policy_is_explicit_warns_and_preserves_degraded_request"
+    corpus_parts: ["nist_ctc_02_asme1_ap203"]
+  status: pending
+  port_note: "Keep: plan scale default with basis; spec scale + policy -> problems."
+
+- id: ISSUE-1146-b
+  statement: "Scale fallback is honest about what it counts: info severity or priority cannot hide a required drop, validation findings are not placement failures, an unrelated build error is not hidden, and exhaustion at the rendering floor is reported."
+  class: trust
+  source:
+    issues: [1146]
+    tests:
+      - "tests/test_issue_1146_scale_completeness.py::test_info_severity_or_priority_cannot_hide_a_required_drop"
+      - "tests/test_issue_1146_scale_completeness.py::test_validation_findings_are_not_scale_placement_failures"
+      - "tests/test_issue_1146_scale_completeness.py::test_fallback_does_not_hide_an_unrelated_build_error"
+      - "tests/test_issue_1146_scale_completeness.py::test_fallback_reports_exhaustion_at_the_hard_rendering_floor"
+      - "tests/test_issue_1146_scale_completeness.py::test_policy_vocabulary_and_applicability_fail_before_build"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1146-c
+  statement: "Each principal projection, and each orthographic pair together, must fit inside the physical page; authored table footprints participate in page and scale selection."
+  class: drafting
+  source:
+    issues: [1146]
+    tests:
+      - "tests/test_issue_1146_scale_completeness.py::test_principal_projection_must_fit_inside_the_physical_page"
+      - "tests/test_issue_1146_scale_completeness.py::test_orthographic_pair_cannot_fit_when_each_projection_alone_would_fit"
+      - "tests/test_issue_1146_scale_completeness.py::test_authored_table_footprint_can_select_a_larger_standard_page"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: page/scale selection unit tests."
+
+- id: ISSUE-1147-a
+  statement: "Pairwise legibility findings keep every pair but penalise the score once per affected subject, at the group's strongest severity, independent of observation order; distinct mechanisms on one subject stay distinct issues."
+  class: trust
+  source:
+    issues: [1147, 1945]
+    tests:
+      - "tests/test_issue_1147_legibility_pair_aggregation.py::test_two_affected_labels_keep_ten_pair_findings_but_take_two_score_penalties"
+      - "tests/test_issue_1147_legibility_pair_aggregation.py::test_one_group_uses_its_strongest_severity_in_either_observation_order"
+      - "tests/test_issue_1147_legibility_pair_aggregation.py::test_one_subject_with_two_failure_mechanisms_remains_two_primary_issues"
+      - "tests/test_issue_1147_legibility_pair_aggregation.py::test_lint_snapshot_does_not_keep_stale_issues_after_mutation_issue_1945"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep the aggregation rule if a score is ported; lint-override/context-ledger tests retire."
+
+- id: ISSUE-1153-a
+  statement: "A dimension whose label contradicts its own drawn geometry beyond a small threshold is an error that fails the drawing; a small discrepancy only warns."
+  detail: "Reported on GRM-04 and CTC-04 (tests use synthetic parts). Before: label 99 over a 16 mm path reported passed. A misleading drawing is worse than an incomplete one. Tagged labels mean what the producer declared (e.g. TYP step, pitch)."
+  class: trust
+  source:
+    issues: [1153, 1209]
+    tests:
+      - "tests/test_issue_1153_contradictory_dimensions.py::test_a_false_measurement_fails_the_drawing"
+      - "tests/test_issue_1153_contradictory_dimensions.py::test_a_small_discrepancy_warns_and_a_large_one_fails"
+      - "tests/test_issue_1153_contradictory_dimensions.py::test_a_tagged_label_means_what_the_producer_declared"
+      - "tests/test_issue_1153_contradictory_dimensions.py::test_a_tagged_dim_drawn_at_the_wrong_length_still_fails"
+      - "tests/test_issue_1153_contradictory_dimensions.py::test_a_uniform_staircase_reports_no_contradiction"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: independent post-render check (label value vs measured witness span) -> error problem."
+
+- id: ISSUE-1154-a
+  statement: "One physical measurement has one owner: when a feature-local height spans the same two planes as an overall extent (a hub flush with both plate faces), it is stated once, by the overall extent, and the omission names the carrying dimension."
+  detail: "Reported on GRM-04 (tests use synthetic flush-hub parts). Not value dedup: a proud boss keeps both, equal extents of a square keep both, a face 0.5 mm short is a different plane; a toleranced height is not handed to an untoleranced extent."
+  class: drafting
+  source:
+    issues: [1154]
+    tests:
+      - "tests/test_issue_1154_one_owner_per_measurement.py::test_a_flush_hub_no_longer_states_the_thickness_twice"
+      - "tests/test_issue_1154_one_owner_per_measurement.py::test_a_proud_boss_keeps_both_dimensions"
+      - "tests/test_issue_1154_one_owner_per_measurement.py::test_a_square_footprint_keeps_both_of_its_equal_extents"
+      - "tests/test_issue_1154_one_owner_per_measurement.py::test_a_toleranced_height_is_not_handed_to_an_untoleranced_extent"
+      - "tests/test_issue_1154_one_owner_per_measurement.py::test_the_omission_names_the_dimension_that_now_carries_the_fact"
+      - "tests/test_issue_1154_one_owner_per_measurement.py::test_an_owner_the_authored_set_omits_is_refused"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan consolidation keyed by support-plane pairs; omission basis references the carrier ID."
+
+- id: ISSUE-1155-a
+  statement: "GRM-04's automatic sheet retains both the Ø2.4 hole diameter and its location on a clean sheet."
+  class: drafting
+  source:
+    issues: [1155]
+    tests:
+      - "tests/test_issue_1155_grm04_sheet_use.py::test_grm04_measured_replan_keeps_diameter_and_location_on_a_clean_sheet"
+    corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
+  status: pending
+  port_note: "Keep: scenario test GRM-04 -> plan has Ø2.4 size and location, no problems."
+
+- id: ISSUE-1157-a
+  statement: "An unauthored general tolerance is stated as unspecified in the title block, never defaulted to a standard such as ISO 2768-m; an explicit empty value leaves the cell blank."
+  class: trust
+  source:
+    issues: [1157]
+    tests:
+      - "tests/test_issue_1157_no_implicit_general_tolerance.py::test_unauthored_general_tolerance_is_stated_unspecified"
+      - "tests/test_issue_1157_no_implicit_general_tolerance.py::test_an_explicit_empty_tolerance_leaves_the_cell_blank"
+      - "tests/test_issue_1157_no_implicit_general_tolerance.py::test_no_public_entry_point_defaults_to_a_manufacturing_tolerance"
+      - "tests/test_issue_1157_no_implicit_general_tolerance.py::test_the_unspecified_text_clears_its_own_cell"
+      - "tests/test_issue_1157_no_implicit_general_tolerance.py::test_explicit_title_tolerance_does_not_borrow_imported_source_provenance"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: Spec general tolerance is Option; plan title block shows 'unspecified' when None."
+
+- id: ISSUE-1166-a
+  statement: "Feature leaders in one view are placed from one shared inventory, avoiding fixed ink (other features' centre marks, rendered arrowheads, filled datum faces) but not their own centre mark; a required leader beats an optional one."
+  class: drafting
+  source:
+    issues: [1166]
+    tests:
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_public_narrow_part_uses_one_cross_pass_inventory"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_unrelated_center_furniture_is_fixed_ink_but_own_mark_is_not"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_shifted_dimension_keeps_rendered_arrowheads_in_fixed_ink"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_filled_datum_face_is_part_of_the_fixed_ink_inventory"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_cross_pass_objective_avoids_the_per_pass_greedy_trap"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: single leader solve per view over all obstacles."
+
+- id: ISSUE-1166-b
+  statement: "A turning-axis centreline exempts a leader only at its tip attachment; every other crossing still counts, and the title block is a hard obstacle while a future section cannot veto a required leader."
+  class: drafting
+  source:
+    issues: [1166]
+    tests:
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_explicit_global_turning_axis_allows_only_tip_attachment"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_global_axis_tip_attachment_does_not_exempt_near_collinear_shaft_travel"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_future_section_cannot_veto_a_required_leader_but_title_is_hard"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_final_section_geometry_stays_clear_of_shared_feature_leaders"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1166-c
+  statement: "When rendered geometry or obstacle metadata is unavailable or malformed, leader validation fails closed (conservative) rather than certifying a partial obstacle inventory."
+  class: trust
+  source:
+    issues: [1166, 2112]
+    tests:
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_final_preflight_fails_closed_when_rendered_faces_are_unavailable"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_failed_residual_and_bad_box_cannot_certify_partial_fixed_ink"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_resource_fallback_never_bypasses_hard_boundaries"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_immediate_producer_floor_records_a_retained_fixed_crossing_issue_2112"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1166-d
+  statement: "Live and deferred callout verbs reach one canonical late feature-leader stage with identical semantic evidence."
+  class: machinery
+  source:
+    issues: [1166]
+    tests:
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_live_and_deferred_callout_verbs_preserve_the_same_semantic_evidence"
+      - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_feature_leader_inventory_has_one_canonical_late_stage"
+    corpus_parts: []
+  status: pending
+  port_note: "Retire: no live/deferred split in the stateless API."
+
+- id: ISSUE-1176-a
+  statement: "A drawing that states something false (a contradicted dimension, a callout for a feature the part lacks, a data table with the wrong tooth count or axis) loses fidelity, even when it passes layout gates; a missing thing is not a false thing."
+  detail: "Quality has four independent axes with disjoint codes: completeness, restraint, legibility, fidelity. Each publishes its basis; unavailability is explicit."
+  class: trust
+  source:
+    issues: [1176]
+    tests:
+      - "tests/test_issue_1176_quality_fidelity.py::test_a_false_dimension_lowers_fidelity"
+      - "tests/test_issue_1176_quality_fidelity.py::test_a_callout_for_a_feature_the_part_lacks_lowers_fidelity"
+      - "tests/test_issue_1176_quality_fidelity.py::test_a_data_table_stating_the_wrong_tooth_count_lowers_fidelity"
+      - "tests/test_issue_1176_quality_fidelity.py::test_a_missing_thing_is_not_a_false_thing"
+      - "tests/test_issue_1176_quality_fidelity.py::test_the_axes_do_not_share_codes"
+      - "tests/test_issue_1176_quality_fidelity.py::test_fidelity_has_no_answer_when_the_drawing_asserts_nothing"
+    corpus_parts: ["issue_1058_wheel_rh.step"]
+  status: pending
+  port_note: "Keep: problem kinds carry a category (completeness/restraint/legibility/fidelity); scenario tests per category."
+
+- id: ISSUE-1176-b
+  statement: "Every diagnostic code is registered to exactly one quality axis, and the register is checked against the codes actually produced."
+  class: machinery
+  source:
+    issues: [1176, 1714]
+    tests:
+      - "tests/test_issue_1176_quality_fidelity.py::test_no_lint_code_scores_on_an_unstated_axis"
+      - "tests/test_issue_1176_quality_fidelity.py::test_every_interpolated_code_family_is_registered"
+      - "tests/test_issue_1176_quality_fidelity.py::test_the_runtime_report_agrees_with_the_static_register"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: a Rust enum of problem kinds with an exhaustive category match makes the AST-scanning register tests unnecessary."
+
+- id: ISSUE-1177-a
+  statement: "An angular dimension is never drawn or checked as a linear one; supported three-point angles render as arcs from proven supports, and kinds that cannot be drawn truthfully are refused and reported."
+  detail: "A 60° dovetail flank had rendered as a horizontal 16 mm linear dim and lint compared degrees to mm, reporting an axis swap."
+  class: drafting
+  source:
+    issues: [1177, 1504]
+    tests:
+      - "tests/test_issue_1177_angular_dimensions.py::test_no_linear_dimension_is_drawn_for_an_angular_declaration"
+      - "tests/test_issue_1177_angular_dimensions.py::test_an_angle_is_never_compared_against_a_path_length"
+      - "tests/test_issue_1177_angular_dimensions.py::test_ctc01_ap242_toleranced_angle_renders_from_its_proven_supports"
+      - "tests/test_issue_1177_angular_dimensions.py::test_every_kind_is_either_renderable_or_explicitly_refused"
+    corpus_parts: ["nist_ctc_01_asme1_ap242"]
+  status: pending
+  port_note: "Keep: plan dimension kinds are typed (linear/angular/...); renderer has no fallback from angular to linear."
+
+- id: ISSUE-1177-b
+  statement: "A refused dimension kind is a validation outcome (not a placement drop) reported once as a geometry issue: an error for a source-bearing (PMI) record, a warning for an authored one, and an explicit scale survives it."
+  class: trust
+  source:
+    issues: [1177]
+    tests:
+      - "tests/test_issue_1177_angular_dimensions.py::test_the_refusal_is_a_validation_outcome_not_a_placement_drop"
+      - "tests/test_issue_1177_angular_dimensions.py::test_an_explained_omission_is_not_reported_a_second_time"
+      - "tests/test_issue_1177_angular_dimensions.py::test_every_suppressor_escalates_for_a_source_bearing_record"
+      - "tests/test_issue_1177_angular_dimensions.py::test_an_authored_refusal_with_no_source_is_a_warning"
+      - "tests/test_issue_1177_angular_dimensions.py::test_an_explicit_scale_survives_an_angular_declaration"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1187-a
+  statement: "Leaders retained across the part (Policy B) are kept only when no route is both clear of the body and clear of committed ink; this is measured exhaustively, not asserted."
+  class: drafting
+  source:
+    issues: [1187]
+    tests:
+      - "tests/test_issue_1187_unroutable_leaders.py::test_policy_b_retention_is_a_fast_release_gate"
+      - "tests/test_issue_1187_unroutable_leaders.py::test_the_retained_crossings_have_no_clear_alternative"
+    corpus_parts: ["nist_ctc_04_asme1_ap203"]
+  status: pending
+  port_note: "Keep: scenario CTC-04 -> every reported leader crossing has no clear alternative candidate."
+
+- id: ISSUE-1188-a
+  statement: "Leader assignment is solved per view, exactly equal to the whole-inventory optimum because conflicts are only ever same-view; a conflict spanning views fails closed."
+  class: machinery
+  source:
+    issues: [1188]
+    tests:
+      - "tests/test_issue_1188_per_view_assignment.py::test_one_view_matches_the_undecomposed_solve"
+      - "tests/test_issue_1188_per_view_assignment.py::test_independent_views_reach_each_view_s_own_optimum"
+      - "tests/test_issue_1188_per_view_assignment.py::test_a_conflict_spanning_views_fails_closed"
+      - "tests/test_issue_1188_per_view_assignment.py::test_a_dense_fixture_reaches_the_exact_solve"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: valid decomposition for the Rust solver; keep the oracle-equality test."
+
+- id: ISSUE-1190-a
+  statement: "Section view placement looks for any free gap in the band; one remote obstacle does not veto a band the section fits in, and a later segment is used when the first is blocked."
+  class: drafting
+  source:
+    issues: [1190]
+    tests:
+      - "tests/test_issue_1190_section_decision.py::test_a_remote_obstacle_does_not_veto_the_whole_band"
+      - "tests/test_issue_1190_section_decision.py::test_a_later_segment_is_used_when_the_first_is_blocked"
+      - "tests/test_issue_1190_section_decision.py::test_room_existing_but_blocked_by_the_title_block_says_title_block"
+    corpus_parts: ["GRM-01"]
+  status: pending
+  port_note: "Keep: layout unit test for section slot search."
+
+- id: ISSUE-1190-b
+  statement: "Every section decision has an outcome from a closed vocabulary (not needed, placed, yielded, no room, title block, failed cut, never ran) that reaches both the record and lint; a withheld section is never silent and is not a placement drop."
+  class: trust
+  source:
+    issues: [1190]
+    tests:
+      - "tests/test_issue_1190_section_decision.py::test_a_part_needing_no_section_says_so"
+      - "tests/test_issue_1190_section_decision.py::test_a_pass_that_never_ran_is_distinguished_from_one_that_found_nothing"
+      - "tests/test_issue_1190_section_decision.py::test_the_status_vocabulary_is_closed"
+      - "tests/test_issue_1190_section_decision.py::test_the_omission_reaches_both_the_record_and_lint"
+      - "tests/test_issue_1190_section_decision.py::test_every_scale_records_an_outcome_with_a_reason"
+    corpus_parts: ["GRM-01"]
+  status: pending
+  port_note: "Keep: plan carries a section decision enum per candidate section."
+
+- id: ISSUE-1196-a
+  statement: "Diagnostic text is deterministic: it never contains object addresses, an unnamed view falls back to its position, and two builds of one part produce identical messages."
+  class: trust
+  source:
+    issues: [1196]
+    tests:
+      - "tests/test_issue_1196_deterministic_view_names.py::test_two_builds_of_one_part_produce_identical_view_messages"
+      - "tests/test_issue_1196_deterministic_view_names.py::test_no_message_carries_an_object_address"
+      - "tests/test_issue_1196_deterministic_view_names.py::test_an_unnamed_view_falls_back_to_its_position"
+      - "tests/test_issue_1196_deterministic_view_names.py::test_every_overflow_message_names_the_view_that_actually_overflows"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan/problem serialisation byte-identical across runs."
+
+- id: ISSUE-1202-a
+  statement: "The drawing-consumer completeness metric observes the actual build (did each hole's size reach the sheet by callout or table), never a static capability declaration; contradicted or empty annotations are not credited and a build failure scores unknown, saying so."
+  class: trust
+  source:
+    issues: [1202, 1169, 1369]
+    tests:
+      - "tests/test_issue_1202_observed_drawing_consumer.py::test_a_hole_whose_callout_never_reached_the_sheet_is_unsupported"
+      - "tests/test_issue_1202_observed_drawing_consumer.py::test_a_table_represented_hole_is_consumed_on_a_real_build"
+      - "tests/test_issue_1202_observed_drawing_consumer.py::test_a_placed_requirement_the_drawing_contradicts_is_not_supported"
+      - "tests/test_issue_1202_observed_drawing_consumer.py::test_an_annotation_that_draws_nothing_is_not_credited"
+      - "tests/test_issue_1202_observed_drawing_consumer.py::test_a_build_failure_scores_every_hole_unknown_and_says_so"
+    corpus_parts: ["nist_ctc_03_asme1_ap203", "nist_ctc_04_asme1_ap203"]
+  status: pending
+  port_note: "Keep: evaluation harness reads the plan/render output, not declared capabilities."
+
+- id: ISSUE-1204-a
+  statement: "Diagnostic counts describe the drawing, not how annotations are grouped: view-level findings are reported once, and each annotation is checked at its own (detail) scale."
+  class: trust
+  source:
+    issues: [1204, 1216]
+    tests:
+      - "tests/test_issue_1204_multiscale_view_issues.py::test_view_level_findings_are_reported_once"
+      - "tests/test_issue_1204_multiscale_view_issues.py::test_the_summarys_view_counts_do_not_move_with_the_grouping"
+      - "tests/test_issue_1204_multiscale_view_issues.py::test_an_annotation_is_linted_at_its_own_scale"
+      - "tests/test_issue_1204_multiscale_view_issues.py::test_a_degenerate_item_scale_falls_back_to_the_sheet_scale"
+    corpus_parts: ["nist_ctc_04_asme1_ap203"]
+  status: pending
+  port_note: "Keep: single check pass with per-annotation view scale."
+
+- id: ISSUE-1209-a
+  statement: "An AP242 linear dimension is drawn only from proven reference stations (exact faces); incomplete or wrong-length relationships fail without guessing a nominal, and untruthful records are reported."
+  detail: "Oblique supports render their exact projected span; bbox supplies only transverse support."
+  class: trust
+  source:
+    issues: [1209, 2184]
+    tests:
+      - "tests/test_issue_1209_linear_pmi_witnesses.py::test_an_incomplete_or_wrong_length_relationship_fails_without_nominal_guessing"
+      - "tests/test_issue_1209_linear_pmi_witnesses.py::test_ctc04_uses_authored_groups_and_reports_the_two_untruthful_records"
+      - "tests/test_issue_1209_linear_pmi_witnesses.py::test_a_partially_measured_group_cannot_render_from_its_incomplete_subset"
+      - "tests/test_issue_1209_linear_pmi_witnesses.py::test_linear_witness_uses_stations_while_bbox_supplies_only_transverse_support"
+      - "tests/test_issue_1209_linear_pmi_witnesses.py::test_oblique_linear_support_renders_its_exact_projected_span"
+    corpus_parts: ["nist_ctc_03_asme1_ap242", "nist_ctc_04_asme1_ap242"]
+  status: pending
+  port_note: "Keep: scenario CTC-04 AP242 -> two untruthful records as problems; witness spans equal PMI value."
+
+- id: ISSUE-1215-a
+  statement: "An authored envelope tolerance prints in the label of the decorated extent (height, width or depth) and only there; a bare tolerance applies to every extent, and limit pairs and fit classes print in full."
+  detail: "Labels were composed from the bare value, discarding the tolerance; tests must assert the label/ink, not the constructor argument."
+  class: drafting
+  source:
+    issues: [1215, 1234]
+    tests:
+      - "tests/test_issue_1215_envelope_tolerance.py::test_the_decorated_extent_prints_its_tolerance"
+      - "tests/test_issue_1215_envelope_tolerance.py::test_the_other_two_extents_stay_bare"
+      - "tests/test_issue_1215_envelope_tolerance.py::test_a_bare_tolerance_folds_onto_every_extent"
+      - "tests/test_issue_1215_envelope_tolerance.py::test_a_limit_pair_prints_both_limits"
+      - "tests/test_issue_1215_envelope_tolerance.py::test_the_tolerance_reaches_the_exported_ink"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario test spec envelope tolerance -> plan label text includes it; render glyph check."
+
+- id: ISSUE-1215-b
+  statement: "A tolerance-bearing label's annotation bounds enclose the complete label, growing along the dimension line when rotated."
+  class: drafting
+  source:
+    issues: [1215]
+    tests:
+      - "tests/test_issue_1215_envelope_tolerance.py::test_a_rotated_label_grows_along_the_dimension_line"
+      - "tests/test_issue_1215_envelope_tolerance.py::test_the_annotation_bounds_enclose_the_complete_tolerance_label"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: text measurement used for layout equals rendered extent."
+
+- id: ISSUE-1215-c
+  statement: "An approved tolerance always reaches the ink verbatim through the label of the annotation that claims it, on every route including hole-table diameter and depth cells; none is dropped."
+  detail: "General guard decorating every parameter of every feature; earlier fixes found sites one at a time across six review rounds."
+  class: drafting
+  source:
+    issues: [1215, 1216]
+    tests:
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_no_approved_tolerance_is_dropped_by_a_renderer"
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_an_escalated_hole_table_prints_the_authored_tolerance"
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_public_hole_table_verb_prints_the_authored_tolerance"
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_hole_table_depth_column_prints_the_authored_tolerance"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario test (spec with tolerance on every parameter -> every plan label contains it); renderers draw only plan text."
+
+- id: ISSUE-1215-d
+  statement: "A pattern pitch whose measured gaps are not equal within tolerance withholds the authored pitch tolerance and says so, rather than claiming a tolerance tighter than the part."
+  detail: "A '3x 20 ±0.1' had printed over a 20.3 mm gap. A 'N x rise' run states one value, so it stays deliberately bare."
+  class: drafting
+  source:
+    issues: [1215, 1234]
+    tests:
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_a_jittered_pattern_withholds_its_pitch_tolerance_and_says_so"
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_deliberately_bare_names_are_reachable"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan problem for withheld tolerance."
+
+- id: ISSUE-1215-e
+  statement: "A mandatory overall extent starved of its strip falls through to the opposite strip; if both are full the drop is reported, and a withholding is retracted only when every mark is actually drawn."
+  class: drafting
+  source:
+    issues: [1215, 1236]
+    tests:
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_a_starved_overall_extent_recovers_to_the_above_strip"
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_a_doubly_starved_extent_is_still_reported"
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_a_withholding_is_retracted_only_when_every_mark_is_drawn"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1215-f
+  statement: "An authored omission reaches the hole table too: the table cannot tell 'no entry' from 'author left it out' by falling back to recognised geometry."
+  class: trust
+  source:
+    issues: [1215, 1216]
+    tests:
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_public_hole_table_honours_an_authored_omission"
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_declared_route_retracts_too"
+      - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_only_an_absence_code_counts_as_reporting_an_absence"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: renderers never format from Analysis; only from Plan."
+
+- id: ISSUE-1216-a
+  statement: "The width reserved for a callout before placement is never narrower than the text it will actually draw, including tolerance and recess suffixes."
+  detail: "An under-estimate promises room that is not there and caused a whole callout to be dropped; over-estimating is conservative."
+  class: drafting
+  source:
+    issues: [1216, 1234]
+    tests:
+      - "tests/test_issue_1216_callout_reservation_measures_ink.py::test_the_reservation_is_never_narrower_than_the_ink"
+      - "tests/test_issue_1216_callout_reservation_measures_ink.py::test_a_recess_tolerance_alone_widens_the_reservation"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: reservation computed from the same plan text the renderer measures."
+
+- id: ISSUE-1216-b
+  statement: "Pairwise overlap checks compare every annotation with every other, across scale groups (a detail view's dimensions against its own caption), in one pass with each item at its own scale."
+  class: trust
+  source:
+    issues: [1216]
+    tests:
+      - "tests/test_issue_1216_pairwise_across_scale_groups.py::test_two_overlapping_annotations_in_different_groups_are_compared"
+      - "tests/test_issue_1216_pairwise_across_scale_groups.py::test_a_detail_scale_dim_is_not_flagged_against_the_sheet_scale"
+      - "tests/test_issue_1216_pairwise_across_scale_groups.py::test_lint_dim_reads_the_items_own_scale"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1217-a
+  statement: "Every claimed representation is verified against what the annotation actually renders: the expected formatted value (not a substring or raw float), locations from their span, every number of a compound callout, and hole-table rows; an unconfirmed claim is reported as a warning."
+  class: trust
+  source:
+    issues: [1217, 1206]
+    tests:
+      - "tests/test_issue_1217_claimed_representations.py::test_a_claim_the_annotation_does_not_render_is_reported"
+      - "tests/test_issue_1217_claimed_representations.py::test_a_near_miss_is_not_accepted_by_a_substring"
+      - "tests/test_issue_1217_claimed_representations.py::test_the_formatted_value_is_expected_not_the_raw_float"
+      - "tests/test_issue_1217_claimed_representations.py::test_a_compound_callout_renders_every_number_it_claims"
+      - "tests/test_issue_1217_claimed_representations.py::test_a_repeat_count_cannot_confirm_a_diameter"
+      - "tests/test_issue_1217_claimed_representations.py::test_a_quantity_column_cannot_confirm_a_diameter"
+    corpus_parts: ["GRM-03"]
+  status: pending
+  port_note: "Keep: post-render verifier that maps plan measurement IDs to rendered text."
+
+- id: ISSUE-1217-b
+  statement: "Every annotation that states a measured number carries a measurement claim, for every feature family; an unclaimed numeric annotation is a defect."
+  class: trust
+  source:
+    issues: [1217]
+    tests:
+      - "tests/test_issue_1217_the_facility_is_shared.py::test_every_annotation_that_states_a_number_carries_a_claim"
+      - "tests/test_issue_1217_the_facility_is_shared.py::test_the_property_holds_on_the_ctc_corpus_too"
+      - "tests/test_issue_1217_the_facility_is_shared.py::test_slots_are_verified"
+      - "tests/test_issue_1217_the_facility_is_shared.py::test_the_registered_exemption_is_real_and_not_a_blanket"
+    corpus_parts: ["GRM-03", "nist_ctc_01", "nist_ctc_02_asme1_ap203", "nist_ctc_04_asme1_ap203", "nist_ctc_05"]
+  status: pending
+  port_note: "Keep: by construction every plan text element with a number references a measurement ID; corpus-wide property test."
+
+- id: ISSUE-1219-a
+  statement: "A location dimension claims a measurement that runs in the direction it is drawn; a slot running along the view normal is not located by plan-view ladders, and a slot position comes from its real geometry, not the bounding-box centre."
+  class: drafting
+  source:
+    issues: [1219, 1218]
+    tests:
+      - "tests/test_issue_1219_location_claims_its_own_axis.py::test_no_plan_ladder_annotation_claims_the_slot_position"
+      - "tests/test_issue_1219_location_claims_its_own_axis.py::test_nothing_on_the_sheet_claims_a_value_it_does_not_render"
+      - "tests/test_issue_1219_location_claims_its_own_axis.py::test_the_compiled_entry_states_the_direction_it_runs"
+      - "tests/test_issue_1219_location_claims_its_own_axis.py::test_every_dropped_position_names_the_measurement_it_lost"
+    corpus_parts: ["nist_ctc_02_asme1_ap203", "nist_ctc_04_asme1_ap203"]
+  status: pending
+  port_note: "Keep: plan location entries carry an explicit direction; scenario test on CTC-02."
+
+- id: ISSUE-1229-a
+  statement: "The hole-requirement spec separates through from blind, and every recognised hole group is uniform in bottom type."
+  class: trust
+  source:
+    issues: [1229, 1223]
+    tests:
+      - "tests/test_issue_1229_ledger_member_keying.py::test_the_spec_separates_through_from_blind"
+      - "tests/test_issue_1229_ledger_member_keying.py::test_the_part_really_mixes_through_and_blind"
+      - "tests/test_issue_1229_ledger_member_keying.py::test_every_recognised_group_is_uniform_in_bottom"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: hole grouping key includes through/blind."
+
+- id: ISSUE-1229-b
+  statement: "The evaluation module is importable without the drawing engine."
+  class: machinery
+  source:
+    issues: [1229]
+    tests:
+      - "tests/test_issue_1229_ledger_member_keying.py::test_importing_the_evaluation_module_does_not_pull_the_engine"
+      - "tests/test_issue_1229_ledger_member_keying.py::test_the_module_only_imports_its_engine_free_evidence_helpers"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: crate boundary (evaluation crate does not depend on layout/render crates)."
+
+- id: ISSUE-1240-a
+  statement: "Annotation strips above views and the isometric view avoid each other: strip placement is clamped below an overlapping iso, and iso growth is capped by placed annotations while still growing up to them."
+  detail: "Page-spanning frame/zone furniture must not neutralise the iso fit; the post-fit recap only ever tightens."
+  class: drafting
+  source:
+    issues: [1240, 1946]
+    tests:
+      - "tests/test_issue_1240_iso_above_strip_visibility.py::test_the_above_strip_is_clamped_below_an_overlapping_iso"
+      - "tests/test_issue_1240_iso_above_strip_visibility.py::test_iso_growth_is_capped_by_a_planted_annotation_box"
+      - "tests/test_issue_1240_iso_above_strip_visibility.py::test_the_returned_factor_clears_the_obstacle_on_a_real_projection"
+      - "tests/test_issue_1240_iso_above_strip_visibility.py::test_the_page_spanning_riders_do_not_neutralise_the_iso_fit"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: layout unit tests with planted obstacles; single layout solve should make this structural."
+
+- id: ISSUE-1245-a
+  statement: "A recognised passage that cannot be dimensioned yet fails visibly as a specific, actionable, non-info finding and an explicit unsupported completeness outcome, without inventing drafting semantics."
+  class: trust
+  source:
+    issues: [1245]
+    tests:
+      - "tests/test_issue_1245_passage_disposition.py::test_a_recognised_passage_is_specific_actionable_and_non_info"
+      - "tests/test_issue_1245_passage_disposition.py::test_a_passage_is_an_explicit_unsupported_completeness_outcome"
+      - "tests/test_issue_1245_passage_disposition.py::test_a_passage_does_not_hide_an_unrelated_unsupported_inner_profile"
+      - "tests/test_issue_1245_passage_disposition.py::test_passage_profile_correlation_fails_closed"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan problem 'unsupported feature' per recognised-but-undrawable feature."
+
+- id: ISSUE-1246-a
+  statement: "A recognised prismatic pocket that cannot be dimensioned fails visibly as a specific unsupported outcome without false dimensions, and does not hide an unrelated unsupported profile."
+  class: trust
+  source:
+    issues: [1246]
+    tests:
+      - "tests/test_issue_1246_prismatic_pocket_disposition.py::test_a_prismatic_pocket_is_specific_actionable_and_non_info"
+      - "tests/test_issue_1246_prismatic_pocket_disposition.py::test_a_prismatic_pocket_is_an_explicit_unsupported_completeness_outcome"
+      - "tests/test_issue_1246_prismatic_pocket_disposition.py::test_a_four_sided_survivor_is_unsupported_not_misclassified_as_non_rectangular"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1247-a
+  statement: "A recognised angled step fails visibly as one explicit unsupported outcome without invented semantics; the provider aggregate decides chamfer versus step ownership."
+  class: trust
+  source:
+    issues: [1247]
+    tests:
+      - "tests/test_issue_1247_angled_step_disposition.py::test_angled_step_is_specific_actionable_and_non_info"
+      - "tests/test_issue_1247_angled_step_disposition.py::test_angled_step_is_one_explicit_unsupported_completeness_outcome"
+      - "tests/test_issue_1247_angled_step_disposition.py::test_corpus_fixture_pins_angled_step_chamfer_ownership"
+    corpus_parts: ["issue_1247_angled_blind_step.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1254-a
+  statement: "Recognised conical chamfers on a turned part are drawn once each with every measurement identity, are not guessed to be turned when parallel, and different chamfer forms sharing a first leg are not collapsed."
+  class: drafting
+  source:
+    issues: [1254]
+    tests:
+      - "tests/test_issue_1254_turned_chamfers.py::test_grm03_renders_two_requirements_with_all_three_measurement_identities"
+      - "tests/test_issue_1254_turned_chamfers.py::test_a_supplied_parallel_chamfer_is_not_guessed_to_be_turned"
+      - "tests/test_issue_1254_turned_chamfers.py::test_same_first_leg_does_not_collapse_different_chamfer_forms"
+    corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
+  status: pending
+  port_note: "Keep: scenario GRM-03 -> two chamfer callouts covering three measurement IDs."
+
+- id: ISSUE-1260-a
+  statement: "Authored view requests are hard constraints: a pin is never relaxed, an exact view scale fails rather than relaxes, derived views need their parent views, and an authored omission replans before projection."
+  class: drafting
+  source:
+    issues: [1260]
+    tests:
+      - "tests/test_issue_1260_view_constraints.py::test_a_pin_is_never_relaxed"
+      - "tests/test_issue_1260_view_constraints.py::test_exact_view_scales_fail_instead_of_relaxing"
+      - "tests/test_issue_1260_view_constraints.py::test_derived_views_require_their_semantic_parent_views"
+      - "tests/test_issue_1260_view_constraints.py::test_authored_omission_removes_views_and_replans_before_projection"
+      - "tests/test_issue_1260_view_constraints.py::test_an_authored_iso_scale_is_rendered_exactly_and_never_auto_fitted"
+      - "tests/test_issue_1260_view_constraints.py::test_no_constraints_preserve_the_automatic_four_view_sheet"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: Spec view constraints -> Plan honours them or reports infeasibility; never silently relaxes."
+
+- id: ISSUE-1260-b
+  statement: "Invalid or contradictory view requests (unknown view, contradictory pins, authored views mixed with automatic dimensions, conflicting sources) are refused at the point of request with the source location."
+  class: trust
+  source:
+    issues: [1260]
+    tests:
+      - "tests/test_issue_1260_view_constraints.py::test_unknown_view_fails_at_the_verb"
+      - "tests/test_issue_1260_view_constraints.py::test_contradictory_and_nonprincipal_pins_are_refused"
+      - "tests/test_issue_1260_view_constraints.py::test_authored_views_then_auto_dimensions_fails_at_the_second_verb"
+      - "tests/test_issue_1260_view_constraints.py::test_source_location_reaches_an_infeasibility"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: spec edit validation returns structured refusals; Sheet-verb ordering tests retire."
+
+- id: ISSUE-1262-a
+  statement: "An automatic drawing of a plain turned part omits the repeated longitudinal projection, using profile, end and iso views; a radial feature vetoes the reduction before any annotation could be lost."
+  class: drafting
+  source:
+    issues: [1262]
+    tests:
+      - "tests/test_issue_1262_automatic_turned_views.py::test_plain_turned_parts_get_profile_end_and_iso_instead_of_a_repeated_view"
+      - "tests/test_issue_1262_automatic_turned_views.py::test_a_radial_feature_vetoes_reduction_before_any_annotation_can_disappear"
+      - "tests/test_issue_1262_automatic_turned_views.py::test_an_explicit_scale_still_selects_the_smallest_complete_view_set"
+      - "tests/test_issue_1262_automatic_turned_views.py::test_grm03_callout_keeps_external_text_clearance_from_the_end_view"
+    corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
+  status: pending
+  port_note: "Keep: view-set default with basis in Plan; scenario test on turned parts."
+
+- id: ISSUE-1276-a
+  statement: "Leaders for turned edge treatments (chamfers, fillets) and cylindrical notes (knurl, groove) land on the physical profile surface in the profile view, at the feature's own axial station, rotating about the feature's own axis."
+  detail: "A radially matching cylinder at a remote station, or a partial cylindrical blend, must not attract the tip."
+  class: drafting
+  source:
+    issues: [1276]
+    tests:
+      - "tests/test_issue_1276_turned_leader_targets.py::test_grm03_chamfers_read_in_profile_and_land_on_distinct_edge_sites"
+      - "tests/test_issue_1276_turned_leader_targets.py::test_detected_parallel_shafts_rotate_about_their_own_axes_not_the_part_bbox"
+      - "tests/test_issue_1276_turned_leader_targets.py::test_turned_site_ignores_radially_matching_cylinder_at_a_remote_axial_station"
+      - "tests/test_issue_1276_turned_leader_targets.py::test_groove_notes_land_on_the_floor_with_xyz_profile_parity"
+      - "tests/test_issue_1276_turned_leader_targets.py::test_sheet_knurl_leader_lands_on_the_cylindrical_surface"
+    corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
+  status: pending
+  port_note: "Keep: plan leader targets reference analysis edges/faces; scenario on GRM-03."
+
+- id: ISSUE-1281-a
+  statement: "Recognised toroidal fillets on a turned part are drawn once with all measurement identities, and a parallel fillet is not guessed to be turned."
+  class: drafting
+  source:
+    issues: [1281]
+    tests:
+      - "tests/test_issue_1281_turned_fillets.py::test_rounded_shaft_renders_one_requirement_with_all_four_identities"
+      - "tests/test_issue_1281_turned_fillets.py::test_a_supplied_parallel_fillet_is_not_guessed_to_be_turned"
+    corpus_parts: ["rounded-shaft.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1296-a
+  statement: "One cylindrical AP242 face owns exactly one canonical diameter annotation: PMI joins the recognised step or hole once (finite span and axis line disambiguate equal nominals) rather than adding a duplicate."
+  class: drafting
+  source:
+    issues: [1296, 2172]
+    tests:
+      - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_minimal_single_face_source_owns_existing_od_without_duplicate"
+      - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_finite_span_and_axis_line_disambiguate_equal_nominal_steps"
+      - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_toleranced_external_diameter_joins_the_recognized_step_once_issue_2172"
+      - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_exact_grm03_five_diameters_each_own_one_canonical_annotation"
+    corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step", "ap242_single_cylinder_diameter.step"]
+  status: pending
+  port_note: "Keep: scenario GRM-03 AP242 -> five diameters, one plan dimension each, with PMI provenance."
+
+- id: ISSUE-1296-b
+  statement: "PMI diameter lowering fails closed: conflicting source tolerances, invalid limits, ambiguous pattern ownership and unmatched cylinder lines are refused with reasons instead of falling back to centroids."
+  class: trust
+  source:
+    issues: [1296, 2172]
+    tests:
+      - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_external_diameter_refuses_conflicting_source_tolerances_issue_2172"
+      - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_unmatched_distinct_cylinder_lines_fail_closed_instead_of_using_their_centroid"
+      - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_nominal_pattern_member_refuses_ambiguous_or_authored_ownership_issue_2172"
+      - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_nominal_lowering_reports_skips_ambiguity_merges_and_conflicts"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1298-a
+  statement: "AP242 thread, tap-drill and knurl requirements attach as typed aspects to their topology-owned feature and render once with complete manufacturing labels; identical threads on distinct owners keep two annotations."
+  class: drafting
+  source:
+    issues: [1298, 2231]
+    tests:
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_typed_external_thread_renders_once_through_shared_solve_and_drops_by_owner"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_typed_internal_thread_and_knurl_render_manufacturing_complete_labels_once"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_identical_typed_threads_on_distinct_owners_keep_two_owned_annotations"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_exact_grm03_renders_complete_source_owned_manufacturing_drawing_once"
+    corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
+  status: pending
+  port_note: "Keep: scenario GRM-03 AP242 -> plan thread/knurl callouts with PMI provenance."
+
+- id: ISSUE-1298-b
+  statement: "Document-level PMI (general tolerance, default surface finish) lowers to unattached typed notes; a source datum explanation note is omitted only while both datum symbols are placed, otherwise the note is restored."
+  class: drafting
+  source:
+    issues: [1298]
+    tests:
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_document_requirements_lower_to_unattached_typed_notes"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_source_datum_explanation_is_omitted_only_while_both_symbols_are_placed"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_unplaced_datum_symbol_restores_the_source_note_as_a_fallback"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_document_note_table_drop_is_a_source_complete_annotate_error"
+    corpus_parts: ["GRM-03"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1298-c
+  statement: "Manufacturing PMI lowering fails closed: ambiguous, incomplete, duplicate or contradictory source facts (e.g. thread deeper than tap drill) stay raw with an explicit reason, and source-backed PMI prevents automatic re-synthesis."
+  class: trust
+  source:
+    issues: [1298]
+    tests:
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_multiple_general_tolerance_requirements_fail_closed"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_internal_minimum_full_thread_cannot_exceed_tap_drill_depth"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_lowering_fail_closed_paths_preserve_raw_source_and_conflict_reason"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_source_backed_new_typed_pmi_prevents_automatic_resynthesis"
+      - "tests/test_issue_1298_manufacturing_requirements.py::test_known_unsupported_manufacturing_intent_is_explicit_without_error_lint"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1299-a
+  statement: "Automatic layout recovery is bounded and ordered: a larger scale on the same page is tried before a larger standard sheet; hard layout validity outranks completeness; a complete drawing never spends a larger sheet; an explicit page size is never escalated."
+  class: drafting
+  source:
+    issues: [1299]
+    tests:
+      - "tests/test_issue_1299_page_escalation.py::test_crowded_head_uses_larger_scale_before_spending_the_sheet"
+      - "tests/test_issue_1299_page_escalation.py::test_hard_layout_precedes_completeness_in_automatic_page_scale_verdict"
+      - "tests/test_issue_1299_page_escalation.py::test_complete_detail_drawing_stays_on_its_original_page"
+      - "tests/test_issue_1299_page_escalation.py::test_explicit_a4_remains_fixed_instead_of_escalating"
+      - "tests/test_issue_1299_page_escalation.py::test_recovery_does_not_trade_a_required_drop_for_unreadable_ink"
+      - "tests/test_issue_1299_page_escalation.py::test_exact_grm03_recovers_all_axial_stations_on_a4_with_pmi_off"
+    corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
+  status: pending
+  port_note: "Keep: page/scale default with basis; scenario GRM-03."
+
+- id: ISSUE-1308-a
+  statement: "A refused requested leader lane or side names the exact rank or side refused, and a dropped leader's severity reflects whether it carried source PMI."
+  class: trust
+  source:
+    issues: [1308]
+    tests:
+      - "tests/test_issue_1308_machined_leader_analytics.py::test_requested_leader_lane_refusal_names_exact_rank"
+      - "tests/test_issue_1308_machined_leader_analytics.py::test_requested_leader_side_refusal_names_exact_side"
+      - "tests/test_issue_1308_machined_leader_analytics.py::test_source_aware_drop_severity_preserves_unsourced_warning"
+      - "tests/test_issue_1308_machined_leader_analytics.py::test_shared_machined_adapter_fails_closed_with_provenance"
+    corpus_parts: ["grm03_thumbwheel_drive_screw.step", "issue_1058_wheel_rh.step", "nist_ctc_01_asme1_ap242"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1308-b
+  statement: "Analytical (non-OCC) machined-feature leader geometry reproduces the OCC-measured drawing and label clearance."
+  class: machinery
+  source:
+    issues: [1308]
+    tests:
+      - "tests/test_issue_1308_machined_leader_analytics.py::test_analytical_machined_leaders_preserve_the_occ_measured_drawing"
+      - "tests/test_issue_1308_machined_leader_analytics.py::test_analytical_producer_floor_matches_label_and_full_geometry_clearance"
+    corpus_parts: []
+  status: pending
+  port_note: "Retire: Rust uses its own geometry kernel throughout."
+
+- id: ISSUE-1312-a
+  statement: "Convex-overlap tests reject touching or disjoint bounding boxes in a broad phase before the exact separating-axis test, without losing real overlaps."
+  class: machinery
+  source:
+    issues: [1312]
+    tests:
+      - "tests/test_issue_1312_engine_costs.py::test_convex_overlap_broad_phase_rejects_touching_aabbs_before_the_sat"
+      - "tests/test_issue_1312_engine_costs.py::test_convex_overlap_broad_phase_keeps_real_overlap_for_the_sat"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: performance detail; keep a unit test that touching boxes do not count as overlap."
+
+- id: ISSUE-1325-a
+  statement: "PMI lowering never produces nominal ownership the planner would reject: a mismatched nominal is blocked before planning, and the mismatch survives regeneration without crashing or changing the source."
+  class: trust
+  source:
+    issues: [1325]
+    tests:
+      - "tests/test_issue_1325_nominal_agreement.py::test_mismatched_nominal_is_blocked_before_planning"
+      - "tests/test_issue_1325_nominal_agreement.py::test_agreeing_nominal_keeps_canonical_owner"
+      - "tests/test_issue_1325_nominal_agreement.py::test_direct_authored_conflict_still_fails_in_planner"
+      - "tests/test_issue_1325_nominal_agreement.py::test_mismatch_survives_generated_sheet_without_crashing_or_changing_source"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: PMI-vs-geometry nominal disagreement is a problem, not a planner crash."
+
+- id: ISSUE-1332-a
+  statement: "An overlap diagnostic whose pair also crosses a label is not told to 'move the text'; one pair yields one code, and the suggestion never contradicts the message."
+  class: trust
+  source:
+    issues: [1332, 1418]
+    tests:
+      - "tests/test_issue_1332_overlap_remedy.py::test_a_pair_that_also_crosses_is_not_told_to_move_the_text"
+      - "tests/test_issue_1332_overlap_remedy.py::test_one_pair_reports_one_code"
+      - "tests/test_issue_1332_overlap_remedy.py::test_the_suggestion_never_contradicts_the_message"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep if remedies are ported: problem remedy consistent with problem kind."
+
+- id: ISSUE-1333-a
+  statement: "Ink-collision repair clears real collisions without trading away content: measurements and pins are preserved, pinned infeasible collisions stay visible, a repair introducing label overlap is rejected, and repair is idempotent."
+  class: drafting
+  source:
+    issues: [1333]
+    tests:
+      - "tests/test_issue_1333_bounded_ink_repair.py::test_repair_clears_parallel_dimension_ink_and_preserves_measurements_and_pins"
+      - "tests/test_issue_1333_bounded_ink_repair.py::test_pins_keep_an_infeasible_ink_collision_visible_without_moving_geometry"
+      - "tests/test_issue_1333_bounded_ink_repair.py::test_repair_rejects_a_lower_issue_count_that_introduces_label_overlap"
+      - "tests/test_issue_1333_bounded_ink_repair.py::test_repair_clears_feasible_ink_and_is_idempotent"
+      - "tests/test_issue_1333_bounded_ink_repair.py::test_automatic_and_declared_builds_use_the_same_recognition_free_repair"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep the property (layout output has no avoidable ink collisions; pins respected); a post-hoc repair pass may not be needed."
+
+- id: ISSUE-1334-a
+  statement: "Dimension ink already chosen blocks peer labels before commit: label candidates avoid same-batch dimension lines, a moved candidate never creates new contact, and placement uses the same crossing measure as the final check."
+  class: drafting
+  source:
+    issues: [1334]
+    tests:
+      - "tests/test_issue_1334_prevent_ink.py::test_same_batch_dimension_ink_selects_clear_label_candidates"
+      - "tests/test_issue_1334_prevent_ink.py::test_candidate_move_does_not_create_contact_with_committed_ink"
+      - "tests/test_issue_1334_prevent_ink.py::test_connected_short_segments_use_the_same_crossing_measure_as_lint"
+      - "tests/test_issue_1334_prevent_ink.py::test_infeasible_along_line_shift_promotes_one_rung_to_the_existing_far_tier"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: one collision predicate shared by placement and checking."
+
+- id: ISSUE-1336-a
+  statement: "Fixture-dependent tests pin their fixture's preconditions (exact file, presence of the PMI they read, distinct geometry from look-alike fixtures) so they cannot pass vacuously."
+  class: trust
+  source:
+    issues: [1336]
+    tests:
+      - "tests/test_issue_1336_grm03_ap242_pmi_fixture.py::test_fixture_is_the_exact_file_the_pmi_acceptance_tests_pin"
+      - "tests/test_issue_1336_grm03_ap242_pmi_fixture.py::test_fixture_carries_the_ap242_pmi_those_tests_read"
+      - "tests/test_issue_1336_grm03_ap242_pmi_fixture.py::test_pmi_fixture_is_a_different_solid_from_the_plain_grm03_fixture"
+    corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
+  status: pending
+  port_note: "Keep: corpus fixture hash + precondition tests in the Rust test corpus."
+
+- id: ISSUE-1338-a
+  statement: "The sheet is not the first lever: before escalating paper, a larger scale on the selected page is tried, and required hole and shoulder outcomes survive the recovery independent of PMI mode."
+  detail: "GRM-03 selected 2:1 on A4, dropped the iso and escalated to A3, while 5:1 on A4 was clean."
+  class: drafting
+  source:
+    issues: [1338, 2177]
+    tests:
+      - "tests/test_issue_1338_scale_before_page_escalation.py::test_automatic_recovers_on_a4_at_a_larger_scale_instead_of_escalating_the_sheet"
+      - "tests/test_issue_1338_scale_before_page_escalation.py::test_ap242_pmi_side_hole_survives_selected_page_upscale_issue_2177"
+      - "tests/test_issue_1338_scale_before_page_escalation.py::test_the_recovery_does_not_depend_on_the_pmi_mode"
+      - "tests/test_issue_1338_scale_before_page_escalation.py::test_side_hole_label_clears_neighbour_view_text_issue_2177"
+    corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
+  status: pending
+  port_note: "Keep: scenario GRM-03 -> A4 at upscaled ratio, complete."
+
+- id: ISSUE-1349-a
+  statement: "Requested precision is display policy on a semantic dimension: it reaches every rendered form (dimension, compound callout terms, turned chains, ladders, locations) and its width reservation, without altering tolerance or numeric provenance; defaults are unchanged without a policy."
+  class: drafting
+  source:
+    issues: [1349]
+    tests:
+      - "tests/test_issue_1349_precision_display.py::test_requested_precision_reaches_the_rendered_dimension_without_false_lint"
+      - "tests/test_issue_1349_precision_display.py::test_every_compound_and_suffix_term_uses_the_policy_and_fits_its_reservation"
+      - "tests/test_issue_1349_precision_display.py::test_display_policy_keeps_tolerance_and_numeric_provenance_separate"
+      - "tests/test_issue_1349_precision_display.py::test_automatic_default_formatting_is_unchanged_without_an_explicit_policy"
+      - "tests/test_issue_1349_precision_display.py::test_close_diameters_with_distinct_authoritative_text_do_not_deduplicate"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: spec precision by measurement ID -> plan label text; scenario test."
+
+- id: ISSUE-1349-b
+  statement: "Conflicting precision for one semantic dimension, or an invalid precision, is refused; precision boundaries and negative zero format stably."
+  class: trust
+  source:
+    issues: [1349]
+    tests:
+      - "tests/test_issue_1349_precision_display.py::test_conflicting_precision_for_one_semantic_dimension_fails_closed"
+      - "tests/test_issue_1349_precision_display.py::test_invalid_precision_is_refused_at_both_public_inputs"
+      - "tests/test_issue_1349_precision_display.py::test_precision_boundaries_and_negative_zero_are_stable"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1350-a
+  statement: "Taking over a detected baseline is one order-independent workflow: detected items keep their handles, matching declarations mean the same before or after takeover, and contradictory sources are rejected atomically."
+  class: machinery
+  source:
+    issues: [1350]
+    tests:
+      - "tests/test_issue_1350_detected_takeover.py::test_takeover_retains_detected_handles_and_replaces_the_inferred_section"
+      - "tests/test_issue_1350_detected_takeover.py::test_matching_declarations_mean_the_same_before_or_after_takeover"
+      - "tests/test_issue_1350_detected_takeover.py::test_takeover_rejects_contradictory_sources_atomically"
+      - "tests/test_issue_1350_detected_takeover.py::test_emitter_fails_closed_when_a_view_constraint_has_no_public_script_form"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: Plan defaults are editable by stable ID in Spec; edits are atomic and order-independent. Emitter round-trip retires."
+
+- id: ISSUE-1351-a
+  statement: "A structured feature note can satisfy omitted requirement roles only through an explicit structured claim on a sheet-owned, placed feature; prose cannot silence coverage, and one note does not cover an identical sibling."
+  class: trust
+  source:
+    issues: [1351]
+    tests:
+      - "tests/test_issue_1351_structured_note_coverage.py::test_structured_note_satisfies_omitted_roles_without_becoming_a_dimension"
+      - "tests/test_issue_1351_structured_note_coverage.py::test_prose_without_structured_satisfaction_cannot_silence_coverage"
+      - "tests/test_issue_1351_structured_note_coverage.py::test_unplaced_structured_note_grants_no_coverage_authority"
+      - "tests/test_issue_1351_structured_note_coverage.py::test_callout_and_note_on_one_diameter_do_not_cover_an_identical_sibling"
+      - "tests/test_issue_1351_structured_note_coverage.py::test_duplicate_notes_do_not_multiply_one_requirement_identity_into_physical_count"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: Spec note with explicit satisfies=[measurement IDs]; coverage reads that, never note text."
+
+- id: ISSUE-1352-a
+  statement: "PDF export carries a searchable text layer for dimensions, callouts, notes, GD&T and title-block values, in reading order and orientation, without changing the visible rendered ink."
+  class: drafting
+  source:
+    issues: [1352, 1931]
+    tests:
+      - "tests/test_issue_1352_searchable_pdf_text.py::test_pdf_extracts_dimensions_callouts_notes_and_title_block_values"
+      - "tests/test_issue_1352_searchable_pdf_text.py::test_semantic_text_layer_does_not_change_rendered_pixels"
+      - "tests/test_issue_1352_searchable_pdf_text.py::test_declared_gdt_values_and_datums_are_searchable"
+      - "tests/test_issue_1352_searchable_pdf_text.py::test_multiline_notes_and_title_values_retain_visible_line_pitch"
+      - "tests/test_issue_1352_searchable_pdf_text.py::test_committed_dimension_pdf_uses_registry_spec_issue_1931"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: PDF renderer emits invisible text from plan strings; font/glyph-recovery tests for raw helpers retire."
+
+- id: ISSUE-1353-a
+  statement: "A detected baseline taken over and staged into a manufacturing package round-trips with semantics, views, lint and exports stable, for both prismatic and turned canaries."
+  class: trust
+  source:
+    issues: [1353]
+    tests:
+      - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_prismatic_takeover_retains_baseline_and_compiles_the_complete_staged_stack"
+      - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_prismatic_generated_sheet_round_trip_preserves_semantics_views_and_lint"
+      - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_prismatic_exports_are_semantic_and_visually_stable_after_round_trip"
+      - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_turned_canary_prints_precision_nominals_and_round_trips_cleanly"
+    corpus_parts: ["GRM-01", "GRM-03"]
+  status: pending
+  port_note: "Translate: Spec serialise/deserialise round-trip yields identical Plan; script round-trip retires."
+
+- id: ISSUE-1353-b
+  statement: "Opposed coaxial tapped holes keep participating in the shared solve and are placed on their authored opposite sides."
+  class: drafting
+  source:
+    issues: [1353]
+    tests:
+      - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_opposed_coaxial_taps_keep_solver_participation_on_authored_opposite_sides"
+    corpus_parts: ["GRM-01"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1357-a
+  statement: "Opt-in framed recognition stays coordinate-coherent: the default route never prepares a frame, a provider refusal yields one visible raw fallback, and arbitrary rigid motion of the part preserves requirements and the build diff."
+  class: trust
+  source:
+    issues: [1357]
+    tests:
+      - "tests/test_issue_1357_framed_activation.py::test_default_route_never_prepares_a_frame"
+      - "tests/test_issue_1357_framed_activation.py::test_provider_refusal_has_one_visible_top_level_raw_fallback"
+      - "tests/test_issue_1357_framed_activation.py::test_rigid_motion_preserves_requirements_and_build_diff"
+      - "tests/test_issue_1357_framed_activation.py::test_framed_off_axis_pattern_keeps_one_absolute_location_requirement"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: property test that a rigidly moved STEP yields the same requirement set."
+
+- id: ISSUE-1357-b
+  statement: "Body-local evidence stays body-local: multiple turned profiles on a compound are each visible (none silently selected or merged), and eccentric parallel cylinders are not classified as one turned profile."
+  class: drafting
+  source:
+    issues: [1357]
+    tests:
+      - "tests/test_issue_1357_framed_boundary.py::test_multiple_body_local_turned_profiles_are_visible_and_the_legacy_singular_accessor_refuses"
+      - "tests/test_issue_1357_framed_boundary.py::test_framed_classifier_rejects_an_eccentric_parallel_cylinder_compound"
+      - "tests/test_issue_1357_framed_boundary.py::test_raw_production_compiles_plural_compounds_without_selecting_or_merging"
+      - "tests/test_issue_1357_framed_boundary.py::test_every_typed_frame_refusal_propagates_without_a_raw_fallback"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: Analysis exposes a list of turned profiles."
+
+- id: ISSUE-1357-c
+  statement: "Each body-local turned profile gets its own dimension chain in a view that separates its axis line; one profile cannot supply another's axial coverage, and a superimposed profile in a single authored view is dropped and reported rather than overlapped."
+  class: drafting
+  source:
+    issues: [1357]
+    tests:
+      - "tests/test_issue_1357_plural_turned_profiles.py::test_parallel_profiles_render_independent_chains_with_body_local_provenance"
+      - "tests/test_issue_1357_plural_turned_profiles.py::test_one_parallel_profile_cannot_supply_another_profiles_axial_coverage"
+      - "tests/test_issue_1357_plural_turned_profiles.py::test_parallel_profiles_use_the_orthographic_view_that_separates_their_axis_lines"
+      - "tests/test_issue_1357_plural_turned_profiles.py::test_authored_front_only_view_drops_a_superimposed_profile_instead_of_overlapping"
+      - "tests/test_issue_1357_plural_turned_profiles.py::test_mixed_axis_profiles_remain_local_instead_of_inventing_one_orientation"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario tests on multi-shaft compounds."
+
+- id: ISSUE-1357-d
+  statement: "AP242 PMI geometry is expressed in the same part frame as recognition when a frame is requested, while the default stays in caller space."
+  class: trust
+  source:
+    issues: [1357]
+    tests:
+      - "tests/test_issue_1357_pmi_frame.py::test_real_ap242_geometry_is_expressed_in_the_requested_frame"
+      - "tests/test_issue_1357_pmi_frame.py::test_ctc01_angular_supports_and_surface_labels_follow_the_requested_part_frame"
+      - "tests/test_issue_1357_pmi_frame.py::test_default_public_api_remains_caller_space_compatible"
+    corpus_parts: ["nist_ctc_01_asme1_ap242", "nist_ctc_03_asme1_ap242", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
+  status: pending
+  port_note: "Keep: PMI and Analysis share one coordinate frame."
+
+- id: ISSUE-1360-a
+  statement: "Tap depth is a structured, addressable thread parameter that prints in the callout and cannot exceed the available bore depth or exist without the callout head; a bore fit stays on the bore and never leaks onto the counterbore diameter."
+  class: drafting
+  source:
+    issues: [1360]
+    tests:
+      - "tests/test_issue_1360_thread_depth.py::test_tap_depth_is_a_stable_addressable_parameter_and_printed_measurement"
+      - "tests/test_issue_1360_thread_depth.py::test_bore_fit_does_not_leak_onto_the_counterbore_diameter"
+      - "tests/test_issue_1360_thread_depth.py::test_tap_depth_cannot_exceed_available_bore_depth"
+      - "tests/test_issue_1360_thread_depth.py::test_authored_thread_depth_cannot_survive_without_the_callout_head"
+      - "tests/test_issue_1360_thread_depth.py::test_thread_depth_width_estimation_and_rendering_share_one_suffix"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1369-a
+  statement: "Hole completeness is earned by independent, observed evidence at each boundary (IR, declaration, generated code, drawing); severing any seam loses credit, and deleting provider records cannot shrink the hand-authored corpus denominator."
+  class: trust
+  source:
+    issues: [1369]
+    tests:
+      - "tests/test_issue_1369_hole_completeness_evidence.py::test_every_hole_boundary_is_observed_supported_on_the_real_public_path"
+      - "tests/test_issue_1369_hole_completeness_evidence.py::test_removing_holes_from_the_built_ir_loses_ir_adapter_credit"
+      - "tests/test_issue_1369_hole_completeness_evidence.py::test_deleting_provider_holes_cannot_shrink_the_independent_denominator"
+      - "tests/test_issue_1369_hole_completeness_evidence.py::test_a_boundary_with_missing_per_hole_outcomes_fails_closed"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep the evaluation principle (independent corpus denominator, mutation tests); boundaries become Analysis/Spec/Plan/render."
+
+- id: ISSUE-1370-a
+  statement: "Countersink completeness uses an independent corpus; each seat belongs to exactly one hole without recounting the bore, a second seat on a two-sided bore stays explicitly unverifiable, and wrong, role-swapped or unit-less countersink ink loses credit."
+  class: trust
+  source:
+    issues: [1370]
+    tests:
+      - "tests/test_issue_1370_countersink_completeness_evidence.py::test_aggregate_reuses_each_seat_on_one_hole_without_recounting_the_bore"
+      - "tests/test_issue_1370_countersink_completeness_evidence.py::test_two_sided_bore_keeps_the_second_seat_explicitly_unverifiable"
+      - "tests/test_issue_1370_countersink_completeness_evidence.py::test_role_swapped_countersink_ink_loses_drawing_credit"
+      - "tests/test_issue_1370_countersink_completeness_evidence.py::test_missing_or_corrupt_countersink_angle_unit_loses_drawing_credit"
+      - "tests/test_issue_1370_countersink_completeness_evidence.py::test_deleting_provider_seats_cannot_shrink_the_independent_denominator"
+    corpus_parts: ["countersink-single.step", "countersink-mixed-pair.step", "countersink-deburr.step", "countersink-external-cone.step", "countersink-topology-a.step"]
+  status: pending
+  port_note: "Keep: corpus scenario tests per countersink case."
+
+- id: ISSUE-1370-b
+  statement: "Double-D completeness crosses declaration and drawing seams: a double-D is owned once and never recounted as a round hole, its flat direction is an unoriented line, and removed, role-swapped or unit-less across-flats ink loses credit."
+  class: trust
+  source:
+    issues: [1370]
+    tests:
+      - "tests/test_issue_1370_double_d_completeness_evidence.py::test_provider_aggregate_owns_double_d_once_and_does_not_recount_a_round_hole"
+      - "tests/test_issue_1370_double_d_completeness_evidence.py::test_double_d_flat_direction_is_an_unoriented_line"
+      - "tests/test_issue_1370_double_d_completeness_evidence.py::test_removing_placed_double_d_callout_loses_drawing_credit"
+      - "tests/test_issue_1370_double_d_completeness_evidence.py::test_missing_or_corrupt_across_flats_unit_loses_drawing_credit"
+      - "tests/test_issue_1370_double_d_completeness_evidence.py::test_deleting_provider_records_cannot_shrink_the_independent_denominator"
+    corpus_parts: ["double-d-single-z.step", "double-d-blind.step", "double-d-opposed-blind.step", "double-d-round-bore.step", "double-d-coaxial-compound.step"]
+  status: pending
+  port_note: "Keep: corpus scenario tests."
+
+- id: ISSUE-1370-c
+  statement: "Hole-pattern completeness does not recount member holes; wrong pitch, interval count or group count ink loses drawing credit and weakened provider values reduce parameter fidelity."
+  class: trust
+  source:
+    issues: [1370]
+    tests:
+      - "tests/test_issue_1370_hole_pattern_completeness_evidence.py::test_pattern_projection_owns_disjoint_groups_without_recounting_members"
+      - "tests/test_issue_1370_hole_pattern_completeness_evidence.py::test_wrong_placed_grid_pitch_ink_loses_drawing_credit"
+      - "tests/test_issue_1370_hole_pattern_completeness_evidence.py::test_wrong_placed_grid_interval_count_loses_drawing_credit"
+      - "tests/test_issue_1370_hole_pattern_completeness_evidence.py::test_deleting_provider_patterns_cannot_shrink_the_independent_denominator"
+    corpus_parts: ["pattern-topology-a.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1371-a
+  statement: "Flat completeness is grouped by physical across-flats requirement (faces grouped, distinct stock not merged); removed, wrong-valued or provenance-severed flat callouts lose credit."
+  class: trust
+  source:
+    issues: [1371]
+    tests:
+      - "tests/test_issue_1371_flat_completeness_evidence.py::test_flat_projection_groups_faces_but_not_distinct_stock"
+      - "tests/test_issue_1371_flat_completeness_evidence.py::test_wrong_flat_nominal_ink_loses_drawing_credit"
+      - "tests/test_issue_1371_flat_completeness_evidence.py::test_severing_flat_measurement_provenance_loses_drawing_credit"
+      - "tests/test_issue_1371_flat_completeness_evidence.py::test_deleting_provider_flats_cannot_shrink_the_independent_denominator"
+    corpus_parts: ["flat-coaxial.step", "flat-double-d.step", "flat-topology-a.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1371-b
+  statement: "Polygonal stock has two audited requirements (across flats and length); a leader moved off its flat or a length witness off the cap span loses credit, and rigid motion of the part preserves them."
+  class: trust
+  source:
+    issues: [1371]
+    tests:
+      - "tests/test_issue_1371_polygonal_stock_completeness_evidence.py::test_polygonal_stock_ledger_tracks_two_requirements_and_fails_closed"
+      - "tests/test_issue_1371_polygonal_stock_completeness_evidence.py::test_moving_polygonal_stock_leader_off_its_flat_loses_drawing_credit"
+      - "tests/test_issue_1371_polygonal_stock_completeness_evidence.py::test_moving_stock_length_witness_off_its_cap_span_loses_drawing_credit"
+      - "tests/test_issue_1371_polygonal_stock_completeness_evidence.py::test_arbitrary_rigid_motion_survives_the_owned_framed_pipeline"
+      - "tests/test_issue_1371_polygonal_stock_completeness_evidence.py::test_deleting_declared_stock_cannot_shrink_quality_denominator"
+    corpus_parts: ["polygonal-stock-roll17.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1373-a
+  statement: "Multi-plate slab parts carry one thickness requirement per plate occurrence (a single flat plate is envelope-owned and adds none); ownership never crosses disconnected bodies, and wrong or provenance-severed plate ink loses credit."
+  class: trust
+  source:
+    issues: [1373]
+    tests:
+      - "tests/test_issue_1373_plate_completeness_evidence.py::test_plate_ledger_tracks_one_requirement_per_occurrence_and_fails_closed"
+      - "tests/test_issue_1373_plate_completeness_evidence.py::test_single_flat_plate_is_envelope_owned_and_adds_no_plate_requirement"
+      - "tests/test_issue_1373_plate_completeness_evidence.py::test_overlapping_family_ownership_cannot_cross_disconnected_bodies"
+      - "tests/test_issue_1373_plate_completeness_evidence.py::test_wrong_plate_ink_loses_drawing_credit"
+      - "tests/test_issue_1373_plate_completeness_evidence.py::test_deleting_provider_plates_cannot_shrink_the_independent_denominator"
+    corpus_parts: ["plate-single-negative.step", "plate-t-xz.step", "plate-t-yz.step", "plate-u-additive.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1374-a
+  statement: "Each physical chamfer has one callout requirement; equal compound chamfers may share ink but keep both measurement identities, and a leader moved off the physical bevel or wrong view loses credit."
+  class: trust
+  source:
+    issues: [1374]
+    tests:
+      - "tests/test_issue_1374_chamfer_completeness_evidence.py::test_chamfer_ledger_tracks_one_callout_per_physical_bevel_and_fails_closed"
+      - "tests/test_issue_1374_chamfer_completeness_evidence.py::test_equal_compound_chamfers_share_ink_but_keep_both_measurement_identities"
+      - "tests/test_issue_1374_chamfer_completeness_evidence.py::test_angled_step_slant_and_independent_chamfer_have_one_owner_each"
+      - "tests/test_issue_1374_chamfer_completeness_evidence.py::test_moving_chamfer_leader_off_the_physical_bevel_loses_drawing_credit"
+      - "tests/test_issue_1374_chamfer_completeness_evidence.py::test_wrong_chamfer_view_loses_drawing_credit"
+    corpus_parts: ["chamfer-compound.step", "chamfer-overlap.step", "chamfer-turned.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1374-b
+  statement: "Each physical fillet has one callout requirement; equal repeated fillets may share ink but keep every measurement identity, and a leader moved off the physical round or profile loses credit."
+  class: trust
+  source:
+    issues: [1374]
+    tests:
+      - "tests/test_issue_1374_fillet_completeness_evidence.py::test_fillet_ledger_tracks_one_callout_per_physical_round_and_fails_closed"
+      - "tests/test_issue_1374_fillet_completeness_evidence.py::test_equal_repeated_fillets_share_ink_but_keep_every_measurement_identity"
+      - "tests/test_issue_1374_fillet_completeness_evidence.py::test_moving_fillet_leader_off_the_physical_round_loses_drawing_credit"
+      - "tests/test_issue_1374_fillet_completeness_evidence.py::test_weakening_provider_fillet_radius_reduces_fidelity"
+    corpus_parts: ["fillet-overlap.step", "fillet-repeated.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1374-c
+  statement: "Each turned OD band carries two requirements (diameter and length); a grouped length label must state the exact count and value and cannot skip an equal adjacent member, and a groove floor is not a second step."
+  class: drafting
+  source:
+    issues: [1374]
+    tests:
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_turned_step_ledger_tracks_two_requirements_per_physical_band"
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_grouped_length_label_requires_exact_count_and_value"
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_grouped_length_cannot_skip_an_equal_adjacent_member"
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_unique_groove_floor_band_is_not_a_second_turned_step_fact"
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_global_od_cannot_multiply_across_disjoint_coaxial_profiles"
+    corpus_parts: ["turned-step-axis-x.step", "turned-step-axis-z.step", "turned-step-compound.step", "turned-step-repeated-lengths.step", "turned-step-through-bore.step", "turned-step-translated-blind-bore.step", "groove-lone-y.step"]
+  status: pending
+  port_note: "Keep: scenario tests per corpus part."
+
+- id: ISSUE-1374-d
+  statement: "Turned-step drawing credit requires the witness on the physical span and the diameter leader on the physical surface; malformed source is explicit invalid evidence, not a crash or credit."
+  class: trust
+  source:
+    issues: [1374]
+    tests:
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_moving_step_length_witness_off_physical_span_loses_credit"
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_moving_diameter_leader_off_physical_surface_loses_credit"
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_turned_step_observer_retains_malformed_source_as_explicit_invalid_evidence"
+      - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_deleting_provider_profiles_cannot_shrink_independent_denominator"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1378-a
+  statement: "A diameter leader tip touches the physical rim of the hole it names (including the flats of a double-D), never blank material or another member's rim; a tip in blank material lowers fidelity."
+  class: drafting
+  source:
+    issues: [1378]
+    tests:
+      - "tests/test_issue_1378_diameter_leader_targets.py::test_automatic_diameter_tip_stays_on_bore_rim_near_sheet_strip"
+      - "tests/test_issue_1378_diameter_leader_targets.py::test_lint_rejects_tip_in_blank_material_and_lowers_fidelity"
+      - "tests/test_issue_1378_diameter_leader_targets.py::test_double_d_target_uses_trimmed_profile_including_flats"
+      - "tests/test_issue_1378_diameter_leader_targets.py::test_split_declared_holes_cannot_claim_the_other_members_rim"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: leader target = projected hole boundary; post-render check verifies."
+
+- id: ISSUE-1392-a
+  statement: "A recognised feature missing from the drawing model fails visibly, and framed recognition records correspond to the exact body-local working solid."
+  class: trust
+  source:
+    issues: [1392]
+    tests:
+      - "tests/test_issue_1392_recognisers_048.py::test_a_recognised_pad_missing_from_ir_fails_visible"
+      - "tests/test_issue_1392_recognisers_048.py::test_0331_framed_pad_records_correspond_to_the_exact_local_working_solid"
+      - "tests/test_issue_1392_recognisers_048.py::test_x_pad_footprint_and_location_candidates_join_the_shared_corridor"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: every Analysis feature appears in Plan or in problems."
+
+- id: ISSUE-1395-a
+  statement: "A degenerate view zone is a layout fact, not a kernel exception: a non-positive or NaN scale factor never reaches the transform, the run continues with required views, and it is not misreported as an infeasible authored scale."
+  detail: "OCC raised on zero (differently per platform) and silently mirrored on negative factors."
+  class: trust
+  source:
+    issues: [1395]
+    tests:
+      - "tests/test_issue_1395_degenerate_iso_region.py::test_the_reported_crash_is_fixed_end_to_end"
+      - "tests/test_issue_1395_degenerate_iso_region.py::test_a_zone_with_no_room_hands_no_scale_to_the_transform"
+      - "tests/test_issue_1395_degenerate_iso_region.py::test_a_nan_factor_is_refused_although_it_is_not_less_than_zero"
+      - "tests/test_issue_1395_degenerate_iso_region.py::test_a_degenerate_zone_is_not_reported_as_an_infeasible_authored_scale"
+    corpus_parts: ["issue_915_case_study_2.step"]
+  status: pending
+  port_note: "Keep: view scale type rejects non-finite/non-positive; scenario issue_915 at 10:1."
+
+- id: ISSUE-1396-a
+  statement: "Layout degradations (legibility at scale, infeasible scale selection, unresolved repack, computed scale) are machine-visible structured advisories, not only Python warnings or logs; unknown advisory kinds are refused."
+  class: trust
+  source:
+    issues: [1396]
+    tests:
+      - "tests/test_issue_1396_layout_advisories.py::test_legibility_warning_reaches_declared_and_detected_lint"
+      - "tests/test_issue_1396_layout_advisories.py::test_unresolved_repack_is_machine_visible"
+      - "tests/test_issue_1396_layout_advisories.py::test_computed_scale_is_reported_by_scale_selection"
+      - "tests/test_issue_1396_layout_advisories.py::test_unknown_layout_advisory_is_refused"
+      - "tests/test_issue_1396_layout_advisories.py::test_caller_pinned_sub_render_scale_is_still_rejected"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan problems/advisories; no log scraping."
+
+- id: ISSUE-1397-a
+  statement: "An unverifiable finding names how many physical requirements cannot be joined, never a placeholder '?' id, and does not invent a count where the inventory is corrupt."
+  class: trust
+  source:
+    issues: [1397, 1469]
+    tests:
+      - "tests/test_issue_1397_unverifiable_requirement_message.py::test_the_finding_names_the_requirements_instead_of_printing_a_question_mark"
+      - "tests/test_issue_1397_unverifiable_requirement_message.py::test_a_joined_requirement_still_prints_its_own_id"
+      - "tests/test_issue_1397_unverifiable_requirement_message.py::test_the_groove_corrupt_inventory_path_does_not_invent_a_count"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: problem payloads are structured (count / ids), messages derived."
+
+- id: ISSUE-1432-a
+  statement: "A free-direction oriented slot is dimensioned by one solver-placed callout carrying both its requirements, with every callout tip on the physical rotated rim; rigid motion preserves sizes and outcomes, and pattern members are left to the pattern."
+  class: drafting
+  source:
+    issues: [1432]
+    tests:
+      - "tests/test_issue_1432_oriented_slot_semantics.py::test_drawing_places_one_solver_owned_two_requirement_callout"
+      - "tests/test_issue_1432_oriented_slot_semantics.py::test_every_callout_tip_lands_on_the_physical_rotated_rim"
+      - "tests/test_issue_1432_oriented_slot_semantics.py::test_raw_and_framed_rigid_motion_preserve_sizes_and_outcomes"
+      - "tests/test_issue_1432_oriented_slot_semantics.py::test_pattern_members_remain_exclusively_deferred_to_the_pattern_family"
+      - "tests/test_issue_1432_adoption.py::test_arbitrary_three_axis_motion_preserves_physical_requirements"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario on rotated-slot STEP."
+
+- id: ISSUE-1432-b
+  statement: "Malformed or inconsistent slot evidence never enters the model nor certifies existing ink; removing a grouped callout exposes both requirements, and severed provenance fails closed for both values."
+  class: trust
+  source:
+    issues: [1432]
+    tests:
+      - "tests/test_issue_1432_boundary_failures.py::test_inconsistent_provider_witness_never_certifies_existing_ink"
+      - "tests/test_issue_1432_boundary_failures.py::test_nonfinite_ir_cannot_reuse_previously_placed_measurements"
+      - "tests/test_issue_1432_boundary_failures.py::test_principal_rectangle_cannot_claim_the_oriented_slot_family"
+      - "tests/test_issue_1432_oriented_slot_semantics.py::test_removing_one_grouped_callout_exposes_both_requirements"
+      - "tests/test_issue_1432_oriented_slot_semantics.py::test_severing_compiler_provenance_fails_closed_for_both_values"
+      - "tests/test_issue_1432_adoption.py::test_repeated_same_record_is_not_an_additional_occurrence"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep the coverage rules; Python duck-typing/subclass-spoofing tests retire under Rust types."
+
+- id: ISSUE-1432-c
+  statement: "Authored oriented-slot values replay losslessly at full precision through the generated script."
+  class: machinery
+  source:
+    issues: [1432]
+    tests:
+      - "tests/test_issue_1432_oriented_slot_semantics.py::test_generated_sheet_losslessly_replays_high_precision_authored_values"
+      - "tests/test_issue_1432_oriented_slot_semantics.py::test_sheet_word_and_generated_line_replay_the_exact_feature"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: Spec serialisation round-trips f64 exactly; script emitter retires."
+
+- id: ISSUE-1433-a
+  statement: "Blends (fillet radii) on a part are covered by one grouped callout only when their displayed radii are equal; each occurrence keeps its own credit, and a missing grouped callout loses every occurrence's credit."
+  class: drafting
+  source:
+    issues: [1433, 1438]
+    tests:
+      - "tests/test_issue_1433_blend_semantics.py::test_detected_drawing_places_one_grouped_callout_with_four_exact_credits"
+      - "tests/test_issue_1433_blend_semantics.py::test_authored_distinct_display_radii_never_share_false_group_credit"
+      - "tests/test_issue_1433_blend_semantics.py::test_missing_grouped_callout_loses_every_occurrence_credit"
+      - "tests/test_issue_1433_blend_semantics.py::test_raw_and_framed_arbitrary_rigid_motion_keep_four_radius_requirements"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1433-b
+  statement: "Blend evidence is singular and fails closed: one face owns one blend, ambiguous disconnected support is refused, and mutated recognition or model data is unverifiable rather than false credit."
+  class: trust
+  source:
+    issues: [1433]
+    tests:
+      - "tests/test_issue_1433_blend_semantics.py::test_public_aggregate_precedence_and_dedicated_ir_are_singular"
+      - "tests/test_issue_1433_blend_semantics.py::test_declared_circular_blend_refuses_ambiguous_disconnected_support"
+      - "tests/test_issue_1433_blend_semantics.py::test_equal_valued_blend_occurrences_keep_distinct_defining_face_authority"
+      - "tests/test_issue_1433_blend_semantics.py::test_mutated_recognition_or_ir_is_unverifiable_not_false_credit"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep; schema-spoofing tests retire."
+
+- id: ISSUE-1450-a
+  statement: "One cylindrical face never becomes both a boss diameter and a blend radius; the decision uses same-run face identity, not scalar equality, and fails closed without face evidence."
+  detail: "GRM-04's lower round is R4 with no detached second diameter."
+  class: drafting
+  source:
+    issues: [1450]
+    tests:
+      - "tests/test_issue_1450_boss_blend_ownership.py::test_grm04_lower_round_has_one_ir_owner_and_no_detached_diameter"
+      - "tests/test_issue_1450_boss_blend_ownership.py::test_scalar_equality_without_same_run_face_identity_does_not_deduplicate"
+      - "tests/test_issue_1450_boss_blend_ownership.py::test_absorption_fails_closed_when_the_boss_has_no_usable_face_evidence"
+      - "tests/test_issue_1450_boss_blend_ownership.py::test_detect_and_lint_decide_absorption_from_one_shared_predicate"
+    corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
+  status: pending
+  port_note: "Keep: scenario GRM-04 -> R4 only, no Ø of the same face."
+
+- id: ISSUE-1460-a
+  statement: "Recognition inspection reports each provider finding verbatim, one row per accepted feature in provider order, plus unclaimed geometry, and states plainly whether the drawing acted on each finding and, if not, why."
+  class: trust
+  source:
+    issues: [1460]
+    tests:
+      - "tests/test_issue_1460_step_inspection.py::test_each_found_feature_is_the_providers_own_record_forwarded_verbatim"
+      - "tests/test_issue_1460_step_inspection.py::test_every_accepted_feature_becomes_exactly_one_row_in_provider_order"
+      - "tests/test_issue_1460_step_inspection.py::test_unclaimed_geometry_is_reported_with_the_providers_own_accounting"
+      - "tests/test_issue_1460_step_inspection.py::test_each_finding_states_plainly_whether_draftwright_acted_on_it"
+      - "tests/test_issue_1460_step_inspection.py::test_a_finding_draftwright_will_not_use_carries_its_reason"
+      - "tests/test_issue_1460_step_inspection.py::test_evaluated_empty_families_are_not_reported_as_unavailable_or_not_applicable"
+    corpus_parts: ["nist_ctc_01_asme1_ap203", "nist_ctc_01_asme1_ap242", "grm04_drive_plate.step", "issue_1058_wheel_rh.step"]
+  status: pending
+  port_note: "Keep: Analysis report API (feature list + disposition per feature)."
+
+- id: ISSUE-1460-b
+  statement: "The inspection document is deterministic strict JSON for the same bytes, carries no absolute source paths or topology identities, records the run mode from the run itself, and runs no drawing, layout or render path."
+  class: trust
+  source:
+    issues: [1460]
+    tests:
+      - "tests/test_issue_1460_step_inspection.py::test_the_document_is_deterministic_across_runs_of_the_same_bytes"
+      - "tests/test_issue_1460_step_inspection.py::test_no_absolute_source_path_reaches_the_document"
+      - "tests/test_issue_1460_step_inspection.py::test_serialized_evidence_carries_no_provider_or_topology_identity"
+      - "tests/test_issue_1460_step_inspection.py::test_the_run_mode_is_read_from_the_run_not_asserted_by_the_caller"
+      - "tests/test_issue_1460_step_inspection.py::test_no_drawing_projection_placement_render_export_or_lint_path_runs"
+      - "tests/test_issue_1460_step_inspection.py::test_a_face_position_is_the_point_on_the_face_not_the_area_centroid"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1460-c
+  statement: "Unreadable, missing or solid-less STEP input fails before any document is produced; an undrawable but readable source still yields its script, while deliberate engine refusals are never demoted to warnings."
+  class: trust
+  source:
+    issues: [1460, 1590]
+    tests:
+      - "tests/test_issue_1460_step_inspection.py::test_a_missing_path_fails_before_any_document"
+      - "tests/test_issue_1460_step_inspection.py::test_unreadable_step_bytes_fail_before_any_document"
+      - "tests/test_issue_1460_step_inspection.py::test_a_step_source_without_a_solid_body_fails_before_any_document"
+      - "tests/test_issue_1460_step_inspection.py::test_an_undrawable_source_still_generates_a_script"
+      - "tests/test_issue_1460_step_inspection.py::test_a_deliberate_refusal_is_not_demoted_to_a_warning"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: typed errors for input failures vs plan problems."
+
+- id: ISSUE-1460-d
+  statement: "A sidecar evidence file is written beside the generated output only for this run: a stale one is removed on regeneration without it, and a file the tool did not write is never deleted."
+  class: trust
+  source:
+    issues: [1460]
+    tests:
+      - "tests/test_issue_1460_step_inspection.py::test_regenerating_without_a_document_removes_the_previous_one"
+      - "tests/test_issue_1460_step_inspection.py::test_generation_never_deletes_a_file_it_did_not_write"
+      - "tests/test_issue_1460_step_inspection.py::test_the_generated_script_contains_none_of_the_evidence"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate if the Rust CLI writes sidecars; otherwise retire."
+
+- id: ISSUE-1466-a
+  statement: "Supported dimension edits (sides, views, omission versus override) are discoverable without trial rendering, agree with what planning will actually do, and return structured refusals with valid alternatives for bad controls."
+  class: trust
+  source:
+    issues: [1466]
+    tests:
+      - "tests/test_issue_1466_dimension_options.py::test_every_reported_pair_and_refusal_agrees_with_actual_planning"
+      - "tests/test_issue_1466_dimension_options.py::test_hole_options_are_pairs_with_omission_distinct_from_an_override"
+      - "tests/test_issue_1466_dimension_options.py::test_bad_controls_return_json_refusals_and_valid_alternatives"
+      - "tests/test_issue_1466_dimension_options.py::test_handles_survive_reorder_but_foreign_removed_and_unknown_targets_are_refused"
+      - "tests/test_issue_1466_dimension_options.py::test_grm04_discovers_supported_edits_without_exploratory_renders"
+    corpus_parts: ["grm04_drive_plate.step"]
+  status: pending
+  port_note: "Keep: Plan exposes per-item editable options; test options == planner behaviour."
+
+- id: ISSUE-1466-b
+  statement: "An authored side hint changes placement but never measurement meaning; a full authored side is reported rather than silently using the other side, and repair never relaxes an authored side."
+  class: drafting
+  source:
+    issues: [1466]
+    tests:
+      - "tests/test_issue_1466_semantic_sides.py::test_side_edit_preserves_clear_layout_and_measurements"
+      - "tests/test_issue_1466_semantic_sides.py::test_a_full_authored_side_is_reported_instead_of_using_the_other_side"
+      - "tests/test_issue_1466_semantic_sides.py::test_repair_does_not_relax_an_authored_side"
+      - "tests/test_issue_1466_semantic_sides.py::test_native_hole_routes_and_height_honour_the_requested_side"
+    corpus_parts: ["grm04_drive_plate.step"]
+  status: pending
+  port_note: "Keep: scenario GRM-04 with side edits."
+
+- id: ISSUE-1479-a
+  statement: "A radius leader lands on the named trimmed profile arc, not on a centre bore or the untrimmed circle's extension, follows rigid motion, and a declared target needs exactly one matching physical support or is an explicit drop."
+  class: drafting
+  source:
+    issues: [1479]
+    tests:
+      - "tests/test_issue_1479_radius_leader_targets.py::test_automatic_radius_tips_land_on_trimmed_profile_arcs"
+      - "tests/test_issue_1479_radius_leader_targets.py::test_lint_rejects_centre_bore_and_untrimmed_circle_extension"
+      - "tests/test_issue_1479_radius_leader_targets.py::test_radius_targets_follow_rotated_translated_geometry"
+      - "tests/test_issue_1479_radius_leader_targets.py::test_unverifiable_declared_support_is_an_explicit_placement_drop"
+      - "tests/test_issue_1479_radius_leader_targets.py::test_wrong_radius_tip_lowers_fidelity"
+    corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1485-a
+  statement: "A pocket with a cylindrical mouth owns its maximum depth, not a uniform depth; a planar substitution cannot certify it and inconsistent mouth/floor geometry is rejected."
+  class: drafting
+  source:
+    issues: [1485]
+    tests:
+      - "tests/test_issue_1485_curved_pockets.py::test_curved_mouth_owns_maximum_not_uniform_depth"
+      - "tests/test_issue_1485_curved_pockets.py::test_a_planar_substitution_cannot_certify_the_curved_pocket"
+      - "tests/test_issue_1485_curved_pockets.py::test_curved_source_rejects_a_floor_that_breaks_through_the_mouth"
+      - "tests/test_issue_1485_curved_pockets.py::test_repeated_curved_pockets_keep_one_group_and_every_original_occurrence"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1485-b
+  statement: "A passage with two-plane ends keeps its source and an explicit unsupported outcome rather than inventing a uniform depth."
+  class: trust
+  source:
+    issues: [1485]
+    tests:
+      - "tests/test_issue_1485_quiddity_024_boundary.py::test_two_plane_passage_retains_its_source_and_explicit_unsupported_outcome"
+      - "tests/test_issue_1485_quiddity_024_boundary.py::test_invalid_roof_terms_cannot_hide_behind_an_unsupported_grammar"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1485-c
+  statement: "Rounded pockets keep their corner radius as a measured requirement (all four corners retained when the callout is removed); pitch plus absolute locations form a complete scheme, and unequal or mixed corners are not reported as one radius."
+  class: drafting
+  source:
+    issues: [1485]
+    tests:
+      - "tests/test_issue_1485_rounded_pockets.py::test_tuner_preserves_the_five_rounded_profiles_and_their_radius"
+      - "tests/test_issue_1485_rounded_pockets.py::test_tuner_pitch_and_absolute_locations_form_a_complete_location_scheme"
+      - "tests/test_issue_1485_rounded_pockets.py::test_removing_the_radius_callout_retains_all_four_corner_requirements"
+      - "tests/test_issue_1485_rounded_pockets.py::test_valid_unequal_tangent_corners_cannot_be_reported_as_one_radius"
+      - "tests/test_issue_1485_rounded_pockets.py::test_removing_pattern_pitch_reopens_the_member_location_warning"
+    corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
+  status: pending
+  port_note: "Keep: scenario tuner STEP."
+
+- id: ISSUE-1505-a
+  statement: "Equal-valued diameters on different physical features (a bore and an external shoulder or boss) keep separate measurement coverage; a global OD is reused only for one undecorated band on the same axis."
+  class: drafting
+  source:
+    issues: [1505]
+    tests:
+      - "tests/test_issue_1505_diameter_coverage.py::test_equal_bore_and_external_diameters_keep_separate_measurement_coverage"
+      - "tests/test_issue_1505_diameter_coverage.py::test_global_od_reuse_requires_one_undecorated_band_on_the_same_axis"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1505-b
+  statement: "Short shoulders never erase neighbouring axial measurements: each keeps its own value and identity, and off-page shoulders are recovered in a shoulder detail view that does not reconstruct omitted content."
+  class: drafting
+  source:
+    issues: [1505]
+    tests:
+      - "tests/test_issue_1505_short_axial_chains.py::test_every_authored_shoulder_has_its_own_value_supports_and_identity"
+      - "tests/test_issue_1505_short_axial_chains.py::test_naturally_off_page_z_shoulders_are_recovered_and_read_from_details"
+      - "tests/test_issue_1505_short_axial_chains.py::test_shoulder_detail_does_not_reconstruct_omitted_content"
+      - "tests/test_issue_1505_short_axial_chains.py::test_detail_retracts_only_recovered_main_view_length_drops"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1511-a
+  statement: "End-cap heights alongside a turned profile keep their own claims and supports; a full-height boss yields to the overall dimension only when untoleranced, and an inactive contingency cannot own a boss height."
+  class: drafting
+  source:
+    issues: [1511]
+    tests:
+      - "tests/test_issue_1511_turned_boss_heights.py::test_cap_heights_have_their_own_claims_and_physical_supports"
+      - "tests/test_issue_1511_turned_boss_heights.py::test_removing_one_cap_height_exposes_exactly_that_missing_measurement"
+      - "tests/test_issue_1511_turned_boss_heights.py::test_full_height_boss_yields_to_overall_only_when_untoleranced"
+      - "tests/test_issue_1511_turned_boss_heights.py::test_an_inactive_overall_contingency_cannot_own_a_boss_height"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1514-a
+  statement: "An unknown projection convention is refused before any input is loaded, on every entry point."
+  class: trust
+  source:
+    issues: [1514]
+    tests:
+      - "tests/test_issue_1514_projection_safeguard.py::test_unknown_projection_refused_before_reading_input"
+      - "tests/test_issue_1514_projection_safeguard.py::test_cli_refuses_before_loading_step_or_object"
+      - "tests/test_issue_1514_projection_safeguard.py::test_supported_layout_retains_third_angle_relationships"
+    corpus_parts: ["missing.step"]
+  status: pending
+  port_note: "Translate: projection is a Rust enum; CLI parse error before reading."
+
+- id: ISSUE-1515-a
+  statement: "Projection convention (first/third angle) changes only sheet relationships, never physical view identity or measurements, and is kept through exports."
+  detail: "Measured bands pack on the correct sides; a plan-only sheet reserves no phantom front corridor; submillimetre locations cannot claim a complete scale."
+  class: drafting
+  source:
+    issues: [1515]
+    tests:
+      - "tests/test_issue_1515_first_angle.py::test_convention_preserves_physical_views_and_all_measurements"
+      - "tests/test_issue_1515_first_angle.py::test_measured_bands_are_packed_on_the_correct_sides"
+      - "tests/test_issue_1515_first_angle.py::test_conflicting_principal_relation_refused_before_projection"
+      - "tests/test_issue_1515_first_angle.py::test_submillimetre_locations_cannot_claim_a_complete_scale"
+      - "tests/test_issue_1515_first_angle.py::test_plan_only_does_not_reserve_a_phantom_front_corridor"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario test both conventions -> same measurement set."
+
+- id: ISSUE-1516-a
+  statement: "A drawing-wide text style preserves content, measurements and diagnostics, and its layout bounds enclose the actual ink (including full angular text); an invalid style is refused before the part is read."
+  class: drafting
+  source:
+    issues: [1516]
+    tests:
+      - "tests/test_issue_1516_dimension_text.py::test_style_preserves_plate_measurements_and_diagnostics"
+      - "tests/test_issue_1516_dimension_text.py::test_styled_analytical_bounds_enclose_actual_ink"
+      - "tests/test_issue_1516_dimension_text.py::test_angular_style_preserves_full_text_and_geometry"
+      - "tests/test_issue_1516_dimension_text.py::test_invalid_style_refuses_before_accessing_the_part"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1517-a
+  statement: "An explicit through-indicator wording is content separate from the through/blind fact: it survives replay, is cleared by a blind edit, and callouts group only when wording and every machining term match, without collapsing owners."
+  class: drafting
+  source:
+    issues: [1517]
+    tests:
+      - "tests/test_issue_1517_through_indicator.py::test_blind_edit_clears_indicator_and_next_through_uses_default"
+      - "tests/test_issue_1517_through_indicator.py::test_wording_changes_preserve_measurements_and_printed_credit"
+      - "tests/test_issue_1517_through_indicator.py::test_matching_wording_groups_without_collapsing_owners"
+      - "tests/test_issue_1517_through_indicator.py::test_omitted_machining_terms_still_prevent_grouping"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: Spec text override on hole callout; grouping key includes it."
+
+- id: ISSUE-1518-a
+  statement: "An explicitly requested rear view has physical handedness and carries its bore sizes, depths and both location axes, but is never added automatically; rear-only measurements never draw in an absent front view."
+  class: drafting
+  source:
+    issues: [1518, 1508]
+    tests:
+      - "tests/test_issue_1518_explicit_rear.py::test_explicit_rear_geometry_has_physical_handedness"
+      - "tests/test_issue_1518_explicit_rear.py::test_rear_carries_bore_sizes_depths_and_both_location_axes"
+      - "tests/test_issue_1518_explicit_rear.py::test_rear_only_visibility_pressure_never_adds_an_automatic_rear"
+      - "tests/test_issue_1518_explicit_rear.py::test_rear_pattern_pitch_never_draws_in_an_absent_front_view"
+      - "tests/test_issue_1518_explicit_rear.py::test_short_rear_location_is_a_reported_loss_and_strict_refusal"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1524-a
+  statement: "Supplied tolerance magnitudes are not rounded to the nominal's display precision; small tolerances survive in callouts, tables and width reservations."
+  class: drafting
+  source:
+    issues: [1524]
+    tests:
+      - "tests/test_issue_1524_tolerance_magnitude.py::test_numeric_magnitude_is_not_rounded_to_nominal_precision"
+      - "tests/test_issue_1524_tolerance_magnitude.py::test_rendered_callout_table_and_reserved_width_keep_small_tolerances"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: unit test on label formatting (nominal 1 dp, tolerance 0.005)."
+
+- id: ISSUE-1530-a
+  statement: "Section ink describes the actual cut: hatched regions, camera and indicators agree; a cut outside the part's extent is refused; pre-existing coplanar boundaries are not drawn as new cut faces; tangent or gap cuts have an honest outcome."
+  class: drafting
+  source:
+    issues: [1530]
+    tests:
+      - "tests/test_issue_1530_section_provenance.py::test_section_regions_camera_and_indicators_agree"
+      - "tests/test_issue_1530_section_provenance.py::test_a_cut_outside_the_open_extent_is_refused"
+      - "tests/test_issue_1530_section_provenance.py::test_an_internal_gap_or_tangent_cut_has_an_honest_outcome"
+      - "tests/test_issue_1530_section_provenance.py::test_preexisting_coplanar_boundaries_are_not_new_cut_faces"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: section view tests in the Rust hidden-line/section kernel."
+
+- id: ISSUE-1531-a
+  statement: "Hole-count diagnostics and suggested edits preserve recognised drilling operations: distinct operations (through vs blind, thread, fit) never borrow each other's counts, a conflicting count is not 'repaired' by adding a callout, and a restored owner does not add duplicate ink."
+  class: trust
+  source:
+    issues: [1531]
+    tests:
+      - "tests/test_issue_1531_semantic_hole_counts.py::test_suggestion_restores_three_blind_sockets_without_changing_six_through"
+      - "tests/test_issue_1531_semantic_hole_counts.py::test_distinct_thread_and_fit_owners_cannot_borrow_each_others_count"
+      - "tests/test_issue_1531_semantic_hole_counts.py::test_conflicting_count_cannot_be_repaired_by_adding_another_callout"
+      - "tests/test_issue_1531_semantic_hole_counts.py::test_old_missing_finding_does_not_add_duplicate_ink_after_owner_is_restored"
+      - "tests/test_issue_1531_semantic_hole_counts.py::test_undeclared_sockets_are_identified_without_inventing_an_owner"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1532-a
+  statement: "Documented section examples are executed as tests: authored sections preserve intent and report omissions, automatic augmentation keeps automatic views, and legacy warnings name both migrations."
+  class: machinery
+  source:
+    issues: [1532]
+    tests:
+      - "tests/test_issue_1532_authored_section_examples.py::test_documented_authored_section_preserves_intent_and_reports_omissions"
+      - "tests/test_issue_1532_authored_section_examples.py::test_documented_automatic_augmentation_keeps_automatic_views_and_supported_notice"
+      - "tests/test_issue_1532_authored_section_examples.py::test_legacy_section_warning_names_both_migrations"
+    corpus_parts: []
+  status: pending
+  port_note: "Translate: doc examples for the Rust API are compiled/run as doctests."
+
+- id: ISSUE-1533-a
+  statement: "Review diagnostics explain each penalty without claiming completeness, and a target preview uses the recorded name, view and actual leader tip, refusing unfinished edits and unknown names without changing the drawing."
+  class: trust
+  source:
+    issues: [1533]
+    tests:
+      - "tests/test_issue_1533_review_diagnostics.py::test_warning_penalty_is_explained_without_claiming_completeness"
+      - "tests/test_issue_1533_review_diagnostics.py::test_target_preview_uses_recorded_name_view_and_actual_tip"
+      - "tests/test_issue_1533_review_diagnostics.py::test_preview_refuses_unfinished_edits_and_unknown_names"
+      - "tests/test_issue_1533_review_diagnostics.py::test_open_lint_payload_keeps_report_v3_schema"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1534-a
+  statement: "Progress observation and cancellation never alter output: cancellation never publishes partial ink or a previous part, an observer failure is disabled without changing the drawing, failed or cancelled stages are not reported finished, and stdout carries only output paths."
+  class: trust
+  source:
+    issues: [1534]
+    tests:
+      - "tests/test_issue_1534_build_progress.py::test_observer_preserves_ink_and_records_nested_stage_times"
+      - "tests/test_issue_1534_build_progress.py::test_later_build_cancellation_never_offers_previous_part"
+      - "tests/test_issue_1534_build_progress.py::test_observer_failure_is_disabled_without_changing_drawing"
+      - "tests/test_issue_1534_build_progress.py::test_failed_and_cancelled_stages_are_not_reported_finished"
+      - "tests/test_issue_1534_build_progress.py::test_cli_progress_is_pipe_safe_and_stdout_contains_only_paths"
+    corpus_parts: ["part.step"]
+  status: pending
+  port_note: "Keep: cancellation token checked in long loops; result is all-or-nothing."
+
+- id: ISSUE-1536-a
+  statement: "Title-block cell overflow is reported even when the composed block stays inside the page; every rendered field and multi-line height is checked, and export keeps the full overflowing value."
+  class: drafting
+  source:
+    issues: [1536]
+    tests:
+      - "tests/test_issue_1536_title_overflow.py::test_a_field_crossing_cells_inside_page_is_reported"
+      - "tests/test_issue_1536_title_overflow.py::test_all_rendered_fields_and_multiline_height_are_checked"
+      - "tests/test_issue_1536_title_overflow.py::test_export_preserves_the_full_overflowing_value"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: plan problem per overflowing title-block cell."
+
+- id: ISSUE-1543-a
+  statement: "A feature schedule table selects exact planner measurements, never invented values: identical operations stay distinct rows, cells share the annotation's approved precision and tolerance, an unavailable measurement is not an empty credited cell, and a missing datum refuses the schedule."
+  class: drafting
+  source:
+    issues: [1543]
+    tests:
+      - "tests/test_issue_1543_feature_schedules.py::test_schedule_keeps_identical_operations_as_distinct_targets"
+      - "tests/test_issue_1543_feature_schedules.py::test_schedule_and_annotation_share_approved_precision_tolerance_and_span"
+      - "tests/test_issue_1543_feature_schedules.py::test_invalid_or_unavailable_measurement_is_not_an_empty_credited_cell"
+      - "tests/test_issue_1543_feature_schedules.py::test_missing_datum_refuses_schedule_instead_of_claiming_empty_location_cells"
+      - "tests/test_issue_1543_feature_schedules.py::test_table_only_measurements_do_not_demand_a_leader_view"
+      - "tests/test_issue_1543_feature_schedules.py::test_schedule_preserves_countersink_angle_units"
+    corpus_parts: ["part.step"]
+  status: pending
+  port_note: "Keep: Spec schedule rows reference measurement IDs; Plan table cells carry them."
+
+- id: ISSUE-1543-b
+  statement: "Schedule cells are verified individually: a cell cannot borrow a matching number from another row, one bad cell loses only its own proof, and invalid schedules are refused transactionally."
+  class: trust
+  source:
+    issues: [1543]
+    tests:
+      - "tests/test_issue_1543_feature_schedules.py::test_cell_verifier_cannot_borrow_a_matching_number_from_another_row"
+      - "tests/test_issue_1543_feature_schedules.py::test_wrong_schedule_cell_does_not_taint_other_cell_snapshots"
+      - "tests/test_issue_1543_feature_schedules.py::test_invalid_sheet_schedule_is_transactional"
+      - "tests/test_issue_1543_schedule_requirements.py::test_one_bad_location_cell_loses_only_that_axis_proof"
+      - "tests/test_issue_1543_schedule_requirements.py::test_damaged_diameter_cell_loses_its_physical_riders"
+    corpus_parts: ["part.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1543-c
+  statement: "Physical requirement ledgers accept only verified schedule-cell ink; a descriptive table cannot credit unsupported values, and a bolt-circle cell cannot cover a bore of the same diameter."
+  class: trust
+  source:
+    issues: [1543]
+    tests:
+      - "tests/test_issue_1543_schedule_requirements.py::test_verified_cells_feed_existing_physical_requirement_producers"
+      - "tests/test_issue_1543_schedule_requirements.py::test_descriptive_table_cannot_credit_unsupported_profile_values"
+      - "tests/test_issue_1543_schedule_requirements.py::test_bolt_circle_cell_cannot_cover_a_physical_bore_of_the_same_diameter"
+      - "tests/test_issue_1543_schedule_requirements.py::test_removing_schedule_retains_v5_intent_and_the_requirement_denominator"
+    corpus_parts: ["part.step", "bolt-circle.step", "profile.step", "triangle.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1544-a
+  statement: "A real-frame document canary keeps complete physical identity across sheets: a numeric descriptive table cannot replace missing pocket measurements, section material and arrows match the cut, and export refuses a document captured from a different source."
+  class: trust
+  source:
+    issues: [1544]
+    tests:
+      - "tests/test_issue_1544_frame_document_canary.py::test_frame_operations_and_actual_claims_keep_complete_physical_identity"
+      - "tests/test_issue_1544_frame_document_canary.py::test_numeric_descriptive_table_cannot_replace_missing_pocket_measurements"
+      - "tests/test_issue_1544_frame_document_canary.py::test_frame_section_material_and_arrows_match_the_real_cut"
+      - "tests/test_issue_1544_frame_document_canary.py::test_export_refuses_a_document_with_different_captured_source"
+    corpus_parts: ["whistle_frame_reference.step"]
+  status: pending
+  port_note: "Keep: Spec records source STEP hash; render refuses on mismatch; scenario on whistle frame."
+
+- id: ISSUE-1555-a
+  statement: "The same solid recognises the same turned profile whichever STEP encoding (AP203 or AP242) carries it, and that profile is the true one."
+  detail: "A ⌀2.833 blend had voted in the axis election; AP203 gave 3 steps on x and AP242 9 steps on x; true answer is five steps on z."
+  class: trust
+  source:
+    issues: [1555]
+    tests:
+      - "tests/test_issue_1555_turned_recognition_format_invariance.py::test_both_encodings_recognise_the_same_turned_profile"
+      - "tests/test_issue_1555_turned_recognition_format_invariance.py::test_ctc05_recognises_its_actual_turned_profile"
+    corpus_parts: ["nist_ctc_05_asme1_ap203", "nist_ctc_05_asme1_ap242"]
+  status: pending
+  port_note: "Keep: Analysis equality across encodings for CTC-05."
+
+- id: ISSUE-1560-a
+  statement: "Body extents never disappear silently when no envelope is proposed: each undimensioned prismatic axis has a planner and check outcome and stays in the denominator, and a local turned profile or overlapping steps cannot hide a longer body axis; only an authored complete set may omit them."
+  class: drafting
+  source:
+    issues: [1560]
+    tests:
+      - "tests/test_issue_1560_envelope_axes.py::test_undimensioned_prismatic_axes_have_compiler_and_lint_outcomes"
+      - "tests/test_issue_1560_envelope_axes.py::test_local_turned_profile_cannot_hide_a_longer_body_axis"
+      - "tests/test_issue_1560_envelope_axes.py::test_overlapping_step_spans_do_not_claim_an_overall_axis"
+      - "tests/test_issue_1560_envelope_axes.py::test_each_removed_envelope_axis_remains_in_the_physical_denominator"
+      - "tests/test_issue_1560_envelope_axes.py::test_complete_authored_set_can_intentionally_omit_body_extents"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1563-a
+  statement: "A drawing built from an in-memory part reconciles its source PMI or says it could not: unlowered records are reported, deleting a raw record changes the diagnostics, a fabricated source id is reported, and content with no census is 'unverified', not silently fine."
+  class: trust
+  source:
+    issues: [1563]
+    tests:
+      - "tests/test_issue_1563_sheet_pmi_reconciliation.py::test_unlowered_records_are_reported_on_the_sheet_path"
+      - "tests/test_issue_1563_sheet_pmi_reconciliation.py::test_deleting_a_raw_record_changes_the_diagnostics"
+      - "tests/test_issue_1563_sheet_pmi_reconciliation.py::test_a_fabricated_source_id_is_reported_not_accepted"
+      - "tests/test_issue_1563_sheet_pmi_reconciliation.py::test_content_with_no_census_is_unverified_rather_than_silent"
+      - "tests/test_issue_1563_sheet_pmi_reconciliation.py::test_a_drawing_with_no_ap242_claims_stays_quiet"
+    corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
+  status: pending
+  port_note: "Keep: Plan problems from PMI census vs Spec; Spec references PMI by source id."
+
+- id: ISSUE-1585-a
+  statement: "A supplied date reaches the title block as its own field in its own cell: drawn inside the cell, present in the PDF text layer, recorded as drawn, and absent when not supplied."
+  class: drafting
+  source:
+    issues: [1585]
+    tests:
+      - "tests/test_issue_1585_title_block_date.py::test_the_date_is_a_field_of_its_own"
+      - "tests/test_issue_1585_title_block_date.py::test_the_date_reaches_the_pdf_text_layer"
+      - "tests/test_issue_1585_title_block_date.py::test_the_date_is_drawn_inside_its_cell"
+      - "tests/test_issue_1585_title_block_date.py::test_common_date_formats_fit_on_the_pages_draftwright_uses"
+      - "tests/test_issue_1585_title_block_date.py::test_no_date_field_when_no_date_was_supplied"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: ISO 7200 title block layout with dedicated date cell."
+
+- id: ISSUE-1593-a
+  statement: "No dimension is placed inside the title block: its footprint is a hard keep-out; a displaced dimension is relocated (e.g. opposite strip) rather than discarded, and one with nowhere to go is withheld as an error naming the block, then replanned onto a sheet that fits."
+  class: drafting
+  source:
+    issues: [1593, 1590]
+    tests:
+      - "tests/test_issue_1593_title_block_keepout.py::test_nothing_is_drawn_inside_the_title_block"
+      - "tests/test_issue_1593_title_block_keepout.py::test_a_displaced_dimension_stays_on_the_sheet"
+      - "tests/test_issue_1593_title_block_keepout.py::test_a_dimension_with_nowhere_to_go_is_replanned_onto_a_sheet_that_fits"
+      - "tests/test_issue_1593_title_block_keepout.py::test_the_recorded_attempt_names_the_symptom_that_opened_the_ladder"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario Box(40,30,12) and stepped Box(80,60,30)."
+
+- id: ISSUE-1596-a
+  statement: "An 'EQ SP ON ⌀ BC' bolt-circle callout states a datum only when corroborated (five or more concyclic members, or a concentric physical feature on the same axis at the centre); a fitted circle through a rectangle or three points is not evidence, and refused members are still drawn, counted and located as ordinary holes."
+  detail: "Six ⌀2.4 holes in a 2x3 grid had become '4x ... EQ SP ON ⌀34.4 BC' centred in mid-air plus a separate '2x'."
+  class: drafting
+  source:
+    issues: [1596, 1595]
+    tests:
+      - "tests/test_issue_1596_bolt_circle_corroboration.py::test_an_uncorroborated_circle_is_not_carried_into_the_ir"
+      - "tests/test_issue_1596_bolt_circle_corroboration.py::test_the_members_are_still_drawn_counted_and_located"
+      - "tests/test_issue_1596_bolt_circle_corroboration.py::test_five_holes_are_self_evident"
+      - "tests/test_issue_1596_bolt_circle_corroboration.py::test_a_concentric_feature_alone_can_carry_it"
+      - "tests/test_issue_1596_bolt_circle_corroboration.py::test_a_feature_on_a_DIFFERENT_axis_does_not"
+      - "tests/test_issue_1596_bolt_circle_corroboration.py::test_a_feature_merely_nearby_does_not"
+      - "tests/test_issue_1596_bolt_circle_corroboration.py::test_four_polar_holes_on_a_square_plate_do_not_establish_a_circular_datum"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep: scenario tests on synthetic plates (grid, 5-hole circle, flange with boss)."
+
+- id: ISSUE-1598-a
+  statement: "A hex nut pocket is recognised only from a supported regular-hex grammar (not merely six vertices); its labels state only approved dimensions and counted hexes keep distinct claims and rank above incidental flats."
+  class: drafting
+  source:
+    issues: [1598]
+    tests:
+      - "tests/test_issue_1598_hex_pockets.py::test_six_vertex_labels_do_not_admit_unsupported_or_invalid_hex_geometry"
+      - "tests/test_issue_1598_hex_pockets.py::test_both_frames_supply_six_supported_nut_pocket_sections"
+      - "tests/test_issue_1598_hex_pockets.py::test_hex_labels_only_state_approved_dimensions"
+      - "tests/test_issue_1598_hex_pockets.py::test_counted_hexes_preserve_distinct_claims_and_rank_above_incidental_flats"
+    corpus_parts: ["issue_1595_whistle_key_frame.step", "whistle_frame_reference.step"]
+  status: pending
+  port_note: "Keep: scenario on whistle frame STEPs -> six hex pockets."
+
+- id: ISSUE-1604-a
+  statement: "A station with multiple unlike internal details warrants a readable section view, and that section and its required slots survive in both build routes."
+  class: drafting
+  source:
+    issues: [1604]
+    tests:
+      - "tests/test_issue_1604_internal_section.py::test_station_needs_multiple_unlike_internal_details"
+      - "tests/test_issue_1604_internal_section.py::test_original_frame_section_and_required_slots_survive_script_replay"
+    corpus_parts: ["issue_1595_whistle_key_frame.step"]
+  status: pending
+  port_note: "Keep: section-need heuristic test on whistle frame."
+
+- id: ISSUE-1612-a
+  statement: "Physical sheet options (independent margins, zero meaning an unframed edge, zone labels) preserve nominal frame and title-block geometry, are refused before build when invalid, and survive repacking; an opt-in filing layout keeps hole location coverage."
+  class: drafting
+  source:
+    issues: [1612]
+    tests:
+      - "tests/test_issue_1612_sheet_margins.py::test_margins_are_independent_and_zero_is_a_valid_unframed_edge"
+      - "tests/test_issue_1612_sheet_margins.py::test_invalid_sheet_options_are_refused_before_build"
+      - "tests/test_issue_1612_sheet_margins.py::test_explicit_page_furniture_constraints_survive_repacking"
+      - "tests/test_issue_1612_sheet_margins.py::test_zone_labels_refuse_an_edge_that_cannot_hold_their_ink"
+      - "tests/test_issue_1612_frame_sergio_coverage.py::test_sergio_frame_repaired_location_retains_hole_coverage"
+    corpus_parts: ["part.step", "issue_1595_whistle_key_frame.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1613-a
+  statement: "A circular seat keeps its physical arc shape (minor, semicircular or major) rather than becoming a rectangular channel, with its full set of size and location requirements; wrong radius or arc midpoint cannot be declared."
+  class: drafting
+  source:
+    issues: [1613]
+    tests:
+      - "tests/test_issue_1613_circular_channel.py::test_declared_arc_retains_minor_semicircular_and_major_shapes"
+      - "tests/test_issue_1613_circular_channel.py::test_detected_seats_have_six_source_owned_requirements_each"
+      - "tests/test_issue_1613_circular_channel.py::test_a_wrong_radius_or_wrong_arc_midpoint_cannot_be_declared"
+      - "tests/test_issue_1613_circular_channel.py::test_axis_locations_share_coaxial_ink_and_keep_each_physical_owner"
+    corpus_parts: ["issue_1595_whistle_key_frame.step", "whistle_frame_reference.step"]
+  status: pending
+  port_note: "Keep."
+
+- id: ISSUE-1613-b
+  statement: "The seat requirement ledger distinguishes authored suppression, layout drop and structured-note satisfaction, and never credits corrupted geometry or measurements."
+  class: trust
+  source:
+    issues: [1613]
+    tests:
+      - "tests/test_issue_1613_circular_channel.py::test_seat_ledger_distinguishes_suppression_drop_and_structured_note"
+      - "tests/test_issue_1613_circular_channel.py::test_seat_ledger_rejects_missing_ambiguous_or_wrong_geometry"
+      - "tests/test_issue_1613_circular_channel.py::test_seat_ledger_does_not_credit_corrupted_geometry_or_measurements"
+    corpus_parts: []
+  status: pending
+  port_note: "Keep."
