@@ -118,6 +118,49 @@ impl Font {
     /// *text* at *size* (the em, in drawing units), centred on its bounding box. A character
     /// the font lacks is drawn as its missing-glyph box, as FreeType substitutes it.
     pub fn text(&self, text: &str, size: f64) -> Laid {
+        let laid = self.baseline(text, size);
+        if laid.contours.is_empty() {
+            return Laid {
+                contours: laid.contours,
+                min: [0.0; 2],
+                max: [0.0; 2],
+            };
+        }
+        let (min, max) = (laid.min, laid.max);
+        let centre = [0.5 * (min[0] + max[0]), 0.5 * (min[1] + max[1])];
+        let shift = |p: P| [p[0] - centre[0], p[1] - centre[1]];
+        let mut contours = laid.contours;
+        for s in contours.iter_mut().flatten() {
+            *s = match *s {
+                Segment::Line(a, b) => Segment::Line(shift(a), shift(b)),
+                Segment::Quad(a, b, c) => Segment::Quad(shift(a), shift(b), shift(c)),
+                Segment::Cubic(a, b, c, d) => {
+                    Segment::Cubic(shift(a), shift(b), shift(c), shift(d))
+                }
+            };
+        }
+        Laid {
+            contours,
+            min: shift(min),
+            max: shift(max),
+        }
+    }
+
+    /// The pen's advance over *text* (one line) at *size*: where the next character would start.
+    pub fn advance(&self, text: &str, size: f64) -> f64 {
+        let face = self.face();
+        let scale = size / face.units_per_em() as f64;
+        text.chars()
+            .map(|c| {
+                let glyph = face.glyph_index(c).unwrap_or(GlyphId(0));
+                face.glyph_hor_advance(glyph).unwrap_or(0) as f64 * scale
+            })
+            .sum()
+    }
+
+    /// *text* at *size* as the pen lays it: the first line's baseline on y = 0, starting at
+    /// x = 0, not centred. `min` and `max` are its ink's box (both zero when it has no ink).
+    pub fn baseline(&self, text: &str, size: f64) -> Laid {
         let face = self.face();
         let scale = size / face.units_per_em() as f64;
         let line =
@@ -148,28 +191,9 @@ impl Font {
             }
         }
         if contours.is_empty() {
-            return Laid {
-                contours,
-                min: [0.0; 2],
-                max: [0.0; 2],
-            };
+            (min, max) = ([0.0; 2], [0.0; 2]);
         }
-        let centre = [0.5 * (min[0] + max[0]), 0.5 * (min[1] + max[1])];
-        let shift = |p: P| [p[0] - centre[0], p[1] - centre[1]];
-        for s in contours.iter_mut().flatten() {
-            *s = match *s {
-                Segment::Line(a, b) => Segment::Line(shift(a), shift(b)),
-                Segment::Quad(a, b, c) => Segment::Quad(shift(a), shift(b), shift(c)),
-                Segment::Cubic(a, b, c, d) => {
-                    Segment::Cubic(shift(a), shift(b), shift(c), shift(d))
-                }
-            };
-        }
-        Laid {
-            contours,
-            min: shift(min),
-            max: shift(max),
-        }
+        Laid { contours, min, max }
     }
 }
 

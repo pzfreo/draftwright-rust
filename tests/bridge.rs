@@ -195,6 +195,9 @@ fn refusals_and_evidence_are_not_features() {
     features[1]["family"] = "step_levels".into();
     features[1]["record_type"] = "FaceLevel".into();
     features[1]["record"] = serde_json::json!({"axis": "x", "level": 2.5});
+    // The plate's hole pattern named those two holes; with them gone it no longer describes
+    // the document (a pattern naming a hole that is not there is refused, below).
+    json["quiddity"]["derived"]["hole_patterns"] = serde_json::json!([]);
     let (r, features) = read_all(&json).unwrap();
     let ids: Vec<_> = features.iter().map(|f| f.id.as_str()).collect();
     assert_eq!(ids, ["f:hole:1", "f:hole:2"]);
@@ -211,6 +214,13 @@ fn refusals_and_evidence_are_not_features() {
         (r.evidence[0].family.as_str(), &r.evidence[0].faces),
         ("step_levels", &vec![7])
     );
+
+    // A hole pattern naming a member that is not a recognised hole is refused.
+    let mut json = recognition("plate");
+    json["quiddity"]["features"][0]["record_type"] = "FaceLevel".into();
+    json["quiddity"]["features"][0]["family"] = "step_levels".into();
+    let e = read_all(&json).unwrap_err();
+    assert!(e.contains("not a recognised hole"), "{e}");
 
     // A record type with no home is refused, not guessed at.
     let mut json = recognition("plate");

@@ -8,6 +8,7 @@ pub use haecceity;
 pub mod api;
 pub mod bridge;
 pub mod demand;
+pub mod dims;
 pub mod layout;
 pub mod lint;
 pub mod model;

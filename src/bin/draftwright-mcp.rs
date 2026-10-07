@@ -22,8 +22,9 @@ back, so work can resume from a drawing alone.";
 const SPEC: &str = "The spec: the author's decisions, keyed by stable IDs. Omit it, or pass {}, \
 for all defaults. Use the spec from the plan or the edit tool's result. Shape: {\"sheet\": \
 {\"size\": \"A3\", \"scale\": \"2:1\", \"title\": {\"title\": \"BRACKET\", \"number\": \
-\"DWG-001\", \"material\": \"6082-T6\"}}, \"views\": {\"iso\": {\"omit\": true}}}. Unknown \
-fields are refused.";
+\"DWG-001\", \"material\": \"6082-T6\"}}, \"views\": {\"iso\": {\"omit\": true}}, \
+\"dimension_source\": \"auto\", \"dimensions\": {\"d:envelope/width.length@front\": {\"omit\": \
+true}}}. Unknown fields are refused.";
 
 /// The tools: name, description, input schema.
 fn tools() -> Value {
@@ -69,8 +70,14 @@ fn tools() -> Value {
                 \"path\": …, \"value\": …} or {\"op\": \"remove\", \"path\": …}, with a path into \
                 the spec: sheet/size (A4, A3, A2, A1, A0), sheet/scale (ISO 5455, e.g. 2:1, 1:1, \
                 1:2), sheet/title/<field> (title, number, material, …), views/<front|plan|side|iso>/omit \
-                (true leaves the view out). A refused edit says why and, where it chose from a \
-                list, the choices; plan validates the values against the part.",
+                (true leaves the view out), dimension_source (auto: the defaults less what is \
+                omitted; authored: exactly the dimensions listed), dimensions/<id>/omit (true \
+                leaves that dimension out; IDs are the plan's, d:<feature>/<parameter>@<view>, \
+                with each / inside the ID written ~1, e.g. \
+                dimensions/d:envelope~1width.length@front/omit). A dimension's ID names the view \
+                that carries it, so omitting that view renames it: take IDs from the latest plan. \
+                A refused edit says why and, where it chose from a list, the choices; plan \
+                validates the values against the part.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

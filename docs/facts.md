@@ -74,6 +74,19 @@ name a group by its quantity, diameter and a point on its axis. Every difference
 `tests/fixtures/known_lint.json` with a verdict and the evidence; Python's "all N requirements
 unverifiable" counts against each requirement the port checks.
 
+## Dimensions: item by item
+
+`tests/dimensions.rs` plans each sampled part with its features (Python quiddity 0.3.9's
+recognition, the recogniser draftwright drew these sheets with, written by `tools/recognise.py`
+into `tests/fixtures/recognition/sheets/`) and matches draftwright's annotations in the port's
+families (overall extents, hole callouts, hole and pattern locations, pattern pitches) with the
+plan's items: the same family (a location's names its axis), view and printed label, and the same
+measurement identity (value within half the printed unit; for a callout, draftwright's features
+where the item's holes or pattern are). Every difference is listed with its count, a verdict and
+the evidence in `tests/fixtures/known_dimensions.json`. ctc04 is not compared: the bridge refuses
+its recognition (face 367's area differs by 0.15% from OpenCascade's). `DIMS_REPORT=1` prints
+the differences.
+
 ## Recapturing
 
 ```

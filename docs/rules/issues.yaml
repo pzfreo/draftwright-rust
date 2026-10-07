@@ -698,7 +698,9 @@
       - "tests/test_issue_1143_hole_completeness.py::test_blind_depth_and_linear_pitch_have_exact_placed_outcomes"
       - "tests/test_issue_1143_hole_completeness.py::test_compound_countersink_callout_accounts_for_every_printed_measurement"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: tests/dimension_rules.rs::a_grid_of_holes_is_called_out_once_located_and_spaced
+  rust_note: "Both grid pitches and the centre; every singly dimensioned hole located in both directions (also blind_and_through_holes_are_separate_requirements). Centre marks are not drawn yet."
   port_note: "Keep: scenario tests -> plan has both pitches / every member location."
 
 - id: ISSUE-1143-d
@@ -1274,7 +1276,8 @@
       - "tests/test_issue_1229_ledger_member_keying.py::test_the_part_really_mixes_through_and_blind"
       - "tests/test_issue_1229_ledger_member_keying.py::test_every_recognised_group_is_uniform_in_bottom"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: tests/dimension_rules.rs::blind_and_through_holes_are_separate_requirements
   port_note: "Keep: hole grouping key includes through/blind."
 
 - id: ISSUE-1229-b
@@ -2624,6 +2627,8 @@
       - "tests/test_issue_1596_bolt_circle_corroboration.py::test_four_polar_holes_on_a_square_plate_do_not_establish_a_circular_datum"
     corpus_parts: []
   status: pending
+  rust_test: tests/dimension_rules.rs::a_four_hole_bolt_circle_is_not_trusted
+  rust_note: "Corroboration by five or more members only; corroboration by a concentric feature is not ported, so such a circle falls back to single holes."
   port_note: "Keep: scenario tests on synthetic plates (grid, 5-hole circle, flange with boss)."
 
 - id: ISSUE-1598-a
