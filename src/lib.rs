@@ -4,3 +4,5 @@
 //! [`haecceity`] kernel, and feature recognition from quiddity.
 
 pub use haecceity;
+
+pub mod text;

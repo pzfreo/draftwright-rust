@@ -7,3 +7,8 @@ description = "Automated technical drawings from STEP B-rep: a Rust port of draf
 
 [dependencies]
 haecceity = { git = "https://github.com/pzfreo/quiddity-rust", branch = "prototype/rust-port" }
+ttf-parser = "0.25.1"
+
+[dev-dependencies]
+flate2 = "1.1.10"
+serde_json = "1.0.151"
