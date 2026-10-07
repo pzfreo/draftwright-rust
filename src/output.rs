@@ -27,6 +27,9 @@ pub enum Curve {
     },
     /// Bézier pieces of 2 to 4 poles, end to end.
     Beziers(Vec<Vec<P>>),
+    /// Rational Bézier pieces, end to end, by their homogeneous poles `[x w, y w, w]`: a NURBS
+    /// curve cut at its knots.
+    Rational(Vec<Vec<[f64; 3]>>),
 }
 
 impl Curve {
@@ -50,6 +53,7 @@ impl Curve {
                 ..
             } => Curve::conic_at(*centre, *radii, *x_axis, *y_axis, *t0),
             Curve::Beziers(b) => b[0][0],
+            Curve::Rational(r) => point(r[0][0]),
         }
     }
 
@@ -65,6 +69,7 @@ impl Curve {
                 ..
             } => Curve::conic_at(*centre, *radii, *x_axis, *y_axis, *t1),
             Curve::Beziers(b) => *b[b.len() - 1].last().unwrap(),
+            Curve::Rational(r) => point(*r[r.len() - 1].last().unwrap()),
         }
     }
 }
@@ -225,7 +230,7 @@ impl Drawing {
     /// The DXF (R2013, millimetres): each layer with its line weight, each curve as a LINE,
     /// CIRCLE, ARC, ELLIPSE or SPLINE, and each face as the curves of its boundary.
     pub fn dxf(&self) -> Vec<u8> {
-        use dxf::entities::{Arc, Circle, Ellipse, Entity, EntityType, Line, Spline};
+        use dxf::entities::{Arc, Circle, Ellipse, Entity, EntityType, Line};
         use dxf::enums::{AcadVersion, Units};
         use dxf::tables::Layer as DxfLayer;
         use dxf::{Point, Vector};
@@ -306,36 +311,18 @@ impl Drawing {
                             })
                         }
                     }
-                    Curve::Beziers(pieces) => {
-                        if let [only] = pieces.as_slice()
-                            && only.len() == 2
-                        {
+                    Curve::Beziers(pieces) => match pieces.as_slice() {
+                        [only] if only.len() == 2 => {
                             EntityType::Line(Line::new(pt(only[0]), pt(only[1])))
-                        } else {
-                            // One spline through all the pieces: each raised to the highest
-                            // degree, joined by knots of full multiplicity.
-                            let degree = pieces.iter().map(|p| p.len() - 1).max().unwrap_or(1);
-                            let mut s = Spline {
-                                degree_of_curve: degree as i32,
-                                knot_values: vec![0.0; degree + 1],
-                                ..Default::default()
-                            };
-                            for (i, piece) in pieces.iter().enumerate() {
-                                let poles = elevate(piece, degree);
-                                let skip = usize::from(i > 0);
-                                s.control_points
-                                    .extend(poles[skip..].iter().map(|p| pt(*p)));
-                                let k = (i + 1) as f64;
-                                let repeat = if i + 1 == pieces.len() {
-                                    degree + 1
-                                } else {
-                                    degree
-                                };
-                                s.knot_values.extend(std::iter::repeat_n(k, repeat));
-                            }
-                            EntityType::Spline(s)
                         }
-                    }
+                        _ => EntityType::Spline(spline(
+                            pieces
+                                .iter()
+                                .map(|p| p.iter().map(|q| [q[0], q[1], 1.0]).collect())
+                                .collect(),
+                        )),
+                    },
+                    Curve::Rational(pieces) => EntityType::Spline(spline(pieces.clone())),
                 };
                 let mut entity = Entity::new(kind);
                 entity.common.layer = layer.name.clone();
@@ -617,18 +604,208 @@ impl Drawing {
     }
 }
 
-/// A Bézier's poles raised to *degree*.
-fn elevate(poles: &[P], degree: usize) -> Vec<P> {
+/// One DXF spline through rational Bézier pieces (homogeneous poles): each raised to the
+/// highest degree, joined by knots of full multiplicity.
+fn spline(pieces: Vec<Vec<[f64; 3]>>) -> dxf::entities::Spline {
+    let degree = pieces.iter().map(|p| p.len() - 1).max().unwrap_or(1);
+    let mut s = dxf::entities::Spline {
+        degree_of_curve: degree as i32,
+        knot_values: vec![0.0; degree + 1],
+        ..Default::default()
+    };
+    for (i, piece) in pieces.iter().enumerate() {
+        let poles = elevate(piece, degree);
+        for q in &poles[usize::from(i > 0)..] {
+            s.control_points
+                .push(dxf::Point::new(q[0] / q[2], q[1] / q[2], 0.0));
+            s.weight_values.push(q[2]);
+        }
+        let repeat = if i + 1 == pieces.len() {
+            degree + 1
+        } else {
+            degree
+        };
+        s.knot_values
+            .extend(std::iter::repeat_n((i + 1) as f64, repeat));
+    }
+    if s.weight_values.iter().all(|w| (w - 1.0).abs() <= 1e-12) {
+        s.weight_values.clear();
+    }
+    s
+}
+
+/// A homogeneous pole's point.
+fn point(q: [f64; 3]) -> P {
+    [q[0] / q[2], q[1] / q[2]]
+}
+
+/// A rational Bézier's point at *t*, by de Casteljau on its homogeneous poles.
+fn rational_at(poles: &[[f64; 3]], t: f64) -> P {
+    let mut q = poles.to_vec();
+    while q.len() > 1 {
+        q = q
+            .windows(2)
+            .map(|w| [0, 1, 2].map(|k| w[0][k] + (w[1][k] - w[0][k]) * t))
+            .collect();
+    }
+    point(q[0])
+}
+
+/// Rational pieces as the polynomial ones SVG and PDF can draw: a piece of equal weights is
+/// one already; any other is drawn as chords within 0.1 µm of it.
+fn polynomial(pieces: &[Vec<[f64; 3]>]) -> Vec<Vec<P>> {
+    let mut out = Vec::new();
+    for piece in pieces {
+        let w = piece[0][2];
+        if piece.iter().all(|q| (q[2] - w).abs() <= 1e-12 * w) {
+            out.push(piece.iter().map(|q| point(*q)).collect());
+            continue;
+        }
+        let mut ts = vec![0.0, 0.5, 1.0];
+        for _ in 0..20 {
+            let mut next = vec![ts[0]];
+            let mut split = false;
+            for w in ts.windows(2) {
+                let (a, b, m) = (
+                    rational_at(piece, w[0]),
+                    rational_at(piece, w[1]),
+                    rational_at(piece, 0.5 * (w[0] + w[1])),
+                );
+                if (m[0] - 0.5 * (a[0] + b[0])).hypot(m[1] - 0.5 * (a[1] + b[1])) > 1e-4 {
+                    next.push(0.5 * (w[0] + w[1]));
+                    split = true;
+                }
+                next.push(w[1]);
+            }
+            ts = next;
+            if !split {
+                break;
+            }
+        }
+        out.extend(
+            ts.windows(2)
+                .map(|w| vec![rational_at(piece, w[0]), rational_at(piece, w[1])]),
+        );
+    }
+    out
+}
+
+impl From<&haecceity::hlr::Exact> for Curve {
+    /// A projected stretch's exact curve as drawn: a NURBS curve cut to the stretch and at its
+    /// knots into rational Bézier pieces.
+    fn from(exact: &haecceity::hlr::Exact) -> Self {
+        use haecceity::hlr::Exact;
+        match exact {
+            Exact::Line(a, b) => Curve::Line(*a, *b),
+            Exact::Conic {
+                centre,
+                radii,
+                x_axis,
+                y_axis,
+                t0,
+                t1,
+            } => Curve::Conic {
+                centre: *centre,
+                radii: *radii,
+                x_axis: *x_axis,
+                y_axis: *y_axis,
+                t0: *t0,
+                t1: *t1,
+            },
+            Exact::Nurbs {
+                degree,
+                poles,
+                weights,
+                knots,
+                t0,
+                t1,
+            } => {
+                let homogeneous = poles
+                    .iter()
+                    .zip(weights)
+                    .map(|(p, w)| [p[0] * w, p[1] * w, *w])
+                    .collect();
+                Curve::Rational(bezier_pieces(*degree, knots.clone(), homogeneous, *t0, *t1))
+            }
+        }
+    }
+}
+
+/// A projected stretch as drawn: its exact curve where it has one, else its points.
+pub fn projected(piece: &haecceity::hlr::Projected) -> Curve {
+    match &piece.exact {
+        Some(exact) => Curve::from(exact),
+        None => Curve::Beziers(piece.points.windows(2).map(|w| w.to_vec()).collect()),
+    }
+}
+
+/// Boehm's insertion of knot *t* into a B-spline of *degree* (homogeneous poles).
+fn insert_knot(degree: usize, knots: &mut Vec<f64>, poles: &mut Vec<[f64; 3]>, t: f64) {
+    let s = knots.partition_point(|k| *k <= t) - 1;
+    let s = s.min(poles.len() - 1);
+    let mut next = Vec::with_capacity(poles.len() + 1);
+    for i in 0..=poles.len() {
+        if i + degree <= s {
+            next.push(poles[i]);
+        } else if i > s {
+            next.push(poles[i - 1]);
+        } else {
+            let a = (t - knots[i]) / (knots[i + degree] - knots[i]);
+            next.push([0, 1, 2].map(|k| (1.0 - a) * poles[i - 1][k] + a * poles[i][k]));
+        }
+    }
+    knots.insert(s + 1, t);
+    *poles = next;
+}
+
+/// The stretch of a B-spline from *t0* to *t1* (either way round) as Bézier pieces, in order
+/// from *t0*: every knot in between, and the ends, raised to full multiplicity.
+fn bezier_pieces(
+    degree: usize,
+    mut knots: Vec<f64>,
+    mut poles: Vec<[f64; 3]>,
+    t0: f64,
+    t1: f64,
+) -> Vec<Vec<[f64; 3]>> {
+    let (lo, hi) = (t0.min(t1), t0.max(t1));
+    let mut breaks: Vec<f64> = knots
+        .iter()
+        .copied()
+        .filter(|k| *k > lo && *k < hi)
+        .collect();
+    breaks.extend([lo, hi]);
+    breaks.sort_by(f64::total_cmp);
+    breaks.dedup();
+    for &b in &breaks {
+        let have = knots.iter().filter(|k| **k == b).count();
+        for _ in have..degree {
+            insert_knot(degree, &mut knots, &mut poles, b);
+        }
+    }
+    let mut pieces: Vec<Vec<[f64; 3]>> = breaks
+        .windows(2)
+        .map(|w| {
+            // The span starting at w[0]: its poles are the Bézier's.
+            let s = knots.partition_point(|k| *k <= w[0]) - 1;
+            poles[s - degree..=s].to_vec()
+        })
+        .collect();
+    if t0 > t1 {
+        pieces.reverse();
+        pieces.iter_mut().for_each(|p| p.reverse());
+    }
+    pieces
+}
+
+/// A Bézier's (homogeneous) poles raised to *degree*.
+fn elevate(poles: &[[f64; 3]], degree: usize) -> Vec<[f64; 3]> {
     let mut p = poles.to_vec();
     while p.len() - 1 < degree {
         let n = p.len();
         let mut q = vec![p[0]];
         for i in 1..n {
             let a = i as f64 / n as f64;
-            q.push([
-                a * p[i - 1][0] + (1.0 - a) * p[i][0],
-                a * p[i - 1][1] + (1.0 - a) * p[i][1],
-            ]);
+            q.push([0, 1, 2].map(|k| a * p[i - 1][k] + (1.0 - a) * p[i][k]));
         }
         q.push(p[n - 1]);
         p = q;
@@ -680,6 +857,7 @@ fn svg_segments(curve: &Curve, d: &mut String) {
                 from = to;
             }
         }
+        Curve::Rational(pieces) => svg_segments(&Curve::Beziers(polynomial(pieces)), d),
         Curve::Beziers(pieces) => {
             for p in pieces {
                 let pts: Vec<String> = p[1..]
@@ -786,6 +964,7 @@ fn pdf_curve(c: &mut pdf_writer::Content, curve: &Curve) {
                 c.cubic_to(x1, y1, x2, y2, x3, y3);
             }
         }
+        Curve::Rational(pieces) => pdf_curve(c, &Curve::Beziers(polynomial(pieces))),
         Curve::Beziers(pieces) => {
             for p in pieces {
                 match p.len() {
@@ -811,5 +990,134 @@ fn pdf_curve(c: &mut pdf_writer::Content, curve: &Curve) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use haecceity::hlr::Exact;
+
+    /// The pieces' points, densely.
+    fn trace(pieces: &[Vec<[f64; 3]>]) -> Vec<P> {
+        pieces
+            .iter()
+            .flat_map(|p| (0..=1024).map(|k| rational_at(p, k as f64 / 1024.0)))
+            .collect()
+    }
+
+    fn check(exact: Exact) {
+        let Curve::Rational(pieces) = Curve::from(&exact) else {
+            panic!("a NURBS stretch is rational")
+        };
+        let (t0, t1) = exact.range();
+        let gap = |a: P, b: P| (a[0] - b[0]).hypot(a[1] - b[1]);
+        assert!(
+            gap(point(pieces[0][0]), exact.at(t0)) < 1e-12,
+            "starts where the stretch does"
+        );
+        assert!(
+            gap(point(*pieces.last().unwrap().last().unwrap()), exact.at(t1)) < 1e-12,
+            "ends where it does"
+        );
+        let traced = trace(&pieces);
+        let to_segment = |q: P, a: P, b: P| {
+            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+            let len2 = dx * dx + dy * dy;
+            let t = if len2 == 0.0 {
+                0.0
+            } else {
+                (((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / len2).clamp(0.0, 1.0)
+            };
+            gap(q, [a[0] + t * dx, a[1] + t * dy])
+        };
+        for k in 0..=200 {
+            let q = exact.at(t0 + (t1 - t0) * k as f64 / 200.0);
+            let near = traced
+                .windows(2)
+                .map(|w| to_segment(q, w[0], w[1]))
+                .fold(f64::INFINITY, f64::min);
+            // Traced at 1024 points a piece, their chords stand within ~1e-6 (shrinking as the
+            // square of the spacing, as a sagitta does).
+            assert!(
+                near < 1e-5,
+                "point {k} of the stretch {near:e} from the pieces"
+            );
+        }
+    }
+
+    #[test]
+    fn a_clamped_cubic_cut_to_a_stretch_either_way() {
+        let nurbs = |t0, t1| Exact::Nurbs {
+            degree: 3,
+            poles: vec![
+                [0.0, 0.0],
+                [1.0, 2.0],
+                [2.0, -1.0],
+                [3.0, 3.0],
+                [4.0, 0.0],
+                [5.0, 1.0],
+            ],
+            weights: vec![1.0; 6],
+            knots: vec![0.0, 0.0, 0.0, 0.0, 0.7, 1.4, 2.0, 2.0, 2.0, 2.0],
+            t0,
+            t1,
+        };
+        check(nurbs(0.3, 1.7));
+        check(nurbs(1.7, 0.3));
+        check(nurbs(0.0, 2.0));
+    }
+
+    #[test]
+    fn a_rational_circle_stays_round() {
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let circle = Exact::Nurbs {
+            degree: 2,
+            poles: vec![
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 1.0],
+                [-1.0, 1.0],
+                [-1.0, 0.0],
+                [-1.0, -1.0],
+                [0.0, -1.0],
+                [1.0, -1.0],
+                [1.0, 0.0],
+            ],
+            weights: vec![1.0, h, 1.0, h, 1.0, h, 1.0, h, 1.0],
+            knots: vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0],
+            t0: 0.5,
+            t1: 3.5,
+        };
+        check(circle.clone());
+        let Curve::Rational(pieces) = Curve::from(&circle) else {
+            unreachable!()
+        };
+        for p in trace(&pieces) {
+            assert!(
+                (p[0].hypot(p[1]) - 1.0).abs() < 1e-12,
+                "{p:?} off the circle"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unclamped_cubic_cut_inside_its_domain() {
+        check(Exact::Nurbs {
+            degree: 3,
+            poles: vec![
+                [0.0, 0.0],
+                [1.0, 1.0],
+                [2.0, 0.0],
+                [3.0, 1.0],
+                [4.0, 0.0],
+                [5.0, 1.0],
+                [6.0, 0.0],
+            ],
+            weights: vec![1.0; 7],
+            knots: (0..11).map(f64::from).collect(),
+            t0: 3.5,
+            t1: 6.5,
+        });
     }
 }

@@ -233,7 +233,7 @@ dependencies = [
 [[package]]
 name = "haecceity"
 version = "0.1.0"
-source = "git+https://github.com/pzfreo/quiddity-rust?branch=prototype%2Frust-port#69867c56408a80e16b296cf6cd94383c731fb1d7"
+source = "git+https://github.com/pzfreo/quiddity-rust?branch=prototype%2Frust-port#2f6c923659e09bdfa4b214e02eaaf28391aa2ab9"
 dependencies = [
  "flate2",
  "step-io",
