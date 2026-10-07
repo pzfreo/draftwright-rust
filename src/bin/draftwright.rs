@@ -1,9 +1,10 @@
 //! The command line over the document model (ADR R1). Each command prints JSON.
 //!
-//! - `draftwright analyse part.step`: the Analysis
-//! - `draftwright plan part.step [--spec s.json]`: the Plan
-//! - `draftwright render part.step [--spec s.json] -o out [--formats svg,dxf,pdf]`: writes the
-//!   files and prints what was written, with the plan's problems
+//! - `draftwright analyse part.step [--features r.json]`: the Analysis
+//! - `draftwright plan part.step [--features r.json] [--spec s.json]`: the Plan
+//! - `draftwright render part.step [--features r.json] [--spec s.json] -o out
+//!   [--formats svg,dxf,pdf]`: writes the files and prints what was written, with the plan's
+//!   problems
 //! - `draftwright edit s.json ops.json`: the edited Spec
 //! - `draftwright spec drawing.(svg|pdf)`: the Spec embedded in a rendered drawing
 //!
@@ -13,7 +14,8 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use draftwright::model::{self, Spec};
+use draftwright::haecceity::Part;
+use draftwright::model::{self, Analysis, Spec};
 use draftwright::text::Font;
 use serde_json::json;
 
@@ -68,6 +70,11 @@ fn spec_of(args: &[String]) -> Result<Spec, Failure> {
     }
 }
 
+/// The part and its analysis, with features from `--features` (`tools/recognise.py`'s JSON).
+fn analyse(args: &[String], step: &str) -> Result<(Part, Analysis), Failure> {
+    model::analyse_with(Path::new(step), flag(args, "--features").map(Path::new)).map_err(invalid)
+}
+
 fn run(args: &[String]) -> Result<serde_json::Value, Failure> {
     let usage = "usage: draftwright (analyse|plan|render|edit|spec) …";
     let command = args.first().ok_or_else(|| invalid(usage))?;
@@ -78,17 +85,17 @@ fn run(args: &[String]) -> Result<serde_json::Value, Failure> {
     };
     match command.as_str() {
         "analyse" => {
-            let (_, analysis) = model::analyse(Path::new(arg(1)?)).map_err(invalid)?;
+            let (_, analysis) = analyse(args, arg(1)?)?;
             Ok(serde_json::to_value(analysis).expect("JSON"))
         }
         "plan" => {
-            let (_, analysis) = model::analyse(Path::new(arg(1)?)).map_err(invalid)?;
+            let (_, analysis) = analyse(args, arg(1)?)?;
             let plan = model::plan(&analysis, &spec_of(args)?)
                 .map_err(|e| (2, serde_json::to_value(&e).expect("JSON")))?;
             Ok(serde_json::to_value(plan).expect("JSON"))
         }
         "render" => {
-            let (part, analysis) = model::analyse(Path::new(arg(1)?)).map_err(invalid)?;
+            let (part, analysis) = analyse(args, arg(1)?)?;
             let plan = model::plan(&analysis, &spec_of(args)?)
                 .map_err(|e| (2, serde_json::to_value(&e).expect("JSON")))?;
             let out = PathBuf::from(

@@ -1,0 +1,526 @@
+{
+ "faces": [
+  {
+   "area": 3619.1147369352043,
+   "surface": "cylinder"
+  },
+  {
+   "area": 116.13994459297768,
+   "surface": "torus"
+  },
+  {
+   "area": 116.13994459297768,
+   "surface": "torus"
+  },
+  {
+   "area": 633.4707426698459,
+   "surface": "plane"
+  },
+  {
+   "area": 390.1858075758523,
+   "surface": "plane"
+  },
+  {
+   "area": 65.46077638707848,
+   "surface": "torus"
+  },
+  {
+   "area": 1427.5397017911082,
+   "surface": "cylinder"
+  },
+  {
+   "area": 60.87015994687366,
+   "surface": "torus"
+  },
+  {
+   "area": 162.86016316209492,
+   "surface": "plane"
+  }
+ ],
+ "format": "draftwright.recognition/1",
+ "quiddity": {
+  "association": {
+   "face_count": {
+    "associated": 6,
+    "ratio": 0.6666666666666666,
+    "total": 9,
+    "unassociated": 3
+   },
+   "families": [
+    {
+     "face_count": 2,
+     "family": "turned_steps",
+     "surface_area": 5046.654438726313
+    },
+    {
+     "face_count": 4,
+     "family": "fillets",
+     "surface_area": 358.6108255199075
+    }
+   ],
+   "surface_area": {
+    "associated": 5405.26526424622,
+    "ratio": 0.8200006132742168,
+    "total": 6591.781977654013,
+    "unassociated": 1186.516713407793
+   },
+   "unassociated_faces": [
+    3,
+    4,
+    8
+   ]
+  },
+  "bodies": [
+   {
+    "index": 0,
+    "named_dimensions": {
+     "overall_spans": {
+      "x": 70.0,
+      "y": 30.0,
+      "z": 30.0
+     },
+     "overall_thickness": 30.0,
+     "thickness_axis": "y"
+    }
+   }
+  ],
+  "coordinate_space": "local",
+  "derived": {
+   "hole_pairs": [],
+   "hole_patterns": [],
+   "oriented_slot_patterns": [],
+   "section_recess_patterns": [],
+   "slot_patterns": [],
+   "turned_profiles": [
+    {
+     "axis": "x",
+     "named_dimensions": {},
+     "profile": {
+      "axis": "x",
+      "axis_origin": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "body_bounds": [
+       -26.15272807,
+       43.84727193,
+       -15.0,
+       15.0,
+       -15.0,
+       15.0
+      ],
+      "body_key": [
+       -26.152728,
+       -15.0,
+       -15.0,
+       43.847272,
+       15.0,
+       15.0,
+       34280.9196496,
+       6591.78197765
+      ]
+     },
+     "steps": [
+      {
+       "axis": "x",
+       "diameter": 30.0,
+       "hi": 13.847,
+       "lo": -26.153,
+       "profile": {
+        "axis": "x",
+        "axis_origin": [
+         0.0,
+         0.0,
+         0.0
+        ],
+        "body_bounds": [
+         -26.15272807,
+         43.84727193,
+         -15.0,
+         15.0,
+         -15.0,
+         15.0
+        ],
+        "body_key": [
+         -26.152728,
+         -15.0,
+         -15.0,
+         43.847272,
+         15.0,
+         15.0,
+         34280.9196496,
+         6591.78197765
+        ]
+       }
+      },
+      {
+       "axis": "x",
+       "diameter": 16.0,
+       "hi": 43.847,
+       "lo": 13.847,
+       "profile": {
+        "axis": "x",
+        "axis_origin": [
+         0.0,
+         0.0,
+         0.0
+        ],
+        "body_bounds": [
+         -26.15272807,
+         43.84727193,
+         -15.0,
+         15.0,
+         -15.0,
+         15.0
+        ],
+        "body_key": [
+         -26.152728,
+         -15.0,
+         -15.0,
+         43.847272,
+         15.0,
+         15.0,
+         34280.9196496,
+         6591.78197765
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "faces": [
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 0,
+    "index": 0
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 1,
+    "index": 1
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 2,
+    "index": 2
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 3,
+    "index": 3
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 4,
+    "index": 4
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 5,
+    "index": 5
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 6,
+    "index": 6
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 7,
+    "index": 7
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 8,
+    "index": 8
+   }
+  ],
+  "features": [
+   {
+    "constituent_faces": [
+     0
+    ],
+    "defining_faces": [
+     0
+    ],
+    "family": "turned_steps",
+    "index": 0,
+    "record": {
+     "axis": "x",
+     "dependents": [
+      {
+       "constituent_faces": [
+        1
+       ],
+       "defining_faces": [
+        1
+       ],
+       "feature_index": 2,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        2
+       ],
+       "defining_faces": [
+        2
+       ],
+       "feature_index": 3,
+       "relation": "edge_treatment"
+      }
+     ],
+     "diameter": 30.0,
+     "hi": 13.847,
+     "lo": -26.153,
+     "named_dimensions": {
+      "axial_length": 40.0
+     },
+     "profile": {
+      "axis": "x",
+      "axis_origin": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "body_bounds": [
+       -26.15272807,
+       43.84727193,
+       -15.0,
+       15.0,
+       -15.0,
+       15.0
+      ],
+      "body_key": [
+       -26.152728,
+       -15.0,
+       -15.0,
+       43.847272,
+       15.0,
+       15.0,
+       34280.9196496,
+       6591.78197765
+      ]
+     }
+    },
+    "record_type": "TurnedStep"
+   },
+   {
+    "constituent_faces": [
+     6
+    ],
+    "defining_faces": [
+     6
+    ],
+    "family": "turned_steps",
+    "index": 1,
+    "record": {
+     "axis": "x",
+     "dependents": [
+      {
+       "constituent_faces": [
+        5
+       ],
+       "defining_faces": [
+        5
+       ],
+       "feature_index": 4,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        7
+       ],
+       "defining_faces": [
+        7
+       ],
+       "feature_index": 5,
+       "relation": "edge_treatment"
+      }
+     ],
+     "diameter": 16.0,
+     "hi": 43.847,
+     "lo": 13.847,
+     "named_dimensions": {
+      "axial_length": 30.0
+     },
+     "profile": {
+      "axis": "x",
+      "axis_origin": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "body_bounds": [
+       -26.15272807,
+       43.84727193,
+       -15.0,
+       15.0,
+       -15.0,
+       15.0
+      ],
+      "body_key": [
+       -26.152728,
+       -15.0,
+       -15.0,
+       43.847272,
+       15.0,
+       15.0,
+       34280.9196496,
+       6591.78197765
+      ]
+     }
+    },
+    "record_type": "TurnedStep"
+   },
+   {
+    "constituent_faces": [
+     1
+    ],
+    "defining_faces": [
+     1
+    ],
+    "family": "fillets",
+    "index": 2,
+    "record": {
+     "at": [
+      -25.918,
+      -14.766,
+      -0.0
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 0.8,
+     "side": "convex",
+     "turned": true
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     2
+    ],
+    "defining_faces": [
+     2
+    ],
+    "family": "fillets",
+    "index": 3,
+    "record": {
+     "at": [
+      13.613,
+      -14.766,
+      -0.0
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 0.8,
+     "side": "convex",
+     "turned": true
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     5
+    ],
+    "defining_faces": [
+     5
+    ],
+    "family": "fillets",
+    "index": 4,
+    "record": {
+     "at": [
+      14.082,
+      -8.234,
+      -0.0
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 0.8,
+     "side": "convex",
+     "turned": true
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     7
+    ],
+    "defining_faces": [
+     7
+    ],
+    "family": "fillets",
+    "index": 5,
+    "record": {
+     "at": [
+      43.613,
+      -7.766,
+      -0.0
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 0.8,
+     "side": "convex",
+     "turned": true
+    },
+    "record_type": "Fillet"
+   }
+  ],
+  "format": "quiddity-recognition",
+  "format_version": 3,
+  "frame": {
+   "gauge": "axial",
+   "origin": [
+    -5.651026094338173e-14,
+    8.368301216935226e-16,
+    26.15272806664848
+   ],
+   "x": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "y": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "z": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  "package": {
+   "name": "quiddity",
+   "version": "0.4.0.dev0"
+  },
+  "proof": "whole_solid",
+  "rotational": false
+ },
+ "recogniser": "quiddity 0.4.0.dev0",
+ "source_sha256": "971dca9ef243320b93a340e612cfe18bd7b99efd261a78e1bb0fd08ffc23d513"
+}

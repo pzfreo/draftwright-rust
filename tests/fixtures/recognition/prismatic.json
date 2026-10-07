@@ -1,0 +1,302 @@
+{
+ "faces": [
+  {
+   "area": 519.9999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 1196.5663706143591,
+   "surface": "plane"
+  },
+  {
+   "area": 62.83185307180001,
+   "surface": "cylinder"
+  },
+  {
+   "area": 62.83185307179997,
+   "surface": "cylinder"
+  },
+  {
+   "area": 1196.5663706143591,
+   "surface": "plane"
+  },
+  {
+   "area": 719.9999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 719.9999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 62.83185307179997,
+   "surface": "cylinder"
+  },
+  {
+   "area": 62.8318530718,
+   "surface": "cylinder"
+  },
+  {
+   "area": 519.9999999999999,
+   "surface": "plane"
+  }
+ ],
+ "format": "draftwright.recognition/1",
+ "quiddity": {
+  "association": {
+   "face_count": {
+    "associated": 4,
+    "ratio": 0.4,
+    "total": 10,
+    "unassociated": 6
+   },
+   "families": [
+    {
+     "face_count": 4,
+     "family": "fillets",
+     "surface_area": 251.32741228719993
+    }
+   ],
+   "surface_area": {
+    "associated": 251.32741228719993,
+    "ratio": 0.04904466124392888,
+    "total": 5124.460153515917,
+    "unassociated": 4873.132741228717
+   },
+   "unassociated_faces": [
+    0,
+    1,
+    4,
+    5,
+    6,
+    9
+   ]
+  },
+  "bodies": [
+   {
+    "index": 0,
+    "named_dimensions": {
+     "overall_spans": {
+      "x": 20.0,
+      "y": 30.0,
+      "z": 40.0
+     },
+     "overall_thickness": 20.0,
+     "thickness_axis": "x"
+    }
+   }
+  ],
+  "coordinate_space": "local",
+  "derived": {
+   "hole_pairs": [],
+   "hole_patterns": [],
+   "oriented_slot_patterns": [],
+   "section_recess_patterns": [],
+   "slot_patterns": [],
+   "turned_profiles": []
+  },
+  "faces": [
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 0,
+    "index": 0
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 1,
+    "index": 1
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 2,
+    "index": 2
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 3,
+    "index": 3
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 4,
+    "index": 4
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 5,
+    "index": 5
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 6,
+    "index": 6
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 7,
+    "index": 7
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 8,
+    "index": 8
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 9,
+    "index": 9
+   }
+  ],
+  "features": [
+   {
+    "constituent_faces": [
+     7
+    ],
+    "defining_faces": [
+     7
+    ],
+    "family": "fillets",
+    "index": 0,
+    "record": {
+     "at": [
+      0.0,
+      -14.414,
+      -19.414
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 2.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     2
+    ],
+    "defining_faces": [
+     2
+    ],
+    "family": "fillets",
+    "index": 1,
+    "record": {
+     "at": [
+      0.0,
+      -14.414,
+      19.414
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 2.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     8
+    ],
+    "defining_faces": [
+     8
+    ],
+    "family": "fillets",
+    "index": 2,
+    "record": {
+     "at": [
+      0.0,
+      14.414,
+      -19.414
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 2.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     3
+    ],
+    "defining_faces": [
+     3
+    ],
+    "family": "fillets",
+    "index": 3,
+    "record": {
+     "at": [
+      0.0,
+      14.414,
+      19.414
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 2.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   }
+  ],
+  "format": "quiddity-recognition",
+  "format_version": 3,
+  "frame": {
+   "gauge": "orthogonal",
+   "origin": [
+    3.0403485309584917e-16,
+    3.028472169509435e-17,
+    -9.385674960871043e-17
+   ],
+   "x": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "y": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "z": [
+    -1.0,
+    0.0,
+    0.0
+   ]
+  },
+  "package": {
+   "name": "quiddity",
+   "version": "0.4.0.dev0"
+  },
+  "proof": "whole_solid",
+  "rotational": false
+ },
+ "recogniser": "quiddity 0.4.0.dev0",
+ "source_sha256": "5356158c5cf7b57a7cbadd351826378523f39b54007df2372bff9d80a03a03c9"
+}
