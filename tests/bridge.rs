@@ -178,6 +178,92 @@ fn recognition_of_another_part_or_shape_is_refused() {
     );
 }
 
+/// The analysis of plate.json (edited).
+fn read_all(json: &Value) -> Result<(bridge::Recognition, Vec<bridge::Feature>), String> {
+    let (part, a) = model::analyse(&fixture("parts/plate.step")).unwrap();
+    bridge::read(&part, &a.binding.source_sha256, &json.to_string())
+}
+
+#[test]
+fn refusals_and_evidence_are_not_features() {
+    // quiddity's records as the corpus has them: a section recess it refused, and a face level.
+    let mut json = recognition("plate");
+    let features = json["quiddity"]["features"].as_array_mut().unwrap();
+    features[0]["family"] = "section_recesses".into();
+    features[0]["record_type"] = "SectionRecessRefusal".into();
+    features[0]["record"] = serde_json::json!({"reason": "unsupported_support_geometry"});
+    features[1]["family"] = "step_levels".into();
+    features[1]["record_type"] = "FaceLevel".into();
+    features[1]["record"] = serde_json::json!({"axis": "x", "level": 2.5});
+    let (r, features) = read_all(&json).unwrap();
+    let ids: Vec<_> = features.iter().map(|f| f.id.as_str()).collect();
+    assert_eq!(ids, ["f:hole:1", "f:hole:2"]);
+    assert_eq!(features[0].faces, [8]);
+    assert_eq!(r.refusals.len(), 1);
+    assert_eq!(r.refusals[0].subtype, "SectionRecessRefusal");
+    assert_eq!(r.refusals[0].faces, [6]);
+    assert_eq!(
+        r.refusals[0].parameters["reason"],
+        "unsupported_support_geometry"
+    );
+    assert_eq!(r.evidence.len(), 1);
+    assert_eq!(
+        (r.evidence[0].family.as_str(), &r.evidence[0].faces),
+        ("step_levels", &vec![7])
+    );
+
+    // A record type with no home is refused, not guessed at.
+    let mut json = recognition("plate");
+    json["quiddity"]["features"][0]["record_type"] = "WarpDrive".into();
+    let e = read_all(&json).unwrap_err();
+    assert!(
+        e.contains("WarpDrive (holes), which the bridge has no home for"),
+        "{e}"
+    );
+}
+
+#[test]
+fn circular_face_patterns_count_and_pitch_their_instances() {
+    // A circular face pattern whose instances are the plate's four holes, one face each.
+    let mut json = recognition("plate");
+    let instances: Vec<_> = (6..10)
+        .map(|f| serde_json::json!({"face_indices": [f]}))
+        .collect();
+    json["quiddity"]["features"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "family": "circular_face_patterns",
+            "record_type": "CircularFacePattern",
+            "record": {"count": 4},
+            "constituent_faces": [6, 7, 8, 9],
+            "instances": instances,
+        }));
+    let (_, features) = read_all(&json).unwrap();
+    let p = features
+        .iter()
+        .find(|f| f.kind == "circular_face_pattern")
+        .unwrap();
+    assert_eq!(p.id, "f:circular_face_pattern:1");
+    assert_eq!(p.faces, [6, 7, 8, 9]);
+    let pattern = p.fingerprint.pattern.as_ref().unwrap();
+    assert_eq!((pattern.count, pattern.pitch), (4, 20.0));
+}
+
+#[test]
+fn unreadable_fingerprint_parts_are_refused() {
+    let mut json = recognition("plate");
+    json["quiddity"]["features"][0]["record"]["axis"] = "w".into();
+    let e = read_all(&json).unwrap_err();
+    assert!(e.contains("axis \"w\" is not an axis"), "{e}");
+
+    let mut json = recognition("plate");
+    let holes = &mut json["quiddity"]["derived"]["hole_patterns"][0]["holes"];
+    holes[3]["location"] = Value::Null;
+    let e = read_all(&json).unwrap_err();
+    assert!(e.contains("member with no location"), "{e}");
+}
+
 #[test]
 fn the_command_line_takes_features() {
     let run = |args: &[&str]| {

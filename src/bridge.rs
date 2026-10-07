@@ -6,6 +6,10 @@
 //! are haecceity's, which are the STEP file's own order; quiddity's working-shape indices are
 //! mapped through its `caller_index`.
 //!
+//! Every record quiddity reports has one home, by its type ([`home`]): a feature, evidence (facts
+//! about faces that are not features, such as face levels), or a refusal (quiddity saw something
+//! and declined to call it a feature). A record type the bridge does not know is refused.
+//!
 //! A feature's ID is `f:<kind>:<n>`: its rank, from 1, among the features of its kind ordered by
 //! their faces. Its fingerprint follows quiddity-rust's `docs/correspondence.md` until quiddity
 //! issues its own: family and subtype, intrinsic sizes, axis, position in the part's frame, and
@@ -30,6 +34,77 @@ pub struct Recognition {
     /// `origin + l[0] x + l[1] y + l[2] z`. Coordinates and axis letters in a feature's
     /// parameters are in this frame.
     pub frame: [[f64; 3]; 4],
+    /// quiddity's evidence records: facts about faces, not features.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<Record>,
+    /// What quiddity declined to recognise, and why (in each record's parameters).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub refusals: Vec<Record>,
+}
+
+/// A quiddity record that is not a feature, ordered by family, subtype and faces.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Record {
+    pub family: String,
+    pub subtype: String,
+    /// The part's faces, ascending.
+    pub faces: Vec<usize>,
+    pub parameters: Map<String, Value>,
+}
+
+/// Where a quiddity record goes in the Analysis.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Home {
+    Feature,
+    Evidence,
+    Refusal,
+}
+
+/// The home of each record type quiddity's recognition document can carry: its capability
+/// manifest's `output` records are features, its `evidence` records evidence, and its section
+/// recess refusals refusals. Anything else is refused until it is given a home here.
+fn home(record_type: &str) -> Option<Home> {
+    Some(match record_type {
+        "AngledStep"
+        | "Blend"
+        | "BossRecord"
+        | "Chamfer"
+        | "CircularBlindStep"
+        | "CircularFacePattern"
+        | "CounterSink"
+        | "DoubleDBore"
+        | "Fillet"
+        | "Flat"
+        | "FreeformSurface"
+        | "Groove"
+        | "GussetRib"
+        | "GussetRibArray"
+        | "GussetRibMirrorPair"
+        | "HoleRecord"
+        | "InteriorVoid"
+        | "ObliqueThroughStep"
+        | "OrientedChamfer"
+        | "OrientedSlot"
+        | "OrientedSlotArray"
+        | "OrientedSlotGrid"
+        | "PairedRampStep"
+        | "Plate"
+        | "PolygonalBoss"
+        | "PolygonalStock"
+        | "RaisedPad"
+        | "SectionRecess"
+        | "SheetMetalBody"
+        | "Slot"
+        | "SlotArray"
+        | "SlotGrid"
+        | "ThinWallBody"
+        | "ThroughStep"
+        | "TurnedStep" => Home::Feature,
+        "FaceLevel" | "HoleSpec" | "RepeatingRadialProfile" | "RiserEvidence" => Home::Evidence,
+        "SectionRecessRefusal" => Home::Refusal,
+        _ => return None,
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -71,7 +146,9 @@ pub struct Pattern {
     pub pitch: f64,
 }
 
-/// The record fields, and named dimensions, that are a feature's intrinsic sizes.
+/// The record fields, and named dimensions, that are a feature's intrinsic sizes: the size names
+/// the corpus's records use. A size under another name is not in the fingerprint (it is still in
+/// the parameters).
 const SIZES: [&str; 18] = [
     "across_flats",
     "angle",
@@ -200,8 +277,30 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
     let frame = [f.origin, f.x, f.y, f.z];
 
     let mut features = Vec::new();
+    let (mut evidence, mut refusals) = (Vec::new(), Vec::new());
     for q in &doc.features {
+        let home = home(&q.record_type).ok_or_else(|| {
+            format!(
+                "quiddity reports a {} ({}), which the bridge has no home for",
+                q.record_type, q.family
+            )
+        })?;
         let faces = map(&q.constituent_faces)?;
+        let mut parameters = q.record.clone();
+        parameters.remove("dependents");
+        if home != Home::Feature {
+            let record = Record {
+                family: q.family.clone(),
+                subtype: q.record_type.clone(),
+                faces,
+                parameters,
+            };
+            match home {
+                Home::Evidence => evidence.push(record),
+                _ => refusals.push(record),
+            }
+            continue;
+        }
         if faces.is_empty() {
             return Err(format!("a {} has no faces to anchor it", q.family));
         }
@@ -213,10 +312,8 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
                 .collect::<Result<Vec<_>, String>>()?;
             Some(pattern(&centres))
         } else {
-            hole_pattern(&doc.derived.hole_patterns, &q.record)
+            hole_pattern(&doc.derived.hole_patterns, &q.record)?
         };
-        let mut parameters = q.record.clone();
-        parameters.remove("dependents");
         features.push(Feature {
             id: String::new(),
             kind: kind(&q.family),
@@ -225,7 +322,8 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
                 family: q.family.clone(),
                 subtype: q.record_type.clone(),
                 sizes: sizes(&q.record),
-                axis: axis(&q.record, &frame),
+                axis: axis(&q.record, &frame)
+                    .map_err(|e| format!("a {}'s axis {e}", q.record_type))?,
                 position: centre(part, &faces).map(round),
                 pattern,
             },
@@ -254,15 +352,29 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
         };
         features[i].id = format!("f:{}:{n}", features[i].kind);
     }
+    // Records with no ID are ordered by everything they carry.
+    let key = |r: &Record| {
+        (
+            r.family.clone(),
+            r.subtype.clone(),
+            r.faces.clone(),
+            Value::from(r.parameters.clone()).to_string(),
+        )
+    };
+    evidence.sort_by_cached_key(key);
+    refusals.sort_by_cached_key(key);
     let recognition = Recognition {
         recogniser: format!("{} via tools/recognise.py", w.recogniser),
         frame,
+        evidence,
+        refusals,
     };
     Ok((recognition, features))
 }
 
 /// Proves that the JSON's faces are the part's: in number, and each in surface type (where both
-/// readings name an analytic surface) and area. haecceity's areas agree with OpenCascade's
+/// readings name an analytic surface) and area. A face whose area haecceity cannot integrate
+/// cannot be proved, so it is refused too. haecceity's areas agree with OpenCascade's
 /// within 1e-4 relative on analytic faces and 1e-3 on B-splines across the corpus.
 fn check_faces(part: &Part, faces: &[FaceCheck]) -> Result<(), String> {
     if faces.len() != part.faces.len() {
@@ -283,9 +395,12 @@ fn check_faces(part: &Part, faces: &[FaceCheck]) -> Result<(), String> {
             ));
         }
         let tol = if both { 1e-3 } else { 1e-2 };
-        if let Some([area, _]) = part.face_mass(i)
-            && (area - check.area).abs() > tol * check.area.max(1.0)
-        {
+        let Some([area, _]) = part.face_mass(i) else {
+            return Err(format!(
+                "face {i}'s area cannot be measured here, so it cannot be matched to the recognition JSON"
+            ));
+        };
+        if (area - check.area).abs() > tol * check.area.max(1.0) {
             return Err(format!(
                 "face {i} has area {area:.6} here and {:.6} in the recognition JSON",
                 check.area
@@ -334,19 +449,17 @@ fn sizes(record: &Map<String, Value>) -> BTreeMap<String, f64> {
     out
 }
 
-fn axis(record: &Map<String, Value>, frame: &[[f64; 3]; 4]) -> Option<[f64; 3]> {
-    let local = match record.get("axis")? {
-        Value::String(s) => match s.as_str() {
-            "x" => [1.0, 0.0, 0.0],
-            "y" => [0.0, 1.0, 0.0],
-            "z" => [0.0, 0.0, 1.0],
-            _ => return None,
-        },
-        Value::Array(v) if v.len() == 3 => {
-            let c: Vec<f64> = v.iter().filter_map(Value::as_f64).collect();
-            <[f64; 3]>::try_from(c).ok()?
-        }
-        _ => return None,
+/// The record's `axis` in the part's frame; none if it has none, an error if it is unreadable.
+fn axis(record: &Map<String, Value>, frame: &[[f64; 3]; 4]) -> Result<Option<[f64; 3]>, String> {
+    let Some(value) = record.get("axis") else {
+        return Ok(None);
+    };
+    let local = match value {
+        Value::String(s) if s == "x" => [1.0, 0.0, 0.0],
+        Value::String(s) if s == "y" => [0.0, 1.0, 0.0],
+        Value::String(s) if s == "z" => [0.0, 0.0, 1.0],
+        Value::Null => return Ok(None),
+        v => point(v).ok_or_else(|| format!("{v} is not an axis"))?,
     };
     let mut d = [0, 1, 2].map(|k| (0..3).map(|j| local[j] * frame[j + 1][k]).sum::<f64>());
     if let Some(first) = d.iter().find(|c| c.abs() > 1e-9)
@@ -354,7 +467,16 @@ fn axis(record: &Map<String, Value>, frame: &[[f64; 3]; 4]) -> Option<[f64; 3]> 
     {
         d = d.map(|c| -c);
     }
-    Some(d.map(round))
+    Ok(Some(d.map(round)))
+}
+
+fn point(v: &Value) -> Option<[f64; 3]> {
+    let c: Vec<f64> = v
+        .as_array()?
+        .iter()
+        .map(Value::as_f64)
+        .collect::<Option<_>>()?;
+    <[f64; 3]>::try_from(c).ok()
 }
 
 /// The centre of the box around *faces*, in the part's frame.
@@ -380,25 +502,29 @@ fn pattern(members: &[[f64; 3]]) -> Pattern {
 }
 
 /// The hole pattern a hole belongs to: quiddity lists its members' records.
-fn hole_pattern(patterns: &[HolePattern], record: &Map<String, Value>) -> Option<Pattern> {
+fn hole_pattern(
+    patterns: &[HolePattern],
+    record: &Map<String, Value>,
+) -> Result<Option<Pattern>, String> {
     let at = |r: &Map<String, Value>| (r.get("location").cloned(), r.get("diameter").cloned());
     let this = at(record);
-    this.0.as_ref()?;
-    let p = patterns
+    if this.0.is_none() {
+        return Ok(None);
+    }
+    let Some(p) = patterns
         .iter()
-        .find(|p| p.holes.iter().any(|h| at(h) == this))?;
-    let members: Vec<[f64; 3]> = p
+        .find(|p| p.holes.iter().any(|h| at(h) == this))
+    else {
+        return Ok(None);
+    };
+    let members = p
         .holes
         .iter()
-        .filter_map(|h| {
-            let v: Vec<f64> = h
-                .get("location")?
-                .as_array()?
-                .iter()
-                .filter_map(Value::as_f64)
-                .collect();
-            <[f64; 3]>::try_from(v).ok()
+        .map(|h| {
+            h.get("location")
+                .and_then(point)
+                .ok_or("a hole pattern has a member with no location")
         })
-        .collect();
-    (members.len() == p.holes.len()).then(|| pattern(&members))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(pattern(&members)))
 }
