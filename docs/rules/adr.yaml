@@ -197,9 +197,8 @@
     adr: "ADR 2 Decision; archive 0004"
     issues: [121]
     tests: []
-  status: ported
-  rust_test: layout_calls_match_draftwright
-  port_note: "Keep: the planner sizes each view block including its annotations before choosing page/scale."
+  status: pending
+  port_note: "Keep: the planner sizes each view block including its annotations before choosing page/scale. (Rust: the block and packing arithmetic is ported and checked by layout_calls_match_draftwright, but model::plan has no feature bands and no measured repack yet.)"
 
 - id: ADR2-D5
   statement: "Within a view, annotations are never placed as they are rendered: every pass collects candidates, one deterministic solve per strip selects, orders and spaces them, then they are emitted."

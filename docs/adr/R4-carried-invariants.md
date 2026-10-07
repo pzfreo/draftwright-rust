@@ -34,7 +34,7 @@ documented limitation, 45 pending ports), **translated 33**, **retired 8**.
 | ADR1-2 | Drawing is not a state bus. | retired | Operations are pure functions over documents; there is no mutable drawing object to protect. |
 | ADR1-3 | One feature inventory per build, detected once. | translated | The Analysis is the only feature inventory; `plan` (including page and scale) reads Analysis and Spec only. |
 | ADR1-4 | Detection and declaration feed one waist. | translated | Analysis features and Spec-declared or overridden features resolve to one feature set before planning; nothing downstream branches on producer. |
-| ADR1-5 | Recognition records cross at one fail-closed adapter. | translated | One adapter in `analyse` from quiddity records to Analysis features, by exhaustive `match`, so a new record type fails to compile until it has a home. |
+| ADR1-5 | Recognition records cross at one fail-closed adapter. | translated | One adapter in `analyse` (`src/bridge.rs`) from quiddity records to the Analysis: a closed `match` gives each known record type one home (feature, evidence or refusal), and a read that meets any other type fails. The records arrive as JSON, so the failure is at read time, not compile time. |
 | ADR1-6 | Orientation is data: a feature's view follows from its axis by one rule. | kept | Pending port: view routing is a pure function of axis and measurement kind, stated in the item's basis. |
 | ADR1-7 | Dimension passes consume planner output; exceptions enumerated. | translated | R1 invariant 2. The exceptions (PMI, GD&T, the gear table) become Plan items with a source-authored basis, so there is no second channel to enumerate. |
 | ADR1-8 | One owner per physical measurement; never dedupe by value. | kept | Pending port: planner reconciliation; the yielding dimension is a Plan omission with basis `conveyed_by <id>`. |
@@ -84,7 +84,7 @@ documented limitation, 45 pending ports), **translated 33**, **retired 8**.
 | ADR3-2 | One recognition aggregate per build; none for a declared render. | translated | `analyse` runs recognition once; `plan` and `render` never do. The "none for a declared render" half is retired with ADR4-3. |
 | ADR3-3 | Consumers project the one result; they do not rescan. | translated | The Analysis is passed to `plan` and lint by reference. |
 | ADR3-4 | The provider join is fail-closed on family, record type and schema version. | kept | Pending port: the Analysis records quiddity's version and schema (`binding.loader`, `schema` today); `plan` refuses an unknown schema. No guard yet. |
-| ADR3-5 | Every record type has exactly one home. | translated | Exhaustive `match` over quiddity's record types (same mechanism as ADR1-5). |
+| ADR3-5 | Every record type has exactly one home. | translated | A closed `match` over quiddity's record types that fails the read on an unknown one (same mechanism as ADR1-5). |
 | ADR3-6 | No provider object crosses the waist. | translated | Spec and Plan name features by draftwright IDs. A quiddity fingerprint may sit in a Spec anchor as data (R3); a quiddity reference or face index never keys a Spec entry. |
 | ADR3-7 | Occurrence ownership is captured at conversion, by identity. | kept | Pending port: the Analysis carries, per recognised occurrence, its disposition and owning feature; an unaccounted occurrence is reported, never dropped. |
 | ADR3-8 | Ownerless policy is explicit per occurrence, from one capability table. | kept | Pending port. |
