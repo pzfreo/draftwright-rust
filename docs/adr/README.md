@@ -14,4 +14,4 @@ Records here start as **Proposed**, and are marked **Accepted** with the date th
 | [R1: the document model](R1-document-model.md) | Analysis, Spec and Plan; the five operations; the CLI, service and MCP adapters | Accepted 2026-10-07 |
 | [R2: the kernel](R2-kernel.md) | haecceity in place of OpenCascade; accuracy over parity; the verdict system | Accepted 2026-10-07 |
 | [R3: revisions](R3-revisions.md) | quiddity's correspondence; rebinding a spec to a revised part | Accepted 2026-10-07 |
-| [R4: carried invariants](R4-carried-invariants.md) | Each Python ADR rule, marked kept, translated or retired, against `docs/rules/` | Proposed |
+| [R4: carried invariants](R4-carried-invariants.md) | Each Python ADR rule, marked kept, translated or retired, against `docs/rules/` | Accepted 2026-10-07 |

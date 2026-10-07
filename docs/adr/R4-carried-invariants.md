@@ -1,6 +1,6 @@
 # ADR R4: Carried invariants
 
-**Status:** Proposed. The maintainer has not yet reviewed the rules catalogue.
+**Status:** Accepted (maintainer, 2026-10-07).
 
 **Covers:** every rule of the Python ADRs 1–5 in [`docs/rules/adr.yaml`](../rules/adr.yaml) (94
 entries: numbered invariants `ADR<n>-<k>`, decision-level rules `ADR<n>-D<k>` and unguarded rules
@@ -205,5 +205,5 @@ rounding, per-body step chains, and the regression floors on placed counts.
 **ADR5-9's reading is accepted:** recognition and topology identities never outlive a run.
 Draftwright's own IDs are fine within one file, and revisions carry quiddity's fingerprints.
 
-With these settled, this record awaits acceptance. On acceptance, the dispositions are copied into
-the catalogue's `status` fields.
+Accepted 2026-10-07. The dispositions have been copied into the catalogue: translated rules carry
+`rust_rule:`, retired rules `why:`, and kept rules stay `pending` until their ports land.
