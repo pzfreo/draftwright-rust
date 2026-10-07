@@ -1,0 +1,379 @@
+//! The layout arithmetic against draftwright's own: every sheet-layout call recorded from Python
+//! builds of the sample (`tools/capture_layout.py`, `tests/fixtures/layout/`) is replayed through
+//! `layout::choose` and `layout::geometry`, and must give the same scale, sheet and arrangement,
+//! the same view centres and isometric rectangle, and the same fit verdicts.
+
+use std::io::Read as _;
+use std::path::Path;
+
+use draftwright::layout::{
+    self, Arrangement, Block, Corner, Margins, Measured, Principals, Request, Scaled, Strips,
+};
+use serde_json::Value;
+
+fn fixtures() -> Vec<(String, Value)> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/layout");
+    let mut names: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.to_string_lossy().ends_with(".json.gz"))
+        .collect();
+    names.sort();
+    names
+        .into_iter()
+        .map(|p| {
+            let mut text = String::new();
+            flate2::read::GzDecoder::new(std::fs::File::open(&p).unwrap())
+                .read_to_string(&mut text)
+                .unwrap();
+            let v: Value = serde_json::from_str(&text).unwrap();
+            assert_eq!(v["schema"], "draftwright.layout-calls/1");
+            let name = p
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .replace(".json.gz", "");
+            (name, v)
+        })
+        .collect()
+}
+
+fn f(v: &Value) -> f64 {
+    v.as_f64().unwrap_or_else(|| panic!("not a number: {v}"))
+}
+
+fn margins(v: &Value) -> Option<Margins> {
+    v.as_array().map(|m| Margins {
+        left: f(&m[0]),
+        right: f(&m[1]),
+        top: f(&m[2]),
+        bottom: f(&m[3]),
+    })
+}
+
+fn arrangement(name: &str) -> Arrangement {
+    match name {
+        "columns" => Arrangement::Columns,
+        "stacked-iso" => Arrangement::StackedIso,
+        "staggered-side" => Arrangement::StaggeredSide,
+        other => panic!("arrangement {other}"),
+    }
+}
+
+fn corner(name: &str) -> Corner {
+    match name {
+        "bl" => Corner::BottomLeft,
+        "br" => Corner::BottomRight,
+        "tl" => Corner::TopLeft,
+        "tr" => Corner::TopRight,
+        other => panic!("corner {other}"),
+    }
+}
+
+fn request(c: &Value) -> Request {
+    let s = &c["strips"];
+    assert!(s.is_object(), "every recorded call carries strip depths");
+    let views = c["views"].as_array().map_or(Principals::ALL, |v| {
+        let has = |n: &str| v.iter().any(|x| x == n);
+        assert!(!has("rear"), "the rear view is not ported");
+        Principals {
+            front: has("front"),
+            plan: has("plan"),
+            side: has("side"),
+        }
+    });
+    assert_eq!(c["convention"], "third", "first angle is not ported");
+    Request {
+        size: [f(&c["size"][0]), f(&c["size"][1]), f(&c["size"][2])],
+        strips: Strips {
+            right: f(&s["right"]),
+            left: f(&s["left"]),
+            top: f(&s["top"]),
+            pv_halo: f(&s["pv_halo"]),
+            fv_top: f(&s["fv_top"]),
+            fv_bottom: f(&s["fv_bottom"]),
+            front_hole_below: f(&s["front_hole_below"]),
+            pv_authored_top: f(&s["pv_authored_top"]),
+            pv_bottom: f(&s["pv_bottom"]),
+            sv_top: f(&s["sv_top"]),
+            sv_bottom: f(&s["sv_bottom"]),
+            sv_right: f(&s["sv_right"]),
+            side_ladder: s["side_ladder"].as_u64().unwrap() as usize,
+            plan_demand: s["plan_demand"].as_bool().unwrap(),
+            side_step_y: s["side_step_y"].as_bool().unwrap(),
+        },
+        sections: c["section"].as_u64().unwrap() as usize,
+        table_sizes: c["table_sizes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| [f(&t[0]), f(&t[1])])
+            .collect(),
+        required_tables: c["required_tables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| ([f(&t[0][0]), f(&t[0][1])], corner(t[1].as_str().unwrap())))
+            .collect(),
+        margins: margins(&c["margin"]).unwrap(),
+        title_block_margins: margins(&c["title_block_margins"]),
+        views,
+        include_iso: c["include_iso"].as_bool().unwrap(),
+        iso_scale_factor: c["iso_scale_factor"].as_f64(),
+        view_gutters: c["view_gutters"].as_bool().unwrap(),
+    }
+}
+
+/// What depends on the scale, as recorded at each standard scale (keyed by Python's repr).
+fn scaled(c: &Value, derived: &Value, scale: f64) -> Scaled {
+    let at = |m: &Value| -> Option<Value> {
+        m.as_object()?
+            .iter()
+            .find(|(k, _)| k.parse::<f64>().unwrap() == scale)
+            .map(|(_, v)| v.clone())
+    };
+    let angular = at(&c["strips"]["angular"])
+        .unwrap_or_else(|| panic!("no angular reservations recorded at scale {scale}"));
+    let derived = match derived {
+        Value::Array(_) => derived.clone(),
+        Value::Null => Value::Array(vec![]),
+        m => at(m).unwrap_or_else(|| panic!("no derived views recorded at scale {scale}")),
+    };
+    Scaled {
+        angular: angular
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| {
+                let b = &a[1];
+                (
+                    a[0].as_str().unwrap().to_string(),
+                    [f(&b[0]), f(&b[1]), f(&b[2]), f(&b[3])],
+                )
+            })
+            .collect(),
+        derived: derived
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|d| (d[0].as_str().unwrap().to_string(), f(&d[1]), f(&d[2])))
+            .collect(),
+    }
+}
+
+fn page(v: &Value) -> Option<[f64; 2]> {
+    match v {
+        Value::Null => None,
+        Value::Array(p) => Some([f(&p[0]), f(&p[1])]),
+        Value::String(name) => layout::PAGES
+            .iter()
+            .find(|p| p.0 == name.to_uppercase())
+            .map(|p| [p.1, p.2])
+            .or_else(|| panic!("page {name}")),
+        other => panic!("page {other}"),
+    }
+}
+
+fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() <= 1e-9 * (1.0 + b.abs())
+}
+
+#[test]
+fn layout_calls_match_draftwright() {
+    let all = fixtures();
+    assert!(all.len() >= 10, "the layout fixtures are captured");
+    let (mut choices, mut layouts) = (0, 0);
+    for (name, fixture) in &all {
+        for (i, c) in fixture["calls"].as_array().unwrap().iter().enumerate() {
+            let at = format!("{name} call {i} ({})", c["call"]);
+            let req = request(c);
+            match c["call"].as_str().unwrap() {
+                "choose_scale" => {
+                    let arrangements: Vec<Arrangement> = c["arrangements"]
+                        .as_array()
+                        .map(|a| a.iter().map(|x| arrangement(x.as_str().unwrap())).collect())
+                        .unwrap_or(layout::AUTOMATIC_ARRANGEMENTS.to_vec());
+                    let pick = layout::choose(
+                        &req,
+                        &|s| scaled(c, &c["derived"], s),
+                        c["scale"].as_f64(),
+                        page(&c["page"]),
+                        &arrangements,
+                        c["title_block_width"].as_f64(),
+                    );
+                    let r = c["result"].as_array().unwrap();
+                    assert!(
+                        close(pick.scale, f(&r[0]))
+                            && pick.page == [f(&r[1]), f(&r[2])]
+                            && pick.tb_w == f(&r[3])
+                            && pick.arrangement.name() == r[4],
+                        "{at}: {pick:?} vs {r:?}"
+                    );
+                    choices += 1;
+                }
+                "layout_geometry" => {
+                    let scale = f(&c["scale"]);
+                    let measured = c["blocks"].as_object().map(|b| {
+                        let block = |n: &str| {
+                            b.get(n).map(|v| Block {
+                                hw: f(&v[0]),
+                                hh: f(&v[1]),
+                                top: f(&v[2]),
+                                right: f(&v[3]),
+                                bottom: f(&v[4]),
+                                left: f(&v[5]),
+                            })
+                        };
+                        assert!(!b.contains_key("rear"), "the rear view is not ported");
+                        Measured {
+                            front: block("front"),
+                            plan: block("plan"),
+                            side: block("side"),
+                        }
+                    });
+                    let g = layout::geometry(
+                        &req,
+                        &scaled(c, &c["derived_view_footprints"], scale),
+                        scale,
+                        page(&c["page"]).unwrap(),
+                        f(&c["tb_w"]),
+                        arrangement(c["arrangement"].as_str().unwrap()),
+                        measured.as_ref(),
+                    );
+                    let r = &c["result"];
+                    let numbers = [
+                        ("FV_X", g.front[0]),
+                        ("FV_Y", g.front[1]),
+                        ("PV_X", g.plan[0]),
+                        ("PV_Y", g.plan[1]),
+                        ("SV_X", g.side[0]),
+                        ("SV_Y", g.side[1]),
+                        ("SECTION_X", g.section[0]),
+                        ("SECTION_Y", g.section[1]),
+                        ("iso_left", g.iso[0]),
+                        ("iso_bottom", g.iso[1]),
+                        ("iso_right", g.iso[2]),
+                        ("iso_top", g.iso[3]),
+                        ("ISO_X", g.iso_centre[0]),
+                        ("ISO_Y", g.iso_centre[1]),
+                        ("vertical_gutter", g.vertical_gutter),
+                        ("side_gutter", g.side_gutter),
+                        ("x_offset", g.x_offset),
+                    ];
+                    for (key, ours) in numbers {
+                        assert!(close(ours, f(&r[key])), "{at}: {key} {ours} vs {}", r[key]);
+                    }
+                    let flags = [
+                        ("iso_valid", g.iso_valid),
+                        ("iso_fits", g.iso_fits),
+                        ("fits", g.fits),
+                        ("auto_fits", g.auto_fits),
+                    ];
+                    for (key, ours) in flags {
+                        assert_eq!(Some(ours), r[key].as_bool(), "{at}: {key}");
+                    }
+                    assert_eq!(g.arrangement.name(), r["arrangement"], "{at}");
+                    layouts += 1;
+                }
+                other => panic!("{at}: unknown call {other}"),
+            }
+        }
+    }
+    assert!(
+        choices > 20 && layouts > 20,
+        "{choices} choices, {layouts} layouts"
+    );
+}
+
+/// Paths the sample's builds never take, against values computed by draftwright's own
+/// `choose_scale` and `_layout_geometry` for the same inputs.
+#[test]
+fn unsampled_paths_match_draftwright() {
+    let req = |size| Request::new(size, Principals::ALL, true);
+    let none = |_: f64| Scaled::default();
+    let auto = layout::AUTOMATIC_ARRANGEMENTS;
+    // Too large for every standard scale: the largest scale that fits A0, by bisection.
+    let p = layout::choose(&req([5e7, 2e7, 1e7]), &none, None, None, &auto, None);
+    assert_eq!(p.scale, 1.0376190476190478e-05);
+    assert_eq!((p.page, p.tb_w), ([1189.0, 841.0], 150.0));
+    assert_eq!(p.fallback, Some(layout::Fallback::Computed));
+    // A pinned sheet and a pinned scale.
+    let p = layout::choose(
+        &req([80.0, 50.0, 30.0]),
+        &none,
+        None,
+        Some([420.0, 297.0]),
+        &auto,
+        None,
+    );
+    assert_eq!(
+        (p.scale, p.page, p.arrangement),
+        (1.0, [420.0, 297.0], Arrangement::Columns)
+    );
+    let p = layout::choose(
+        &req([80.0, 50.0, 30.0]),
+        &none,
+        Some(5.0),
+        None,
+        &auto,
+        None,
+    );
+    assert_eq!((p.scale, p.page), (5.0, [841.0, 594.0]));
+    // A required table, and an optional one.
+    let mut r = req([80.0, 50.0, 30.0]);
+    r.required_tables = vec![([60.0, 30.0], Corner::TopRight)];
+    r.table_sizes = vec![[40.0, 20.0]];
+    let g = layout::geometry(
+        &r,
+        &none(1.0),
+        1.0,
+        [297.0, 210.0],
+        120.0,
+        Arrangement::Columns,
+        None,
+    );
+    assert_eq!((g.front, g.side[0]), ([70.0, 70.0], 155.0));
+    assert_eq!(g.iso, [130.0, 105.0, 227.0, 200.0]);
+    assert_eq!((g.fits, g.auto_fits), (false, true));
+    r.required_tables = vec![([260.0, 30.0], Corner::TopRight)];
+    r.table_sizes.clear();
+    let g = layout::geometry(
+        &r,
+        &none(1.0),
+        1.0,
+        [297.0, 210.0],
+        120.0,
+        Arrangement::Columns,
+        None,
+    );
+    assert_eq!((g.fits, g.auto_fits), (false, false));
+}
+
+/// A rectangle with no room gives no scale to the transform: the isometric stays at sheet scale
+/// (draftwright #1395), and one within 5 % of it is left alone.
+#[test]
+fn a_degenerate_iso_rectangle_leaves_the_sheet_scale() {
+    let bounds = [-10.0, -8.0, 10.0, 8.0];
+    let sliver = [100.0, 50.0, 236.0, 50.0 + 1.4e-14];
+    assert_eq!(layout::iso_factor(sliver, [168.0, 50.0], bounds), 1.0);
+    let inverted = [100.0, 40.0, 90.0, 60.0];
+    assert_eq!(layout::iso_factor(inverted, [95.0, 50.0], bounds), 1.0);
+    assert_eq!(
+        layout::iso_factor([0.0, 0.0, 21.0, 17.0], [10.5, 8.5], bounds),
+        1.0
+    );
+    // Room to spare: grow to 90 % of the rectangle, at most 1.3.
+    assert_eq!(
+        layout::iso_factor([0.0, 0.0, 100.0, 100.0], [50.0, 50.0], bounds),
+        1.3
+    );
+    assert_eq!(
+        layout::iso_factor([0.0, 0.0, 24.0, 40.0], [12.0, 20.0], bounds),
+        1.08
+    );
+    // Too little: shrink to fit with 2 % to spare.
+    assert_eq!(
+        layout::iso_factor([0.0, 0.0, 10.0, 40.0], [5.0, 20.0], bounds),
+        0.49
+    );
+}
