@@ -393,9 +393,11 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         }
     }
     let demand = crate::demand::read(analysis);
-    // A turned part drops the view that repeats its profile, unless the spec asks for it.
+    // A turned part drops the view that repeats its profile, unless the spec asks for it, or
+    // omits the profile view it keeps (front): the dropped view is then the only profile left.
+    let omitted = |name: &str| spec.views.get(name).is_some_and(|v| v.omit);
     let reduction = crate::demand::turned_views(&demand)
-        .filter(|(_, dropped, _)| !spec.views.contains_key(*dropped));
+        .filter(|(kept, dropped, _)| !spec.views.contains_key(*dropped) && !omitted(kept[0]));
     let shown = |name: &str| match spec.views.get(name) {
         Some(v) => !v.omit,
         None => !reduction.as_ref().is_some_and(|r| r.1 == name),

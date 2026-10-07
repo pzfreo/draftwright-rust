@@ -11,9 +11,9 @@
 //! `tests/fixtures/known_dimensions.json`; a listed difference that goes away must come off.
 //!
 //! The features come from Python quiddity 0.3.9 (draftwright's own recogniser for these sheets),
-//! through `tools/recognise.py`, stored in `tests/fixtures/recognition/sheets/`. ctc04 has none:
-//! the bridge refuses its recognition (face 367's area, 13.0806 here and 13.1002 in
-//! OpenCascade), so it is not compared. Set `DIMS_REPORT=1` to print every difference.
+//! through `tools/recognise.py`, stored in `tests/fixtures/recognition/sheets/`. ctc04 is not
+//! compared: the bridge refuses its recognition (face 367's area, 13.0806 here and 13.1002 in
+//! OpenCascade). Set `DIMS_REPORT=1` to print every difference.
 
 #[path = "common/facts.rs"]
 mod facts;
@@ -61,12 +61,20 @@ fn recognition(name: &str) -> Option<String> {
     Some(text)
 }
 
-fn analysed(corpus: &Path, file: &str, json: &str) -> Analysis {
+/// The part with its features, or None when the bridge refuses the recognition, which only
+/// ctc04's may (see the module docs).
+fn analysed(corpus: &Path, name: &str, file: &str, json: &str) -> Option<Analysis> {
     let (part, mut a) = model::analyse(&corpus.join(file)).unwrap();
-    let (r, features) = draftwright::bridge::read(&part, &a.binding.source_sha256, json).unwrap();
+    let (r, features) = match draftwright::bridge::read(&part, &a.binding.source_sha256, json) {
+        Ok(read) => read,
+        Err(e) => {
+            assert_eq!(name, "ctc04", "the bridge refuses {name}: {e}");
+            return None;
+        }
+    };
     a.recognition = Some(r);
     a.features = features;
-    a
+    Some(a)
 }
 
 /// The family a draftwright measurement belongs to, if the port plans it.
@@ -138,7 +146,7 @@ type Diff = (String, String, String, String, String);
 fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, usize)> {
     let f = facts::load(name);
     let json = recognition(name)?;
-    let a = analysed(corpus, &f.binding.file, &json);
+    let a = analysed(corpus, name, &f.binding.file, &json)?;
     assert_eq!(a.binding.source_sha256, f.binding.sha256, "{name}");
     let plan = model::plan(&a, &Spec::default()).unwrap();
 
