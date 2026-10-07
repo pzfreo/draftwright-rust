@@ -33,7 +33,7 @@ edited.
 
 ```json
 {
-  "schema": "draftwright.analysis/2",
+  "schema": "draftwright.analysis/3",
   "binding": { "source_sha256": "…", "part": "10127", "face_count": 27, "loader": "haecceity 0.1" },
   "frame": { "origin": [0, 0, 0], "axes": [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
   "envelope": { "min": [0, 0, 0], "max": [28.8, 32.3, 44.7] },
@@ -41,9 +41,14 @@ edited.
     { "id": "f:hole:3", "kind": "hole", "faces": [12, 13],
       "parameters": { "diameter": 8.1, "depth": "through" },
       "fingerprint": { "…": "quiddity's revision-stable signature, see Rebinding" } }
-  ]
+  ],
+  "levels": [28.288, 32.368]
 }
 ```
+
+- **Levels** (`draftwright.analysis/3`) are the heights of the part's horizontal face levels,
+  read from the geometry as quiddity's `step_level_records` reads them but in the part's own
+  frame: what a prismatic part's height ladder dimensions. Older analyses read with none.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.

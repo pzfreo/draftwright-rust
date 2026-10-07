@@ -7,8 +7,10 @@ pub use haecceity;
 
 pub mod api;
 pub mod bridge;
+pub mod demand;
 pub mod layout;
 pub mod lint;
 pub mod model;
 pub mod output;
+pub mod section;
 pub mod text;

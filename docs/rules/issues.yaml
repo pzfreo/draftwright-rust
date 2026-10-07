@@ -1398,8 +1398,9 @@
       - "tests/test_issue_1262_automatic_turned_views.py::test_an_explicit_scale_still_selects_the_smallest_complete_view_set"
       - "tests/test_issue_1262_automatic_turned_views.py::test_grm03_callout_keeps_external_text_clearance_from_the_end_view"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
-  status: pending
-  port_note: "Keep: view-set default with basis in Plan; scenario test on turned parts."
+  status: ported
+  rust_test: a_turned_part_leaves_out_the_view_that_repeats_its_profile
+  port_note: "Keep: view-set default with basis in Plan; scenario test on turned parts. (Rust: src/demand.rs::turned_views, with the unit test a_turned_part_drops_the_repeated_view_unless_a_feature_needs_it. The veto is a hole needing the dropped view end-on; draftwright vetoes on any planned annotation or finished-sheet loss, which waits for dimensions and lint.)"
 
 - id: ISSUE-1276-a
   statement: "Leaders for turned edge treatments (chamfers, fillets) and cylindrical notes (knurl, groove) land on the physical profile surface in the profile view, at the feature's own axial station, rotating about the feature's own axis."

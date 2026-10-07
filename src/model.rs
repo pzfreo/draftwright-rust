@@ -13,7 +13,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use haecceity::Part;
-use haecceity::hlr::{Exact, View, project};
+use haecceity::classify::{Classifier, State};
+use haecceity::hlr::{self, Exact, Plane, View, project, project_section};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -24,8 +25,9 @@ use crate::output::{
 };
 use crate::text::{Font, Segment};
 
-/// Version 2 added the isometric box (`iso_bounds`) and the recognised features.
-pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/2";
+/// Version 2 added the isometric box (`iso_bounds`) and the recognised features, version 3 the
+/// horizontal face levels (`levels`).
+pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/3";
 pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
 pub const PLAN_SCHEMA: &str = "draftwright.plan/1";
 
@@ -55,6 +57,10 @@ pub struct Analysis {
     /// The isometric's projected box (visible and hidden edges), `[x0, y0, x1, y1]` mm at 1:1,
     /// about the projection of the envelope's centre: what the isometric is fitted by.
     pub iso_bounds: [f64; 4],
+    /// The heights (z, mm) of the part's horizontal face levels: what a prismatic part's height
+    /// ladder dimensions ([`crate::demand::face_levels`]).
+    #[serde(default)]
+    pub levels: Vec<f64>,
 }
 
 /// What the author decided. Anything absent takes its default.
@@ -145,6 +151,19 @@ pub struct PlannedView {
     pub area: [f64; 4],
     pub default: bool,
     pub basis: String,
+    /// A section view's cutting plane.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cut: Option<Cut>,
+}
+
+/// A section's cutting plane: the material on the side `normal` points to is kept and seen from
+/// the side removed. The plane is marked on the `marked_in` view, its ends lettered `label`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Cut {
+    pub label: String,
+    pub origin: [f64; 3],
+    pub normal: [f64; 3],
+    pub marked_in: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -188,6 +207,8 @@ const VIEWS: [(&str, [f64; 3], [f64; 3]); 4] = [
     ("side", [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     ("iso", [1.0, -1.0, 1.0], [0.0, 0.0, 1.0]),
 ];
+/// Section A-A's view name (draftwright's `section_aa`).
+pub const SECTION: &str = "section_aa";
 const LOADER: &str = concat!("haecceity via draftwright ", env!("CARGO_PKG_VERSION"));
 
 /// A scale as printed: `n:1` or `1:n`.
@@ -236,6 +257,7 @@ pub fn analyse_with(path: &Path, recognition: Option<&Path>) -> Result<(Part, An
         recognition: None,
         features: Vec::new(),
         iso_bounds: [0.0; 4],
+        levels: crate::demand::face_levels(&part),
     };
     let (_, toward, up) = VIEWS[3];
     let iso = View::new(toward, up).expect("standard view");
@@ -264,13 +286,18 @@ pub fn analyse_with(path: &Path, recognition: Option<&Path>) -> Result<(Part, An
     if let Some(r) = recognition {
         let json =
             std::fs::read_to_string(r).map_err(|e| format!("cannot read {}: {e}", r.display()))?;
-        let (recognition, features) =
-            crate::bridge::read(&part, &analysis.binding.source_sha256, &json)
-                .map_err(|e| format!("{}: {e}", r.display()))?;
-        analysis.recognition = Some(recognition);
-        analysis.features = features;
+        recognise(&part, &mut analysis, &json).map_err(|e| format!("{}: {e}", r.display()))?;
     }
     Ok((part, analysis))
+}
+
+/// Takes *analysis*'s features from Python quiddity's recognition JSON for the same file
+/// ([`crate::bridge`]).
+pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(), String> {
+    let (recognition, features) = crate::bridge::read(part, &analysis.binding.source_sha256, json)?;
+    analysis.recognition = Some(recognition);
+    analysis.features = features;
+    Ok(())
 }
 
 /// The box (width, height) and centre of the part's envelope seen in *view*, mm at 1:1.
@@ -296,9 +323,10 @@ fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
 /// around it, packed third-angle; the isometric takes the largest space left. Each choice the
 /// spec leaves open is marked as a default, with the reason for it.
 ///
-/// Until features are ported, the bands are those of a part with nothing but its overall sizes
-/// to dimension, and the scale and sheet are draftwright's first choice, before it re-plans on
-/// its finished drawing's findings.
+/// The bands, the turned-part view set and section A–A come from the features
+/// ([`crate::demand`]); the height ladder is sized for the steps legible at the scale chosen.
+/// The scale and sheet are draftwright's first choice, before it re-plans on its finished
+/// drawing's findings.
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let mut problems = Vec::new();
     if let Some(b) = &spec.binding
@@ -314,14 +342,23 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         });
     }
     for name in spec.views.keys() {
-        if !VIEWS.iter().any(|(v, ..)| v == name) {
+        if name != SECTION && !VIEWS.iter().any(|(v, ..)| v == name) {
+            let mut names = VIEWS.map(|v| v.0).to_vec();
+            names.push(SECTION);
             return Err(invalid(
                 format!("There is no view called {name:?}."),
-                &VIEWS.map(|v| v.0),
+                &names,
             ));
         }
     }
-    let shown = |name: &str| !spec.views.get(name).is_some_and(|v| v.omit);
+    let demand = crate::demand::read(analysis);
+    // A turned part drops the view that repeats its profile, unless the spec asks for it.
+    let reduction = crate::demand::turned_views(&demand)
+        .filter(|(_, dropped, _)| !spec.views.contains_key(*dropped));
+    let shown = |name: &str| match spec.views.get(name) {
+        Some(v) => !v.omit,
+        None => !reduction.as_ref().is_some_and(|r| r.1 == name),
+    };
     let principals = Principals {
         front: shown("front"),
         plan: shown("plan"),
@@ -366,20 +403,20 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     };
 
     let [lo, hi] = analysis.envelope;
-    let request = Request::new(
+    // Section A-A is marked on the plan and sits in the front's row.
+    let section = demand
+        .section
+        .clone()
+        .filter(|_| shown(SECTION) && principals.plan && (principals.front || principals.side));
+    let mut request = Request::new(
         [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]],
         principals,
         shown("iso"),
     );
-    let none = |_: f64| Scaled::default();
-    let pick = layout::choose(
-        &request,
-        &none,
-        scale,
-        page,
-        &layout::AUTOMATIC_ARRANGEMENTS,
-        None,
-    );
+    request.sections = usize::from(section.is_some());
+    // The height ladder is sized for the steps legible at the scale it leads to.
+    let (pick, strips, _) = crate::demand::size(&demand, &request, scale, page, lo[2]);
+    request.strips = strips;
     let size = layout::PAGES
         .iter()
         .find(|(_, w, h)| [*w, *h] == pick.page)
@@ -416,7 +453,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     }
     let basis = match (&spec.sheet.size, &spec.sheet.scale) {
         (None, None) => format!(
-            "the first sheet and scale on draftwright's ladder (every enlargement on the smallest sheet first, then reductions) whose views and their annotation bands fit: {size} at {scale}"
+            "the first sheet and scale on draftwright's ladder (every enlargement on the smallest sheet first, then reductions) whose views and the annotation bands their features need fit: {size} at {scale}"
         ),
         (Some(_), None) => format!("the largest standard scale at which the views fit {size}"),
         (None, Some(_)) => format!("the smallest sheet that holds the views at {scale}"),
@@ -434,7 +471,13 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     );
     let ib = analysis.iso_bounds.map(|b| b * pick.scale);
     let iso_factor = layout::iso_factor(g.iso, g.iso_centre, ib);
-    let views = VIEWS
+    let turned = |name: &str| match &reduction {
+        Some((kept, dropped, why)) if kept.contains(&name) => {
+            format!("; {why}, so the {dropped} view is left out")
+        }
+        _ => String::new(),
+    };
+    let mut views: Vec<PlannedView> = VIEWS
         .iter()
         .filter(|(name, ..)| shown(name))
         .map(|(name, direction, up)| {
@@ -481,10 +524,33 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 scale,
                 area,
                 default: !spec.views.contains_key(*name),
-                basis,
+                basis: basis + &turned(name),
+                cut: None,
             }
         })
         .collect();
+    if let (Some(cut), Some(area)) = (&section, g.section_boxes.first()) {
+        views.push(PlannedView {
+            id: format!("v:{SECTION}"),
+            direction: [0.0, -1.0, 0.0],
+            up: [0.0, 0.0, 1.0],
+            at: g.section,
+            scale: pick.scale,
+            area: *area,
+            default: !spec.views.contains_key(SECTION),
+            basis: format!(
+                "draftwright's section rule: a z-axis hole with a counterbore, spotface or bottom shows its profile in no standard view; the plane y = {} cuts the densest row of them ({} on it), seen from the front and placed right of the side view",
+                fmt_ratio(cut.cut_y),
+                cut.holes
+            ),
+            cut: Some(Cut {
+                label: "A".into(),
+                origin: [0.5 * (lo[0] + hi[0]), cut.cut_y, 0.5 * (lo[2] + hi[2])],
+                normal: [0.0, 1.0, 0.0],
+                marked_in: "v:plan".into(),
+            }),
+        });
+    }
     let mut title = spec.sheet.title.clone();
     title
         .entry("title".into())
@@ -570,6 +636,9 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
 /// Draws the plan: each view projected with hidden lines, placed and scaled, and the title
 /// block. The spec travels in the output.
 pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Drawing {
+    // Section furniture (hatch, cutting plane), and its text: what, where.
+    let mut furniture: Vec<Item> = Vec::new();
+    let mut captions: Vec<(String, [f64; 2])> = Vec::new();
     let mut layers: Vec<Layer> = layer_styles()
         .into_iter()
         .map(|(name, style)| Layer {
@@ -588,13 +657,23 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
                 v.at[1] + s * (q[1] - centre[1]),
             ]
         };
-        for piece in project(part, &view) {
+        let plane = v.cut.as_ref().and_then(|c| Plane::new(c.origin, c.normal));
+        let pieces = match &plane {
+            Some(plane) => project_section(part, &view, plane),
+            None => project(part, &view),
+        };
+        for piece in pieces {
             let mut moved = piece.clone();
             moved.points = piece.points.iter().map(|q| place(*q)).collect();
             moved.exact = piece.exact.as_ref().map(|e| placed(e, s, centre, v.at));
             layers[usize::from(!piece.visible)]
                 .items
                 .push(Item::Edge(projected(&moved)));
+        }
+        if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
+            let f = section_furniture(part, analysis, plan, v, (plane, cut));
+            furniture.extend(f.ink);
+            captions.extend(f.text);
         }
     }
     // The border and the title block, lower right.
@@ -650,6 +729,10 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
         });
     };
     let dims = &mut layers[2].items;
+    dims.extend(furniture);
+    for (s, at) in &captions {
+        label(s, *at, crate::section::FONT_SIZE, dims);
+    }
     let title = |k: &str| plan.sheet.title.get(k).cloned().unwrap_or_default();
     label(&title("title"), [0.5 * (tx0 + tx1), ty1 - 12.0], 5.0, dims);
     label(
@@ -671,6 +754,93 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
         annotations: Vec::new(),
         spec: Some(serde_json::to_string(&plan.spec).expect("a spec serialises")),
     }
+}
+
+/// A section view's furniture: ink, and texts with where each is centred.
+struct Furniture {
+    ink: Vec<Item>,
+    text: Vec<(String, [f64; 2])>,
+}
+
+/// Section view *v*'s furniture: its cut face hatched, its caption, and the cutting-plane line
+/// with its arrows and letters on the view that marks it (draftwright's `_add_section_view`).
+fn section_furniture(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    v: &PlannedView,
+    (plane, cut): (&Plane, &Cut),
+) -> Furniture {
+    use crate::section::{HATCH_SPACING, OVERRUN, cutting_plane, hatch};
+    let mut out = Furniture {
+        ink: Vec::new(),
+        text: Vec::new(),
+    };
+    let view = &View::new(v.direction, v.up).expect("a planned view");
+    let (s, centre) = (v.scale, extent(analysis, view).1);
+    let page: Vec<Vec<[f64; 2]>> = hlr::section(part, plane)
+        .iter()
+        .map(|l| {
+            l.iter()
+                .map(|p| {
+                    let q = view.map(*p);
+                    [
+                        v.at[0] + s * (q[0] - centre[0]),
+                        v.at[1] + s * (q[1] - centre[1]),
+                    ]
+                })
+                .collect()
+        })
+        .collect();
+    // Each hatch stretch is kept where the part has material just behind the cut, on the kept
+    // side: a face lying in the cutting plane leaves a doubled piece in the cut's boundary.
+    let classifier = Classifier::new(part);
+    let n = cut.normal;
+    let inside = |q: [f64; 2]| {
+        let (u, w) = (
+            centre[0] + (q[0] - v.at[0]) / s,
+            centre[1] + (q[1] - v.at[1]) / s,
+        );
+        let base = [0, 1, 2].map(|k| view.x[k] * u + view.y[k] * w);
+        let along = (0..3)
+            .map(|k| (cut.origin[k] - base[k]) * n[k])
+            .sum::<f64>()
+            / (0..3).map(|k| view.toward[k] * n[k]).sum::<f64>();
+        let p = [0, 1, 2].map(|k| base[k] + view.toward[k] * along + n[k] * 1e-2);
+        classifier.classify(p) == State::In
+    };
+    for [a, b] in hatch(&page, HATCH_SPACING, Some(&inside)) {
+        out.ink.push(Item::Edge(Curve::Line(a, b)));
+    }
+    let half_h = 0.5 * extent(analysis, view).0[1] * v.scale;
+    let l = &cut.label;
+    out.text.push((
+        format!("SECTION {l}\u{2013}{l}"),
+        [v.at[0], v.at[1] - half_h - 7.0],
+    ));
+    if let Some(m) = plan.views.iter().find(|w| w.id == cut.marked_in)
+        && let Some(mv) = View::new(m.direction, m.up)
+    {
+        let centre = extent(analysis, &mv).1;
+        let to_page = |p: [f64; 3]| {
+            let q = mv.map(p);
+            [
+                m.at[0] + m.scale * (q[0] - centre[0]),
+                m.at[1] + m.scale * (q[1] - centre[1]),
+            ]
+        };
+        let [lo, hi] = analysis.envelope;
+        // The line runs across the part's extent along the view's x, past it each side.
+        let (a, b) = (
+            to_page([lo[0], cut.origin[1], lo[2]]),
+            to_page([hi[0], cut.origin[1], hi[2]]),
+        );
+        let (x0, x1) = (a[0].min(b[0]) - OVERRUN, a[0].max(b[0]) + OVERRUN);
+        let (ink, letters) = cutting_plane(x0, x1, to_page(cut.origin)[1]);
+        out.ink.extend(ink);
+        out.text.extend(letters.map(|at| (l.clone(), at)));
+    }
+    out
 }
 
 /// A projected curve scaled by *s* about *centre* and moved to *at*.
