@@ -430,7 +430,7 @@
 
 - id: ISSUE-1000-a
   statement: "Declaring the whole-part envelope on a sheet that already has a detected envelope reuses that feature rather than duplicating it or creating phantom suppressions; explicitly distinct envelope objects stay distinct."
-  class: machinery
+  class: spec
   source:
     issues: [1000]
     tests:
@@ -1668,7 +1668,7 @@
 
 - id: ISSUE-1350-a
   statement: "Taking over a detected baseline is one order-independent workflow: detected items keep their handles, matching declarations mean the same before or after takeover, and contradictory sources are rejected atomically."
-  class: machinery
+  class: spec
   source:
     issues: [1350]
     tests:
@@ -2070,7 +2070,7 @@
 
 - id: ISSUE-1432-c
   statement: "Authored oriented-slot values replay losslessly at full precision through the generated script."
-  class: machinery
+  class: spec
   source:
     issues: [1432]
     tests:

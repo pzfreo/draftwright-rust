@@ -224,7 +224,7 @@
 
 - id: ADR2-D7
   statement: "Users edit whole view blocks (presence, relations, a pin on a projection origin), never feature-annotation coordinates."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 2 Decision"
     issues: []
@@ -345,7 +345,7 @@
 - id: ADR2-11
   statement: "One view vocabulary; the authored view request and the resolved view plan are distinct immutable states."
   detail: "ViewSpec values; ViewConstraints is the authored request; ResolvedViewPlan is immutable, attached once, and read-only."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 2 invariant 11"
     issues: []
@@ -524,7 +524,7 @@
 
 - id: ADR3-6
   statement: "No provider object crosses the drafting-model waist; provider face/feature references never enter the IR, plan, placement, scripts or output."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 3 invariant 6"
     issues: []
@@ -613,7 +613,7 @@
 
 - id: ADR4-D1
   statement: "A hybrid (detect, then override specific features) is first-class; declaration is for where the caller knows better than detection."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 4 Decision; archive 0011 Decision 3"
     issues: []
@@ -634,7 +634,7 @@
 
 - id: ADR4-D3
   statement: "A view= or side= on a dimension is a derived-with-override routing hint, not a placement; intent never chooses a view, strip or coordinate."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 4 Boundaries; archive 0016 'Dimensions are sheet-level'"
     issues: []
@@ -644,7 +644,7 @@
 
 - id: ADR4-D4
   statement: "Recognition breadth equals editable-vocabulary breadth: the edit surface can only name what the recognisers detect."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 4 Boundaries; archive 0001 Amendment 1"
     issues: []
@@ -655,7 +655,7 @@
 - id: ADR4-1
   statement: "No authoring surface carries page geometry: a dimension line names a feature and a measurement and carries no number."
   detail: "The emitter reads the addressable plan, not the drawing; the engine derives every value from the referenced geometry."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 4 invariant 1"
     issues: []
@@ -698,7 +698,7 @@
 - id: ADR4-5
   statement: "Dimension intent has exactly two explicit sources: automatic or a complete authored set; mixing them raises, requesting neither raises, and augmenting requires the automatic source."
   detail: "Omission means suppression only inside a set declared complete. 'Implicit-by-usage' (any declared dimension turns automatic off) was rejected as action at a distance (archive 0016)."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 4 invariant 5; archive 0016 'Two explicit sources of dimension intent'"
     issues: [933]
@@ -762,7 +762,7 @@
 - id: ADR4-11
   statement: "Edits are scale-independent intents in the shared solve: pin and priority, never raw coordinates; the raw single-slot placement verb survives only as a deprecated escape hatch."
   detail: "dimension(..., pin=, priority=) drained by finalize() through _PASS_SEQUENCE; place_dim is the deprecated raw fallback."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 4 invariant 11; archive 0012"
     issues: [511]
@@ -793,7 +793,7 @@
 
 - id: ADR4-14
   statement: "Authored views with automatic dimensions is refused: requirements determine views, not the reverse."
-  class: machinery
+  class: spec
   source:
     adr: "ADR 4 invariant 14; archive 0018 Amendment 1"
     issues: [1260]
@@ -1261,7 +1261,7 @@
 - id: ARCH0011-1
   statement: "Aspects geometry cannot carry attach as decorations: a tolerance or fit belongs to a dimension, and GD&T and surface finish are annotations keyed to a feature or face, not fields on the feature."
   detail: "Decorations key on (feature, kind, role) with a kind-only fallback that folds onto every parameter of that kind; kind stays in the key because a step's length and diameter share role 'step' (archive 0011 Amendment 3)."
-  class: machinery
+  class: spec
   source:
     adr: "archive 0011 Decision 4, Amendment 3"
     issues: [746]
@@ -1628,7 +1628,7 @@
 - id: ARCH0018-6
   statement: "View intent mirrors dimension intent: an authoring set (omission suppresses), an augmenting addition (requires the automatic source), an explicit empty set, and requesting neither raises; sections and details are their own derived set."
   detail: "The ban is on authoring, not adding: augmenting views/sections are legal with automatic dimensions."
-  class: machinery
+  class: spec
   source:
     adr: "archive 0018 Amendments 1-2"
     issues: [1260]
@@ -1638,7 +1638,7 @@
 
 - id: ARCH0018-7
   statement: "A built drawing's views are never mutated after the build; the user edits the request and rebuilds."
-  class: machinery
+  class: spec
   source:
     adr: "archive 0018 §2"
     issues: []

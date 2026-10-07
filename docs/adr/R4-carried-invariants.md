@@ -22,8 +22,8 @@ says so. The catalogue's `status` fields stay `pending` until this record is acc
 dispositions are then copied into it (`rust_rule:` for translated, `why:` for retired), and each
 port sets `ported` with its `rust_test:` as it lands.
 
-Totals for the 94 live rules: **kept 53** (seven already R1 or R2 invariants or decisions, one a
-documented limitation, 45 pending ports), **translated 33**, **retired 8**.
+Totals for the 94 live rules: **kept 54** (seven already R1 or R2 invariants or decisions, one a
+documented limitation, 46 pending ports), **translated 32**, **retired 8**.
 
 ## ADR 1: the compiler pipeline
 
@@ -38,7 +38,7 @@ documented limitation, 45 pending ports), **translated 33**, **retired 8**.
 | ADR1-6 | Orientation is data: a feature's view follows from its axis by one rule. | kept | Pending port: view routing is a pure function of axis and measurement kind, stated in the item's basis. |
 | ADR1-7 | Dimension passes consume planner output; exceptions enumerated. | translated | R1 invariant 2. The exceptions (PMI, GD&T, the gear table) become Plan items with a source-authored basis, so there is no second channel to enumerate. |
 | ADR1-8 | One owner per physical measurement; never dedupe by value. | kept | Pending port: planner reconciliation; the yielding dimension is a Plan omission with basis `conveyed_by <id>`. |
-| ADR1-9 | Lint does not import the drafting model. | kept | Pending port. Lint takes Analysis and the rendered sheet, never Plan or Spec, as its denominator. In Rust only a separate crate makes this a compile-time fact (open question 1). |
+| ADR1-9 | Lint does not import the drafting model. | kept | Pending port. Lint takes Analysis and the rendered sheet, never Plan or Spec, as its denominator. Decided (2026-10-07): a module inside draftwright, guarded by a test that fails if lint reads the Plan or Spec; split into a crate if it grows. |
 | ADR1-10 | Expired compatibility surfaces stay deleted; remaining ones carry a removal date. | retired | None of the Python surfaces exist. Differs from port note: the dated-shim principle is replaced by schema versions, and an unknown schema is refused (ADR3-4). |
 | ADR1-11 | Reporting sits beside lint on one requirement ledger. | translated | Report and completeness read one requirement ledger computed from Analysis and the rendered sheet. |
 | ADR1-12 | Private test reads are a shrinking allowlist. | retired | Rust visibility makes it a compile-time property. |
@@ -102,11 +102,11 @@ documented limitation, 45 pending ports), **translated 33**, **retired 8**.
 | ADR4-D2 | The editable source records intent, never placement outcomes. | kept | R1 decision (the Spec is the source of truth) with invariant 1: `plan` never writes outcomes back into the Spec; a dimension that does not fit stays in the Spec and is a problem in the Plan. Guard pending. |
 | ADR4-D3 | A view or side on a dimension is a routing hint, not a placement. | translated | An optional view or side hint on a Spec dimension entry; the Plan records whether it was honoured. |
 | ADR4-D4 | Recognition breadth equals editable-vocabulary breadth. | translated | The Spec's feature kinds are the Analysis's feature kinds. |
-| ADR4-1 | No authoring surface carries page geometry. | translated | R1 invariant 1. Anchor-relative placement (`side`, `offset`) is allowed; see open question 4. |
+| ADR4-1 | No authoring surface carries page geometry. | translated | R1 invariant 1. Anchor-relative placement (`side`, `offset`) is allowed: an offset is paper millimetres from the anchor, a request the layout honours where it can and otherwise reports as a problem, never a bounds override (decided 2026-10-07). |
 | ADR4-2 | Detection and declaration emit the same IR and the same furniture. | translated | Parity test: a Spec that declares exactly the detected features gives the same Plan. |
-| ADR4-3 | A declared build performs no recognition. | retired | Differs from port note. Every `plan` starts from an Analysis, which is also where the geometry is read; there is no separate declared mode to keep free of recognition, and haecceity makes recognition cheap (R2). See open question 3. |
+| ADR4-3 | A declared build performs no recognition. | retired | Differs from port note. Every `plan` starts from an Analysis, which is also where the geometry is read; there is no separate declared mode to keep free of recognition, and haecceity makes recognition cheap (R2). Confirmed 2026-10-07: every plan starts from an analysed part. |
 | ADR4-4 | Renderers emit dimensional content only from the compiled plan. | kept | R1 invariant 2. Source-authored PMI text is carried verbatim in the Plan with a source-authored basis. |
-| ADR4-5 | Dimension intent has two explicit sources: automatic, or a complete authored set. | translated | A Spec `dimension_source` (auto, authored); an authored set is complete; invalid combinations are validation errors. Not yet in the Spec schema; see open question 2. |
+| ADR4-5 | Dimension intent has two explicit sources: automatic, or a complete authored set. | translated | A Spec `dimension_source` (auto, authored); an authored set is complete; invalid combinations are validation errors. Decided 2026-10-07: keep both modes, defaults by default and an opt-in complete set. Not yet in the Spec schema. |
 | ADR4-6 | Dimension identity is the derived parameter ID; an ambiguous selector is refused. | kept | R1 invariant 5, with the `role.kind[.discriminator]` vocabulary ([model](../model.md#ids)). |
 | ADR4-7 | Suppression changes what is shown, never what the drawing asserts. | kept | R1 invariant 6. A compound callout's head without its dependents is a Spec validation error. |
 | ADR4-8 | Authored omission and planner suppression are distinct rows. | kept | Pending port: a Plan omission's basis says `authored` or `rule:<name>` (R1 invariant 4). Same rule as ADR5-8. |
@@ -115,7 +115,7 @@ documented limitation, 45 pending ports), **translated 33**, **retired 8**.
 | ADR4-11 | Edits are pin and priority in the shared solve, never raw coordinates. | translated | Spec placement is anchor-relative (side, offset, order) plus pin and priority, and stays a request to the solver (ARCH0012-1). There is no raw-coordinate escape hatch and no drain. |
 | ADR4-12 | Sheet identity is invariant between declaration and build. | retired | The Spec is an immutable JSON value; there is no fluent builder to mutate. |
 | ADR4-13 | Generated editable output executes what it emits and fabricates no geometry. | translated | The script emitter is gone. A Spec exported from a Plan re-plans to the same Plan, and cannot hold geometry (R1 invariant 1). |
-| ADR4-14 | Authored views with automatic dimensions is refused. | translated | Differs from port note, which would refuse the combination. Omitting a view is already allowed with default dimensions; instead, a dimension no remaining view can carry is a `view_plan_incomplete` problem naming the view to restore (ADR2-12). See open question 2. |
+| ADR4-14 | Authored views with automatic dimensions is refused. | translated | Differs from port note, which would refuse the combination. Omitting a view is already allowed with default dimensions; instead, a dimension no remaining view can carry is a `view_plan_incomplete` problem naming the view to restore (ADR2-12). Decided 2026-10-07. |
 | ADR4-15 | Automatic dimensioning carries no warning; automatic on the declarative surface is soft-deprecated. | retired | The deprecation mechanics have no counterpart. `analyse` then `plan` with an empty Spec is the automatic drawing (R1). |
 | ADR4-U1 | Over-dimensioning that is neither identical nor coincident should be reported. | kept | Pending port, as a target: a redundancy check over Plan dimensions. Python never built it. |
 
@@ -127,7 +127,7 @@ documented limitation, 45 pending ports), **translated 33**, **retired 8**.
 | ADR5-D2 | No document infers material, process, finish, thread, fit or tolerance intent. | kept | Pending port: such intent comes only from the Spec or source PMI. R3's "suggested replacement" for a fit is a problem's suggestion, never written by `plan`. |
 | ADR5-1 | Same input, same sheet, every platform. | kept | R1 invariant 7, R2 invariant 3. Guard: `the_same_documents_give_the_same_bytes` (one platform; a cross-platform check is still owed). |
 | ADR5-2 | Lint derives no completeness denominator from the plan. | kept | Pending port: completeness is a function of Analysis and the rendered sheet; checking a claim may read the Plan. Same boundary as ADR1-9. |
-| ADR5-3 | Repair is an allowlisted, idempotent safety net; the cure is a placement rule. | translated | Differs from port note. A repair becomes a problem's suggested `fix` edit, applied by the caller through `edit` and re-planned; `plan` itself fixes collisions by placement rules. A Plan-to-Plan repair pass is not ported unless a case needs it. |
+| ADR5-3 | Repair is an allowlisted, idempotent safety net; the cure is a placement rule. | kept | Decided 2026-10-07: the safe repairs are ported as an automatic step in `plan`. They are allow-listed and idempotent, accepted only on strict improvement with no new problems, and each is recorded in the Plan with what it changed. Python's repairs are `dim_inside_part` and the axis-aligned ink-overlap class. Any other fix stays a problem's suggested `fix` edit for the caller. Pending port. |
 | ADR5-4 | Provenance is recorded once, at the render seam. | kept | Pending port: each Plan item carries its feature and dimension IDs; rendered elements carry the item's ID. |
 | ADR5-5 | Quality is reported as components; completeness names its bound. | kept | Pending port, with the same field names (`audited_score`) once a report exists. |
 | ADR5-6 | A claim on the sheet is checked against the plan, not a pattern. | kept | Pending port: lint checks rendered text against Plan text by ID. |
@@ -135,7 +135,7 @@ documented limitation, 45 pending ports), **translated 33**, **retired 8**.
 | ADR5-8 | An authored omission is distinguishable from a planner omission. | kept | Pending port; same as ADR4-8. |
 | ADR5-9 | A report refuses rather than shrinks, and serialises no identity meant to survive another run. | kept | Pending port, read as in [the section below](#reading-adr5-9-report-identity). Also: non-finite numbers are refused. `serde_json` writes NaN as `null`, so this needs an explicit check. |
 | ADR5-10 | Report persistence is atomic. | kept | Pending port: every file the CLI writes is staged beside and renamed into place. `render` does this today; there is no guard yet. |
-| ADR5-11 | Direct CLI rendering writes the report beside its output by default. | translated | `render` replies with its problems as JSON on stdout. Whether it also writes a Plan or report sidecar is open question 5. |
+| ADR5-11 | Direct CLI rendering writes the report beside its output by default. | translated | Proposed 2026-10-07, built around what an LLM needs to fix a drawing. `plan` and `review` reply with everything needed: the problems, with their subjects and a suggested `fix` edit; the plan items they refer to, with their default flags and basis; and the spec. `review` adds a picture of the sheet with the problem regions marked, and what changed since the previous plan. `render` replies with the problems beside its files, and writes a sidecar only on request (`--report`). |
 | ADR5-12 | Evidence comes from one hashed byte snapshot. | kept | Pending port. Implemented: `analyse` hashes the exact bytes it parses. `analysis_binds_to_its_file` checks the binding but not that the hash and the geometry share one read. |
 | ADR5-13 | A clear result names its bound (`bounded-clear`, `needs-attention`). | kept | Pending port: the same status vocabulary in the Plan or report summary. |
 | ADR5-14 | Read-only evidence is a projection, never a build. | translated | `analyse` alone is the inspection operation; the Analysis is the evidence. |
@@ -176,26 +176,34 @@ tie rule for a dominant axis (ARCH0013-1). The remaining 56 are pending ports, m
 and formatter rules: projection alignment, escalation ladders, collapse wording, tolerance
 rounding, per-body step chains, and the regression floors on placed counts.
 
-## Open questions for the maintainer
+## Decisions (maintainer, 2026-10-07)
 
-1. **Lint's independence (ADR1-9, ADR5-2).** In Rust only a separate crate stops lint reading the
-   Plan. Should lint be its own crate from the start, or a module guarded by a test until it grows?
-2. **Explicit dimension and view sources (ADR4-5, ADR4-14, ARCH0018-6).** With per-ID `omit`, is
-   an "authored, complete" mode still needed? It matters for revisions: in a complete set a new
-   feature stays undimensioned, while with defaults it is dimensioned and listed as new. This
-   record proposes keeping `dimension_source` but replacing ADR4-14's refusal with ADR2-12's
-   problem.
-3. **Declared builds (ADR4-3, ADR3-2).** Retiring "a declared build performs no recognition"
-   assumes `plan` always takes an Analysis. Is a Spec that declares every feature for a part
-   quiddity cannot read a case to support?
-4. **Placement offsets (ADR4-1, ADR4-11).** R1 lets a Spec say "8 mm below its feature". This
-   record reads that offset as paper millimetres relative to the anchor, and as a request that
-   the solver may refuse with a problem (ARCH0012-1), never a bounds override. Is that the
-   intended reading?
-5. **The report sidecar (ADR5-11).** Should `render` also write the Plan with its problems beside
-   the drawing by default, as Python wrote its report, or is the JSON reply enough?
-6. **Repair (ADR5-3).** This record replaces the repair pass with suggested `fix` edits. Is any
-   Python repair class worth porting as an automatic Plan-to-Plan step?
-7. **The catalogue README's review list** names `ADR2-7` among the edit-surface rules. The
-   edit-surface rule is `ADR2-D7` (users edit whole view blocks); `ADR2-7` is joint leader
-   assignment. This looks like a typo in the README.
+1. **Lint's independence (ADR1-9, ADR5-2):** a module inside draftwright, guarded by a test that
+   fails if lint reads the Plan or Spec, until it grows enough to be its own crate.
+2. **Dimension and view sources (ADR4-5, ADR4-14, ARCH0018-6):** both modes are kept.
+   - Defaults by default, with an opt-in complete set.
+   - A dimension no remaining view can carry is a problem, not a refusal.
+3. **Declared builds (ADR4-3, ADR3-2):** not supported. Every plan starts from an analysed part.
+4. **Placement offsets (ADR4-1, ADR4-11):** paper millimetres from the anchor. An offset is a
+   request the layout honours where it can, and otherwise reports as a problem; it never
+   overrides the sheet's bounds.
+5. **Reports (ADR5-11):** settled by what an LLM needs to fix a drawing, all in the reply:
+   - the problems, with subjects and a suggested `fix` edit;
+   - the plan items they refer to, with their defaults and basis;
+   - the spec;
+   - from `review`, a picture with the problem regions marked, and the changes since the
+     previous plan.
+
+   A sidecar is written only on request. (This one was proposed in answer to the maintainer's
+   question, and stands unless changed.)
+6. **Repair (ADR5-3):** the safe repairs are ported as an automatic, recorded step in `plan`.
+   They are allow-listed, idempotent and accepted only on strict improvement. Anything else
+   stays a suggested `fix`.
+7. **Catalogue:** the edit-surface rules get their own class, `spec`. The README's `ADR2-7` is
+   corrected by that change, since the list now names `ADR2-D7`.
+
+**ADR5-9's reading is accepted:** recognition and topology identities never outlive a run.
+Draftwright's own IDs are fine within one file, and revisions carry quiddity's fingerprints.
+
+With these settled, this record awaits acceptance. On acceptance, the dispositions are copied into
+the catalogue's `status` fields.
