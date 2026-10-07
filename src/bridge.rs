@@ -581,7 +581,11 @@ fn hole_patterns(qs: &[QHolePattern], features: &[Feature]) -> Result<Vec<HolePa
         let has = |k: &str| q.rest.contains_key(k);
         let arrangement = if has("diameter") {
             "bolt_circle"
-        } else if has("width") && has("height") {
+        } else if (has("width") && has("height"))
+            || (has("rows") && has("cols") && has("row_pitch") && has("col_pitch"))
+        {
+            // quiddity's RectangularHoleSet (a proved rectangle of four) or RectGrid (an N×M
+            // lattice): both a lattice of holes, laid out from their centres.
             "grid"
         } else if has("pitch") {
             "linear"

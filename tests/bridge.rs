@@ -327,3 +327,28 @@ fn neighbourhoods_describe_how_a_feature_meets_the_part() {
     );
     assert_ne!(of("f:fillet:1"), of("f:turned_step:1"));
 }
+
+/// quiddity reports a rectangle of four as width and height, and an N×M lattice (RectGrid) as
+/// rows, columns and their pitches; both are a grid (nist_ftc_10 has a RectGrid).
+#[test]
+fn a_rect_grid_is_a_grid() {
+    let mut json = recognition("plate");
+    let p = json["quiddity"]["derived"]["hole_patterns"][0]
+        .as_object_mut()
+        .unwrap();
+    let (w, h) = (p.remove("width").unwrap(), p.remove("height").unwrap());
+    for (k, v) in [
+        ("rows", 2.into()),
+        ("cols", 2.into()),
+        ("row_pitch", h),
+        ("col_pitch", w),
+    ] {
+        p.insert(k.into(), v);
+    }
+    let (part, a) = model::analyse(&fixture("parts/plate.step")).unwrap();
+    let (recognition, _) =
+        bridge::read(&part, &a.binding.source_sha256, &json.to_string()).unwrap();
+    assert_eq!(recognition.patterns.len(), 1);
+    assert_eq!(recognition.patterns[0].arrangement, "grid");
+    assert_eq!(recognition.patterns[0].members.len(), 4);
+}
