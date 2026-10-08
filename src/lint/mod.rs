@@ -13,14 +13,20 @@
 //!   facts);
 //! - [`LintIssue`] is a finding, with the catalogue's fields (LINT-issues-lintissue_schema).
 //!
-//! Ported rules, in the order Python's lint runs them: boss heights ([`bosses`]); angled steps
-//! ([`angled_steps`]); flat, groove, chamfer, fillet and blend coverage ([`flats`], [`grooves`],
-//! [`chamfers`], [`fillets`], [`blends`]); paired-ramp and circular blind step coverage
-//! ([`paired_ramp_steps`], [`circular_blind_steps`]); through-step and slot coverage ([`steps`],
-//! [`slots`]); and hole coverage ([`holes`]). The families whose requirements are a feature's
-//! own sizes share [`parameters`]. The envelope's and turned steps' completeness ([`envelope`],
-//! [`turned`]) are ledgers, not findings: Python's lint reports nothing for them, so `check` does
-//! not run them.
+//! Ported rules, in the order Python's lint runs them: boss heights ([`bosses`]); raised pads
+//! ([`pads`]) and polygonal bosses ([`polygonal`]); section recesses no drafting grammar reads,
+//! and refused recess recognitions ([`section_recesses`], which also reads every recess's
+//! grammar for the families below); hexagonal pockets and circular seats
+//! ([`pockets::hex_coverage`], [`channels::circular_coverage`]); angled steps ([`angled_steps`]);
+//! double-D bores ([`profiled_bores`]); flat, groove, chamfer, fillet and blend coverage
+//! ([`flats`], [`grooves`], [`chamfers`], [`fillets`], [`blends`]); paired-ramp steps
+//! ([`paired_ramp_steps`]), gusset ribs ([`gussets`]), circular blind steps
+//! ([`circular_blind_steps`]) and blind slots ([`blind_slots`]); through-step and slot coverage
+//! ([`steps`], [`slots`]); hole coverage ([`holes`]); open channels ([`channels`]); polygonal stock
+//! ([`polygonal`]); and lone pockets ([`pockets`]). The families whose requirements are a
+//! feature's own sizes share [`parameters`]. The envelope's and turned steps' completeness
+//! ([`envelope`], [`turned`]) are ledgers, not findings: Python's lint reports nothing for them,
+//! so `check` does not run them.
 
 use serde::Serialize;
 

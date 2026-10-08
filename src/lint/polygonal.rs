@@ -12,8 +12,8 @@
 //!
 //! As in Python, a record is checked against quiddity's published contract before it is read:
 //! four or six sides (six for stock), finite bounds with the centre midway along the axis, and one
-//! regular ring of flats, each at half the size across flats from the centre ([`boss_contract`],
-//! [`stock_contract`]). A record that breaks it has both requirements reported unverifiable, with
+//! regular ring of flats, each at half the size across flats from the centre (`boss_contract`,
+//! `stock_contract`). A record that breaks it has both requirements reported unverifiable, with
 //! why. Python reports the whole family unverifiable when quiddity gives more than one stock (a
 //! stock is the whole part); so does the port.
 //!

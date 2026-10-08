@@ -5,7 +5,7 @@
 //! LINT-round_bottom_blind_slot_coverage-requirements, and their `_requirement_state` codes).
 //!
 //! Blind slots reach the Analysis as `section_recess` features; those that
-//! [`section_recesses::grammar`] reads as a blind slot (an edge-open recess with an open U
+//! [`section_recesses::grammar`](super::section_recesses::grammar) reads as a blind slot (an edge-open recess with an open U
 //! section, straight or with two equal quarter arcs) have three requirements each, judged by
 //! [`parameters::coverage`]: `rectangular_blind_slot_width.length`, `_length.length` and
 //! `_depth.length`, or `round_bottom_blind_slot_length.length`, `_flat_width.length` and

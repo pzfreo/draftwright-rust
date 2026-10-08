@@ -3,7 +3,7 @@
 //! (LINT-pocket_coverage-size_depth_location, LINT-code-pocket_requirement_state).
 //!
 //! Pockets reach the Analysis as `section_recess` features; those that
-//! [`section_recesses::grammar`] reads as a pocket (rectangular, edge-open polygonal, obround or
+//! [`section_recesses::grammar`](super::section_recesses::grammar) reads as a pocket (rectangular, edge-open polygonal, obround or
 //! rounded rectangle) are read here in the part's frame ([`placed`]): its depth axis, the longer
 //! and shorter sides of its section (the later axis winning a tie, as draftwright's
 //! `_pocket_from_bounds` does in the part's frame), and its box. Each has, judged by

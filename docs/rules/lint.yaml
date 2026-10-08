@@ -619,6 +619,7 @@
     issues: [1373]
     tests: [tests/test_issue_1373_plate_completeness_evidence.py]
   status: pending
+  rust_note: "Not ported: blocked on data the Analysis does not carry. (1) Python's denominator is draftwright's own conversion of quiddity's Plate records into PlateFeatures (detect.py): a plate it does not convert is unverifiable ('no IR feature claimed', ctc01's and m1000's captured sheets) unless an alternative grammar states it; the port has no such conversion, the Analysis holding quiddity's plates as they are. (2) The alternative grammars need draftwright's step-level ladder (StepLevelFeature: base, levels, shoulders, datum, derived from quiddity's FaceLevel evidence), which the Analysis keeps only as raw evidence records. (3) The polygonal-boss exclusion proves the slab and the boss share one solid by point-in-solid tests on the part (_shares_one_solid); lint reads the Analysis and the drawing only. (4) The slot-pattern exclusion needs quiddity's derived slot_patterns, which the bridge drops (stream d-bridge-slot-patterns). Question for the maintainer: should the Analysis carry draftwright's plate conversion and step ladder (so lint can judge plates as Python does), or should the port's lint require every quiddity plate's thickness, with the exclusions it can prove?"
   port_note: "Keep."
 
 - id: LINT-plate_coverage-exclusions
@@ -630,6 +631,7 @@
     issues: [1373]
     tests: [tests/test_issue_1373_plate_completeness_evidence.py]
   status: pending
+  rust_note: "Not ported: see LINT-plate_coverage-thickness. The polygonal-boss exclusion needs point-in-solid tests on the part, which lint does not receive; the slot-pattern exclusion needs quiddity's derived slot_patterns, which the bridge drops; the derived opposite wall needs draftwright's converted channel and plates."
   port_note: "Keep."
 
 - id: LINT-code-plate_requirement_state
@@ -641,6 +643,7 @@
     issues: [1373]
     tests: [tests/test_issue_1373_plate_completeness_evidence.py]
   status: pending
+  rust_note: "Not ported: see LINT-plate_coverage-thickness."
   port_note: "Keep."
 
 - id: LINT-channel_coverage-width_scheme
@@ -1013,6 +1016,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py]
   status: pending
+  rust_note: "Not ported: blocked on the bridge, which drops quiddity's derived section_recess_patterns (the arrays and grids of recesses), so no pocket pattern reaches the Analysis and its members are judged as lone pockets by src/lint/pockets.rs. No corpus recognition has a recess pattern."
   port_note: "Keep."
 
 - id: LINT-code-pocket_pattern_requirement_state
@@ -1024,6 +1028,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py, tests/test_issue_1485_rounded_pockets.py]
   status: pending
+  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements."
   port_note: "Keep."
 
 - id: LINT-section_recess_coverage-hex_pocket
@@ -1237,7 +1242,7 @@
     tests: [tests/test_framed_step_family_evidence.py]
   status: pending
   rust_test: a_through_step_states_both_legs_named_by_the_parts_axes
-  rust_note: "Partial (src/lint/steps.rs): each leg of the section is a requirement through_step_leg.length.<axis>, named by the part's axis it lies along, stated by a dimension that claims it and prints its length; a section that is not two legs, or a leg along no axis of the part, is unverifiable. Not ported: the alternative grammars (a plate thickness, a step level's height or position, or either with an envelope extent, within 0.5 mm), so a leg stated only that way is reported missing."
+  rust_note: "Partial (src/lint/steps.rs): each leg of the section is a requirement through_step_leg.length.<axis>, named by the part's axis it lies along, stated by a dimension that claims it and prints its length; a section that is not two legs, or a leg along no axis of the part, is unverifiable. Not ported, and blocked on data the Analysis does not carry: Python uses the alternative grammars (a plate thickness, a step level's height or position, or either with an envelope extent, within 0.5 mm) only for an x or y through step that draftwright's conversion did not lower to a ThroughStepFeature, and its owners are draftwright's converted plates and its step-level ladder (StepLevelFeature, from quiddity's FaceLevel evidence); the port has neither the conversion's choice nor the ladder, so every through step is judged by its own legs, and a leg stated only by an alternative is reported missing. On the captured sheets (m10127) the through step is lowered and the two lints agree."
   port_note: "Keep."
 
 - id: LINT-code-through_step_requirement_state

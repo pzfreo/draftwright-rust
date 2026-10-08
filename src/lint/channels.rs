@@ -4,7 +4,7 @@
 //! LINT-code-channel_requirement_state).
 //!
 //! Channels reach the Analysis as `section_recess` features; those that
-//! [`section_recesses::grammar`] reads as a rectangular channel are read here in the part's frame.
+//! [`section_recesses::grammar`](super::section_recesses::grammar) reads as a rectangular channel are read here in the part's frame.
 //! As in Python, the scheme is required only when quiddity's plates lie along at least two axes
 //! (`has_multi_axis_plates`: a base and walls); otherwise the same recess is a centred rebate the
 //! step ladder owns, and nothing is required. Each channel then has three requirements:
