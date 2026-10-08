@@ -116,7 +116,7 @@
     module: "linting/issues.py"
     issues: [29, 623, 1018, 1127, 1711]
   status: ported
-  rust_test: review_reports_the_plates_unstated_holes
+  rust_test: review_finds_the_plates_holes_stated_by_its_own_callout
   rust_note: "lint::LintIssue: id, code, severity, message, at (page), view, subjects, requirements (hole_requirement_ids), measurements, sources, stage, annotation, related, evidence (evidence_reason), fix (suggestion, in words). Measurement spans are not carried: the port's measurement IDs are per feature and parameter."
   port_note: "Adapt: define a Rust LintIssue struct with the same stable fields."
 
@@ -175,6 +175,7 @@
     tests: [tests/test_issue_1369_hole_completeness_evidence.py]
   status: ported
   rust_test: a_blind_counterbored_or_countersunk_hole_states_its_recess
+  rust_note: "A blind hole whose record gives no depth has its bore.depth reported hole_requirement_unverifiable (the value cannot be checked), never compared with a made-up one (a_blind_hole_without_a_depth_is_unverifiable)."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-through_indicator
@@ -226,7 +227,8 @@
     issues: [1143, 1370]
     tests: [tests/test_issue_1370_countersink_completeness_evidence.py]
   status: ported
-  rust_test: a_blind_counterbored_or_countersunk_hole_states_its_recess
+  rust_test: a_countersunk_hole_is_called_out_and_its_callout_satisfies_lint
+  rust_note: "Read from quiddity's record fields major_diameter and included_angle (bridge::holes, shared with the dimensions). An angle the record does not give is reported unverifiable."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-thread_and_profile
@@ -252,7 +254,7 @@
     tests: [tests/test_issue_1369_hole_completeness_evidence.py, tests/test_issue_1370_hole_pattern_completeness_evidence.py]
   status: ported
   rust_test: holes_drilled_from_opposite_faces_are_separate_groups
-  rust_note: "Stated as n× on the diameter's callout, n the group's size. A pattern group is accepted only when exactly its recognised count of holes share its count, pitch, sizes, direction and opening level (the Analysis does not name a hole's pattern)."
+  rust_note: "Stated as n× on the diameter's callout, n the group's size. The groups are the recognised patterns (Analysis.recognition.patterns) that bridge::holes::established accepts, as the dimensions group them, and loose holes of one machining requirement; an Analysis without a recognition record falls back to the fingerprints' pattern count and pitch, which cannot tell identical patterns apart (identical_patterns_are_grouped_as_recognised)."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-location
@@ -346,6 +348,8 @@
     issues: [1143]
     tests: [tests/test_issue_1370_hole_pattern_completeness_evidence.py]
   status: pending
+  rust_test: recognised_patterns_are_the_groups
+  rust_note: "Partial: a bolt circle of five or more holes is a group; one of fewer falls back to loose holes (ISSUE-1596-a, as the dimensions do). The concentric corroboration that would keep a smaller one, and exact declarations, are not ported."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-second_countersink_unverifiable

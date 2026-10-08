@@ -25,12 +25,12 @@ use std::sync::OnceLock;
 
 use haecceity::hlr::View;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::Value;
 
-use crate::bridge::{Feature, HolePattern};
+use crate::bridge::{Feature, HolePattern, holes};
 use crate::layout::MARGIN;
 use crate::model::{Analysis, DimensionSource, Invalid, PlannedSheet, PlannedView, Problem, Spec};
-use crate::output::{Curve, HAlign, Item, TextRun, VAlign};
+use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
 
 /// Annotation text height (the em), mm: draftwright's `_FONT_SIZE`.
@@ -203,10 +203,6 @@ fn scale3(a: P3, s: f64) -> P3 {
     [a[0] * s, a[1] * s, a[2] * s]
 }
 
-fn dot(a: P3, b: P3) -> f64 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
 fn point(v: Option<&Value>) -> Option<P3> {
     let c: Vec<f64> = v?
         .as_array()?
@@ -216,16 +212,12 @@ fn point(v: Option<&Value>) -> Option<P3> {
     <[f64; 3]>::try_from(c).ok()
 }
 
-/// quiddity's frame (`Recognition::frame`): a point and a direction from it into the part's.
+/// quiddity's frame (`Recognition::frame`): a point, or an axis letter, from it into the part's.
 struct QFrame([[f64; 3]; 4]);
 
 impl QFrame {
     fn point(&self, l: P3) -> P3 {
         (0..3).fold(self.0[0], |p, j| add(p, scale3(self.0[j + 1], l[j])))
-    }
-
-    fn direction(&self, l: P3) -> P3 {
-        (0..3).fold([0.0; 3], |p, j| add(p, scale3(self.0[j + 1], l[j])))
     }
 
     fn letter(&self, axis: &Value) -> Option<P3> {
@@ -234,79 +226,50 @@ impl QFrame {
     }
 }
 
-/// The principal axis a direction lies along, if it does.
-fn principal(d: P3) -> Option<usize> {
-    let n = dot(d, d).sqrt();
-    (0..3).find(|&k| (d[k].abs() - n).abs() < 1e-6 * n.max(1.0))
-}
-
 fn key(x: f64) -> i64 {
-    (x * 1e6).round() as i64
+    holes::size_key(x)
 }
 
-/// A recognised hole as the callout grammar reads it.
+/// A recognised hole the callout grammar can state: read by [`holes::Hole::read`], along a
+/// principal axis, with its depth when it is blind.
 #[derive(Clone, Debug)]
 struct Hole<'a> {
-    feature: &'a Feature,
-    /// On its axis, in the part's frame.
-    centre: P3,
-    /// Its axis as quiddity orients it, a world axis, and the sign along it.
+    read: holes::Hole<'a>,
+    /// The world axis it lies along.
     axis: usize,
-    sign: i8,
-    diameter: f64,
-    /// A fact of the feature (`bottom: through`), never read from a missing depth (ADR4-7).
-    through: bool,
-    depth: f64,
-    /// The recess (counterbore, else spotface) and countersink: (role, diameter, depth/angle).
-    recess: Option<(&'static str, f64, Option<f64>)>,
-    csink: Option<(f64, Option<f64>)>,
+}
+
+impl<'a> std::ops::Deref for Hole<'a> {
+    type Target = holes::Hole<'a>;
+    fn deref(&self) -> &holes::Hole<'a> {
+        &self.read
+    }
 }
 
 impl Hole<'_> {
-    /// What makes two holes one machining requirement: every printed term's value, the bottom,
-    /// and the side drilled from (ISSUE-1229-a, ISSUE-1517-a; holes from opposite faces stay
-    /// apart). Holes drilled the same way from faces at different heights are one requirement,
-    /// as draftwright groups them.
-    fn requirement(&self) -> Vec<i64> {
-        let mut k = vec![
-            self.axis as i64,
-            self.sign as i64,
-            key(self.diameter),
-            self.through as i64,
-            if self.through { 0 } else { key(self.depth) },
-        ];
-        match self.recess {
-            Some((role, d, depth)) => k.extend([
-                1 + (role == "spotface") as i64,
-                key(d),
-                depth.map_or(i64::MIN, key),
-            ]),
-            None => k.push(0),
-        }
-        match self.csink {
-            Some((d, angle)) => k.extend([1, key(d), angle.map_or(i64::MIN, key)]),
-            None => k.push(0),
-        }
-        k
+    /// The recess the grammar prints (the counterbore, else the spotface): role, diameter, depth.
+    fn recess(&self) -> Option<(&'static str, holes::Recess)> {
+        self.counterbore
+            .map(|r| ("counterbore", r))
+            .or(self.spotface.map(|r| ("spotface", r)))
     }
 
     /// The terms after the count: `⌀d`, `THRU` or `↧ depth`, the recess, the countersink.
     fn terms(&self) -> Vec<String> {
         let mut t = vec![format!("⌀{}", fmt(self.diameter))];
-        if self.through {
-            t.push("THRU".into());
-        } else {
-            t.extend(["↧".into(), fmt(self.depth)]);
+        match self.depth {
+            Some(depth) if !self.through => t.extend(["↧".into(), fmt(depth)]),
+            _ => t.push("THRU".into()),
         }
-        if let Some((_, d, depth)) = self.recess {
-            t.extend(["⌴".into(), format!("⌀{}", fmt(d))]);
-            if let Some(depth) = depth {
+        if let Some((_, r)) = self.recess() {
+            t.extend(["⌴".into(), format!("⌀{}", fmt(r.diameter))]);
+            if let Some(depth) = r.depth {
                 t.extend(["↧".into(), fmt(depth)]);
             }
         }
-        if let Some((d, angle)) = self.csink {
-            t.extend(["⌵".into(), format!("⌀{}", fmt(d))]);
-            if let Some(a) = angle {
+        if let Some(c) = self.countersink {
+            t.extend(["⌵".into(), format!("⌀{}", fmt(c.diameter))]);
+            if let Some(a) = c.angle {
                 t.extend(["×".into(), format!("{}°", fmt(a))]);
             }
         }
@@ -321,18 +284,18 @@ impl Hole<'_> {
             value: v,
         };
         let mut out = vec![m("bore.diameter", self.diameter)];
-        if !self.through {
-            out.push(m("bore.depth", self.depth));
+        if let Some(depth) = self.depth.filter(|_| !self.through) {
+            out.push(m("bore.depth", depth));
         }
-        if let Some((role, d, depth)) = self.recess {
-            out.push(m(&format!("{role}.diameter"), d));
-            if let Some(depth) = depth {
+        if let Some((role, r)) = self.recess() {
+            out.push(m(&format!("{role}.diameter"), r.diameter));
+            if let Some(depth) = r.depth {
                 out.push(m(&format!("{role}.depth"), depth));
             }
         }
-        if let Some((d, angle)) = self.csink {
-            out.push(m("countersink.diameter", d));
-            if let Some(a) = angle {
+        if let Some(c) = self.countersink {
+            out.push(m("countersink.diameter", c.diameter));
+            if let Some(a) = c.angle {
                 out.push(m("countersink.angle", a));
             }
         }
@@ -340,52 +303,16 @@ impl Hole<'_> {
     }
 }
 
-/// A recess or countersink record: none when absent, an error when unreadable.
-fn sized(
-    p: &Map<String, Value>,
-    name: &str,
-    second: &str,
-) -> Result<Option<(f64, Option<f64>)>, String> {
-    match p.get(name) {
-        None | Some(Value::Null) => Ok(None),
-        Some(Value::Object(r)) => {
-            let d = r
-                .get("diameter")
-                .and_then(Value::as_f64)
-                .ok_or_else(|| format!("its {name} has no diameter"))?;
-            Ok(Some((d, r.get(second).and_then(Value::as_f64))))
-        }
-        Some(v) => Err(format!("its {name} is {v}, not a record")),
-    }
-}
-
-fn hole<'a>(f: &'a Feature, frame: &QFrame) -> Result<Hole<'a>, String> {
-    let p = &f.parameters;
-    let num = |k: &str| {
-        p.get(k)
-            .and_then(Value::as_f64)
-            .ok_or_else(|| format!("it has no {k}"))
-    };
-    let axis = point(p.get("axis")).ok_or("it has no axis")?;
-    let location = point(p.get("location")).ok_or("it has no location")?;
-    let dir = frame.direction(axis);
-    let k = principal(dir)
+/// A hole as the callout grammar reads it, or why it cannot state it.
+fn hole<'a>(read: Result<holes::Hole<'a>, String>) -> Result<Hole<'a>, String> {
+    let read = read?;
+    let (axis, _) = read
+        .principal
         .ok_or("its axis is not along x, y or z, so no standard view looks along it")?;
-    let cbore = sized(p, "cbore", "depth")?;
-    let spotface = sized(p, "spotface", "depth")?;
-    Ok(Hole {
-        feature: f,
-        centre: frame.point(location),
-        axis: k,
-        sign: if dir[k] > 0.0 { 1 } else { -1 },
-        diameter: num("diameter")?,
-        through: p.get("bottom").and_then(Value::as_str) == Some("through"),
-        depth: num("depth")?,
-        recess: cbore
-            .map(|(d, depth)| ("counterbore", d, depth))
-            .or(spotface.map(|(d, depth)| ("spotface", d, depth))),
-        csink: sized(p, "csink", "angle")?,
-    })
+    if !read.through && read.depth.is_none() {
+        return Err("it is blind and has no depth".into());
+    }
+    Ok(Hole { read, axis })
 }
 
 /// A part turned whole: its axis (a world axis), a point on it, and its largest diameter, when
@@ -407,7 +334,7 @@ fn turned(analysis: &Analysis, frame: &QFrame) -> Option<Turned> {
     let mut diameter: f64 = 0.0;
     for s in &steps {
         let p = &s.parameters;
-        let k = principal(frame.letter(p.get("axis")?)?)?;
+        let k = holes::principal(frame.letter(p.get("axis")?)?)?;
         let on = frame.point(point(p.get("profile")?.get("axis_origin"))?);
         if let Some((k0, on0)) = found
             && (k0 != k || (0..3).any(|j| j != k && (on[j] - on0[j]).abs() > 1e-3))
@@ -546,10 +473,10 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
 
     // Holes.
     let mut holes: Vec<Hole> = Vec::new();
-    for f in analysis.features.iter().filter(|f| f.kind == "hole") {
-        match hole(f, &frame) {
+    for (f, read) in holes::read(analysis) {
+        match hole(read) {
             Ok(h) => {
-                let bottom = f.parameters.get("bottom").and_then(Value::as_str);
+                let bottom = h.bottom;
                 if !matches!(bottom, Some("through" | "flat" | "drill_point")) {
                     // Called out blind to its recognised depth, as draftwright does, but the
                     // recogniser did not establish that it stops there.
@@ -560,7 +487,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
                         message: format!(
                             "{} is called out blind to its recognised depth ({}), but recognition did not establish its bottom ({}); check whether it is through.",
                             f.id,
-                            fmt(h.depth),
+                            fmt(h.depth.expect("a blind hole has its depth")),
                             bottom.unwrap_or("none given")
                         ),
                         subjects: vec![f.id.clone()],
@@ -594,37 +521,27 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
     let mut pitches: Vec<Want> = Vec::new();
     let mut declined: BTreeMap<usize, String> = BTreeMap::new();
     let mut coincident: Vec<(usize, P3, Sites)> = Vec::new(); // callout index, station
+    let reads: Vec<&holes::Hole> = holes.iter().map(|h| &h.read).collect();
     for p in patterns {
-        let members: Option<Vec<usize>> = p
-            .members
-            .iter()
-            .map(|m| index.get(m.as_str()).copied())
-            .collect();
-        let Some(members) = members.filter(|m| m.len() > 1) else {
-            continue;
+        let members = match holes::established(p, &reads) {
+            Ok(members) => members,
+            Err(why) => {
+                for m in &p.members {
+                    if let Some(&i) = index.get(m.as_str()) {
+                        declined.entry(i).or_insert_with(|| why.clone());
+                    }
+                }
+                continue;
+            }
         };
         if members.iter().any(|m| taken.contains(m)) {
             continue;
         }
         let first = &holes[members[0]];
-        if members
-            .iter()
-            .any(|&m| holes[m].requirement() != first.requirement())
-        {
-            for &m in &members {
-                declined.entry(m).or_insert_with(|| {
-                    format!(
-                        "its pattern {} is not of identical holes, so each is called out as itself",
-                        p.id
-                    )
-                });
-            }
-            continue;
-        }
         let k = first.axis;
         let view = end_on(k);
         let (u, v) = in_view(k);
-        let centres: Vec<P3> = members.iter().map(|&m| holes[m].centre).collect();
+        let centres: Vec<P3> = members.iter().map(|&m| holes[m].at).collect();
         let n = members.len();
         let (suffix, bcd, why): (Option<String>, Option<f64>, String) = match p.arrangement.as_str()
         {
@@ -632,7 +549,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
                 let d = p.parameters.get("diameter").and_then(Value::as_f64);
                 let c = point(p.parameters.get("center")).map(|c| frame.point(c));
                 match (d, c) {
-                    (Some(d), Some(c)) if n >= 5 => {
+                    (Some(d), Some(c)) => {
                         located_pattern(&mut located, &p.id, c, k, turned.as_ref());
                         (
                             Some(format!("EQ SP ON ø{} BC", fmt(d))),
@@ -642,7 +559,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
                     }
                     _ => {
                         for &m in &members {
-                            declined.insert(m, format!("quiddity's bolt circle {} has fewer than five members, which does not establish a circle (ISSUE-1596-a), so its holes are dimensioned singly", p.id));
+                            declined.insert(m, format!("quiddity's bolt circle {} gives no diameter or centre, so its holes are dimensioned singly", p.id));
                         }
                         continue;
                     }
@@ -733,13 +650,13 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
         }
         let sites: Vec<(P3, f64)> = members
             .iter()
-            .map(|&m| (holes[m].centre, 0.5 * holes[m].diameter))
+            .map(|&m| (holes[m].at, 0.5 * holes[m].diameter))
             .collect();
         let mut projected: Vec<(i64, i64)> =
             sites.iter().map(|(c, _)| (key(c[u]), key(c[v]))).collect();
         projected.sort();
         if k == 2 {
-            coincident.push((callouts.len(), first.centre, projected));
+            coincident.push((callouts.len(), first.at, projected));
         }
         callouts.push(Want {
             id: want_id(&p.id, "bore.diameter", view),
@@ -825,7 +742,7 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
             shape: Shape::Callout {
                 sites: members
                     .iter()
-                    .map(|&m| (holes[m].centre, 0.5 * holes[m].diameter))
+                    .map(|&m| (holes[m].at, 0.5 * holes[m].diameter))
                     .collect(),
             },
         });
@@ -835,11 +752,11 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
             for k in [u, v] {
                 if let Some(t) = &turned
                     && k != t.axis
-                    && (h.centre[k] - t.on[k]).abs() < 1e-3
+                    && (h.at[k] - t.on[k]).abs() < 1e-3
                 {
                     continue; // on the turning axis: the centre line locates it
                 }
-                located.push((h.feature.id.clone(), h.centre, k, view.into()));
+                located.push((h.feature.id.clone(), h.at, k, view.into()));
             }
         }
     }
@@ -1819,10 +1736,20 @@ fn collisions(
 /// label boxes the collision problems describe are the ink drawn. `⌀` is drawn as the font's `ø`,
 /// and its text run is `ø` too: the searchable text is what is printed. `↧`, `⌴` and `⌵` are
 /// strokes with no text run.
-pub fn render(dims: &[PlannedDimension], items: &mut Vec<Item>, text: &mut Vec<TextRun>) {
+///
+/// Returns one annotation per drawn item, for lint: its ID, view and text runs, and the
+/// measurements it states as its claims (provenance carried on the drawing, so lint reads the
+/// drawing and never the plan).
+pub fn render(
+    dims: &[PlannedDimension],
+    items: &mut Vec<Item>,
+    text: &mut Vec<TextRun>,
+) -> Vec<Annotation> {
     let font = font();
+    let mut annotations = Vec::new();
     for d in dims {
         let Some(p) = &d.placed else { continue };
+        let first = text.len();
         for l in &p.lines {
             items.push(Item::Edge(Curve::Line(l[0], l[1])));
         }
@@ -1872,7 +1799,21 @@ pub fn render(dims: &[PlannedDimension], items: &mut Vec<Item>, text: &mut Vec<T
                 v_align: VAlign::Baseline,
             });
         }
+        annotations.push(Annotation {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            runs: (first..text.len()).collect(),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        });
     }
+    annotations
 }
 
 /// Where a feature or pattern sits in the part's frame: a hole's point on its axis, a pattern's

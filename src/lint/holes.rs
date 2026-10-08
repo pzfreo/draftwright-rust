@@ -1,12 +1,15 @@
 //! Hole coverage (Python's `linting/hole_coverage.py`): every recognised hole, or group of
 //! identical holes, states its sizes on the sheet.
 //!
-//! The requirements come from the Analysis's hole features alone:
+//! The requirements come from the Analysis's hole features alone, read as the dimensions read
+//! them ([`crate::bridge::holes`]: one reader, one principal-axis rule, one size resolution):
 //!
-//! - **The groups** ([`groups`]): the members of a recognised hole pattern are one group; every
-//!   other hole joins the loose holes with the same specification and the same signed drilling
-//!   direction (LINT-hole_coverage-opposed_bores_distinct). A pattern whose members cannot all be
-//!   found falls back to loose holes (LINT-hole_coverage-bolt_circle_corroboration's fallback).
+//! - **The groups** ([`groups`]): the members of a recognised hole pattern
+//!   (`Analysis.recognition.patterns`) are one group when the pattern is established
+//!   ([`holes::established`]: every member read, all identical, a bolt circle of five or more);
+//!   every other hole joins the loose holes with the same machining requirement, signed drilling
+//!   direction included (LINT-hole_coverage-opposed_bores_distinct). An Analysis without a
+//!   recognition record falls back to the fingerprints' pattern count and pitch.
 //! - **Each group's requirements** ([`HoleGroup::requirements`]): its bore diameter
 //!   (LINT-hole_coverage-bore_diameter); THRU for a through hole, or else its depth
 //!   (-through_indicator, -blind_depth); the counterbore's, spotface's or countersink's two sizes
@@ -17,25 +20,24 @@
 //! holes *and* its printed text states the part's value at the precision printed (THRU for
 //! `bore.through`; `<n>×` with n the group's size for `grouping.count`, both carried by the
 //! diameter's callout). A size is **unverifiable** when an annotation claims it but its text
-//! does not state it; otherwise a requirement is **missing**, THRU and the quantity included
-//! when the diameter's callout leaves them off (LINT-code-hole_requirement_state). Only
-//! those two are reported (LINT-_parameter_coverage-report_uncovered_only). Lint cannot see the
-//! author's omissions or placement drops, so the `suppressed` and `dropped` outcomes are not
-//! reached here.
+//! does not state it, or when the Analysis does not give it (a blind hole without a depth);
+//! otherwise a requirement is **missing**, THRU and the quantity included when the diameter's
+//! callout leaves them off (LINT-code-hole_requirement_state). Only those two are reported
+//! (LINT-_parameter_coverage-report_uncovered_only). Lint cannot see the author's omissions or
+//! placement drops, so the `suppressed` and `dropped` outcomes are not reached here.
 //!
 //! A size counts as printed when any number in the claiming callout rounds from it, so a callout
 //! that misprints one size but prints another of the same value is not caught.
 //!
 //! Not yet ported: hole and pattern locations, pattern spacing, threads and profiled bores, the
-//! assembly severity (the Analysis does not say whether the part is several bodies), and the
-//! `suppressed` outcome.
+//! assembly severity (the Analysis does not say whether the part is several bodies), the
+//! concentric corroboration of a bolt circle of fewer than five holes, and the `suppressed`
+//! outcome.
 
 use std::collections::BTreeMap;
 
-use serde_json::Value;
-
 use super::{LintIssue, Mark, Requirement, Severity};
-use crate::bridge::Feature;
+use crate::bridge::holes::{self, Countersink, Hole, Recess};
 use crate::model::Analysis;
 
 /// Holes that share one machining specification, and so one callout.
@@ -57,82 +59,67 @@ pub struct HoleGroup {
 pub struct HoleSizes {
     pub diameter: f64,
     pub through: bool,
-    /// The bore's depth; for a through hole, the thickness it passes through.
-    pub depth: f64,
-    /// The counterbore's, spotface's and countersink's two sizes: diameter and depth, or for a
-    /// countersink diameter and included angle.
-    pub counterbore: Option<[f64; 2]>,
-    pub spotface: Option<[f64; 2]>,
-    pub countersink: Option<[f64; 2]>,
+    /// The bore's depth, when the Analysis gives it; for a through hole, the thickness it passes
+    /// through.
+    pub depth: Option<f64>,
+    pub counterbore: Option<Recess>,
+    pub spotface: Option<Recess>,
+    pub countersink: Option<Countersink>,
 }
 
 impl HoleSizes {
-    fn of(f: &Feature) -> Option<HoleSizes> {
-        let p = &f.parameters;
-        let num = |v: Option<&Value>, k: &str| v.and_then(|v| v.get(k)).and_then(Value::as_f64);
-        let pair = |k: &str, a: &str, b: &str| {
-            let v = p.get(k).filter(|v| !v.is_null());
-            Some([num(v, a)?, num(v, b)?])
-        };
-        Some(HoleSizes {
-            diameter: p.get("diameter")?.as_f64()?,
-            through: p.get("bottom").and_then(Value::as_str) == Some("through"),
-            depth: p.get("depth").and_then(Value::as_f64).unwrap_or(f64::NAN),
-            counterbore: pair("cbore", "diameter", "depth"),
-            spotface: pair("spotface", "diameter", "depth"),
-            countersink: pair("csink", "major_diameter", "included_angle"),
-        })
-    }
-
-    /// What groups holes: every size (to the micrometre), and the depth only for a blind hole.
-    fn key(&self) -> String {
-        let r = |x: f64| format!("{:.3}", x);
-        let two = |v: Option<[f64; 2]>| v.map_or("-".into(), |[a, b]| format!("{}/{}", r(a), r(b)));
-        format!(
-            "{} {} {} {} {}",
-            r(self.diameter),
-            if self.through {
-                "THRU".into()
-            } else {
-                r(self.depth)
-            },
-            two(self.counterbore),
-            two(self.spotface),
-            two(self.countersink)
-        )
+    fn of(h: &Hole) -> HoleSizes {
+        HoleSizes {
+            diameter: h.diameter,
+            through: h.through,
+            depth: h.depth,
+            counterbore: h.counterbore,
+            spotface: h.spotface,
+            countersink: h.countersink,
+        }
     }
 }
 
 impl HoleGroup {
-    /// The group's physical requirements, each with the value its text must state (none for
-    /// `bore.through`; the group's size for `grouping.count`).
-    pub fn requirements(&self) -> Vec<(&'static str, f64)> {
+    /// The group's physical requirements, each with the value its text must state: none for
+    /// `bore.through`, the group's size for `grouping.count`, and none for a size the Analysis
+    /// does not give.
+    pub fn requirements(&self) -> Vec<(&'static str, Option<f64>)> {
         let s = &self.sizes;
-        let mut out = vec![("bore.diameter", s.diameter)];
+        let mut out = vec![("bore.diameter", Some(s.diameter))];
         if s.through {
-            out.push(("bore.through", f64::NAN));
+            out.push(("bore.through", None));
         } else {
             out.push(("bore.depth", s.depth));
         }
+        let recess = |r: Option<Recess>| r.map(|r| (r.diameter, r.depth));
         for (sizes, names) in [
-            (s.counterbore, ["counterbore.diameter", "counterbore.depth"]),
-            (s.spotface, ["spotface.diameter", "spotface.depth"]),
-            (s.countersink, ["countersink.diameter", "countersink.angle"]),
+            (
+                recess(s.counterbore),
+                ["counterbore.diameter", "counterbore.depth"],
+            ),
+            (recess(s.spotface), ["spotface.diameter", "spotface.depth"]),
+            (
+                s.countersink.map(|c| (c.diameter, c.angle)),
+                ["countersink.diameter", "countersink.angle"],
+            ),
         ] {
-            if let Some([a, b]) = sizes {
-                out.push((names[0], a));
+            if let Some((a, b)) = sizes {
+                out.push((names[0], Some(a)));
                 out.push((names[1], b));
             }
         }
         if self.members.len() > 1 {
-            out.push(("grouping.count", self.members.len() as f64));
+            out.push(("grouping.count", Some(self.members.len() as f64)));
         }
         out
     }
 
-    /// The callout that would state every size, as a fix suggests it.
+    /// The callout that would state every size, as a fix suggests it (`?` for a size the
+    /// Analysis does not give).
     pub fn callout(&self) -> String {
         let s = &self.sizes;
+        let f = |v: Option<f64>| v.map_or("?".into(), fmt);
         let mut out = String::new();
         if self.members.len() > 1 {
             out += &format!("{}× ", self.members.len());
@@ -141,16 +128,16 @@ impl HoleGroup {
         out += &if s.through {
             " THRU".to_string()
         } else {
-            format!(" ↧ {}", fmt(s.depth))
+            format!(" ↧ {}", f(s.depth))
         };
-        if let Some([d, h]) = s.counterbore {
-            out += &format!(" ⌴ ⌀{} ↧ {}", fmt(d), fmt(h));
+        if let Some(r) = s.counterbore {
+            out += &format!(" ⌴ ⌀{} ↧ {}", fmt(r.diameter), f(r.depth));
         }
-        if let Some([d, h]) = s.spotface {
-            out += &format!(" SF ⌀{} ↧ {}", fmt(d), fmt(h));
+        if let Some(r) = s.spotface {
+            out += &format!(" SF ⌀{} ↧ {}", fmt(r.diameter), f(r.depth));
         }
-        if let Some([d, a]) = s.countersink {
-            out += &format!(" ⌵ ⌀{} × {}°", fmt(d), fmt(a));
+        if let Some(c) = s.countersink {
+            out += &format!(" ⌵ ⌀{} × {}°", fmt(c.diameter), f(c.angle));
         }
         out
     }
@@ -163,10 +150,10 @@ impl HoleGroup {
 
     fn noun(&self) -> String {
         let s = &self.sizes;
-        let operation = if s.through {
-            "THRU".to_string()
-        } else {
-            format!("blind depth {}", fmt(s.depth))
+        let operation = match s.depth {
+            _ if s.through => "THRU".to_string(),
+            Some(d) => format!("blind depth {}", fmt(d)),
+            None => "blind, depth not given".to_string(),
         };
         let axis = self
             .axis
@@ -193,95 +180,79 @@ fn fmt(x: f64) -> String {
     if s == "-0" { "0".into() } else { s.into() }
 }
 
-fn vector(v: Option<&Value>) -> Option<[f64; 3]> {
-    let a = v?.as_array()?;
-    Some([
-        a.first()?.as_f64()?,
-        a.get(1)?.as_f64()?,
-        a.get(2)?.as_f64()?,
-    ])
-}
-
-/// The Analysis's holes in groups that share a callout.
+/// The Analysis's holes in groups that share a callout. A hole whose record cannot be read is
+/// in no group ([`coverage`] reports it).
 pub fn groups(analysis: &Analysis) -> Vec<HoleGroup> {
-    let holes: Vec<(&Feature, HoleSizes)> = analysis
-        .features
-        .iter()
-        .filter(|f| f.kind == "hole")
-        .filter_map(|f| Some((f, HoleSizes::of(f)?)))
+    let holes: Vec<Hole> = holes::read(analysis)
+        .into_iter()
+        .filter_map(|(_, h)| h.ok())
         .collect();
-    // The signed drilling direction and the opening's level along it, in quiddity's frame (one
-    // frame for every feature of the part), to the micrometre.
-    let direction = |f: &Feature| {
-        vector(f.parameters.get("axis")).map_or("-".into(), |a| {
-            a.map(|c| format!("{:.6}", c + 0.0)).join(",")
-        })
-    };
-    let level = |f: &Feature| {
-        let (a, o) = (
-            vector(f.parameters.get("axis")),
-            vector(f.parameters.get("location")),
-        );
-        a.zip(o).map_or("-".into(), |(a, o)| {
-            format!("{:.3}", a[0] * o[0] + a[1] * o[1] + a[2] * o[2] + 0.0)
-        })
-    };
-    let group = |members: &[&(&Feature, HoleSizes)], pattern: bool| HoleGroup {
-        members: members.iter().map(|(f, _)| f.id.clone()).collect(),
-        pattern,
-        sizes: members[0].1.clone(),
-        centres: members
-            .iter()
-            .map(|(f, _)| f.fingerprint.position)
-            .collect(),
-        axis: members[0].0.fingerprint.axis,
-    };
-
-    // Patterns: members share the pattern's count and pitch, the specification, the direction
-    // and the opening's level. The Analysis does not name a hole's pattern, so a pattern is
-    // accepted only when exactly its count of holes share all of that.
-    let mut patterns: BTreeMap<String, Vec<usize>> = BTreeMap::new();
-    for (i, (f, sizes)) in holes.iter().enumerate() {
-        if let Some(p) = &f.fingerprint.pattern {
-            let key = format!(
-                "{} {:.6} {} {} {}",
-                p.count,
-                p.pitch,
-                sizes.key(),
-                direction(f),
-                level(f)
-            );
-            patterns.entry(key).or_default().push(i);
+    // `holes` is in Analysis order, so sorted indices give the members in Analysis order.
+    let group = |members: &[usize], pattern: bool| {
+        let mut members = members.to_vec();
+        members.sort_unstable();
+        HoleGroup {
+            members: members
+                .iter()
+                .map(|&i| holes[i].feature.id.clone())
+                .collect(),
+            pattern,
+            sizes: HoleSizes::of(&holes[members[0]]),
+            centres: members
+                .iter()
+                .map(|&i| holes[i].feature.fingerprint.position)
+                .collect(),
+            axis: holes[members[0]].feature.fingerprint.axis,
         }
-    }
+    };
     let mut out = Vec::new();
     let mut taken = vec![false; holes.len()];
-    for members in patterns.values() {
-        let count = holes[members[0]]
-            .0
-            .fingerprint
-            .pattern
-            .as_ref()
-            .unwrap()
-            .count;
-        if members.len() == count && count > 1 {
-            let m: Vec<_> = members.iter().map(|&i| &holes[i]).collect();
-            out.push(group(&m, true));
-            members.iter().for_each(|&i| taken[i] = true);
+    match &analysis.recognition {
+        // Patterns as quiddity recognised them: each established one is a group.
+        Some(r) => {
+            let refs: Vec<&Hole> = holes.iter().collect();
+            for p in &r.patterns {
+                if let Ok(members) = holes::established(p, &refs)
+                    && members.iter().all(|&m| !taken[m])
+                {
+                    out.push(group(&members, true));
+                    members.iter().for_each(|&m| taken[m] = true);
+                }
+            }
+        }
+        // No recognition record (an Analysis assembled by hand): a pattern is read from the
+        // fingerprints, accepted only when exactly its count of holes share its count and pitch,
+        // the requirement and the opening's level along the drilling direction (to 1e-3 mm).
+        None => {
+            let mut patterns: BTreeMap<(usize, i64, Vec<i64>, i64), Vec<usize>> = BTreeMap::new();
+            for (i, h) in holes.iter().enumerate() {
+                if let Some(p) = &h.feature.fingerprint.pattern {
+                    let level = (0..3).map(|k| h.direction[k] * h.at[k]).sum::<f64>();
+                    let key = (
+                        p.count,
+                        holes::size_key(p.pitch),
+                        h.requirement(),
+                        (level * 1e3).round() as i64,
+                    );
+                    patterns.entry(key).or_default().push(i);
+                }
+            }
+            for ((count, ..), members) in &patterns {
+                if members.len() == *count && *count > 1 {
+                    out.push(group(members, true));
+                    members.iter().for_each(|&i| taken[i] = true);
+                }
+            }
         }
     }
-    let mut loose: BTreeMap<String, Vec<usize>> = BTreeMap::new();
-    for (i, (f, sizes)) in holes.iter().enumerate() {
+    let mut loose: BTreeMap<Vec<i64>, Vec<usize>> = BTreeMap::new();
+    for (i, h) in holes.iter().enumerate() {
         if !taken[i] {
-            loose
-                .entry(format!("{} {}", sizes.key(), direction(f)))
-                .or_default()
-                .push(i);
+            loose.entry(h.requirement()).or_default().push(i);
         }
     }
     for members in loose.values() {
-        let m: Vec<_> = members.iter().map(|&i| &holes[i]).collect();
-        out.push(group(&m, false));
+        out.push(group(members, false));
     }
     // In Analysis order of their first member.
     let order: BTreeMap<&str, usize> = analysis
@@ -356,6 +327,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 "bore.through" | "grouping.count" => "bore.diameter",
                 p => p,
             };
+            let synthetic = carrier != parameter;
             let claiming: Vec<&Mark> = marks
                 .iter()
                 .filter(|m| {
@@ -364,14 +336,6 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                         .any(|c| c.parameter == carrier && g.members.contains(&c.feature))
                 })
                 .collect();
-            let stated = |m: &&Mark| match parameter {
-                "bore.through" => says_thru(&m.text),
-                "grouping.count" => says_count(&m.text, g.members.len()),
-                _ => states(&m.text, value),
-            };
-            if claiming.iter().any(stated) {
-                continue;
-            }
             let requirements: Vec<Requirement> = g
                 .members
                 .iter()
@@ -380,6 +344,45 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                     parameter: parameter.into(),
                 })
                 .collect();
+            let measurements: Vec<String> =
+                g.members.iter().map(|f| format!("{f}/{carrier}")).collect();
+            // A size the Analysis does not give cannot be checked against any text (THRU has
+            // no value to give).
+            let value = match value {
+                Some(v) => v,
+                None if parameter == "bore.through" => f64::NAN,
+                None => {
+                    issues.push(LintIssue {
+                    id: format!("l:hole_requirement_unverifiable:{}/{parameter}", g.members[0]),
+                    code: "hole_requirement_unverifiable".into(),
+                    severity: Severity::Warning,
+                    message: format!(
+                        "{}: requirement {parameter} cannot be checked: the analysis does not give its value",
+                        g.noun()
+                    ),
+                    at: None,
+                    view: claiming.first().and_then(|m| m.view.clone()),
+                    subjects: g.members.clone(),
+                    requirements,
+                    measurements,
+                    sources: Vec::new(),
+                    stage: None,
+                    annotation: claiming.first().map(|m| m.name.clone()),
+                    related: claiming.iter().skip(1).map(|m| m.name.clone()).collect(),
+                    evidence: Some(format!("the hole record gives no {parameter}")),
+                    fix: None,
+                });
+                    continue;
+                }
+            };
+            let stated = |m: &&Mark| match parameter {
+                "bore.through" => says_thru(&m.text),
+                "grouping.count" => says_count(&m.text, g.members.len()),
+                _ => states(&m.text, value),
+            };
+            if claiming.iter().any(stated) {
+                continue;
+            }
             let what = match parameter {
                 "bore.through" => "THRU".to_string(),
                 "grouping.count" => format!("{}×", g.members.len()),
@@ -387,7 +390,6 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             };
             // A size claimed but misprinted cannot be credited; THRU or the quantity left off
             // the diameter's callout is simply not stated (the callout claims the diameter).
-            let synthetic = carrier != parameter;
             let (code, message, evidence, annotation, view) = match claiming.first() {
                 Some(m) if !synthetic => (
                     "hole_requirement_unverifiable",
@@ -421,11 +423,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 at: None,
                 view,
                 subjects: g.members.clone(),
-                measurements: g
-                    .members
-                    .iter()
-                    .map(|f| format!("{f}/{carrier}"))
-                    .collect(),
+                measurements,
                 requirements,
                 sources: Vec::new(),
                 stage: None,
@@ -440,9 +438,9 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             });
         }
     }
-    // A hole whose sizes cannot be read is reported, never left out of the count.
-    for f in analysis.features.iter().filter(|f| f.kind == "hole") {
-        if HoleSizes::of(f).is_none() {
+    // A hole whose record cannot be read is reported, never left out of the count.
+    for (f, read) in holes::read(analysis) {
+        if let Err(why) = read {
             issues.push(LintIssue {
                 id: format!("l:hole_requirement_unverifiable:{}/?", f.id),
                 code: "hole_requirement_unverifiable".into(),
@@ -463,7 +461,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 stage: None,
                 annotation: None,
                 related: Vec::new(),
-                evidence: Some("the feature has no numeric diameter".into()),
+                evidence: Some(why),
                 fix: None,
             });
         }
@@ -475,7 +473,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
 mod tests {
     use super::*;
     use crate::output::Claim;
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     /// An Analysis of the holes *records* (quiddity's record fields, each with its `pattern`
     /// count if any), each on its own face, along the part's z.
@@ -587,6 +585,35 @@ mod tests {
         assert_eq!(found(&a, &[]), ["hole_requirement_unverifiable f:hole:1 ?"]);
     }
 
+    /// A blind hole whose record gives no depth has a depth requirement that cannot be checked:
+    /// it is reported unverifiable, whatever the sheet prints, never compared with a made-up
+    /// value. A through hole needs no depth.
+    #[test]
+    fn a_blind_hole_without_a_depth_is_unverifiable() {
+        let mut blind = hole([10.0, 10.0, 10.0], true);
+        blind["bottom"] = json!("flat");
+        blind.as_object_mut().unwrap().remove("depth");
+        let mut through = hole([40.0, 10.0, 10.0], true);
+        through.as_object_mut().unwrap().remove("depth");
+        through["diameter"] = json!(8.0);
+        let a = part(&[blind, through]);
+        let marks = [
+            mark(
+                "⌀6.6 ↧ 10",
+                &[("f:hole:1", "bore.diameter"), ("f:hole:1", "bore.depth")],
+            ),
+            mark("⌀8 THRU", &[("f:hole:2", "bore.diameter")]),
+        ];
+        let issues = coverage(&a, &marks);
+        assert_eq!(
+            found(&a, &marks),
+            ["hole_requirement_unverifiable f:hole:1 bore.depth"]
+        );
+        assert!(!issues[0].message.contains("NaN"), "{}", issues[0].message);
+        assert_eq!(issues[0].annotation.as_deref(), Some("m:⌀6.6 ↧ 10"));
+        assert_eq!(groups(&a)[0].callout(), "⌀6.6 ↧ ?");
+    }
+
     /// A recognised pattern is one group; one whose members are not all present falls back to
     /// loose holes (LINT-hole_coverage-bolt_circle_corroboration's fallback).
     #[test]
@@ -607,6 +634,41 @@ mod tests {
         let g = groups(&part(&members));
         assert_eq!(g.len(), 1);
         assert!(!g[0].pattern && g[0].members.len() == 3);
+    }
+
+    /// With a recognition record, the recognised patterns are the groups: a grid of identical
+    /// holes is one; a bolt circle of fewer than five holes is not established (ISSUE-1596-a; the
+    /// concentric corroboration of LINT-hole_coverage-bolt_circle_corroboration is not ported), so
+    /// its holes join the loose holes of the same requirement, as the dimensions call them out.
+    #[test]
+    fn recognised_patterns_are_the_groups() {
+        let mut a = part(
+            &(0..9)
+                .map(|i| hole([10.0 * f64::from(i), 0.0, 10.0], true))
+                .collect::<Vec<_>>(),
+        );
+        let ids = |r: std::ops::Range<usize>| -> Vec<String> {
+            r.map(|i| format!("f:hole:{}", i + 1)).collect()
+        };
+        let pattern = |n: usize, arrangement: &str, members: Vec<String>| {
+            json!({ "id": format!("f:hole_pattern:{n}"), "arrangement": arrangement,
+                    "members": members, "faces": [], "parameters": {} })
+        };
+        a.recognition = Some(
+            serde_json::from_value(json!({
+                "recogniser": "test",
+                "frame": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                "patterns": [pattern(1, "grid", ids(0..4)), pattern(2, "bolt_circle", ids(4..8))],
+            }))
+            .unwrap(),
+        );
+        let g = groups(&a);
+        assert_eq!(
+            g.iter()
+                .map(|g| (g.members.clone(), g.pattern))
+                .collect::<Vec<_>>(),
+            [(ids(0..4), true), (ids(4..9), false)]
+        );
     }
 
     /// LINT-hole_coverage-blind_depth, -cbore_diameter_depth, -spotface_diameter_depth and
