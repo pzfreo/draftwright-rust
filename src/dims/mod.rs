@@ -9,7 +9,8 @@
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
 //!   pitches that locate a pattern's members;
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
-//! - **bosses**: diameter, height and location;
+//!   **blind slots** (rectangular and round-bottom section recesses) by one callout each;
+//! - **bosses**: diameter (or size across flats for a polygonal boss), height and location;
 //! - **fillet and chamfer callouts** (`4× R3`, `C1`, `4.5 × 42.1°`) where the edge is seen end-on,
 //!   or in the profile of a turned part.
 //!
@@ -287,7 +288,17 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
         out.extend(w);
         problems.extend(more);
     }
-    problems.extend(not_ported(analysis));
+    // A planner may dimension some records of a kind it does not claim (the section recesses
+    // that are blind slots): those are not reported.
+    let stated: BTreeSet<String> = out
+        .iter()
+        .flat_map(|w| w.measurements.iter().map(|m| m.feature.clone()))
+        .collect();
+    problems.extend(
+        not_ported(analysis)
+            .into_iter()
+            .filter(|p| !p.subjects.iter().any(|s| stated.contains(s))),
+    );
     (out, problems)
 }
 
@@ -472,6 +483,7 @@ pub fn plan(
             _ => kept.push((w, entry.is_none(), view, along)),
         }
     }
+    bosses::consolidate(analysis, &mut kept, &mut omitted);
 
     let (sides, lane) = placement::lanes(&frames, kept.iter().map(|(w, _, view, _)| (w, *view)));
 

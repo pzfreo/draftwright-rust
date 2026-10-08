@@ -14,17 +14,27 @@
 //!   (draftwright's `location_slot.length`, datum `bbox`). As in draftwright, its position across
 //!   the width axis is not dimensioned.
 //!
-//! A slot inside a recognised slot pattern (`slot_pattern`) is the pattern's, as in draftwright;
-//! the pattern's grouped callout is not ported, and the pattern is reported as not dimensioned.
-//! Blind slots (draftwright's rectangular and round-bottom blind slots) reach the Analysis as
-//! `section_recess` features, which no planner reads yet.
+//! A slot inside a recognised slot pattern (`slot_pattern`) is the pattern's, as in draftwright,
+//! and the pattern would be reported as not dimensioned. quiddity publishes its slot arrays only
+//! as derived `slot_patterns`, which the bridge does not read yet (it keeps the derived hole
+//! patterns only), so no `slot_pattern` reaches the Analysis: the members of an array are
+//! dimensioned as lone slots, where draftwright prints one grouped `N× SLOT W × L` callout and
+//! its pitches.
+//!
+//! **Blind slots** reach the Analysis as `section_recess` features, a kind shared with pockets,
+//! channels and passages, so the planner claims no kind for them: it reads each record's section
+//! as draftwright's `section_recess_fields` does, and calls out those it reads as a rectangular
+//! or a round-bottom blind slot (an edge-open recess with an open U section), in the view that
+//! looks into it: `OPEN SLOT W × L × D DEEP`, `ROUND-BOTTOM OPEN SLOT F BOTTOM FLAT × Rr × L
+//! LONG`. Every other section recess stays reported as not dimensioned. As in draftwright, a
+//! blind slot is not located (it opens at the part's edge).
 
 use std::collections::BTreeMap;
 
 use serde_json::Value;
 
 use super::{
-    AXES, Context, Measurement, P3, Planner, Problem, QFrame, Shape, Want, end_on, fmt, key,
+    AXES, Context, Measurement, P3, Planner, Problem, QFrame, Shape, Want, end_on, fmt, key, point,
     want_id,
 };
 use crate::bridge::Feature;
@@ -356,5 +366,217 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             },
         });
     }
+    out.extend(
+        analysis
+            .features
+            .iter()
+            .filter(|f| f.kind == "section_recess")
+            .filter_map(|f| blind(f, &cx.frame))
+            .map(|b| b.want()),
+    );
     (out, problems)
+}
+
+/// A blind slot: a section recess draftwright reads as a rectangular or a round-bottom open
+/// slot (`section_recess_fields`), in the part's frame.
+struct Blind<'a> {
+    feature: &'a Feature,
+    /// Round-bottom (two equal quarter arcs and a flat floor) rather than rectangular.
+    round: bool,
+    /// The world axes it spans across and is cut into (the view looks along the second).
+    wide: usize,
+    deep: usize,
+    centre: P3,
+    width: f64,
+    length: f64,
+    /// Its depth; a round-bottom slot's is its arcs' radius.
+    depth: f64,
+}
+
+/// A direction of quiddity's frame that lies along one of its axes: that axis and the sign.
+fn along(v: P3) -> Option<(usize, f64)> {
+    let i = (0..3).max_by(|&a, &b| v[a].abs().total_cmp(&v[b].abs()))?;
+    let sign = v[i].signum();
+    (0..3)
+        .all(|k| (v[k] - if k == i { sign } else { 0.0 }).abs() <= 1e-9)
+        .then_some((i, sign))
+}
+
+/// *f* as a blind slot, when draftwright's `section_recess_fields` reads it as one: an
+/// edge-open recess with defining-face evidence, planar run ends normal to its run, a principal
+/// frame, and an open four-vertex U section, either straight with two perpendicular walls (`rectangular`) or two
+/// equal quarter arcs joined by a flat floor (`general`). Anything else (pockets, channels,
+/// passages, other profiles) is not a slot here, and stays reported as not dimensioned.
+fn blind<'a>(f: &'a Feature, frame: &QFrame) -> Option<Blind<'a>> {
+    let p = &f.parameters;
+    // draftwright refuses a record without defining-face evidence.
+    if p.get("evidence")?
+        .get("defining_faces")?
+        .as_array()?
+        .is_empty()
+    {
+        return None;
+    }
+    let class = p.get("classification")?;
+    let shape = class.get("section_shape")?.as_str()?;
+    if class.get("feature_kind")?.as_str()? != "edge_open_recess"
+        || !matches!(shape, "rectangular" | "general")
+    {
+        return None;
+    }
+    let g = p.get("geometry")?;
+    for end in ["low", "high"] {
+        let s = g.get("ends")?.get(end)?.get("surface")?;
+        let flat = s
+            .get("gradient")?
+            .as_array()?
+            .iter()
+            .all(|x| x.as_f64() == Some(0.0));
+        if s.get("type")?.as_str()? != "plane" || !flat {
+            return None;
+        }
+    }
+    let fr = g.get("frame")?;
+    let origin = point(fr.get("origin"))?;
+    let (ri, rs) = along(point(fr.get("run"))?)?;
+    let (ui, us) = along(point(fr.get("u"))?)?;
+    let (vi, vs) = along(point(fr.get("v"))?)?;
+    if ri == ui || ri == vi || ui == vi {
+        return None;
+    }
+    let profile = g.get("profile")?;
+    if profile.get("closure")?.as_str()? != "open" {
+        return None;
+    }
+    let mut pts = Vec::new();
+    let mut bulges = Vec::new();
+    for v in profile.get("boundary")?.as_array()? {
+        let xy = v.get("point")?.as_array()?;
+        pts.push([xy.first()?.as_f64()?, xy.get(1)?.as_f64()?]);
+        bulges.push(v.get("bulge")?.as_f64()?);
+    }
+    if pts.len() != 4 {
+        return None;
+    }
+    // The opening joins the first and last vertices, across the width.
+    let across: Vec<usize> = (0..2).filter(|&i| pts[0][i] != pts[3][i]).collect();
+    let [wl] = across[..] else { return None };
+    let dl = 1 - wl;
+    let (open, floor) = (pts[0][dl], pts[1][dl]);
+    if pts[2][dl] != floor || open == floor {
+        return None;
+    }
+    let [(wi, ws), (di, ds)] = [[(ui, us), (vi, vs)][wl], [(ui, us), (vi, vs)][dl]];
+    let width = (pts[3][wl] - pts[0][wl]).abs();
+    let depth = (open - floor).abs();
+    let run = g.get("run_interval")?.as_array()?;
+    let (low, high) = (run.first()?.as_f64()?, run.get(1)?.as_f64()?);
+    let length = high - low;
+    let mid = |i: usize, s: f64, a: f64, b: f64| origin[i] + s * 0.5 * (a + b);
+    let mut centre = [0.0; 3];
+    centre[ri] = mid(ri, rs, low, high);
+    centre[wi] = mid(wi, ws, pts[0][wl], pts[3][wl]);
+    centre[di] = mid(di, ds, floor, open);
+    if !(width > 0.0 && depth > 0.0 && length > 0.0) {
+        return None;
+    }
+    let round = if bulges.iter().all(|b| *b == 0.0) {
+        if shape != "rectangular" || pts[0][wl] != pts[1][wl] || pts[2][wl] != pts[3][wl] {
+            return None;
+        }
+        false
+    } else {
+        // Two equal quarter arcs (bulge tan(22.5°), signed by the section's winding) and a
+        // straight floor between them.
+        let winding = (pts[1][0] - pts[0][0]) * (pts[2][1] - pts[1][1])
+            - (pts[1][1] - pts[0][1]) * (pts[2][0] - pts[1][0]);
+        let quarter = 0.414213562373 * if winding > 0.0 { 1.0 } else { -1.0 };
+        let inset = if pts[3][wl] > pts[0][wl] { 1.0 } else { -1.0 };
+        if shape != "general"
+            || bulges != [quarter, 0.0, quarter, 0.0]
+            || (pts[1][wl] - pts[0][wl] - inset * depth).abs() > 1e-9
+            || (pts[3][wl] - pts[2][wl] - inset * depth).abs() > 1e-9
+            || width <= 2.0 * depth
+        {
+            return None;
+        }
+        true
+    };
+    let world = |i: usize| principal(frame.letter(&Value::from(AXES[i])).expect("a letter"));
+    Some(Blind {
+        feature: f,
+        round,
+        wide: world(wi)?,
+        deep: world(di)?,
+        centre: frame.point(centre),
+        width,
+        length,
+        depth,
+    })
+}
+
+impl Blind<'_> {
+    /// Its callout, in the view that looks into it, as draftwright prints it: `OPEN SLOT W × L
+    /// × D DEEP`, or `ROUND-BOTTOM OPEN SLOT F BOTTOM FLAT × Rr × L LONG` (the floor's flat
+    /// width, the arcs' radius and the length), with a leader to a side wall.
+    fn want(&self) -> Want {
+        let id = &self.feature.id;
+        let view = end_on(self.deep);
+        let m = |parameter: &str, value: f64| Measurement {
+            feature: id.clone(),
+            parameter: parameter.into(),
+            value,
+        };
+        let words = |s: &str| s.split(' ').map(String::from).collect::<Vec<_>>();
+        let (terms, measurements, basis) = if self.round {
+            let flat = self.width - 2.0 * self.depth;
+            let mut t = words("ROUND-BOTTOM OPEN SLOT");
+            t.extend([fmt(flat), "BOTTOM".into(), "FLAT".into(), "×".into()]);
+            t.extend([
+                format!("R{}", fmt(self.depth)),
+                "×".into(),
+                fmt(self.length),
+            ]);
+            t.push("LONG".into());
+            (
+                t,
+                vec![
+                    m("round_bottom_blind_slot_flat_width.length", flat),
+                    m("round_bottom_blind_slot_radius.radius", self.depth),
+                    m("round_bottom_blind_slot_length.length", self.length),
+                ],
+                "a round-bottom blind slot open at an edge: its floor's flat width, its arcs' radius and its length, in one callout in the view that looks into it",
+            )
+        } else {
+            let mut t = words("OPEN SLOT");
+            t.extend([fmt(self.width), "×".into(), fmt(self.length), "×".into()]);
+            t.extend([fmt(self.depth), "DEEP".into()]);
+            (
+                t,
+                vec![
+                    m("rectangular_blind_slot_width.length", self.width),
+                    m("rectangular_blind_slot_length.length", self.length),
+                    m("rectangular_blind_slot_depth.length", self.depth),
+                ],
+                "a rectangular blind slot open at an edge: its width, length and depth, in one callout in the view that looks into it",
+            )
+        };
+        let wall = |s: f64| {
+            let mut c = self.centre;
+            c[self.wide] += s * 0.5 * self.width;
+            (c, 0.0)
+        };
+        Want {
+            id: want_id(id, &measurements[0].parameter, view),
+            views: vec![view],
+            value: measurements[0].value,
+            terms,
+            measurements,
+            turning: None,
+            basis: basis.into(),
+            shape: Shape::Callout {
+                sites: vec![wall(-1.0), wall(1.0)],
+            },
+        }
+    }
 }

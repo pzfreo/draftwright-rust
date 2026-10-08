@@ -282,10 +282,33 @@ fn the_hash_and_the_geometry_come_from_one_read() {
 #[test]
 fn no_document_infers_manufacturing_intent() {
     // The callout grammar's words (which face of a turned part a bolt circle is on included),
-    // and a radius's, a diameter's and an equal-leg chamfer's prefix.
-    const WORDS: [&str; 14] = [
-        "THRU", "EQ", "SP", "ON", "BC", "UPPER", "LOWER", "FACE", "OF", "FROM", "END", "R", "ø",
+    // a radius's, a diameter's and an equal-leg chamfer's prefix, a polygonal boss's (`HEX`,
+    // `N-SIDED`, `A/F`) and a blind slot's words.
+    const WORDS: [&str; 24] = [
+        "THRU",
+        "EQ",
+        "SP",
+        "ON",
+        "BC",
+        "UPPER",
+        "LOWER",
+        "FACE",
+        "OF",
+        "FROM",
+        "END",
+        "R",
+        "ø",
         "C",
+        "HEX",
+        "SIDED",
+        "AF",
+        "OPEN",
+        "SLOT",
+        "DEEP",
+        "ROUNDBOTTOM",
+        "BOTTOM",
+        "FLAT",
+        "LONG",
     ];
     let mut parts = fixtures();
     parts.extend(sampled());

@@ -4,13 +4,13 @@
 //! a turned part's `od.diameter`), hole callouts (bore, counterbore, spotface, countersink and
 //! bolt-circle terms, on holes, patterns and turned bores), hole and pattern locations, pattern
 //! pitches, slot sizes (`slot`: width, length, end radius) and locations (`location.slot`), boss
-//! diameters and heights (`boss`), and fillet and chamfer callouts. Each of draftwright's
-//! annotations that states one of them is matched with a plan item of the same family, view and
-//! printed label whose measurement identity agrees: for an extent, a pitch or a location (whose
-//! family names its axis), the same value within half the printed unit; for a callout (fillets'
-//! and chamfers' too), every feature draftwright names sits where one of the item's features (or
-//! its pattern) does, within 0.01 mm across the view. Every difference is listed, with a count, a
-//! verdict and the reason, in
+//! diameters, sizes across flats and heights (`boss`), and fillet and chamfer callouts. Each of
+//! draftwright's annotations that states one of them is matched with a plan item of the same
+//! family, view and printed label whose measurement identity agrees: for an extent, a pitch or a
+//! location (whose family names its axis), the same value within half the printed unit; for a
+//! callout (fillets' and chamfers' too), every feature draftwright names sits where one of the
+//! item's features (or its pattern) does, within 0.01 mm across the view. Every difference is
+//! listed, with a count, a verdict and the reason, in
 //! `tests/fixtures/known_dimensions.json`; a listed difference that goes away must come off.
 //!
 //! The features come from Python quiddity 0.3.9 (draftwright's own recogniser for these sheets),
@@ -88,6 +88,7 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
         }
         "location_slot.length" => Some("location.slot".into()),
         "boss.diameter" | "boss_height.length" => Some("boss".into()),
+        "polygon_across_flats.length" if kind == "polygonal_boss" => Some("boss".into()),
         p if p.starts_with("grid_pitch.") => Some("pitch".into()),
         p if p.starts_with("location") && (kind == "hole" || kind == "pattern") => {
             Some(format!("location.{}", p.rsplit('.').next().unwrap_or("")))
@@ -122,7 +123,7 @@ fn rust_family(d: &PlannedDimension) -> String {
         "location.slot".into()
     } else if parameter.starts_with("slot_") {
         "slot".into()
-    } else if parameter.starts_with("boss") {
+    } else if parameter.starts_with("boss") || parameter.starts_with("polygon_") {
         "boss".into()
     } else if parameter.starts_with("location") {
         format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
