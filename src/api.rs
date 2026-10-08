@@ -358,6 +358,10 @@ pub struct Review {
     /// What lint finds on the rendered drawing, judged against the part's analysis alone
     /// ([`crate::lint`]): e.g. a hole whose sizes the sheet does not state.
     pub lint: Vec<LintIssue>,
+    /// What lint's structural checks find on the drawn sheet ([`crate::lint::structural`]):
+    /// e.g. ink past the border. draftwright's lint runs them first, in the same list; they are
+    /// kept apart here so `lint` stays coverage alone.
+    pub structural: Vec<LintIssue>,
 }
 
 /// The drawing of the STEP file at *step* under *spec*, as SVG text, with its problems and
@@ -383,6 +387,7 @@ fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
         svg: drawing.svg(),
         problems: plan.problems,
         lint: lint::lint(&analysis, &drawing),
+        structural: lint::structural::check(&drawing),
     })
 }
 

@@ -1553,6 +1553,7 @@
     issues: [1600, 1153, 1209, 1216]
     tests: [tests/test_lint_structural.py, tests/test_issue_1006_measurement_comparison.py]
   status: pending
+  rust_note: "Not ported (src/lint/structural.rs leaves it out): the rendered drawing does not record what the rule measures. It needs, for each linear dimension, its measured path (draftwright's measured_length: the page distance between the two points it dimensions) and that annotation's scale; output::Drawing records each dimension's ink and label boxes (Drawing::sheet) and its text and claims (Drawing::annotations), and the plan's dims::Placed has only lines, arrowheads and the label box. Reading the path off the arrowheads would be a guess about how each kind is drawn."
   port_note: "Keep."
 
 - id: LINT-code-nominal_rounded
@@ -1575,7 +1576,9 @@
     lint_code: "scale_not_stated"
     module: "linting/structural.py"
     tests: [tests/test_lint_structural.py]
-  status: pending
+  status: ported
+  rust_test: a_finished_sheet_states_its_scale
+  rust_note: "src/lint/structural.rs reads the sheet's record of what was drawn (output::Sheet, Kind::ScaleNote and Kind::TitleBlock, set where model::render draws the note and the block, as draftwright sets is_scale_note where it places the note), never the plan. Reported by api::review in Review::structural, beside coverage (draftwright runs it first in one list)."
   port_note: "Keep."
 
 - id: LINT-code-annotation_overlap
@@ -1588,6 +1591,8 @@
     issues: [161, 1321, 1333]
     tests: [tests/test_lint_structural.py, tests/test_issue_1332_overlap_remedy.py]
   status: pending
+  rust_test: labels_overlap_by_more_than_half_a_millimetre_both_ways
+  rust_note: "Partial (src/lint/structural.rs): each pair of labels in drawing order whose text boxes share more than 0.5 mm both ways, a warning; a thing with no label (title block, notes block) by its whole ink. The port draws no frame or zone grid. Not ported: the remedy that names line-work crossing the same pair (annotation_ink_overlap's measure); a section's hatch, cutting-plane wings and arrowheads (draftwright compares each by its whole box) take no part. Agrees with draftwright's captured sheets over the labelled pairs (ctc04's one finding; structural_checks_on_pythons_sheets_agree_with_pythons_lint); none on the port's own drawings, as the placement problems (known_placement.json) report none."
   port_note: "Keep."
 
 - id: LINT-code-annotation_ink_overlap
@@ -1645,7 +1650,9 @@
     module: "linting/structural.py"
     issues: [767, 768]
     tests: [tests/test_lint_structural.py]
-  status: pending
+  status: ported
+  rust_test: every_annotation_stays_inside_the_drawable_area
+  rust_note: "src/lint/structural.rs: every dimension's, caption's, note's and the title block's whole ink, measured as model::render draws it (output::Sheet), against the drawable area inside the border; the title block allowed draftwright's half stroke (0.075 mm); one finding per side. A section's hatch and cutting-plane ink are judged as one thing where draftwright judges each arrowhead, wing and the hatch, so a section mark off the sheet gives fewer findings (the same sides). On the port's own drawings it reports exactly the dimensions the placement problems put off the sheet (known_structural.json, rust-wrong with known_placement.json)."
   port_note: "Keep."
 
 - id: LINT-code-view_out_of_bounds
@@ -1657,7 +1664,9 @@
     module: "linting/structural.py"
     issues: [75]
     tests: [tests/test_issue_1196_deterministic_view_names.py]
-  status: pending
+  status: ported
+  rust_test: a_view_stays_inside_the_drawable_area
+  rust_note: "src/lint/structural.rs: each view's box of visible edges (draftwright's view shape is its visible lines) against the drawable area, one error per side."
   port_note: "Keep."
 
 - id: LINT-code-view_overlap
@@ -1669,7 +1678,9 @@
     module: "linting/structural.py"
     issues: [160]
     tests: [tests/test_compose_then_pack.py]
-  status: pending
+  status: ported
+  rust_test: views_overlap_when_their_boxes_do
+  rust_note: "src/lint/structural.rs: each pair of views' boxes of visible edges, strictly overlapping (a touch is not), as draftwright's _boxes_overlap."
   port_note: "Keep."
 
 - id: LINT-code-view_annotation_overlap
@@ -1763,7 +1774,9 @@
     lint_code: "derived_view_identifier_reused"
     module: "linting/structural.py"
     tests: [tests/test_detail_views.py, tests/test_lint_structural.py]
-  status: pending
+  status: ported
+  rust_test: one_identifier_names_one_derived_view
+  rust_note: "src/lint/structural.rs: identifiers decoded from the drawn views' names as draftwright's derived_view_identifier does (section_aa is A, detail_b is B). The port draws at most one section and no detail view, so it cannot fire on its own drawings yet."
   port_note: "Keep."
 
 - id: LINT-code-title_field_overflow
