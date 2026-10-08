@@ -340,6 +340,90 @@ pub(super) fn band_lanes<'a>(
     out
 }
 
+/// The strip across a view from *side*.
+fn opposite(side: Side) -> Side {
+    match side {
+        Side::Below => Side::Above,
+        Side::Above => Side::Below,
+        Side::Left => Side::Right,
+        Side::Right => Side::Left,
+    }
+}
+
+/// A strip that cannot hold its lanes on the page passes them to the opposite strip
+/// (draftwright's fall-through, ISSUE-1215-e: a dimension its strip has no room for retries on the
+/// strip across the view). A strip holds its linear dimensions up to the first lane whose item
+/// does not fit the page ([`Page::fits`]: on the sheet, its label off the views and the title
+/// block, no line through the title block or another view); that item and every one outside it
+/// move, in their order, to the next free lanes of the opposite strip, each that fits there taking
+/// the next lane. One that fits on neither side keeps its own lane, where the collision checks
+/// report it: nothing is dropped. Callouts keep their strip ([`settle`] moves their leaders). The
+/// strips' lanes come from every item the part would have, and the page from the sheet and the
+/// views, which no omission changes, so where an item falls is edit-local (ARCH0003-2).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn fall_through(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &mut [Option<Side>],
+    lanes: &mut [usize],
+    analysis: &Analysis,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+) {
+    let page = Page::new(analysis, sheet, views);
+    let linear = |i: usize| matches!(items[i].shape, Shape::Linear { .. });
+    let mut strips: BTreeMap<(&str, Side), Vec<usize>> = BTreeMap::new();
+    for i in 0..items.len() {
+        if let (Some(view), Some(side)) = (views_of[i], sides[i]) {
+            strips.entry((view, side)).or_default().push(i);
+        }
+    }
+    let fits = |i: usize, side: Side, lane: usize| {
+        let view = views_of[i].expect("a strip's item has a view");
+        place(&frames[view], &items[i], side, lane).is_some_and(|p| page.fits(&p, view))
+    };
+    // Each strip's overflow, and the lanes it keeps (its callouts' among them).
+    let mut overflow: Vec<((&str, Side), Vec<usize>)> = Vec::new();
+    let mut held: BTreeMap<(&str, Side), usize> = BTreeMap::new();
+    for (key, list) in &mut strips {
+        list.sort_by_key(|&i| lanes[i]);
+        let cut = list
+            .iter()
+            .position(|&i| linear(i) && !fits(i, key.1, lanes[i]))
+            .unwrap_or(list.len());
+        // Past the cut only linear dimensions move; callouts keep their lanes.
+        let (out, outer_callouts): (Vec<usize>, Vec<usize>) =
+            list[cut..].iter().partition(|&&i| linear(i));
+        let lanes_held = list[..cut]
+            .iter()
+            .chain(&outer_callouts)
+            .map(|&i| lanes[i] + 1)
+            .max();
+        held.insert(*key, lanes_held.unwrap_or(0));
+        if !out.is_empty() {
+            overflow.push((*key, out));
+        }
+    }
+    let full: Vec<(&str, Side)> = overflow.iter().map(|(key, _)| *key).collect();
+    for ((view, side), list) in overflow {
+        let across = opposite(side);
+        // An opposite strip that overflows itself has no room: what it could not hold keeps its
+        // lanes there.
+        if full.contains(&(view, across)) {
+            continue;
+        }
+        let next = held.entry((view, across)).or_insert(0);
+        for i in list {
+            if fits(i, across, *next) {
+                sides[i] = Some(across);
+                lanes[i] = *next;
+                *next += 1;
+            }
+        }
+    }
+}
+
 /// Places *w* in lane *lane* of strip *side* of its view.
 pub(super) fn place(frame: &Frame, w: &Want, side: Side, lane: usize) -> Option<Placed> {
     match &w.shape {
@@ -422,37 +506,40 @@ fn place_linear(
 const SLIDE_STEP: f64 = 0.5;
 const SLIDE_CLEAR: f64 = 0.5;
 const SLIDE_REACH: f64 = 20.0;
+/// The clearance a callout's label moved out to the side of its view keeps from other labels:
+/// draftwright's `pad_around_text` (its stacked callout rows are a text height and twice this
+/// apart, `holes.min_gap`).
+const SIDE_PAD: f64 = 2.0;
 
 /// Moves labels off other items' ink: an item whose label another item's line crosses (an outer
 /// lane's extension line, a leader) or meets another label, or whose leader crosses another
 /// label, takes the nearest place clear of both. A linear dimension's label moves along its own
 /// line: between its arrows it slides between them, right (or up) before left; beyond the line's
 /// end (a span too short for it) it tries the other end, then further out from either, the line
-/// running on to it, up to [`SLIDE_REACH`]. A callout's leader may turn the other way: 45° up or
-/// down to the left, its label left of the shoulder. With no clear place an item stays where it
+/// running on to it, up to [`SLIDE_REACH`]. A callout also moves when its lane does not fit the
+/// page ([`Page::fits`]: its ink off the sheet, or its leader across another view): its leader
+/// may turn the other way, 45° up or down to the left, its label left of the shoulder; failing
+/// that it goes out beside its view ([`sideways`]). With no clear place an item stays where it
 /// was, and the collision is reported. *items* are every item the part would have, in plan order,
-/// so where a label settles does not depend on what the spec omits (ARCH0003-2); *rims* gives
-/// each callout's site radius on the page ([`callout_rim`]) and is none for a linear dimension.
+/// so where a label settles does not depend on what the spec omits (ARCH0003-2); *views_of*
+/// names each one's view, and *leaders* gives each callout's [`Leader`] (none for a linear
+/// dimension).
 pub(super) fn settle(
     items: &mut [Option<Placed>],
-    rims: &[Option<f64>],
+    views_of: &[Option<&'static str>],
+    leaders: &[Option<Leader>],
     analysis: &Analysis,
     sheet: &PlannedSheet,
     views: &[PlannedView],
 ) {
-    let drawable = drawable(sheet);
-    // What a moved label must keep off as well: the views and the title block.
-    let mut keep_off: Vec<[f64; 4]> = outlines(analysis, views).into_iter().map(|o| o.1).collect();
-    keep_off.push(sheet.title_block);
+    let page = Page::new(analysis, sheet, views);
     for i in 0..items.len() {
         let Some(p) = items[i].as_ref() else {
             continue;
         };
-        let linear = rims[i].is_none();
-        let candidates = match rims[i] {
-            None => slides(p),
-            Some(rim) => Box::new(std::iter::once(turned(p, rim))),
-        };
+        let own = views_of[i].unwrap_or_default();
+        let leader = leaders[i].as_ref();
+        let linear = leader.is_none();
         let others = || {
             items
                 .iter()
@@ -474,20 +561,46 @@ pub(super) fn settle(
                     && !own.iter().any(|l| crosses(**l, q.label_box))
             })
         };
-        if clear(p) {
+        // A callout also moves when its lane does not fit the page: its leader runs across
+        // another view, or its ink off the sheet.
+        if clear(p) && (linear || page.fits(p, own)) {
             continue;
         }
-        // A new place stays on the sheet (unless the item was off it already, which stays
-        // reported), its label off the views and the title block, and its lines out of the
-        // title block.
-        let on_sheet = |c: &Placed| ink_points(c).all(|q| inside(q, drawable));
-        let off_already = !on_sheet(p);
-        let fits = |c: &Placed| {
-            (off_already || on_sheet(c))
-                && keep_off.iter().all(|o| !boxes_overlap(c.label_box, *o))
-                && !c.lines.iter().any(|l| crosses(*l, sheet.title_block))
+        let found = match leader {
+            // A new place stays on the sheet (unless the item was off it already, which stays
+            // reported), its label off the views and the title block, and its lines out of the
+            // title block.
+            None => {
+                let off_already = !page.on_sheet(p);
+                slides(p, page.drawable).find(|c| {
+                    (off_already || page.on_sheet(c)) && page.clear_of_furniture(c) && clear(c)
+                })
+            }
+            // A callout's new place fits the page; one out to the side keeps its label
+            // [`SIDE_PAD`] from every other label where it can, as draftwright's stacked callout
+            // rows do, and touches them only where nothing else fits.
+            Some(leader) => {
+                let padded = |c: &Placed| {
+                    let b = c.label_box;
+                    let b = [
+                        b[0] - SIDE_PAD,
+                        b[1] - SIDE_PAD,
+                        b[2] + SIDE_PAD,
+                        b[3] + SIDE_PAD,
+                    ];
+                    others().all(|q| !boxes_overlap(b, q.label_box))
+                };
+                std::iter::once(turned(p, leader.rim))
+                    .find(|c| page.fits(c, own) && clear(c))
+                    .or_else(|| {
+                        sideways(p, leader, page.drawable)
+                            .find(|c| page.fits(c, own) && clear(c) && padded(c))
+                    })
+                    .or_else(|| {
+                        sideways(p, leader, page.drawable).find(|c| page.fits(c, own) && clear(c))
+                    })
+            }
         };
-        let found = candidates.into_iter().find(|c| fits(c) && clear(c));
         if let Some(c) = found {
             items[i] = Some(c);
         }
@@ -497,7 +610,7 @@ pub(super) fn settle(
 /// A linear dimension's other label places along its line, nearest first (see [`settle`]),
 /// made as they are tried: a line far longer than the sheet (a part drawn at a scale too large
 /// for it) has more places than memory holds.
-fn slides(p: &Placed) -> Box<dyn Iterator<Item = Placed> + '_> {
+fn slides(p: &Placed, drawable: [f64; 4]) -> Box<dyn Iterator<Item = Placed> + '_> {
     // Along the line: x for a horizontal dimension, y for a vertical one.
     let k = usize::from(p.rotation != 0.0);
     let Some(&line) = p.lines.get(2) else {
@@ -509,9 +622,30 @@ fn slides(p: &Placed) -> Box<dyn Iterator<Item = Placed> + '_> {
     // Each a shift of the label and the line's new extent.
     let (lo, hi) = (l0 + ARROW + SLIDE_CLEAR, l1 - ARROW - SLIDE_CLEAR);
     let shifts: Box<dyn Iterator<Item = (f64, [f64; 2])>> = if b[k] >= lo && b[k + 2] <= hi {
-        let steps = ((hi - lo - width) / SLIDE_STEP).ceil() as i64;
+        // Only shifts that keep the label on the drawing area along the line: their count is
+        // bounded by the sheet, however long the line (a part drawn at a scale far too large).
+        let (lo, hi) = (lo.max(drawable[k]), hi.min(drawable[k + 2]));
+        let (d_min, d_max) = (lo - b[k], hi - b[k + 2]);
+        // The steps n >= 1 for which +n or -n steps may lie in [d_min, d_max], a step wider.
+        let up = (
+            (d_min / SLIDE_STEP).floor().max(1.0),
+            (d_max / SLIDE_STEP).ceil(),
+        );
+        let down = (
+            (-d_max / SLIDE_STEP).floor().max(1.0),
+            (-d_min / SLIDE_STEP).ceil(),
+        );
+        let spans: Vec<(f64, f64)> = [up, down].into_iter().filter(|s| s.0 <= s.1).collect();
+        let first = spans.iter().map(|s| s.0).fold(f64::INFINITY, f64::min);
+        let last = spans.iter().map(|s| s.1).fold(f64::NEG_INFINITY, f64::max);
+        let (first, last) = if first <= last {
+            (first as i64, last as i64)
+        } else {
+            (1, 0)
+        };
+
         Box::new(
-            (1..=steps)
+            (first..=last)
                 .flat_map(|n| [n, -n])
                 .map(|n| n as f64 * SLIDE_STEP)
                 .filter(move |d| b[k] + d >= lo && b[k + 2] + d <= hi)
@@ -604,10 +738,133 @@ fn callout_tip(frame: &Frame, sites: &[(P3, f64)], up: bool) -> (P2, f64) {
         .0
 }
 
-/// The page radius of the site a callout in strip *side* points to (see [`callout_tip`]), which
-/// [`settle`] needs to turn its leader.
-pub(super) fn callout_rim(frame: &Frame, sites: &[(P3, f64)], side: Side) -> f64 {
-    callout_tip(frame, sites, side == Side::Above).1
+/// What [`settle`] needs to move a callout's leader: the page radius of the site its lane
+/// placement points to (see [`callout_tip`]), to turn it; and for a leader out to the side of its
+/// view, each site's centre and radius on the page, the view's outline, and where an elbow left
+/// and right of the view goes (the next free lane of the view's left and right strips, so the
+/// label clears what those strips hold).
+pub(super) struct Leader {
+    rim: f64,
+    sites: Vec<(P2, f64)>,
+    outline: [f64; 4],
+    elbow_x: [f64; 2],
+}
+
+/// Each callout's [`Leader`] (none for a linear dimension or an item with no view), from each
+/// item's view, strip and lane after [`fall_through`].
+pub(super) fn leaders(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    lanes: &[usize],
+) -> Vec<Option<Leader>> {
+    let mut used: BTreeMap<(&str, Side), usize> = BTreeMap::new();
+    for i in 0..items.len() {
+        if let (Some(view), Some(side)) = (views_of[i], sides[i]) {
+            let n = used.entry((view, side)).or_insert(0);
+            *n = (*n).max(lanes[i] + 1);
+        }
+    }
+    (0..items.len())
+        .map(|i| {
+            let (Shape::Callout { sites }, Some(view), Some(side)) =
+                (&items[i].shape, views_of[i], sides[i])
+            else {
+                return None;
+            };
+            let f = &frames[view];
+            let free =
+                |s: Side| lane_at(f.outline, s, used.get(&(view, s)).copied().unwrap_or(0)).0;
+            Some(Leader {
+                rim: callout_tip(f, sites, side == Side::Above).1,
+                sites: sites.iter().map(|(c, r)| (f.page(*c), f.s * r)).collect(),
+                outline: f.outline,
+                elbow_x: [free(Side::Left), free(Side::Right)],
+            })
+        })
+        .collect()
+}
+
+/// A callout's leader out to the side of its view, as draftwright's plan and side callouts go
+/// (`holes._leader_anchors`): the elbow beyond the view's left or right edge (past the lanes that
+/// strip holds), on a row within the view's height, the leader running radially from the rim of
+/// the site nearest that edge, the shoulder and label outward. The nearer edge first (the right on
+/// a tie), then the other; on each, the row level with the site first, then rows above and below
+/// it in turn, [`SLIDE_STEP`] apart, up to the view's height on the drawing area (so the rows, and
+/// the time, are bounded by the sheet). Made as they are tried. A front callout goes out the same
+/// way (draftwright's front callouts take rows below the front instead; their lanes are tried
+/// first here).
+fn sideways<'a>(
+    p: &'a Placed,
+    leader: &'a Leader,
+    drawable: [f64; 4],
+) -> impl Iterator<Item = Placed> + 'a {
+    let o = leader.outline;
+    let site = |right: bool| {
+        leader
+            .sites
+            .iter()
+            .copied()
+            .max_by(|a, b| {
+                let k = |s: &(P2, f64)| if right { s.0[0] } else { -s.0[0] };
+                k(a).total_cmp(&k(b))
+            })
+            .expect("a callout has a site")
+    };
+    let right_first = o[2] - site(true).0[0] <= site(false).0[0] - o[0];
+    let (y0, y1) = (o[1].max(drawable[1]), o[3].min(drawable[3]));
+    // The label's box about its baseline origin.
+    let b = p.label_box;
+    let (dx0, dy0, dx1, dy1) = (
+        b[0] - p.label_at[0],
+        b[1] - p.label_at[1],
+        b[2] - p.label_at[0],
+        b[3] - p.label_at[1],
+    );
+    let rotation = p.rotation;
+    [right_first, !right_first]
+        .into_iter()
+        .flat_map(move |right| {
+            let ((centre, radius), x) = (site(right), leader.elbow_x[usize::from(right)]);
+            // No rows when the view lies wholly off the drawing area (y0 > y1).
+            let start = centre[1].max(y0).min(y1);
+            let n = (((y1 - y0) / SLIDE_STEP).ceil() as i64).max(0);
+            // 0, 1, -1, 2, -2, ...
+            (0..=2 * n)
+                .map(|j| if j % 2 == 1 { (j + 1) / 2 } else { -(j / 2) })
+                .map(move |k| start + k as f64 * SLIDE_STEP)
+                .filter(move |y| *y >= y0 - 1e-9 && *y <= y1 + 1e-9)
+                .filter_map(move |y| {
+                    let elbow = [x, y];
+                    let d = [elbow[0] - centre[0], elbow[1] - centre[1]];
+                    let n = d[0].hypot(d[1]);
+                    if n < radius + ARROW + 1.0 {
+                        return None;
+                    }
+                    let tip = [centre[0] + radius * d[0] / n, centre[1] + radius * d[1] / n];
+                    let out = if right { 1.0 } else { -1.0 };
+                    let end = [elbow[0] + out * SHOULDER, y];
+                    let at_x = if right {
+                        end[0] + 1.0 - dx0
+                    } else {
+                        end[0] - 1.0 - dx1
+                    };
+                    let label_at = [at_x, y - 0.5 * CAP];
+                    Some(Placed {
+                        lines: vec![[tip, elbow], [elbow, end]],
+                        arrows: vec![arrow(tip, elbow)],
+                        label_at,
+                        rotation,
+                        label_box: [
+                            label_at[0] + dx0,
+                            label_at[1] + dy0,
+                            label_at[0] + dx1,
+                            label_at[1] + dy1,
+                        ],
+                    })
+                })
+        })
 }
 /// Every extreme point of a placed item's ink: its lines' ends, its arrowheads' corners (as
 /// `dims::render` draws them) and its label box's corners.
@@ -691,6 +948,55 @@ fn outlines<'a>(analysis: &Analysis, views: &'a [PlannedView]) -> Vec<(&'a str, 
             (v.id.as_str(), b)
         })
         .collect()
+}
+
+/// What a placed item's ink must stay inside or off on the page: the drawing area, each view's
+/// drawn box ([`outlines`]) and the title block.
+struct Page<'a> {
+    drawable: [f64; 4],
+    views: Vec<(&'a str, [f64; 4])>,
+    title_block: [f64; 4],
+}
+
+impl<'a> Page<'a> {
+    fn new(analysis: &Analysis, sheet: &PlannedSheet, views: &'a [PlannedView]) -> Page<'a> {
+        Page {
+            drawable: drawable(sheet),
+            views: outlines(analysis, views),
+            title_block: sheet.title_block,
+        }
+    }
+
+    fn on_sheet(&self, p: &Placed) -> bool {
+        ink_points(p).all(|q| inside(q, self.drawable))
+    }
+
+    /// The views other than *own* (a view's name, `plan`) that a line of *p* runs across.
+    fn crossed<'b>(&'b self, p: &'b Placed, own: &'b str) -> impl Iterator<Item = &'a str> + 'b {
+        self.views
+            .iter()
+            .filter(move |(id, b)| {
+                id.strip_prefix("v:") != Some(own) && p.lines.iter().any(|l| crosses(*l, *b))
+            })
+            .map(|(id, _)| *id)
+    }
+
+    /// Whether *p*, an item of view *own*, fits the page: its ink on the sheet, its label off
+    /// every view and the title block, and no line through the title block or another view.
+    fn fits(&self, p: &Placed, own: &str) -> bool {
+        self.on_sheet(p) && self.clear_of_furniture(p) && self.crossed(p, own).next().is_none()
+    }
+
+    /// Whether *p*'s label is off every view and the title block, and no line of it runs through
+    /// the title block.
+    fn clear_of_furniture(&self, p: &Placed) -> bool {
+        !boxes_overlap(p.label_box, self.title_block)
+            && self
+                .views
+                .iter()
+                .all(|(_, b)| !boxes_overlap(p.label_box, *b))
+            && !p.lines.iter().any(|l| crosses(*l, self.title_block))
+    }
 }
 
 /// What the simple placement collides with: each a problem on the dimension's ID.
@@ -778,6 +1084,18 @@ pub(super) fn collisions(
                     ),
                 );
             }
+            // A line (a leader, an extension or dimension line) across a view not its own.
+            if *view != d.view && p.lines.iter().any(|s| crosses(*s, *b)) {
+                problem(
+                    "annotation_line_over_view",
+                    "warning",
+                    vec![d.id.clone(), view.to_string()],
+                    format!(
+                        "A line of {} ({}) runs across the {view} view.",
+                        d.id, d.label
+                    ),
+                );
+            }
         }
     }
     for (i, (a, pa)) in placed.iter().enumerate() {
@@ -819,6 +1137,39 @@ pub(super) fn collisions(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `slides` stays bounded by the sheet however long the dimension line: a 200 km line at 1:1
+    /// (`tests/views.rs`'s fallback part) gives no more places than the drawing area has steps,
+    /// each with the label on it, and the nearest first.
+    #[test]
+    fn slides_are_bounded_by_the_sheet() {
+        let drawable = [10.0, 10.0, 584.0, 410.0];
+        let (y, len) = (50.0, 2.0e8);
+        let p = Placed {
+            lines: vec![
+                [[0.0, 40.0], [0.0, 52.0]],
+                [[len, 40.0], [len, 52.0]],
+                [[0.0, y], [len, y]],
+            ],
+            arrows: vec![],
+            label_at: [100.0, y + LIFT],
+            rotation: 0.0,
+            label_box: [100.0, y + LIFT, 110.0, y + LIFT + CAP],
+        };
+        let bound = (2.0 * (drawable[2] - drawable[0]) / SLIDE_STEP) as usize + 4;
+        let places: Vec<Placed> = slides(&p, drawable).take(bound + 1).collect();
+        assert!(
+            !places.is_empty() && places.len() <= bound,
+            "{}",
+            places.len()
+        );
+        assert!(
+            places
+                .iter()
+                .all(|c| c.label_box[0] >= drawable[0] && c.label_box[2] <= drawable[2])
+        );
+        assert_eq!(places[0].label_box[0], 100.0 + SLIDE_STEP);
+    }
 
     /// A turned leader still points at the hole: its tip is on the rim and the leader runs
     /// along the radius through it, never tangent to the rim (review of d-placement).

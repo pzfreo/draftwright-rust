@@ -31,9 +31,10 @@
 //! distance, then the overall extent outermost; callouts stack above their view with 45° leaders.
 //! A label another item's ink runs through then moves along its own line (a callout's leader
 //! may turn left) to the nearest clear place, if there is one. Whatever still collides (labels with labels, lines through labels, labels over views, ink off
-//! the sheet, ink past the area its view reserved) is reported as a problem on the dimension's
-//! ID, never silently moved or dropped. Lines crossing other views' outlines or other
-//! dimensions' lines are not checked yet. Each item's lane is its place among everything the
+//! the sheet, ink past the area its view reserved, lines across another view) is reported as a
+//! problem on the dimension's ID, never silently moved or dropped. A strip without room on the
+//! page passes its outer lanes to the strip across the view, and a callout whose lane does not fit
+//! goes beside its view. Lines crossing other dimensions' lines are not checked yet. Each item's lane is its place among everything the
 //! defaults would dimension, so omitting one leaves the others where they were (ARCH0003-2), and
 //! the layout reserves the side view's bands for its lanes ([`lanes`]). An item
 //! no shown view can carry is kept in the plan, unplaced, and reported (R1 invariant 3).
@@ -567,7 +568,10 @@ pub fn plan(
             w
         })
         .collect();
-    let (sides, lane) = placement::lanes(&frames, all.iter().zip(chosen.iter().copied()));
+    let (mut sides, mut lane) = placement::lanes(&frames, all.iter().zip(chosen.iter().copied()));
+    placement::fall_through(
+        &frames, &all, &chosen, &mut sides, &mut lane, analysis, sheet, views,
+    );
     let mut placed: Vec<Option<Placed>> = all
         .iter()
         .zip(&chosen)
@@ -577,18 +581,8 @@ pub fn plan(
                 .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
         })
         .collect();
-    let rims: Vec<Option<f64>> = all
-        .iter()
-        .zip(&chosen)
-        .zip(&sides)
-        .map(|((w, view), side)| match &w.shape {
-            Shape::Callout { sites } => view
-                .zip(*side)
-                .map(|(v, side)| placement::callout_rim(&frames[v], sites, side)),
-            Shape::Linear { .. } => None,
-        })
-        .collect();
-    placement::settle(&mut placed, &rims, analysis, sheet, views);
+    let leaders = placement::leaders(&frames, &all, &chosen, &sides, &lane);
+    placement::settle(&mut placed, &chosen, &leaders, analysis, sheet, views);
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 

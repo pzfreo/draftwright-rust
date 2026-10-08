@@ -227,13 +227,18 @@ sizes nearest, locations by distance, overall extents, then callouts with 45° l
 view's bands are reserved from the lanes its dimensions take (`dims::lanes`, `Demand::lanes`,
 `layout::Strips::reserve`); the front's and the plan's are still draftwright's estimates. Every
 item the part would have is placed before the spec chooses what is drawn, so omitting or adding
-one moves no other (ARCH0003-2). Then labels settle off other items' ink
+one moves no other (ARCH0003-2). A strip that cannot hold its linear dimensions on the page
+passes the lanes it has no room for to the strip across the view (`dims::placement::fall_through`,
+ISSUE-1215-e); one that fits on neither side keeps its lane. Then labels settle off other items' ink
 (`dims::placement::settle`, a first part of ADR2-10's bounded local solve): a linear label
 slides along its line, or moves to the other end of a span too short for it; a callout's leader
-may turn to the left, its tip moving to the rim's left 45° point so the leader stays radial. A
-moved label stays on the sheet and off the views and the title block. Whatever then collides is
+may turn to the left, its tip moving to the rim's left 45° point so the leader stays radial; a
+callout whose lane does not fit the page (off the sheet, or its leader across another view) goes
+out beside its view, as draftwright's plan callouts do. A moved label stays on the sheet and off
+the views and the title block. Whatever then collides is
 a problem on the item's ID (`annotation_overlap`, `annotation_ink_overlap`,
-`annotation_over_view`, `annotation_over_title_block`, `annotation_off_sheet`, and the info
+`annotation_over_view`, `annotation_line_over_view` for a line across a view not its own,
+`annotation_over_title_block`, `annotation_off_sheet`, and the info
 `annotation_outside_area` for ink past its view's area and bands); an item whose view is omitted
 stays unplaced and is reported (`view_plan_incomplete`, naming every view that could carry it and
 why none does). Placement problems on the corpus are a ratchet (`tests/placement.rs`,

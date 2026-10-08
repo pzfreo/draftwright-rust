@@ -223,12 +223,27 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
         assert_eq!(d.from_spec, [given], "{id}");
         assert!(!d.default, "{id}");
     }
-    // The spec changes nothing else, and adds no problem: the longer labels place as the
-    // shorter ones did on this sheet.
+    // The spec changes nothing else, and adds one problem only: the longer labels place as the
+    // shorter ones did on this sheet, except that the fillet callout, beside the plan since
+    // placement moves a callout whose lane does not fit the page (stream d-placement-fit), now
+    // runs past the plan's reserved area (info), its label 7× R50 ±0.5 longer than 7× R50.
     let bare = model::plan(&a, &Spec::default()).unwrap();
+    let added = "p:annotation_outside_area:d:f:fillet:6/fillet.radius@plan|v:plan";
     assert_eq!(
-        bare.problems.iter().map(|p| &p.id).collect::<Vec<_>>(),
-        plan.problems.iter().map(|p| &p.id).collect::<Vec<_>>()
+        bare.problems
+            .iter()
+            .map(|p| p.id.as_str())
+            .collect::<Vec<_>>(),
+        plan.problems
+            .iter()
+            .map(|p| p.id.as_str())
+            .filter(|id| *id != added)
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.id == added && p.severity == "info")
     );
     // Members with different fits: draftwright holds the pair as one feature, so it cannot be
     // told two fits (not-applicable); the port withholds the fit and names both.
