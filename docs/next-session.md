@@ -888,3 +888,29 @@ improvement plan and questions are the current work. Still open from before it:
   - Heading: draftwright's document notes print `GENERAL NOTES` (kept); its author-declared
     `Sheet.notes()` block prints `NOTES` and does not wrap. The spec's notes are authored, so
     either could be argued; which heading?
+- Tables (stream d-spec-tables; `src/tables.rs`, `tests/tables.rs`, `docs/model.md`'s
+  "Tables"): the spec's `tables` (`[{id: "t:<k>", rows: [[cell, …], …], prefer?}]`) are read.
+  `plan` and `edit` refuse a malformed or duplicate ID (naming the next free ID), no rows, a
+  string row, unequal or empty rows (draftwright's `Sheet.table` refusals), a row that is not a
+  list, a cell that is not text or a number, and an unknown `prefer`; `edit`'s `add` on `tables`
+  takes the next free ID. Each table is a Plan item (`tables`: ID, cells, `default: false`,
+  basis, placed: each cell's ink centre, the column edges, the box), reserved towards its corner
+  when the sheet is chosen (ahead of the notes, in draftwright's order), placed after the
+  dimensions and the notes block by `fit_box` towards its corner clear of the views, the
+  dimensions, the title block, the notes and earlier tables, drawn ruled as `_build_table` rules
+  it with each cell one invisible text run; a table with no place is a `table_not_placed` error
+  naming it, which stays in the plan undrawn. The notes block now takes its text metrics, ink,
+  obstacles, placement and rules from `src/tables.rs` (`tests/notes.rs` unchanged). Compared with
+  draftwright on m10127 and ctc01 (`tools/capture_tables.py`, `tests/fixtures/tables.json`):
+  rows, height, column widths and cell ink centres agree to 1e-4 mm; ctc01's corners agree;
+  m10127's sheet already differs. Differences and verdicts in `docs/model.md`. Not ported:
+  `block_cols`, `left_align_cols`, `Sheet.schedule`'s measured tables, hole tables. Rule
+  proposals (files owned by other streams): ISSUE-1146-c's rust_note ("Authored tables do not
+  exist in the port") is stale: authored tables now take part in page and scale selection
+  (`tests/tables.rs::a_long_table_moves_the_sheet_on_rather_than_be_dropped`); ARCH0004-4 could
+  cite the same test (stays pending: a caller-forced page is not yet checked to place every
+  requirement). Questions for the maintainer:
+  - `table_not_placed` is an error (draftwright's `table_dropped` is a warning, though its scale
+    policy treats a declared table's drop as a lost requirement). Keep error?
+  - A number cell is printed as JSON writes it (`0.5`, `1e+20` as `1e20`); Python's `str()`
+    would differ for some floats. Keep accepting numbers, or require text?

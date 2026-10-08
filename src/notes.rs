@@ -3,7 +3,7 @@
 //! `document_note_rows`' (each note numbered by its place in the list, `1  BREAK ALL SHARP
 //! EDGES`, wrapped at 48 characters with continuation rows indented three spaces), in IBM Plex
 //! Mono at 3 mm, each row 3 mm plus 2 mm of padding above and below, ruled as `_build_table`
-//! rules it.
+//! rules it: draftwright's single-column table, sharing the table's pieces (`src/tables.rs`).
 //!
 //! The block is reserved when the sheet is chosen, top right (draftwright's
 //! `layout_required_tables`), and placed after the dimensions, as draftwright places it after
@@ -21,19 +21,16 @@
 use serde::{Deserialize, Serialize};
 
 use crate::dims::PlannedDimension;
-use crate::layout::{self, Corner, MARGIN, Rect};
+use crate::layout::Corner;
 use crate::model::{Analysis, Invalid, PlannedSheet, PlannedView, Problem};
+use crate::tables;
 
 /// The block's heading, as draftwright's `document_note_rows` writes it.
 pub const TITLE: &str = "GENERAL NOTES";
 /// The characters a row holds before it wraps (draftwright's `textwrap.wrap(width=48)`).
 pub const WRAP: usize = 48;
-/// The text height and the padding around it, mm (draftwright's `_FONT_SIZE` and the draft
-/// preset's `pad_around_text`).
-pub const TEXT: f64 = 3.0;
-pub const PAD: f64 = 2.0;
-/// One row's height.
-pub const ROW: f64 = TEXT + 2.0 * PAD;
+/// The text height, the padding around it and one row's height, mm: a table's.
+pub use crate::tables::{PAD, ROW, TEXT, ink};
 
 /// A general note as the spec states it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -227,23 +224,6 @@ pub fn rows(number: usize, text: &str) -> Vec<String> {
         .collect()
 }
 
-/// What a row draws: `⌀`, which the face lacks, as `ø` (draftwright's `_font_safe_text`); its
-/// text run keeps the row as given.
-pub fn ink(row: &str) -> String {
-    row.replace('⌀', "ø")
-}
-
-/// Each row's ink box `[x0, x1]` laid from a pen at 0, leading spaces advancing the pen.
-fn spans(rows: &[&str]) -> Vec<Option<[f64; 2]>> {
-    let font = crate::dims::font();
-    rows.iter()
-        .map(|r| {
-            let laid = font.baseline(&ink(r), TEXT);
-            (!laid.contours.is_empty()).then_some([laid.min[0], laid.max[0]])
-        })
-        .collect()
-}
-
 /// The table's rows, heading first, and each note's first row among them.
 fn table(notes: &[NoteSpec]) -> (Vec<String>, Vec<Vec<String>>) {
     let per: Vec<Vec<String>> = notes
@@ -260,10 +240,8 @@ fn table(notes: &[NoteSpec]) -> (Vec<String>, Vec<Vec<String>>) {
 /// each side; at least 2.5 text heights, as `_table_metrics`) and the pen's offset from its
 /// left edge.
 fn width(rows: &[String]) -> (f64, f64) {
-    let spans: Vec<[f64; 2]> = spans(&rows.iter().map(String::as_str).collect::<Vec<_>>())
-        .into_iter()
-        .flatten()
-        .collect();
+    // Each row's ink laid from a pen at 0, leading spaces advancing the pen.
+    let spans: Vec<[f64; 2]> = rows.iter().filter_map(|r| tables::span(r)).collect();
     let lo = spans.iter().map(|s| s[0]).fold(f64::INFINITY, f64::min);
     let hi = spans.iter().map(|s| s[1]).fold(f64::NEG_INFINITY, f64::max);
     ((hi - lo + 2.0 * PAD).max(2.5 * TEXT), PAD - lo)
@@ -276,48 +254,6 @@ pub fn size(notes: &[NoteSpec]) -> Option<[f64; 2]> {
     }
     let (rows, _) = table(notes);
     Some([width(&rows).0, ROW * rows.len() as f64])
-}
-
-/// What the block keeps clear of: the views' areas (the isometric's drawn box), every
-/// dimension's ink and the title block.
-fn obstacles(
-    analysis: &Analysis,
-    sheet: &PlannedSheet,
-    views: &[PlannedView],
-    dims: &[PlannedDimension],
-) -> Vec<Rect> {
-    let mut out: Vec<Rect> = views
-        .iter()
-        .map(|v| {
-            if v.id == "v:iso" {
-                let ib = analysis.iso_bounds;
-                [
-                    v.at[0] + v.scale * ib[0],
-                    v.at[1] + v.scale * ib[1],
-                    v.at[0] + v.scale * ib[2],
-                    v.at[1] + v.scale * ib[3],
-                ]
-            } else {
-                v.area
-            }
-        })
-        .collect();
-    let bounds = |pts: &[[f64; 2]], grow: f64| {
-        [
-            pts.iter().map(|p| p[0]).fold(f64::INFINITY, f64::min) - grow,
-            pts.iter().map(|p| p[1]).fold(f64::INFINITY, f64::min) - grow,
-            pts.iter().map(|p| p[0]).fold(f64::NEG_INFINITY, f64::max) + grow,
-            pts.iter().map(|p| p[1]).fold(f64::NEG_INFINITY, f64::max) + grow,
-        ]
-    };
-    for p in dims.iter().filter_map(|d| d.placed.as_ref()) {
-        out.push(p.label_box);
-        out.extend(p.lines.iter().map(|l| bounds(l, 0.0)));
-        // An arrowhead is no wider than its length.
-        out.extend(p.arrows.iter().map(|a| bounds(a, crate::dims::ARROW)));
-    }
-    out.push(sheet.title_block);
-    out
 }
 
 /// What [`plan`] returns: the notes, the block when it has a place, and the problems.
@@ -338,14 +274,11 @@ pub fn plan(
     let (all, per) = table(notes);
     let (w, pen) = width(&all);
     let h = ROW * all.len() as f64;
-    let [pw, ph] = sheet.page;
-    let region = [MARGIN, MARGIN, pw - MARGIN, ph - MARGIN];
-    let at = layout::fit_auxiliary_box(
+    let at = tables::place(
         [w, h],
-        region,
-        &obstacles(analysis, sheet, views, dims),
+        sheet,
+        &tables::obstacles(analysis, sheet, views, dims),
         Corner::TopRight,
-        PAD,
     );
     // Row *i*'s ink centre, counted from the heading, and its cell's bottom.
     let font = crate::dims::font();
@@ -414,14 +347,8 @@ pub fn plan(
 
 /// The block's rules: its outline and a line under each row, as `_build_table` rules a table.
 pub fn rules(block: &NotesBlock) -> Vec<[[f64; 2]; 2]> {
-    let [x0, y0, x1, y1] = block.cells;
-    let n = ((y1 - y0) / ROW).round() as usize;
-    let mut out = vec![[[x0, y0], [x0, y1]], [[x1, y0], [x1, y1]]];
-    out.extend((0..=n).map(|k| {
-        let y = y1 - k as f64 * ROW;
-        [[x0, y], [x1, y]]
-    }));
-    out
+    let [x0, _, x1, _] = block.cells;
+    tables::ruling(block.cells, &[x0, x1])
 }
 
 /// Every row the block draws, heading first, with its ink centre.

@@ -26,7 +26,9 @@ for all defaults. Use the spec from the plan or the edit tool's result. Shape: {
 \"dimension_source\": \"auto\", \"dimensions\": {\"d:envelope/width.length@front\": {\"omit\": \
 true}, \"d:envelope/height.length@front\": {\"tolerance\": \"±0.05\"}}, \"features\": \
 {\"f:hole:1\": {\"fit\": \"H7\"}}, \"notes\": [{\"id\": \"n:1\", \"text\": \"BREAK ALL SHARP \
-EDGES\"}]}. Unknown fields are refused.";
+EDGES\"}], \"tables\": [{\"id\": \"t:1\", \"rows\": [[\"REV\", \"DESCRIPTION\"], [\"A\", \
+\"INITIAL RELEASE\"]], \"prefer\": \"tr\"}]} (a table's row 0 is its header; prefer is the corner \
+it goes towards: tr, tl, br or bl). Unknown fields are refused.";
 
 /// The tools: name, description, input schema.
 fn tools() -> Value {
@@ -80,7 +82,8 @@ fn tools() -> Value {
                 stored: pass the result to plan, review or render. Each edit is {\"op\": \"set\", \
                 \"path\": …, \"value\": …}, {\"op\": \"remove\", \"path\": …} or {\"op\": \"add\", \
                 \"path\": \"notes\", \"value\": {\"text\": \"DEBURR\"}} (a general note, numbered in \
-                order; given no id it takes the next n:<k>), with a path into the spec: \
+                order; given no id it takes the next n:<k>; likewise \"path\": \"tables\" with \
+                {\"rows\": [[…], …]} appends a table, taking the next t:<k>), with a path into the spec: \
                 sheet/size (A4, A3, A2, A1, A0), sheet/scale (ISO 5455, e.g. 2:1, 1:1, \
                 1:2), sheet/title/<field> (title, number, material, …), views/<front|plan|side|iso>/omit \
                 (true leaves the view out), dimension_source (auto: the defaults less what is \
