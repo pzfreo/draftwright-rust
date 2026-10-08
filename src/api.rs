@@ -25,7 +25,8 @@ use crate::model::{self, ANALYSIS_SCHEMA, Analysis, Plan, Problem, Spec};
 use crate::output::Drawing;
 use crate::text::Font;
 
-const MONO: &[u8] = include_bytes!("../fonts/IBMPlexMono-Regular.ttf");
+/// The drawing's font (IBM Plex Mono), bundled.
+pub const MONO: &[u8] = include_bytes!("../fonts/IBMPlexMono-Regular.ttf");
 
 /// The formats [`render`] writes.
 pub const FORMATS: [&str; 4] = ["svg", "dxf", "pdf", "png"];
