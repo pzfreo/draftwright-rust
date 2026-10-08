@@ -40,7 +40,7 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
   against 285 recorded Python calls. Differences from Python's final sheets are listed with
   verdicts in `tests/fixtures/known_views.json` (71 entries).
 - **Bridge:** quiddity's features come in through `src/bridge.rs`, with stable IDs and
-  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust a46b91c
+  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 7f4b1a9
   (`Cargo.lock`; AGPL-3.0-only since 8023ea7); the bridge reads nist_ftc_07 and nist_ftc_10.
   nist_ctc_04 is still refused (one face's area differs from OpenCascade's by 0.15 %). Since
   05c5d99 haecceity refuses to draw a part whose drawn faces or edges did not resolve on
@@ -83,17 +83,7 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
 
 ## Taking a new haecceity
 
-haecceity and quiddity come by git from `pzfreo/quiddity-rust` (`Cargo.toml`: branch
-`prototype/rust-port`), pinned to one commit in `Cargo.lock`, the same for both
-(`tests/native.rs` checks it). To move the pin:
-
-1. `cargo update -p haecceity -p quiddity`, and note the old and new commits (the `source`
-   lines in `Cargo.lock`). A new recognition schema version or family fails
-   `tests/native.rs` until `bridge::native` is taught it.
-2. Re-run the full verify line above.
-3. Record every change it causes: a known-differences entry that went away or appeared, a part
-   the bridge now reads or refuses, a changed count. Each gets a verdict with evidence in its
-   list, and the commit message names the new pin and what changed (971e17e is an example).
+See README.md, "Taking a new haecceity".
 
 ## CI
 
@@ -168,8 +158,6 @@ quiddity commit that has it.
 The 2026-10-08 review (`docs/review-2026-10-08.md`) supersedes the old spike list: its
 improvement plan and questions are the current work. Still open from before it:
 
-- Facts: `capture_sheet_facts.py` gives no usage message. `docs/facts.md` doesn't explain the
-  identity-collision nulls.
 - The MCP server hasn't been tried in a real client.
 - PDF fonts are subset (stream d-font-subset, `src/output.rs`, `tests/output.rs`): each embedded
   font program holds only the glyphs the sheet's text shows, `.notdef` and the parts of composite

@@ -100,8 +100,9 @@ pushed on that branch:
 2. Fix what no longer builds in the same change. For example, 879dcf7 took haecceity's
    projections returning `Result` and answered a refused projection as a failed call.
 3. Run the full check above. No fixture is recaptured for a pin move: everything under
-   `tests/fixtures/` (sheets, layout, recognition, output, text) was written by Python
-   draftwright or Python quiddity and does not depend on the pin. What can change is the
+   `tests/fixtures/` (sheets, layout, recognition, output, text, lint ledgers) was written by
+   Python draftwright or Python quiddity, or is a corpus STEP file (`parts/`), and does not
+   depend on the pin. What can change is the
    port's side of each comparison, so the known-difference lists are re-checked by their tests:
    - `known_native.json` (`tests/native.rs`, Rust quiddity against Python's recognition). A new
      recognition schema version or family is refused until `bridge::native` knows it (30cfb98).
