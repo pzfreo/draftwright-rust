@@ -671,3 +671,182 @@ improvement plan and questions are the current work. Still open from before it:
       class can be set on an extent (`30 h6`); the port's spec takes a tolerance per dimension ID
       and a fit only on a hole or a cylindrical boss (ISSUE-1215-a). Add an envelope-wide entry
       and fits on extents, or keep the per-ID surface?
+
+- From wave 3 (stream d-dims-grooves-flats): `dims::grooves` (`10 WIDE × ø122`, one callout per
+  groove, stating `groove.length` and `groove.diameter`, in the view that shows its profile, the
+  leader to its floor) and `dims::flats` (`52.6 A/F`, one callout per across-flats definition,
+  counted `n×` over independent stock, every face's `flat.length` stated, in the view down the
+  stock; draftwright's mixed-size decimals). On the captured sheets all five of draftwright's
+  groove and flat callouts (connector109, string_post) agree in label, view, parameters and
+  values (`tests/dimensions.rs` now compares the two families; no `known_dimensions.json` entry
+  was needed); `tests/dims_grooves_flats.rs` has the scenarios. Differences from draftwright that
+  no captured sheet shows, with verdicts:
+  - a groove whose profile view is not shown falls back to the other profile view; draftwright
+    skips it without trace (rust-correct: nothing is dropped silently);
+  - a record that cannot be stated (no width, floor diameter, size, position, or a direction off
+    its named axis) is a `feature_not_dimensioned` warning; draftwright skips such a groove
+    without trace, and fails conversion on a flat whose direction is off its axis (rust-correct);
+  - flat decimals are chosen over every recognised flat, draftwright's over the sizes the spec
+    keeps, so omitting one flat of two sizes can leave the other with a decimal draftwright drops
+    (rust-wrong, minor: the planners run before the spec is applied; fixing it touches
+    `dims::plan`);
+  - callouts are ordered, and take their IDs, by the Analysis's first member, not by
+    draftwright's sorted keys (equivalent);
+  - a flat record without `axis_line` or `stock_span` is a definition of its own, as
+    `lint::flats` keys it; draftwright defaults both to `(0, 0)` and so merges such flats as if
+    on one stock (rust-correct: quiddity always emits both, and its `Flat` docs name merging
+    independent stock as the defect those fields fix; no corpus record lacks them);
+  - an authored `display_decimals` on a flat (draftwright's `_group_value_text`) is not honoured
+    (not-applicable here: the port's `Spec` carries no display decimals for any family; that
+    belongs with the spec work, d-spec-tolerances).
+  Left:
+  - Rebased onto main 7b155db (stream d-rebase-grooves-steps): `known_lint.json` lost the three
+    `own_drawings` entries the new callouts resolve (`string_post flat_requirement_missing` 1;
+    `connector109 flat_requirement_missing` 1 and `groove_requirement_missing` 6, checked with
+    `LINT_OWN_ALL=1`). With d-placement's settling, connector109's grooves add no ink overlap
+    but 3 `annotation_off_sheet` (`d:f:groove:2`, `d:f:groove:3`, and the chamfer callout pushed
+    out past them; 1 → 4) and 3 `annotation_outside_area` (5 → 8), all below the front view,
+    recorded rust-wrong in `known_placement.json` with the front/plan band question.
+  - lint keys a flat by its record's raw `stock_span` (as draftwright's lint does), the planner by
+    the span along the canonical direction (as draftwright's `FlatFeature` does), so a reversed
+    face whose span runs along its own direction is one definition to the planner and two
+    requirements to lint, in both programs. No corpus part has one.
+  - ADR3-12 (a groove that cannot name one turned-profile owner is refused) is not checked.
+  - `src/dims/mod.rs`'s module docs still list only the earlier families (only the planner
+    list was touched, as other streams edit that file).
+  - Pending for the integrator (`docs/rules/issues.yaml` belongs to d-issue-drafting-2, so this
+    branch does not edit it): apply this hunk, verbatim from the original commit a991e49, once
+    that stream has merged (it applies to main 7b155db with `git apply`):
+
+    ```diff
+    diff --git a/docs/rules/issues.yaml b/docs/rules/issues.yaml
+    index 7c37cb4..f416476 100644
+    --- a/docs/rules/issues.yaml
+    +++ b/docs/rules/issues.yaml
+    @@ -1484,7 +1484,7 @@
+         corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
+       status: pending
+       rust_test: src/dims/edges.rs::tests::a_turned_site_turns_onto_the_profile
+    -  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl and groove notes are not planned."
+    +  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). A groove's callout leads to its floor: sites at the floor radius off its own axis, at its own axial station, on both radial axes, so the tip lands on the floor in whichever profile view carries it (src/dims/grooves.rs). Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl notes are not planned."
+       port_note: "Keep: plan leader targets reference analysis edges/faces; scenario on GRM-03."
+     
+     - id: ISSUE-1281-a
+    @@ -1969,7 +1969,8 @@
+           - "tests/test_issue_1371_flat_completeness_evidence.py::test_deleting_provider_flats_cannot_shrink_the_independent_denominator"
+         corpus_parts: ["flat-coaxial.step", "flat-double-d.step", "flat-topology-a.step"]
+       status: pending
+    -  rust_note: "Not ported: flats are not dimensioned and lint has no flat coverage (LINT-flat_coverage-across_flats)."
+    +  rust_test: "tests/dims_grooves_flats.rs::equal_flats_on_other_stock_are_counted_and_a_double_d_is_one"
+    +  rust_note: "Partly ported: flats are dimensioned by definition (faces reflected through their stock's axis are one, distinct stock is not merged; src/dims/flats.rs, tests/dims_grooves_flats.rs), and lint groups flat requirements by stock and loses credit for a misprinted value (src/lint/flats.rs::tests::the_two_faces_of_a_double_d_share_one_across_flats_requirement). Not checked: a severed provenance, and a denominator that cannot shrink when provider flats are deleted."
+       port_note: "Keep."
+     
+     - id: ISSUE-1371-b
+    ```
+- From wave 4 (stream d-dims-steps-levels): `dims::steps` (a through step's two legs in the view
+  along its run; circular blind steps `R4 × 25 DEEP` and paired ramps `2× 51.3° × 25 RUN` as one
+  callout each) and `dims::levels`, draftwright's height ladder: each face level's height from the
+  base in the front view (witnesses on the level's support; three or more equal rises one
+  `n× rise`) and the shoulders' positions along x (plan) and y (side). The levels come less what
+  draftwright's ownership stage gives other owners (a multi-axis part's base-plate top, a
+  side-facing pad's edges, an edge-open pocket's floor along z, a lowered through step's corner),
+  and a through step along x or y whose legs the ladder, a plate and the overall extents already
+  state is left to them, as in draftwright (reported, info). The shoulders need the part's risers
+  in its own frame, which quiddity's document cannot give (its working frame's z is the part's x
+  on cgb245), so the Analysis is now `draftwright.analysis/4`, recording `level_supports` and
+  `risers` read with Rust quiddity's levels module (`dims::levels::evidence`); a version 3
+  analysis gets an info problem. Fixtures: quiddity's golden through step, circular blind step,
+  paired ramp and plates/pads/levels parts, and a block stepped along y, with their recognition
+  and draftwright's sheet facts (`tests/fixtures/recognition/steps/`, `make.py`). Compared with
+  draftwright (`tests/dimensions.rs`): of draftwright's 25 step and ladder items on the 12 sheets
+  and 5 fixtures, 24 agree (all but hanger's 65, in its detail view); 32 differences listed: 21
+  undetermined (20 rungs draftwright withholds or drops at the sheet's scale, its legibility
+  gate, and hanger's 65 in a detail view vs the front, counted on both sides), 1 rust-correct
+  (m10046's 13.5, which draftwright's solver drops with an error), 10 equivalent (the fixtures'
+  overall width in the front, not the plan). AngledStep and ObliqueThroughStep stay in `UNDRAFTED`. Left:
+  - Rebased onto main 7b155db after the grooves and flats work (stream d-rebase-grooves-steps):
+    the port's own drawing of m10127 states its through step's legs, so `known_lint.json`'s
+    `own_drawings` entry `m10127 through_step_requirement_missing` (2) is gone. No other
+    `own_drawings` entry changed (`tests/lint.rs` passes with `LINT_OWN_ALL=1`). The location
+    consolidation of d-coincident-locations (`dims::holes::consolidate`) does not take the
+    ladder's rungs and shoulders or a through step's legs, as draftwright's corridor dedup does
+    not: its shoulders, rungs and through-step legs register their `CorridorCandidate` with no
+    dedup key (`dedup=None`, "keep both": `_axial_render.py`, "No cross-dedup against hole
+    locations"; `_height_ladder.py`; `from_model.py::render_through_steps`).
+    `known_dimensions.json` needed no change.
+  - **Placement problems the new items add** (for d-placement; `src/layout.rs` and
+    `src/dims/placement.rs` not edited), on main after d-placement's merge (no new ink overlap or
+    off-sheet problem; re-checked after the rebase, the same items): cgb245
+    `annotation_outside_area` 22 → 30 (7 rungs and the overall
+    height past the front's area) and 1 new `annotation_over_view` (the overall height's label
+    over the side view, beyond the 11 rungs); ftc06 `annotation_outside_area` 21 → 23 (the
+    three shoulders) and `annotation_over_view` 2 → 3 (chamfer:2's label over the isometric);
+    m1000 `annotation_outside_area` 1 → 2 and 1 new `annotation_over_view` (the overall height,
+    beyond its rungs). Recorded with verdicts (rust-wrong) in `tests/fixtures/known_placement.json`
+    so `tests/placement.rs` stays green; the cause is the legibility gate below: the layout reserves
+    the front's right band for the rungs legible at the scale while the plan draws every rung.
+  - Not ported: draftwright's legibility gate (`_classify_steps`: withhold a rung shorter than
+    its arrows, drop one too close to the last and escalate to a detail view); a correlated set
+    addressed by one ID (ARCH0015-2 stays pending: each rung and shoulder is its own item, named
+    by its own value to the thousandth, `step_height.length.h16`, `step_position.length.x136_525`,
+    never by its rank, so a level a revision adds renames no other rung (ADR4-6); a spec can
+    still omit one rung);
+    draftwright's channel absorption into the ladder (`_step_level_owns_channel`); lint's
+    alternative grammars that credit a ladder-owned through step's legs (`lint::steps`). The
+    plate a through step shares is found by shared constituent faces (draftwright uses defining
+    faces); Rust quiddity's risers carry their solid's levels within 0.5 mm of its ends where
+    draftwright's aggregate uses 0.6 (no sampled part differs). Equal shoulders are stated once
+    (draftwright draws each riser's: ctc04's two 75s and two 225s; ctc04 is not among the
+    compared sheets, so this has no verdict entry: see the question below). A level with no
+    recorded support is reported (`step_level_support_missing`), its witnesses on the box.
+  - Proposed catalogue changes in files not edited here: issues.yaml ISSUE-915-a stays pending,
+    rust_note "the ladder's witnesses stand on each level's own support (src/dims/levels.rs); no
+    detail views"; ISSUE-924-a stays pending, rust_note "a shoulder on the box is reported
+    (step_position_coincident_with_datum), not drawn; quiddity never gives one, and the plan's
+    omitted list does not record it". lint.yaml unchanged.
+  - Questions for the maintainer:
+    - Port draftwright's legibility gate? It is a placement decision at the sheet's scale, which
+      the planners do not see (`dims::Context`); without it cgb245 states 11 heights where
+      draftwright states 1 and withholds 10 (info), and the port's sheet collides.
+    - Address a ladder as one correlated set (ARCH0015-2), or keep per-rung IDs a spec can omit
+      one at a time? One set ID needs the plan driver (`src/dims/mod.rs`) to take a set's
+      omission for all its members; until then each rung's ID is its height.
+    - Two shoulders at the same position (ctc04's two risers at 75, two at 225): one dimension
+      (the port, as one value stated twice is redundant, ISO 129-1) or one per riser
+      (draftwright)?
+  - Pending for the integrator (`docs/model.md` belongs to d-general-notes, so this branch does
+    not edit it): apply this hunk, verbatim from the original commit 065dd08 (the analysis/4
+    schema line and the "Level supports and risers" paragraph), once that stream has merged (it
+    applies to main 7b155db with `git apply`). With it, the ISSUE-915-a and ISSUE-924-a
+    `rust_note`s proposed above go into `docs/rules/issues.yaml` (d-issue-drafting-2's file).
+
+    ```diff
+    diff --git a/docs/model.md b/docs/model.md
+    index 1f440ff..ae3809b 100644
+    --- a/docs/model.md
+    +++ b/docs/model.md
+    @@ -33,7 +33,7 @@ edited.
+     
+     ```json
+     {
+    -  "schema": "draftwright.analysis/3",
+    +  "schema": "draftwright.analysis/4",
+       "binding": { "source_sha256": "…", "part": "10127", "face_count": 27, "loader": "haecceity 0.1" },
+       "frame": { "origin": [0, 0, 0], "axes": [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
+       "envelope": { "min": [0, 0, 0], "max": [28.8, 32.3, 44.7] },
+    @@ -49,6 +49,14 @@ edited.
+     - **Levels** (`draftwright.analysis/3`) are the heights of the part's horizontal face levels,
+       read from the geometry as quiddity's `step_level_records` reads them but in the part's own
+       frame: what a prismatic part's height ladder dimensions. Older analyses read with none.
+    +- **Level supports and risers** (`draftwright.analysis/4`): each level's support (its height and
+    +  the x and y extents of its faces, per solid) and the step risers between the levels (quiddity's
+    +  `FaceLevel` and `RiserEvidence`, read with Rust quiddity in the part's own frame, as
+    +  draftwright's own recognition run reads them). The height ladder's witnesses stand on a level's
+    +  support, and its shoulders' positions come from the risers (`src/dims/levels.rs`). quiddity's
+    +  recognition document cannot give them: it reads them in its working frame, whose z need not be
+    +  the part's. Older analyses read with none; a version 3 analysis with levels gets an info
+    +  problem saying the step positions could not be found.
+     
+     - **Feature IDs** are stable within one file. They are anchored on face indices and derived
+       from the feature's kind and faces, never from the order it was found in.
+    ```

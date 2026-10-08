@@ -16,23 +16,30 @@
  {
   "part": "cgb245",
   "code": "annotation_outside_area",
-  "count": 22,
+  "count": 30,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 22 plan items (y locations and slot:3's location across its width left of the plan, x locations and pitches above it) run past the plan's area. Info only; the off-sheet and overlap problems are the harm."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 22 plan items (y locations and slot:3's location across its width left of the plan, x locations and pitches above it) run past the plan's area. Also 7 of the height ladder's 11 rungs (d:step_level/step_height.length.h9_876@front to h25_226, stream d-dims-steps-levels) and the overall height in the lane beyond them run past the front's area; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. Info only; the off-sheet and overlap problems are the harm."
+ },
+ {
+  "part": "cgb245",
+  "code": "annotation_over_view",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The label of d:envelope/height.length@front (37.2) lies over the side view: it stands in the front's right band in the lane beyond the height ladder's 11 rungs (stream d-dims-steps-levels), where draftwright states 1 rung; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes."
  },
  {
   "part": "connector109",
   "code": "annotation_off_sheet",
-  "count": 1,
+  "count": 4,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the front's lower band is 20 mm and holds seven lanes of callouts and diameters, so d:f:fillet:1/fillet.radius@front (R1) in the outermost runs below the sheet's margin. Reserving the front's lanes clears it but drops the sheet's scale from 1:2 to 1:5."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the front's lower band is 20 mm and holds the lanes of callouts and diameters, so the outermost run below the sheet's margin: d:f:fillet:1/fillet.radius@front (R1), and, since dims::grooves added the three groove callouts (6 WIDE × ø122 twice, stacked below the front), d:f:groove:2, d:f:groove:3 and the chamfer callout pushed out past them. draftwright's captured sheet (tests/fixtures/sheets/connector109.json.gz) has every one of these labels inside the A2 drawing area (the lowest, a groove's, 46 mm above the page's bottom edge). Reserving the front's lanes clears it but drops the sheet's scale from 1:2 to 1:5."
  },
  {
   "part": "connector109",
   "code": "annotation_outside_area",
-  "count": 5,
+  "count": 8,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: five front items in the lanes below the front run past its 20 mm band."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: eight front items in the lanes below the front run past its 20 mm band, the three groove callouts dims::grooves adds among them."
  },
  {
   "part": "ctc01",
@@ -65,16 +72,16 @@
  {
   "part": "ftc06",
   "code": "annotation_outside_area",
-  "count": 21,
+  "count": 23,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (10 plan, 6 front items). The 5 side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, and callouts' labels running right."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (10 plan, 6 front items). The 5 side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, and callouts' labels running right. Also the three step shoulders d:step_level/step_position.length.x136_525@plan, x168_275@plan and y46_99@side (stream d-dims-steps-levels; draftwright draws them too), in lanes beyond the estimated bands; one earlier item no longer runs past."
  },
  {
   "part": "ftc06",
   "code": "annotation_over_view",
-  "count": 2,
+  "count": 3,
   "verdict": "rust-wrong",
-  "reason": "The labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan and d:f:hole:5/bore.diameter@plan, in its outer lanes above, lie over the isometric, which the layout placed in the space above the plan's estimated band."
+  "reason": "The labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan and d:f:hole:5/bore.diameter@plan, in its outer lanes above, lie over the isometric, which the layout placed in the space above the plan's estimated band. With the step shoulders (stream d-dims-steps-levels) in the plan's lanes, the label of d:f:chamfer:2/chamfer.length@plan lies over the isometric too."
  },
  {
   "part": "grm03",
@@ -93,9 +100,16 @@
  {
   "part": "m1000",
   "code": "annotation_outside_area",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only. And d:envelope/height.length@front (29.1), in the lane beyond the height ladder's rungs (stream d-dims-steps-levels), runs 3.5 mm past the front's area; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes."
+ },
+ {
+  "part": "m1000",
+  "code": "annotation_over_view",
   "count": 1,
   "verdict": "rust-wrong",
-  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only."
+  "reason": "The label of d:envelope/height.length@front (29.1) lies over the side view: it stands in the front's right band in the lane beyond the height ladder's rungs (stream d-dims-steps-levels); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes."
  },
  {
   "part": "m10127",
