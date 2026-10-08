@@ -25,6 +25,7 @@ use crate::notes::{NoteSpec, NotesBlock, PlannedNote};
 use crate::output::{
     Curve, Drawing, HAlign, Item, Layer, TextRun, VAlign, layer_styles, projected,
 };
+use crate::tables::{PlannedTable, TableSpec};
 use crate::text::{Font, Laid, Segment};
 use crate::title_block::{self, TitleCell};
 
@@ -136,6 +137,10 @@ pub struct Spec {
     /// General notes, in the order they are numbered ([`crate::notes`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<NoteSpec>,
+    /// Corner-block tables (revision blocks, BOMs, schedules), placed in order
+    /// ([`crate::tables`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tables: Vec<TableSpec>,
 }
 
 /// The two sources of dimension intent (ADR4-5).
@@ -188,6 +193,7 @@ impl Default for Spec {
             dimensions: BTreeMap::new(),
             features: BTreeMap::new(),
             notes: Vec::new(),
+            tables: Vec::new(),
         }
     }
 }
@@ -231,6 +237,9 @@ pub struct Plan {
     /// The block the notes are drawn in, when it has a place.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes_block: Option<NotesBlock>,
+    /// Corner-block tables, each with its ID, cells, default flag, basis and place.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tables: Vec<PlannedTable>,
     pub problems: Vec<Problem>,
     /// The spec the plan was made from, embedded in every output.
     pub spec: Spec,
@@ -537,6 +546,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     }
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
+    crate::tables::check(&spec.tables)?;
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let mut effective = spec.clone();
@@ -691,15 +701,17 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         shown("iso"),
     );
     request.sections = usize::from(section.is_some());
-    // The general notes block is reserved top right, unless only a fallback would make room
-    // for it: then it is placed where it can be, or reported (crate::notes).
+    // The tables are reserved towards their corners and the general notes block top right, in
+    // draftwright's order, unless only a fallback would make room for them: then each is placed
+    // where it can be, or reported (crate::tables, crate::notes).
     let notes_size = crate::notes::size(&spec.notes);
+    request.required_tables = crate::tables::sizes(&spec.tables);
     request
         .required_tables
         .extend(notes_size.map(|s| (s, Corner::TopRight)));
     // The height ladder is sized for the steps legible at the scale it leads to.
     let (mut pick, mut strips, _) = crate::demand::size(&demand, &request, scale, page, lo[2]);
-    if notes_size.is_some() && pick.fallback.is_some() {
+    if !request.required_tables.is_empty() && pick.fallback.is_some() {
         let mut bare = request.clone();
         bare.required_tables.clear();
         let (p, s, _) = crate::demand::size(&demand, &bare, scale, page, lo[2]);
@@ -897,6 +909,15 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let (notes, notes_block, more) =
         crate::notes::plan(&spec.notes, analysis, &sheet, &views, &dimensions);
     problems.extend(more);
+    let (tables, more) = crate::tables::plan(
+        &spec.tables,
+        analysis,
+        &sheet,
+        &views,
+        &dimensions,
+        notes_block.as_ref().map(|b| b.cells),
+    );
+    problems.extend(more);
     for o in &mut omitted {
         if inactive.contains(&o.id) {
             o.basis =
@@ -917,6 +938,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         omitted,
         notes,
         notes_block,
+        tables,
         problems,
         spec,
     })
@@ -926,7 +948,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
 /// "path": "a/b/c", "value": …}`, with paths into the spec's JSON; a `/` inside a key (a
 /// dimension's ID) is written `~1` and a `~` is written `~0`, as in a JSON pointer (RFC 6901).
 /// `add` appends its value to the list at its path; a note added without an ID takes the next
-/// free `n:<k>`. The result is validated whole, so an unknown field or a value of the wrong kind
+/// free `n:<k>`, a table the next free `t:<k>`. The result is validated whole, so an unknown field or a value of the wrong kind
 /// is refused with the reason.
 pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     let mut doc = serde_json::to_value(spec).expect("a spec serialises");
@@ -992,12 +1014,17 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
             };
             let mut value = op["value"].clone();
             if parents.is_empty()
-                && last == "notes"
-                && let Some(note) = value.as_object_mut()
-                && !note.contains_key("id")
+                && (last == "notes" || last == "tables")
+                && let Some(item) = value.as_object_mut()
+                && !item.contains_key("id")
             {
-                let id = crate::notes::next_id(list.iter().filter_map(|n| n["id"].as_str()));
-                note.insert("id".into(), id.into());
+                let ids = list.iter().filter_map(|n| n["id"].as_str());
+                let id = if last == "notes" {
+                    crate::notes::next_id(ids)
+                } else {
+                    crate::tables::next_id(ids)
+                };
+                item.insert("id".into(), id.into());
             }
             list.push(value);
         } else {
@@ -1009,6 +1036,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::dims::check_tolerances(&spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
+    crate::tables::check(&spec.tables)?;
     Ok(spec)
 }
 
@@ -1169,6 +1197,18 @@ pub fn render(
         for (row, at) in crate::notes::texts(block, &plan.notes) {
             let run = (row.trim_start(), crate::dims::FONT, crate::notes::TEXT);
             let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
+            label(laid, at, dims, Some(run));
+        }
+    }
+    // The tables: each one's rules, and each cell centred on its planned ink, searchable.
+    for table in &plan.tables {
+        let Some(p) = &table.placed else { continue };
+        for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
+            dims.push(Item::Edge(Curve::Line(a, b)));
+        }
+        for (cell, at) in crate::tables::texts(table) {
+            let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
+            let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
             label(laid, at, dims, Some(run));
         }
     }

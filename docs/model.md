@@ -290,6 +290,62 @@ and draws them as draftwright draws its document notes (`render_document_notes`)
   the text layer keeps `⌀` where draftwright's has `ø` (rust-correct, as for callouts). The
   per-feature `note` and hole tables are not ported.
 
+### Tables
+
+`src/tables.rs` reads the spec's `tables`, a list of `{id, rows, prefer?}` placed in order, and
+draws each as draftwright's `Sheet.table` draws a declared corner-block table (revision blocks,
+BOMs, schedules) through `Drawing.add_table` and `_build_table`. The pieces the notes block
+shares with a table (text height, padding, rows, font-safe ink, what a block keeps clear of,
+placement and rules) live there too; the notes block is draftwright's single-column table.
+
+- **Refused** (by `plan` and `edit`): an ID not of the form `t:<k>` or two tables with one ID
+  (with the next free ID as the choice); and, as `Sheet.table` refuses them, a table with no
+  rows, a row that is a string (pointing to `notes`), rows not all of one non-zero length; and,
+  beyond draftwright, a row that is not a list, a cell that is neither text nor a number (`null`,
+  `true`, a list), and a `prefer` other than `tr`, `tl`, `br`, `bl` (with those as the choices).
+  A number cell is printed as JSON writes it (`4`, `0.5`). An absent or empty list is not
+  serialised.
+- **Plan items** (`tables`): `{id, rows, default: false, basis, placed}`, `rows` the cells as
+  text, row 0 the header; `placed` is each cell's ink centre (none for an empty cell, which
+  draws nothing), each column's left edge and the right edge, and the table's box. Each column
+  is as wide as its widest cell's ink plus 2 mm each side, at least 7.5 mm (`_table_metrics`);
+  each row 7 mm (3 mm IBM Plex Mono and 2 mm padding above and below); each cell's ink centred
+  in its cell; ruled at every column edge and at the top and bottom of every row.
+- **Placement.** Each table's measured size is reserved towards its corner when the sheet is
+  chosen, ahead of the notes block, as draftwright's `layout_required_tables` orders them (a
+  reservation that only a fallback would make room for is dropped, with the notes', so it never
+  shrinks the views). Each is then placed after the dimensions and the notes block, in the
+  spec's order, by `fit_box` towards its `prefer` corner (default `tr`; the corner ranks the
+  places, it does not exclude the others), with 6 mm of breathing room and then at the 2 mm
+  padding, clear of the views' areas, the isometric's drawn box, every dimension's ink, the
+  title block, the notes block and the tables before it. A table with no place is a
+  `table_not_placed` error naming it (draftwright's `table_dropped`), and stays in the plan
+  undrawn.
+- **Render.** Each non-empty cell is drawn as glyphs and is one invisible text run of the cell
+  (trimmed) in the PDF and the SVG text layer; `⌀` is drawn as `ø`.
+- **Edits.** `{"op": "add", "path": "tables", "value": {"rows": [["REV", "DESCRIPTION"], ["A",
+  "INITIAL RELEASE"]]}}` appends a table; one given no `id` takes the next free `t:<k>`.
+- **Differences from draftwright**, with verdicts (`tests/tables.rs` compares a four-column
+  revision block towards `tr`, with an empty cell, and a four-column BOM towards `bl` on m10127
+  and ctc01, `tests/fixtures/tables.json` from `tools/capture_tables.py`, which declares them as
+  `Sheet.build` does): rows, height, every column's width and every cell's ink centre agree to
+  1e-4 mm on both parts, and an empty cell draws nothing in both; on ctc01, where the port
+  chooses draftwright's sheet with and without the tables, both tables sit flush in the same
+  corners; on m10127 the port's sheet already differs without them (A4 1:1 against A3 2:1,
+  `tests/fixtures/known_views.json`), and the BOM's bottom-left corner is taken by the front
+  view's area, so it goes to the next free place (not comparable). An unknown `prefer` is
+  refused, where `fit_box` reads anything but `br`, `tl`, `tr` as `bl` (rust-correct: a typo
+  would silently move the table); a non-list row and a cell that is not text or a number are
+  refused, where Python's `str()` would print `None`, `True` or a list's repr (rust-correct);
+  `table_not_placed` is an error, where `table_dropped` is a warning (rust-correct:
+  draftwright's own `build_policy._is_required_scale_drop` treats a sourced `table_dropped`,
+  which every declared table is, as a lost requirement); each cell's text run is centred on its
+  ink, where draftwright's PDF overlay starts every cell's run at the column's left padding
+  although the ink is centred (rust-correct: the run lies over the glyphs it stands for); the
+  views' bands are kept clear as well as their ink (as for notes; equivalent where compared).
+  Not ported: `block_cols` (side-by-side blocks, which only the hole table uses through
+  `_wrap_rows`), `left_align_cols`, a table's `name`, and `Sheet.schedule`'s measured tables.
+
 **IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
 view moves the dimension to its next view and renames it (the basis says so); a spec still keyed
 by the old ID is refused, with the new ID named first in the refusal's choices. Take IDs from
