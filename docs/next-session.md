@@ -918,3 +918,25 @@ improvement plan and questions are the current work. Still open from before it:
     with basis "coincident with datum". The plan's `omitted` holds only items a spec can address.
     Add such shoulders to `omitted` (with an ID like `d:step_level/step_position.length.x0@plan`),
     or keep the problem alone and settle the rule on that?
+
+- From stream d-rebase-lint-native-recesses (2026-10-08), for the integrator:
+  r/d-lint-holes-slot-patterns (1406131, merged here) proposes these docs/rules/issues.yaml
+  changes, not applied because issues.yaml belongs to the issue streams. Copied verbatim from that stream's report; apply
+  them to the three entries (only status, rust_test and rust_note change). Its author kept
+  ISSUE-1142-b pending because centre-line overlap by text box is placement's, not lint's; if
+  the maintainer treats that part as out of scope, the rule could be marked ported.
+
+  ```yaml
+  - id: ISSUE-1143-b
+    status: pending
+    rust_test: "tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims"
+    rust_note: "Partly ported. Checked: a callout claiming every member of one group does not certify another group of the same size; text with no claim certifies no hole; a callout claiming one member of a group certifies its common sizes (one truthful statement, as draftwright's _state) but not its quantity, whatever it prints: grouping.count is reported missing, naming the members no callout counts (draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). src/lint/holes.rs::uncounted: a member is counted by a diameter callout whose leading n× (or one) equals the holes it claims, all of them the group's. Holes drilled from opposite faces are separate groups (holes_drilled_from_opposite_faces_are_separate_groups). The port has no declarations or IR to join, so there is no tool-centre fallback. Not ported: hole locations (LINT-hole_coverage-location). Difference: draftwright credits a callout whose label was rewritten while its IDs survive; lint also needs the text to state the value (rust-correct, ISSUE-1217-a)."
+  - id: ISSUE-1217-a
+    status: pending
+    rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+    rust_note: "Partly ported. Hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout): each size is credited only when the term that states it (the number after ⌀, after ↧, in its recess or countersink segment) rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing ('6× ⌀8 THRU' and '4× ⌀8 THRU (6×2)' no longer confirm ⌀6 on plate.step; draftwright's test_a_repeat_count_cannot_confirm_a_diameter). Stricter than draftwright's evidence.py, which strips only the leading count (rust-correct: the rule asks for every number of a compound callout). Not ported: the families sharing lint::parameters still accept any number in the label (holes::states); locations and pitches are not verified against spans; there are no hole tables."
+  - id: ISSUE-1142-b
+    status: pending
+    rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+    rust_note: "Partly ported: lint credits a requirement only through a structured claim on the feature by ID, so a callout's words cannot claim a feature; a count is read from the callout's leading n× against the holes it claims (no count shortfall is waived, ISSUE-1143-b), and a bolt circle's diameter (after EQ/ON/BC) or any other term cannot confirm a hole's size. Not ported: centre-line overlap by text box (placement's)."
+  ```

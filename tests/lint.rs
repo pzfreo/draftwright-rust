@@ -366,6 +366,33 @@ fn join_feature(analysis: &Analysis, feature: &facts::Feature) -> Option<String>
     (fits.len() == 1).then(|| fits[0].id.clone())
 }
 
+/// The Analysis slot pattern a Python `slot_pattern` names, when exactly one fits: cut along z
+/// (Python's axis letter; lint checks no other), with its centre, as lint locates it
+/// ([`lint::slots::pattern_wanted`]), at Python's origin in x and y (within 2e-3).
+fn join_slot_pattern(analysis: &Analysis, feature: &facts::Feature) -> Option<String> {
+    let origin = feature.origin?;
+    if feature.axis.as_deref() != Some("z") {
+        return None;
+    }
+    let fits: Vec<&draftwright::bridge::Feature> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "slot_pattern")
+        .filter(|p| {
+            lint::slots::pattern_wanted(analysis, p).is_ok_and(|wanted| {
+                ["x", "y"].iter().enumerate().all(|(k, axis)| {
+                    wanted
+                        .iter()
+                        .find(|w| w.parameter == format!("location_slot_pattern.length.{axis}"))
+                        .and_then(|w| w.values.as_ref().ok())
+                        .is_some_and(|v| (analysis.envelope[0][k] + v[0] - origin[k]).abs() <= 2e-3)
+                })
+            })
+        })
+        .collect();
+    (fits.len() == 1).then(|| fits[0].id.clone())
+}
+
 /// The Analysis section recess a Python `pocket` names, when exactly one fits: read as a pocket in
 /// the part's frame ([`lint::pockets::placed`]), cut along Python's axis letter, of Python's
 /// depth, width and length (within 1.5e-3), centred at Python's origin (within 2e-3).
@@ -663,6 +690,24 @@ fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Ma
                             feature: id.clone(),
                             parameter,
                         })),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
+                if feature.kind == "slot_pattern" {
+                    // Python names a Z pattern's locations `location_slot_pattern.location.<axis>`;
+                    // the port's dimensions claim them as `location_slot_pattern.length.<axis>`.
+                    let parameter = m
+                        .parameter
+                        .strip_prefix("location_slot_pattern.location.")
+                        .map_or(m.parameter.clone(), |axis| {
+                            format!("location_slot_pattern.length.{axis}")
+                        });
+                    match join_slot_pattern(analysis, feature) {
+                        Some(id) => claims.push(Claim {
+                            feature: id,
+                            parameter,
+                        }),
                         None => unjoined += 1,
                     }
                     continue;
@@ -2158,5 +2203,117 @@ fn blind_slots_on_the_ports_own_drawings_are_stated() {
             .map(|i| &i.message)
             .collect();
         assert_eq!(mine, python.iter().collect::<Vec<_>>(), "{name}");
+    }
+}
+
+/// LINT-slot_coverage-slot_pattern on the two slot-pattern fixture plates
+/// (`tests/fixtures/recognition/slot_patterns/`: a 1×3 array and a 3×2 grid of obround slots;
+/// no corpus part has a slot pattern). Each pattern has Python's requirements (`_parameter_ids`:
+/// width, length, end radius, the pitch or the column and row pitches, the centre's x and y),
+/// and lint judges them on both drawings of each plate:
+///
+/// - **Python's sheet** (`<name>.facts.json.gz`, captured by `capture.py` there): the array's
+///   are all stated, and Python's lint reports nothing about them either. The grid's row pitch
+///   is not on the sheet: lint reports it missing, where Python reports `slot_dim_dropped` for
+///   the same measurement (its placement found no room for it). Equivalent: lint sees no
+///   placement drops, so the one requirement is missing either way.
+/// - **The port's own drawing** (planned under the default spec and rendered): every
+///   requirement is stated, the grid's row pitch (`2× 40`) included.
+#[test]
+fn slot_patterns_are_checked_on_both_sheets() {
+    let dir = fixture("recognition/slot_patterns");
+    let font = draftwright::text::Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    let cases = [
+        (
+            "slot_array",
+            vec![
+                "slot_width.length 6",
+                "slot_length.length 20",
+                "slot_end_radius.radius 3",
+                "pitch.length 25",
+                "location_slot_pattern.length.x 60",
+                "location_slot_pattern.length.y 30",
+            ],
+            Vec::<&str>::new(),
+            Vec::<&str>::new(),
+        ),
+        (
+            "slot_grid",
+            vec![
+                "slot_width.length 8",
+                "slot_length.length 24",
+                "slot_end_radius.radius 4",
+                "grid_pitch.length.col 30",
+                "grid_pitch.length.row 40",
+                "location_slot_pattern.length.x 80",
+                "location_slot_pattern.length.y 50",
+            ],
+            vec!["slot_requirement_missing grid_pitch.length.row"],
+            vec!["slot_dim_dropped grid_pitch.length.row"],
+        ),
+    ];
+    for (name, requirements, on_pythons, python) in cases {
+        let f = facts::load_file(&dir.join(format!("{name}.facts.json.gz")));
+        let mut json = String::new();
+        flate2::read::GzDecoder::new(
+            std::fs::File::open(dir.join(format!("{name}.json.gz"))).unwrap(),
+        )
+        .read_to_string(&mut json)
+        .unwrap();
+        let (part, mut a) = model::analyse(&dir.join(&f.binding.file)).unwrap();
+        assert_eq!(a.binding.source_sha256, f.binding.sha256, "{name}");
+        model::recognise(&part, &mut a, &json).unwrap();
+        let patterns: Vec<&draftwright::bridge::Feature> = a
+            .features
+            .iter()
+            .filter(|f| f.kind == "slot_pattern")
+            .collect();
+        assert_eq!(patterns.len(), 1, "{name}");
+        let wanted: Vec<String> = lint::slots::pattern_wanted(&a, patterns[0])
+            .unwrap()
+            .iter()
+            .map(|w| {
+                let v = w.values.as_ref().unwrap();
+                format!("{} {}", w.parameter, lint::parameters::fmt(v[0]))
+            })
+            .collect();
+        assert_eq!(wanted, requirements, "{name}");
+
+        let slot_findings = |issues: Vec<lint::LintIssue>| -> Vec<String> {
+            issues
+                .into_iter()
+                .filter(|i| i.code.starts_with("slot_"))
+                .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
+                .collect()
+        };
+        let (marks, unjoined) = marks(&a, &groups(&a), &f);
+        assert_eq!(unjoined, 0, "{name}");
+        assert_eq!(
+            slot_findings(lint::check(&a, &marks)),
+            on_pythons,
+            "{name}: lint on Python's sheet"
+        );
+        let pythons: Vec<String> = f
+            .lint
+            .iter()
+            .filter(|i| i.code.starts_with("slot_"))
+            .map(|i| {
+                let parameter = i.measurements[0]["parameter"].as_str().unwrap_or("?");
+                format!("{} {parameter}", i.code)
+            })
+            .collect();
+        assert_eq!(pythons, python, "{name}: Python's lint");
+
+        let plan = model::plan(&a, &model::Spec::default()).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        assert_eq!(
+            slot_findings(lint::lint(&a, &drawing)),
+            Vec::<String>::new(),
+            "{name}: lint on the port's own drawing"
+        );
     }
 }
