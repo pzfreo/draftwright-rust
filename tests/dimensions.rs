@@ -2,8 +2,9 @@
 //!
 //! In scope are the families the port plans: the overall extents (`width`, `depth`, `height`,
 //! a turned part's `od.diameter`), hole callouts (bore, counterbore, spotface, countersink and
-//! bolt-circle terms, on holes, patterns and turned bores), hole and pattern locations, and
-//! pattern pitches. Each of draftwright's annotations that states one of them is matched with
+//! bolt-circle terms, on holes, patterns and turned bores), hole and pattern locations, pattern
+//! pitches, slot sizes (`slot`: width, length, end radius) and locations (`location.slot`), and
+//! boss diameters and heights (`boss`). Each of draftwright's annotations that states one of them is matched with
 //! a plan item of the same family, view and printed label whose measurement identity agrees:
 //! for an extent, a pitch or a location (whose family names its axis), the same value within
 //! half the printed unit; for a callout, every feature draftwright names sits where one of the
@@ -78,6 +79,11 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
         }
         "od.diameter" => Some("envelope".into()),
         "pitch.length" => Some("pitch".into()),
+        "slot_width.length" | "slot_length.length" | "slot_end_radius.radius" => {
+            Some("slot".into())
+        }
+        "location_slot.length" => Some("location.slot".into()),
+        "boss.diameter" | "boss_height.length" => Some("boss".into()),
         p if p.starts_with("grid_pitch.") => Some("pitch".into()),
         p if p.starts_with("location") && (kind == "hole" || kind == "pattern") => {
             Some(format!("location.{}", p.rsplit('.').next().unwrap_or("")))
@@ -108,6 +114,12 @@ fn rust_family(d: &PlannedDimension) -> String {
             .unwrap_or("");
     if d.id.starts_with("d:envelope/") {
         "envelope".into()
+    } else if parameter.starts_with("location_slot") {
+        "location.slot".into()
+    } else if parameter.starts_with("slot_") {
+        "slot".into()
+    } else if parameter.starts_with("boss") {
+        "boss".into()
     } else if parameter.starts_with("location") {
         format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
     } else if parameter.contains("pitch") {
