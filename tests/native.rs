@@ -7,8 +7,7 @@
 //! Every part with bridged Python recognition is compared: the fixtures in `tests/fixtures/parts/`
 //! (set `parts`), the slot-pattern plates (`slot_patterns`) and quiddity-rust's golden parts with
 //! a double-D bore, gusset ribs, hexagonal stock and a pattern of oriented slots (`golden`), which
-//! no corpus part has, the
-//! sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
+//! no corpus part has, the sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
 //! (`recognition/corpus/`, set `corpus`) and 0.3.9's, the recogniser draftwright drew their sheets
 //! with (`recognition/sheets/`, set `sheets`), and 0.3.9's on corpus parts with features no
 //! sampled sheet has (`recognition/dims/`, set `dims`, and `recognition/steps/`, set `steps`), and
@@ -112,9 +111,8 @@ fn cases() -> Vec<Case> {
     // Fixture parts with a family no corpus part has: the slot-pattern plates
     // (`recognition/slot_patterns/`, quiddity 0.3.9), and quiddity-rust's golden parts with a
     // double-D bore, gusset ribs, hexagonal stock and oriented slots in a pattern
-    // (`recognition/golden/`, copied from its
-    // `tests/fixtures/golden_<name>.step` at the pinned commit, recognised by `tools/recognise.py`
-    // with Python quiddity 0.4.0.dev0).
+    // (`recognition/golden/`, copied from its `tests/fixtures/golden_<name>.step` at the pinned
+    // commit, recognised by `tools/recognise.py` with Python quiddity 0.4.0.dev0).
     for (set, part) in [
         ("slot_patterns", "slot_array"),
         ("slot_patterns", "slot_grid"),

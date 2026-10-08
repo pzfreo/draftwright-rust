@@ -1328,7 +1328,8 @@ improvement plan and questions are the current work. Still open from before it:
   21 new `known_native.json` entries, all equivalent: the passage frame's run sense and in-plane
   basis, the width and long directions' senses, and so the section's vertices and run interval,
   chosen canonically in each recogniser's frame (the prism checked identical, to the 0.001 each
-  side rounds to; quiddity-rust's known_framed_document.json lists the same for 467), and the
+  side rounds to; quiddity-rust's known_framed_document.json shows the same mechanism
+  between its own default frame and caller space for 467), and the
   array's direction sense, member order and named dimensions. Faces, widths, lengths, centres,
   ends and body keys agree, and so do all 4 fingerprints. Downstream: `plan` on 467 and the golden
   part now reports each oriented slot as `dimensions_not_ported`, exactly as with `--features`,
