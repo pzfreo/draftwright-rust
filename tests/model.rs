@@ -102,7 +102,7 @@ fn invalid_requests_say_what_would_do() {
         &serde_json::json!([{ "op": "rename", "path": "sheet/size" }]),
     )
     .unwrap_err();
-    assert_eq!(e.choices, ["set", "remove"]);
+    assert_eq!(e.choices, ["set", "remove", "add"]);
 }
 
 #[test]

@@ -662,3 +662,37 @@ fn title_block_values_reach_the_pdf_text_layer() {
         assert_eq!(run.font, draftwright::title_block::FONT);
     }
 }
+
+#[test]
+fn general_notes_reach_the_pdf_text_layer() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (part, mut a) = model::analyse(&root.join("tests/fixtures/parts/plate.step")).unwrap();
+    let json = std::fs::read_to_string(root.join("tests/fixtures/recognition/plate.json")).unwrap();
+    model::recognise(&part, &mut a, &json).unwrap();
+    let spec: Spec = serde_json::from_value(json!({ "notes": [
+        { "id": "n:1", "text": "BREAK ALL SHARP EDGES" },
+        { "id": "n:2", "text": "⌀6 H7 REAMED HOLES ARE INSPECTED WITH A GO / NO-GO GAUGE AFTER PLATING" } ] }))
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let font =
+        draftwright::text::Font::new(common::fonts("IBMPlexMono-Regular.ttf").unwrap()).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let text = pdf_text(&drawing.pdf(&common::fonts));
+    for row in [
+        "GENERAL NOTES",
+        "1  BREAK ALL SHARP EDGES",
+        "2  ⌀6 H7 REAMED HOLES ARE INSPECTED WITH A GO /",
+        "NO-GO GAUGE AFTER PLATING",
+    ] {
+        assert_eq!(
+            text.iter().filter(|t| *t == row).count(),
+            1,
+            "{row}: {text:?}"
+        );
+    }
+    let svg = svg_text(&drawing.svg());
+    assert!(
+        svg.iter().any(|t| t == "1  BREAK ALL SHARP EDGES"),
+        "{svg:?}"
+    );
+}

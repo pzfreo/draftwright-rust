@@ -20,7 +20,8 @@ use sha2::{Digest, Sha256};
 
 use crate::bridge::{Feature, Recognition};
 use crate::dims::{Omitted, PlannedDimension};
-use crate::layout::{self, Fallback, MARGIN, Principals, Request, Scaled};
+use crate::layout::{self, Corner, Fallback, MARGIN, Principals, Request, Scaled};
+use crate::notes::{NoteSpec, NotesBlock, PlannedNote};
 use crate::output::{
     Curve, Drawing, HAlign, Item, Layer, TextRun, VAlign, layer_styles, projected,
 };
@@ -89,6 +90,9 @@ pub struct Spec {
     /// Per feature, by its ID (`f:<kind>:<n>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub features: BTreeMap<String, FeatureSpec>,
+    /// General notes, in the order they are numbered ([`crate::notes`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<NoteSpec>,
 }
 
 /// The two sources of dimension intent (ADR4-5).
@@ -140,6 +144,7 @@ impl Default for Spec {
             dimension_source: DimensionSource::Auto,
             dimensions: BTreeMap::new(),
             features: BTreeMap::new(),
+            notes: Vec::new(),
         }
     }
 }
@@ -177,6 +182,12 @@ pub struct Plan {
     /// Dimensions the spec leaves out, and why (ADR4-8: an authored omission says so).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub omitted: Vec<Omitted>,
+    /// General notes, each with its ID, text, rows, default flag, basis and place.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<PlannedNote>,
+    /// The block the notes are drawn in, when it has a place.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes_block: Option<NotesBlock>,
     pub problems: Vec<Problem>,
     /// The spec the plan was made from, embedded in every output.
     pub spec: Spec,
@@ -479,6 +490,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         ));
     }
     title_block::check(&spec.sheet.title)?;
+    crate::notes::check(&spec.notes)?;
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let mut effective = spec.clone();
@@ -633,8 +645,22 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         shown("iso"),
     );
     request.sections = usize::from(section.is_some());
+    // The general notes block is reserved top right, unless only a fallback would make room
+    // for it: then it is placed where it can be, or reported (crate::notes).
+    let notes_size = crate::notes::size(&spec.notes);
+    request
+        .required_tables
+        .extend(notes_size.map(|s| (s, Corner::TopRight)));
     // The height ladder is sized for the steps legible at the scale it leads to.
-    let (pick, strips, _) = crate::demand::size(&demand, &request, scale, page, lo[2]);
+    let (mut pick, mut strips, _) = crate::demand::size(&demand, &request, scale, page, lo[2]);
+    if notes_size.is_some() && pick.fallback.is_some() {
+        let mut bare = request.clone();
+        bare.required_tables.clear();
+        let (p, s, _) = crate::demand::size(&demand, &bare, scale, page, lo[2]);
+        if p.fallback.is_none() {
+            (request, pick, strips) = (bare, p, s);
+        }
+    }
     request.strips = strips;
     let size = layout::PAGES
         .iter()
@@ -822,6 +848,9 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     };
     let (dimensions, mut omitted, more) = crate::dims::plan(analysis, spec, &sheet, &views)?;
     problems.extend(more);
+    let (notes, notes_block, more) =
+        crate::notes::plan(&spec.notes, analysis, &sheet, &views, &dimensions);
+    problems.extend(more);
     for o in &mut omitted {
         if inactive.contains(&o.id) {
             o.basis =
@@ -840,15 +869,19 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         views,
         dimensions,
         omitted,
+        notes,
+        notes_block,
         problems,
         spec,
     })
 }
 
-/// Applies edit operations to a spec. Each operation is `{"op": "set" | "remove", "path":
-/// "a/b/c", "value": …}`, with paths into the spec's JSON; a `/` inside a key (a dimension's ID)
-/// is written `~1` and a `~` is written `~0`, as in a JSON pointer (RFC 6901). The result is
-/// validated whole, so an unknown field or a value of the wrong kind is refused with the reason.
+/// Applies edit operations to a spec. Each operation is `{"op": "set" | "remove" | "add",
+/// "path": "a/b/c", "value": …}`, with paths into the spec's JSON; a `/` inside a key (a
+/// dimension's ID) is written `~1` and a `~` is written `~0`, as in a JSON pointer (RFC 6901).
+/// `add` appends its value to the list at its path; a note added without an ID takes the next
+/// free `n:<k>`. The result is validated whole, so an unknown field or a value of the wrong kind
+/// is refused with the reason.
 pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     let mut doc = serde_json::to_value(spec).expect("a spec serialises");
     let ops = ops
@@ -866,10 +899,10 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         let Some((last, parents)) = path.split_last() else {
             return Err(invalid("An edit's path is empty.", &[]));
         };
-        if !["set", "remove"].contains(&kind) {
+        if !["set", "remove", "add"].contains(&kind) {
             return Err(invalid(
                 format!("{kind:?} is not an edit."),
-                &["set", "remove"],
+                &["set", "remove", "add"],
             ));
         }
         let absent = || {
@@ -881,13 +914,13 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
                 &[],
             )
         };
-        // `set` makes the objects on its path; `remove` needs every one of them there.
+        // `set` and `add` make the objects on their path; `remove` needs every one of them there.
         let mut at = &mut doc;
         for key in parents {
             let Some(object) = at.as_object_mut() else {
                 return Err(invalid(format!("{key:?} is not inside an object."), &[]));
             };
-            at = if kind == "set" {
+            at = if kind != "remove" {
                 object
                     .entry(key.to_string())
                     .or_insert_with(|| serde_json::json!({}))
@@ -900,6 +933,27 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
             .ok_or_else(|| invalid(format!("{:?} is not an object.", parents.join("/")), &[]))?;
         if kind == "set" {
             object.insert(last.to_string(), op["value"].clone());
+        } else if kind == "add" {
+            let Some(list) = object
+                .entry(last.to_string())
+                .or_insert_with(|| serde_json::json!([]))
+                .as_array_mut()
+            else {
+                return Err(invalid(
+                    format!("{:?} is not a list to add to.", path.join("/")),
+                    &[],
+                ));
+            };
+            let mut value = op["value"].clone();
+            if parents.is_empty()
+                && last == "notes"
+                && let Some(note) = value.as_object_mut()
+                && !note.contains_key("id")
+            {
+                let id = crate::notes::next_id(list.iter().filter_map(|n| n["id"].as_str()));
+                note.insert("id".into(), id.into());
+            }
+            list.push(value);
         } else {
             object.remove(last.as_str()).ok_or_else(absent)?;
         }
@@ -908,6 +962,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::dims::check_tolerances(&spec)?;
     title_block::check(&spec.sheet.title)?;
+    crate::notes::check(&spec.notes)?;
     Ok(spec)
 }
 
@@ -1058,6 +1113,17 @@ pub fn render(
                 dims,
                 Some(run),
             );
+        }
+    }
+    // The general notes: the block's rules, and each row centred on its planned ink, searchable.
+    if let Some(block) = &plan.notes_block {
+        for [a, b] in crate::notes::rules(block) {
+            dims.push(Item::Edge(Curve::Line(a, b)));
+        }
+        for (row, at) in crate::notes::texts(block, &plan.notes) {
+            let run = (row.trim_start(), crate::dims::FONT, crate::notes::TEXT);
+            let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
+            label(laid, at, dims, Some(run));
         }
     }
     // The scale, outside the block (ISO 7200 §4), above its right end.

@@ -165,7 +165,7 @@ fn a_drawing_is_planned_edited_rendered_and_resumed() {
     assert_eq!(replies[2]["result"]["isError"], true);
     assert_eq!(
         first(&replies[2])["error"]["choices"],
-        json!(["set", "remove"])
+        json!(["set", "remove", "add"])
     );
     assert_eq!(replies[3]["result"]["isError"], true);
     let views = &first(&replies[3])["error"]["choices"];

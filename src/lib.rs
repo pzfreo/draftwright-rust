@@ -12,6 +12,7 @@ pub mod dims;
 pub mod layout;
 pub mod lint;
 pub mod model;
+pub mod notes;
 pub mod output;
 pub mod png;
 pub mod section;

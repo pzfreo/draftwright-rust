@@ -1380,7 +1380,7 @@ pub fn fit_box(
 }
 
 /// A table's place: first with breathing room, then at the hard clearance.
-fn fit_auxiliary_box(
+pub(crate) fn fit_auxiliary_box(
     size: [f64; 2],
     region: Rect,
     obstacles: &[Rect],
