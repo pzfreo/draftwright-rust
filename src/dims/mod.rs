@@ -22,9 +22,13 @@
 //! **Placement is simple and honest**, not draftwright's solver: linear dimensions stack in lanes
 //! below (horizontal) and right of (vertical) their view, sizes nearest, then locations by
 //! distance, then the overall extent outermost; callouts stack above their view with 45° leaders.
-//! Whatever then collides (labels with labels, lines through labels, labels over views, ink off
-//! the sheet) is reported as a problem on the dimension's ID, never silently moved or dropped.
-//! Lines crossing other views' outlines or other dimensions' lines are not checked yet. An item
+//! A label another item's ink runs through then moves along its own line (a callout's leader
+//! may turn left) to the nearest clear place, if there is one. Whatever still collides (labels with labels, lines through labels, labels over views, ink off
+//! the sheet, ink past the area its view reserved) is reported as a problem on the dimension's
+//! ID, never silently moved or dropped. Lines crossing other views' outlines or other
+//! dimensions' lines are not checked yet. Each item's lane is its place among everything the
+//! defaults would dimension, so omitting one leaves the others where they were (ARCH0003-2), and
+//! the layout reserves the side view's bands for its lanes ([`lanes`]). An item
 //! no shown view can carry is kept in the plan, unplaced, and reported (R1 invariant 3).
 //!
 //! The module is a driver over one planner per family ([`PLANNERS`]): [`envelope`], [`turned`],
@@ -368,32 +372,18 @@ fn levenshtein(a: &str, b: &str) -> usize {
     row[b.len()]
 }
 
-/// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
-/// left out and the problems found. A spec naming a dimension the part does not have is refused
-/// with the nearest IDs.
-pub fn plan(
+/// The view that carries each of *wants*: its first choice that is shown (in *frames*) and does
+/// not look along it (a turned part's diameter turns to the radial axis the view shows). A later
+/// choice renames it. Those with none keep the views that were shown but look along them.
+fn route(
+    wants: &mut [Want],
+    frames: &BTreeMap<&str, Frame>,
     analysis: &Analysis,
-    spec: &Spec,
-    sheet: &PlannedSheet,
-    views: &[PlannedView],
-) -> Result<Planned, Invalid> {
-    let (mut wants, mut problems) = wants(analysis);
-    let frames: BTreeMap<&str, Frame> = views
-        .iter()
-        .filter_map(|v| {
-            let name = v.id.strip_prefix("v:")?;
-            NAMES
-                .contains(&name)
-                .then(|| (name, Frame::new(analysis, v)))
-        })
-        .collect();
-    // The view that carries each: its first choice that is shown and does not look along it
-    // (a turned part's diameter turns to the radial axis the view shows). A later choice renames
-    // it. Those with none keep the views that were shown but look along them.
+) -> (Vec<Option<&'static str>>, Vec<Vec<&'static str>>) {
     let [lo, hi] = analysis.envelope;
     let mut chosen: Vec<Option<&'static str>> = Vec::new();
     let mut end_on: Vec<Vec<&'static str>> = Vec::new();
-    for w in &mut wants {
+    for w in wants.iter_mut() {
         let mut view = None;
         let mut along = Vec::new();
         for v in w.views.clone() {
@@ -434,6 +424,50 @@ pub fn plan(
         chosen.push(view);
         end_on.push(along);
     }
+    (chosen, end_on)
+}
+
+/// The lanes the defaults' dimensions take beside the principal *views* (name, direction towards
+/// the viewer, up) before they are placed: what the layout reserves for them
+/// ([`crate::layout::Strips::reserve`]). Every item the part would have counts, whatever the
+/// spec omits, as [`plan`] gives each its lane in that full set (edit locality, ARCH0003-2).
+pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
+    let (mut wants, _) = wants(analysis);
+    let frames: BTreeMap<&str, Frame> = views
+        .iter()
+        .filter(|(name, ..)| NAMES.contains(name))
+        .map(|(name, direction, up)| {
+            (
+                *name,
+                Frame::looking(analysis, *direction, *up, [0.0; 2], 1.0),
+            )
+        })
+        .collect();
+    let (chosen, _) = route(&mut wants, &frames, analysis);
+    let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()));
+    placement::band_lanes(chosen.iter().zip(sides).zip(lane))
+}
+
+/// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
+/// left out and the problems found. A spec naming a dimension the part does not have is refused
+/// with the nearest IDs.
+pub fn plan(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+) -> Result<Planned, Invalid> {
+    let (mut wants, mut problems) = wants(analysis);
+    let frames: BTreeMap<&str, Frame> = views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            NAMES
+                .contains(&name)
+                .then(|| (name, Frame::new(analysis, v)))
+        })
+        .collect();
+    let (chosen, end_on) = route(&mut wants, &frames, analysis);
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
     // bug, checked in every build.
@@ -473,9 +507,11 @@ pub fn plan(
             });
         }
     }
+    // The spec chooses what is drawn, and states the tolerances and fits on the kept labels.
+    let all = wants.clone();
     let mut omitted = Vec::new();
     let mut kept = Vec::new();
-    for ((w, view), along) in wants.into_iter().zip(chosen).zip(end_on) {
+    for ((w, view), along) in wants.into_iter().zip(chosen.iter().copied()).zip(end_on) {
         let entry = spec.dimensions.get(&w.id);
         match spec.dimension_source {
             DimensionSource::Auto if entry.is_some_and(|e| e.omit) => omitted.push(Omitted {
@@ -493,17 +529,56 @@ pub fn plan(
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     let given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
 
-    let (sides, lane) = placement::lanes(&frames, kept.iter().map(|(w, _, view, _)| (w, *view)));
+    // Then everything the part would have is placed: each item's lane, and where its label
+    // settles, come from the full set, so omitting or restoring one leaves the others where they
+    // were (ARCH0003-2). A kept item is placed with its label as drawn (its tolerance or fit
+    // included); one the spec omits, or a height the overall extent conveys, keeps its default
+    // label and its place, so it leaves a gap.
+    let labels: BTreeMap<&str, &[String]> = kept
+        .iter()
+        .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
+        .collect();
+    let all: Vec<Want> = all
+        .into_iter()
+        .map(|mut w| {
+            if let Some(terms) = labels.get(w.id.as_str()) {
+                w.terms = terms.to_vec();
+            }
+            w
+        })
+        .collect();
+    let (sides, lane) = placement::lanes(&frames, all.iter().zip(chosen.iter().copied()));
+    let mut placed: Vec<Option<Placed>> = all
+        .iter()
+        .zip(&chosen)
+        .zip(sides.iter().zip(&lane))
+        .map(|((w, view), (side, lane))| {
+            view.zip(*side)
+                .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
+        })
+        .collect();
+    let rims: Vec<Option<f64>> = all
+        .iter()
+        .zip(&chosen)
+        .zip(&sides)
+        .map(|((w, view), side)| match &w.shape {
+            Shape::Callout { sites } => view
+                .zip(*side)
+                .map(|(v, side)| placement::callout_rim(&frames[v], sites, side)),
+            Shape::Linear { .. } => None,
+        })
+        .collect();
+    placement::settle(&mut placed, &rims, analysis, sheet, views);
+    let mut positions: BTreeMap<String, Option<Placed>> =
+        all.into_iter().map(|w| w.id).zip(placed).collect();
 
     // Undrawn items by the views that could carry them and those of them that look along them.
     type Undrawn = (Vec<&'static str>, Vec<&'static str>);
     let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
-    for (i, ((w, default, chosen, along), from_spec)) in kept.into_iter().zip(given).enumerate() {
+    for ((w, default, chosen, along), from_spec) in kept.into_iter().zip(given) {
+        let placed = positions.remove(&w.id).flatten();
         let view = chosen.unwrap_or(w.views[0]);
-        let placed = chosen
-            .zip(sides[i])
-            .and_then(|(v, side)| placement::place(&frames[v], &w, side, lane[i]));
         if placed.is_none() {
             missing
                 .entry((w.views.clone(), along))

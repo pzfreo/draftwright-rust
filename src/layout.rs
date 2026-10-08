@@ -208,6 +208,60 @@ impl Strips {
     }
 }
 
+/// The lanes the port's own dimensions stack in beside each view (`dims::lanes`), by the strip
+/// they take: horizontal dimensions below the front and the side and above the plan, vertical
+/// ones right of the front and the side and left of the plan, callouts below the front and above
+/// the plan and the side.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Lanes {
+    pub front_below: usize,
+    pub front_right: usize,
+    pub plan_above: usize,
+    pub plan_left: usize,
+    pub side_below: usize,
+    pub side_above: usize,
+    pub side_right: usize,
+}
+
+/// The distance between successive dimension lines in the port's lanes (`dims::LANE`), and how
+/// far a lane's ink reaches past its line: the label's baseline lift and one text height, which
+/// also covers the extension lines' 2 mm overshoot.
+const LANE: f64 = 7.0;
+const LANE_REACH: f64 = 1.0 + FONT_SIZE;
+
+/// The band *lanes* stacked lanes need: the first line's gap, the lanes, and the outermost one's
+/// reach; none for none.
+pub fn lane_band(lanes: usize) -> f64 {
+    if lanes == 0 {
+        0.0
+    } else {
+        STRIP_GAP + (lanes - 1) as f64 * LANE + LANE_REACH
+    }
+}
+
+impl Strips {
+    /// Reserves the side view's bands for the port's own dimension lanes (review M3): each side
+    /// band is at least [`lane_band`] of the lanes stacked in it. draftwright reserves the side's
+    /// bands only for its own side-view schemes (axial boss heights, seat offsets, through-step
+    /// legs), none of which the port plans, so without this the side had no band at all.
+    ///
+    /// The front's and the plan's bands stay draftwright's estimates: reserving the port's lanes
+    /// there too moves its sheet and scale choices away from draftwright's (on the captured
+    /// parts, grm05 drops from 2:1 to 1:1 and connector109 from 1:2 to 1:5), so it waits for the
+    /// maintainer; their ink past their bands is reported (`annotation_outside_area`).
+    ///
+    /// The front and the side share a row whose height is set from the front's lower band
+    /// (`geometry`, as in draftwright), so the front's lower band is also at least the side's: a
+    /// deeper band below the side alone would hang below the row.
+    pub fn reserve(&mut self, lanes: &Lanes) {
+        let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
+        widen(&mut self.fv_bottom, lanes.side_below);
+        widen(&mut self.sv_bottom, lanes.side_below);
+        widen(&mut self.sv_top, lanes.side_above);
+        widen(&mut self.sv_right, lanes.side_right);
+    }
+}
+
 /// The band right of the front view for its height ladder (draftwright's
 /// `_est_right_strip_depth`): the overall height's slot, then one slot per step level and per
 /// other occupant (an axial boss height).

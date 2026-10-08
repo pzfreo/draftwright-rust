@@ -1,0 +1,135 @@
+[
+ {
+  "part": "cgb245",
+  "code": "annotation_ink_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The leader of d:f:slot:1/slot_end_radius.radius@plan (2× R3) runs through the label of d:f:hole:1/bore.diameter@plan (4× ⌀7 THRU), and the leader of d:f:hole:8/bore.diameter@plan (2× ⌀5 THRU) through the label of d:f:hole_pattern:1/bore.diameter@plan (4× ⌀5 THRU (2×2)), in the plan's callout lanes above it; no slide clears them, and turning the leader (dims::placement::settle) does not either: a turned leader starts from the rim's left 45° point so that it stays radial, and from there the label is not clear. Was 6 before settling; 4 are cleared by labels sliding off extension lines and a leader turned."
+ },
+ {
+  "part": "cgb245",
+  "code": "annotation_off_sheet",
+  "count": 9,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band is 20 mm and its nine lanes of y locations, the row pitch and a slot width reach 10 + 8 × 7 mm, past the sheet's left margin. Reserving the port's lanes in every band removes all nine (checked: A2 at 1:2 kept), but moves other parts' sheet and scale (see known_views questions in docs/next-session.md)."
+ },
+ {
+  "part": "cgb245",
+  "code": "annotation_outside_area",
+  "count": 21,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 21 plan items (y locations left of the plan, x locations and pitches above it) run past the plan's area. Info only; the off-sheet and overlap problems are the harm."
+ },
+ {
+  "part": "connector109",
+  "code": "annotation_off_sheet",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the front's lower band is 20 mm and holds seven lanes of callouts and diameters, so d:f:fillet:1/fillet.radius@front (R1) in the outermost runs below the sheet's margin. Reserving the front's lanes clears it but drops the sheet's scale from 1:2 to 1:5."
+ },
+ {
+  "part": "connector109",
+  "code": "annotation_outside_area",
+  "count": 5,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: five front items in the lanes below the front run past its 20 mm band."
+ },
+ {
+  "part": "ctc01",
+  "code": "annotation_off_sheet",
+  "count": 10,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band (20 mm) holds the y location and row pitches, and the callouts above the plan run past the sheet's top margin (two bore and fillet callouts, two row pitches, the y location, a slot width and an end radius). Since d-slots-rest the polygonal boss adds its across-flats callout and y location there, and the first pattern's bore callout is pushed one lane further out by them (7 before that merge). Reserving the port's lanes in every band (the question in docs/next-session.md) is what would clear them."
+ },
+ {
+  "part": "ctc01",
+  "code": "annotation_outside_area",
+  "count": 22,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 18 plan and 4 front items (the polygonal boss's height in the front and its across flats and x and y locations in the plan since d-slots-rest; 18 before that merge)."
+ },
+ {
+  "part": "ftc06",
+  "code": "annotation_ink_overlap",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The leader of d:f:boss:6/boss.diameter@front (2× ø22.9) runs through the label of d:f:hole_pattern:1/bore.diameter@front in the front's callout lanes; no turn or slide clears it. Was 14 before settling: the side depth's and front locations' extension lines through boss-height labels are cleared by moving those labels to the other end of their short spans."
+ },
+ {
+  "part": "ftc06",
+  "code": "annotation_off_sheet",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: d:f:hole:5/location.length.y@plan in the plan's left lanes runs past the sheet's margin."
+ },
+ {
+  "part": "ftc06",
+  "code": "annotation_outside_area",
+  "count": 21,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (10 plan, 6 front items). The 5 side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, and callouts' labels running right."
+ },
+ {
+  "part": "ftc06",
+  "code": "annotation_over_view",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan and d:f:hole:5/bore.diameter@plan, in its outer lanes above, lie over the isometric, which the layout placed in the space above the plan's estimated band."
+ },
+ {
+  "part": "grm03",
+  "code": "annotation_outside_area",
+  "count": 3,
+  "verdict": "rust-wrong",
+  "reason": "Run along their lanes, past the view's area sideways: the side's callout d:f:hole:1/bore.diameter@side (⌀1.6 ↧ 3.8) runs right of the side's 20 mm right band, and two front items run past the front's band. No other problem follows on this sheet."
+ },
+ {
+  "part": "grm05",
+  "code": "annotation_outside_area",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: two front items below the front run past its 20 mm band (three lanes need 28 mm; reserving them drops the sheet from 2:1 to 1:1, which waits for the maintainer)."
+ },
+ {
+  "part": "m1000",
+  "code": "annotation_outside_area",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only."
+ },
+ {
+  "part": "m10127",
+  "code": "annotation_ink_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The front's callout d:f:hole:2/bore.diameter@front (⌀13.0 ↧ 5.7) runs right from its leader into the side's lower band, where d:envelope/depth.length@side's extension and dimension lines cross it; d:f:fillet:1/fillet.radius@front's leader crosses it too. Neither the callout's turned leader nor the depth's slides clear it. Was 4 and one annotation_overlap before settling."
+ },
+ {
+  "part": "m10127",
+  "code": "annotation_outside_area",
+  "count": 4,
+  "verdict": "rust-wrong",
+  "reason": "Three front items run past the front's band (draftwright's estimate) and the side's callout d:f:hole:1/bore.diameter@side runs right past the side's right band along its lane."
+ },
+ {
+  "part": "spool132",
+  "code": "annotation_ink_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The leader of d:f:hole:7/bore.diameter@plan (a bolt-circle callout) crosses the long labels of the two other bolt-circle callouts in the plan's lanes above (12× ⌀8 THRU EQ SP ON ø110 BC UPPER/LOWER FACE); turning it left does not clear them. Was 5 before settling."
+ },
+ {
+  "part": "spool132",
+  "code": "annotation_outside_area",
+  "count": 5,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: four plan callouts with long bolt-circle labels and one front item."
+ },
+ {
+  "part": "string_post",
+  "code": "annotation_outside_area",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: one front item below the front runs past its band."
+ }
+]

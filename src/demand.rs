@@ -8,7 +8,9 @@
 //! - **Step levels**: a turned part's shoulders along a vertical axis, or the part's horizontal
 //!   face levels; they size the height ladder right of the front view.
 //! - **Annotation bands** ([`Strips`]): the height ladder, the X-location tiers above the plan,
-//!   the balloon ring, and the rows of Y-hole leaders below the front.
+//!   the balloon ring, and the rows of Y-hole leaders below the front; each band then widened to
+//!   hold the lanes the port's own dimensions stack in ([`Demand::lanes`], which the plan sets),
+//!   the side view's bands from those lanes alone.
 //! - **Section A–A** through the densest row of Z-axis holes whose profile no standard view shows.
 //!
 //! Not ported here: the hole-callout band (it is measured from the callout labels, which come with
@@ -67,6 +69,9 @@ pub struct Demand {
     /// A boss or turned step along y: its radial fan needs room beside the height slot.
     pub y_radial: bool,
     pub section: Option<Section>,
+    /// The lanes the port's own dimensions take beside each view (set from `dims::lanes` by the
+    /// plan; none from [`read`]): the bands are widened to hold them ([`Strips::reserve`]).
+    pub lanes: layout::Lanes,
 }
 
 /// The part frame's point for quiddity's local *l*.
@@ -374,7 +379,7 @@ pub fn strips(d: &Demand, n_steps: usize, plan_shown: bool) -> Strips {
     let total = loose + covered;
     let balloon = total >= 16 && (covered as f64) < 0.8 * total as f64;
     let plan_work = d.holes.iter().any(|h| h.axis == Some(2)) || d.turning_axis != Some(2);
-    Strips {
+    let mut strips = Strips {
         right,
         left: DIM_PAD,
         top: layout::plan_above_depth(distinct.len()),
@@ -382,7 +387,9 @@ pub fn strips(d: &Demand, n_steps: usize, plan_shown: bool) -> Strips {
         front_hole_below: layout::front_hole_rows_depth(front_rows),
         plan_demand: plan_shown && plan_work,
         ..Strips::without_features()
-    }
+    };
+    strips.reserve(&d.lanes);
+    strips
 }
 
 /// The steps legible at *scale* above the part's base *base*.

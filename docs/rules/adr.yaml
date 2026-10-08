@@ -363,6 +363,7 @@
     tests: ["test_issue_1334_prevent_ink.py", "test_gdt_ink_shared.py", "test_remaining_ink_overlaps.py"]
   status: pending
   port_note: "Keep: post-assignment ink check inside the planner; unresolved overlap is a Plan problem (annotation_ink_overlap)."
+  rust_note: "Partly: dims::placement::settle moves a label off other items' ink by bounded alternatives (a linear label along its own line, a callout's leader turned left about its site), each kept on the sheet and off the views and the title block, and an unresolved overlap stays an annotation_ink_overlap problem (tests/placement.rs ratchets the counts). Missing: a strictly-improving objective (the first clear candidate is taken, item by item in plan order), pinned candidates (no nudges in the spec), leader and line crossings with other lines and view outlines, GD&T frames and PMI (not planned)."
 
 - id: ADR2-11
   statement: "One view vocabulary; the authored view request and the resolved view plan are distinct immutable states."
@@ -1184,9 +1185,11 @@
     adr: "archive 0003 'Edit locality'"
     issues: []
     tests: []
-  status: pending
+  status: translated
+  rust_rule: "R4 (accepted 2026-10-07): a small spec edit changes only the affected plan items. Every item the part would have is placed (its lane, and where its label settles) before the spec chooses what is drawn, so omitting a dimension, restoring it, or adding or removing one in an authored set moves no other item, view or the sheet."
+  rust_test: omitting_one_dimension_moves_no_other
   port_note: "Translate: re-planning after a small Spec edit should change only affected Plan entries; add a stability test (Plan diff size) since Python never guarded it."
-  rust_note: "R4 translates it: a small spec edit changes only the affected plan items. Not upheld: lanes are packed in order, so omitting one item moves others. On plate.step with its recognition, omitting d:f:hole_pattern:1/grid_pitch.length.col@plan moves location.length.x and the bore callout; omitting location.length.x moves the callout. Owed in placement (src/dims/placement.rs, another stream's), with a stability test."
+  rust_note: "Checked on the fixture parts and on m10127, hanger and ftc06 (tests/placement.rs): omitting any one default dimension in auto, or leaving it out of an authored set, leaves every other item's ink, the views and the sheet unchanged; only the collision problems naming that item change. A boss height the overall extent conveys (dims::bosses::consolidate) is omitted after placement in the same way, so it leaves a gap in its lane. The cost: a label may keep clear of a line the spec omits. Not covered, as the spec cannot express them yet: nudges (placement offsets). Edits to the sheet (size, scale) or the view set (omitting a view re-routes its items and re-packs the layout) move other items by design."
 
 - id: ARCH0004-1
   statement: "Page packing follows projection alignment: plan above front sharing X, side beside front sharing Y; isometric and tables go in free rectangles."

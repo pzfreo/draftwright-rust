@@ -308,9 +308,7 @@ improvement plan and questions are the current work. Still open from before it:
   guards are in `tests/trust_rules.rs`. `plan` now refuses an Analysis or Spec of a schema it
   does not read (a `draftwright.spec/2` was read as spec/1 and rewritten as one), and
   `api::write` removes its staged copy when a write fails. Left:
-  - Edit locality (ARCH0003-2) does not hold: lanes are packed in order, so omitting one item
-    moves others (on plate.step, omitting the column pitch moves the x location and the
-    callout). Owed in placement.
+  - Edit locality (ARCH0003-2): closed by stream d-placement (below).
   - Questions for the maintainer:
     - ADR5-16: the Plan records the analysis's binding and the spec, but not the recognition
       it was planned from, so two plans of one file and spec made with different `--features`
@@ -487,3 +485,34 @@ improvement plan and questions are the current work. Still open from before it:
       draftwright addresses each member's axis (ISSUE-883-a). Should the spec address a member's
       coordinate inside a shared dimension?
     - Should `edit`/`plan` refuse a `sheet.title` field the port does not draw, until it does?
+- From wave 4 (stream d-placement, review M3 and ARCH0003-2):
+  - The side view's bands come from the lanes its dimensions take (`dims::lanes`,
+    `layout::Strips::reserve`, `Demand::lanes`), and the front's lower band is at least the
+    side's (they share a row). `tests/bands.rs` still compares draftwright's estimate
+    (`demand::read` leaves the lanes empty), so it is unchanged.
+  - Every item the part would have is placed before the spec chooses what is drawn, so omitting
+    or adding one moves no other (ARCH0003-2 now translated; `tests/placement.rs`).
+  - Labels settle off other items' ink (`placement::settle`): a linear label slides along its
+    line or moves to the other end of a short span; a callout's leader may turn left. Ink
+    overlaps on the 12 captured parts went from 39 to 7, `annotation_overlap` from 1 to 0. A
+    turned leader's tip moves to the rim's left 45° point, so the leader stays radial (at review
+    it had kept its tip and lay tangent to the rim; cgb245 keeps one more overlap for it).
+  - Rebased onto main after d-slots-rest: ctc01's polygonal boss adds 2 off-sheet items and
+    pushes a bore callout off too (7 to 10 off-sheet), and 4 items past their area (18 to 22);
+    verdicted rust-wrong in `known_placement.json` with the front/plan band question below. A
+    boss height the overall extent conveys is consolidated after placement, so its lane stays
+    reserved (a gap), as for any omission.
+  - New info problem `annotation_outside_area`: placed ink past its view's area. Placement
+    problems are a ratchet (`tests/fixtures/known_placement.json`, `tests/placement.rs`), whose
+    failure prints the entries to paste; d-slots-rest's new items will need entries there.
+  - Left: 21 `annotation_off_sheet` (cgb245 9, ctc01 10, ftc06 1, connector109 1), all in the
+    front's or the plan's lanes, past bands that are still draftwright's estimates; 7 ink
+    overlaps, all involving a callout's leader or the front callout of m10127 running into the
+    side's band; ftc06's 2 plan callouts over the isometric.
+  - Question for the maintainer: reserve the port's lanes in the front's and the plan's bands
+    too? On the captured parts that removes every off-sheet item (cgb245 stays A2 at 1:2, ctc01
+    moves from A3 to A2 at 1:5, m10127 moves to draftwright's A3 at 2:1), but grm05 drops from
+    2:1 to 1:1 and connector109 from 1:2 to 1:5 on draftwright's ladder, because the port's lanes
+    stack outward 7 mm apart where draftwright's solver runs on past its bands to the sheet's
+    margin. The alternative is to let lanes run past the band while the sheet has room, as
+    draftwright's strips do.
