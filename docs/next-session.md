@@ -516,3 +516,38 @@ improvement plan and questions are the current work. Still open from before it:
     stack outward 7 mm apart where draftwright's solver runs on past its bands to the sheet's
     margin. The alternative is to let lanes run past the band while the sheet has room, as
     draftwright's strips do.
+- From wave 4 (stream d-native-more-families): `bridge::native` also reads grooves, flats,
+  angled, paired-ramp, circular blind, through and oblique through steps, and blends: every
+  family the pinned document (quiddity-rust dff320c) has that draftwright draws. Face levels and
+  risers are not in that document (quiddity-rust's `features::levels` finds them; its document
+  does not carry them), so they still come only through the bridge. Review minors fixed:
+  `FIELDS` no longer requires `Fillet.side` and `Chamfer.corner` (nothing reads them), checks
+  a turned step's `profile.axis`, `axis_origin` and `body_key` when it has a profile (fields
+  `a.b`), and faces must be strictly ascending (duplicates refused, holes included).
+  `tests/native.rs` now also compares the `dims` parts and a new `steps` set (4 mfcadpp parts
+  with paired-ramp, circular blind and oblique through steps, `recognition/steps/`, written by
+  `tools/recognise.py` with quiddity 0.3.9): 37 parts. `known_native.json` grows by 519
+  entries (816 in all). Pairs and new entries by family: grooves 6 pairs, 12 equivalent
+  (connector109's profile box and key in a rotated frame); flats 6, 6 equivalent (axis sense,
+  axis line in a rotated frame); angled steps 3, 3 rust-wrong (the closing triangular flat, the
+  constituent-faces gap); paired-ramp steps 3, 1 equivalent (`half_widths` low side follows the
+  frame); circular blind steps 3, 1 equivalent (section endpoint order); through steps 2, 2
+  equivalent (section endpoint order); oblique through steps 1, 2 equivalent (run sense and
+  the outline measured from its other end); blends 292 pairs (47 agree in full), 136 native
+  blends Python rejects (rust-wrong: `reconcile_blend_candidates`, every one's faces are native
+  fillets'), 236 ID shifts from them (rust-wrong), 73 equivalent (path direction or normal
+  sense), 4 undetermined (ftc07's two oblique blends, unpaired: the path point differs 1.3e-3
+  along the line, OpenCascade's and haecceity's area centres). Also 3 native chamfers on an angled step's
+  slant and 3 native fillets on a circular blind step's wall that Python rejects
+  (`reconcile_bevel_candidates`, `reconcile_circular_step_fillets`; rust-wrong, with 2 fillet ID
+  shifts), and the dims and steps parts' holes, patterns and boss (12 + 2 + 1 rust-wrong, the
+  constituent-faces gap; 20 equivalent). The reader reads every corpus part (94 files, none
+  refused). Still not switched (the constituent-faces and single-frame questions above).
+  - Questions for the maintainer:
+    - The boss-versus-turned-step question above now covers three more reconciliations Python's
+      aggregate makes and quiddity-rust does not (blend superseded by fillet, chamfer by angled
+      step, fillet by circular blind step): port them in quiddity-rust, or have its document
+      record dispositions? Switched as is, draftwright would ask for those radii and bevels
+      twice.
+    - Face levels and risers (`step_levels`, `risers`) are evidence the bridge carries: should
+      quiddity-rust's document carry them (a schema change) so the native path can replace it?
