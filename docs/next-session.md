@@ -924,7 +924,12 @@ improvement plan and questions are the current work. Still open from before it:
   changes, not applied because issues.yaml belongs to the issue streams. Copied verbatim from that stream's report; apply
   them to the three entries (only status, rust_test and rust_note change). Its author kept
   ISSUE-1142-b pending because centre-line overlap by text box is placement's, not lint's; if
-  the maintainer treats that part as out of scope, the rule could be marked ported.
+  the maintainer treats that part as out of scope, the rule could be marked ported. Also stale
+  since dims::recesses merged (not edited here, same reason): ISSUE-827-a's and ISSUE-885-b's
+  rust_notes say pockets are not dimensioned (`dimensions_not_ported`); pockets, hexagonal
+  pockets, circular seats and open channels now are (src/dims/recesses.rs; pads still are not),
+  and ISSUE-885-b's "lint has no pad or pocket coverage" was already out of date
+  (src/lint/pads.rs, src/lint/pockets.rs).
 
   ```yaml
   - id: ISSUE-1143-b
