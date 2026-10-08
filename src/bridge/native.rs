@@ -88,6 +88,16 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
     ("edge_open_prismatic_recesses", &["EdgeOpenPrismaticRecess"]),
     ("blends", &["Blend"]),
     ("sheet_metal_bodies", &["SheetMetalBody"]),
+    ("slots", &["Slot"]),
+    ("pockets", &["Pocket"]),
+    ("channels", &["Channel"]),
+    ("slot_patterns", &["SlotGrid", "SlotArray"]),
+    ("pocket_patterns", &["PocketGrid", "PocketArray"]),
+    ("repeating_radial_profiles", &["RepeatingRadialProfile"]),
+    ("freeform_surfaces", &["FreeformSurface"]),
+    ("polygonal_bosses", &["PolygonalBoss"]),
+    ("polygonal_stock", &["PolygonalStock"]),
+    ("section_passages", &["SectionPassage"]),
 ];
 
 /// The families read here.
