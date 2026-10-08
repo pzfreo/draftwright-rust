@@ -149,9 +149,9 @@
     {
       "part": "cgb245",
       "code": "slot_requirement_missing",
-      "count": 8,
+      "count": 11,
       "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its slots' widths, lengths and end radii (the port's dimensions have no slot dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its slots' widths, lengths, end radii and locations (the port's dimensions have no slot dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
       "part": "connector109",
@@ -205,9 +205,9 @@
     {
       "part": "ctc01",
       "code": "slot_requirement_missing",
-      "count": 5,
+      "count": 7,
       "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its slots' widths, lengths and end radii (the port's dimensions have no slot dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its slots' widths, lengths, end radii and locations (the port's dimensions have no slot dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
       "part": "ftc06",

@@ -1021,9 +1021,9 @@
     module: "linting/slot_coverage.py"
     issues: [1018]
     tests: [tests/test_slot_completeness.py]
-  status: pending
-  rust_test: a_lone_slot_states_its_width_length_and_proven_end_radius
-  rust_note: "Partial (src/lint/slots.rs): slot_width.length, slot_length.length and, when quiddity proved arc ends, slot_end_radius.radius, each stated by an annotation that claims it and prints it. Not ported: the location (location_slot.length), which needs the datum the dimensions locate from, as hole locations do."
+  status: ported
+  rust_test: a_lone_slot_states_its_width_length_location_and_proven_end_radius
+  rust_note: "src/lint/slots.rs: slot_width.length, slot_length.length, slot_end_radius.radius when quiddity proved arc ends, and location_slot.length, each stated by an annotation that claims it and prints it. The location is draftwright's (compiled.py; location_datum is bbox for a slot): the slot's low end along its long axis from the part's box; a long axis along no axis of the part makes it unverifiable. On cgb245 and ctc01 all 18 of Python's slot claims join and every requirement agrees with Python (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known)."
   port_note: "Keep."
 
 - id: LINT-slot_coverage-slot_pattern
@@ -1049,7 +1049,7 @@
     issues: [1018]
     tests: [tests/test_slot_completeness.py, tests/test_issue_1351_structured_note_coverage.py]
   status: pending
-  rust_test: a_lone_slot_states_its_width_length_and_proven_end_radius
+  rust_test: a_lone_slot_states_its_width_length_location_and_proven_end_radius
   rust_note: "Codes slot_requirement_missing and slot_requirement_unverifiable. slot_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec."
   port_note: "Keep."
 

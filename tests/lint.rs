@@ -214,6 +214,7 @@ const FAMILIES: [(&str, &[&str]); 6] = [
             "slot_width.length",
             "slot_length.length",
             "slot_end_radius.radius",
+            "location_slot.length",
         ],
     ),
 ];
