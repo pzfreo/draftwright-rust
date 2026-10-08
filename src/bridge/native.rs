@@ -17,7 +17,8 @@
 //! from them would be Python's projection rebuilt in draftwright; that is quiddity-rust's to
 //! publish (a schema question). The other families draftwright neither draws nor lints (oriented
 //! chamfers, circular face patterns, thin-wall bodies, interior voids, sheet-metal bodies,
-//! repeating radial profiles, freeform surfaces) are known and not read either.
+//! repeating radial profiles, freeform surfaces) are known and not read either, and so, for now,
+//! are the prismatic pockets, oriented slots and oriented slot patterns this pin's schema adds.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
