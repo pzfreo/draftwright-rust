@@ -1,7 +1,8 @@
 //! Slot and boss dimensions (`src/dims/slots.rs`, `src/dims/bosses.rs`) on the sampled sheets'
 //! parts, with the features draftwright's own recogniser found for them
 //! (`tests/fixtures/recognition/sheets/`), and on corpus parts with features no sampled sheet has
-//! (`tests/fixtures/recognition/dims/`: nist_ftc_07's square bosses, mfcadpp blind slots), checked
+//! (`tests/fixtures/recognition/dims/`: nist_ftc_07's square bosses, mfcadpp blind slots), and on
+//! two fixture plates with slot arrays (`tests/fixtures/recognition/slot_patterns/`), checked
 //! against the labels draftwright prints for them: what each states, in which view, and that it
 //! is drawn. The item-by-item comparison with draftwright's sheets is `tests/dimensions.rs`.
 
@@ -571,4 +572,160 @@ fn a_boss_with_no_height_is_reported_not_silently_left_short() {
         .expect("a problem names the boss");
     assert_eq!(p.severity, "warning");
     assert!(p.message.contains("height"), "{}", p.message);
+}
+
+/// A slot-pattern fixture part (`tests/fixtures/recognition/slot_patterns/`, built by `make.py`
+/// there; no corpus part has a slot array) with its features, its recognition JSON edited by
+/// *edit*.
+fn slot_fixture(name: &str, edit: impl Fn(&mut serde_json::Value)) -> Analysis {
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition/slot_patterns");
+    let mut text = String::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(dir.join(format!("{name}.json.gz"))).unwrap())
+        .read_to_string(&mut text)
+        .unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    edit(&mut json);
+    let (part, mut a) = model::analyse(&dir.join(format!("{name}.step"))).unwrap();
+    model::recognise(&part, &mut a, &json.to_string()).unwrap();
+    a
+}
+
+/// draftwright's `render_slot_patterns`: one `N× SLOT W × L` callout, the obround's `2× R`, the
+/// pitches, and the pattern's centre located, in the view that looks through the slots; its
+/// members are not dimensioned again. The labels are those on draftwright's sheets of these
+/// parts (`<name>.facts.json.gz`; `tests/dimensions.rs` compares them item by item).
+#[test]
+fn a_slot_pattern_is_called_out_once_with_its_pitches_and_centre() {
+    let a = slot_fixture("slot_array", |_| {});
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let of_pattern: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:f:slot"))
+        .map(|d| (d.id.clone(), d.label.clone()))
+        .collect();
+    assert_eq!(
+        of_pattern,
+        [
+            (
+                "d:f:slot_pattern:1/slot_width.length@plan",
+                "3× SLOT 6 × 20"
+            ),
+            ("d:f:slot_pattern:1/slot_end_radius.radius@plan", "2× R3"),
+            ("d:f:slot_pattern:1/pitch.length@plan", "2× 25"),
+            (
+                "d:f:slot_pattern:1/location_slot_pattern.length.x@plan",
+                "60"
+            ),
+            (
+                "d:f:slot_pattern:1/location_slot_pattern.length.y@plan",
+                "30"
+            ),
+        ]
+        .map(|(a, b)| (a.to_string(), b.to_string()))
+    );
+    let callout = &plan
+        .dimensions
+        .iter()
+        .find(|d| d.label.contains("SLOT"))
+        .unwrap();
+    assert_eq!(callout.kind, "callout");
+    let stated: Vec<_> = callout
+        .measurements
+        .iter()
+        .map(|m| (m.feature.as_str(), m.parameter.as_str(), m.value))
+        .collect();
+    assert_eq!(
+        stated,
+        [
+            ("f:slot_pattern:1", "slot_width.length", 6.0),
+            ("f:slot_pattern:1", "slot_length.length", 20.0),
+        ]
+    );
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:f:slot"))
+    {
+        drawn(&plan, d);
+        assert!(d.default && !d.basis.is_empty(), "{d:?}");
+    }
+    let ids = of_kind(&a, "slot")
+        .into_iter()
+        .chain(of_kind(&a, "slot_pattern"))
+        .collect::<Vec<_>>();
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| !p.subjects.iter().any(|s| ids.contains(&s.as_str()))),
+        "{:#?}",
+        plan.problems
+    );
+
+    // A grid: its column and row pitches as quiddity names them (2 columns 30 apart in y, 3 rows
+    // 40 apart in x), and its centre.
+    let a = slot_fixture("slot_grid", |_| {});
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let of_pattern: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:f:slot"))
+        .map(|d| (d.id.clone(), d.label.clone()))
+        .collect();
+    assert_eq!(
+        of_pattern,
+        [
+            (
+                "d:f:slot_pattern:1/slot_width.length@plan",
+                "6× SLOT 8 × 24"
+            ),
+            ("d:f:slot_pattern:1/slot_end_radius.radius@plan", "2× R4"),
+            ("d:f:slot_pattern:1/grid_pitch.length.col@plan", "30"),
+            ("d:f:slot_pattern:1/grid_pitch.length.row@plan", "2× 40"),
+            (
+                "d:f:slot_pattern:1/location_slot_pattern.length.x@plan",
+                "80"
+            ),
+            (
+                "d:f:slot_pattern:1/location_slot_pattern.length.y@plan",
+                "50"
+            ),
+        ]
+        .map(|(a, b)| (a.to_string(), b.to_string()))
+    );
+}
+
+/// A pattern whose slots do not stand where quiddity says (here, at another pitch) is reported,
+/// and its slots are dimensioned singly rather than under a pitch they do not have.
+#[test]
+fn a_slot_pattern_that_does_not_hold_together_is_reported_and_its_slots_dimensioned_singly() {
+    let a = slot_fixture("slot_array", |j| {
+        j["quiddity"]["derived"]["slot_patterns"][0]["pitch"] = 26.0.into();
+    });
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.subjects == ["f:slot_pattern:1"])
+        .unwrap();
+    assert_eq!(p.code, "feature_not_dimensioned");
+    assert!(
+        p.message
+            .contains("not in one line along x at its pitch; its slots are dimensioned singly"),
+        "{}",
+        p.message
+    );
+    assert!(
+        plan.dimensions
+            .iter()
+            .all(|d| !d.id.contains("slot_pattern"))
+    );
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.id.contains("/slot_length.length@plan"))
+            .count(),
+        3
+    );
 }

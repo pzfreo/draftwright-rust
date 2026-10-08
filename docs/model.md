@@ -65,6 +65,18 @@ edited.
   before them still read. Rust quiddity's CLI (quiddity-rust at c9ce1cd) emits, beside its
   records, fingerprints that name each feature's defining faces, but its records themselves do
   not carry their defining faces, so the bridge does not read it yet.
+- **Slot patterns** are features: quiddity's derived `slot_patterns` (`SlotArray`, `SlotGrid`)
+  become `slot_pattern` features, `f:slot_pattern:<n>` ranked by faces, on their member slots'
+  faces, with quiddity's record (its pitch and direction, or its rows, columns, pitches, angle and
+  centre) whose `slots` names the members by feature ID in quiddity's order. A member must be one
+  slot record, and the members' own pattern links must agree, or the read is refused; members
+  and pattern carry the pattern's count and pitch in their fingerprints. No new field: analyses
+  written before read as they did (with no slot patterns).
+- **What the bridge knows** (ADR3-4): it reads quiddity's document format `quiddity-recognition`
+  version 3, written by a quiddity release it is checked against (`bridge::QUIDDITY_VERSIONS`:
+  0.3.9 and 0.4.0.dev0, and the one the wrapper names), in local coordinates, with only the
+  families, family/record-type pairs (`bridge::RECORDS`) and derived collections it knows.
+  Anything else is refused with the mismatch named, never read past.
 
 ### Spec: what the author decided
 
@@ -152,6 +164,12 @@ placed}`:
   their pitches (`grid_pitch.length.row|col`, `pitch.length`). A hole or bolt circle on a turned
   part's axis is not located across it.
 
+- **Slot patterns** (`src/dims/slots.rs`), as draftwright's `render_slot_patterns`: one
+  `N× SLOT W × L` callout, an obround's `2× R`, the pitch (`2× 25`) or the grid's column and row
+  pitches (quiddity's), and the centre located on both axes (`location_slot_pattern.length.<axis>`),
+  in the view that looks through the slots; the members are not dimensioned again. A pattern whose
+  slots do not stand as quiddity describes them is reported and its slots dimensioned singly.
+
 - **Fillets and chamfers** (`src/dims/edges.rs`): `R3` and `C1` or `4.5 × 42.1°` callouts, equal
   ones counted (`4× R3`), where the edge is seen end-on, or in the profile when quiddity marks
   them turned. A record whose sizes or axis cannot be read is reported (`feature_not_dimensioned`).
@@ -159,7 +177,7 @@ placed}`:
 
 Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `slots`, `bosses`,
 `edges`), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised
-feature (blends, slot patterns, turned steps, …) gets one info problem, `dimensions_not_ported`, on its
+feature (blends, turned steps, …) gets one info problem, `dimensions_not_ported`, on its
 ID: draftwright dimensions those kinds and the port does not yet, so this is a gap in the port,
 not in the part. Record types draftwright itself leaves undimensioned (freeform surfaces,
 thin-wall and sheet-metal bodies, …; `detect.py`'s unconsumed and orchestrated records) are not

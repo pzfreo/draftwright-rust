@@ -243,6 +243,7 @@ fn circular_face_patterns_count_and_pitch_their_instances() {
         .as_array_mut()
         .unwrap()
         .push(serde_json::json!({
+            "index": 4,
             "family": "circular_face_patterns",
             "record_type": "CircularFacePattern",
             "record": {"count": 4},
@@ -351,4 +352,168 @@ fn a_rect_grid_is_a_grid() {
     assert_eq!(recognition.patterns.len(), 1);
     assert_eq!(recognition.patterns[0].arrangement, "grid");
     assert_eq!(recognition.patterns[0].members.len(), 4);
+}
+
+/// A slot-pattern fixture part (`tests/fixtures/recognition/slot_patterns/`: plates with a
+/// linear array and a grid of obround through slots, built by `make.py` there and recognised by
+/// quiddity 0.3.9) and its recognition JSON.
+fn slot_fixture(name: &str) -> (draftwright::haecceity::Part, Analysis, Value) {
+    use std::io::Read as _;
+    let dir = fixture("recognition/slot_patterns");
+    let (part, a) = model::analyse(&dir.join(format!("{name}.step"))).unwrap();
+    let mut text = String::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(dir.join(format!("{name}.json.gz"))).unwrap())
+        .read_to_string(&mut text)
+        .unwrap();
+    (part, a, serde_json::from_str(&text).unwrap())
+}
+
+fn read_slots(
+    name: &str,
+    json: &Value,
+) -> Result<(bridge::Recognition, Vec<bridge::Feature>), String> {
+    let (part, a, _) = slot_fixture(name);
+    bridge::read(&part, &a.binding.source_sha256, &json.to_string())
+}
+
+#[test]
+fn slot_patterns_are_features_naming_their_member_slots() {
+    let (_, _, json) = slot_fixture("slot_array");
+    let (_, features) = read_slots("slot_array", &json).unwrap();
+    let ids: Vec<_> = features.iter().map(|f| f.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        ["f:slot:1", "f:slot:2", "f:slot:3", "f:slot_pattern:1"]
+    );
+    let p = &features[3];
+    assert_eq!(p.kind, "slot_pattern");
+    assert_eq!(p.faces, (6..18).collect::<Vec<_>>());
+    // quiddity's order of its members, by their IDs: its record's `slots` were their records.
+    assert_eq!(
+        p.parameters["slots"],
+        serde_json::json!(["f:slot:3", "f:slot:2", "f:slot:1"])
+    );
+    assert_eq!(p.parameters["pitch"], 25.0);
+    assert_eq!(
+        (
+            p.fingerprint.family.as_str(),
+            p.fingerprint.subtype.as_str()
+        ),
+        ("slot_patterns", "SlotArray")
+    );
+    // Each member's fingerprint carries the pattern's count and pitch, as a hole's in a hole
+    // pattern does, and the pattern's own does too.
+    for f in &features {
+        let pattern = f.fingerprint.pattern.as_ref().unwrap();
+        assert_eq!((pattern.count, pattern.pitch), (3, 25.0), "{}", f.id);
+        assert!(!f.parameters.contains_key("dependents"), "{}", f.id);
+    }
+
+    let (_, _, json) = slot_fixture("slot_grid");
+    let (_, features) = read_slots("slot_grid", &json).unwrap();
+    let p = features.iter().find(|f| f.kind == "slot_pattern").unwrap();
+    assert_eq!(p.id, "f:slot_pattern:1");
+    assert_eq!(p.fingerprint.subtype, "SlotGrid");
+    assert_eq!(p.parameters["slots"].as_array().unwrap().len(), 6);
+    assert_eq!(
+        (p.parameters["rows"].as_u64(), p.parameters["cols"].as_u64()),
+        (Some(3), Some(2))
+    );
+    let pattern = p.fingerprint.pattern.as_ref().unwrap();
+    assert_eq!((pattern.count, pattern.pitch), (6, 30.0));
+}
+
+#[test]
+fn a_slot_pattern_that_does_not_resolve_to_its_slots_is_refused() {
+    let (_, _, json) = slot_fixture("slot_array");
+
+    // A member record that is no recognised slot.
+    let mut edited = json.clone();
+    edited["quiddity"]["derived"]["slot_patterns"][0]["slots"][1]["w_center"] = 7.5.into();
+    let e = read_slots("slot_array", &edited).unwrap_err();
+    assert!(
+        e.contains("a slot pattern has a member that is not a recognised slot"),
+        "{e}"
+    );
+
+    // A member's own pattern links that disagree with the pattern.
+    let mut edited = json.clone();
+    let slot = edited["quiddity"]["features"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|f| f["record_type"] == "Slot")
+        .unwrap();
+    slot["record"]["dependents"].as_array_mut().unwrap().pop();
+    let e = read_slots("slot_array", &edited).unwrap_err();
+    assert!(
+        e.contains("as its pattern siblings, but its slot pattern has"),
+        "{e}"
+    );
+
+    // A pattern with neither a linear array's nor a grid's sizes.
+    let mut edited = json.clone();
+    edited["quiddity"]["derived"]["slot_patterns"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("pitch");
+    let e = read_slots("slot_array", &edited).unwrap_err();
+    assert!(
+        e.contains("neither a grid's nor a linear array's sizes"),
+        "{e}"
+    );
+}
+
+/// ADR3-4 on the bridge path: quiddity's document is read only in the format, version, release,
+/// coordinate space, families and derived collections the bridge knows; anything else is refused
+/// with the mismatch named.
+#[test]
+fn a_document_the_bridge_does_not_know_is_refused() {
+    let refused = |edit: &dyn Fn(&mut Value)| {
+        let mut json = recognition("plate");
+        edit(&mut json);
+        read_all(&json).unwrap_err()
+    };
+    let e = refused(&|j| j["quiddity"]["format_version"] = 4.into());
+    assert!(
+        e.contains("version 4; the bridge reads \"quiddity-recognition\" version 3 only"),
+        "{e}"
+    );
+    let e = refused(&|j| j["quiddity"]["format"] = "quiddity-edit".into());
+    assert!(e.contains("\"quiddity-edit\" version 3"), "{e}");
+    let e = refused(&|j| {
+        j["quiddity"]["package"]["version"] = "0.5.0".into();
+        j["recogniser"] = "quiddity 0.5.0".into();
+    });
+    assert!(
+        e.contains("written by quiddity 0.5.0; the bridge is checked against quiddity 0.3.9 and 0.4.0.dev0 only"),
+        "{e}"
+    );
+    let e = refused(&|j| j["recogniser"] = "quiddity 0.3.9".into());
+    assert!(
+        e.contains("says it was written by \"quiddity 0.3.9\", but quiddity's document by quiddity 0.4.0.dev0"),
+        "{e}"
+    );
+    let e = refused(&|j| j["quiddity"]["coordinate_space"] = "caller".into());
+    assert!(e.contains("in \"caller\" coordinates"), "{e}");
+    let e = refused(&|j| j["quiddity"]["features"][0]["family"] = "bores".into());
+    assert!(
+        e.contains("a family \"bores\" (a HoleRecord), which the bridge does not know"),
+        "{e}"
+    );
+    let e = refused(&|j| j["quiddity"]["features"][0]["family"] = "slots".into());
+    assert!(
+        e.contains("a HoleRecord in slots; the bridge knows it only in holes"),
+        "{e}"
+    );
+    let e = refused(&|j| j["quiddity"]["derived"]["pocket_patterns"] = serde_json::json!([]));
+    assert!(
+        e.contains("derives \"pocket_patterns\", which the bridge does not know"),
+        "{e}"
+    );
+    // The fixtures' own documents, from both releases, are read.
+    assert!(read_all(&recognition("plate")).is_ok());
+    let (_, _, json) = slot_fixture("slot_array");
+    assert_eq!(json["quiddity"]["package"]["version"], "0.3.9");
+    assert!(read_slots("slot_array", &json).is_ok());
 }
