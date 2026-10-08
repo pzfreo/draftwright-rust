@@ -276,3 +276,28 @@ improvement plan and questions are the current work. Still open from before it:
       recognition (for example the recogniser and a hash of the recognition JSON), and where?
     - ADR5-13: should the `bounded-clear` / `needs-attention` summary live in the Plan (and so
       in `plan` and `review` replies) or wait for a report document?
+- From wave 3 (stream d-issue-trust): the trust rules of `issues.yaml` (83 pending) now read 6
+  newly ported, 2 translated and 75 pending (2 of them owned by quiddity), every pending one with a
+  `rust_note` saying what is checked and what is missing; the new guards are in
+  `tests/issue_trust.rs`. Left, where the port does not uphold a rule (no `src/` change was in
+  this stream's scope):
+  - ISSUE-1217-a: lint credits a claimed size when *any* number in the callout rounds from it,
+    so a repeat count confirms a diameter of the same value (`6× ⌀8 THRU` or `(6×2)` claiming a
+    ⌀6 bore is credited on plate.step). The fix is in `lint::holes::states`.
+  - ISSUE-1332-a: one pair of labels can raise both `annotation_overlap` and
+    `annotation_ink_overlap` (m10127: the side view's depth with `d:f:hole:2/bore.diameter@front`).
+    Owed in placement.
+  - ISSUE-1247-a: `AngledStep` is in `dims::UNDRAFTED`, so a recognised angled step is neither
+    dimensioned nor reported; draftwright's lint warns `angled_step_requirement_unsupported`.
+    No sampled part has one.
+  - Questions for the maintainer:
+    - draftwright's lint warns for a recognised feature it cannot dimension (passages, prismatic
+      pockets, pads, angled steps: ISSUE-1245-a, 1246-a, 1247-a, 1392-a); the port reports an
+      unported kind as an info `dimensions_not_ported` problem, and an angled step not at all.
+      Should these be warnings, and should they come from lint (as in draftwright) or the plan?
+    - `edit` does not check view names (it is given no analysis), so `views/top` is accepted
+      and refused only by `plan` (ISSUE-1260-b); model.md says each edit is validated. Should
+      `edit` refuse what it can check without the analysis (view names, sheet sizes, scales)?
+    - ISSUE-676-c validates declared polygonal bosses; with no declared builds (R4 decision 3)
+      it has nothing to govern. Retire it (and any like it), or keep it pending in case
+      declarations return?
