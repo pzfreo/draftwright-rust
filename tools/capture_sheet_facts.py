@@ -2,8 +2,10 @@
 
     ~/repos/draftwright/.venv/bin/python tools/capture_sheet_facts.py <draftwright-src> <corpus> [name ...]
 
-For each part (all of ``PARTS``, or the names given), builds the drawing as draftwright does by
-default and records what the sheet says, not how it looks (``docs/facts.md`` has the schema):
+<draftwright-src> is draftwright's ``src`` directory (put first on the import path) and <corpus>
+is quiddity's ``tests/corpus``. For each part (all of ``PARTS``, or the names given), builds the
+drawing as draftwright does by default and records what the sheet says, not how it looks
+(``docs/facts.md`` has the schema and the sample):
 
 - the binding (corpus path, sha256), the sheet (format, page, scale, projection convention);
 - each view: its kind, its camera as a world basis (page x, page y, towards the viewer), its
@@ -29,6 +31,16 @@ import math
 import sys
 import tempfile
 from pathlib import Path
+
+USAGE = "usage: capture_sheet_facts.py <draftwright-src> <corpus> [name ...]"
+
+# The arguments are checked before draftwright is imported from <draftwright-src>.
+if __name__ == "__main__":
+    if sys.argv[1:2] in (["-h"], ["--help"]):
+        print(__doc__.strip())
+        sys.exit(0)
+    if len(sys.argv) < 3:
+        sys.exit(f"{USAGE}\n(--help for more)")
 
 sys.path.insert(0, sys.argv[1])
 
@@ -258,6 +270,8 @@ def capture(corpus: Path, rel: str) -> dict:
 def main() -> None:
     corpus = Path(sys.argv[2])
     names = sys.argv[3:] or list(PARTS)
+    if unknown := [n for n in names if n not in PARTS]:
+        sys.exit(f"{USAGE}\nunknown part: {', '.join(unknown)} (known: {', '.join(PARTS)})")
     OUT.mkdir(parents=True, exist_ok=True)
     failed = []
     for name in names:

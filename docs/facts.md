@@ -8,7 +8,8 @@ identity, value and printed text, the notes, the title block and the lint findin
 are written to `tests/fixtures/sheets/<name>.json.gz`.
 
 - `tests/common/facts.rs` reads them back (`facts::names()`, `facts::load(name)`).
-- `tests/facts.rs` checks that every captured sheet loads and has what the comparison relies on.
+- `tests/facts.rs` checks that every captured sheet loads and has what the comparison relies on,
+  and that each view's camera puts the features its annotations name inside the view's drawn box.
 - `examples/facts_compare.rs` plans each sampled part with the port and reports the sheet size,
   the scale, the view set, each view's camera and scale, and where each view sits, against the
   facts:
@@ -226,6 +227,39 @@ included: the title block, the projection symbol, the scale note, section lines 
   **`rows`** holds the table's text, header row first.
 - **`section_mark`:** on a cutting-plane line, the cut position and the section view it makes.
 - **`span`:** the measured span in world coordinates, where draftwright records one.
+
+#### Identity collisions: why some `value`s are null
+
+draftwright compiles its meanings per measurement identity, the feature (by `feature_key`) and
+the `parameter`. When two drawn quantities share one identity, the measurement snapshot gives
+every annotation that draws it all of their meanings, and the capture keeps them all in
+`compiled` (`_claims`). It then picks this annotation's meaning (`_measurement`): if the
+meanings differ in value and the annotation records a `span`, it keeps those with that span; if
+exactly one value and tolerance remain, they are `value` and `tolerance`, and otherwise both are
+null. Nothing is guessed.
+
+In the current fixtures identities collide in two ways, four measurements in all:
+
+- **One parameter for two quantities.** m1000's pocket locations `m_locx0` (39.3) and `m_locy0`
+  (10.2) both claim `location_pocket.location` of the same pocket, with no axis discriminator,
+  so both carry the meanings 39.336 and 10.187. Neither annotation records a span (and both
+  meanings carry the same one), so the span cannot tell them apart.
+- **One key for two features.** spool132's leaders `ldr_z0` (`ø70 BORE`) and `ldr_z1` (`ø62`)
+  claim `bore.diameter` of `rotational@(0.000,0.000,70.000)/z`. That key has no sizes, so the
+  two bores share it, and both annotations carry 70 and 62.
+
+The other null `value`s (8 on ftc06, 1 each on connector109 and grm03) have `compiled` null too:
+unconfirmed claims, not collisions. Two tests read `value`:
+
+- `tests/dimensions.rs` takes an annotation's first non-null `value`. A family matched by value
+  (envelope, locations, pitches, slots, bosses) accepts any port value when it is null, so the
+  printed label, which must match exactly, decides. Callouts, fillets and chamfers are matched
+  by where their features are, not by value. Today none of the four collisions reaches a value
+  match: a pocket location is not a compared family, and spool132's bores are callouts.
+- `tests/lint.rs` reads `value` only for `bore.diameter` on a hole or a pattern, to join a claim
+  to its feature. A hole's diameter is taken from its key, so a null changes nothing there; a
+  pattern with a null diameter is joined by its axis line and reach alone, still only where
+  exactly one hole group fits.
 
 ### `unconfirmed`, `suppressions`, `lint`
 
