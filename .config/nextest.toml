@@ -1,0 +1,14 @@
+# CI runs the tests in hash-partitioned shards (.github/workflows/ci.yml). A shard's wall clock
+# is bounded below by its longest test, so the tests that take most of a minute or more start
+# first rather than last.
+[[profile.default.overrides]]
+filter = '''
+    test(=the_drawings_problems_reach_review_and_render)
+    | test(=cgb242_is_drawn_whole)
+    | test(=native_features_match_the_bridge_or_are_listed)
+    | test(=a_sections_ink_describes_its_cut)
+    | test(=every_number_on_the_sheet_carries_a_claim)
+    | test(=asking_for_less_never_buys_silence)
+    | test(=annotations_carry_their_plan_items_provenance)
+'''
+priority = 100
