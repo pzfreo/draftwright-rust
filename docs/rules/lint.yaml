@@ -1097,7 +1097,9 @@
     module: "linting/rectangular_blind_slot_coverage.py"
     issues: [1421]
     tests: [tests/test_blind_slot_completeness.py]
-  status: pending
+  status: ported
+  rust_test: a_rectangular_blind_slot_states_width_length_and_depth
+  rust_note: "src/lint/blind_slots.rs: each section_recess feature that section_recesses::grammar (draftwright's section_recess_fields) reads as a rectangular blind slot has rectangular_blind_slot_width.length, _length.length and _depth.length, judged by the claiming annotation's printed text. No captured sheet has one; on the port's own drawings of mfcadpp 10245 and 11512 every requirement is read back as stated (blind_slots_on_the_ports_own_drawings_are_stated), as Python's lint finds none missing on its sheets of the same parts."
   port_note: "Keep."
 
 - id: LINT-code-rectangular_blind_slot_requirement_state
@@ -1109,6 +1111,8 @@
     issues: [1421]
     tests: [tests/test_blind_slot_completeness.py]
   status: pending
+  rust_test: a_rectangular_blind_slot_states_width_length_and_depth
+  rust_note: "Codes rectangular_blind_slot_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-round_bottom_blind_slot_coverage-requirements
@@ -1120,7 +1124,9 @@
     module: "linting/round_bottom_blind_slot_coverage.py"
     issues: [1421]
     tests: [tests/test_blind_slot_completeness.py]
-  status: pending
+  status: ported
+  rust_test: a_round_bottom_blind_slot_states_length_flat_and_radius
+  rust_note: "src/lint/blind_slots.rs: each section_recess feature read as a round-bottom blind slot has round_bottom_blind_slot_length.length, _flat_width.length and _radius.radius. No captured sheet has one; on the port's own drawing of mfcadpp 10047 both slots' requirements are read back as stated (blind_slots_on_the_ports_own_drawings_are_stated), as Python's lint finds none missing on its sheet of the part."
   port_note: "Keep."
 
 - id: LINT-code-round_bottom_blind_slot_requirement_state
@@ -1132,6 +1138,8 @@
     issues: [1421]
     tests: [tests/test_blind_slot_completeness.py]
   status: pending
+  rust_test: a_round_bottom_blind_slot_states_length_flat_and_radius
+  rust_note: "Codes round_bottom_blind_slot_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-circular_blind_step_coverage-radius_depth

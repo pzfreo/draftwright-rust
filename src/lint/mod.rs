@@ -29,6 +29,7 @@ use crate::output::{Claim, Drawing};
 
 pub mod angled_steps;
 pub mod blends;
+pub mod blind_slots;
 pub mod bosses;
 pub mod chamfers;
 pub mod circular_blind_steps;
@@ -162,6 +163,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(blends::coverage(analysis, marks));
     issues.extend(paired_ramp_steps::coverage(analysis, marks));
     issues.extend(circular_blind_steps::coverage(analysis, marks));
+    issues.extend(blind_slots::coverage(analysis, marks));
     issues.extend(steps::coverage(analysis, marks));
     issues.extend(slots::coverage(analysis, marks));
     issues.extend(holes::coverage(analysis, marks));

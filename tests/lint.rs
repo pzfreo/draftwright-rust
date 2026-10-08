@@ -721,8 +721,8 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
         // The feature families: each side's findings by (feature, requirement).
         {
             use draftwright::lint::{
-                blends, bosses, chamfers, circular_blind_steps, fillets, flats, grooves,
-                paired_ramp_steps, slots, steps,
+                blends, blind_slots, bosses, chamfers, circular_blind_steps, fillets, flats,
+                grooves, paired_ramp_steps, slots, steps,
             };
             judged += bosses::wanted(&analysis).len()
                 + flats::wanted(&analysis).len()
@@ -732,6 +732,8 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
                 + blends::wanted(&analysis).len()
                 + paired_ramp_steps::wanted(&analysis).len()
                 + circular_blind_steps::wanted(&analysis).len()
+                + blind_slots::wanted(&analysis, false).len()
+                + blind_slots::wanted(&analysis, true).len()
                 + steps::wanted(&analysis).len()
                 + slots::wanted(&analysis).len();
         }
@@ -1537,4 +1539,84 @@ fn lint_on_the_ports_own_drawings_is_known() {
         found, listed,
         "lint's findings on the port's own drawings (left) differ from known_lint.json's own_drawings (right)"
     );
+}
+
+/// Blind slots on the port's own drawings of the corpus parts that have them (Python quiddity
+/// 0.3.9's recognition, `tests/fixtures/recognition/dims/`): the dimensions call each out
+/// (`OPEN SLOT W × L × D DEEP`, `ROUND-BOTTOM OPEN SLOT …`), and lint reads every requirement
+/// back as stated. Python draftwright's lint on its own sheets of the same parts (origin/main
+/// 586628b, `build_drawing(...).lint()`, run 2026-10-08) reports no blind-slot finding either,
+/// and the same section recess dispositions, message for message but one: m10047's prismatic
+/// recess is 7.737 deep in Python's message and 7.736 here (equivalent). quiddity rounds a
+/// recess's run interval to 0.001 mm in the frame it recognised in: draftwright's own
+/// recognition, in the file's frame, gives 16.478..24.215; the recognition document the bridge
+/// reads, in quiddity's working frame, 4.517..12.253.
+#[test]
+fn blind_slots_on_the_ports_own_drawings_are_stated() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let font = draftwright::text::Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    let tail = "is not represented by Draftwright dimensions: profile has no supported drafting \
+                grammar; review and define its manufacturing section outside automatic drawing \
+                approval";
+    let cases = [
+        (
+            "m10047",
+            "mfcadpp/10047.step",
+            ["round_bottom_blind_slot"; 2].as_slice(),
+            vec![format!(
+                "recognised 3-sided blind prismatic recess 7.736 mm deep (1 of 1) {tail}"
+            )],
+        ),
+        (
+            "m10245",
+            "mfcadpp/10245.step",
+            ["rectangular_blind_slot"].as_slice(),
+            vec![format!(
+                "recognised 3-sided blind prismatic recess 7.165 mm deep (1 of 1) {tail}"
+            )],
+        ),
+        (
+            "m11512",
+            "mfcadpp_regressions/11512.step",
+            ["rectangular_blind_slot"].as_slice(),
+            vec![format!(
+                "recognised 6-edge prismatic through-opening (1 of 1) {tail}"
+            )],
+        ),
+    ];
+    for (name, file, slots, python) in cases {
+        let path = fixture(&format!("recognition/dims/{name}.json.gz"));
+        let mut json = String::new();
+        flate2::read::GzDecoder::new(std::fs::File::open(path).unwrap())
+            .read_to_string(&mut json)
+            .unwrap();
+        let (part, mut analysis) = model::analyse(&dir.join(file)).unwrap();
+        model::recognise(&part, &mut analysis, &json).unwrap();
+        let round = slots[0].starts_with("round");
+        let wanted = lint::blind_slots::wanted(&analysis, round);
+        assert_eq!(wanted.len(), 3 * slots.len(), "{name}");
+        assert!(lint::blind_slots::wanted(&analysis, !round).is_empty());
+        let plan = model::plan(&analysis, &model::Spec::default()).unwrap();
+        let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+        let issues = lint::lint(&analysis, &drawing);
+        let blind: Vec<&String> = issues
+            .iter()
+            .map(|i| &i.code)
+            .filter(|c| c.contains("blind_slot"))
+            .collect();
+        assert!(blind.is_empty(), "{name}: {blind:?}");
+        let mine: Vec<&String> = issues
+            .iter()
+            .filter(|i| DISPOSITIONS.contains(&i.code.as_str()))
+            .map(|i| &i.message)
+            .collect();
+        assert_eq!(mine, python.iter().collect::<Vec<_>>(), "{name}");
+    }
 }
