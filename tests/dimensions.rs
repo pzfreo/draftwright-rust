@@ -4,7 +4,10 @@
 //! a turned part's `od.diameter`), hole callouts (bore, counterbore, spotface, countersink and
 //! bolt-circle terms, on holes, patterns and turned bores), hole and pattern locations, pattern
 //! pitches, slot sizes (`slot`: width, length, end radius) and locations (`location.slot`), boss
-//! diameters, sizes across flats and heights (`boss`), and fillet and chamfer callouts. Each of
+//! diameters, sizes across flats and heights (`boss`), fillet and chamfer callouts, and section
+//! recesses (`recess`: pocket, hexagonal pocket and circular seat callouts and open channel
+//! widths; their locations are `location.<axis>`, a z pocket's axis read from which of its two
+//! compiled values draftwright's label prints). Each of
 //! draftwright's annotations that states one of them is matched with a plan item of the same
 //! family, view and printed label whose measurement identity agrees: for an extent, a pitch or a
 //! location (whose family names its axis), the same value within half the printed unit; for a
@@ -92,6 +95,18 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
         "location_slot.length" => Some("location.slot".into()),
         "boss.diameter" | "boss_height.length" => Some("boss".into()),
         "polygon_across_flats.length" if kind == "polygonal_boss" => Some("boss".into()),
+        "polygon_across_flats.length" if kind == "hex_pocket" => Some("recess".into()),
+        "pocket_width.length"
+        | "pocket_length.length"
+        | "pocket_depth.length"
+        | "pocket_max_depth.length"
+        | "seat_diameter.diameter"
+        | "seat_run.length"
+        | "seat_sweep.angle"
+        | "channel_width.length" => Some("recess".into()),
+        p if p.starts_with("seat_location.") || p.starts_with("location_pocket.") => {
+            Some(format!("location.{}", p.rsplit('.').next().unwrap_or("")))
+        }
         p if p.starts_with("grid_pitch.") => Some("pitch".into()),
         p if p.starts_with("location")
             && (kind == "hole" || kind == "pattern" || kind == "slot_pattern") =>
@@ -125,6 +140,10 @@ fn rust_family(d: &PlannedDimension) -> String {
     if d.id.starts_with("d:envelope/") {
         "envelope".into()
     } else if parameter.starts_with("location_slot_pattern") {
+        format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
+    } else if d.id.starts_with("d:f:section_recess:") && !parameter.contains("location") {
+        "recess".into()
+    } else if parameter.starts_with("seat_location") {
         format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
     } else if parameter.starts_with("location_slot") {
         "location.slot".into()
@@ -218,11 +237,34 @@ fn compare_sheet(
             .filter(|f| ["hole", "pattern", "fillet", "chamfer"].contains(&f.kind.as_str()))
             .filter_map(|f| f.origin)
             .collect();
+        let label = ann.label.clone().unwrap_or_default();
+        let mut value = ann.measurements.iter().find_map(|m| m.value);
+        // A z pocket's location is one measurement of both directions
+        // (`location_pocket.location`, no value): the direction is the one whose compiled
+        // value the label prints, x then y.
+        let family = if family == "location.location" {
+            let values: Vec<f64> = ann
+                .measurements
+                .iter()
+                .filter_map(|m| m.compiled.as_ref())
+                .flatten()
+                .filter_map(|c| c.get("value").and_then(serde_json::Value::as_f64))
+                .collect();
+            match values.iter().position(|v| dims::fmt(*v) == label) {
+                Some(i) if i < 2 => {
+                    value = Some(values[i]);
+                    format!("location.{}", ["x", "y"][i])
+                }
+                _ => family,
+            }
+        } else {
+            family
+        };
         python.push(Item {
             family,
             view: ann.view.clone().unwrap_or_default(),
-            label: ann.label.clone().unwrap_or_default(),
-            value: ann.measurements.iter().find_map(|m| m.value),
+            label,
+            value,
             origins,
         });
     }

@@ -623,3 +623,49 @@ improvement plan and questions are the current work. Still open from before it:
     `<author> / draftwright`, with a link over the cell). The port leaves them blank and draws a
     supplied `drawn_by` as given. Fill them as draftwright does? (`A` is an invented revision;
     `UNSPECIFIED` and the attribution are not.)
+- From wave 5 (stream d-dims-recesses): `dims::recesses` dimensions the section recesses
+  draftwright reads as pockets, hexagonal pockets, circular seats and open channels, through lint's
+  port of `section_recess_fields` (`lint::section_recesses::grammar`, `lint::pockets`,
+  `lint::channels`): a pocket's `W × L × D DEEP` (`MAX DEEP` for a cylindrical mouth) in the view
+  that looks into it, located from the box to its centre (or its near end on the box) in both
+  directions across it, in that view; `HEX AF A/F × D DEEP`; `øD × L LONG × A° ARC` with the seat
+  axis's x, y and z locations; an open channel's width (only with plates along two axes, as
+  draftwright). Identical hex pockets and coaxial seats are counted once, as draftwright batches
+  them. Every recess item on the captured sheets agrees with draftwright's (16 more items agree in
+  `tests/dimensions.rs`, which now compares a `recess` family), and so do m10047's and m10245's
+  pockets in `tests/dims_slots.rs`. 4 new `known_dimensions.json` entries, all rust-correct: m1000's
+  pocket y location in the plan, not the side (2 entries, ADR1-6 decision), and m10046's two pocket
+  locations that draftwright drops (its own lint: `pocket_dim_dropped`). Depth values differ from
+  draftwright's by 0.001 mm (m10127 9.960 against 9.959, m1000 3.446 against 3.445): the fixture's
+  records are rounded in quiddity's frame, draftwright's in the part's; labels agree. Left:
+  - **For the integrator:** `tests/lint.rs::lint_on_the_ports_own_drawings_is_known` fails until
+    these `own_drawings` entries of `known_lint.json` come off (each requirement is now stated):
+    ftc06 `channel_requirement_missing` (7), m1000 `circular_channel_requirement_missing` (6),
+    m1000 `hex_pocket_requirement_missing` (2), m1000 `pocket_requirement_missing` (5), m10046
+    `pocket_requirement_missing` (5), m10127 `hex_pocket_requirement_missing` (2).
+  - `tests/views.rs::a_fallback_scale_or_sheet_says_so_in_its_basis` is killed by the memory guard
+    (over 16 GB) on main itself (checked on a clean checkout of 448031a), not by this stream.
+  - Placement, for the placement work (`known_placement.json`, rust-wrong): the recess callouts'
+    long labels run past the estimated bands (m1000, m10046, m10127, ftc06's channel widths); m1000's
+    seat callout runs into the title block; m10127's hex callout overlaps the side's depth label.
+  - Not done: quiddity's `section_recess_patterns` (draftwright's `N×` pocket patterns): the bridge
+    does not read them, so pattern members would be dimensioned singly; no captured recognition has
+    one. draftwright consolidates a seat's run onto the overall extent when the seat spans the box;
+    the port always states the run. A spec tolerance on a recess callout follows its first value
+    only (as for blind slots); draftwright suffixes each value. A recess the grammar reads but
+    whose axes lie along no part axis gets `feature_not_dimensioned` and also
+    `dimensions_not_ported` (the not-ported filter in `dims::wants` reads only stated features).
+    Pads are quiddity's `RaisedPad` records, not section recesses: out of this stream's scope.
+  - Questions for the maintainer:
+    - draftwright locates no hexagonal pocket (only pockets and seats are locatable), and the port
+      follows it; a hex pocket's position is then unstated. Locate it from the box like a boss
+      (beyond draftwright), or keep draftwright's choice?
+    - draftwright locates a seat along its own axis to the axis's midpoint, and sends x and z to
+      the front and y to the side whatever the seat's axis. The port states the same three values
+      but puts the two across the seat in the view along it and the one along it in its first
+      profile view (the same views for a y seat, the only one sampled). Keep the along-axis
+      location (half the run, for a seat open at both ends), and is the view rule right?
+    - Section recesses draftwright has no grammar for (passages, triangular and 12- or 20-sided
+      pockets) are still `dimensions_not_ported` info problems, whose message says "no dimensions
+      for section_recess are ported yet", now only partly true. This joins the earlier question on
+      undimensioned records (warnings, and from lint or the plan?).

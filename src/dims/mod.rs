@@ -11,6 +11,8 @@
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
 //!   **slot patterns** by one `N× SLOT W × L` callout with their pitches and centre;
 //!   **blind slots** (rectangular and round-bottom section recesses) by one callout each;
+//! - **section recesses**: pockets, hexagonal pockets and circular seats by one callout each,
+//!   with their locations, and open channels by their width ([`recesses`]);
 //! - **bosses**: diameter (or size across flats for a polygonal boss), height and location;
 //! - **fillet and chamfer callouts** (`4× R3`, `C1`, `4.5 × 42.1°`) where the edge is seen end-on,
 //!   or in the profile of a turned part.
@@ -41,6 +43,7 @@ mod edges;
 mod envelope;
 mod holes;
 mod placement;
+mod recesses;
 mod slots;
 mod tolerance;
 mod turned;
@@ -272,13 +275,14 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 6] = [
+const PLANNERS: [Planner; 7] = [
     turned::PLANNER,
     envelope::PLANNER,
     holes::PLANNER,
     slots::PLANNER,
     bosses::PLANNER,
     edges::PLANNER,
+    recesses::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way.

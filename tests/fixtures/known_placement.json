@@ -65,16 +65,16 @@
  {
   "part": "ftc06",
   "code": "annotation_outside_area",
-  "count": 21,
+  "count": 26,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (10 plan, 6 front items). The 5 side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, and callouts' labels running right."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (12 plan, 7 front items). The 7 side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, callouts' labels running right, and two channel widths (d:f:section_recess:7 and :8, added by dims::recesses). Was 21 before the channel widths: they add 3 items past the areas (two in the side, d:f:section_recess:1's in the plan) and push one plan and one front item outward."
  },
  {
   "part": "ftc06",
   "code": "annotation_over_view",
-  "count": 2,
+  "count": 3,
   "verdict": "rust-wrong",
-  "reason": "The labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan and d:f:hole:5/bore.diameter@plan, in its outer lanes above, lie over the isometric, which the layout placed in the space above the plan's estimated band."
+  "reason": "The labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan, d:f:hole:5/bore.diameter@plan and d:f:chamfer:2/chamfer.length@plan, in its outer lanes above, lie over the isometric, which the layout placed in the space above the plan's estimated band. The chamfer's was pushed out by the plan's new channel width (dims::recesses)."
  },
  {
   "part": "grm03",
@@ -93,9 +93,23 @@
  {
   "part": "m1000",
   "code": "annotation_outside_area",
+  "count": 5,
+  "verdict": "rust-wrong",
+  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.3) in the same way. The three recess callouts (dims::recesses: the pocket's in the plan, the hexagonal pocket's in the side, the seat's in the front) have long labels in callout lanes the estimated bands do not hold, 13 to 56 mm past them."
+ },
+ {
+  "part": "m1000",
+  "code": "annotation_over_title_block",
   "count": 1,
   "verdict": "rust-wrong",
-  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only."
+  "reason": "The circular seat's callout d:f:section_recess:4/seat_diameter.diameter@front (ø2 × 12.6 LONG × 180° ARC, dims::recesses), in the front's callout lanes, runs right into the title block: the label is long and the front's estimated band does not hold the callout lanes. For the placement work."
+ },
+ {
+  "part": "m10046",
+  "code": "annotation_outside_area",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The pocket's callout d:f:section_recess:4/pocket_width.length@front (5.0 × 11.7 × 10.6 DEEP, dims::recesses) runs 25.9 mm past the front's band (draftwright's estimate), which does not hold the callout lanes. For the placement work."
  },
  {
   "part": "m10127",
@@ -107,9 +121,16 @@
  {
   "part": "m10127",
   "code": "annotation_outside_area",
-  "count": 4,
+  "count": 5,
   "verdict": "rust-wrong",
-  "reason": "Three front items run past the front's band (draftwright's estimate) and the side's callout d:f:hole:1/bore.diameter@side runs right past the side's right band along its lane."
+  "reason": "Four front items run past the front's band (draftwright's estimate), the hexagonal pocket's callout d:f:section_recess:1/polygon_across_flats.length@front (dims::recesses) the furthest, 45.7 mm, and the side's callout d:f:hole:1/bore.diameter@side runs right past the side's right band along its lane."
+ },
+ {
+  "part": "m10127",
+  "code": "annotation_overlap",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The hexagonal pocket's callout d:f:section_recess:1/polygon_across_flats.length@front (HEX 4.2 A/F × 10.0 DEEP, dims::recesses), running right from the front's callout lanes into the side's lower band, overlaps the label of d:envelope/depth.length@side (32.3), as d:f:hole:2/bore.diameter@front's runs into that band (the annotation_ink_overlap entry). For the placement work."
  },
  {
   "part": "spool132",
