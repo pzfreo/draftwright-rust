@@ -85,6 +85,9 @@ pub struct Spec {
     /// Per dimension, by its ID (`d:<feature>/<parameter>@<view>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub dimensions: BTreeMap<String, DimensionSpec>,
+    /// Per feature, by its ID (`f:<kind>:<n>`).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub features: BTreeMap<String, FeatureSpec>,
 }
 
 /// The two sources of dimension intent (ADR4-5).
@@ -110,6 +113,20 @@ pub struct DimensionSpec {
     /// Leave it off the sheet (in `auto` only; an authored set leaves out by not listing).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub omit: bool,
+    /// Its tolerance, printed after its value: `±T` or `+U -L` ([`crate::dims`]'s tolerance
+    /// rules; ARCH0011-1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tolerance: Option<String>,
+}
+
+/// What the author decided of a feature.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct FeatureSpec {
+    /// An ISO 286 fit class on a hole's bore or a cylindrical boss's diameter (`H7`, `g6`),
+    /// printed after the diameter of the callout that states it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fit: Option<String>,
 }
 
 impl Default for Spec {
@@ -121,6 +138,7 @@ impl Default for Spec {
             views: BTreeMap::new(),
             dimension_source: DimensionSource::Auto,
             dimensions: BTreeMap::new(),
+            features: BTreeMap::new(),
         }
     }
 }
@@ -469,9 +487,11 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             .dimensions
             .keys()
             .filter(|id| id.starts_with("d:f:"))
+            .chain(spec.features.keys())
             .cloned()
             .collect::<Vec<_>>();
         effective.dimensions.retain(|id, _| !id.starts_with("d:f:"));
+        effective.features.clear();
         problems.push(Problem {
             id: "p:rebind:part".into(),
             code: "spec_from_other_revision".into(),
@@ -868,8 +888,10 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
             object.remove(last.as_str()).ok_or_else(absent)?;
         }
     }
-    serde_json::from_value(doc)
-        .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))
+    let spec: Spec = serde_json::from_value(doc)
+        .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
+    crate::dims::check_tolerances(&spec)?;
+    Ok(spec)
 }
 
 /// Draws the plan: each view projected with hidden lines, placed and scaled, and the title

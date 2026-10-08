@@ -90,6 +90,11 @@ mention takes its default.
 }
 ```
 
+- **Fields read so far:** `sheet` (`size`, `scale`, `title`), `views/<name>/omit`,
+  `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`) and `features/<id>/fit` (see
+  Dimensions below). `anchor`, `note`, `place` and `notes` above are the design, not yet read:
+  an unknown field is refused. All are optional, so a spec written before a field existed reads
+  unchanged.
 - **The spec stores intent, never geometry.** An entry says "this hole's fit is H7" or "this
   dimension sits 8 mm below its feature". It never says "Ø8.1 at x = 41.2". Every value is
   measured again from the part when the plan is made, so a revised part flows through by
@@ -132,8 +137,8 @@ mention takes its default.
 ### Dimensions (first cut)
 
 `src/dims/` plans the dimensions draftwright's defaults would state for the families ported
-so far, each a Plan item `{id, kind, view, value, label, terms, measurements, default, basis,
-placed}`:
+so far, each a Plan item `{id, kind, view, value, label, terms, measurements, default, from_spec,
+basis, placed}`:
 
 - **Overall extents:** `d:envelope/width.length@front`, `depth.length@side`,
   `height.length@front` for a prismatic part (each falling back to the plan or side view when its
@@ -156,6 +161,30 @@ placed}`:
   ones counted (`4× R3`), where the edge is seen end-on, or in the profile when quiddity marks
   them turned. A record whose sizes or axis cannot be read is reported (`feature_not_dimensioned`).
   Oriented chamfers (always oblique in quiddity) are left undimensioned, as in draftwright (#1365).
+
+- **Tolerances and fits** (`src/dims/tolerance.rs`; ARCH0011-1: a tolerance or fit belongs to a
+  dimension) come only from the spec, never from the part (ADR5-D2), and reach the label
+  verbatim, as draftwright prints them:
+  - `dimensions/<id>/tolerance` is `"±0.05"` or `"+0.1 -0.02"` (an upper and a lower deviation,
+    both magnitudes, as draftwright's `.tolerance(t)` and `.tolerance(lo, hi)`). It is printed
+    after the term that states the value (`304.8 ±0.02`, `4× ⌀7.1 ±0.03 THRU …`, `HEX 100 ±0.2
+    A/F`), with its authored digits and at least the drawn precision of one decimal (`±1` prints
+    `±1.0`): an authored magnitude is never rounded into another requirement. Any other form is
+    refused naming the dimension (`"+-0.05"` reads as `"±0.05"`).
+  - `features/<id>/fit` is an ISO 286 class from draftwright's table (`fits.py`): on a hole an
+    upper-case hole class (H, G, F), on a cylindrical boss a lower-case shaft class (h, g, f, js,
+    k, n, p), grades 5 to 11, for a nominal size up to 250 mm. It is printed after the diameter
+    of the callout that states the feature's size (`2× ⌀6.3 H7 ↧ 12.7`, `ø44.5 h6`), as the class
+    code. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
+    part does not have, of the wrong case (`"h7" reads as "H7"`) or outside the table is
+    refused; so is a size given both a tolerance and a fit.
+  - The item lists what the spec gave it in `from_spec` (`tolerance`, `fit`) and is not a
+    default. A band is withheld, with a `tolerance_withheld` warning on the item's ID, when it
+    is a band of nothing (`±0`: ARCH0019-2; draftwright prints `±0.0`) or when an `n×` callout's
+    members do not all have the same fit (ARCH0019-3; draftwright splits such a group of bosses
+    instead). A tolerance on a dimension the plan leaves out, or a fit on a feature no planned
+    callout states, is a `tolerance_not_shown` warning on its ID. Across a revision, feature
+    entries are kept inactive like the other feature-keyed entries.
 
 Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `slots`, `bosses`,
 `edges`), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised

@@ -24,7 +24,8 @@ for all defaults. Use the spec from the plan or the edit tool's result. Shape: {
 {\"size\": \"A3\", \"scale\": \"2:1\", \"title\": {\"title\": \"BRACKET\", \"number\": \
 \"DWG-001\", \"material\": \"6082-T6\"}}, \"views\": {\"iso\": {\"omit\": true}}, \
 \"dimension_source\": \"auto\", \"dimensions\": {\"d:envelope/width.length@front\": {\"omit\": \
-true}}}. Unknown fields are refused.";
+true}, \"d:envelope/height.length@front\": {\"tolerance\": \"±0.05\"}}, \"features\": \
+{\"f:hole:1\": {\"fit\": \"H7\"}}}. Unknown fields are refused.";
 
 /// The tools: name, description, input schema.
 fn tools() -> Value {
@@ -74,7 +75,10 @@ fn tools() -> Value {
                 omitted; authored: exactly the dimensions listed), dimensions/<id>/omit (true \
                 leaves that dimension out; IDs are the plan's, d:<feature>/<parameter>@<view>, \
                 with each / inside the ID written ~1, e.g. \
-                dimensions/d:envelope~1width.length@front/omit). A dimension's ID names the view \
+                dimensions/d:envelope~1width.length@front/omit), dimensions/<id>/tolerance \
+                (printed after its value: \"±0.05\", or \"+0.1 -0.02\" for an upper and a lower \
+                deviation), features/<id>/fit (an ISO 286 class on a hole, H7, G7, F8, or a \
+                cylindrical boss, h6, g6, js6, k6, n6, p6; grades 5 to 11). A dimension's ID names the view \
                 that carries it, so omitting that view renames it: take IDs from the latest plan. \
                 A refused edit says why and, where it chose from a list, the choices; plan \
                 validates the values against the part.",

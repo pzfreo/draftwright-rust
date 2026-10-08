@@ -917,7 +917,7 @@
   status: ported
   port_note: "Keep: Analysis and reports state only recognised geometry and authored intent; manufacturing intent comes only from Spec or source PMI."
   rust_test: tests/trust_rules.rs::no_document_infers_manufacturing_intent
-  rust_note: "With the default spec, every plan of the fixture parts and the sampled corpus parts has a title of the part's name and a drawing number only (no material), and prints only counts, sizes, symbols and the callout grammar's words: no fit, tolerance, thread or finish. Such intent enters only through the spec (sheet/title); no PMI is read yet."
+  rust_note: "With the default spec, every plan of the fixture parts and the sampled corpus parts has a title of the part's name and a drawing number only (no material), and prints only counts, sizes, symbols and the callout grammar's words: no fit, tolerance, thread or finish. Such intent enters only through the spec (sheet/title, dimensions/<id>/tolerance, features/<id>/fit); with them, only the authored items change, by exactly the authored band (tests/tolerances.rs::only_the_authored_bands_appear). No PMI is read yet."
 
 - id: ADR5-1
   statement: "Same input, same sheet, every platform."
@@ -1374,6 +1374,8 @@
     issues: [746]
     tests: []
   status: pending
+  rust_test: tests/tolerances.rs::ctc01_prints_the_authored_bands_as_draftwright_does
+  rust_note: "Partial (src/dims/tolerance.rs): a tolerance is the spec's, keyed by the dimension's ID (dimensions/<id>/tolerance), and a fit the feature's (features/<id>/fit, on a hole or a cylindrical boss), printed on the label of the dimension that states that size; the Analysis's features carry neither. Not ported: GD&T and surface finish (no spec field yet); draftwright's kind-only fallback (a hole's bare .tolerance() folds onto its counterbore diameter too) has no counterpart, as a callout's other terms (counterbore diameter and depth, bore depth) have no ID of their own to key a tolerance by."
   port_note: "Translate: Spec tolerances/fits keyed by dimension id; GD&T/finish keyed by feature or face id; Analysis features stay schema-clean."
 
 - id: ARCH0011-2
@@ -1807,7 +1809,9 @@
     adr: "archive 0019 §1 (Proposed)"
     issues: []
     tests: []
-  status: pending
+  status: ported
+  rust_test: tests/tolerances.rs::ftc06_prints_the_authored_bands_as_draftwright_does
+  rust_note: "Read as draftwright now formats a band (_fmt_tolerance: the drawn precision is a minimum and the authored digits are kept, so ±0.02 at 1 dp prints ±0.02, which is how draftwright settled the ±0.0 defect): only a band whose every magnitude is zero rounds to zero, and it is withheld with a tolerance_withheld warning on the dimension's ID. draftwright prints that band as ±0.0 (rust-correct: it states no tolerance)."
   port_note: "Keep: formatter rule plus Plan problem."
 
 - id: ARCH0019-3
@@ -1818,7 +1822,9 @@
     adr: "archive 0019 §1 (Proposed)"
     issues: []
     tests: []
-  status: pending
+  status: ported
+  rust_test: tests/tolerances.rs::ftc06_prints_the_authored_bands_as_draftwright_does
+  rust_note: "src/dims/tolerance.rs: an n× callout states a fit only when every member it counts has the same one; otherwise it prints none and a tolerance_withheld warning names each member's fit (ctc01's hole pair, ftc06's bosses). A tolerance is keyed by the collapsed mark's own ID, so it is one band for the mark; a pattern's n× pitch is collapsed only from gaps equal within 1e-4 mm (src/dims/holes.rs), so its band holds of every gap. draftwright splits a group of bosses with different fits into separate callouts instead (ftc06: 3× ø44.5 and ø44.5 h6), listed rust-wrong in the test: splitting needs the boss and hole planners to group by fit."
   port_note: "Keep: collapse rule in the display-text formatter."
 
 - id: ARCH0019-4
