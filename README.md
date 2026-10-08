@@ -88,6 +88,36 @@ DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`, `cargo fmt --check` and `ca
 --all-targets --release -- -D warnings` (as CI does, `.github/workflows/ci.yml`). With
 `DRAFTWRIGHT_CORPUS_REQUIRED=1` a missing corpus fails every corpus-backed test.
 
+## Taking a new haecceity
+
+haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust` (`Cargo.toml`, branch
+`prototype/rust-port`) and are pinned to one commit in `Cargo.lock`. To move the pin to what is
+pushed on that branch:
+
+1. `cargo update -p haecceity -p quiddity`. Both must name the same commit (the `source` lines
+   in `Cargo.lock`); `tests/native.rs` (`quiddity_and_haecceity_are_pinned_together`) fails if
+   they differ. Note the old and new commits.
+2. Fix what no longer builds in the same change. For example, 879dcf7 took haecceity's
+   projections returning `Result` and answered a refused projection as a failed call.
+3. Run the full check above. No fixture is recaptured for a pin move: everything under
+   `tests/fixtures/` (sheets, layout, recognition, output, text) was written by Python
+   draftwright or Python quiddity and does not depend on the pin. What can change is the
+   port's side of each comparison, so the known-difference lists are re-checked by their tests:
+   - `known_native.json` (`tests/native.rs`, Rust quiddity against Python's recognition). A new
+     recognition schema version or family is refused until `bridge::native` knows it (30cfb98).
+   - The bridge's face-area binding: a part it now reads or refuses changes `known_views`,
+     `known_bands`, `known_dimensions`, `known_lint` and `known_placement` (ctc04 is refused
+     today on one face's area; 879dcf7 updated its message).
+   - The projections themselves: `tests/output.rs`, `tests/png.rs`, `tests/sections.rs`.
+
+   A listed difference that goes away, or a new one, fails its test. `NATIVE_REPORT=1`,
+   `DIMS_REPORT=1`, `LINT_REPORT=1` and `PLACEMENT_REPORT=1` print the differences. Each change
+   gets a verdict with evidence in its list.
+4. Commit as "Pin haecceity to quiddity-rust <commit>", saying what changed, or "No API change"
+   when nothing did (df90ace), and add a line to the current `docs/status-<date>.md`, as
+   4462375 was recorded: "4462375: haecceity and quiddity pinned to quiddity-rust 7f4b1a9. No
+   API change." CI needs nothing: the dependency is public.
+
 Licensed AGPL-3.0, as draftwright is; so are haecceity and quiddity-rust (AGPL-3.0-only since
 quiddity-rust 8023ea7). The fonts in `fonts/` are IBM Plex, vendored from draftwright under the
 SIL Open Font License 1.1 (the `LICENSE-*-OFL.txt` files beside them).
