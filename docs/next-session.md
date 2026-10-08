@@ -49,7 +49,7 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
   - **View gaps** (d707219): a turned part drops the view that repeats its profile (ISSUE-1262-a,
     pending: the veto is narrower than Python's); annotation bands reserved from the features
     (`src/demand.rs`, `known_bands.json`); section A–A planned and hatched at 45°.
-  - **First dimensions** (5b7be0d, `src/dims.rs`): the envelope, turned steps and hole callouts
+  - **First dimensions** (5b7be0d, now `src/dims/`, one planner module per family): the envelope, turned steps and hole callouts
     with locations and pattern pitches, as Plan items with IDs, labels, defaults and bases;
     compared with the captured facts (`tests/dimensions.rs`, `known_dimensions.json`).
   - **Lint** (54ce4cc, `src/lint/`): a guarded module that never reads the Plan or Spec,
@@ -155,11 +155,26 @@ improvement plan and questions are the current work. Still open from before it:
 - From wave 1 (review H1–H5, M2 merged):
   - `Drawing::problems` (e.g. `edges_not_drawn` on cgb242) is not yet added to the problems
     `api::review` and `api::render` return, so the CLI, service and MCP do not show it.
-  - demand groups holes by recognised pattern without `bridge::holes::established`, so a
-    bolt circle of fewer than five holes is one feature there but loose holes in dims and lint.
   - A bolt circle of fewer than five holes with a hole or boss on its centre is a pattern in
     Python; not ported (LINT-hole_coverage-bolt_circle_corroboration stays pending).
-  - dims states one recess per hole (counterbore, else spotface); a hole with both would lose
-    its spotface and lint would report it. No fixture has one.
   - Question for haecceity: on cgb242's front view HLR emits a zero-span NURBS stretch (t0 =
     t1 = 0) at an edge's own end vertex; should it be filtered at source?
+- From wave 2 (stream d-dims-split): `src/dims.rs` is split into `src/dims/` (`mod.rs` the
+  driver and public API, `placement.rs`, and one planner per family: `envelope.rs`, `turned.rs`,
+  `holes.rs`); a new family is a module and an entry in `dims::PLANNERS`. Every recognised
+  feature of a kind no planner claims gets an info problem `dimensions_not_ported` (review M8).
+  demand now groups holes by `bridge::holes::established`, as dims and lint do, and a hole with
+  both a counterbore and a spotface states both. Left:
+  - Questions for the maintainer:
+    - Record types draftwright itself leaves undimensioned (`detect.py`'s
+      `_UNCONSUMED_RECORDS`: freeform surfaces, thin-wall and sheet-metal bodies, oriented
+      chamfers, interior voids, …; lint.yaml's LINT-quality-recognised_inventory_registers calls
+      most of them "undecided", surfaced at runtime) get no problem from dims. Should the plan
+      report them (for example an info problem citing draftwright's disposition), or is that
+      lint's job?
+    - A hole with both recesses prints the counterbore first (draftwright's segment order),
+      although quiddity's spotface is usually the outer, wider step nearer the opening. Keep
+      the segment order, or state them from the opening inward? Tied to the ⌴/SF question.
+  - Unrelated finding: `bridge::kind` turns `sheet_metal_bodies` and `thin_wall_bodies` into
+    the kinds `sheet_metal_bodie` and `thin_wall_bodie` (it strips one `s`). dims matches those
+    records by fingerprint subtype, so it is unaffected.
