@@ -47,7 +47,7 @@ pub const IDENTITY: [[f64; 3]; 4] = [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0],
 
 /// Every family of [`SCHEMA_VERSION`] and the record types its records can have, as
 /// `quiddity::recognition::RECORD_TYPES` lists them for that schema (`tests/native.rs` checks the
-/// two agree). Holes and hole patterns are read here; the rest are known and left to the bridge.
+/// two agree). The families in [`READ`] are read here; the rest are known and left to the bridge.
 pub const FAMILIES: &[(&str, &[&str])] = &[
     ("fillets", &["Fillet"]),
     ("chamfers", &["Chamfer"]),
@@ -87,6 +87,7 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
     ("edge_open_circular_pockets", &["EdgeOpenCircularPocket"]),
     ("edge_open_prismatic_recesses", &["EdgeOpenPrismaticRecess"]),
     ("blends", &["Blend"]),
+    ("sheet_metal_bodies", &["SheetMetalBody"]),
 ];
 
 /// The families read here.
