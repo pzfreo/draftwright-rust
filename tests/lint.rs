@@ -1083,9 +1083,9 @@ struct KnownOwn {
 /// Lint on the port's own drawings of the captured parts (the corpus's, with their features from
 /// `tests/fixtures/recognition/corpus/`, planned under the default spec and rendered): every
 /// finding, counted by part and code, is listed in `known_lint.json` (`own_drawings`) with a
-/// verdict. The port's dimensions do not yet state fillets, chamfers, blends, slots, steps or boss
-/// heights, so lint reports those requirements missing on its drawings: correct, and pinned here
-/// until the dimensions state them. Set `LINT_REPORT=1` to print each finding, and `LINT_OWN_ALL=1`
+/// verdict. The port's dimensions do not yet state fillets, chamfers, blends or steps, so lint
+/// reports those requirements missing on its drawings: correct, and pinned here until the
+/// dimensions state them. Set `LINT_REPORT=1` to print each finding, and `LINT_OWN_ALL=1`
 /// to draw connector109 too (see below).
 #[test]
 fn lint_on_the_ports_own_drawings_is_known() {

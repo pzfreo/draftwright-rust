@@ -7,7 +7,9 @@
 //! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
-//!   pitches that locate a pattern's members.
+//!   pitches that locate a pattern's members;
+//! - **through slots**: width, length, an obround's end radius, and location along the slot;
+//! - **bosses**: diameter, height and location.
 //!
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>@<view>`, its value,
 //! its printed terms and label, the measurements it states, a default flag and a basis.
@@ -20,13 +22,15 @@
 //! Lines crossing other views' outlines or other dimensions' lines are not checked yet. An item
 //! no shown view can carry is kept in the plan, unplaced, and reported (R1 invariant 3).
 //!
-//! The module is a driver over one planner per family ([`PLANNERS`]): [`envelope`], [`turned`]
-//! and [`holes`] each say what their family wants dimensioned, and [`placement`] places it. A new
-//! family is a new planner module and an entry in the list.
+//! The module is a driver over one planner per family ([`PLANNERS`]): [`envelope`], [`turned`],
+//! [`holes`], [`slots`] and [`bosses`] each say what their family wants dimensioned, and
+//! [`placement`] places it. A new family is a new planner module and an entry in the list.
 
+mod bosses;
 mod envelope;
 mod holes;
 mod placement;
+mod slots;
 mod turned;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -252,7 +256,13 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 3] = [turned::PLANNER, envelope::PLANNER, holes::PLANNER];
+const PLANNERS: [Planner; 5] = [
+    turned::PLANNER,
+    envelope::PLANNER,
+    holes::PLANNER,
+    slots::PLANNER,
+    bosses::PLANNER,
+];
 
 /// Everything the defaults would dimension, with the problems met on the way.
 fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
