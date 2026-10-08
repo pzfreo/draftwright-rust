@@ -314,9 +314,17 @@ fn omitting_one_dimension_moves_no_other() {
                 },
             );
             let rest: Vec<&str> = every.iter().copied().filter(|i| i != gone).collect();
-            for (how, spec) in [
-                ("omitted", spec),
-                ("left out of the authored set", authored(&rest)),
+            // Omitting it brings back a coincident location it conveyed (ARCH0009-6), drawn in
+            // its own lane; one left out of an authored set conveys nothing back.
+            let conveyed: Vec<&str> = full
+                .omitted
+                .iter()
+                .filter(|o| o.basis.starts_with(&format!("conveyed by {gone}: ")))
+                .map(|o| o.id.as_str())
+                .collect();
+            for (how, spec, promoted) in [
+                ("omitted", spec, conveyed.clone()),
+                ("left out of the authored set", authored(&rest), vec![]),
             ] {
                 let plan = model::plan(analysis, &spec).unwrap();
                 edits += 1;
@@ -336,8 +344,24 @@ fn omitting_one_dimension_moves_no_other() {
                         .collect::<Vec<_>>(),
                     "{name}: {gone} {how}"
                 );
-                assert_eq!(ids(&plan), rest, "{name}: {gone} {how}");
+                let back: Vec<&str> = ids(&plan)
+                    .into_iter()
+                    .filter(|i| promoted.contains(i))
+                    .collect();
+                assert_eq!(back, promoted, "{name}: {gone} {how}");
+                assert_eq!(
+                    ids(&plan)
+                        .into_iter()
+                        .filter(|i| !promoted.contains(i))
+                        .collect::<Vec<_>>(),
+                    rest,
+                    "{name}: {gone} {how}"
+                );
                 for d in &plan.dimensions {
+                    if promoted.contains(&d.id.as_str()) {
+                        assert!(d.placed.is_some(), "{name}: {} is not drawn", d.id);
+                        continue;
+                    }
                     let was = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
                     assert_eq!(
                         d.placed, was.placed,

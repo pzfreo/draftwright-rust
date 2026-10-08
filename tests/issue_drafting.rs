@@ -275,7 +275,8 @@ fn each_axis_of_a_location_is_its_own_measurement() {
     let ids = |plan: &Plan| -> BTreeSet<String> {
         plan.dimensions.iter().map(|d| d.id.clone()).collect()
     };
-    let full = ids(&model::plan(analysis, &Spec::default()).unwrap());
+    let plan = model::plan(analysis, &Spec::default()).unwrap();
+    let full = ids(&plan);
     for gone in [
         "d:f:hole:5/location.length.x@plan",
         "d:f:hole_pattern:1/location.length.y@plan",
@@ -283,6 +284,14 @@ fn each_axis_of_a_location_is_its_own_measurement() {
         let left = ids(&model::plan(analysis, &omitting(&[gone])).unwrap());
         let mut expected = full.clone();
         assert!(expected.remove(gone), "{gone}");
+        // A coincident location it conveyed comes back in its place (ARCH0009-6): the boss at
+        // the bolt circle's centre.
+        expected.extend(
+            plan.omitted
+                .iter()
+                .filter(|o| o.basis.starts_with(&format!("conveyed by {gone}: ")))
+                .map(|o| o.id.clone()),
+        );
         assert_eq!(left, expected, "omitting {gone}");
     }
 }

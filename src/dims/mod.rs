@@ -527,8 +527,8 @@ pub fn plan(
         }
     }
     bosses::consolidate(analysis, &mut kept, &mut omitted);
-    slots::consolidate(&mut kept, &mut omitted);
-    let given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
+    let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
+    holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
 
     // Then everything the part would have is placed: each item's lane, and where its label
     // settles, come from the full set, so omitting or restoring one leaves the others where they
