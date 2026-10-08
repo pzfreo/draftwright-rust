@@ -38,6 +38,7 @@ pub mod envelope;
 pub mod fillets;
 pub mod flats;
 pub mod grooves;
+pub mod gussets;
 pub mod holes;
 pub mod pads;
 pub mod paired_ramp_steps;
@@ -168,6 +169,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(fillets::coverage(analysis, marks));
     issues.extend(blends::coverage(analysis, marks));
     issues.extend(paired_ramp_steps::coverage(analysis, marks));
+    issues.extend(gussets::coverage(analysis, marks));
     issues.extend(circular_blind_steps::coverage(analysis, marks));
     issues.extend(blind_slots::coverage(analysis, marks));
     issues.extend(steps::coverage(analysis, marks));

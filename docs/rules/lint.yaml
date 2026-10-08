@@ -1252,7 +1252,9 @@
     module: "linting/gusset_rib_coverage.py"
     issues: [1705]
     tests: [tests/test_gusset_rib_semantics.py]
-  status: pending
+  status: ported
+  rust_test: a_mirrored_gusset_pair_states_its_ribs_spacing_and_plane
+  rust_note: "src/lint/gussets.rs: each gusset_rib_pattern feature (quiddity's GussetRibArray or GussetRibMirrorPair, carrying its members' records) is one group, and each gusset_rib in no pattern a group of one, as draftwright's _append_gusset_features lowers them; read in the part's frame and checked as GussetRibFeature is (common section and thickness, pitch or mirror plane within 1e-6). Per rib: gusset_thickness.length and gusset_leg.length.<axis> for both legs; per group: gusset_pitch.length (array) or gusset_spacing.length (pair), and gusset_location.length from the part's box to the first rib's centre or the mirror plane; each judged by the text of an annotation claiming it on the group. A group draftwright would not lower has each rib's thickness unverifiable, as Python reports a rib with no IR owner. No corpus recognition has a gusset; the unit tests use test_gusset_rib_semantics's brackets and draftwright's own callouts for them. Members are kept in order along the thickness axis rather than refused when quiddity lists them out of order."
   port_note: "Keep."
 
 - id: LINT-code-gusset_rib_requirement_state
@@ -1264,6 +1266,8 @@
     issues: [1705]
     tests: [tests/test_gusset_rib_semantics.py]
   status: pending
+  rust_test: a_gusset_array_states_its_pitch_and_first_centre
+  rust_note: "Codes gusset_rib_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-code-angled_step_requirement_unsupported
