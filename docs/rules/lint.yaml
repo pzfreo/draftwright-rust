@@ -652,7 +652,9 @@
     module: "linting/channel_coverage.py"
     issues: [917]
     tests: [tests/test_issue_917_open_channel.py]
-  status: pending
+  status: ported
+  rust_test: an_open_channel_states_its_width_wall_and_extent
+  rust_note: "src/lint/channels.rs: when quiddity's plates lie along two axes or more (has_multi_axis_plates), each section_recess feature that section_recesses::grammar reads as a rectangular channel, in the part's frame, needs channel_width.length on the channel, thickness.length on the one plate running from the part's box to the channel's near wall (within 1e-3; none or several: unverifiable), and the overall extent across it on envelope. Python finds the channel and the lower plate among draftwright's own converted features; the port has no conversion and reads quiddity's features in the Analysis, so a plate draftwright's conversion drops would still be asked for here. On ftc06's captured sheet all 21 requirements of its seven channels agree with Python's lint (widths and extents stated, the lower wall unverifiable for each)."
   port_note: "Keep."
 
 - id: LINT-code-channel_requirement_state
@@ -664,6 +666,8 @@
     issues: [917]
     tests: [tests/test_issue_917_open_channel.py]
   status: pending
+  rust_test: an_open_channel_states_its_width_wall_and_extent
+  rust_note: "Codes channel_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------

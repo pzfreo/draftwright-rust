@@ -396,6 +396,62 @@ fn join_pocket(analysis: &Analysis, feature: &facts::Feature) -> Option<String> 
     (fits.len() == 1).then(|| fits[0].clone())
 }
 
+/// The Analysis section recess a Python `channel` names, when exactly one fits: read as a channel
+/// in the part's frame ([`lint::channels::placed`]), of Python's width (within 1.5e-3), centred at
+/// Python's origin (within 2e-3).
+fn join_channel(analysis: &Analysis, width: Option<f64>, at: [f64; 3]) -> Option<String> {
+    let fits: Vec<String> = lint::channels::placed(analysis)
+        .into_iter()
+        .filter_map(|(f, c)| Some((f, c.ok()?)))
+        .filter(|(_, c)| {
+            width.is_none_or(|w| (c.width - w).abs() <= 1.5e-3)
+                && (0..3).all(|k| (c.centre[k] - at[k]).abs() <= 2e-3)
+        })
+        .map(|(f, _)| f.id.clone())
+        .collect();
+    (fits.len() == 1).then(|| fits[0].clone())
+}
+
+/// The Analysis plate a Python `plate` thickness names, when exactly one fits: Python's
+/// compiled span (draftwright's `plate_span`: the slab's two faces along its axis, at quiddity's
+/// `u`, `v` across it) is the plate's, carried into the part's frame, end for end (within 2e-3).
+/// (Python's plate key names the part's centre, not the plate's.)
+fn join_plate(analysis: &Analysis, span: [[f64; 3]; 2]) -> Option<String> {
+    use draftwright::bridge::holes::{frame, to_part};
+    let frame = frame(analysis);
+    let near = |a: [f64; 3], b: [f64; 3]| (0..3).all(|k| (a[k] - b[k]).abs() <= 2e-3);
+    let fits: Vec<&draftwright::bridge::Feature> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "plate")
+        .filter(|f| {
+            let p = &f.parameters;
+            let get = |k: &str| p.get(k).and_then(|v| v.as_f64());
+            let Some(a) = ["x", "y", "z"]
+                .iter()
+                .position(|a| p.get("axis").and_then(|v| v.as_str()) == Some(*a))
+            else {
+                return false;
+            };
+            let (Some(lo), Some(hi), Some(u), Some(v)) = (get("lo"), get("hi"), get("u"), get("v"))
+            else {
+                return false;
+            };
+            let others: Vec<usize> = (0..3).filter(|&k| k != a).collect();
+            let end = |t: f64| {
+                let mut c = [0.0; 3];
+                c[a] = t;
+                c[others[0]] = u;
+                c[others[1]] = v;
+                to_part(&frame, c)
+            };
+            let (l, h) = (end(lo), end(hi));
+            (near(l, span[0]) && near(h, span[1])) || (near(l, span[1]) && near(h, span[0]))
+        })
+        .collect();
+    (fits.len() == 1).then(|| fits[0].id.clone())
+}
+
 /// The Analysis turned step a Python `step` names, when exactly one fits: its band along Python's
 /// axis letter, of Python's diameter and length (within 1.5e-3), with its axial midpoint at
 /// Python's origin (within 2e-3).
@@ -461,6 +517,44 @@ fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Ma
                     _ => None,
                 };
                 if let Some(joined) = ledger {
+                    match joined {
+                        Some(id) => claims.push(Claim {
+                            feature: id,
+                            parameter: m.parameter.clone(),
+                        }),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
+                if (feature.kind.as_str(), m.parameter.as_str())
+                    == ("channel", "channel_width.length")
+                    || (feature.kind.as_str(), m.parameter.as_str())
+                        == ("plate", "thickness.length")
+                {
+                    let joined = match feature.kind.as_str() {
+                        "channel" => feature.origin.and_then(|at| {
+                            let width = feature.key.as_deref().and_then(|k| {
+                                k.split("width=")
+                                    .nth(1)?
+                                    .split([',', ']'])
+                                    .next()?
+                                    .parse()
+                                    .ok()
+                            });
+                            join_channel(analysis, width, at)
+                        }),
+                        _ => m
+                            .compiled
+                            .as_ref()
+                            .and_then(|c| c.first())
+                            .and_then(|c| {
+                                let span = c.get("span")?.as_array()?;
+                                let point =
+                                    |i: usize| draftwright::bridge::holes::point(span.get(i));
+                                Some([point(0)?, point(1)?])
+                            })
+                            .and_then(|span| join_plate(analysis, span)),
+                    };
                     match joined {
                         Some(id) => claims.push(Claim {
                             feature: id,
@@ -872,6 +966,64 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
                     differ.insert(
                         (name.clone(), "section_recesses".into(), code.into(), p, r),
                         "section recess disposition".into(),
+                    );
+                }
+            }
+        }
+        // Open channels: Python names each by its centre (in the part's frame) and the measurement
+        // (`<kind>.<parameter>`); the port's findings by the channel and the requirement.
+        {
+            let rust: BTreeMap<(String, String), String> = ours
+                .iter()
+                .filter(|i| i.code.starts_with("channel_requirement_"))
+                .map(|i| {
+                    (
+                        (i.subjects[0].clone(), i.requirements[0].parameter.clone()),
+                        i.code.clone(),
+                    )
+                })
+                .collect();
+            let mut python: BTreeMap<(String, String), String> = BTreeMap::new();
+            for finding in f
+                .lint
+                .iter()
+                .filter(|l| l.code.starts_with("channel_requirement_"))
+            {
+                let at: Vec<f64> = finding
+                    .message
+                    .split(" at (")
+                    .nth(1)
+                    .and_then(|r| r.split(')').next())
+                    .unwrap()
+                    .split(", ")
+                    .map(|c| c.parse().unwrap())
+                    .collect();
+                let id = join_channel(&analysis, None, [at[0], at[1], at[2]])
+                    .unwrap_or_else(|| panic!("{}: no one channel fits", finding.message));
+                let role = finding
+                    .message
+                    .split(" measurement ")
+                    .nth(1)
+                    .and_then(|r| r.split(' ').next())
+                    .unwrap();
+                let parameter = role.split_once('.').unwrap().1.to_string();
+                python.insert((id, parameter), finding.code.clone());
+            }
+            judged += lint::channels::wanted(&analysis).len();
+            for key in python.keys().chain(rust.keys()).collect::<BTreeSet<_>>() {
+                let (theirs, mine) = (python.get(key), rust.get(key));
+                if theirs == mine {
+                    agree += 1;
+                } else {
+                    differ.insert(
+                        (
+                            name.clone(),
+                            key.0.clone(),
+                            key.1.clone(),
+                            theirs.cloned(),
+                            mine.cloned(),
+                        ),
+                        describe_feature(&analysis, &key.0),
                     );
                 }
             }

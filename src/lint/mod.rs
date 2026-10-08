@@ -32,6 +32,7 @@ pub mod blends;
 pub mod blind_slots;
 pub mod bosses;
 pub mod chamfers;
+pub mod channels;
 pub mod circular_blind_steps;
 pub mod envelope;
 pub mod fillets;
@@ -170,6 +171,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(steps::coverage(analysis, marks));
     issues.extend(slots::coverage(analysis, marks));
     issues.extend(holes::coverage(analysis, marks));
+    issues.extend(channels::coverage(analysis, marks));
     issues.extend(polygonal::stock_coverage(analysis, marks));
     issues.extend(pockets::coverage(analysis, marks));
     issues

@@ -243,6 +243,20 @@
     },
     {
       "part": "ftc06",
+      "code": "channel_requirement_missing",
+      "count": 7,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's dimensions do not plan channel widths (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports each of the seven channels' widths missing (their overall extents are stated by the port's envelope dimensions). Python's sheet of the same part states the widths, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ftc06",
+      "code": "channel_requirement_unverifiable",
+      "count": 7,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part: no plate runs from the part's box to any channel's near wall, so the wall-thickness measurement of each channel's scheme cannot be checked (Python: plate.thickness.length cannot be joined to measurement provenance)."
+    },
+    {
+      "part": "ftc06",
       "code": "prismatic_pocket_requirement_unsupported",
       "count": 2,
       "verdict": "rust-correct",
