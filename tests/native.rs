@@ -1,9 +1,12 @@
 //! Features from Rust quiddity (`bridge::native`: holes and hole patterns, fillets, chamfers,
-//! countersinks, bosses, turned steps, grooves, flats, the steps and blends) against the same
-//! parts' Python quiddity recognition through the bridge, record by record.
+//! countersinks, bosses, turned steps, grooves, flats, the steps, blends, slots and slot patterns,
+//! polygonal bosses and stock, double-D bores, plates, gusset ribs and their patterns) against the
+//! same parts' Python quiddity recognition through the bridge, record by record.
 //!
 //! Every part with bridged Python recognition is compared: the fixtures in `tests/fixtures/parts/`
-//! (set `parts`), the sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
+//! (set `parts`), the slot-pattern plates (`slot_patterns`) and quiddity-rust's golden parts with
+//! a double-D bore, gusset ribs and hexagonal stock (`golden`), which no corpus part has, the
+//! sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
 //! (`recognition/corpus/`, set `corpus`) and 0.3.9's, the recogniser draftwright drew their sheets
 //! with (`recognition/sheets/`, set `sheets`), and 0.3.9's on corpus parts with features no
 //! sampled sheet has (`recognition/dims/`, set `dims`, and `recognition/steps/`, set `steps`).
@@ -13,7 +16,8 @@
 //! Python's records are in its working frame and are mapped into the part's (the native ones
 //! already are): points, directions, axis letters, a turned step's `lo` and `hi` and its
 //! profile's box, a flat's stock span and axis line, and a step's section, where the frame allows
-//! ([`other_to_part`]). Holes are paired by axis, location and diameter; patterns by their
+//! ([`other_to_part`]), and a slot's, prism's, plate's and rib's coordinates along its axes
+//! ([`kind_to_part`]). A slot pattern's members are named by their Python pairs. Holes are paired by axis, location and diameter; patterns by their
 //! members; the other kinds by where they are ([`anchor`]).
 //! For each pair the IDs, faces and parameters are compared, numbers to 1e-6 relative (absolute
 //! below 1), or within the step quiddity rounds a field to when the two frames round it
@@ -96,6 +100,26 @@ fn cases() -> Vec<Case> {
             part: part.into(),
             step: fixture(&format!("parts/{part}.step")),
             json: std::fs::read_to_string(fixture(&format!("recognition/{part}.json"))).unwrap(),
+        });
+    }
+    // Fixture parts with a family no corpus part has: the slot-pattern plates
+    // (`recognition/slot_patterns/`, quiddity 0.3.9), and quiddity-rust's golden parts with a
+    // double-D bore, gusset ribs and hexagonal stock (`recognition/golden/`, copied from its
+    // `tests/fixtures/golden_<name>.step` at the pinned commit, recognised by `tools/recognise.py`
+    // with Python quiddity 0.4.0.dev0).
+    for (set, part) in [
+        ("slot_patterns", "slot_array"),
+        ("slot_patterns", "slot_grid"),
+        ("golden", "double_d_bore"),
+        ("golden", "gusset_ribs"),
+        ("golden", "gusset_rib_patterns"),
+        ("golden", "polygonal_stock"),
+    ] {
+        out.push(Case {
+            set,
+            part: part.into(),
+            step: fixture(&format!("recognition/{set}/{part}.step")),
+            json: gunzip(&fixture(&format!("recognition/{set}/{part}.json.gz"))).unwrap(),
         });
     }
     let Some(dir) = corpus::dir() else {
@@ -191,7 +215,7 @@ fn to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<String, Va
 }
 
 /// The kinds read natively besides holes, as `bridge::native::READ` names their families.
-const KINDS: [&str; 13] = [
+const KINDS: [&str; 21] = [
     "fillet",
     "chamfer",
     "countersink",
@@ -205,6 +229,15 @@ const KINDS: [&str; 13] = [
     "through_step",
     "oblique_through_step",
     "blend",
+    // Before `slot_pattern`, whose members name slots.
+    "slot",
+    "slot_pattern",
+    "polygonal_boss",
+    "polygonal_stock",
+    "double_d_bore",
+    "plate",
+    "gusset_rib",
+    "gusset_rib_pattern",
 ];
 
 /// Where a feature of *kind* is, as its record gives it: what pairs a Python feature with a
@@ -217,6 +250,15 @@ fn anchor(kind: &str) -> &'static [&'static str] {
         // The rolling ball (its radius and side) and its path's place, not the path's
         // direction: a line's sense follows the frame. Coaxial blends share a path's place.
         "blend" => &["radius", "side", "path.at", "path.center", "path.radius"],
+        "slot" => &["long_axis", "lo", "hi", "w_center"],
+        // A grid by its centre and lattice, an array by its pitch (its direction's sense follows
+        // the frame).
+        "slot_pattern" => &["center", "rows", "cols", "pitch"],
+        "polygonal_boss" | "polygonal_stock" => &["center"],
+        "double_d_bore" => &["location"],
+        "plate" => &["axis", "lo", "hi"],
+        "gusset_rib" => &["thickness_axis", "thickness_bounds"],
+        "gusset_rib_pattern" => &["pitch", "mirror_plane"],
         _ => &["at"],
     }
 }
@@ -246,6 +288,11 @@ fn rounding(kind: &str, path: &str) -> f64 {
         // Six significant figures (`quantise6`), of coordinates below 100 in either frame.
         ("circular_blind_step", "centreline" | "section") => 1e-4,
         ("blend", "at" | "center") => 1e-3,
+        ("slot", "lo" | "hi" | "w_center" | "d_lo" | "d_hi") => 1e-2,
+        ("plate", "lo" | "hi") => 1e-3,
+        ("polygonal_boss" | "polygonal_stock", "center" | "base" | "top") => 1e-4,
+        ("polygonal_boss" | "polygonal_stock", "flat_centres" | "flat_directions") => 1e-3,
+        ("gusset_rib" | "gusset_rib_pattern", "thickness_bounds" | "supports") => 1e-3,
         _ => 0.0,
     }
 }
@@ -404,6 +451,181 @@ fn other_to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<Stri
         profile.insert("axis_origin".into(), Value::from(o.to_vec()));
     }
     out
+}
+
+/// [`other_to_part`], and what it does not map of the slot, polygonal prism, double-D bore, plate
+/// and gusset rib records, in the part's frame where the frame's axes lie along the part's: a
+/// slot's axis letters and its coordinates along them (`lo`, `hi`, `w_center`, `d_lo`, `d_hi`);
+/// a prism's `base` and `top` along its axis, its flats' directions and centres; a bore's flat
+/// direction; a plate's `u` and `v` (the centre on its other two axes, in axis order); a rib's
+/// thickness axis and bounds, and its supports (axis letter and plane) with their legs and
+/// directions, ordered by the part's axis as `lint/gussets.rs` orders them, here and in a
+/// pattern's `ribs`; a mirrored pair's plane.
+fn kind_to_part(
+    kind: &str,
+    frame: &[[f64; 3]; 4],
+    record: &Map<String, Value>,
+) -> Map<String, Value> {
+    let mut out = other_to_part(frame, record);
+    let axis = |v: Option<&Value>| v.and_then(letter).and_then(|j| along(frame, j));
+    let at = |k: usize, s: f64, v: f64| frame[0][k] + s * v;
+    let number = |k: &str| record.get(k).and_then(Value::as_f64);
+    let sorted = |a: f64, b: f64| (a.min(b), a.max(b));
+    match kind {
+        "slot" => {
+            let letters = (
+                record.get("long_axis").and_then(letter),
+                record.get("width_axis").and_then(letter),
+            );
+            if let (Some(jl), Some(jw)) = letters
+                && jl != jw
+                && let (Some((l, sl)), Some((w, sw)), Some((d, sd))) = (
+                    along(frame, jl),
+                    along(frame, jw),
+                    along(frame, 3 - jl - jw),
+                )
+            {
+                out.insert("long_axis".into(), ["x", "y", "z"][l].into());
+                out.insert("width_axis".into(), ["x", "y", "z"][w].into());
+                for (lo, hi, k, s) in [("lo", "hi", l, sl), ("d_lo", "d_hi", d, sd)] {
+                    if let (Some(a), Some(b)) = (number(lo), number(hi)) {
+                        let (a, b) = sorted(at(k, s, a), at(k, s, b));
+                        out.insert(lo.into(), a.into());
+                        out.insert(hi.into(), b.into());
+                    }
+                }
+                if let Some(c) = number("w_center") {
+                    out.insert("w_center".into(), at(w, sw, c).into());
+                }
+            }
+        }
+        "polygonal_boss" | "polygonal_stock" => {
+            if let Some((k, s)) = axis(record.get("axis")) {
+                for key in ["base", "top"] {
+                    if let Some(v) = number(key) {
+                        out.insert(key.into(), at(k, s, v).into());
+                    }
+                }
+            }
+            let each = |key: &str, f: &dyn Fn([f64; 3]) -> [f64; 3]| -> Option<Value> {
+                let a = record.get(key)?.as_array()?;
+                Some(Value::from(
+                    a.iter()
+                        .map(|p| Some(Value::from(f(bridge::holes::point(Some(p))?).to_vec())))
+                        .collect::<Option<Vec<_>>>()?,
+                ))
+            };
+            if let Some(v) = each("flat_directions", &|d| bridge::holes::dir_to_part(frame, d)) {
+                out.insert("flat_directions".into(), v);
+            }
+            if let Some(v) = each("flat_centres", &|p| bridge::holes::to_part(frame, p)) {
+                out.insert("flat_centres".into(), v);
+            }
+        }
+        "double_d_bore" => {
+            if let Some(d) = bridge::holes::point(record.get("flat_direction")) {
+                out.insert(
+                    "flat_direction".into(),
+                    Value::from(bridge::holes::dir_to_part(frame, d).to_vec()),
+                );
+            }
+        }
+        "plate" => {
+            if let Some(j) = record.get("axis").and_then(letter)
+                && let Some((k, _)) = along(frame, j)
+                && (0..3).all(|l| along(frame, l).is_some())
+                && let (Some(u), Some(v)) = (number("u"), number("v"))
+            {
+                let mut local = [0.0; 3];
+                let others: Vec<usize> = (0..3).filter(|&l| l != j).collect();
+                (local[others[0]], local[others[1]]) = (u, v);
+                let p = bridge::holes::to_part(frame, local);
+                let across: Vec<usize> = (0..3).filter(|&l| l != k).collect();
+                out.insert("u".into(), p[across[0]].into());
+                out.insert("v".into(), p[across[1]].into());
+            }
+        }
+        "gusset_rib" => {
+            if let Some(r) = rib_to_part(frame, record, out.clone()) {
+                out = r;
+            }
+        }
+        "gusset_rib_pattern" => {
+            if let Some(Value::Array(ribs)) = record.get("ribs") {
+                let mapped: Option<Vec<Value>> = ribs
+                    .iter()
+                    .map(|r| {
+                        let r = r.as_object()?;
+                        Some(Value::Object(rib_to_part(
+                            frame,
+                            r,
+                            other_to_part(frame, r),
+                        )?))
+                    })
+                    .collect();
+                if let Some(m) = mapped {
+                    out.insert("ribs".into(), m.into());
+                }
+            }
+            if let Some(m) = plane_to_part(frame, record.get("mirror_plane")) {
+                out.insert("mirror_plane".into(), m.0);
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+/// An axis letter and a coordinate along it (a plane across that axis) in the part's frame, and
+/// the sense the axis maps with.
+fn plane_to_part(frame: &[[f64; 3]; 4], v: Option<&Value>) -> Option<(Value, usize, f64)> {
+    let a = v?.as_array()?;
+    let (k, s) = along(frame, letter(a.first()?)?)?;
+    let at = frame[0][k] + s * a.get(1)?.as_f64()?;
+    Some((
+        Value::from(vec![Value::from(["x", "y", "z"][k]), at.into()]),
+        k,
+        s,
+    ))
+}
+
+/// A gusset rib's *record* in the part's frame (see [`kind_to_part`]), its other fields as *out*
+/// has them, when every field it maps is readable and its axes lie along the part's.
+fn rib_to_part(
+    frame: &[[f64; 3]; 4],
+    record: &Map<String, Value>,
+    mut out: Map<String, Value>,
+) -> Option<Map<String, Value>> {
+    let (k, s) = along(frame, letter(record.get("thickness_axis")?)?)?;
+    let [a, b] = pair(record.get("thickness_bounds"))?;
+    let (a, b) = (frame[0][k] + s * a, frame[0][k] + s * b);
+    out.insert("thickness_axis".into(), ["x", "y", "z"][k].into());
+    out.insert(
+        "thickness_bounds".into(),
+        Value::from(vec![a.min(b), a.max(b)]),
+    );
+    let legs = pair(record.get("legs"))?;
+    let directions = pair(record.get("directions"))?;
+    let supports = record.get("supports")?.as_array()?;
+    let mut sides = Vec::new();
+    for (i, support) in supports.iter().enumerate() {
+        let (plane, j, sj) = plane_to_part(frame, Some(support))?;
+        sides.push((j, plane, *legs.get(i)?, directions.get(i)? * sj));
+    }
+    sides.sort_by_key(|side| side.0);
+    out.insert(
+        "supports".into(),
+        Value::from(sides.iter().map(|s| s.1.clone()).collect::<Vec<_>>()),
+    );
+    out.insert(
+        "legs".into(),
+        Value::from(sides.iter().map(|s| s.2).collect::<Vec<_>>()),
+    );
+    out.insert(
+        "directions".into(),
+        Value::from(sides.iter().map(|s| s.3).collect::<Vec<_>>()),
+    );
+    Some(out)
 }
 
 /// Whether two boss records are one boss read from its two ends: the same diameter and height,
@@ -669,13 +891,15 @@ fn differences(
         }
     }
 
+    // Native IDs of the other kinds paired, and their Python pairs' IDs.
+    let mut paired: BTreeMap<String, String> = BTreeMap::new();
     // The other kinds, kind by kind, paired by where they are ([`anchor`]; each native feature at most once); a boss also with the one read
     // from its other end ([`other_end`]).
     for kind in KINDS {
         let py: Vec<(&Feature, Map<String, Value>)> = features
             .iter()
             .filter(|f| f.kind == kind)
-            .map(|f| (f, other_to_part(&frame, &f.parameters)))
+            .map(|f| (f, kind_to_part(kind, &frame, &f.parameters)))
             .collect();
         let ours: Vec<&Feature> = rs.features.iter().filter(|f| f.kind == kind).collect();
         let within = |path: &str| rounding(kind, path);
@@ -703,6 +927,7 @@ fn differences(
             };
             taken[i] = true;
             let h = ours[i];
+            paired.insert(h.id.clone(), f.id.clone());
             fingerprints.tally(kind, &f.fingerprint, &h.fingerprint);
             if h.id != f.id {
                 put(
@@ -725,6 +950,17 @@ fn differences(
                 );
             }
             let (mut p, mut q) = (p.clone(), h.parameters.clone());
+            // A slot pattern's members are named by their Python pairs.
+            if let Some(Value::Array(slots)) = q.get_mut("slots") {
+                for s in slots {
+                    let id = s.as_str().unwrap_or_default().to_string();
+                    *s = paired
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or(format!("rust {id}"))
+                        .into();
+                }
+            }
             if kind == "boss" && other_end(&p, &q) {
                 let end = |r: &mut Map<String, Value>| {
                     let at = r.remove("location").unwrap();
@@ -916,7 +1152,10 @@ fn native_features_match_the_bridge_or_are_listed() {
     }
     let stale: Vec<_> = listed
         .keys()
-        .filter(|k| !seen.contains(*k) && (corpus_found || k.0 == "parts"))
+        .filter(|k| {
+            !seen.contains(*k)
+                && (corpus_found || ["parts", "slot_patterns", "golden"].contains(&k.0.as_str()))
+        })
         .collect();
     eprintln!("compared {compared} parts; differences by verdict: {tally:?}");
     // Fingerprints are compared, not listed: who owns them is an open question.
@@ -929,15 +1168,20 @@ fn native_features_match_the_bridge_or_are_listed() {
         serde_json::to_string_pretty(&needed).unwrap()
     );
     if corpus_found {
-        // 5 fixture parts, 12 corpus parts, the 12 sheets parts the bridge reads, 4 dims parts
-        // and 4 steps parts.
-        assert_eq!(compared, 37);
+        // 5 fixture parts, 2 slot-pattern and 4 golden fixture parts, 12 corpus parts, the 12
+        // sheets parts the bridge reads, 4 dims parts and 4 steps parts.
+        assert_eq!(compared, 43);
     }
 }
 
 /// The native document of *name* (a fixture part), and the part.
 fn document(name: &str) -> (Part, quiddity::recognition::RecognitionDocument) {
-    let (part, _) = model::analyse(&fixture(&format!("parts/{name}.step"))).unwrap();
+    document_at(&format!("parts/{name}.step"))
+}
+
+/// The native document of the fixture part at *path*, and the part.
+fn document_at(path: &str) -> (Part, quiddity::recognition::RecognitionDocument) {
+    let (part, _) = model::analyse(&fixture(path)).unwrap();
     let r = quiddity::correspondence::recognise(&part);
     let doc = quiddity::recognition::document(&r, part.faces.len());
     (part, doc)
@@ -1308,4 +1552,166 @@ fn ctc04_countersinks_match_pythons_records() {
         );
         assert!(diffs.is_empty(), "{} {faces:?}: {diffs:?}", h.id);
     }
+}
+
+/// A slot pattern names its member slots by their IDs, in quiddity's order, and gives them and
+/// itself their count and pitch, as the bridge does; a member that is not exactly one slot's
+/// record, or a record without what draftwright reads of it, is refused.
+#[test]
+fn slot_patterns_name_their_member_slots() {
+    let (part, doc) = document_at("recognition/slot_patterns/slot_array.step");
+    let n = native::read(&part, &doc).unwrap();
+    let slots: Vec<&Feature> = n.features.iter().filter(|f| f.kind == "slot").collect();
+    let patterns: Vec<&Feature> = n
+        .features
+        .iter()
+        .filter(|f| f.kind == "slot_pattern")
+        .collect();
+    assert_eq!((slots.len(), patterns.len()), (3, 1));
+    let p = patterns[0];
+    assert_eq!(p.id, "f:slot_pattern:1");
+    assert_eq!(p.fingerprint.subtype, "SlotArray");
+    assert_eq!(
+        p.parameters["slots"],
+        serde_json::json!(["f:slot:1", "f:slot:2", "f:slot:3"])
+    );
+    for f in slots.iter().copied().chain([p]) {
+        let pattern = f.fingerprint.pattern.as_ref().unwrap();
+        assert_eq!((pattern.count, pattern.pitch), (3, 25.0), "{}", f.id);
+    }
+    let mut faces: Vec<usize> = slots.iter().flat_map(|f| f.faces.clone()).collect();
+    faces.sort_unstable();
+    assert_eq!(p.faces, faces);
+
+    let of = |family: &str| doc.records.iter().position(|r| r.family == family).unwrap();
+    let (slot, pattern) = (of("slots"), of("slot_patterns"));
+    let refused = |edit: &dyn Fn(&mut quiddity::recognition::RecognitionDocument)| {
+        let mut d = doc.clone();
+        edit(&mut d);
+        native::read(&part, &d).unwrap_err()
+    };
+    let e = refused(&|d| {
+        d.records[slot].parameters.remove("w_center");
+    });
+    assert!(
+        e.contains("(Slot) has no w_center, which draftwright reads; the slots are not read"),
+        "{e}"
+    );
+    let member = |d: &mut quiddity::recognition::RecognitionDocument| match d.records[pattern]
+        .parameters
+        .get_mut("slots")
+    {
+        Some(Value::Array(a)) => a[0].as_object_mut().unwrap().clone(),
+        s => panic!("{s:?}"),
+    };
+    // A member's record is checked as a slot's.
+    let e = refused(&|d| {
+        let mut m = member(d);
+        m.remove("width");
+        d.records[pattern].parameters["slots"][0] = m.into();
+    });
+    assert!(
+        e.contains("(SlotArray)'s slots[0] (Slot) has no width, which draftwright reads"),
+        "{e}"
+    );
+    // A member that is no slot's record, or two slots', is refused.
+    let e = refused(&|d| {
+        let mut m = member(d);
+        m.insert("lo".into(), Value::from(-11.0));
+        d.records[pattern].parameters["slots"][0] = m.into();
+    });
+    assert!(
+        e.contains("f:slot_pattern:1's member matches 0 slots"),
+        "{e}"
+    );
+    let e = refused(&|d| {
+        let m = member(d);
+        d.records[pattern].parameters["slots"][1] = m.into();
+    });
+    assert!(e.contains("puts one slot in a slot pattern twice"), "{e}");
+    let e = refused(&|d| {
+        d.records[pattern].parameters["slots"] = Value::Array(Vec::new());
+    });
+    assert!(
+        e.contains("(SlotArray)'s slots is [], not Records(\"Slot\")"),
+        "{e}"
+    );
+
+    let (part, doc) = document_at("recognition/slot_patterns/slot_grid.step");
+    let grid = doc
+        .records
+        .iter()
+        .position(|r| r.record_type == "SlotGrid")
+        .unwrap();
+    let mut d = doc.clone();
+    d.records[grid].parameters["rows"] = Value::from(3.0);
+    let e = native::read(&part, &d).unwrap_err();
+    assert!(e.contains("(SlotGrid)'s rows is 3.0, not Count"), "{e}");
+    let n = native::read(&part, &doc).unwrap();
+    let p = n
+        .features
+        .iter()
+        .find(|f| f.kind == "slot_pattern")
+        .unwrap();
+    assert_eq!(p.parameters["slots"].as_array().map(Vec::len), Some(6));
+}
+
+/// The double-D bore, gusset rib, plate and polygonal stock records are checked against what
+/// lint reads of them: a missing or mis-shaped field refuses the read, in a pattern's member ribs
+/// too.
+#[test]
+fn bore_rib_plate_and_stock_fields_are_checked() {
+    let refused = |path: &str, family: &str, edit: &dyn Fn(&mut Map<String, Value>)| {
+        let (part, mut d) = document_at(path);
+        let r = d
+            .records
+            .iter()
+            .position(|r| r.family == family)
+            .unwrap_or_else(|| panic!("{path} has no {family}"));
+        native::read(&part, &d).unwrap();
+        edit(&mut d.records[r].parameters);
+        native::read(&part, &d).unwrap_err()
+    };
+    let e = refused(
+        "recognition/golden/double_d_bore.step",
+        "double_d_bores",
+        &|p| {
+            p.remove("through");
+        },
+    );
+    assert!(e.contains("(DoubleDBore) has no through"), "{e}");
+    let e = refused(
+        "recognition/golden/polygonal_stock.step",
+        "polygonal_stock",
+        &|p| {
+            p.insert("side_count".into(), Value::from(6.5));
+        },
+    );
+    assert!(
+        e.contains("(PolygonalStock)'s side_count is 6.5, not Count"),
+        "{e}"
+    );
+    let e = refused("recognition/golden/gusset_ribs.step", "plates", &|p| {
+        p.remove("u");
+    });
+    assert!(e.contains("(Plate) has no u"), "{e}");
+    let e = refused("recognition/golden/gusset_ribs.step", "gusset_ribs", &|p| {
+        p.insert("supports".into(), serde_json::json!([["y", 17.0]]));
+    });
+    assert!(
+        e.contains("(GussetRib)'s supports is [[\"y\",17.0]], not Planes(2)"),
+        "{e}"
+    );
+    let path = "recognition/golden/gusset_rib_patterns.step";
+    let e = refused(path, "gusset_rib_patterns", &|p| {
+        p.insert("mirror_plane".into(), serde_json::json!(["w", 0.0]));
+    });
+    assert!(e.contains("(GussetRibMirrorPair)'s mirror_plane is"), "{e}");
+    let e = refused(path, "gusset_rib_patterns", &|p| {
+        p["ribs"][1].as_object_mut().unwrap().remove("legs");
+    });
+    assert!(
+        e.contains("(GussetRibMirrorPair)'s ribs[1] (GussetRib) has no legs"),
+        "{e}"
+    );
 }
