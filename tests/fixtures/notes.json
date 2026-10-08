@@ -1,0 +1,107 @@
+{
+ "notes": [
+  "BREAK ALL SHARP EDGES",
+  "REMOVE ALL BURRS AND MACHINE ALL INTERNAL CORNERS TO R0.5 MAX UNLESS OTHERWISE STATED ON THIS DRAWING"
+ ],
+ "parts": {
+  "m10127": {
+   "file": "mfcadpp/10127.step",
+   "page": [
+    420.0,
+    297.0
+   ],
+   "scale": 2.0,
+   "rows": [
+    "GENERAL NOTES",
+    "1  BREAK ALL SHARP EDGES",
+    "2  REMOVE ALL BURRS AND MACHINE ALL INTERNAL",
+    "   CORNERS TO R0.5 MAX UNLESS OTHERWISE STATED ON",
+    "   THIS DRAWING"
+   ],
+   "size": [
+    86.35,
+    35.0
+   ],
+   "box": [
+    323.65,
+    252.0,
+    410.0,
+    287.0
+   ]
+  },
+  "ctc01": {
+   "file": "nist/nist_ctc_01_asme1_rd.stp",
+   "page": [
+    420.0,
+    297.0
+   ],
+   "scale": 0.2,
+   "rows": [
+    "GENERAL NOTES",
+    "1  BREAK ALL SHARP EDGES",
+    "2  REMOVE ALL BURRS AND MACHINE ALL INTERNAL",
+    "   CORNERS TO R0.5 MAX UNLESS OTHERWISE STATED ON",
+    "   THIS DRAWING"
+   ],
+   "size": [
+    86.35,
+    35.0
+   ],
+   "box": [
+    323.65,
+    252.0,
+    410.0,
+    287.0
+   ]
+  }
+ },
+ "wraps": [
+  {
+   "text": "DEBURR",
+   "rows": [
+    "1  DEBURR"
+   ]
+  },
+  {
+   "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "rows": [
+    "1  AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+   ]
+  },
+  {
+   "text": "SHORT BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB TAIL",
+   "rows": [
+    "1  SHORT",
+    "   BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+    "   TAIL"
+   ]
+  },
+  {
+   "text": "TWO  SPACES  KEPT  INSIDE  A  ROW  OF  THIS  NOTE  WHICH  WRAPS",
+   "rows": [
+    "1  TWO  SPACES  KEPT  INSIDE  A  ROW  OF  THIS",
+    "   NOTE  WHICH  WRAPS"
+   ]
+  },
+  {
+   "text": "TAB\tAND\nNEWLINE AND HYPHENATED-WORDS-STAY-WHOLE-WHEN-WRAPPING-AT-FORTY-EIGHT",
+   "rows": [
+    "1  TAB     AND NEWLINE AND",
+    "   HYPHENATED-WORDS-STAY-WHOLE-WHEN-WRAPPING-AT-FORTY-EIGHT"
+   ]
+  },
+  {
+   "text": "EXACTLY FORTY EIGHT CHARACTERS LONG IN TOTAL OK!",
+   "rows": [
+    "1  EXACTLY FORTY EIGHT CHARACTERS LONG IN TOTAL OK!"
+   ]
+  },
+  {
+   "text": "⌀6 H7 REAMED HOLES ARE INSPECTED WITH A GO / NO-GO GAUGE AFTER PLATING",
+   "rows": [
+    "1  ø6 H7 REAMED HOLES ARE INSPECTED WITH A GO /",
+    "   NO-GO GAUGE AFTER PLATING"
+   ]
+  }
+ ]
+}

@@ -73,7 +73,10 @@ fn the_service_answers_each_line() {
     assert_eq!(replies[2]["result"]["views"].as_array().unwrap().len(), 4);
     let spec = replies[3]["result"].clone();
     assert_eq!(spec["views"]["iso"]["omit"], true);
-    assert_eq!(replies[4]["error"]["choices"], json!(["set", "remove"]));
+    assert_eq!(
+        replies[4]["error"]["choices"],
+        json!(["set", "remove", "add"])
+    );
     assert!(
         replies[5]["error"]["choices"]
             .as_array()

@@ -33,7 +33,7 @@ edited.
 
 ```json
 {
-  "schema": "draftwright.analysis/3",
+  "schema": "draftwright.analysis/4",
   "binding": { "source_sha256": "…", "part": "10127", "face_count": 27, "loader": "haecceity 0.1" },
   "frame": { "origin": [0, 0, 0], "axes": [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
   "envelope": { "min": [0, 0, 0], "max": [28.8, 32.3, 44.7] },
@@ -49,6 +49,14 @@ edited.
 - **Levels** (`draftwright.analysis/3`) are the heights of the part's horizontal face levels,
   read from the geometry as quiddity's `step_level_records` reads them but in the part's own
   frame: what a prismatic part's height ladder dimensions. Older analyses read with none.
+- **Level supports and risers** (`draftwright.analysis/4`): each level's support (its height and
+  the x and y extents of its faces, per solid) and the step risers between the levels (quiddity's
+  `FaceLevel` and `RiserEvidence`, read with Rust quiddity in the part's own frame, as
+  draftwright's own recognition run reads them). The height ladder's witnesses stand on a level's
+  support, and its shoulders' positions come from the risers (`src/dims/levels.rs`). quiddity's
+  recognition document cannot give them: it reads them in its working frame, whose z need not be
+  the part's. Older analyses read with none; a version 3 analysis with levels gets an info
+  problem saying the step positions could not be found.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.
@@ -103,10 +111,10 @@ mention takes its default.
 ```
 
 - **Fields read so far:** `sheet` (`size`, `scale`, `title`), `views/<name>/omit`,
-  `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`) and `features/<id>/fit` (see
-  Dimensions below). `anchor`, `note`, `place` and `notes` above are the design, not yet read:
-  an unknown field is refused. All are optional, so a spec written before a field existed reads
-  unchanged.
+  `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`), `features/<id>/fit` (see
+  Dimensions below) and `notes` (see General notes below). `anchor`, `note` and `place` above
+  are the design, not yet read: an unknown field is refused. All are optional, so a spec
+  written before a field existed reads unchanged.
 - **The spec stores intent, never geometry.** An entry says "this hole's fit is H7" or "this
   dimension sits 8 mm below its feature". It never says "Ø8.1 at x = 41.2". Every value is
   measured again from the part when the plan is made, so a revised part flows through by
@@ -240,6 +248,48 @@ unreported). Labels are measured and drawn with one bundled font (`dims::FONT`),
 are the ink. Each label's text run is the plan's string, symbols included, laid invisibly over
 the ink in the PDF and the SVG so it can be searched and copied, and read by lint.
 
+### General notes
+
+`src/notes.rs` reads the spec's `notes`, a list of `{id, text}` in the order they are numbered,
+and draws them as draftwright draws its document notes (`render_document_notes`):
+
+- **Refused** (by `plan` and `edit`, with the next free ID as the choice): an ID not of the form
+  `n:<k>` (`k` a whole number from 1, no leading zeros), two notes with one ID, a note whose text
+  is empty or only whitespace. An absent or empty list is not serialised, so a spec without
+  notes reads and writes as before.
+- **Plan items** (`notes`): `{id, text, number, rows, default: false, basis, placed}`. `number`
+  is the note's place in the list (draftwright numbers by position, so the IDs stay while the
+  numbers follow the order); `rows` are `document_note_rows`' (`1  BREAK ALL SHARP EDGES`, wrapped
+  at 48 characters as Python's `textwrap` wraps them, never splitting a word, continuation rows
+  indented three spaces); `placed` is each row's ink centre and the note's cells. The block
+  (`notes_block`: the `GENERAL NOTES` heading, its ink centre and the table's box) is drawn
+  ruled, one row of 3 mm text and 2 mm padding above and below for the heading and for each
+  note row, in IBM Plex Mono.
+- **Placement.** The block's measured size is reserved when the sheet is chosen, top right
+  (draftwright's `layout_required_tables`), so a long list moves the sheet or scale on; then it
+  is placed after the dimensions by `fit_box` towards the top right, with 6 mm of breathing room
+  and then at the 2 mm text padding, clear of the views' areas (their bands, where the
+  dimension lanes run), the isometric's drawn box, every dimension's ink and the title block. A
+  block no layout at a standard scale can hold is not reserved, so it never shrinks the views;
+  a block that then has no place is a `notes_not_placed` error naming every note, which stays
+  in the plan undrawn.
+- **Render.** Each row is drawn as glyphs and is one invisible text run of the row as the plan
+  states it (continuation rows without their indent), so the notes can be searched and copied
+  from the PDF and the SVG; `⌀` is drawn as `ø`, as draftwright's `_font_safe_text` does.
+- **Edits.** `{"op": "add", "path": "notes", "value": {"text": "DEBURR"}}` appends a note; one
+  given no `id` takes the next free `n:<k>`. A note is changed or removed by setting `notes`.
+- **Differences from draftwright**, with verdicts (`tests/notes.rs` compares the block with
+  draftwright's on m10127 and ctc01, `tests/fixtures/notes.json` from `tools/capture_notes.py`):
+  the rows, their numbering and wrapping, the block's height and its top-right corner are
+  draftwright's; a continuation row keeps its indent, where draftwright's left alignment on each
+  row's ink drops it, so the block is wider by the indent (rust-correct: draftwright writes the
+  indent into the row and loses it in the drawing); the block keeps clear of the views' bands as
+  well as the drawn ink (equivalent on the parts compared: both land in the corner the sheet
+  reserved); a block no sheet can hold at a standard scale is not reserved (draftwright would let
+  it drive the sheet to a computed scale; undetermined, a question in `docs/next-session.md`);
+  the text layer keeps `⌀` where draftwright's has `ø` (rust-correct, as for callouts). The
+  per-feature `note` and hole tables are not ported.
+
 **IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
 view moves the dimension to its next view and renames it (the basis says so); a spec still keyed
 by the old ID is refused, with the new ID named first in the refusal's choices. Take IDs from
@@ -271,6 +321,8 @@ calls.
   { "op": "remove", "path": "dimensions/d:f:pocket:1/depth@front/omit" },
   { "op": "add", "path": "notes", "value": { "text": "DEBURR" } } ]
 ```
+
+`add` appends its value to the list at its path (only `notes` is a list).
 
 Each operation is validated against the analysis:
 

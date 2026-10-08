@@ -25,7 +25,8 @@ for all defaults. Use the spec from the plan or the edit tool's result. Shape: {
 \"DWG-001\", \"material\": \"6082-T6\"}}, \"views\": {\"iso\": {\"omit\": true}}, \
 \"dimension_source\": \"auto\", \"dimensions\": {\"d:envelope/width.length@front\": {\"omit\": \
 true}, \"d:envelope/height.length@front\": {\"tolerance\": \"±0.05\"}}, \"features\": \
-{\"f:hole:1\": {\"fit\": \"H7\"}}}. Unknown fields are refused.";
+{\"f:hole:1\": {\"fit\": \"H7\"}}, \"notes\": [{\"id\": \"n:1\", \"text\": \"BREAK ALL SHARP \
+EDGES\"}]}. Unknown fields are refused.";
 
 /// The tools: name, description, input schema.
 fn tools() -> Value {
@@ -77,8 +78,10 @@ fn tools() -> Value {
             "name": "edit",
             "description": "Apply edits to a spec and return the edited spec. Nothing is \
                 stored: pass the result to plan, review or render. Each edit is {\"op\": \"set\", \
-                \"path\": …, \"value\": …} or {\"op\": \"remove\", \"path\": …}, with a path into \
-                the spec: sheet/size (A4, A3, A2, A1, A0), sheet/scale (ISO 5455, e.g. 2:1, 1:1, \
+                \"path\": …, \"value\": …}, {\"op\": \"remove\", \"path\": …} or {\"op\": \"add\", \
+                \"path\": \"notes\", \"value\": {\"text\": \"DEBURR\"}} (a general note, numbered in \
+                order; given no id it takes the next n:<k>), with a path into the spec: \
+                sheet/size (A4, A3, A2, A1, A0), sheet/scale (ISO 5455, e.g. 2:1, 1:1, \
                 1:2), sheet/title/<field> (title, number, material, …), views/<front|plan|side|iso>/omit \
                 (true leaves the view out), dimension_source (auto: the defaults less what is \
                 omitted; authored: exactly the dimensions listed), dimensions/<id>/omit (true \
@@ -101,9 +104,9 @@ fn tools() -> Value {
                         "items": {
                             "type": "object",
                             "properties": {
-                                "op": { "type": "string", "enum": ["set", "remove"] },
+                                "op": { "type": "string", "enum": ["set", "remove", "add"] },
                                 "path": { "type": "string", "description": "Slash-separated, e.g. sheet/scale." },
-                                "value": { "description": "The new value, for set." },
+                                "value": { "description": "The new value, for set; the item appended, for add." },
                             },
                             "required": ["op", "path"],
                         },

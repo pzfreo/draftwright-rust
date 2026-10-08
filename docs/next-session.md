@@ -813,11 +813,10 @@ improvement plan and questions are the current work. Still open from before it:
     - Two shoulders at the same position (ctc04's two risers at 75, two at 225): one dimension
       (the port, as one value stated twice is redundant, ISO 129-1) or one per riser
       (draftwright)?
-  - Pending for the integrator (`docs/model.md` belongs to d-general-notes, so this branch does
-    not edit it): apply this hunk, verbatim from the original commit 065dd08 (the analysis/4
-    schema line and the "Level supports and risers" paragraph), once that stream has merged (it
-    applies to main 7b155db with `git apply`). The ISSUE-915-a and ISSUE-924-a `rust_note`s
-    above are already in `docs/rules/issues.yaml`.
+  - Applied by the integrator after d-general-notes merged (integration run 3): this hunk,
+    verbatim from the original commit 065dd08 (the analysis/4 schema line and the "Level
+    supports and risers" paragraph), is now in `docs/model.md`. The ISSUE-915-a and ISSUE-924-a
+    `rust_note`s above are already in `docs/rules/issues.yaml`.
 
     ```diff
     diff --git a/docs/model.md b/docs/model.md
@@ -849,3 +848,43 @@ improvement plan and questions are the current work. Still open from before it:
      - **Feature IDs** are stable within one file. They are anchored on face indices and derived
        from the feature's kind and faces, never from the order it was found in.
     ```
+- General notes (stream d-general-notes; `src/notes.rs`, `tests/notes.rs`, `docs/model.md`'s
+  "General notes"): the spec's `notes` (`[{id: "n:<k>", text}]`) are read. `plan` and `edit`
+  refuse an ID not of the form `n:<k>`, a duplicate ID and empty text, naming the next free ID;
+  `edit` gains `add` (`{"op": "add", "path": "notes", "value": {"text": …}}`, which takes the next
+  free ID when none is given; the edit tool's choices are now `set, remove, add`). Each note is a
+  Plan item (`notes`: ID, text, number, rows, `default: false`, basis, placed), drawn in one
+  ruled `GENERAL NOTES` block (`notes_block`) as draftwright's `render_document_notes` draws its
+  document notes: rows numbered by position and wrapped at 48 characters as `textwrap` wraps
+  them, IBM Plex Mono at 3 mm, 7 mm rows; the block reserved top right when the sheet is chosen
+  (`Request::required_tables`) and placed by `fit_box` after the dimensions, clear of the views'
+  areas, the isometric, every dimension's ink and the title block; each row an invisible text
+  run (`tests/output.rs::general_notes_reach_the_pdf_text_layer`). A block that has no place is
+  a `notes_not_placed` error on every note, which stays in the plan undrawn. Compared with
+  draftwright on m10127 and ctc01 (`tools/capture_notes.py`, `tests/fixtures/notes.json`): rows,
+  numbering, wrapping (seven cases), height, sheet and scale (ctc01; m10127's sheet already
+  differs without notes) and the top-right corner agree. Differences, with verdicts:
+  - a continuation row keeps its three-space indent, so the block is wider by the indent
+    (rust-correct: draftwright writes the indent into the row and its left alignment on each
+    row's ink drops it; the captured table's continuation ink starts at the cell padding, as the
+    number's does);
+  - the block keeps clear of the views' bands as well as the drawn ink (equivalent on the parts
+    compared: both land in the corner the sheet reserved);
+  - the text layer keeps `⌀` where draftwright's has `ø` (rust-correct, as for callouts);
+  - the block's top and right rules lie on the port's border line at the drawing area's corner
+    (draftwright draws no border by default; equivalent).
+  ARCH0006-1, ISSUE-1352-a, ISSUE-1351-a, ISSUE-1613-b and LINT-code-title_field_overflow
+  rust_notes updated (statuses unchanged: each is still partial). Left: the per-feature `note`
+  (`features/<id>/note`, e.g. `REAM` on a hole callout, which needs `src/dims/holes.rs`), its
+  structured `satisfies` claims (ISSUE-1351-a), hole and callout tables, and balloons; notes are
+  not lint annotations (they claim nothing); `title_field_overflow`'s message does not yet point
+  to the notes. Questions for the maintainer:
+  - A block that fits no sheet at a standard scale is not reserved, so it never shrinks the views
+    (the plan is laid out as without notes, and the block is placed if it can be, else
+    reported); draftwright reserves it regardless and would take a computed scale for it. Keep
+    the port's rule?
+  - Numbering: draftwright numbers notes by their place in the list (kept), so removing note 1
+    renumbers the others on the sheet while their IDs stay. Number by the ID's `k` instead?
+  - Heading: draftwright's document notes print `GENERAL NOTES` (kept); its author-declared
+    `Sheet.notes()` block prints `NOTES` and does not wrap. The spec's notes are authored, so
+    either could be argued; which heading?

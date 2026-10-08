@@ -90,7 +90,7 @@ const SHOULDER: f64 = 3.0;
 pub const FONT: &str = "IBMPlexMono-Regular.ttf";
 const MONO: &[u8] = include_bytes!("../../fonts/IBMPlexMono-Regular.ttf");
 
-fn font() -> &'static Font {
+pub(crate) fn font() -> &'static Font {
     static FONT: OnceLock<Font> = OnceLock::new();
     FONT.get_or_init(|| Font::new(MONO.to_vec()).expect("the bundled font parses"))
 }

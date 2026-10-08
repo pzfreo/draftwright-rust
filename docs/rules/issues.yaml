@@ -1815,7 +1815,7 @@
       - "tests/test_issue_1351_structured_note_coverage.py::test_duplicate_notes_do_not_multiply_one_requirement_identity_into_physical_count"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: there are no notes in the spec or the plan."
+  rust_note: "Not ported: the spec has general notes (n:<k>, src/notes.rs), which carry no claims and are not read by lint, but no per-feature note and no structured satisfies claim."
   port_note: "Keep: Spec note with explicit satisfies=[measurement IDs]; coverage reads that, never note text."
 
 - id: ISSUE-1352-a
@@ -1832,7 +1832,7 @@
     corpus_parts: []
   status: pending
   rust_test: tests/output.rs::callout_symbols_are_searchable_in_the_pdf_and_the_svg
-  rust_note: "Ported in part: every label the port draws (dimensions, hole callouts, section captions and title-block values) is one invisible text run of the plan's own string, in the PDF (render mode invisible, so the ink is unchanged) and in the SVG (a fill-opacity 0 group after the layers); read back through the fonts' ToUnicode maps it is the string drawn, callout symbols included (`4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 (2×2)`), where draftwright's text has `ø` and spaces for the path-only symbols (rust-correct: the copied text states what is drawn). A run is centred on its label's ink, so a callout's selection box approximates its ink, as draftwright's does. Not ported: notes, GD&T and datums (not drawn yet), multiline line pitch, and a reading-order check; the unchanged-pixels check is by construction, not a test."
+  rust_note: "Ported in part: every label the port draws (dimensions, hole callouts, section captions and title-block values) is one invisible text run of the plan's own string, in the PDF (render mode invisible, so the ink is unchanged) and in the SVG (a fill-opacity 0 group after the layers); read back through the fonts' ToUnicode maps it is the string drawn, callout symbols included (`4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 (2×2)`), where draftwright's text has `ø` and spaces for the path-only symbols (rust-correct: the copied text states what is drawn). A run is centred on its label's ink, so a callout's selection box approximates its ink, as draftwright's does. General notes (src/notes.rs) are searchable too: each row of the GENERAL NOTES block is one run, the heading and continuation rows included (tests/output.rs::general_notes_reach_the_pdf_text_layer). Not ported: per-feature notes, GD&T and datums (not drawn yet), multiline line pitch (a note's rows are separate runs, as draftwright's table rows are), and a reading-order check; the unchanged-pixels check is by construction, not a test."
   port_note: "Keep: PDF renderer emits invisible text from plan strings; font/glyph-recovery tests for raw helpers retire."
 
 - id: ISSUE-1353-a
@@ -2897,5 +2897,5 @@
       - "tests/test_issue_1613_circular_channel.py::test_seat_ledger_does_not_credit_corrupted_geometry_or_measurements"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: circular channels and seats are not dimensioned, and there are no notes."
+  rust_note: "Not ported: circular channels and seats are not dimensioned, and there are no structured notes (general notes, src/notes.rs, carry no claims)."
   port_note: "Keep."
