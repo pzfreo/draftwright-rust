@@ -201,6 +201,47 @@ quiddity commit that has it.
   coverage lint; (4) test on NIST CTC/FTC files and specify-core-written files (quiddity-rust
   tests/fixtures/ap242), each compared with Python draftwright's drawing, every difference given
   a verdict; update the PMI rules in docs/rules. Split so streams own disjoint files.
+- **Drawing PMI, stage 1 (stream d-pmi-read): the part's PMI is read.** `draftwright::pmi::read`
+  (`src/pmi.rs`) reads a STEP file's semantic PMI through haecceity's reader into draftwright's
+  records (`extract_pmi_report`): dimensions, geometric tolerances and datums, each with its
+  drawing faces (haecceity's indices, as the bridge uses), their box in the file's frame, the
+  instances it was read from and its blockers; and a census in which every haecceity finding,
+  every item this stage does not project and every record whose face does not resolve is a source
+  not read, with its reason. Not yet attached to the Analysis (lowering's job). `tests/pmi.rs`
+  compares record by record with draftwright on the 14 AP242 files copied from quiddity-rust
+  (`tests/fixtures/pmi/`, `tools/capture_pmi.py`) and the corpus's 10 NIST parts (no PMI on
+  either side): of draftwright's 592 records, 358 agree in every compared field (dimensions
+  153/175, tolerances 147/204, datums 58/158); 330 differences listed in
+  `tests/fixtures/known_pmi.json`: 272 rust-correct (OpenCascade misreads draftwright inherits:
+  magnitudes in complex instances read as 0, g6/f7 fits garbled, a radius's nominal taken as its
+  lower limit, datum letters repeated per occurrence, valueless dimensions typed `location`;
+  XCAF occurrences draftwright cannot coalesce; patterns XCAF names one member of; datum faces
+  draftwright cannot find; tolerances XCAF drops silently: all-over profiles, unit-basis
+  flatness and straightness, positions on supplemental geometry), 55 rust-wrong (draftwright's
+  manufacturing requirements, surface labels and common labels, not projected yet: reported as
+  sources not read), 3 undetermined (below). Left for later stages: manufacturing requirements,
+  surface and common labels, material facts; lowering's geometry (`ref_pts`, cylinder and angular
+  supports, datum normals: derived from the faces then); datum targets, composite relations,
+  projected zones and datum modifiers (record blockers). Proposed catalogue changes (issues.yaml
+  and adr.yaml belong to d-issue-drafting-4; statuses stay pending):
+  - LINT-code-pmi_not_extracted: rust_test `tests/pmi.rs::every_item_and_finding_is_accounted_for_and_the_output_is_deterministic`;
+    rust_note "Partly: `pmi::read` inventories every dimension, tolerance and datum and reports
+    every haecceity finding, unprojected item and unresolved face as a source not read with its
+    reason; the lint code on a drawing is the coverage lint's (not ported)".
+  - ISSUE-1116-a, ISSUE-1116-b, ISSUE-1209-a, ISSUE-1296-b, ISSUE-1298-b, ISSUE-1298-c,
+    ISSUE-1325-a, ISSUE-1357-d, ISSUE-1563-a, ARCH0016-7: rust_note "AP242 PMI is read
+    (`src/pmi.rs`, `tests/pmi.rs`: records, faces, census) but not lowered: …" in place of "the
+    port reads no AP242 PMI".
+  - Questions for the maintainer:
+    - A part placed several times (quiddity-rust's assembly fixture: the pin twice): a record
+      lists the drawing's faces of every placement, as the drawing draws them all. Keep, or
+      should a drawing of an assembly choose one placement (or refuse)?
+    - Semantic dimensions on supplemental geometry whose only presentation is invisible
+      (NIST FTC-10's three Ø3, `INVISIBILITY`): read as records with a blocker; draftwright never
+      sees them. Should lowering draw them, report them, or skip them as not meant to be shown?
+    - An ISO 286 class stated without limits (FTC-10's three Ø3.50 G6): the record keeps the
+      class and a blocker; haecceity has no ISO 286 table. Compute the limits (a table to add),
+      or draw the class alone?
  - **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`
    branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and
 - **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`

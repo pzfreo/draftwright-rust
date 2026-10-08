@@ -14,6 +14,7 @@ pub mod lint;
 pub mod model;
 pub mod notes;
 pub mod output;
+pub mod pmi;
 pub mod png;
 pub mod section;
 pub mod tables;
