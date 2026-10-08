@@ -333,13 +333,6 @@
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part: quiddity refused to recognise a recess on these faces (its SectionRecessRefusal, kept in the recognition's refusals), and lint says so rather than treating them as no recess."
     },
     {
-      "part": "m10127",
-      "code": "through_step_requirement_missing",
-      "count": 2,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its through step's two legs (the port's dimensions have no step leg dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
       "part": "string_post",
       "code": "blend_requirement_missing",
       "count": 2,

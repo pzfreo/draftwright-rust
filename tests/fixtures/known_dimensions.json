@@ -538,5 +538,325 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The grid's row pitch (quiddity's row_pitch 40, three rows along x). draftwright drops it: its own lint reports slot_dim_dropped ('slot pattern pitch 40 not placed (no clear room beside the plan)') and plan_incomplete, so its sheet leaves the rows' spacing unstated. A grid is spaced by both its pitches (draftwright's render_slot_patterns places both grid_pitch dimensions when there is room)."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "1.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "3.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "7.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "9.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "9.9",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "11.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "11.9",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "13.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "21.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "23.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "50",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "hanger",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "4",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "6.9",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "8.9",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "10.9",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "m10046",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "1.8",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "15.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung and drops it because it lies too close above the last rung kept at the sheet's scale (1:5), asking for a detail view; its lint reports the detail unplaceable (detail_unplaceable, warning), so its sheet leaves the height unstated. The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "38.1",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung and drops it because it lies too close above the last rung kept at the sheet's scale (1:5), asking for a detail view; its lint reports the detail unplaceable (detail_unplaceable, warning), so its sheet leaves the height unstated. The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "230.2",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung and drops it because it lies too close above the last rung kept at the sheet's scale (1:5), asking for a detail view; its lint reports the detail unplaceable (detail_unplaceable, warning), so its sheet leaves the height unstated. The port plans and places every rung and reports what then collides."
+  },
+  {
+    "part": "hanger",
+    "side": "python",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "65",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate and on detail views (the port has none). The level 65 above the base lies 4 mm above the level 61 at 1:1, too close for draftwright's front-view ladder (_core._classify_steps), so draftwright states it in a detail view (detail_a, dim_detail_a_step0); the port states it in the front view. Same measurement, other view."
+  },
+  {
+    "part": "hanger",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "65",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate and on detail views (the port has none). The level 65 above the base lies 4 mm above the level 61 at 1:1, too close for draftwright's front-view ladder (_core._classify_steps), so draftwright states it in a detail view (detail_a, dim_detail_a_step0); the port states it in the front view. Same measurement, other view."
+  },
+  {
+    "part": "m10046",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "13.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The level 13.5 above the base is a required height (draftwright approves it: StepLevelFeature level 13.54). draftwright's corridor solver cannot place it and drops it, and its own lint reports the loss as an error (placement_unsatisfiable: 'step-height dimension dropped (front-view right strip full)', and plan_incomplete). The port states it."
+  },
+  {
+    "part": "rectangular_through_step",
+    "side": "python",
+    "family": "envelope",
+    "view": "plan",
+    "label": "40",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "rectangular_through_step",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "40",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "circular_blind_step",
+    "side": "python",
+    "family": "envelope",
+    "view": "plan",
+    "label": "40",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "circular_blind_step",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "40",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "paired_ramp_step",
+    "side": "python",
+    "family": "envelope",
+    "view": "plan",
+    "label": "40",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "paired_ramp_step",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "40",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "plates_pads_levels_and_slanted_steps",
+    "side": "python",
+    "family": "envelope",
+    "view": "plan",
+    "label": "120",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "plates_pads_levels_and_slanted_steps",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "120",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "stepped_block",
+    "side": "python",
+    "family": "envelope",
+    "view": "plan",
+    "label": "40",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "stepped_block",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "40",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
   }
 ]

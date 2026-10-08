@@ -13,7 +13,11 @@
 //!   **blind slots** (rectangular and round-bottom section recesses) by one callout each;
 //! - **bosses**: diameter (or size across flats for a polygonal boss), height and location;
 //! - **fillet and chamfer callouts** (`4× R3`, `C1`, `4.5 × 42.1°`) where the edge is seen end-on,
-//!   or in the profile of a turned part.
+//!   or in the profile of a turned part;
+//! - **planar steps**: a through step's two legs, a circular blind step's `R × DEEP` and a
+//!   paired-ramp step's `2× θ° × RUN` callouts, in the view along the step's run;
+//! - **the height ladder** of a prismatic part: its face levels' heights from its base, in the
+//!   front view, and its shoulders' positions along x and y.
 //!
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>@<view>`, its value,
 //! its printed terms and label, the measurements it states, a default flag and a basis. A
@@ -32,9 +36,9 @@
 //! no shown view can carry is kept in the plan, unplaced, and reported (R1 invariant 3).
 //!
 //! The module is a driver over one planner per family ([`PLANNERS`]): [`envelope`], [`turned`],
-//! [`holes`], [`slots`], [`bosses`] and [`edges`] (fillet and chamfer callouts) each say what
-//! their family wants dimensioned, and [`placement`] places it. A new family is a new planner
-//! module and an entry in the list.
+//! [`holes`], [`slots`], [`bosses`], [`edges`] (fillet and chamfer callouts), [`steps`] and
+//! [`levels`] (the height ladder) each say what their family wants dimensioned, and
+//! [`placement`] places it. A new family is a new planner module and an entry in the list.
 
 mod bosses;
 mod edges;
@@ -42,8 +46,10 @@ mod envelope;
 mod flats;
 mod grooves;
 mod holes;
+pub(crate) mod levels;
 mod placement;
 mod slots;
+mod steps;
 mod tolerance;
 mod turned;
 
@@ -274,7 +280,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 8] = [
+const PLANNERS: [Planner; 10] = [
     turned::PLANNER,
     envelope::PLANNER,
     holes::PLANNER,
@@ -283,6 +289,8 @@ const PLANNERS: [Planner; 8] = [
     edges::PLANNER,
     grooves::PLANNER,
     flats::PLANNER,
+    steps::PLANNER,
+    levels::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way.

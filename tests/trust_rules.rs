@@ -429,7 +429,7 @@ fn id_parts(id: &str) -> (&str, &str, &str) {
 }
 
 /// ADR4-6 (R1 invariant 5): a dimension's ID is derived, never positional: its feature (the
-/// envelope, a recognised feature or pattern), its parameter in the role vocabulary
+/// envelope, the height ladder `step_level`, a recognised feature or pattern), its parameter in the role vocabulary
 /// (`role.kind[.discriminator]`, the kind always present) and its view; IDs are unique and do not
 /// change with the order recognition reports features in. A bare role is refused, with the IDs
 /// it could mean.
@@ -444,7 +444,9 @@ fn dimension_ids_are_derived_and_a_bare_role_is_refused() {
         if let Some(r) = &analysis.recognition {
             features.extend(r.patterns.iter().map(|p| p.id.as_str()));
         }
+        // The overall extents and the height ladder are the part's, not a recognised feature's.
         features.insert("envelope");
+        features.insert("step_level");
         let mut seen = BTreeSet::new();
         for d in &plan.dimensions {
             let (feature, parameter, view) = id_parts(&d.id);
