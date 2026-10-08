@@ -638,3 +638,36 @@ improvement plan and questions are the current work. Still open from before it:
   its candidates lazily: `tests/views.rs::a_fallback_scale_or_sheet_says_so_in_its_basis` (a
   200 km part at 1:1) built one per 0.5 mm of a 200 km line and was killed at 16 GB on main
   448031a; the same candidates are tried in the same order.
+- From wave 5 (stream d-issue-drafting-2, 2026-10-08): the merged streams' issues.yaml proposals
+  checked against main, and a second batch of drafting rules examined as scenario tests in
+  `tests/issue_drafting.rs` (11 new tests). issues.yaml before → after: ported 15 → 16, pending
+  173 → 172 (drafting: ported 8 → 9, pending 85 → 84, pending with a `rust_test` 22 → 33).
+  - Proposals applied after checking: ISSUE-1154-a's tolerance clause is ported (a toleranced
+    boss height is not a default, so it is never consolidated; a tolerance on the extent alone
+    still takes it; both toleranced keep both, as draftwright's asymmetric rule), the rule stays
+    pending for other features' lengths. d-spec-tolerances' ISSUE-1215-a, 1215-c and 1215-d stay
+    pending with tests and notes naming the clauses not ported (below). Stale notes refreshed:
+    ISSUE-1332-a (no captured part raises both overlap codes for one pair since d-placement, the
+    mechanism remains) and ISSUE-1432-b (slot patterns are dimensioned and malformed ones refused
+    since d-bridge-slot-patterns; oriented slots are not). Nothing from unmerged branches.
+  - Second batch: ISSUE-1215-b ported (a toleranced label's box is the ink of what is drawn and
+    grows along its line). Pending with a test and a note: 1215-a, 1215-c, 1215-d, 1215-e, 1216-a,
+    1524-a, 1334-a, 1240-a, 367-a, 1166-b and 563-b (the last two cite existing tests). Pending,
+    examined and not ported (a note only): 563-a and 1466-b (the spec has no placement intent or
+    side hint), 1333-a (no repair stage or pins), 1349-a (no display precision), 1612-a (no sheet
+    margin options) and 1116-a (not-applicable until AP242 PMI is read).
+  - Left, where the port falls short (no `src/` change in this stream):
+    - ISSUE-367-a: placement's collision checks (`src/dims/placement.rs`, `settle` and
+      `collisions`, through `crosses`) test zero-width centrelines against label boxes and leave
+      out the drawn arrowhead (2.7 by 0.9 mm) and the stroke width, so a contact by an
+      arrowhead's flare alone would go unreported. Not observed: on the fixtures and the twelve
+      sampled parts every arrowhead in another label has its shaft through it too (m10127). The
+      fix is to test the arrowhead triangle and the line's half-width there.
+    - ISSUE-1215-d, a verdict: the port does not collapse a pattern whose gaps differ by more than
+      1e-4 mm, so it never prints a pitch (or its band) over unequal gaps; draftwright collapses
+      within its recogniser's 2 % and withholds only the band (rust-correct).
+  - Questions for the maintainer:
+    - draftwright's bare `envelope().tolerance(t)` tolerances all three extents at once, and a fit
+      class can be set on an extent (`30 h6`); the port's spec takes a tolerance per dimension ID
+      and a fit only on a hole or a cylindrical boss (ISSUE-1215-a). Add an envelope-wide entry
+      and fits on extents, or keep the per-ID surface?

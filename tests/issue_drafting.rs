@@ -1013,3 +1013,615 @@ fn eccentric_cylinders_are_not_one_turned_profile() {
     );
     assert_eq!(reported(&plan), steps);
 }
+
+/// The plan of fixture *name* with *spec*.
+fn fixture_plan(name: &str, s: &Spec) -> Plan {
+    let analysis = &fixtures().iter().find(|p| p.0 == name).unwrap().1;
+    model::plan(analysis, s).unwrap()
+}
+
+fn tolerances(bands: &[(&str, &str)]) -> Spec {
+    let mut spec = Spec::default();
+    for (id, band) in bands {
+        spec.dimensions.insert(
+            id.to_string(),
+            DimensionSpec {
+                tolerance: Some(band.to_string()),
+                ..Default::default()
+            },
+        );
+    }
+    spec
+}
+
+fn dimension<'a>(plan: &'a Plan, id: &str) -> &'a PlannedDimension {
+    plan.dimensions
+        .iter()
+        .find(|d| d.id == id)
+        .unwrap_or_else(|| panic!("no {id}"))
+}
+
+const EXTENTS: [(&str, &str); 3] = [
+    ("d:envelope/width.length@front", "60"),
+    ("d:envelope/depth.length@side", "40"),
+    ("d:envelope/height.length@front", "5"),
+];
+
+/// ISSUE-1215-a, in part: an authored envelope tolerance prints in the label of the extent it is
+/// set on, and only there. On plate each extent's `±0.05` reaches its own label (and its drawn
+/// text run), the other two stay bare, and a pair of deviations prints both limits. Not ported:
+/// a bare tolerance folded onto every extent (the spec sets a tolerance on one dimension ID; there
+/// is no envelope-wide entry) and a fit class on an extent (a fit is set on a hole or a boss, so
+/// `features/<id>/fit` names no extent).
+#[test]
+fn an_envelope_tolerance_prints_on_its_own_extent() {
+    for (id, bare) in EXTENTS {
+        let plan = fixture_plan("plate", &tolerances(&[(id, "±0.05")]));
+        for (other, other_bare) in EXTENTS {
+            let label = &dimension(&plan, other).label;
+            if other == id {
+                assert_eq!(label, &format!("{bare} ±0.05"), "{id}");
+            } else {
+                assert_eq!(label, other_bare, "{id} decorates {other}");
+            }
+        }
+        let (_, drawing) = drawn("plate", &plan);
+        let a = drawing.annotations.iter().find(|a| a.name == id).unwrap();
+        let runs: Vec<&str> = a
+            .runs
+            .iter()
+            .map(|&r| drawing.text[r].text.as_str())
+            .collect();
+        assert_eq!(runs, [format!("{bare} ±0.05")], "{id}");
+    }
+    let plan = fixture_plan(
+        "plate",
+        &tolerances(&[("d:envelope/height.length@front", "+0.2 -0.1")]),
+    );
+    assert_eq!(
+        dimension(&plan, "d:envelope/height.length@front").label,
+        "5 +0.2 -0.1"
+    );
+}
+
+/// The faces of the drawing's dims layer whose every point lies inside *b*.
+fn faces_inside(drawing: &Drawing, b: [f64; 4]) -> usize {
+    use draftwright::output::{Curve, Item};
+    let within = |p: &[f64; 2]| {
+        b[0] - 1e-6 <= p[0] && p[0] <= b[2] + 1e-6 && b[1] - 1e-6 <= p[1] && p[1] <= b[3] + 1e-6
+    };
+    let points = |c: &Curve| -> Vec<[f64; 2]> {
+        match c {
+            Curve::Line(a, b) => vec![*a, *b],
+            Curve::Beziers(bs) => bs.iter().flatten().copied().collect(),
+            other => vec![other.start(), other.end()],
+        }
+    };
+    drawing
+        .layers
+        .iter()
+        .filter(|l| l.name == "dims")
+        .flat_map(|l| &l.items)
+        .filter(|i| match i {
+            Item::Face(wires) => wires.iter().flatten().all(|c| points(c).iter().all(within)),
+            Item::Edge(_) => false,
+        })
+        .count()
+}
+
+/// ISSUE-1215-b: a toleranced label's box encloses the whole label and grows along its
+/// dimension line. On plate the rotated height's box grows more than twice along the line and
+/// not across it (within the tight ink of the `±` glyph, which reaches 0.04 mm below the digits:
+/// the port's box is the glyphs' ink, draftwright's the text's), the horizontal width's grows the
+/// other way, each box is the ink of its terms as drawn, and every glyph drawn for the label lies
+/// inside its box.
+#[test]
+fn a_toleranced_label_grows_along_its_line_and_its_box_holds_it() {
+    let font = font();
+    let bare = fixture_plan("plate", &Spec::default());
+    for (id, along) in [
+        ("d:envelope/height.length@front", 1),
+        ("d:envelope/width.length@front", 0),
+    ] {
+        let plan = fixture_plan("plate", &tolerances(&[(id, "±0.05")]));
+        let (b0, b1) = (
+            dimension(&bare, id).placed.as_ref().unwrap(),
+            dimension(&plan, id).placed.as_ref().unwrap(),
+        );
+        assert_eq!(b1.rotation, if along == 1 { 90.0 } else { 0.0 });
+        let size = |b: [f64; 4], k: usize| b[k + 2] - b[k];
+        let across = 1 - along;
+        assert!(
+            size(b1.label_box, along) > 2.0 * size(b0.label_box, along),
+            "{id}: {:?} from {:?}",
+            b1.label_box,
+            b0.label_box
+        );
+        assert!(
+            (size(b1.label_box, across) - size(b0.label_box, across)).abs() < 0.05,
+            "{id}: {:?} from {:?}",
+            b1.label_box,
+            b0.label_box
+        );
+        // The box is the ink of the label as drawn, tolerance included.
+        let d = dimension(&plan, id);
+        let ink = draftwright::dims::label_ink(&d.terms, &font);
+        assert!((size(b1.label_box, along) - (ink.max[0] - ink.min[0])).abs() < 1e-9);
+        let glyphs = ink.glyphs.iter().filter(|g| !g.is_empty()).count();
+        let (_, drawing) = drawn("plate", &plan);
+        assert!(
+            faces_inside(&drawing, b1.label_box) >= glyphs,
+            "{id}: a glyph of {:?} is drawn outside its box",
+            d.label
+        );
+    }
+}
+
+/// ISSUE-1215-c, in part: every authored tolerance reaches the label of the dimension it is set
+/// on, verbatim, once, and nowhere else; none is dropped. On every part each dimension (and each
+/// the default plan leaves out) is given its own band: every planned label prints its own band
+/// exactly once and no other, or the plan says it withheld it; one the plan does not draw is
+/// reported (`view_plan_incomplete`) and one it leaves out is reported (`tolerance_not_shown`);
+/// on plate each band is drawn in exactly one text run. Not ported: a callout's other terms
+/// (counterbore and countersink sizes, bore depth) have no dimension ID, so they cannot be
+/// toleranced (draftwright's kind-keyed sweep tolerances them too); hole tables (the port draws
+/// none).
+#[test]
+fn every_authored_tolerance_reaches_the_label_that_claims_it() {
+    let mut seen = 0;
+    for (name, analysis, plan) in planned() {
+        let ids: Vec<&str> = plan
+            .dimensions
+            .iter()
+            .map(|d| d.id.as_str())
+            .chain(plan.omitted.iter().map(|o| o.id.as_str()))
+            .collect();
+        let bands: BTreeMap<&str, String> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| (*id, format!("±0.{:04}", i + 1)))
+            .collect();
+        let pairs: Vec<(&str, &str)> = bands.iter().map(|(id, b)| (*id, b.as_str())).collect();
+        let toleranced = model::plan(analysis, &tolerances(&pairs)).unwrap();
+        let reported = |code: &str, id: &str| {
+            toleranced
+                .problems
+                .iter()
+                .any(|p| p.code == code && p.subjects.iter().any(|s| s == id))
+        };
+        let mut accounted = BTreeSet::new();
+        for d in &toleranced.dimensions {
+            accounted.insert(d.id.as_str());
+            let withheld = reported("tolerance_withheld", &d.id);
+            for (id, band) in &bands {
+                let want = usize::from(*id == d.id && !withheld);
+                assert_eq!(
+                    d.label.matches(band.as_str()).count(),
+                    want,
+                    "{name}: {} prints {:?} ({id}'s band {band})",
+                    d.id,
+                    d.label
+                );
+            }
+            assert_eq!(d.label, d.terms.join(" "), "{name}: {}", d.id);
+            if d.placed.is_none() {
+                assert!(reported("view_plan_incomplete", &d.id), "{name}: {}", d.id);
+            }
+            seen += 1;
+        }
+        for o in &toleranced.omitted {
+            accounted.insert(o.id.as_str());
+            assert!(reported("tolerance_not_shown", &o.id), "{name}: {}", o.id);
+        }
+        for id in bands.keys() {
+            assert!(accounted.contains(id), "{name}: {id} vanished");
+        }
+        if name == "plate" {
+            let (_, drawing) = drawn("plate", &toleranced);
+            for band in bands.values() {
+                let runs = drawing
+                    .text
+                    .iter()
+                    .filter(|t| t.text.contains(band.as_str()))
+                    .count();
+                assert_eq!(runs, 1, "{band}");
+            }
+        }
+    }
+    assert!(seen > 100, "{seen}");
+}
+
+/// ISSUE-1215-d, in part: a pattern whose gaps are not equal claims no tolerance on a pitch it
+/// does not have. two_grids' first linear pattern with its middle hole moved 0.3 mm (gaps 10.3
+/// and 9.7): the port does not collapse it to `2× 10`, so it plans no pitch, and a tolerance set
+/// on that pitch is refused naming it; its holes are dimensioned singly, and their callout's
+/// basis says why. The control: the even pattern prints `2× 10 ±0.05`. draftwright collapses
+/// the jittered pattern (its recogniser admits 2 % jitter), prints the bare `2× 10` and records
+/// the withheld tolerance; the port states no equal pitch over unequal gaps at all
+/// (rust-correct). Not ported: the `N× rise` representative that stays deliberately bare (the
+/// port dimensions no step levels on main).
+#[test]
+fn a_jittered_pattern_claims_no_pitch_tolerance() {
+    let pitch = "d:f:hole_pattern:1/pitch.length@plan";
+    let even = fixture_plan("two_grids", &tolerances(&[(pitch, "±0.05")]));
+    assert_eq!(dimension(&even, pitch).label, "2× 10 ±0.05");
+
+    let mut jittered = fixtures()
+        .iter()
+        .find(|p| p.0 == "two_grids")
+        .unwrap()
+        .1
+        .clone();
+    let middle = jittered
+        .features
+        .iter_mut()
+        .find(|f| f.id == "f:hole:2")
+        .unwrap();
+    let z = middle.parameters["location"][2].as_f64().unwrap();
+    middle.parameters["location"][2] = json!(z + 0.3);
+    let plan = model::plan(&jittered, &Spec::default()).unwrap();
+    assert!(
+        plan.dimensions
+            .iter()
+            .all(|d| !d.id.starts_with("d:f:hole_pattern:1/")),
+        "the uneven pattern is still called out as one"
+    );
+    let single = plan
+        .dimensions
+        .iter()
+        .find(|d| hole_callout(d) && d.measurements.iter().any(|m| m.feature == "f:hole:2"))
+        .unwrap();
+    assert!(
+        single.basis.contains("not evenly spaced"),
+        "{}",
+        single.basis
+    );
+    let e = model::plan(&jittered, &tolerances(&[(pitch, "±0.05")])).unwrap_err();
+    assert!(e.message.contains(pitch), "{e}");
+}
+
+/// ISSUE-1215-e, in part: an overall extent never leaves the sheet silently. On every part each
+/// envelope extent the plan keeps is placed, and one whose ink runs off the drawing area is an
+/// `annotation_off_sheet` error naming it. Not ported: the fall-through to the opposite strip
+/// (the port keeps the extent in its lane and reports it) and draftwright's withholding and its
+/// retraction (the port withholds no extent).
+#[test]
+fn an_overall_extent_is_placed_or_reported() {
+    let margin = draftwright::layout::MARGIN;
+    for (name, _, plan) in planned() {
+        let [w, h] = plan.sheet.page;
+        for d in plan
+            .dimensions
+            .iter()
+            .filter(|d| d.id.starts_with("d:envelope/"))
+        {
+            let p = d
+                .placed
+                .as_ref()
+                .unwrap_or_else(|| panic!("{name}: {} is not placed", d.id));
+            let b = p.label_box;
+            let mut ends = p.lines.iter().chain(&p.arrows).flatten();
+            let outside = |q: &[f64; 2]| {
+                q[0] < margin - 1e-9
+                    || q[1] < margin - 1e-9
+                    || q[0] > w - margin + 1e-9
+                    || q[1] > h - margin + 1e-9
+            };
+            if outside(&[b[0], b[1]]) || outside(&[b[2], b[3]]) || ends.any(outside) {
+                assert!(
+                    plan.problems
+                        .iter()
+                        .any(|q| q.code == "annotation_off_sheet"
+                            && q.severity == "error"
+                            && q.subjects == [d.id.clone()]),
+                    "{name}: {} runs off the sheet unreported",
+                    d.id
+                );
+            }
+        }
+    }
+}
+
+/// m10127's one boss, moved along its axis and resized in quiddity's frame so that it spans
+/// *span* (world coordinates along its axis, low first), as `tests/dims_slots.rs` does.
+fn boss_spanning(a: &mut Analysis, span: [f64; 2]) {
+    let frame = a.recognition.as_ref().unwrap().frame;
+    let b = a.features.iter_mut().find(|f| f.kind == "boss").unwrap();
+    let local: Vec<f64> = serde_json::from_value(b.parameters["axis"].clone()).unwrap();
+    let mut top: Vec<f64> = serde_json::from_value(b.parameters["location"].clone()).unwrap();
+    let dir: Vec<f64> = (0..3)
+        .map(|k| (0..3).map(|j| local[j] * frame[j + 1][k]).sum())
+        .collect();
+    let k = (0..3).find(|&k| dir[k].abs() > 0.5).unwrap();
+    let world_top: f64 = frame[0][k] + (0..3).map(|j| top[j] * frame[j + 1][k]).sum::<f64>();
+    let target = if dir[k] > 0.0 { span[1] } else { span[0] };
+    let t = (target - world_top) / dir[k];
+    for j in 0..3 {
+        top[j] += t * local[j];
+    }
+    b.parameters.insert("location".into(), top.into());
+    b.parameters
+        .insert("height".into(), (span[1] - span[0]).into());
+}
+
+/// ISSUE-1154-a, its tolerance clause: a toleranced height is not handed to an untoleranced
+/// extent. m10127's boss made flush with both faces of the part, so its height and the overall
+/// depth are one measurement: untoleranced, the depth states it and the height is omitted as
+/// conveyed by it (`tests/dims_slots.rs`); with the height toleranced both are stated, the
+/// height with its band; with the depth toleranced the height is still conveyed by it; with
+/// both toleranced both are stated (draftwright's `TestTheToleranceRuleIsAsymmetric`).
+#[test]
+fn a_toleranced_height_is_not_handed_to_an_untoleranced_extent() {
+    let Some((_, analysis)) = sampled().iter().find(|p| p.0 == "m10127") else {
+        return;
+    };
+    let mut a = analysis.clone();
+    let [lo, hi] = a.envelope;
+    boss_spanning(&mut a, [lo[1], hi[1]]);
+    let flush = model::plan(&a, &Spec::default()).unwrap();
+    let height = flush
+        .omitted
+        .iter()
+        .find(|o| o.id.contains("/boss_height.length@"))
+        .expect("the flush boss height is conveyed")
+        .id
+        .clone();
+    let depth = flush
+        .dimensions
+        .iter()
+        .find(|d| d.id.starts_with("d:envelope/depth.length@"))
+        .unwrap();
+    let (depth, bare) = (depth.id.clone(), depth.label.clone());
+    let labels = |bands: &[(&str, &str)]| -> Vec<String> {
+        let plan = model::plan(&a, &tolerances(bands)).unwrap();
+        let mut out: Vec<String> = plan
+            .dimensions
+            .iter()
+            .filter(|d| d.id == height || d.id == depth)
+            .map(|d| d.label.clone())
+            .collect();
+        out.sort();
+        let conveyed = plan.omitted.iter().any(|o| o.id == height);
+        assert_eq!(conveyed, out.len() == 1, "{bands:?}");
+        out
+    };
+    let banded = format!("{bare} ±0.05");
+    assert_eq!(
+        labels(&[(height.as_str(), "±0.05")]),
+        [bare.clone(), banded.clone()]
+    );
+    assert_eq!(
+        labels(&[(depth.as_str(), "±0.05")]),
+        std::slice::from_ref(&banded)
+    );
+    assert_eq!(
+        labels(&[(height.as_str(), "±0.05"), (depth.as_str(), "±0.05")]),
+        [banded.clone(), banded]
+    );
+}
+
+/// ISSUE-1216-a, in part: the room a callout takes is measured from the text it draws,
+/// tolerance included. On plate the pattern callout's placed box is the ink of its terms with
+/// the band (`4× ⌀6 ±0.05 THRU (2×2)`), wider than the bare callout's by the band's ink. Not
+/// ported: draftwright's pre-placement reservation (`demand.rs` does not reserve the hole
+/// callout band; placement then reports what runs past the view's area) and a tolerance on a
+/// recess term alone (recess terms have no dimension ID).
+#[test]
+fn a_callouts_room_is_measured_from_the_text_it_draws() {
+    let font = font();
+    let id = "d:f:hole_pattern:1/bore.diameter@plan";
+    let width = |plan: &Plan| {
+        let d = dimension(plan, id);
+        let b = d.placed.as_ref().unwrap().label_box;
+        let ink = draftwright::dims::label_ink(&d.terms, &font);
+        assert!(
+            ((b[2] - b[0]) - (ink.max[0] - ink.min[0])).abs() < 1e-9,
+            "{}",
+            d.label
+        );
+        b[2] - b[0]
+    };
+    let bare = fixture_plan("plate", &Spec::default());
+    let banded = fixture_plan("plate", &tolerances(&[(id, "±0.05")]));
+    assert_eq!(dimension(&banded, id).label, "4× ⌀6 ±0.05 THRU (2×2)");
+    let band = draftwright::dims::label_ink(&["±0.05".to_string()], &font);
+    assert!(width(&banded) >= width(&bare) + (band.max[0] - band.min[0]) - 1e-9);
+}
+
+/// ISSUE-1524-a, in part: an authored magnitude is never rounded to the value's precision. On
+/// plate's pattern callout each of draftwright's cases prints as draftwright's `_tol_suffix`
+/// does (`±1` as `±1.0`, `±0.000000123` and `+0.00001 -0` whole), in the label, the drawn text
+/// run and the placed box (the ink of the whole label), and adds no problem. Not ported: hole
+/// tables (the port draws none).
+#[test]
+fn an_authored_magnitude_is_never_rounded() {
+    let font = font();
+    let id = "d:f:hole_pattern:1/bore.diameter@plan";
+    let bare = fixture_plan("plate", &Spec::default());
+    for (authored, printed) in [
+        ("±0.02", "±0.02"),
+        ("±0.05", "±0.05"),
+        ("±0.2", "±0.2"),
+        ("±1", "±1.0"),
+        ("±1.234567", "±1.234567"),
+        ("±0.000000123", "±0.000000123"),
+        ("+0.015 -0.002", "+0.015 -0.002"),
+        ("+0.00001 -0", "+0.00001 -0.0"),
+    ] {
+        let plan = fixture_plan("plate", &tolerances(&[(id, authored)]));
+        let d = dimension(&plan, id);
+        assert_eq!(d.label, format!("4× ⌀6 {printed} THRU (2×2)"), "{authored}");
+        let b = d.placed.as_ref().unwrap().label_box;
+        let ink = draftwright::dims::label_ink(&d.terms, &font);
+        assert!(((b[2] - b[0]) - (ink.max[0] - ink.min[0])).abs() < 1e-9);
+        assert_eq!(codes(&plan), codes(&bare), "{authored}");
+        let (_, drawing) = drawn("plate", &plan);
+        assert!(drawing.text.iter().any(|t| t.text == d.label), "{authored}");
+    }
+}
+
+/// Whether segment *s* passes through the open box *b* (Liang–Barsky, as placement clips).
+fn crosses(s: [[f64; 2]; 2], b: [f64; 4]) -> bool {
+    let (p, q) = (s[0], s[1]);
+    let d = [q[0] - p[0], q[1] - p[1]];
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    for (num, den) in [
+        (p[0] - b[0], -d[0]),
+        (b[2] - p[0], d[0]),
+        (p[1] - b[1], -d[1]),
+        (b[3] - p[1], d[1]),
+    ] {
+        if den == 0.0 {
+            if num <= 0.0 {
+                return false;
+            }
+        } else {
+            let t = num / den;
+            if den < 0.0 {
+                t0 = t0.max(t);
+            } else {
+                t1 = t1.min(t);
+            }
+        }
+    }
+    t1 - t0 > 1e-9
+}
+
+fn reported_pair(plan: &Plan, code: &str, a: &str, b: &str) -> bool {
+    plan.problems.iter().any(|p| {
+        p.code == code && p.subjects.iter().any(|s| s == a) && p.subjects.iter().any(|s| s == b)
+    })
+}
+
+/// ISSUE-1334-a, in part: dimension ink already placed is what peer labels are kept off, by the
+/// measure the final check uses. On every part, after labels settle, any line of one item
+/// through another's label is an `annotation_ink_overlap` naming both, and any two labels that
+/// overlap an `annotation_overlap`; and the settled places are the same plan after plan. Not
+/// ported: promoting a label to a farther lane when no shift along its line is clear (the port
+/// leaves it and reports the collision).
+#[test]
+fn placed_ink_keeps_peer_labels_off_by_the_final_measure() {
+    for (name, analysis, plan) in planned() {
+        let placed: Vec<(&str, &draftwright::dims::Placed)> = plan
+            .dimensions
+            .iter()
+            .filter_map(|d| Some((d.id.as_str(), d.placed.as_ref()?)))
+            .collect();
+        for (a, pa) in &placed {
+            for (b, pb) in &placed {
+                if a == b {
+                    continue;
+                }
+                if pa.lines.iter().any(|l| crosses(*l, pb.label_box)) {
+                    assert!(
+                        reported_pair(plan, "annotation_ink_overlap", a, b),
+                        "{name}: a line of {a} crosses {b}'s label unreported"
+                    );
+                }
+                if overlap(pa.label_box, pb.label_box) {
+                    assert!(
+                        reported_pair(plan, "annotation_overlap", a, b),
+                        "{name}: {a} and {b} overlap unreported"
+                    );
+                }
+            }
+        }
+        let again = model::plan(analysis, &Spec::default()).unwrap();
+        assert_eq!(
+            serde_json::to_string(&again.dimensions).unwrap(),
+            serde_json::to_string(&plan.dimensions).unwrap(),
+            "{name}"
+        );
+    }
+}
+
+/// ISSUE-367-a, checked on the drawings only: an arrowhead's flare in another item's label is
+/// reported. On every part each arrowhead, as `dims::render` draws it (a triangle 2.7 mm long
+/// and 0.9 mm wide at its tail), that reaches into another item's label box belongs to an item
+/// reported with that label (`annotation_ink_overlap`). It holds because every such arrowhead's
+/// shaft crosses the label too (m10127's side depth); the collision checks themselves test
+/// zero-width centrelines, without the flare or the stroke (see the rule's `rust_note`).
+#[test]
+fn an_arrowhead_in_another_label_is_reported() {
+    let inside_triangle = |t: [[f64; 2]; 3], b: [f64; 4]| {
+        (0..=20).any(|i| {
+            (0..=20 - i).any(|j| {
+                let (u, v) = (f64::from(i) / 20.0, f64::from(j) / 20.0);
+                let w = 1.0 - u - v;
+                let p = [
+                    u * t[0][0] + v * t[1][0] + w * t[2][0],
+                    u * t[0][1] + v * t[1][1] + w * t[2][1],
+                ];
+                b[0] < p[0] && p[0] < b[2] && b[1] < p[1] && p[1] < b[3]
+            })
+        })
+    };
+    let half = draftwright::dims::ARROW / 6.0;
+    let mut seen = 0;
+    for (name, _, plan) in planned() {
+        for a in &plan.dimensions {
+            let Some(pa) = &a.placed else { continue };
+            for b in &plan.dimensions {
+                let Some(pb) = &b.placed else { continue };
+                if a.id == b.id {
+                    continue;
+                }
+                for [tip, tail] in &pa.arrows {
+                    let n = [tail[1] - tip[1], tip[0] - tail[0]];
+                    let k = half / n[0].hypot(n[1]).max(1e-12);
+                    let head = [
+                        *tip,
+                        [tail[0] + k * n[0], tail[1] + k * n[1]],
+                        [tail[0] - k * n[0], tail[1] - k * n[1]],
+                    ];
+                    if inside_triangle(head, pb.label_box) {
+                        seen += 1;
+                        assert!(
+                            reported_pair(plan, "annotation_ink_overlap", &a.id, &b.id),
+                            "{name}: an arrowhead of {} lies in {}'s label unreported",
+                            a.id,
+                            b.id
+                        );
+                    }
+                }
+            }
+        }
+    }
+    if !sampled().is_empty() {
+        assert!(
+            seen > 0,
+            "no arrowhead reaches a label: the check guards nothing"
+        );
+    }
+}
+
+/// ISSUE-1240-a, in part: annotations and the isometric view do not overlap unreported. On every
+/// part with an isometric, each placed label over its drawn box (the projected bounds at its
+/// scale) is an `annotation_over_view` naming `v:iso`. Not ported: clamping a strip below an
+/// overlapping isometric, and capping the isometric's growth at placed annotations (the port fits
+/// it into the space the views' areas leave, before anything is placed).
+#[test]
+fn a_label_over_the_isometric_is_reported() {
+    for (name, analysis, plan) in planned() {
+        let Some(iso) = plan.views.iter().find(|v| v.id == "v:iso") else {
+            continue;
+        };
+        let ib = analysis.iso_bounds;
+        let drawn = [
+            iso.at[0] + iso.scale * ib[0],
+            iso.at[1] + iso.scale * ib[1],
+            iso.at[0] + iso.scale * ib[2],
+            iso.at[1] + iso.scale * ib[3],
+        ];
+        for d in &plan.dimensions {
+            let Some(p) = &d.placed else { continue };
+            if overlap(p.label_box, drawn) {
+                assert!(
+                    reported_pair(plan, "annotation_over_view", &d.id, "v:iso"),
+                    "{name}: {} lies over the isometric unreported",
+                    d.id
+                );
+            }
+        }
+    }
+}

@@ -17,6 +17,8 @@
       - "tests/test_issue_367_leader_ink.py::test_zero_length_leader_uses_its_local_ink_extent"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported"
+  rust_note: "Not ported, checked on the drawings only: the collision checks (src/dims/placement.rs::settle and collisions) test a line's zero-width centreline against a label's box and leave out the arrowhead's flare (2.7 by 0.9 mm as drawn) and the stroke width, so a flare-only contact would go unreported. The test checks that every drawn arrowhead reaching into another label on the fixtures and sampled parts is reported; it holds because each such shaft crosses the label too (m10127's side depth). No part here has a flare-only contact, so the gap is not shown failing."
   port_note: "Keep: unit test on the leader-ink collision primitive (arrow + stroked shaft polygons) used by the layout solver."
 
 - id: ISSUE-367-b
@@ -71,6 +73,7 @@
       - "tests/test_issue_563_placement_intent.py::test_view_only_measured_override_preserves_the_derived_side"
     corpus_parts: ["GRM-02"]
   status: pending
+  rust_note: "Not ported: the spec carries no placement intent for a dimension (DimensionSpec holds omit and tolerance only), so no view, strip, side or corridor can be asked for or survive to the sheet; the planner chooses each dimension's view and placement its strip. The maintainer's decision that placement offsets are paper millimetres and a request is not implemented yet."
   port_note: "Keep: spec placement hints (view/side) by stable dimension ID -> plan honours them; no coordinate API."
 
 - id: ISSUE-563-b
@@ -85,6 +88,8 @@
       - "tests/test_issue_563_placement_intent.py::test_plan_right_corridor_does_not_force_feasible_a4_scale_reduction"
     corpus_parts: []
   status: pending
+  rust_test: "tests/placement.rs::placed_ink_lies_in_its_views_area_or_is_reported"
+  rust_note: "Partial: the side view's bands are reserved from the lanes its dimensions take (layout::Strips::reserve, Demand::lanes), so its ink never runs past them outward. Not ported: the front's and the plan's bands are still draftwright's estimates, so their lanes can run past them (annotation_outside_area, and off the sheet; whether to reserve them too is a maintainer question in docs/next-session.md); explicitly placed dimensions (the spec places none)."
   port_note: "Keep: layout composition reserves annotation corridors from the plan before view placement."
 
 - id: ISSUE-563-c
@@ -588,6 +593,7 @@
       - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_ctc01_consumes_all_hole_tolerances_once_and_emits_provenance"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: pending
+  rust_note: "Not-applicable until AP242 PMI is read: the port reads no PMI (as ISSUE-1116-b and ISSUE-1296-b note), so no imported tolerance can enrich a hole dimension; a spec-authored band on a hole callout prints once (ISSUE-1215-c's test)."
   port_note: "Keep: scenario CTC-01 AP242 -> each hole tolerance appears once in the plan label with source provenance."
 
 - id: ISSUE-1116-b
@@ -898,7 +904,7 @@
     corpus_parts: []
   status: pending
   rust_test: a_boss_height_between_the_parts_own_faces_is_the_overall_extents
-  rust_note: "Partial (src/dims/bosses.rs, consolidate): a default boss height whose base and top lie on the same two support planes as a kept overall extent (within 0.005 mm, half quiddity's 0.01 mm height rounding) moves to the plan's omitted list with the basis 'conveyed by <the extent's ID>'; plane coincidence, not value equality (a proud boss keeps both, a face 0.5 mm short is another plane); an extent the spec omits takes nothing. Not ported: other features' lengths (draftwright hands any feature-local length with a span to an extent on the same planes, a through slot's length among them; the port consolidates boss heights only); the tolerance clause (the port has no tolerances yet); an authored set that lists both keeps both here, and one that lists only the extent omits the height as not in the set rather than as conveyed."
+  rust_note: "Partial (src/dims/bosses.rs, consolidate): a default boss height whose base and top lie on the same two support planes as a kept overall extent (within 0.005 mm, half quiddity's 0.01 mm height rounding) moves to the plan's omitted list with the basis 'conveyed by <the extent's ID>'; plane coincidence, not value equality (a proud boss keeps both, a face 0.5 mm short is another plane); an extent the spec omits takes nothing. The tolerance clause is ported (tests/issue_drafting.rs::a_toleranced_height_is_not_handed_to_an_untoleranced_extent, on m10127's boss made flush): a toleranced height is not a default, so it is kept beside the untoleranced extent; a tolerance on the extent alone still takes the height; both toleranced keep both, as draftwright's TestTheToleranceRuleIsAsymmetric. Not ported: other features' lengths (draftwright hands any feature-local length with a span to an extent on the same planes, a through slot's length among them; the port consolidates boss heights only); an authored set that lists both keeps both here, and one that lists only the extent omits the height as not in the set rather than as conveyed."
   port_note: "Keep: plan consolidation keyed by support-plane pairs; omission basis references the carrier ID."
 
 - id: ISSUE-1155-a
@@ -956,6 +962,8 @@
       - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_final_section_geometry_stays_clear_of_shared_feature_leaders"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_dimension_in_the_title_block_is_reported"
+  rust_note: "Partial: a settled label keeps off the title block (src/dims/placement.rs::settle keeps a moved label off the views and the title block, and its lines out of it), and any dimension whose ink reaches into the title block is reported (annotation_over_title_block). Not ported: the first placement is not kept out of the title block (ISSUE-1593-a); a turning-axis centreline's tip exemption (no leader is checked against view geometry) and a future section's veto (sections are placed before dimensions)."
   port_note: "Keep."
 
 - id: ISSUE-1166-c
@@ -1185,6 +1193,8 @@
       - "tests/test_issue_1215_envelope_tolerance.py::test_the_tolerance_reaches_the_exported_ink"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::an_envelope_tolerance_prints_on_its_own_extent"
+  rust_note: "Partial: a tolerance set on one extent's ID (dimensions/<id>/tolerance, src/dims/tolerance.rs) prints on that extent's label and drawn text run only, a symmetric band and a pair of deviations as draftwright prints them (5 ±0.05, 5 +0.2 -0.1); checked on plate for each of the three extents. Not ported: a bare envelope tolerance folded onto every extent (the spec has no envelope-wide entry; each extent's ID takes its own) and a fit class on an extent (a fit is set on a hole or a cylindrical boss only)."
   port_note: "Keep: scenario test spec envelope tolerance -> plan label text includes it; render glyph check."
 
 - id: ISSUE-1215-b
@@ -1196,7 +1206,9 @@
       - "tests/test_issue_1215_envelope_tolerance.py::test_a_rotated_label_grows_along_the_dimension_line"
       - "tests/test_issue_1215_envelope_tolerance.py::test_the_annotation_bounds_enclose_the_complete_tolerance_label"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "tests/issue_drafting.rs::a_toleranced_label_grows_along_its_line_and_its_box_holds_it"
+  rust_note: "Placement places a kept item with its label as drawn, tolerance included (src/dims/mod.rs::plan), and its box is the glyphs' ink (dims::label_ink): on plate the rotated height's box grows more than twice along its line and the width's along its own, each box is the ink of its terms, and every glyph drawn for the label lies inside it. Equivalent difference: across the line the port's box changes by the ± glyph's ink below the digits (0.036 mm on plate), where draftwright's text box keeps its height exactly; the lane is unchanged."
   port_note: "Keep: text measurement used for layout equals rendered extent."
 
 - id: ISSUE-1215-c
@@ -1212,6 +1224,8 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_hole_table_depth_column_prints_the_authored_tolerance"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::every_authored_tolerance_reaches_the_label_that_claims_it"
+  rust_note: "Partial: on the five fixtures and twelve sampled parts, every dimension the default plan has or leaves out, each given its own band, prints its band exactly once and no other's (or the plan reports tolerance_withheld); an undrawn one is reported (view_plan_incomplete) and one left out is reported (tolerance_not_shown); on plate each band is drawn in exactly one text run. Not ported: a callout's other terms (counterbore and countersink sizes, a bore's depth) have no dimension ID and cannot be toleranced, where draftwright's kind-keyed sweep tolerances them too; hole tables (the port draws none)."
   port_note: "Keep: scenario test (spec with tolerance on every parameter -> every plan label contains it); renderers draw only plan text."
 
 - id: ISSUE-1215-d
@@ -1225,6 +1239,8 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_deliberately_bare_names_are_reachable"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_jittered_pattern_claims_no_pitch_tolerance"
+  rust_note: "Partial: dims::holes collapses a linear pattern to one n× pitch only when its gaps are equal within 1e-4 mm, so a jittered pattern (two_grids with a hole moved 0.3 mm) plans no pitch: its holes are dimensioned singly, with the reason in their callout's basis, and a tolerance set on the missing pitch is refused naming it; the even pattern prints its band (2× 10 ±0.05). draftwright collapses the jittered pattern (its recogniser admits 2 % jitter), prints the bare pitch and reports the withheld tolerance; the port states no common pitch over unequal gaps at all (rust-correct). Not ported: the N× rise representative that stays deliberately bare (step levels are not dimensioned on main)."
   port_note: "Keep: plan problem for withheld tolerance."
 
 - id: ISSUE-1215-e
@@ -1238,6 +1254,8 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_a_withholding_is_retracted_only_when_every_mark_is_drawn"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::an_overall_extent_is_placed_or_reported"
+  rust_note: "Partial: on every part each envelope extent the plan keeps is placed, and one whose ink runs off the drawing area is an annotation_off_sheet error naming it (src/dims/placement.rs::collisions). Not ported: the fall-through to the opposite strip (an extent stays in its lane and is reported) and draftwright's withholding of a starved extent and its retraction once every mark is drawn (the port withholds none)."
   port_note: "Keep."
 
 - id: ISSUE-1215-f
@@ -1265,6 +1283,8 @@
       - "tests/test_issue_1216_callout_reservation_measures_ink.py::test_a_recess_tolerance_alone_widens_the_reservation"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_callouts_room_is_measured_from_the_text_it_draws"
+  rust_note: "Partial: placement places each kept item with its label as drawn, tolerance included, measured from the glyphs' ink (on plate the pattern callout's box is the ink of 4× ⌀6 ±0.05 THRU (2×2), wider than the bare callout's by the band's). Not ported: a reservation before placement (src/demand.rs does not reserve the hole-callout band; what runs past a view's area is reported annotation_outside_area) and a tolerance on a recess term alone (recess terms have no dimension ID)."
   port_note: "Keep: reservation computed from the same plan text the renderer measures."
 
 - id: ISSUE-1216-b
@@ -1370,6 +1390,8 @@
       - "tests/test_issue_1240_iso_above_strip_visibility.py::test_the_page_spanning_riders_do_not_neutralise_the_iso_fit"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_label_over_the_isometric_is_reported"
+  rust_note: "Partial: on every part with an isometric, a placed label over its drawn box is an annotation_over_view naming v:iso (src/dims/placement.rs::collisions). Not ported: clamping a strip below an overlapping isometric and capping the isometric's growth at placed annotations (the port fits the isometric into the space the views' areas leave, before anything is placed, and does not re-fit it)."
   port_note: "Keep: layout unit tests with planted obstacles; single layout solve should make this structural."
 
 - id: ISSUE-1245-a
@@ -1669,7 +1691,7 @@
       - "tests/test_issue_1332_overlap_remedy.py::test_the_suggestion_never_contradicts_the_message"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported, and the port does not uphold it: one pair of labels can raise both annotation_overlap and annotation_ink_overlap (m10127: d:envelope/depth.length@side with d:f:hole:2/bore.diameter@front), and problems carry no suggested fix yet. Owed by placement (src/dims/placement.rs)."
+  rust_note: "Not ported, and the port does not uphold it: placement reports annotation_overlap and annotation_ink_overlap independently (src/dims/placement.rs::collisions), so one pair of labels can raise both, and problems carry no suggested fix yet. Since d-placement's settle no captured part has a label overlap, so no pair raises both today (m10127's side depth with d:f:hole:2/bore.diameter@front now raises only annotation_ink_overlap). Owed by placement."
   port_note: "Keep if remedies are ported: problem remedy consistent with problem kind."
 
 - id: ISSUE-1333-a
@@ -1685,6 +1707,7 @@
       - "tests/test_issue_1333_bounded_ink_repair.py::test_automatic_and_declared_builds_use_the_same_recognition_free_repair"
     corpus_parts: []
   status: pending
+  rust_note: "Not ported: there is no repair stage and no pins. Placement settles labels once (src/dims/placement.rs::settle), moving only where a label sits along its line or which way a callout's leader turns, never what it states, and keeping a move only when it is clear of every other label (ISSUE-1334-a's test); what no move clears is reported."
   port_note: "Keep the property (layout output has no avoidable ink collisions; pins respected); a post-hoc repair pass may not be needed."
 
 - id: ISSUE-1334-a
@@ -1699,6 +1722,8 @@
       - "tests/test_issue_1334_prevent_ink.py::test_infeasible_along_line_shift_promotes_one_rung_to_the_existing_far_tier"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::placed_ink_keeps_peer_labels_off_by_the_final_measure"
+  rust_note: "Partial: src/dims/placement.rs::settle moves a label off other items' lines and labels (a linear label along its line, a callout's leader turned) only to a place clear of every other item's ink, by the same segment-through-box and box-overlap tests collisions reports with; on every part any line through another label is an annotation_ink_overlap and any label overlap an annotation_overlap, and the settled places repeat plan after plan. Not ported: promoting a label to a farther lane when no shift along its line clears it (it stays and the collision is reported); lint does not check ink overlap on the drawing (placement's problems do)."
   port_note: "Keep: one collision predicate shared by placement and checking."
 
 - id: ISSUE-1336-a
@@ -1744,6 +1769,7 @@
       - "tests/test_issue_1349_precision_display.py::test_close_diameters_with_distinct_authoritative_text_do_not_deduplicate"
     corpus_parts: []
   status: pending
+  rust_note: "Not ported: the spec has no display precision; every value prints at draftwright's default precision (dims::fmt), and an authored tolerance keeps its own digits (ISSUE-1524-a)."
   port_note: "Keep: spec precision by measurement ID -> plan label text; scenario test."
 
 - id: ISSUE-1349-b
@@ -2193,7 +2219,8 @@
       - "tests/test_issue_1432_adoption.py::test_repeated_same_record_is_not_an_additional_occurrence"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: oriented slots and slot patterns are not dimensioned, and lint reports a slot pattern unverifiable rather than crediting it. A slot whose sizes cannot be read is reported (feature_not_dimensioned in the plan, unverifiable in lint)."
+  rust_test: "tests/bridge.rs::a_slot_pattern_that_does_not_resolve_to_its_slots_is_refused"
+  rust_note: "Partial, for slot patterns (since d-bridge-slot-patterns): the bridge refuses a document whose slot pattern does not resolve to one slot record per member or whose members' pattern_sibling links disagree, and dims::slots reports a pattern whose slots do not stand as quiddity says and dimensions them singly (tests/dims_slots.rs). Not ported: oriented slots are not dimensioned; lint reports a slot pattern unverifiable rather than crediting it. A slot whose sizes cannot be read is reported (feature_not_dimensioned in the plan, unverifiable in lint)."
   port_note: "Keep the coverage rules; Python duck-typing/subclass-spoofing tests retire under Rust types."
 
 - id: ISSUE-1432-c
@@ -2351,6 +2378,7 @@
       - "tests/test_issue_1466_semantic_sides.py::test_native_hole_routes_and_height_honour_the_requested_side"
     corpus_parts: ["grm04_drive_plate.step"]
   status: pending
+  rust_note: "Not ported: the spec has no side hint for a dimension (DimensionSpec holds omit and tolerance only), so neither a hint nor the report of a full authored side can arise."
   port_note: "Keep: scenario GRM-04 with side edits."
 
 - id: ISSUE-1479-a
@@ -2541,6 +2569,8 @@
       - "tests/test_issue_1524_tolerance_magnitude.py::test_rendered_callout_table_and_reserved_width_keep_small_tolerances"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::an_authored_magnitude_is_never_rounded"
+  rust_note: "Partial: an authored band keeps its digits, one decimal at least (src/dims/tolerance.rs::printed): each of draftwright's cases (±0.02 to ±0.000000123, +0.015 -0.002, and +0.00001 -0 as +0.00001 -0.0) prints as its _tol_suffix does, in the label, the drawn text run and the placed box, and adds no problem. The spec carries the band as text, so no float formatting can round it. Not ported: hole tables (the port draws none)."
   port_note: "Keep: unit test on label formatting (nominal 1 dp, tolerance 0.005)."
 
 - id: ISSUE-1530-a
@@ -2836,6 +2866,7 @@
       - "tests/test_issue_1612_frame_sergio_coverage.py::test_sergio_frame_repaired_location_retains_hole_coverage"
     corpus_parts: ["part.step", "issue_1595_whistle_key_frame.step"]
   status: pending
+  rust_note: "Not ported: the spec has no sheet margins, frame or zone options; every sheet keeps draftwright's 10 mm margin (layout::MARGIN) and its frame and title block."
   port_note: "Keep."
 
 - id: ISSUE-1613-a
