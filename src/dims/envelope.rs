@@ -1,6 +1,7 @@
 //! The overall extents of a part that is not turned whole: its width, depth and height, each
 //! stated once, outermost, in the first view that shows it. A part turned whole states its
-//! diameter and length instead ([`super::turned`]).
+//! diameter and length instead ([`super::turned`]), and whole-part polygonal stock its size across
+//! flats and its length ([`super::stock`]).
 
 use super::{AXES, Context, Measurement, P3, Planner, Problem, Shape, Want, fmt, want_id};
 
@@ -26,7 +27,7 @@ pub(super) fn corner(k: usize, at: f64, other: P3) -> P3 {
 }
 
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
-    if cx.turned.is_some() {
+    if cx.turned.is_some() || super::stock::whole(cx) {
         return (Vec::new(), Vec::new());
     }
     let [lo, hi] = cx.analysis.envelope;

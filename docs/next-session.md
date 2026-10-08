@@ -876,3 +876,27 @@ improvement plan and questions are the current work. Still open from before it:
   - Heading: draftwright's document notes print `GENERAL NOTES` (kept); its author-declared
     `Sheet.notes()` block prints `NOTES` and does not wrap. The spec's notes are authored, so
     either could be argued; which heading?
+
+- From stream d-dims-polygonal-stock (2026-10-08): ARCH0015-4 ported (`src/dims/stock.rs`):
+  whole-part hexagonal stock states `HEX <A/F> A/F` down its axis and its length in the profile
+  view, and no overall extent, matching draftwright's sheets of five fixture bars
+  (`tests/fixtures/recognition/polygonal_stock/`, no corpus part is stock). ISSUE-1082-a ported;
+  ISSUE-1082-b and 1371-b notes refreshed (still pending).
+  - Question for the maintainer: on a stock part draftwright's #1560 safeguard
+    (`compiled.py`, `overall_dim_withheld`, an error in its lint) reports the x and y extents as
+    withheld whenever no spanned measurement covers them: the across-corners width of a plain
+    hexagon bar (40 for A/F 34.6), both extents of a bar turned about its axis (38.3 × 39.0),
+    and even the depth the A/F itself states. ADR 0015 says the stock dimensions replace these
+    orientation-dependent extents, and the port follows it: it records nothing for them beyond
+    the A/F's basis. Should a stock part's across-axis extents be reported as withheld (the
+    #1560 reading), or are they replaced and not reported (the ADR 0015 reading)?
+  - Plate thickness (scoping, not built): dimensioning it depends on draftwright's own plate
+    conversion, not only on quiddity's `Plate` records. `_thin_profiles.py:101`
+    (`register_plate_thickness`) dimensions only `plan.of_kind("plate")`, the `PlateFeature`s
+    `detect.py:2019-2033` makes: only on a part with no turned profile or rotational feature,
+    only when the plates lie on two axes or more (`multi_plate`, `detect_ownership.py:470`), and
+    leaving out each plate whose interval equals a lowered through step's leg
+    (`through_leg_spans`, `detect_ownership.py:392`, from draftwright's through-step ownership
+    stage over levels, shoulders, plates and `envelope_is_emittable`). That last filter has no
+    counterpart in the Analysis, so it waits on LINT-plate_coverage-thickness's open question
+    (should the Analysis carry draftwright's plate conversion and step ladder?).

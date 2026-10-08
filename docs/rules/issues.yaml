@@ -534,8 +534,10 @@
       - "tests/test_issue_1082_polygonal_stock.py::test_rotation_preserves_stock_across_flats_instead_of_using_bbox_width"
       - "tests/test_issue_1082_polygonal_stock.py::test_whole_stock_compiles_its_form_and_axial_length_through_shared_placement"
     corpus_parts: []
-  status: pending
+  status: ported
   port_note: "Keep: scenario test rotated hex-bar STEP -> plan has A/F + length."
+  rust_test: tests/dims_stock.rs::rigid_motion_moves_the_views_but_not_the_statements
+  rust_note: "src/dims/stock.rs (ARCH0015-4): the stock is dimensioned by its A/F callout in the plan view and its length in the front view, not as a boss and with no overall extent; the bar turned 17 degrees about its axis states exactly what the plain bar does (HEX 34.6 A/F, 30), as on draftwright's sheets of both."
 
 - id: ISSUE-1082-b
   statement: "A missing stock definition is reported, not mistaken for a clean sparse drawing; ambiguous or duplicate stock correspondence fails closed, and an authored suppression is distinct from a placement failure."
@@ -549,7 +551,7 @@
       - "tests/test_issue_1082_polygonal_stock.py::test_rejected_stock_length_candidate_records_the_drop_with_measurement_identity"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: polygonal stock is not dimensioned and lint has no stock coverage (LINT-polygonal_stock_coverage-af_length). For the dimensions the port does plan, an authored omission and an item that cannot be drawn are kept apart (tests/trust_rules.rs::an_omission_is_never_reported_as_a_drop)."
+  rust_note: "Polygonal stock is dimensioned (ARCH0015-4) and lint checks its two requirements (LINT-polygonal_stock_coverage-af_length: a broken record or a second stock is unverifiable, an omitted length missing, tests/dims_stock.rs::lint_finds_the_stock_stated); not ported: lint cannot tell an authored suppression from a missing mark (it does not see the spec) nor record a placement drop of the length. For the dimensions the port does plan, an authored omission and an item that cannot be drawn are kept apart (tests/trust_rules.rs::an_omission_is_never_reported_as_a_drop)."
   port_note: "Keep: problems distinguish 'omitted by spec' from 'dropped by layout' from 'unverifiable'."
 
 - id: ISSUE-1086-a
@@ -2030,7 +2032,7 @@
       - "tests/test_issue_1371_polygonal_stock_completeness_evidence.py::test_deleting_declared_stock_cannot_shrink_quality_denominator"
     corpus_parts: ["polygonal-stock-roll17.step"]
   status: pending
-  rust_note: "Not ported: polygonal stock is not dimensioned and lint has no stock coverage (LINT-polygonal_stock_coverage-af_length)."
+  rust_note: "Polygonal stock is dimensioned (ARCH0015-4) and lint checks both requirements, under rigid motion of the part too (tests/dims_stock.rs: roll17 and four other bars); not ported: lint credits a mark by the claims and text it carries, not by where its leader or witness lines run, so a leader moved off its flat keeps its credit."
   port_note: "Keep."
 
 - id: ISSUE-1373-a

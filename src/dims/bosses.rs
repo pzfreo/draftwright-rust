@@ -48,7 +48,7 @@ pub(super) const PLANNER: Planner = Planner {
 };
 
 /// A boss's cross-section.
-enum Section {
+pub(super) enum Section {
     /// A cylinder of this diameter.
     Round(f64),
     /// A regular prism: its number of sides, its size across flats, the centres of its flat faces
@@ -62,20 +62,20 @@ enum Section {
 }
 
 /// A boss in the part's frame.
-struct Boss<'a> {
+pub(super) struct Boss<'a> {
     feature: &'a Feature,
     /// The world axis it stands along.
-    axis: usize,
+    pub(super) axis: usize,
     /// The centre of its top, and of its base when its height is known.
-    top: P3,
-    base: Option<P3>,
-    section: Section,
-    height: Option<f64>,
+    pub(super) top: P3,
+    pub(super) base: Option<P3>,
+    pub(super) section: Section,
+    pub(super) height: Option<f64>,
 }
 
 impl Boss<'_> {
     /// How far its outline lies from its axis across world axis *j*.
-    fn half(&self, j: usize) -> f64 {
+    pub(super) fn half(&self, j: usize) -> f64 {
         match &self.section {
             Section::Round(d) => 0.5 * d,
             Section::Polygon { half, .. } => half[j],
@@ -111,7 +111,7 @@ fn read<'a>(f: &'a Feature, frame: &QFrame) -> Result<Boss<'a>, String> {
 /// A polygonal boss as quiddity records it (`axis` a letter of its frame, `base` and `top` along
 /// it, `center` between them, `across_flats`, `side_count`, and each flat's outward direction and
 /// centre), or why it cannot be dimensioned.
-fn read_polygon<'a>(f: &'a Feature, frame: &QFrame) -> Result<Boss<'a>, String> {
+pub(super) fn read_polygon<'a>(f: &'a Feature, frame: &QFrame) -> Result<Boss<'a>, String> {
     let p = &f.parameters;
     let number = |name: &str| {
         p.get(name)
@@ -206,7 +206,7 @@ fn read_polygon<'a>(f: &'a Feature, frame: &QFrame) -> Result<Boss<'a>, String> 
     })
 }
 
-fn not_dimensioned(f: &Feature, why: &str) -> Problem {
+pub(super) fn not_dimensioned(f: &Feature, why: &str) -> Problem {
     Problem {
         id: format!("p:feature_not_dimensioned:{}", f.id),
         code: "feature_not_dimensioned".into(),
