@@ -1148,5 +1148,1825 @@
     "rust": "[17]",
     "verdict": "rust-wrong",
     "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 19, a plane (the blind floor) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "parts",
+    "part": "boss_circle",
+    "subject": "f:boss:1",
+    "field": "faces",
+    "python": "[0, 2]",
+    "rust": "[0]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its cylinder). The other face is the plane capping the boss's free end: quiddity-rust finds it, as the boss occurrence's context (bosses::discover at 1bf3db2; checked for every entry), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
+  },
+  {
+    "set": "parts",
+    "part": "boss_circle",
+    "subject": "f:boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":3.0,\"height_above_base\":3.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "parts",
+    "part": "turned",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":40.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "parts",
+    "part": "turned",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":30.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "parts",
+    "part": "turned",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [0] {\"axis\":[0.0,0.0,1.0],\"diameter\":30.0,\"height\":38.4,\"location\":[0.0,0.0,39.2]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "parts",
+    "part": "turned",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [6] {\"axis\":[0.0,0.0,1.0],\"diameter\":16.0,\"height\":28.4,\"location\":[0.0,0.0,69.2]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:1",
+    "field": "faces",
+    "python": "[18, 39]",
+    "rust": "[39]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its cylinder). The other face is the plane capping the boss's free end: quiddity-rust finds it, as the boss occurrence's context (bosses::discover at 1bf3db2; checked for every entry), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:1",
+    "field": "id",
+    "python": "f:boss:1",
+    "rust": "f:boss:2",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":6.38,\"height_above_base\":6.38}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:2",
+    "field": "id",
+    "python": "f:boss:2",
+    "rust": "f:boss:3",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":4.84,\"height_above_base\":4.84}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:3",
+    "field": "faces",
+    "python": "[160, 162]",
+    "rust": "[162]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its cylinder). The other face is the plane capping the boss's free end: quiddity-rust finds it, as the boss occurrence's context (bosses::discover at 1bf3db2; checked for every entry), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:3",
+    "field": "id",
+    "python": "f:boss:3",
+    "rust": "f:boss:4",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":199.67,\"height_above_base\":199.67}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:4",
+    "field": "id",
+    "python": "f:boss:4",
+    "rust": "f:boss:6",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":20.0,\"height_above_base\":20.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:5",
+    "field": "id",
+    "python": "f:boss:5",
+    "rust": "f:boss:8",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:5",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":6.0,\"height_above_base\":6.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":53.18}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":229.71}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":57.42,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":57.42}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":10.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":10.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":20.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":20.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":20.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":20.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":6.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":6.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [2, 7, 23, 43, 62, 81, 100, 119] {\"axis\":[0.0,0.0,1.0],\"diameter\":103.12,\"height\":53.18,\"location\":[0.0,0.0,420.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "rust f:boss:10",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:10 [271, 275, 279, 283, 287, 291, 295, 299, 303, 307, 311, 315] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.94,\"height\":20.0,\"location\":[0.0,0.0,113.420001]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "rust f:boss:11",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:11 [316] {\"axis\":[0.0,0.0,1.0],\"diameter\":122.0,\"height\":6.0,\"location\":[0.0,0.0,93.42]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "rust f:boss:5",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:5 [163] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.94,\"height\":56.42,\"location\":[0.0,0.0,57.42]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "rust f:boss:7",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:7 [214] {\"axis\":[0.0,0.0,1.0],\"diameter\":122.0,\"height\":10.0,\"location\":[0.0,0.0,67.42]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "rust f:boss:9",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:9 [218, 222, 226, 230, 234, 238, 242, 246, 250, 254, 258, 262] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.94,\"height\":20.0,\"location\":[0.0,0.0,87.420001]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:1",
+    "field": "faces",
+    "python": "[21, 22]",
+    "rust": "[21]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its cylinder). The other face is the boss's own cap at its free end. Constituent faces alone would not mend it: quiddity-rust reads this boss from its other end (its free_end entry), so its context is face 11, the 305 mm plane all four bosses meet, not the cap. Fix: the document carries constituent faces (a quiddity-rust schema change) and the free end is decided by the part, not the frame."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:1",
+    "field": "free_end",
+    "python": "[108.585,50.8,-247.65] along [0.0,0.0,-1.0]",
+    "rust": "[108.585,50.8,-209.55] along [0.0,0.0,1.0]",
+    "verdict": "rust-wrong",
+    "evidence": "Both ends of this boss classify open in both runs (quiddity's stacks::classify_end: a plane facing out along the axis), so quiddity's rule (the free end is the high end unless only the low end is open, bosses::discover, as Python's) falls to the frame's sense of the axis: Python's working frame puts the high end at the boss's own cap (face 22, 34, 36 or 38: only the cylinder and one hole meet it), the file's frame at face 11, a plane 305 mm across that all four bosses meet. The cap is the free end; Rust's location and axis point at the base. Same diameter, height and cylinder. The tie-break is frame-dependent in both quiddities (Python's answer here follows from its frame, not the part); a quiddity-rust fix."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":38.1,\"height_above_base\":38.1}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:2",
+    "field": "faces",
+    "python": "[33, 34]",
+    "rust": "[33]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its cylinder). The other face is the boss's own cap at its free end. Constituent faces alone would not mend it: quiddity-rust reads this boss from its other end (its free_end entry), so its context is face 11, the 305 mm plane all four bosses meet, not the cap. Fix: the document carries constituent faces (a quiddity-rust schema change) and the free end is decided by the part, not the frame."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:2",
+    "field": "free_end",
+    "python": "[36.195,50.8,-247.65] along [0.0,0.0,-1.0]",
+    "rust": "[36.195,50.8,-209.55] along [0.0,0.0,1.0]",
+    "verdict": "rust-wrong",
+    "evidence": "Both ends of this boss classify open in both runs (quiddity's stacks::classify_end: a plane facing out along the axis), so quiddity's rule (the free end is the high end unless only the low end is open, bosses::discover, as Python's) falls to the frame's sense of the axis: Python's working frame puts the high end at the boss's own cap (face 22, 34, 36 or 38: only the cylinder and one hole meet it), the file's frame at face 11, a plane 305 mm across that all four bosses meet. The cap is the free end; Rust's location and axis point at the base. Same diameter, height and cylinder. The tie-break is frame-dependent in both quiddities (Python's answer here follows from its frame, not the part); a quiddity-rust fix."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":38.1,\"height_above_base\":38.1}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:3",
+    "field": "faces",
+    "python": "[35, 36]",
+    "rust": "[35]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its cylinder). The other face is the boss's own cap at its free end. Constituent faces alone would not mend it: quiddity-rust reads this boss from its other end (its free_end entry), so its context is face 11, the 305 mm plane all four bosses meet, not the cap. Fix: the document carries constituent faces (a quiddity-rust schema change) and the free end is decided by the part, not the frame."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:3",
+    "field": "free_end",
+    "python": "[-36.195,50.8,-247.65] along [0.0,0.0,-1.0]",
+    "rust": "[-36.195,50.8,-209.55] along [0.0,0.0,1.0]",
+    "verdict": "rust-wrong",
+    "evidence": "Both ends of this boss classify open in both runs (quiddity's stacks::classify_end: a plane facing out along the axis), so quiddity's rule (the free end is the high end unless only the low end is open, bosses::discover, as Python's) falls to the frame's sense of the axis: Python's working frame puts the high end at the boss's own cap (face 22, 34, 36 or 38: only the cylinder and one hole meet it), the file's frame at face 11, a plane 305 mm across that all four bosses meet. The cap is the free end; Rust's location and axis point at the base. Same diameter, height and cylinder. The tie-break is frame-dependent in both quiddities (Python's answer here follows from its frame, not the part); a quiddity-rust fix."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":38.1,\"height_above_base\":38.1}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:4",
+    "field": "faces",
+    "python": "[37, 38]",
+    "rust": "[37]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its cylinder). The other face is the boss's own cap at its free end. Constituent faces alone would not mend it: quiddity-rust reads this boss from its other end (its free_end entry), so its context is face 11, the 305 mm plane all four bosses meet, not the cap. Fix: the document carries constituent faces (a quiddity-rust schema change) and the free end is decided by the part, not the frame."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:4",
+    "field": "free_end",
+    "python": "[-108.585,50.8,-247.65] along [0.0,0.0,-1.0]",
+    "rust": "[-108.585,50.8,-209.55] along [0.0,0.0,1.0]",
+    "verdict": "rust-wrong",
+    "evidence": "Both ends of this boss classify open in both runs (quiddity's stacks::classify_end: a plane facing out along the axis), so quiddity's rule (the free end is the high end unless only the low end is open, bosses::discover, as Python's) falls to the frame's sense of the axis: Python's working frame puts the high end at the boss's own cap (face 22, 34, 36 or 38: only the cylinder and one hole meet it), the file's frame at face 11, a plane 305 mm across that all four bosses meet. The cap is the free end; Rust's location and axis point at the base. Same diameter, height and cylinder. The tie-break is frame-dependent in both quiddities (Python's answer here follows from its frame, not the part); a quiddity-rust fix."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":38.1,\"height_above_base\":38.1}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:5",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":12.07,\"height_above_base\":12.07}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:6",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":16.34,\"height_above_base\":16.34}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:7",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":12.07,\"height_above_base\":12.07}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:boss:8",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":16.34,\"height_above_base\":16.34}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":3.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":2.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":2.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":18.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "f:turned_step:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":0.5,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":0.5}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [2] {\"axis\":[1.0,0.0,0.0],\"diameter\":5.0,\"height\":3.0,\"location\":[5.5,0.0,0.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [3] {\"axis\":[1.0,0.0,0.0],\"diameter\":10.0,\"height\":1.4,\"location\":[2.2,0.0,0.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "rust f:boss:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:3 [6] {\"axis\":[1.0,0.0,0.0],\"diameter\":3.0,\"height\":17.5,\"location\":[23.0,0.0,0.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "rust f:boss:4",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:4 [9] {\"axis\":[-1.0,0.0,0.0],\"diameter\":6.0,\"height\":0.5,\"location\":[0.0,0.0,0.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "grm05",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":14.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "grm05",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "grm05",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":13.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "grm05",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [0] {\"axis\":[0.0,0.0,1.0],\"diameter\":10.0,\"height\":12.5,\"location\":[0.0,0.0,14.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "grm05",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [4] {\"axis\":[0.0,0.0,1.0],\"diameter\":6.25,\"height\":5.0,\"location\":[0.0,0.0,19.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "grm05",
+    "subject": "rust f:boss:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:3 [6] {\"axis\":[0.0,0.0,1.0],\"diameter\":6.0,\"height\":12.0,\"location\":[0.0,0.0,31.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "m10127",
+    "subject": "f:boss:1",
+    "field": "faces",
+    "python": "[4, 6]",
+    "rust": "[6]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its cylinder). The other face is the plane capping the boss's free end: quiddity-rust finds it, as the boss occurrence's context (bosses::discover at 1bf3db2; checked for every entry), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
+  },
+  {
+    "set": "corpus",
+    "part": "m10127",
+    "subject": "f:boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.73,\"height_above_base\":5.73}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":5.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":5.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":103.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [70] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.0,\"height\":3.0,\"location\":[0.0,0.0,112.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [87] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.0,\"height\":3.0,\"location\":[0.0,0.0,4.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "rust f:boss:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:3 [89] {\"axis\":[0.0,0.0,1.0],\"diameter\":70.0,\"height\":83.0,\"location\":[0.0,0.0,98.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.5}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_key",
+    "python": "[-3.750001,-3.75,0.0,3.75,3.75,14.8,250.186131,359.360478]",
+    "rust": "[-3.75,-3.75,0.0,3.75,3.75,14.8,250.188851,359.362801]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -3.750001 (its bounding box padding) against -3.75; its volume (250.186131 against 250.188851, 1.1e-5 relative) and area (359.360478 against 359.362801, 6.5e-6) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side, so the grouping is the same."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":1.1,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":1.1}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_key",
+    "python": "[-3.750001,-3.75,0.0,3.75,3.75,14.8,250.186131,359.360478]",
+    "rust": "[-3.75,-3.75,0.0,3.75,3.75,14.8,250.188851,359.362801]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -3.750001 (its bounding box padding) against -3.75; its volume (250.186131 against 250.188851, 1.1e-5 relative) and area (359.360478 against 359.362801, 6.5e-6) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side, so the grouping is the same."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":1.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":1.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_key",
+    "python": "[-3.750001,-3.75,0.0,3.75,3.75,14.8,250.186131,359.360478]",
+    "rust": "[-3.75,-3.75,0.0,3.75,3.75,14.8,250.188851,359.362801]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -3.750001 (its bounding box padding) against -3.75; its volume (250.186131 against 250.188851, 1.1e-5 relative) and area (359.360478 against 359.362801, 6.5e-6) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side, so the grouping is the same."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:turned_step:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":7.2}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_key",
+    "python": "[-3.750001,-3.75,0.0,3.75,3.75,14.8,250.186131,359.360478]",
+    "rust": "[-3.75,-3.75,0.0,3.75,3.75,14.8,250.188851,359.362801]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -3.750001 (its bounding box padding) against -3.75; its volume (250.186131 against 250.188851, 1.1e-5 relative) and area (359.360478 against 359.362801, 6.5e-6) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side, so the grouping is the same."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [0] {\"axis\":[0.0,0.0,-1.0],\"diameter\":6.0,\"height\":5.5,\"location\":[0.0,0.0,8.3]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [6] {\"axis\":[0.0,0.0,-1.0],\"diameter\":5.0,\"height\":1.1,\"location\":[0.0,0.0,7.2]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "rust f:boss:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:3 [9] {\"axis\":[0.0,0.0,1.0],\"diameter\":7.5,\"height\":0.5,\"location\":[0.0,0.0,14.55]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:1",
+    "field": "faces",
+    "python": "[18, 39]",
+    "rust": "[39]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its cylinder). The other face is the plane capping the boss's free end: quiddity-rust finds it, as the boss occurrence's context (bosses::discover at 1bf3db2; checked for every entry), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:1",
+    "field": "id",
+    "python": "f:boss:1",
+    "rust": "f:boss:2",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":6.38,\"height_above_base\":6.38}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:2",
+    "field": "id",
+    "python": "f:boss:2",
+    "rust": "f:boss:3",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":4.84,\"height_above_base\":4.84}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:3",
+    "field": "faces",
+    "python": "[160, 162]",
+    "rust": "[162]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its cylinder). The other face is the plane capping the boss's free end: quiddity-rust finds it, as the boss occurrence's context (bosses::discover at 1bf3db2; checked for every entry), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:3",
+    "field": "id",
+    "python": "f:boss:3",
+    "rust": "f:boss:4",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":199.67,\"height_above_base\":199.67}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:4",
+    "field": "id",
+    "python": "f:boss:4",
+    "rust": "f:boss:6",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":20.0,\"height_above_base\":20.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:5",
+    "field": "id",
+    "python": "f:boss:5",
+    "rust": "f:boss:8",
+    "verdict": "rust-wrong",
+    "evidence": "Follows from the native bosses Python does not have (this part's rust f:boss presence entries): they rank among these by faces and move their numbers. The same boss on the same faces (bar the cap face)."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:5",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":6.0,\"height_above_base\":6.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":53.18}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":229.71}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":57.42,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":57.42}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":10.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":10.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":20.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":20.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":20.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":20.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":6.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":6.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "[-65.47,65.47,-65.47,65.47,0.0,420.0]",
+    "verdict": "equivalent",
+    "evidence": "The same body's box in two frames: Python's working frame here is turned 62.6 degrees about the part's z axis (its y is [-0.46,-0.89,0]), so its box cannot be mapped into the part's frame; the native one is in the part's. Along the turning axis both span the body's 420 mm. draftwright reads body_bounds nowhere."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "[-65.47,-65.47,0.0,65.47,65.47,420.0,2008493.11653,319596.095701]",
+    "verdict": "equivalent",
+    "evidence": "The body's identity key (Python's body_signature: box, volume, area) is in the frame its record is in: Python's working frame here is turned 62.6 degrees about the part's z axis, so its box part cannot be mapped; volume and area agree to 1e-7. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [2, 7, 23, 43, 62, 81, 100, 119] {\"axis\":[0.0,0.0,1.0],\"diameter\":103.12,\"height\":53.18,\"location\":[0.0,0.0,420.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "rust f:boss:10",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:10 [271, 275, 279, 283, 287, 291, 295, 299, 303, 307, 311, 315] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.94,\"height\":20.0,\"location\":[0.0,0.0,113.420001]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "rust f:boss:11",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:11 [316] {\"axis\":[0.0,0.0,1.0],\"diameter\":122.0,\"height\":6.0,\"location\":[0.0,0.0,93.42]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "rust f:boss:5",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:5 [163] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.94,\"height\":56.42,\"location\":[0.0,0.0,57.42]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "rust f:boss:7",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:7 [214] {\"axis\":[0.0,0.0,1.0],\"diameter\":122.0,\"height\":10.0,\"location\":[0.0,0.0,67.42]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "rust f:boss:9",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:9 [218, 222, 226, 230, 234, 238, 242, 246, 250, 254, 258, 262] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.94,\"height\":20.0,\"location\":[0.0,0.0,87.420001]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:1",
+    "field": "faces",
+    "python": "[21, 22]",
+    "rust": "[21]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its cylinder). The other face is the boss's own cap at its free end. Constituent faces alone would not mend it: quiddity-rust reads this boss from its other end (its free_end entry), so its context is face 11, the 305 mm plane all four bosses meet, not the cap. Fix: the document carries constituent faces (a quiddity-rust schema change) and the free end is decided by the part, not the frame."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:1",
+    "field": "free_end",
+    "python": "[108.585,50.8,-247.65] along [0.0,0.0,-1.0]",
+    "rust": "[108.585,50.8,-209.55] along [0.0,0.0,1.0]",
+    "verdict": "rust-wrong",
+    "evidence": "Both ends of this boss classify open in both runs (quiddity's stacks::classify_end: a plane facing out along the axis), so quiddity's rule (the free end is the high end unless only the low end is open, bosses::discover, as Python's) falls to the frame's sense of the axis: Python's working frame puts the high end at the boss's own cap (face 22, 34, 36 or 38: only the cylinder and one hole meet it), the file's frame at face 11, a plane 305 mm across that all four bosses meet. The cap is the free end; Rust's location and axis point at the base. Same diameter, height and cylinder. The tie-break is frame-dependent in both quiddities (Python's answer here follows from its frame, not the part); a quiddity-rust fix."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":38.1,\"height_above_base\":38.1}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:2",
+    "field": "faces",
+    "python": "[33, 34]",
+    "rust": "[33]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its cylinder). The other face is the boss's own cap at its free end. Constituent faces alone would not mend it: quiddity-rust reads this boss from its other end (its free_end entry), so its context is face 11, the 305 mm plane all four bosses meet, not the cap. Fix: the document carries constituent faces (a quiddity-rust schema change) and the free end is decided by the part, not the frame."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:2",
+    "field": "free_end",
+    "python": "[36.195,50.8,-247.65] along [0.0,0.0,-1.0]",
+    "rust": "[36.195,50.8,-209.55] along [0.0,0.0,1.0]",
+    "verdict": "rust-wrong",
+    "evidence": "Both ends of this boss classify open in both runs (quiddity's stacks::classify_end: a plane facing out along the axis), so quiddity's rule (the free end is the high end unless only the low end is open, bosses::discover, as Python's) falls to the frame's sense of the axis: Python's working frame puts the high end at the boss's own cap (face 22, 34, 36 or 38: only the cylinder and one hole meet it), the file's frame at face 11, a plane 305 mm across that all four bosses meet. The cap is the free end; Rust's location and axis point at the base. Same diameter, height and cylinder. The tie-break is frame-dependent in both quiddities (Python's answer here follows from its frame, not the part); a quiddity-rust fix."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":38.1,\"height_above_base\":38.1}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:3",
+    "field": "faces",
+    "python": "[35, 36]",
+    "rust": "[35]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its cylinder). The other face is the boss's own cap at its free end. Constituent faces alone would not mend it: quiddity-rust reads this boss from its other end (its free_end entry), so its context is face 11, the 305 mm plane all four bosses meet, not the cap. Fix: the document carries constituent faces (a quiddity-rust schema change) and the free end is decided by the part, not the frame."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:3",
+    "field": "free_end",
+    "python": "[-36.195,50.8,-247.65] along [0.0,0.0,-1.0]",
+    "rust": "[-36.195,50.8,-209.55] along [0.0,0.0,1.0]",
+    "verdict": "rust-wrong",
+    "evidence": "Both ends of this boss classify open in both runs (quiddity's stacks::classify_end: a plane facing out along the axis), so quiddity's rule (the free end is the high end unless only the low end is open, bosses::discover, as Python's) falls to the frame's sense of the axis: Python's working frame puts the high end at the boss's own cap (face 22, 34, 36 or 38: only the cylinder and one hole meet it), the file's frame at face 11, a plane 305 mm across that all four bosses meet. The cap is the free end; Rust's location and axis point at the base. Same diameter, height and cylinder. The tie-break is frame-dependent in both quiddities (Python's answer here follows from its frame, not the part); a quiddity-rust fix."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":38.1,\"height_above_base\":38.1}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:4",
+    "field": "faces",
+    "python": "[37, 38]",
+    "rust": "[37]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its cylinder). The other face is the boss's own cap at its free end. Constituent faces alone would not mend it: quiddity-rust reads this boss from its other end (its free_end entry), so its context is face 11, the 305 mm plane all four bosses meet, not the cap. Fix: the document carries constituent faces (a quiddity-rust schema change) and the free end is decided by the part, not the frame."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:4",
+    "field": "free_end",
+    "python": "[-108.585,50.8,-247.65] along [0.0,0.0,-1.0]",
+    "rust": "[-108.585,50.8,-209.55] along [0.0,0.0,1.0]",
+    "verdict": "rust-wrong",
+    "evidence": "Both ends of this boss classify open in both runs (quiddity's stacks::classify_end: a plane facing out along the axis), so quiddity's rule (the free end is the high end unless only the low end is open, bosses::discover, as Python's) falls to the frame's sense of the axis: Python's working frame puts the high end at the boss's own cap (face 22, 34, 36 or 38: only the cylinder and one hole meet it), the file's frame at face 11, a plane 305 mm across that all four bosses meet. The cap is the free end; Rust's location and axis point at the base. Same diameter, height and cylinder. The tie-break is frame-dependent in both quiddities (Python's answer here follows from its frame, not the part); a quiddity-rust fix."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":38.1,\"height_above_base\":38.1}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:5",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":12.07,\"height_above_base\":12.07}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:6",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":16.34,\"height_above_base\":16.34}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:7",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":12.07,\"height_above_base\":12.07}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:boss:8",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":16.34,\"height_above_base\":16.34}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":3.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":2.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":2.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":18.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "f:turned_step:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":0.5,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":0.5}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [2] {\"axis\":[1.0,0.0,0.0],\"diameter\":5.0,\"height\":3.0,\"location\":[5.5,0.0,0.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [3] {\"axis\":[1.0,0.0,0.0],\"diameter\":10.0,\"height\":1.4,\"location\":[2.2,0.0,0.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "rust f:boss:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:3 [6] {\"axis\":[1.0,0.0,0.0],\"diameter\":3.0,\"height\":17.5,\"location\":[23.0,0.0,0.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "rust f:boss:4",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:4 [9] {\"axis\":[-1.0,0.0,0.0],\"diameter\":6.0,\"height\":0.5,\"location\":[0.0,0.0,0.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "grm05",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":14.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "grm05",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "grm05",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":13.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "grm05",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [0] {\"axis\":[0.0,0.0,1.0],\"diameter\":10.0,\"height\":12.5,\"location\":[0.0,0.0,14.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "grm05",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [4] {\"axis\":[0.0,0.0,1.0],\"diameter\":6.25,\"height\":5.0,\"location\":[0.0,0.0,19.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "grm05",
+    "subject": "rust f:boss:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:3 [6] {\"axis\":[0.0,0.0,1.0],\"diameter\":6.0,\"height\":12.0,\"location\":[0.0,0.0,31.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "m10127",
+    "subject": "f:boss:1",
+    "field": "faces",
+    "python": "[4, 6]",
+    "rust": "[6]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its cylinder). The other face is the plane capping the boss's free end: quiddity-rust finds it, as the boss occurrence's context (bosses::discover at 1bf3db2; checked for every entry), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
+  },
+  {
+    "set": "sheets",
+    "part": "m10127",
+    "subject": "f:boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.73,\"height_above_base\":5.73}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height (checked for every boss record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":5.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":5.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":103.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [70] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.0,\"height\":3.0,\"location\":[0.0,0.0,112.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [87] {\"axis\":[0.0,0.0,1.0],\"diameter\":130.0,\"height\":3.0,\"location\":[0.0,0.0,4.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "rust f:boss:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:3 [89] {\"axis\":[0.0,0.0,1.0],\"diameter\":70.0,\"height\":83.0,\"location\":[0.0,0.0,98.0]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:turned_step:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":5.5}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_key",
+    "python": "[-3.750001,-3.75,0.0,3.75,3.75,14.8,250.186131,359.360478]",
+    "rust": "[-3.75,-3.75,0.0,3.75,3.75,14.8,250.188851,359.362801]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -3.750001 (its bounding box padding) against -3.75; its volume (250.186131 against 250.188851, 1.1e-5 relative) and area (359.360478 against 359.362801, 6.5e-6) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side, so the grouping is the same."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:turned_step:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":1.1,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":1.1}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_key",
+    "python": "[-3.750001,-3.75,0.0,3.75,3.75,14.8,250.186131,359.360478]",
+    "rust": "[-3.75,-3.75,0.0,3.75,3.75,14.8,250.188851,359.362801]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -3.750001 (its bounding box padding) against -3.75; its volume (250.186131 against 250.188851, 1.1e-5 relative) and area (359.360478 against 359.362801, 6.5e-6) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side, so the grouping is the same."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:turned_step:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":1.0,\"disc_thickness\":{\"basis\":\"heuristic\",\"value\":1.0}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_key",
+    "python": "[-3.750001,-3.75,0.0,3.75,3.75,14.8,250.186131,359.360478]",
+    "rust": "[-3.75,-3.75,0.0,3.75,3.75,14.8,250.188851,359.362801]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -3.750001 (its bounding box padding) against -3.75; its volume (250.186131 against 250.188851, 1.1e-5 relative) and area (359.360478 against 359.362801, 6.5e-6) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side, so the grouping is the same."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:turned_step:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":7.2}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_key",
+    "python": "[-3.750001,-3.75,0.0,3.75,3.75,14.8,250.186131,359.360478]",
+    "rust": "[-3.75,-3.75,0.0,3.75,3.75,14.8,250.188851,359.362801]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -3.750001 (its bounding box padding) against -3.75; its volume (250.186131 against 250.188851, 1.1e-5 relative) and area (359.360478 against 359.362801, 6.5e-6) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. draftwright reads the key only to group one Analysis's steps into profiles (demand.rs), and every step of this body has the same key on each side, so the grouping is the same."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "rust f:boss:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:1 [0] {\"axis\":[0.0,0.0,-1.0],\"diameter\":6.0,\"height\":5.5,\"location\":[0.0,0.0,8.3]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "rust f:boss:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:2 [6] {\"axis\":[0.0,0.0,-1.0],\"diameter\":5.0,\"height\":1.1,\"location\":[0.0,0.0,7.2]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "rust f:boss:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:boss:3 [9] {\"axis\":[0.0,0.0,1.0],\"diameter\":7.5,\"height\":0.5,\"location\":[0.0,0.0,14.55]}",
+    "verdict": "rust-wrong",
+    "evidence": "Python quiddity's aggregate rejects a boss whose defining faces are exactly a turned step's (reconcile_boss_turned_step_candidates, turned.boss_superseded_by_step): the turned step owns that band of the profile. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This boss's faces are exactly a native turned step's (checked for every entry with the native document at 1bf3db2); draftwright would dimension the band twice. Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
   }
 ]

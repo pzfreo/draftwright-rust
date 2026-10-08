@@ -1,5 +1,6 @@
-//! Holes and hole patterns from Rust quiddity (`bridge::native`) against the same parts' Python
-//! quiddity recognition through the bridge, record by record.
+//! Features from Rust quiddity (`bridge::native`: holes and hole patterns, fillets, chamfers,
+//! countersinks, bosses and turned steps) against the same parts' Python quiddity recognition
+//! through the bridge, record by record.
 //!
 //! Every part with bridged Python recognition is compared: the fixtures in `tests/fixtures/parts/`
 //! (set `parts`), and the sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
@@ -8,9 +9,14 @@
 //! its recognition (one face's area differs from OpenCascade's).
 //!
 //! Python's records are in its working frame and are mapped into the part's (the native ones
-//! already are). Holes are paired by axis, location and diameter; patterns by their members.
+//! already are): points, directions, axis letters, a turned step's `lo` and `hi` and its
+//! profile's box where the frame allows ([`other_to_part`]). Holes are paired by axis, location
+//! and diameter; patterns by their members; the other kinds by where they are ([`anchor`]).
 //! For each pair the IDs, faces and parameters are compared, numbers to 1e-6 relative (absolute
-//! below 1); for each pattern also the arrangement and its members. Every difference is listed
+//! below 1), or within the step quiddity rounds a field to when the two frames round it
+//! differently ([`rounding`]); for each pattern also the arrangement and its members. A pair's
+//! fingerprints are compared field by field and the agreement counted and printed, not listed:
+//! who owns fingerprints is an open question. Every difference is listed
 //! in `tests/fixtures/known_native.json` with the values on both sides, a verdict and the
 //! evidence. The test fails on a difference not listed, a listed one that no longer occurs or
 //! has changed, and a duplicate entry, and prints the entries it needs (`NATIVE_REPORT=1` prints
@@ -42,10 +48,11 @@ fn fixture(path: &str) -> PathBuf {
 struct Known {
     set: String,
     part: String,
-    /// Python's ID of the hole or pattern, or `rust <ID>`, the native one, when Python has none.
+    /// Python's ID of the feature or pattern, or `rust <ID>`, the native one, when Python has none.
     subject: String,
-    /// `presence`, `id`, `faces`, `opening` (a through hole's location and axis), `arrangement`,
-    /// `members` or `parameters.<path>`.
+    /// `presence`, `id`, `faces`, `opening` (a through hole's location and axis), `free_end` (a
+    /// boss's location and axis, read from its other end), `arrangement`, `members` or
+    /// `parameters.<path>`.
     field: String,
     python: String,
     rust: String,
@@ -160,6 +167,153 @@ fn to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<String, Va
     out
 }
 
+/// The kinds read natively besides holes, as `bridge::native::READ` names their families.
+const KINDS: [&str; 5] = ["fillet", "chamfer", "countersink", "boss", "turned_step"];
+
+/// Where a feature of *kind* is, as its record gives it: what pairs a Python feature with a
+/// native one.
+fn anchor(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "fillet" | "chamfer" => &["at"],
+        "countersink" | "boss" => &["location"],
+        _ => &["axis", "lo", "hi"],
+    }
+}
+
+/// The step quiddity rounds a field of *kind* to in its own frame (zero when it does not round
+/// it): rounded in Python's working frame and mapped, or rounded in the part's, one value can
+/// differ by up to that step.
+fn rounding(kind: &str, path: &str) -> f64 {
+    let field = path.rsplit('.').next().unwrap_or(path);
+    match (kind, field) {
+        ("fillet" | "chamfer", "at" | "corner") => 1e-3,
+        ("turned_step", "lo" | "hi") => 1e-3,
+        ("countersink", "location") => 1e-4,
+        _ => 0.0,
+    }
+}
+
+/// Working axis *j* of *frame* in the part's: the part's axis it lies along and its sense, if
+/// it lies along one.
+fn along(frame: &[[f64; 3]; 4], j: usize) -> Option<(usize, f64)> {
+    let d = frame[j + 1];
+    bridge::holes::principal(d).map(|k| (k, d[k].signum()))
+}
+
+fn letter(v: &Value) -> Option<usize> {
+    ["x", "y", "z"].iter().position(|l| v.as_str() == Some(l))
+}
+
+/// A box given as working-frame minima and maxima, in the part's frame: only when every working
+/// axis lies along one of the part's.
+fn box_to_part(frame: &[[f64; 3]; 4], lo: [f64; 3], hi: [f64; 3]) -> Option<([f64; 3], [f64; 3])> {
+    let (mut a, mut b) = ([0.0; 3], [0.0; 3]);
+    for j in 0..3 {
+        let (k, s) = along(frame, j)?;
+        let (p, q) = (frame[0][k] + s * lo[j], frame[0][k] + s * hi[j]);
+        (a[k], b[k]) = (p.min(q), p.max(q));
+    }
+    Some((a, b))
+}
+
+/// Python's record of a fillet, chamfer, countersink, boss or turned step in the part's frame:
+/// points (`at`, `corner`, `location`, `axis_origin`) and directions as [`to_part`] maps them; an
+/// axis letter as the part's axis it lies along (a letter names a line, so no sense), or the
+/// direction when it lies along none; a turned step's `lo` and `hi`, coordinates along its axis,
+/// and its profile's body box and key, where its axis or every axis lies along the part's.
+fn other_to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<String, Value> {
+    let mut out = Map::new();
+    for (k, v) in record {
+        let mapped = match (k.as_str(), bridge::holes::point(Some(v)), letter(v)) {
+            ("at" | "corner" | "location" | "center" | "axis_origin", Some(p), _) => {
+                Value::from(bridge::holes::to_part(frame, p).to_vec())
+            }
+            ("axis" | "direction", Some(d), _) => {
+                Value::from(bridge::holes::dir_to_part(frame, d).to_vec())
+            }
+            ("axis", None, Some(j)) => match along(frame, j) {
+                Some((k, _)) => Value::from(["x", "y", "z"][k]),
+                None => Value::from(frame[j + 1].to_vec()),
+            },
+            ("named_dimensions", _, _) if v.as_object().is_some_and(Map::is_empty) => continue,
+            ("body_bounds", _, _) => {
+                let b: Vec<f64> = v
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter_map(Value::as_f64)
+                    .collect();
+                match box_to_part(frame, [b[0], b[2], b[4]], [b[1], b[3], b[5]]) {
+                    Some((a, b)) => Value::from(vec![a[0], b[0], a[1], b[1], a[2], b[2]]),
+                    None => v.clone(),
+                }
+            }
+            ("body_key", _, _) if v.is_array() => {
+                let b: Vec<f64> = v
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter_map(Value::as_f64)
+                    .collect();
+                match box_to_part(frame, [b[0], b[1], b[2]], [b[3], b[4], b[5]]) {
+                    Some((a, c)) => Value::from([&a[..], &c[..], &b[6..]].concat()),
+                    None => v.clone(),
+                }
+            }
+            (_, _, _) => match v {
+                Value::Object(o) => Value::Object(other_to_part(frame, o)),
+                v => v.clone(),
+            },
+        };
+        out.insert(k.clone(), mapped);
+    }
+    let axis = record
+        .get("axis")
+        .and_then(letter)
+        .and_then(|j| along(frame, j));
+    if let (Some((k, s)), Some(lo), Some(hi)) = (
+        axis,
+        record.get("lo").and_then(Value::as_f64),
+        record.get("hi").and_then(Value::as_f64),
+    ) {
+        let (p, q) = (frame[0][k] + s * lo, frame[0][k] + s * hi);
+        out.insert("lo".into(), Value::from(p.min(q)));
+        out.insert("hi".into(), Value::from(p.max(q)));
+    }
+    // A turned profile's `axis_origin` has its axial coordinate zeroed, in the frame it is
+    // given in: zeroed again in the part's.
+    if let Some(Value::Object(profile)) = out.get_mut("profile")
+        && let Some(k) = profile.get("axis").and_then(letter)
+        && let Some(mut o) = bridge::holes::point(profile.get("axis_origin"))
+    {
+        o[k] = 0.0;
+        profile.insert("axis_origin".into(), Value::from(o.to_vec()));
+    }
+    out
+}
+
+/// Whether two boss records are one boss read from its two ends: the same diameter and height,
+/// axes reversed, each location the other's moved by the height (to its 0.01 rounding) along
+/// its axis.
+fn other_end(p: &Map<String, Value>, q: &Map<String, Value>) -> bool {
+    let (Some(a), Some(b), Some(height)) = (
+        bridge::holes::point(p.get("axis")),
+        bridge::holes::point(q.get("axis")),
+        p.get("height").and_then(Value::as_f64),
+    ) else {
+        return false;
+    };
+    compare_none(p.get("diameter"), q.get("diameter"))
+        && compare_none(p.get("height"), q.get("height"))
+        && (0..3).all(|k| close(a[k], -b[k]))
+        && {
+            let d: [f64; 3] = std::array::from_fn(|k| location(p)[k] - location(q)[k]);
+            let along: f64 = (0..3).map(|k| d[k] * a[k]).sum();
+            (along - height).abs() <= 0.005 + 1e-6 * height
+                && (0..3).all(|k| close(location(q)[k] + along * a[k], location(p)[k]))
+        }
+}
+
 /// The differences between two values under *path*, into *out*.
 fn compare(
     path: &str,
@@ -167,23 +321,36 @@ fn compare(
     rs: Option<&Value>,
     out: &mut Vec<(String, Difference)>,
 ) {
+    compare_within(path, py, rs, &|_| 0.0, out);
+}
+
+/// [`compare`], numbers under a path also agreeing within `rounding(path)`: the step quiddity
+/// rounds that field to in its own frame, so the same value rounded in two frames.
+fn compare_within(
+    path: &str,
+    py: Option<&Value>,
+    rs: Option<&Value>,
+    rounding: &dyn Fn(&str) -> f64,
+    out: &mut Vec<(String, Difference)>,
+) {
     let differ = match (py, rs) {
         (Some(Value::Object(a)), Some(Value::Object(b))) => {
             let keys: BTreeSet<&String> = a.keys().chain(b.keys()).collect();
             for k in keys {
-                compare(&format!("{path}.{k}"), a.get(k), b.get(k), out);
+                compare_within(&format!("{path}.{k}"), a.get(k), b.get(k), rounding, out);
             }
             false
         }
         (Some(Value::Array(a)), Some(Value::Array(b))) if a.len() == b.len() => {
             let mut inner = Vec::new();
             for (x, y) in a.iter().zip(b) {
-                compare(path, Some(x), Some(y), &mut inner);
+                compare_within(path, Some(x), Some(y), rounding, &mut inner);
             }
             !inner.is_empty()
         }
         (Some(Value::Number(a)), Some(Value::Number(b))) => {
-            !close(a.as_f64().unwrap(), b.as_f64().unwrap())
+            let (a, b) = (a.as_f64().unwrap(), b.as_f64().unwrap());
+            !close(a, b) && (a - b).abs() > rounding(path) + 1e-9
         }
         (a, b) => a != b,
     };
@@ -220,6 +387,7 @@ fn differences(
     case: &Case,
     recognition: &bridge::Recognition,
     features: &[Feature],
+    fingerprints: &mut Fingerprints,
 ) -> BTreeMap<(String, String), Difference> {
     let frame = recognition.frame;
     let py: Vec<(&Feature, Map<String, Value>)> = features
@@ -259,6 +427,7 @@ fn differences(
         };
         taken[i] = true;
         let h = &rs.holes[i];
+        fingerprints.tally("hole", &f.fingerprint, &h.fingerprint);
         pair.insert(h.id.clone(), f.id.clone());
         if h.id != f.id {
             put(
@@ -385,7 +554,132 @@ fn differences(
             );
         }
     }
+
+    // Fillets, chamfers, countersinks, bosses and turned steps, kind by kind, paired by where
+    // they are ([`anchor`]; each native feature at most once); a boss also with the one read
+    // from its other end ([`other_end`]).
+    for kind in KINDS {
+        let py: Vec<(&Feature, Map<String, Value>)> = features
+            .iter()
+            .filter(|f| f.kind == kind)
+            .map(|f| (f, other_to_part(&frame, &f.parameters)))
+            .collect();
+        let ours: Vec<&Feature> = rs.features.iter().filter(|f| f.kind == kind).collect();
+        let within = |path: &str| rounding(kind, path);
+        let mut taken = vec![false; ours.len()];
+        for (f, p) in &py {
+            let found = ours.iter().enumerate().position(|(i, h)| {
+                !taken[i]
+                    && anchor(kind).iter().all(|k| {
+                        let mut d = Vec::new();
+                        compare_within(k, p.get(*k), h.parameters.get(*k), &within, &mut d);
+                        d.is_empty()
+                    })
+                    || (kind == "boss" && other_end(p, &h.parameters))
+            });
+            let Some(i) = found else {
+                put(
+                    &f.id,
+                    "presence",
+                    Difference {
+                        python: summary(f, p),
+                        rust: "-".into(),
+                    },
+                );
+                continue;
+            };
+            taken[i] = true;
+            let h = ours[i];
+            fingerprints.tally(kind, &f.fingerprint, &h.fingerprint);
+            if h.id != f.id {
+                put(
+                    &f.id,
+                    "id",
+                    Difference {
+                        python: f.id.clone(),
+                        rust: h.id.clone(),
+                    },
+                );
+            }
+            if h.faces != f.faces {
+                put(
+                    &f.id,
+                    "faces",
+                    Difference {
+                        python: format!("{:?}", f.faces),
+                        rust: format!("{:?}", h.faces),
+                    },
+                );
+            }
+            let (mut p, mut q) = (p.clone(), h.parameters.clone());
+            if kind == "boss" && other_end(&p, &q) {
+                let end = |r: &mut Map<String, Value>| {
+                    let at = r.remove("location").unwrap();
+                    let axis = r.remove("axis").unwrap();
+                    format!("{} along {}", show(&at), show(&axis))
+                };
+                put(
+                    &f.id,
+                    "free_end",
+                    Difference {
+                        python: end(&mut p),
+                        rust: end(&mut q),
+                    },
+                );
+            }
+            let mut diffs = Vec::new();
+            compare_within(
+                "parameters",
+                Some(&Value::Object(p)),
+                Some(&Value::Object(q)),
+                &within,
+                &mut diffs,
+            );
+            for (field, d) in diffs {
+                put(&f.id, &field, d);
+            }
+        }
+        for (i, h) in ours.iter().enumerate() {
+            if !taken[i] {
+                put(
+                    &format!("rust {}", h.id),
+                    "presence",
+                    Difference {
+                        python: "-".into(),
+                        rust: summary(h, &h.parameters),
+                    },
+                );
+            }
+        }
+    }
     out
+}
+
+/// How often a native feature's fingerprint agrees with its Python pair's, field by field, by
+/// kind: `[agree, compared]`.
+#[derive(Default)]
+struct Fingerprints(BTreeMap<(String, &'static str), [usize; 2]>);
+
+impl Fingerprints {
+    fn tally(&mut self, kind: &str, py: &bridge::Fingerprint, rs: &bridge::Fingerprint) {
+        let fields: [(&'static str, bool); 7] = [
+            ("family", py.family == rs.family),
+            ("subtype", py.subtype == rs.subtype),
+            ("sizes", py.sizes == rs.sizes),
+            ("axis", py.axis == rs.axis),
+            ("position", py.position == rs.position),
+            ("pattern", py.pattern == rs.pattern),
+            ("neighbourhood", py.neighbourhood == rs.neighbourhood),
+        ];
+        for (field, same) in fields {
+            let n = self.0.entry((kind.to_string(), field)).or_default();
+            n[0] += usize::from(same);
+            n[1] += 1;
+        }
+        let n = self.0.entry((kind.to_string(), "whole")).or_default();
+        n[0] += usize::from(py == rs);
+        n[1] += 1;
+    }
 }
 
 /// Whether two hole records open at the same point along the same axis.
@@ -430,7 +724,7 @@ fn compare_none(a: Option<&Value>, b: Option<&Value>) -> bool {
 }
 
 #[test]
-fn native_holes_and_patterns_match_the_bridge_or_are_listed() {
+fn native_features_match_the_bridge_or_are_listed() {
     let known: Vec<Known> =
         serde_json::from_str(&std::fs::read_to_string(fixture("known_native.json")).unwrap())
             .unwrap();
@@ -460,6 +754,7 @@ fn native_holes_and_patterns_match_the_bridge_or_are_listed() {
     let mut changed = Vec::new();
     let mut tally: BTreeMap<String, usize> = BTreeMap::new();
     let mut compared = 0;
+    let mut fingerprints = Fingerprints::default();
     for case in cases() {
         let (part, a) = model::analyse(&case.step).unwrap();
         let (recognition, features) =
@@ -477,7 +772,9 @@ fn native_holes_and_patterns_match_the_bridge_or_are_listed() {
                 }
             };
         compared += 1;
-        for ((subject, field), d) in differences(&part, &case, &recognition, &features) {
+        for ((subject, field), d) in
+            differences(&part, &case, &recognition, &features, &mut fingerprints)
+        {
             let key = (case.set.to_string(), case.part.clone(), subject, field);
             if report {
                 eprintln!("{key:?}: python {} rust {}", d.python, d.rust);
@@ -509,6 +806,10 @@ fn native_holes_and_patterns_match_the_bridge_or_are_listed() {
         .filter(|k| !seen.contains(*k) && (corpus_found || k.0 == "parts"))
         .collect();
     eprintln!("compared {compared} parts; differences by verdict: {tally:?}");
+    // Fingerprints are compared, not listed: who owns them is an open question.
+    for ((kind, field), [agree, all]) in &fingerprints.0 {
+        eprintln!("fingerprints: {kind} {field} agree {agree} of {all}");
+    }
     assert!(
         needed.is_empty() && changed.is_empty() && stale.is_empty(),
         "unlisted differences (add to tests/fixtures/known_native.json):\n{}\nchanged: {changed:#?}\nno longer occur: {stale:#?}",
@@ -591,6 +892,89 @@ fn the_reader_refuses_what_it_does_not_know() {
     assert!(e.contains("has no member holes"), "{e}");
 }
 
+#[test]
+fn turned_part_families_are_read_with_draftwrights_ids() {
+    let (part, doc) = document("turned");
+    let n = native::read(&part, &doc).unwrap();
+    let got: Vec<(&str, &str, &[usize])> = n
+        .features
+        .iter()
+        .map(|f| (f.id.as_str(), f.kind.as_str(), f.faces.as_slice()))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("f:boss:1", "boss", &[0][..]),
+            ("f:boss:2", "boss", &[6]),
+            ("f:fillet:1", "fillet", &[1]),
+            ("f:fillet:2", "fillet", &[2]),
+            ("f:fillet:3", "fillet", &[5]),
+            ("f:fillet:4", "fillet", &[7]),
+            ("f:turned_step:1", "turned_step", &[0]),
+            ("f:turned_step:2", "turned_step", &[6]),
+        ]
+    );
+    for f in &n.features {
+        assert_eq!(f.fingerprint.version, bridge::FINGERPRINT_VERSION);
+        // An axis letter and a vector both read as the part's z axis.
+        assert_eq!(f.fingerprint.axis, Some([0.0, 0.0, 1.0]), "{}", f.id);
+        assert_eq!(f.fingerprint.pattern, None);
+    }
+    let step = &n.features[7];
+    assert_eq!(
+        (
+            step.parameters["lo"].as_f64(),
+            step.parameters["hi"].as_f64()
+        ),
+        (Some(40.0), Some(70.0))
+    );
+    assert_eq!(
+        step.fingerprint.sizes,
+        BTreeMap::from([("diameter".into(), 16.0)])
+    );
+}
+
+#[test]
+fn the_reader_refuses_a_record_without_what_draftwright_reads() {
+    let (part, doc) = document("turned");
+    let fillet = doc
+        .records
+        .iter()
+        .position(|r| r.family == "fillets")
+        .unwrap();
+    let refused = |edit: &dyn Fn(&mut quiddity::recognition::RecognitionDocument)| {
+        let mut d = doc.clone();
+        edit(&mut d);
+        native::read(&part, &d).unwrap_err()
+    };
+    let e = refused(&|d| {
+        d.records[fillet].parameters.remove("radius");
+    });
+    assert!(
+        e.contains("(Fillet) has no radius, which draftwright reads; the fillets are not read"),
+        "{e}"
+    );
+    let e = refused(&|d| {
+        d.records[fillet]
+            .parameters
+            .insert("at".into(), "here".into());
+    });
+    assert!(e.contains("(Fillet)'s at is \"here\", not Point"), "{e}");
+    let e = refused(&|d| {
+        d.records[fillet]
+            .parameters
+            .insert("axis".into(), "w".into());
+    });
+    assert!(e.contains("'s axis is \"w\", not Axis"), "{e}");
+    let e = refused(&|d| {
+        let faces = d.records[fillet + 1].faces.clone();
+        d.records[fillet].faces = faces;
+    });
+    assert!(e.contains("two fillets on faces [2]"), "{e}");
+    let e = refused(&|d| d.records[fillet].faces.clear());
+    assert!(e.contains("has no ascending faces"), "{e}");
+}
+
 /// The reader's schema is the provider's: its version and every family and record type.
 #[test]
 fn the_reader_knows_the_providers_schema() {
@@ -620,4 +1004,77 @@ fn quiddity_and_haecceity_are_pinned_together() {
     };
     assert!(source("haecceity").contains('#'), "{}", source("haecceity"));
     assert_eq!(source("quiddity"), source("haecceity"));
+}
+
+/// Countersinks are on no part the bridge reads (sheets' ctc04 has the corpus's only ones, and
+/// the bridge refuses it), so ctc04's native countersinks are compared with Python quiddity
+/// 0.3.9's records in its recognition JSON directly: faces through `caller_index`, points and
+/// directions mapped from its frame. Every one agrees (the location within quiddity's 1e-4
+/// rounding).
+#[test]
+fn ctc04_countersinks_match_pythons_records() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let json: Value =
+        serde_json::from_str(&gunzip(&fixture("recognition/sheets/ctc04.json.gz")).unwrap())
+            .unwrap();
+    let q = &json["quiddity"];
+    let f = &q["frame"];
+    let v = |k: &str| bridge::holes::point(Some(&f[k])).unwrap();
+    let frame = [v("origin"), v("x"), v("y"), v("z")];
+    let caller: BTreeMap<u64, usize> = q["faces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| {
+            (
+                f["index"].as_u64().unwrap(),
+                f["caller_index"].as_u64().unwrap() as usize,
+            )
+        })
+        .collect();
+    let py: Vec<(Vec<usize>, Map<String, Value>)> = q["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["family"] == "countersinks")
+        .map(|r| {
+            let mut faces: Vec<usize> = r["constituent_faces"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|i| caller[&i.as_u64().unwrap()])
+                .collect();
+            faces.sort_unstable();
+            let mut record = r["record"].as_object().unwrap().clone();
+            record.remove("dependents");
+            (faces, other_to_part(&frame, &record))
+        })
+        .collect();
+    let (part, _) = model::analyse(&dir.join(facts::load("ctc04").binding.file)).unwrap();
+    let rs = native::recognise(&part).unwrap();
+    let ours: Vec<&Feature> = rs
+        .features
+        .iter()
+        .filter(|f| f.kind == "countersink")
+        .collect();
+    assert_eq!((py.len(), ours.len()), (12, 12));
+    let within = |path: &str| rounding("countersink", path);
+    for (faces, p) in &py {
+        let h = ours
+            .iter()
+            .find(|h| h.faces == *faces)
+            .unwrap_or_else(|| panic!("no native countersink on faces {faces:?}"));
+        let mut diffs = Vec::new();
+        compare_within(
+            "parameters",
+            Some(&Value::Object(p.clone())),
+            Some(&Value::Object(h.parameters.clone())),
+            &within,
+            &mut diffs,
+        );
+        assert!(diffs.is_empty(), "{} {faces:?}: {diffs:?}", h.id);
+    }
 }

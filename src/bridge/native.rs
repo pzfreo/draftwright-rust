@@ -1,16 +1,19 @@
-//! Holes and hole patterns from Rust quiddity directly: its versioned recognition document
+//! Features from Rust quiddity directly: its versioned recognition document
 //! (`quiddity::recognition`), run on the part draftwright has already read, in place of Python
-//! quiddity's JSON ([`super::read`]), family by family. Holes and hole patterns are the first.
+//! quiddity's JSON ([`super::read`]), family by family ([`READ`]): holes and hole patterns, then
+//! fillets, chamfers, countersinks, bosses and turned steps.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
-//! has ([`FAMILIES`]); anything else is refused, not guessed at. Families other than holes and
-//! hole patterns are known but not taken here: they still come through the bridge.
+//! has ([`FAMILIES`]); anything else is refused, not guessed at. A record of a family read here
+//! must carry every field draftwright reads of it ([`FIELDS`]), or it is refused. Families not in
+//! [`READ`] are known but not taken here: they still come through the bridge.
 //!
 //! What comes out is draftwright's own ([`Feature`], [`HolePattern`]); no quiddity object crosses
-//! (ADR3-6). IDs are draftwright's (`f:hole:<n>`, `f:hole_pattern:<n>`, ranked by faces), and so
-//! are fingerprints ([`super::FINGERPRINT_VERSION`]): the document's own `<family>/<index>` IDs
-//! and quiddity's fingerprints are not adopted (who owns fingerprints is an open question).
+//! (ADR3-6). IDs are draftwright's (`f:<kind>:<n>`, `f:hole_pattern:<n>`, ranked by faces within
+//! their kind, as [`super::read`] ranks them), and so are fingerprints
+//! ([`super::FINGERPRINT_VERSION`]): the document's own `<family>/<index>` IDs and quiddity's
+//! fingerprints are not adopted (who owns fingerprints is an open question).
 //!
 //! Coordinates: the document's are the STEP file's, and its faces the file's own indices, so the
 //! records need no mapping (the Python bridge maps a working frame and `caller_index`). The
@@ -22,7 +25,13 @@
 //! or spotface's included). Python's bridge gives a hole its constituent faces, which add the
 //! face that closes it (a drill point's cone, a blind hole's floor); Rust quiddity finds that
 //! face too, but its document does not carry it (`tests/native.rs` lists every such
-//! difference).
+//! difference). The other families' faces are the document's defining faces too, which for a
+//! boss leave out the face at its free end that Python's constituent faces add. The document
+//! carries no `named_dimensions` (Python's enrichment), so the fingerprint sizes Python's bridge
+//! takes from them (a boss's `axial_length` and `height_above_base`, a turned step's
+//! `axial_length`) are not in a native fingerprint. Rust quiddity's families are independent:
+//! Python's aggregate rejects a boss whose faces are a turned step's, Rust's document carries
+//! both, and the reader takes what the document says (`tests/native.rs` lists those bosses).
 
 use haecceity::Part;
 use quiddity::recognition::RecognitionDocument;
@@ -81,9 +90,91 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
 ];
 
 /// The families read here.
-pub const READ: [&str; 2] = ["holes", "hole_patterns"];
+pub const READ: [&str; 7] = [
+    "holes",
+    "hole_patterns",
+    "fillets",
+    "chamfers",
+    "countersinks",
+    "bosses",
+    "turned_steps",
+];
 
-/// Holes and hole patterns read from Rust quiddity.
+/// What a field of a record must be.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Field {
+    Number,
+    Bool,
+    Text,
+    /// Three numbers.
+    Point,
+    /// An axis letter (`x`, `y`, `z`) or three numbers.
+    Axis,
+    /// Three numbers, or null.
+    PointOrNull,
+    /// An object, or null.
+    ObjectOrNull,
+}
+
+/// The fields draftwright reads of each record type it takes besides holes and hole patterns
+/// (dims, lint, demand and the fingerprint), as Python's records carry them: a record without
+/// one, or with one of another shape, is refused rather than filled in.
+pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
+    (
+        "Fillet",
+        &[
+            ("axis", Field::Axis),
+            ("radius", Field::Number),
+            ("at", Field::Point),
+            ("turned", Field::Bool),
+            ("side", Field::Text),
+        ],
+    ),
+    (
+        "Chamfer",
+        &[
+            ("axis", Field::Axis),
+            ("leg1", Field::Number),
+            ("leg2", Field::Number),
+            ("angle", Field::Number),
+            ("at", Field::Point),
+            ("turned", Field::Bool),
+            ("corner", Field::PointOrNull),
+        ],
+    ),
+    (
+        "CounterSink",
+        &[
+            ("axis", Field::Axis),
+            ("location", Field::Point),
+            ("major_diameter", Field::Number),
+            ("drill_diameter", Field::Number),
+            ("included_angle", Field::Number),
+            ("depth", Field::Number),
+        ],
+    ),
+    (
+        "BossRecord",
+        &[
+            ("axis", Field::Axis),
+            ("location", Field::Point),
+            ("diameter", Field::Number),
+            ("height", Field::Number),
+        ],
+    ),
+    (
+        "TurnedStep",
+        &[
+            ("axis", Field::Axis),
+            ("lo", Field::Number),
+            ("hi", Field::Number),
+            ("diameter", Field::Number),
+            ("profile", Field::ObjectOrNull),
+        ],
+    ),
+];
+
+/// Features read from Rust quiddity.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Native {
     /// `quiddity-rust <version>` and the schema it was read at.
@@ -92,9 +183,12 @@ pub struct Native {
     pub holes: Vec<Feature>,
     /// The hole patterns, by ID; members name [`Native::holes`].
     pub patterns: Vec<HolePattern>,
+    /// The fillets, chamfers, countersinks, bosses and turned steps, by kind and then ID; their
+    /// parameters are in the part's frame ([`IDENTITY`]).
+    pub features: Vec<Feature>,
 }
 
-/// Runs Rust quiddity's recognition on *part* and reads its holes and hole patterns.
+/// Runs Rust quiddity's recognition on *part* and reads the families of [`READ`].
 pub fn recognise(part: &Part) -> Result<Native, String> {
     let recognition = quiddity::correspondence::recognise(part);
     read(
@@ -103,7 +197,7 @@ pub fn recognise(part: &Part) -> Result<Native, String> {
     )
 }
 
-/// Reads the holes and hole patterns of *doc*, Rust quiddity's recognition of *part*.
+/// Reads the families of [`READ`] from *doc*, Rust quiddity's recognition of *part*.
 pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     if doc.schema_version != SCHEMA_VERSION {
         return Err(format!(
@@ -126,6 +220,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     }
     let mut holes = Vec::new();
     let mut patterns = Vec::new();
+    let mut others = Vec::new();
     for r in &doc.records {
         let known = FAMILIES
             .iter()
@@ -151,6 +246,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         match r.family.as_str() {
             "holes" => holes.push(r),
             "hole_patterns" => patterns.push(r),
+            f if READ.contains(&f) => others.push(r),
             _ => {}
         }
     }
@@ -211,6 +307,30 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         f.id = format!("f:hole:{}", n + 1);
     }
     let patterns = super::hole_patterns(&qs, &features)?;
+
+    let mut others = others
+        .into_iter()
+        .map(|r| feature(part, &qs, r))
+        .collect::<Result<Vec<_>, String>>()?;
+    others.sort_by(|a, b| (&a.kind, &a.faces).cmp(&(&b.kind, &b.faces)));
+    if let Some(w) = others
+        .windows(2)
+        .find(|w| w[0].kind == w[1].kind && w[0].faces == w[1].faces)
+    {
+        return Err(format!(
+            "quiddity reports two {}s on faces {:?}; they cannot be told apart",
+            w[0].kind, w[0].faces
+        ));
+    }
+    let mut n = 0;
+    for i in 0..others.len() {
+        n = if i > 0 && others[i - 1].kind == others[i].kind {
+            n + 1
+        } else {
+            1
+        };
+        others[i].id = format!("f:{}:{n}", others[i].kind);
+    }
     Ok(Native {
         recogniser: format!(
             "{} {} ({})",
@@ -218,5 +338,68 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         ),
         holes: features,
         patterns,
+        features: others,
+    })
+}
+
+/// A feature of one of the families after holes and hole patterns in [`READ`], without its ID:
+/// its record checked against [`FIELDS`], fingerprinted as [`super::read`] fingerprints it.
+fn feature(
+    part: &Part,
+    qs: &[QHolePattern],
+    r: &quiddity::recognition::Record,
+) -> Result<Feature, String> {
+    let fields = FIELDS
+        .iter()
+        .find(|(t, _)| *t == r.record_type)
+        .ok_or_else(|| format!("{} ({}) has no fields known here", r.id, r.record_type))?
+        .1;
+    for &(name, field) in fields {
+        let v = r.parameters.get(name).ok_or_else(|| {
+            format!(
+                "{} ({}) has no {name}, which draftwright reads; the {} are not read",
+                r.id, r.record_type, r.family
+            )
+        })?;
+        let point = |v: &Value| {
+            v.as_array()
+                .is_some_and(|a| a.len() == 3 && a.iter().all(Value::is_number))
+        };
+        let ok = match field {
+            Field::Number => v.is_number(),
+            Field::Bool => v.is_boolean(),
+            Field::Text => v.is_string(),
+            Field::Point => point(v),
+            Field::Axis => point(v) || ["x", "y", "z"].contains(&v.as_str().unwrap_or("")),
+            Field::PointOrNull => v.is_null() || point(v),
+            Field::ObjectOrNull => v.is_null() || v.is_object(),
+        };
+        if !ok {
+            return Err(format!(
+                "{} ({})'s {name} is {v}, not {field:?}; the {} are not read",
+                r.id, r.record_type, r.family
+            ));
+        }
+    }
+    let faces = r.faces.clone();
+    if faces.is_empty() || !faces.is_sorted() {
+        return Err(format!("{} has no ascending faces to anchor it", r.id));
+    }
+    Ok(Feature {
+        id: String::new(),
+        kind: super::kind(&r.family),
+        fingerprint: Fingerprint {
+            version: FINGERPRINT_VERSION.into(),
+            family: r.family.clone(),
+            subtype: r.record_type.clone(),
+            sizes: super::sizes(&r.parameters),
+            axis: super::axis(&r.parameters, &IDENTITY)
+                .map_err(|e| format!("{}'s axis {e}", r.id))?,
+            position: super::centre(part, &faces).map(super::round),
+            pattern: super::hole_pattern(qs, &r.parameters)?,
+            neighbourhood: super::neighbourhood(part, &faces),
+        },
+        faces,
+        parameters: r.parameters.clone(),
     })
 }
