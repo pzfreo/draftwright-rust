@@ -51,8 +51,8 @@ const FIXTURES: [&str; 4] = ["plate", "turned", "prismatic", "two_grids"];
 /// The sampled sheets' corpus parts (`tests/fixtures/recognition/sheets/`), each with the
 /// features draftwright's own recogniser found for it and checked to be the very file the
 /// sheet was captured from (ISSUE-1336-a); read once for every test here, and none when the
-/// corpus is missing. ctc04 is left out: the bridge refuses its recognition (one face's area
-/// differs from OpenCascade's).
+/// corpus is missing. ctc04 is left out: these tests have not been checked against it since
+/// the bridge began reading it.
 fn sampled() -> &'static [(String, Analysis)] {
     static SAMPLED: OnceLock<Vec<(String, Analysis)>> = OnceLock::new();
     SAMPLED.get_or_init(|| {

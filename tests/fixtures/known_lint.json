@@ -123,12 +123,12 @@
     {
       "part": "ctc04",
       "subject": "analysis",
-      "group": "the bridge refuses the recognition: face 367 has area 13.080630 here and 13.100238 in the recognition JSON",
+      "group": "not compared yet: the bridge reads it, its differences are not listed",
       "parameter": "*",
       "python": null,
       "rust": null,
-      "verdict": "not-applicable",
-      "reason": "The port cannot read ctc04's features, so lint has no requirements to judge: face 367 is a sphere whose area haecceity integrates as 13.0806 mm² against OpenCascade's 13.1002 mm² (0.15%), beyond the bridge's 1e-3 tolerance for analytic faces. A haecceity face_mass accuracy question like handoff item F, not a lint difference; Python's two hole findings on this sheet (both unverifiable, for oblique holes its IR declared on z) stay unjudged until the bridge reads the part."
+      "verdict": "undetermined",
+      "reason": "Not compared yet: the bridge reads ctc04 since its face check holds sphere faces to 1e-2 (face 367 is a sphere whose JSON area, 13.1002 mm², is OpenCascade's at default precision; its converged area is 13.0806 mm², haecceity's; tests/fixtures/known_bridge_faces.json), but its lint differences are not listed yet. Comparing it shows at least one: python_subject finds no hole group for Python's oblique finding '4× ø12 blind depth 20 holes, axis (0, -0.3746, 0.9272)'. Python's two hole findings on this sheet (both unverifiable, for oblique holes its IR declared on z) stay unjudged until they are listed."
     },
     {
       "part": "m1000",
@@ -376,8 +376,8 @@
       "parameter": "*",
       "python": null,
       "rust": null,
-      "verdict": "not-applicable",
-      "reason": "The bridge refuses ctc04's recognition (as in python_sheets), so the port has no Analysis to judge the sheet against. Python's envelope ledger places all three axes; it records no turned steps."
+      "verdict": "undetermined",
+      "reason": "ctc04 is not compared yet (as in python_sheets: the bridge reads it, its differences are not listed), so the port has no Analysis to judge the sheet against. Python's envelope ledger places all three axes; it records no turned steps."
     },
     {
       "part": "m10046",

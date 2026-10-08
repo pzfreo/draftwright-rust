@@ -1109,3 +1109,20 @@ improvement plan and questions are the current work. Still open from before it:
     - Is `Drawing::sheet` the intended home for lint's sheet facts, and should it grow to carry
       each linear dimension's measured path and scale so label_vs_measured and nominal_rounded
       can be ported?
+- From stream d-bridge-area-tolerance: the bridge reads nist_ctc_04 (`render` draws it,
+  146 features from quiddity main's recognition). Face 367 is the same face: the JSON's
+  13.100238 is OpenCascade's default-precision area, off its own converged area (13.080648 at
+  eps 1e-10, and by Green's theorem on the exact sphere) by 1.5e-3; haecceity's 13.080630 is
+  the region its edges bound (the file has no pcurves). Every face past 1e-4 over all 4,031
+  recognised faces is listed with evidence in `tests/fixtures/known_bridge_faces.json` (20:
+  spheres on ctc04 and ftc07, rust-correct; one B-spline sliver, equivalent); spheres are now
+  held to 1e-2 like B-splines, the other analytic types still to 1e-3. ctc04 is still left
+  out of `tests/dimensions.rs`, `tests/native.rs`, `tests/lint.rs` (its two `known_lint.json`
+  `analysis` entries now say "not compared yet", undetermined), `tests/trust_rules.rs`,
+  `tests/issue_trust.rs` and `tests/issue_drafting.rs`: its differences are owed by the streams
+  that own those tables. Comparing it already shows lint's `python_subject` finds no group for
+  Python's oblique "4× ø12 blind depth 20" finding. The "still refused" note in this file's
+  summary above is out of date.
+  Question for the maintainer: area cannot tell apart same-sized faces (a pattern's instances);
+  should `tools/recognise.py` also write each face's area centre, so the bridge proves order by
+  place?

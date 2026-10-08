@@ -1,0 +1,202 @@
+[
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "face": 142,
+    "surface": "bspline",
+    "python": 0.002137022520164462,
+    "rust": 0.0022877730461528085,
+    "verdict": "equivalent",
+    "evidence": "A B-spline sliver of a thread (two edges of 114.234 mm, 0.002 mm²): OpenCascade's converged area (eps 1e-10) is 0.002136975, its default 0.002137023. The file's pcurves bound it within 1.31e-6 mm of its edges (their tolerance 1.3e-6), so the file determines its area only to about 228.5 mm × 1.3e-6 = 3.0e-4 mm², twice the 1.5e-4 mm² between the two readings."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "face": 142,
+    "surface": "bspline",
+    "python": 0.002137022520164462,
+    "rust": 0.0022877730461528085,
+    "verdict": "equivalent",
+    "evidence": "A B-spline sliver of a thread (two edges of 114.234 mm, 0.002 mm²): OpenCascade's converged area (eps 1e-10) is 0.002136975, its default 0.002137023. The file's pcurves bound it within 1.31e-6 mm of its edges (their tolerance 1.3e-6), so the file determines its area only to about 228.5 mm × 1.3e-6 = 3.0e-4 mm², twice the 1.5e-4 mm² between the two readings."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc04",
+    "face": 367,
+    "surface": "sphere",
+    "python": 13.100237884387212,
+    "rust": 13.080630478135271,
+    "verdict": "rust-correct",
+    "evidence": "OpenCascade's default-precision area (the JSON's, build123d's Face.area) is off its own converged area: BRepGProp.SurfaceProperties at eps 1e-10 gives 13.080647750. The face is a sphere patch (R 5) reaching a pole and bounded by a B-spline edge; the file has no pcurves (OpenCascade projects them on reading). Green's theorem on the exact sphere, -R^2 ∮ sin v du, gives 13.080647750 along OpenCascade's pcurves and 13.080630478 along the foot points of the edges' 3D curves, which is the region haecceity integrates; the two differ only by the edges straying from the projected pcurves within their tolerance (up to 1.8e-5 mm)."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc04",
+    "face": 409,
+    "surface": "sphere",
+    "python": 8.178402770728365,
+    "rust": 8.157745920915168,
+    "verdict": "rust-correct",
+    "evidence": "OpenCascade's default-precision area (the JSON's, build123d's Face.area) is off its own converged area: BRepGProp.SurfaceProperties at eps 1e-10 gives 8.157747100. The face is a sphere patch (R 5) reaching a pole and bounded by a B-spline edge; the file has no pcurves (OpenCascade projects them on reading). Green's theorem on the exact sphere, -R^2 ∮ sin v du, gives 8.157747102 along OpenCascade's pcurves and 8.157745922 along the foot points of the edges' 3D curves, which is the region haecceity integrates; the two differ only by the edges straying from the projected pcurves within their tolerance (up to 1.8e-5 mm)."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc04",
+    "face": 410,
+    "surface": "sphere",
+    "python": 8.17840277629459,
+    "rust": 8.157745920915085,
+    "verdict": "rust-correct",
+    "evidence": "OpenCascade's default-precision area (the JSON's, build123d's Face.area) is off its own converged area: BRepGProp.SurfaceProperties at eps 1e-10 gives 8.157747100. The face is a sphere patch (R 5) reaching a pole and bounded by a B-spline edge; the file has no pcurves (OpenCascade projects them on reading). Green's theorem on the exact sphere, -R^2 ∮ sin v du, gives 8.157747102 along OpenCascade's pcurves and 8.157745922 along the foot points of the edges' 3D curves, which is the region haecceity integrates; the two differ only by the edges straying from the projected pcurves within their tolerance (up to 1.8e-5 mm)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 49,
+    "surface": "sphere",
+    "python": 14.266225102257774,
+    "rust": 14.268931992720347,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 14.266223056, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 14.266223055 along OpenCascade's pcurves and 14.268931992 along the edges' foot points on face 49."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 50,
+    "surface": "sphere",
+    "python": 14.26623365115347,
+    "rust": 14.268931992720368,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 14.266223056, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 14.266223055 along OpenCascade's pcurves and 14.268931992 along the edges' foot points on face 49, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 51,
+    "surface": "sphere",
+    "python": 14.266225102261656,
+    "rust": 14.268931992720798,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 14.266223056, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 14.266223055 along OpenCascade's pcurves and 14.268931992 along the edges' foot points on face 49, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 53,
+    "surface": "sphere",
+    "python": 14.266233651149825,
+    "rust": 14.26893199272021,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 14.266223056, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 14.266223055 along OpenCascade's pcurves and 14.268931992 along the edges' foot points on face 49, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 89,
+    "surface": "sphere",
+    "python": 1.789875178368181,
+    "rust": 1.7905675969797328,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 1.789875128, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 1.789875128 along OpenCascade's pcurves and 1.790567597 along the edges' foot points (an arc edge of tolerance 8.9e-4 whose projected pcurve strays 8.9e-4 mm from it, and one of tolerance 1e-7 straying 5.6e-6 mm) on face 89."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 96,
+    "surface": "sphere",
+    "python": 3.566558412787912,
+    "rust": 3.5672329981800734,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 3.566555764, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 3.566555764 along OpenCascade's pcurves and 3.567232998 along the edges' foot points on face 96."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 98,
+    "surface": "sphere",
+    "python": 1.7898752050278646,
+    "rust": 1.790567596979694,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 1.789875128, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 1.789875128 along OpenCascade's pcurves and 1.790567597 along the edges' foot points (an arc edge of tolerance 8.9e-4 whose projected pcurve strays 8.9e-4 mm from it, and one of tolerance 1e-7 straying 5.6e-6 mm) on face 89, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 101,
+    "surface": "sphere",
+    "python": 3.5665584127879133,
+    "rust": 3.5672329981800677,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 3.566555764, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 3.566555764 along OpenCascade's pcurves and 3.567232998 along the edges' foot points on face 96, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 104,
+    "surface": "sphere",
+    "python": 3.566558412786976,
+    "rust": 3.5672329981800064,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 3.566555764, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 3.566555764 along OpenCascade's pcurves and 3.567232998 along the edges' foot points on face 96, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 107,
+    "surface": "sphere",
+    "python": 3.5665562755644338,
+    "rust": 3.5672329981800726,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 3.566555764, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 3.566555764 along OpenCascade's pcurves and 3.567232998 along the edges' foot points on face 96, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 108,
+    "surface": "sphere",
+    "python": 3.5665584127879137,
+    "rust": 3.5672329981800717,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 3.566555764, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 3.566555764 along OpenCascade's pcurves and 3.567232998 along the edges' foot points on face 96, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 113,
+    "surface": "sphere",
+    "python": 3.566556275563492,
+    "rust": 3.567232998180006,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 3.566555764, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 3.566555764 along OpenCascade's pcurves and 3.567232998 along the edges' foot points on face 96, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 114,
+    "surface": "sphere",
+    "python": 3.5665562755644338,
+    "rust": 3.567232998180068,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 3.566555764, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 3.566555764 along OpenCascade's pcurves and 3.567232998 along the edges' foot points on face 96, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 116,
+    "surface": "sphere",
+    "python": 3.5665562755644356,
+    "rust": 3.567232998180039,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 3.566555764, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 3.566555764 along OpenCascade's pcurves and 3.567232998 along the edges' foot points on face 96, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "face": 127,
+    "surface": "sphere",
+    "python": 1.7898752050278361,
+    "rust": 1.7905675969796713,
+    "verdict": "rust-correct",
+    "evidence": "A sphere patch whose edges are circles lying on the sphere (to 1.6e-14 mm); the file has no pcurves, and the ones OpenCascade projects on reading stray from the edges (on face 49, 0.0295 mm from a circle of tolerance 1e-7). OpenCascade integrates the region its pcurves bound (converged, eps 1e-10: 1.789875128, which its default precision matches); haecceity integrates the region the edges bound. Green's theorem on the exact sphere gives 1.789875128 along OpenCascade's pcurves and 1.790567597 along the edges' foot points (an arc edge of tolerance 8.9e-4 whose projected pcurve strays 8.9e-4 mm from it, and one of tolerance 1e-7 straying 5.6e-6 mm) on face 89, which this face repeats (same area here, and in OpenCascade to 1e-6)."
+  }
+]

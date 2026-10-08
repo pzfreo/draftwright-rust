@@ -5,11 +5,17 @@
 //! on a 40 × 20 grid, made in build123d (`Box(60, 40, 5)`, `GridLocations(40, 20, 2, 2)`,
 //! `Hole(3)`).
 //!
-//! That quiddity's face order (OpenCascade's) is haecceity's was checked on eleven parts, 1,137
-//! faces: the fixtures, five MFCAD++ and two Gramel parts, sm-hanger, and NIST CTC 01–03. Every
-//! face agreed in surface type, and in area within 1e-4 (analytic) or 1e-3 (B-spline) relative.
-//! The bridge checks the same on every read.
+//! That quiddity's face order (OpenCascade's) is haecceity's is checked on every read (surface
+//! type and area), and here over every recognition the repository has, 4,031 faces: every face
+//! whose area differs from OpenCascade's by more than 1e-4 (relative, to a face of 1 mm²) is
+//! listed, with its verdict and evidence, in `tests/fixtures/known_bridge_faces.json`.
 
+#[path = "common/corpus.rs"]
+mod corpus;
+#[path = "common/facts.rs"]
+mod facts;
+
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -516,4 +522,210 @@ fn a_document_the_bridge_does_not_know_is_refused() {
     let (_, _, json) = slot_fixture("slot_array");
     assert_eq!(json["quiddity"]["package"]["version"], "0.3.9");
     assert!(read_slots("slot_array", &json).is_ok());
+}
+
+fn gunzip(path: &Path) -> String {
+    let mut text = String::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(path).unwrap())
+        .read_to_string(&mut text)
+        .unwrap();
+    text
+}
+
+/// Every recognition the repository has, as (set, part, STEP file, JSON): the fixtures beside
+/// their parts, and the corpus parts' only when the corpus is found.
+fn recognitions() -> Vec<(String, String, PathBuf, String)> {
+    let mut out = Vec::new();
+    for part in ["boss_circle", "plate", "prismatic", "turned", "two_grids"] {
+        let json = std::fs::read_to_string(fixture(&format!("recognition/{part}.json"))).unwrap();
+        out.push((
+            "parts".into(),
+            part.into(),
+            fixture(&format!("parts/{part}.step")),
+            json,
+        ));
+    }
+    let listed = |set: &str, suffix: &str| {
+        let mut names: Vec<String> = std::fs::read_dir(fixture(&format!("recognition/{set}")))
+            .unwrap()
+            .filter_map(|e| {
+                let name = e.unwrap().file_name().to_string_lossy().into_owned();
+                name.strip_suffix(suffix).map(String::from)
+            })
+            .collect();
+        names.sort();
+        names
+    };
+    for set in ["polygonal_stock", "slot_patterns", "steps"] {
+        for part in listed(set, ".step") {
+            let json = gunzip(&fixture(&format!("recognition/{set}/{part}.json.gz")));
+            let step = fixture(&format!("recognition/{set}/{part}.step"));
+            out.push((set.into(), part, step, json));
+        }
+    }
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED (corpus parts): the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return out;
+    };
+    for set in ["corpus", "sheets"] {
+        for part in listed(set, ".json.gz") {
+            let json = gunzip(&fixture(&format!("recognition/{set}/{part}.json.gz")));
+            let step = dir.join(facts::load(&part).binding.file);
+            out.push((set.into(), part, step, json));
+        }
+    }
+    for (set, part, file) in [
+        ("dims", "ftc07", "nist/nist_ftc_07_asme1_rd.stp"),
+        ("dims", "m10047", "mfcadpp/10047.step"),
+        ("dims", "m10245", "mfcadpp/10245.step"),
+        ("dims", "m11512", "mfcadpp_regressions/11512.step"),
+        ("steps", "h363", "mfcadpp_holdout/363.step"),
+        ("steps", "m10000", "mfcadpp/10000.step"),
+        ("steps", "m10060", "mfcadpp/10060.step"),
+        ("steps", "m1007", "mfcadpp/1007.step"),
+    ] {
+        let json = gunzip(&fixture(&format!("recognition/{set}/{part}.json.gz")));
+        out.push((set.into(), part.into(), dir.join(file), json));
+    }
+    out
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct KnownFace {
+    set: String,
+    part: String,
+    face: usize,
+    surface: String,
+    python: f64,
+    rust: f64,
+    verdict: String,
+    evidence: String,
+}
+
+/// Every recognition is read, and every face whose area differs from OpenCascade's (the JSON's)
+/// by more than 1e-4 is listed, with the same areas, a verdict and evidence; a listed face that
+/// stops differing must come off. The largest listed difference is 2.5e-3, a quarter of the
+/// bridge's 1e-2 for spheres and B-splines (`bridge::check_faces`).
+#[test]
+fn face_areas_differ_from_opencascades_only_as_listed() {
+    let known: Vec<KnownFace> =
+        serde_json::from_str(&std::fs::read_to_string(fixture("known_bridge_faces.json")).unwrap())
+            .unwrap();
+    let verdicts = [
+        "rust-correct",
+        "rust-wrong",
+        "equivalent",
+        "undetermined",
+        "not-applicable",
+    ];
+    let close = |a: f64, b: f64| (a - b).abs() <= 1e-9 * a.abs().max(1.0);
+    let mut seen = vec![false; known.len()];
+    let mut unlisted = Vec::new();
+    for (set, name, step, json) in recognitions() {
+        let (part, a) = model::analyse(&step).unwrap();
+        if let Err(e) = bridge::read(&part, &a.binding.source_sha256, &json) {
+            panic!("the bridge refuses {set}/{name}: {e}");
+        }
+        let json: Value = serde_json::from_str(&json).unwrap();
+        for (i, f) in json["faces"].as_array().unwrap().iter().enumerate() {
+            let python = f["area"].as_f64().unwrap();
+            let rust = part.face_mass(i).unwrap()[0];
+            if (rust - python).abs() <= 1e-4 * python.max(1.0) {
+                continue;
+            }
+            match known
+                .iter()
+                .position(|k| k.set == set && k.part == name && k.face == i)
+            {
+                Some(k) => {
+                    let listed = &known[k];
+                    assert!(
+                        close(listed.python, python) && close(listed.rust, rust),
+                        "{set}/{name} face {i}: listed python {} rust {}, now python {python} rust {rust}",
+                        listed.python,
+                        listed.rust
+                    );
+                    assert_eq!(listed.surface, f["surface"].as_str().unwrap());
+                    seen[k] = true;
+                }
+                None => unlisted.push(format!(
+                    "{set}/{name} face {i} ({}): python {python:?} rust {rust:?}",
+                    f["surface"]
+                )),
+            }
+        }
+    }
+    assert!(
+        unlisted.is_empty(),
+        "unlisted face areas:\n{}",
+        unlisted.join("\n")
+    );
+    for (k, s) in known.iter().zip(&seen) {
+        assert!(verdicts.contains(&k.verdict.as_str()), "{}", k.verdict);
+        assert!(!k.evidence.is_empty());
+        // Every entry is a corpus part's, seen only when the corpus is found.
+        if corpus::dir().is_some() {
+            assert!(
+                s,
+                "{}/{} face {} no longer differs: take it off",
+                k.set, k.part, k.face
+            );
+        }
+    }
+}
+
+/// nist_ctc_04 is read: its face 367 (13.080630 here, 13.100238 in the JSON) is the same face,
+/// OpenCascade's default precision being off its own converged area (see
+/// `known_bridge_faces.json`). A different face in its place is still refused: a sphere of
+/// another size, or a face of another type.
+#[test]
+fn nist_ctc_04_is_read_and_a_face_out_of_place_is_refused() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let (part, a) = model::analyse(&dir.join(facts::load("ctc04").binding.file)).unwrap();
+    let text = gunzip(&fixture("recognition/sheets/ctc04.json.gz"));
+    bridge::read(&part, &a.binding.source_sha256, &text).unwrap();
+
+    let json: Value = serde_json::from_str(&text).unwrap();
+    let faces = json["faces"].as_array().unwrap();
+    let swapped = |j: usize| {
+        let mut edited = json.clone();
+        edited["faces"][367] = faces[j].clone();
+        edited["faces"][j] = faces[367].clone();
+        bridge::read(&part, &a.binding.source_sha256, &edited.to_string()).unwrap_err()
+    };
+    // The nearest-sized other sphere differing by more than 1e-2.
+    let area = faces[367]["area"].as_f64().unwrap();
+    let other = (0..faces.len())
+        .filter(|&j| faces[j]["surface"] == "sphere")
+        .filter(|&j| (faces[j]["area"].as_f64().unwrap() - area).abs() > 1e-2 * area)
+        .min_by(|&x, &y| {
+            let d = |j: usize| (faces[j]["area"].as_f64().unwrap() - area).abs();
+            d(x).total_cmp(&d(y))
+        })
+        .unwrap();
+    let e = swapped(other);
+    assert!(
+        e.contains(&format!("face {} has area", other.min(367))),
+        "{e}"
+    );
+    let plane = (0..faces.len())
+        .find(|&j| faces[j]["surface"] == "plane")
+        .unwrap();
+    let e = swapped(plane);
+    assert!(e.contains(&format!("face {plane} is a plane here")), "{e}");
+}
+
+/// Two faces of the plate swapped in the JSON are refused, though the file is the same.
+#[test]
+fn swapped_faces_are_refused() {
+    let mut json = recognition("plate");
+    let (a, b) = (json["faces"][0].clone(), json["faces"][1].clone());
+    json["faces"][0] = b;
+    json["faces"][1] = a;
+    let e = read("plate", &json).unwrap_err();
+    assert!(e.contains("face 0 has area"), "{e}");
 }
