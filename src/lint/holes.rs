@@ -6,8 +6,13 @@
 //!
 //! - **The groups** ([`groups`]): the members of a recognised hole pattern
 //!   (`Analysis.recognition.patterns`) are one group when the pattern is established
-//!   ([`holes::established_with`]: every member read, all identical, and a bolt circle of five
-//!   or more, or of fewer with a hole or boss on its centre);
+//!   ([`holes::established_with`]: every member read, all identical, drilled along an axis of
+//!   the part and on distinct axis lines, and a bolt circle of five or more, or of fewer with a
+//!   hole or boss on its centre). A grid or linear pattern is one group however it is spaced,
+//!   as in Python, whose lint takes every pattern its drafting did not refuse, and whose
+//!   drafting refuses only those (`_append_hole_features`); the port's dimensions also decline a
+//!   grid that is not a lattice, or a linear pattern not evenly spaced, in the view (and call its
+//!   holes out loose), which Python's do not;
 //!   every other hole joins the loose holes with the same machining requirement, signed drilling
 //!   direction included (LINT-hole_coverage-opposed_bores_distinct). An Analysis without a
 //!   recognition record falls back to the fingerprints' pattern count and pitch.
@@ -638,7 +643,8 @@ mod tests {
     }
 
     /// With a recognition record, the recognised patterns are the groups: a grid of identical
-    /// holes is one; a bolt circle of fewer than five holes with nothing on its centre is not
+    /// holes is one, even these four in a row, which the port's dimensions decline as no lattice
+    /// (Python's lint and drafting keep it); a bolt circle of fewer than five holes with nothing on its centre is not
     /// established (ISSUE-1596-a), so its holes join the loose holes of the same requirement, as
     /// the dimensions call them out; with a bore on its centre it is a pattern
     /// (LINT-hole_coverage-bolt_circle_corroboration).

@@ -234,7 +234,10 @@ const CONCENTRIC: f64 = 0.5;
 
 /// Whether recognised pattern *p* is one machining requirement, given the readable *holes*:
 /// the indices of its members in *holes*, or why it is not. Its members must all be readable
-/// holes, more than one, with one [`Hole::requirement`]. A bolt circle of fewer than five holes
+/// holes, more than one, with one [`Hole::requirement`], drilled along an axis of the part, and
+/// on distinct axis lines (draftwright refuses an oblique pattern plane and coaxial members,
+/// in drafting and so in lint). A grid or linear pattern is not judged for its regularity
+/// here: draftwright keeps quiddity's as one requirement whatever its spacing. A bolt circle of fewer than five holes
 /// does not establish a circle by itself (three points, or a rectangle's corners, always fit
 /// one: ISSUE-1596-a); it is one requirement only when something round sits on its centre: a
 /// hole of *holes* that is not a member here, whose axis is parallel to the members' and passes
@@ -269,6 +272,32 @@ pub fn established_with(
     if members.iter().any(|&m| holes[m].requirement() != first) {
         return Err(format!(
             "its pattern {} is not of identical holes, so each is called out as itself",
+            p.id
+        ));
+    }
+    // draftwright's pattern refusals (`_append_hole_features`), which its lint follows too: a
+    // pattern whose plane is oblique, or whose members share an axis line (coaxial bores apart
+    // only along the drilling direction), has no pattern callout that can be drawn.
+    let Some(k) = principal(holes[members[0]].direction) else {
+        return Err(format!(
+            "its pattern {} lies in an oblique plane, so its holes are dimensioned singly",
+            p.id
+        ));
+    };
+    let mut across: Vec<Vec<i64>> = members
+        .iter()
+        .map(|&m| {
+            (0..3)
+                .filter(|&i| i != k)
+                .map(|i| size_key(holes[m].at[i]))
+                .collect()
+        })
+        .collect();
+    across.sort();
+    across.dedup();
+    if across.len() < members.len() {
+        return Err(format!(
+            "its pattern {} has members on one axis line, apart only along the drilling direction, so its holes are dimensioned singly",
             p.id
         ));
     }
@@ -487,6 +516,61 @@ mod tests {
                 at: [6.0, 50.0, 50.0],
                 direction: [1.0, 0.0, 0.0]
             }]
+        );
+    }
+
+    /// draftwright's refusals: a pattern drilled along no axis of the part, or whose members
+    /// share an axis line, is not one requirement; a grid however spaced is.
+    #[test]
+    fn an_oblique_or_coaxial_pattern_is_not_established() {
+        let hole = |id: &str, axis: [f64; 3], at: [f64; 3]| {
+            let mut f = feature(json!({ "axis": axis, "location": at, "diameter": 6.0,
+                                        "depth": 5.0, "bottom": "through" }));
+            f.id = id.into();
+            f
+        };
+        let pattern = |arrangement: &str| HolePattern {
+            id: "f:hole_pattern:1".into(),
+            arrangement: arrangement.into(),
+            members: vec!["f:hole:1".into(), "f:hole:2".into(), "f:hole:3".into()],
+            faces: vec![],
+            parameters: Map::new(),
+        };
+        let established_of = |fs: &[Feature], arrangement: &str| {
+            let read: Vec<Hole> = fs
+                .iter()
+                .map(|f| Hole::read(f, &IDENTITY).unwrap())
+                .collect();
+            established(&pattern(arrangement), &read.iter().collect::<Vec<_>>())
+        };
+        let z = [0.0, 0.0, 1.0];
+        // Unevenly spaced, off any lattice: still one requirement.
+        let uneven = [
+            hole("f:hole:1", z, [0.0, 0.0, 0.0]),
+            hole("f:hole:2", z, [10.0, 3.0, 0.0]),
+            hole("f:hole:3", z, [25.0, 0.0, 0.0]),
+        ];
+        assert_eq!(established_of(&uneven, "grid"), Ok(vec![0, 1, 2]));
+        let tilted = [0.0, 0.6, 0.8];
+        let oblique = [
+            hole("f:hole:1", tilted, [0.0, 0.0, 0.0]),
+            hole("f:hole:2", tilted, [10.0, 0.0, 0.0]),
+            hole("f:hole:3", tilted, [20.0, 0.0, 0.0]),
+        ];
+        assert!(
+            established_of(&oblique, "linear")
+                .unwrap_err()
+                .contains("oblique")
+        );
+        let coaxial = [
+            hole("f:hole:1", z, [0.0, 0.0, 0.0]),
+            hole("f:hole:2", z, [0.0, 0.0, 10.0]),
+            hole("f:hole:3", z, [10.0, 0.0, 0.0]),
+        ];
+        assert!(
+            established_of(&coaxial, "linear")
+                .unwrap_err()
+                .contains("one axis line")
         );
     }
 }
