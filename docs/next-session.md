@@ -190,3 +190,17 @@ improvement plan and questions are the current work. Still open from before it:
   - Unrelated finding: `bridge::kind` turns `sheet_metal_bodies` and `thin_wall_bodies` into
     the kinds `sheet_metal_bodie` and `thin_wall_bodie` (it strips one `s`). dims matches those
     records by fingerprint subtype, so it is unaffected.
+- From wave 3 (stream d-dims-slots): `dims::slots` (through slots: width, length, end radius,
+  location along the length; equal widths counted) and `dims::bosses` (diameter, height,
+  location; groove floors left to the groove). Left: round-bottom and rectangular blind slots
+  (they arrive as `section_recess`, shared with pockets, so slot depth has nothing to apply to
+  yet); slot patterns and polygonal bosses (ctc01's hex boss height is rust-wrong in
+  `known_dimensions.json`); ISSUE-1154-a, ISSUE-1511-a and ARCH0009-6 stay pending; a boss with
+  no positive height gets no height dimension and no problem (should raise
+  `feature_not_dimensioned`); the new items add 3 `annotation_off_sheet` (cgb245, ctc01) and 15
+  ink overlaps for the placement work.
+  - Questions for the maintainer:
+    - draftwright does not dimension a slot's position across its width, so the port doesn't.
+      Should it?
+    - Boss locations go beyond draftwright, which locates no boss (ftc06's 266.7, 38.1, 139.7
+      are marked rust-correct). Keep them?
