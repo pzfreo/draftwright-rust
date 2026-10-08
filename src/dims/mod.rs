@@ -16,7 +16,8 @@
 //!   or in the profile of a turned part.
 //!
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>@<view>`, its value,
-//! its printed terms and label, the measurements it states, a default flag and a basis.
+//! its printed terms and label, the measurements it states, a default flag and a basis. A
+//! tolerance or fit the spec gives reaches the label verbatim ([`tolerance`]), before placement.
 //!
 //! **Placement is simple and honest**, not draftwright's solver: linear dimensions stack in lanes
 //! below (horizontal) and right of (vertical) their view, sizes nearest, then locations by
@@ -37,6 +38,7 @@ mod envelope;
 mod holes;
 mod placement;
 mod slots;
+mod tolerance;
 mod turned;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -50,6 +52,7 @@ use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
 use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
+pub(crate) use tolerance::check as check_tolerances;
 
 /// Annotation text height (the em), mm: draftwright's `_FONT_SIZE`.
 pub const TEXT: f64 = 3.0;
@@ -98,6 +101,9 @@ pub struct PlannedDimension {
     /// Every measurement the label states, by feature and parameter.
     pub measurements: Vec<Measurement>,
     pub default: bool,
+    /// What of it the spec gave: `tolerance`, `fit` (ARCH0011-1). Absent when nothing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub from_spec: Vec<String>,
     pub basis: String,
     /// Its ink on the page; absent when it cannot be drawn, and a problem says why.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -485,6 +491,7 @@ pub fn plan(
         }
     }
     bosses::consolidate(analysis, &mut kept, &mut omitted);
+    let given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
 
     let (sides, lane) = placement::lanes(&frames, kept.iter().map(|(w, _, view, _)| (w, *view)));
 
@@ -492,7 +499,7 @@ pub fn plan(
     type Undrawn = (Vec<&'static str>, Vec<&'static str>);
     let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
-    for (i, (w, default, chosen, along)) in kept.into_iter().enumerate() {
+    for (i, ((w, default, chosen, along), from_spec)) in kept.into_iter().zip(given).enumerate() {
         let view = chosen.unwrap_or(w.views[0]);
         let placed = chosen
             .zip(sides[i])
@@ -520,7 +527,8 @@ pub fn plan(
             label: w.terms.join(" "),
             terms: w.terms,
             measurements: w.measurements,
-            default,
+            default: default && from_spec.is_empty(),
+            from_spec,
             basis,
             placed,
         });

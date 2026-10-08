@@ -411,3 +411,33 @@ improvement plan and questions are the current work. Still open from before it:
     - The bridge knows but does not read quiddity's `oriented_slot_patterns` and
       `section_recess_patterns` (their members are read singly). Refuse a document that has
       them, as unknown records are refused, or keep reading the members?
+- From wave 4 (stream d-spec-tolerances): the spec takes `dimensions/<id>/tolerance` (`±T` or
+  `+U -L`) and `features/<id>/fit` (ISO 286 classes from draftwright's `fits.py` table, on holes
+  and cylindrical bosses), both optional, so `draftwright.spec/1` reads older specs unchanged.
+  `src/dims/tolerance.rs` puts them on the label before placement, as draftwright prints them
+  (authored digits kept, one decimal at least), lists them in the item's `from_spec`, and
+  withholds with a `tolerance_withheld` warning a band of nothing (ARCH0019-2) or a fit the
+  members of an `n×` callout do not share (ARCH0019-3); an entry on what the plan leaves out is
+  a `tolerance_not_shown` warning. `tests/tolerances.rs` compares the labels with draftwright's
+  for the same declarations on ftc06 and ctc01 (`tools/probe_tolerances.py`): 12 equal, 3
+  different (1 rust-correct, 2 rust-wrong) and 1 not-applicable. No per-family planner was
+  touched. Left:
+  - ftc06's mixed boss fits are rust-wrong: draftwright splits the group (`3× ø44.5` and
+    `ø44.5 h6`), the port withholds the fit; splitting needs `dims::bosses` and `dims::holes` to
+    group by fit.
+  - Longer labels, for the placement work: on ftc06 with the test's spec, `127 ±0.1` (the
+    grid's row pitch) now overlaps the boss location `139.7` in the front view
+    (`annotation_ink_overlap`); ctc01's spec adds no placement problem.
+  - A callout's other terms (counterbore diameter and depth, bore depth) have no ID, so they
+    cannot be toleranced; draftwright's bare hole `.tolerance()` also lands on the counterbore
+    diameter. GD&T, finish and a fit shown as deviations (`show="deviation"`) are not ported.
+  - Questions for the maintainer:
+    - A collapsed callout whose members have different fits: split it into one callout per fit,
+      as draftwright does for bosses (and for holes with PMI tolerances, ISSUE-1116-b), or keep
+      one callout and withhold the fit with a warning, as ARCH0019-3 says?
+    - ARCH0019-2 is read as draftwright now formats a band (the drawn precision is a minimum,
+      authored digits kept), so only `±0` is withheld; draftwright prints it `±0.0`. Should a
+      band of nothing be refused by `edit` instead of withheld?
+    - A fit on a feature that does not exist is refused (`invalid`, nearest IDs), as a spec
+      naming an unknown dimension already is; one on a feature whose callout the plan leaves out
+      is a `tolerance_not_shown` warning. Is that the line wanted?
