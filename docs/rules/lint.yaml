@@ -952,7 +952,9 @@
     module: "linting/pad_coverage.py"
     issues: [1372]
     tests: [tests/test_pad_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: a_raised_pad_states_its_sizes_height_and_location
+  rust_note: "src/lint/pads.rs: each pad feature (quiddity's RaisedPad), read in the part's frame, has pad_width.length, pad_length.length and pad_height.length on draftwright's fixed footprint axes, and its centre's location from the part's box corner: location_pad.location.x/.y standing along z, location_pad.<length>/<width> otherwise, a direction on the datum left out as the compiler omits it. No corpus recognition has a pad; the unit tests use test_pad_completeness_evidence's pads, whose five values draftwright prints exactly as the port requires them (checked by running draftwright on the same build123d parts)."
   port_note: "Keep."
 
 - id: LINT-code-pad_requirement_state
@@ -964,6 +966,8 @@
     issues: [1372]
     tests: [tests/test_pad_completeness_evidence.py, tests/test_pad_rendering.py]
   status: pending
+  rust_test: a_raised_pad_states_its_sizes_height_and_location
+  rust_note: "Codes pad_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-pocket_coverage-size_depth_location

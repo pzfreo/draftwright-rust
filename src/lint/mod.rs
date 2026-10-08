@@ -39,6 +39,7 @@ pub mod fillets;
 pub mod flats;
 pub mod grooves;
 pub mod holes;
+pub mod pads;
 pub mod paired_ramp_steps;
 pub mod parameters;
 pub mod pockets;
@@ -157,6 +158,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
 /// Every ported rule's findings on a drawing whose annotations are *marks*.
 pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = bosses::coverage(analysis, marks);
+    issues.extend(pads::coverage(analysis, marks));
     issues.extend(polygonal::boss_coverage(analysis, marks));
     issues.extend(section_recesses::coverage(analysis, marks));
     issues.extend(angled_steps::coverage(analysis, marks));
