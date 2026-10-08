@@ -425,12 +425,15 @@ fn a_claim_is_credited_only_when_its_text_states_the_value() {
             .iter()
             .map(|m| (m.as_str(), "bore.diameter"))
             .collect();
+        // Hole coverage's findings: the diameter backstop (`feature_not_dimensioned`) also
+        // reports a misprinted diameter, as draftwright's does.
         lint::check(&analysis, &[mark(text, &claims)])
             .into_iter()
             .filter(|i| {
-                i.requirements
-                    .iter()
-                    .any(|r| r.parameter == "bore.diameter")
+                i.code.starts_with("hole_requirement_")
+                    && i.requirements
+                        .iter()
+                        .any(|r| r.parameter == "bore.diameter")
             })
             .map(|i| i.code)
             .collect()

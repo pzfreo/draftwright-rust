@@ -1,0 +1,82 @@
+[
+ {
+  "part": "cgb245",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "16 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "cgb245",
+  "code": "feature_not_located",
+  "python": "2 hole(s) have no locating dimension",
+  "rust": null,
+  "verdict": "rust-correct",
+  "reason": "draftwright's sheet locates the two ø10 holes at (±182, 72.249) along x (m_locx0, m_locx8) but not along y: no location.y fact names them and no witness lies within 0.6 mm of their projected y (tests/fixtures/lint_coverage/python.json.gz). The port's drawing locates both along y too (d:f:hole:1/location.length.y@plan, 156.4, claims f:hole:1 and f:hole:2), so lint finds every hole located."
+ },
+ {
+  "part": "connector109",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "1 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "ctc01",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "10 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "ftc06",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "12 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "grm03",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "1 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "hanger",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "2 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "m10127",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "2 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "spool132",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "31 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "string_post",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "2 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ }
+]
