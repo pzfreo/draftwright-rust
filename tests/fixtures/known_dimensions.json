@@ -6,8 +6,8 @@
     "view": "side",
     "label": "103.1",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -16,8 +16,8 @@
     "view": "side",
     "label": "152.8",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -26,8 +26,8 @@
     "view": "side",
     "label": "28.9",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -36,8 +36,8 @@
     "view": "side",
     "label": "50.4",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -46,8 +46,8 @@
     "view": "side",
     "label": "79.9",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -56,8 +56,8 @@
     "view": "plan",
     "label": "103.1",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -66,8 +66,8 @@
     "view": "plan",
     "label": "152.8",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -86,8 +86,8 @@
     "view": "plan",
     "label": "28.9",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -96,8 +96,8 @@
     "view": "plan",
     "label": "50.4",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "cgb245",
@@ -116,8 +116,18 @@
     "view": "plan",
     "label": "79.9",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "location.slot",
+    "view": "plan",
+    "label": "38.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The slot f:slot:3's location across its width: y from the part's front face to its centre line, in the plan view that looks through it (src/dims/slots.rs). draftwright states no slot position across its width; the maintainer's decision of 2026-10-08 is that a slot is also located across its width (beyond draftwright, rust-correct). The other two slots' centre lines stand at 50.4, which the hole location of the same distance in the same view states (ARCH0009-6), so they add no item."
   },
   {
     "part": "connector109",
@@ -146,8 +156,8 @@
     "view": "side",
     "label": "225",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "ctc01",
@@ -157,7 +167,7 @@
     "label": "225",
     "count": 2,
     "verdict": "rust-wrong",
-    "reason": "Two items. The hole grid f:hole_pattern:1's y location: undetermined, pending the maintainer's decision (the port dimensions both of a hole's or pattern's in-plane coordinates in the view that looks along it, where it is a circle, by ADR1-6; draftwright sends this coordinate to the side view, where the hole is hidden lines; ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly). And the hex boss's y location, rust-wrong: The hex boss (f:polygonal_boss:1) stands at the centre of the 2×2 hole grid f:hole_pattern:1, so the port's boss location repeats that pattern's location in the plan view (400 from the left face, 225 from the front): one point located twice. The port locates a boss as it does a hole (src/dims/bosses.rs; draftwright locates no boss, see ftc06's entries), but coincident hole and boss locations are not merged yet (ARCH0009-6: the hole location outranks and the boss's is conveyed by it), which is pending with the hole planner's owner. The entry goes when they are merged. The verdict is the second item's; the first stays undetermined as in its python-side entry."
+    "reason": "Two items. The hole grid f:hole_pattern:1's y location: rust-correct by the maintainer's decision of 2026-10-08 (a hole's or pattern's in-plane position is dimensioned in the view that sees it end-on, ADR1-6; draftwright sends this coordinate to the side view, where the hole is hidden lines). And the hex boss's y location, rust-wrong: The hex boss (f:polygonal_boss:1) stands at the centre of the 2×2 hole grid f:hole_pattern:1, so the port's boss location repeats that pattern's location in the plan view (400 from the left face, 225 from the front): one point located twice. The port locates a boss as it does a hole (src/dims/bosses.rs; draftwright locates no boss, see ftc06's entries), but coincident hole and boss locations are not merged yet (ARCH0009-6: the hole location outranks and the boss's is conveyed by it), which is pending with the hole planner's owner. The entry goes when they are merged. The verdict is the second item's; the first is rust-correct, as its python-side entry."
   },
   {
     "part": "ftc06",
@@ -166,8 +176,8 @@
     "view": "side",
     "label": "50.8",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "ftc06",
@@ -176,8 +186,8 @@
     "view": "side",
     "label": "78.7",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "ftc06",
@@ -186,8 +196,8 @@
     "view": "side",
     "label": "127",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "ftc06",
@@ -196,8 +206,8 @@
     "view": "side",
     "label": "88.9",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "ftc06",
@@ -216,8 +226,8 @@
     "view": "plan",
     "label": "50.8",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "ftc06",
@@ -226,8 +236,8 @@
     "view": "plan",
     "label": "78.7",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "ftc06",
@@ -236,8 +246,8 @@
     "view": "front",
     "label": "127",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "ftc06",
@@ -246,8 +256,8 @@
     "view": "front",
     "label": "88.9",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole's or hole pattern's in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle; draftwright sends this coordinate to the side view, where the hole is hidden lines. Same measurement, other view."
   },
   {
     "part": "grm03",
@@ -476,8 +486,8 @@
     "view": "side",
     "label": "30",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a slot pattern's centre coordinates in the view that looks through its slots, as it does a hole pattern's (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole pattern's (and so a slot pattern's) in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the slot pattern's centre coordinates in the view that looks through its slots; draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. Same measurement, other view."
   },
   {
     "part": "slot_array",
@@ -486,8 +496,8 @@
     "view": "plan",
     "label": "30",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a slot pattern's centre coordinates in the view that looks through its slots, as it does a hole pattern's (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole pattern's (and so a slot pattern's) in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the slot pattern's centre coordinates in the view that looks through its slots; draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. Same measurement, other view."
   },
   {
     "part": "slot_grid",
@@ -516,8 +526,8 @@
     "view": "side",
     "label": "50",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a slot pattern's centre coordinates in the view that looks through its slots, as it does a hole pattern's (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole pattern's (and so a slot pattern's) in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the slot pattern's centre coordinates in the view that looks through its slots; draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. Same measurement, other view."
   },
   {
     "part": "slot_grid",
@@ -526,8 +536,8 @@
     "view": "plan",
     "label": "50",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a slot pattern's centre coordinates in the view that looks through its slots, as it does a hole pattern's (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "verdict": "rust-correct",
+    "reason": "rust-correct by the maintainer's decision of 2026-10-08: a hole pattern's (and so a slot pattern's) in-plane position is dimensioned in the view that sees it end-on (ADR1-6: a feature's view follows from its axis by one rule), not in the side view as draftwright does. The port dimensions both of the slot pattern's centre coordinates in the view that looks through its slots; draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. Same measurement, other view."
   },
   {
     "part": "slot_grid",

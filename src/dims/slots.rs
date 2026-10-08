@@ -1,6 +1,6 @@
 //! Through slots (quiddity's `Slot`, draftwright's `SlotFeature`): width, length, an obround's
-//! end radius and the location of its low end, in the view that looks through it
-//! (`annotations/_slots.py`, `compiled.py`'s slot location).
+//! end radius, the location of its low end and of its centre line, in the view that looks through
+//! it (`annotations/_slots.py`, `compiled.py`'s slot location).
 //!
 //! Each lone slot states:
 //! - its **width** across its width axis, and its **length** along its long axis, as linear
@@ -11,8 +11,11 @@
 //!   leader to an end, `2× R3`. A straight slot (no end radius, perhaps a `corner_radius`) states
 //!   no radius: its corner blends are the fillets' (draftwright prints none for it either);
 //! - its **location**: the distance along its long axis from the part's box to its low end
-//!   (draftwright's `location_slot.length`, datum `bbox`). As in draftwright, its position across
-//!   the width axis is not dimensioned.
+//!   (draftwright's `location_slot.length`, datum `bbox`), and the distance across its width axis
+//!   from the part's box to its centre line (`location_slot_across.length`). draftwright states
+//!   no position across; the maintainer's decision of 2026-10-08 is that a slot is located across
+//!   its width too. Slots at the same distance across in one view share one dimension, as hole
+//!   locations do.
 //!
 //! A **slot pattern** (quiddity's `SlotArray` or `SlotGrid`, a `slot_pattern` feature naming its
 //! member slots) is called out once, as draftwright's `render_slot_patterns` does, in the view that
@@ -29,16 +32,17 @@
 //! as draftwright's `section_recess_fields` does, and calls out those it reads as a rectangular
 //! or a round-bottom blind slot (an edge-open recess with an open U section), in the view that
 //! looks into it: `OPEN SLOT W × L × D DEEP`, `ROUND-BOTTOM OPEN SLOT F BOTTOM FLAT × Rr × L
-//! LONG`. Every other section recess stays reported as not dimensioned. As in draftwright, a
-//! blind slot is not located (it opens at the part's edge).
+//! LONG`. Every other section recess stays reported as not dimensioned. A blind slot opens at the
+//! part's edge, which fixes its position along its run; across its width it is located by its
+//! centre line as a through slot is (beyond draftwright, which does not locate it).
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
 
 use super::{
-    AXES, Context, Measurement, P3, Planner, Problem, QFrame, Shape, Want, end_on, fmt, key, point,
-    want_id,
+    AXES, Context, Measurement, Omitted, P3, Planner, Problem, QFrame, Shape, Want, end_on, fmt,
+    key, point, want_id,
 };
 use crate::bridge::Feature;
 use crate::bridge::holes::principal;
@@ -310,6 +314,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         });
     }
 
+    // Each slot's centre line across its width: (owner, the point located, its axis, view).
+    let mut across: Vec<(String, P3, usize, &'static str)> = Vec::new();
     for s in &slots {
         let view = end_on(s.deep);
         let id = &s.feature.id;
@@ -345,6 +351,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 },
             });
         }
+        let Shape::Linear { b, .. } = size(s, view, s.wide, s.centre, s.centre, 1) else {
+            unreachable!("a size is linear")
+        };
+        across.push((id.clone(), b, s.wide, view));
         let d = s.ends[0] - lo[s.long];
         if d.abs() < 1e-6 {
             problems.push(Problem {
@@ -372,7 +382,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             measurements: vec![m("location_slot.length", d)],
             turning: None,
             basis: format!(
-                "located along its length ({}) from the part's {} face to its near end, in the view that looks through it; its position across is not dimensioned, as in draftwright",
+                "located along its length ({}) from the part's {} face to its near end, in the view that looks through it",
                 AXES[s.long],
                 ["left", "front", "bottom"][s.long]
             ),
@@ -386,15 +396,98 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             },
         });
     }
-    out.extend(
+    for b in analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "section_recess")
+        .filter_map(|f| blind(f, &cx.frame))
+    {
+        out.push(b.want());
+        across.push((b.feature.id.clone(), b.centre, b.wide, end_on(b.deep)));
+    }
+    located_across(cx, across, &mut out, &mut problems);
+    (out, problems)
+}
+
+/// The slots' locations across their widths, from the part's box to each centre line: one
+/// dimension per distinct distance in a view, serving every slot at it (as `dims::holes` shares
+/// its locations, ARCH0009-6), or an info problem for one centred on the box's face.
+fn located_across(
+    cx: &Context,
+    across: Vec<(String, P3, usize, &'static str)>,
+    out: &mut Vec<Want>,
+    problems: &mut Vec<Problem>,
+) {
+    let analysis = cx.analysis;
+    let [lo, _] = analysis.envelope;
+    type Owners = Vec<(String, P3)>;
+    let mut by: BTreeMap<(&str, usize, i64), Owners> = BTreeMap::new();
+    for (owner, p, k, view) in across {
+        let d = p[k] - lo[k];
+        if d.abs() < 1e-6 {
+            problems.push(Problem {
+                id: format!("p:location_on_datum:{owner}/{}", AXES[k]),
+                code: "location_on_datum".into(),
+                severity: "info".into(),
+                message: format!(
+                    "{owner} is centred on the part's {} face, so its {} location measures nothing and is not dimensioned.",
+                    ["left", "front", "bottom"][k],
+                    AXES[k]
+                ),
+                subjects: vec![owner],
+            });
+            continue;
+        }
+        by.entry((view, k, key(d))).or_default().push((owner, p));
+    }
+    let rank = |id: &str| {
         analysis
             .features
             .iter()
-            .filter(|f| f.kind == "section_recess")
-            .filter_map(|f| blind(f, &cx.frame))
-            .map(|b| b.want()),
-    );
-    (out, problems)
+            .position(|f| f.id == id)
+            .unwrap_or(usize::MAX)
+    };
+    for ((view, k, _), mut owners) in by {
+        owners.sort_by_key(|(o, _)| (rank(o), o.clone()));
+        let (first, p) = &owners[0];
+        let d = p[k] - lo[k];
+        let parameter = "location_slot_across.length";
+        let mut a = *p;
+        a[k] = lo[k];
+        out.push(Want {
+            id: want_id(first, parameter, view),
+            views: vec![view],
+            value: d,
+            terms: vec![fmt(d)],
+            measurements: owners
+                .iter()
+                .map(|(o, _)| Measurement {
+                    feature: o.clone(),
+                    parameter: parameter.into(),
+                    value: d,
+                })
+                .collect(),
+            turning: None,
+            basis: format!(
+                "located across its width ({}) from the part's {} face to its centre line, in the view that sees it end-on (beyond draftwright: the maintainer's decision of 2026-10-08){}",
+                AXES[k],
+                ["left", "front", "bottom"][k],
+                if owners.len() > 1 {
+                    "; one dimension serves every slot at this distance"
+                } else {
+                    ""
+                }
+            ),
+            shape: Shape::Linear {
+                a,
+                b: *p,
+                axis: k,
+                a_edge: true,
+                b_edge: false,
+                order: 1,
+            },
+        });
+    }
 }
 
 /// A slot pattern's items, the problems met, and its member slots' IDs.
@@ -897,4 +990,57 @@ impl Blind<'_> {
             },
         }
     }
+}
+
+/// One span, one dimension (ARCH0009-6: a hole location outranks a coincident slot position): a
+/// default slot location across that measures the same distance, on the same axis in the same
+/// view, as a kept hole, boss or slot-pattern location moves to *omitted*, naming the dimension
+/// that states it. One the spec lists is kept.
+pub(super) fn consolidate(
+    kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
+    omitted: &mut Vec<Omitted>,
+) {
+    let span = |w: &Want| match w.shape {
+        Shape::Linear { axis, .. } => Some((w.views.clone(), axis, w.value)),
+        Shape::Callout { .. } => None,
+    };
+    let parameter = |w: &Want| w.measurements.first().map(|m| m.parameter.clone());
+    type Span = (Vec<&'static str>, usize, f64);
+    let owners: Vec<(String, Span)> = kept
+        .iter()
+        .filter(|(w, ..)| {
+            parameter(w).is_some_and(|p| {
+                p.starts_with("location.length.") || p.starts_with("location_slot_pattern.")
+            })
+        })
+        .filter_map(|(w, ..)| Some((w.id.clone(), span(w)?)))
+        .collect();
+    let mut gone = BTreeSet::new();
+    for (i, (w, default, ..)) in kept.iter().enumerate() {
+        if !*default || parameter(w).as_deref() != Some("location_slot_across.length") {
+            continue;
+        }
+        let Some((views, k, d)) = span(w) else {
+            continue;
+        };
+        let Some((owner, _)) = owners
+            .iter()
+            .find(|(_, (v, k2, d2))| *v == views && *k2 == k && (d - d2).abs() < 1e-6)
+        else {
+            continue;
+        };
+        gone.insert(i);
+        omitted.push(Omitted {
+            id: w.id.clone(),
+            basis: format!(
+                "conveyed by {owner}: it locates the same distance in {} from the part's box, in the same view (one span, one dimension: ARCH0009-6)",
+                AXES[k]
+            ),
+        });
+    }
+    let mut i = 0;
+    kept.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
 }

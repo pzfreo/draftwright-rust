@@ -243,10 +243,8 @@ improvement plan and questions are the current work. Still open from before it:
   `feature_not_dimensioned`); the new items add 3 `annotation_off_sheet` (cgb245, ctc01) and 15
   ink overlaps for the placement work.
   - Questions for the maintainer:
-    - draftwright does not dimension a slot's position across its width, so the port doesn't.
-      Should it?
-    - Boss locations go beyond draftwright, which locates no boss (ftc06's 266.7, 38.1, 139.7
-      are marked rust-correct). Keep them?
+    - Answered 2026-10-08 (applied by stream d-location-decisions): a slot is located across its
+      width too, and boss locations stay (both beyond draftwright, rust-correct).
 - From wave 3 (stream d-slots-rest): polygonal bosses (`HEX 100 A/F`, `4-SIDED 25.4 A/F`, with
   their heights and locations; ctc01's hex boss height now agrees with draftwright's sheet), a
   `feature_not_dimensioned` warning for a boss with no positive height, ISSUE-1154-a's
@@ -279,8 +277,8 @@ improvement plan and questions are the current work. Still open from before it:
     - The port counts identical polygonal bosses once (`4× 4-SIDED 25.4 A/F` on nist_ftc_07),
       as it and draftwright do cylindrical ones; draftwright calls each polygonal boss out on
       its own. Keep the count?
-    - A blind slot is not located, as in draftwright (it opens at the part's edge, so its
-      position along the run is fixed, but not across it). Should the port locate it across?
+    - Answered 2026-10-08 (applied by stream d-location-decisions): a blind slot is located
+      across its width, as a through slot is.
     - An authored set that lists both a boss height and the overall extent between the same
       faces keeps both in the port (an explicit listing is kept); draftwright consolidates
       them. Which?
@@ -552,3 +550,24 @@ improvement plan and questions are the current work. Still open from before it:
       twice.
     - Face levels and risers (`step_levels`, `risers`) are evidence the bridge carries: should
       quiddity-rust's document carry them (a schema change) so the native path can replace it?
+- From wave 4 (stream d-location-decisions, 2026-10-08): the maintainer's location decisions
+  applied. (a) The 23 pending side-view routing entries in `known_dimensions.json` (19 hole and
+  hole-pattern, 4 slot-pattern; cgb245, ctc01, ftc06, slot_array, slot_grid, both sides; the
+  decision said 20) are rust-correct citing the decision and ADR1-6, and ctc01's combined
+  `225` entry says so for its hole-grid half (it stays rust-wrong for the boss's half). (b)
+  `dims::slots` locates each lone through slot and each blind slot across its width, from the
+  part's box to its centre line (`location_slot_across.length`), in the view that sees it
+  end-on, one dimension per distinct distance in a view; a slot pattern was already located on
+  both axes by its centre. One that a hole's, boss's or slot pattern's location already states
+  (same view, axis and distance) moves to `omitted`, `conveyed by <ID>` (ARCH0009-6's hole-over-
+  slot clause, `slots::consolidate`, called beside `bosses::consolidate`); omitting the winner
+  brings it back (`tests/trust_rules.rs` now expects that). On the captured sheets this adds one
+  item, cgb245's `38.9` (rust-correct); cgb245's other two slots (50.4) and ctc01's (225) are
+  conveyed by hole locations. (c) Boss locations were already rust-correct; their questions are
+  marked answered. ADR1-6 and ADR5-1 (PNG bytes pinned) rust_notes updated. Left:
+  - Placement, for the placement work: cgb245's `38.9` runs off the sheet
+    (`annotation_off_sheet`); on m10047 the side view's `11.0` runs through the slot location
+    `5.1`, and on m10245 the `OPEN SLOT` callout's leader runs through the `33.9` label
+    (`annotation_ink_overlap`).
+  - ARCH0009-6 stays pending: coincident hole and boss locations (ctc01's 400, 225) are still
+    not merged.
