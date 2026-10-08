@@ -1776,7 +1776,8 @@
     issues: [1536]
     tests: [tests/test_issue_1536_title_overflow.py]
   status: pending
-  port_note: "Keep."
+  rust_test: "tests/title_block.rs::all_rendered_fields_and_multiline_heights_are_checked"
+  rust_note: "In part, as a plan problem rather than a lint finding (ISSUE-1536-a's port_note): each title-block value is checked against its cell and reported as a title_field_overflow warning, drawn whole, never shortened or shrunk. Not ported: the notes block the message points to (the port draws no notes), so the problem asks for a concise value instead."
 
 - id: LINT-structural-duck_typed_dispatch
   statement: "Structural lint dispatches checks by annotation attributes (elbow, measured length, centreline flag, label box) and memoises per-item boxes and per-view edges."

@@ -24,7 +24,8 @@ use crate::layout::{self, Fallback, MARGIN, Principals, Request, Scaled};
 use crate::output::{
     Curve, Drawing, HAlign, Item, Layer, TextRun, VAlign, layer_styles, projected,
 };
-use crate::text::{Font, Segment};
+use crate::text::{Font, Laid, Segment};
+use crate::title_block::{self, TitleCell};
 
 /// Version 2 added the isometric box (`iso_bounds`) and the recognised features, version 3 the
 /// horizontal face levels (`levels`).
@@ -196,6 +197,10 @@ pub struct PlannedSheet {
     pub default: bool,
     pub basis: String,
     pub title: BTreeMap<String, String>,
+    /// The title block's cells, each with its box and the value drawn in it (ISSUE-1585-a: a
+    /// supplied field is recorded as drawn, in its own cell).
+    #[serde(default)]
+    pub title_cells: Vec<TitleCell>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -473,6 +478,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             &[SPEC_SCHEMA],
         ));
     }
+    title_block::check(&spec.sheet.title)?;
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let mut effective = spec.clone();
@@ -800,6 +806,8 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     title
         .entry("number".into())
         .or_insert_with(|| "DWG-001".into());
+    let title_cells = title_block::cells(g.title_block, &title, &size);
+    problems.extend(title_block::problems(&title_cells, pick.page));
     let sheet = PlannedSheet {
         size,
         page: pick.page,
@@ -810,6 +818,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         default: spec.sheet.size.is_none() || spec.sheet.scale.is_none(),
         basis,
         title,
+        title_cells,
     };
     let (dimensions, mut omitted, more) = crate::dims::plan(analysis, spec, &sheet, &views)?;
     problems.extend(more);
@@ -898,6 +907,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     let spec: Spec = serde_json::from_value(doc)
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::dims::check_tolerances(&spec)?;
+    title_block::check(&spec.sheet.title)?;
     Ok(spec)
 }
 
@@ -964,13 +974,19 @@ pub fn render(
     };
     let part_layer = &mut layers[0].items;
     part_layer.extend(rect(MARGIN, MARGIN, w - MARGIN, h - MARGIN));
-    let [tx0, ty0, tx1, ty1] = plan.sheet.title_block;
-    part_layer.extend(rect(tx0, ty0, tx1, ty1));
+    // The block is the grid's four rows at the bottom of the box the layout reserves for it.
+    let block = plan.sheet.title_block;
+    let [tx0, ty0, tx1, _] = block;
+    part_layer.extend(rect(tx0, ty0, tx1, title_block::top(block)));
     let mut text = Vec::new();
     // The dimensions and callouts, drawn from the plan alone.
     let annotations = crate::dims::render(&plan.dimensions, &mut layers[2].items, &mut text);
-    let mut label = |s: &str, at: [f64; 2], size: f64, layer: &mut Vec<Item>| {
-        let laid = font.text(s, size);
+    // Glyphs *laid* out drawn moved to *at*, and the *run* (text, font file, size), if any, as
+    // invisible text centred there.
+    let mut label = |laid: Laid,
+                     at: [f64; 2],
+                     layer: &mut Vec<Item>,
+                     run: Option<(&str, &str, f64)>| {
         let shift = |p: [f64; 2]| [p[0] + at[0], p[1] + at[1]];
         let curves: Vec<Curve> = laid
             .contours
@@ -998,33 +1014,61 @@ pub fn render(
                 .collect();
             layer.push(Item::Face(wires));
         }
-        text.push(TextRun {
-            text: s.into(),
-            at,
-            size,
-            rotation: 0.0,
-            font: "IBMPlexMono-Regular.ttf".into(),
-            h_align: HAlign::Center,
-            v_align: VAlign::Middle,
-        });
+        if let Some((s, font, size)) = run {
+            text.push(TextRun {
+                text: s.into(),
+                at,
+                size,
+                rotation: 0.0,
+                font: font.into(),
+                h_align: HAlign::Center,
+                v_align: VAlign::Middle,
+            });
+        }
     };
     let dims = &mut layers[2].items;
     dims.extend(furniture);
     for (s, at) in &captions {
-        label(s, *at, crate::section::FONT_SIZE, dims);
+        let size = crate::section::FONT_SIZE;
+        let run = (s.as_str(), "IBMPlexMono-Regular.ttf", size);
+        label(font.text(s, size), *at, dims, Some(run));
     }
-    let title = |k: &str| plan.sheet.title.get(k).cloned().unwrap_or_default();
-    label(&title("title"), [0.5 * (tx0 + tx1), ty1 - 12.0], 5.0, dims);
+    // Each cell: its dividers, its label at its lower left, and its value (none drawn for a
+    // field not supplied) centred in it, whole, and searchable. The ink is the font-safe value.
+    for c in &plan.sheet.title_cells {
+        let [x0, y0, x1, y1] = c.cell;
+        if x0 > tx0 {
+            dims.push(Item::Edge(Curve::Line([x0, y0], [x0, y1])));
+        } else if y1 < title_block::top(block) {
+            // A row's first cell draws the line along the row's top.
+            dims.push(Item::Edge(Curve::Line([tx0, y1], [tx1, y1])));
+        }
+        let laid = title_block::lay(&c.label, title_block::LABEL_TEXT);
+        let at = [
+            x0 + title_block::LABEL_PAD - laid.min[0],
+            y0 + title_block::LABEL_PAD - laid.min[1],
+        ];
+        label(laid, at, dims, None);
+        if let Some(v) = &c.value {
+            let centre = [0.5 * (x0 + x1), 0.5 * (y0 + y1)];
+            let run = (v.as_str(), title_block::FONT, title_block::TEXT);
+            label(
+                title_block::lay(v, title_block::TEXT),
+                centre,
+                dims,
+                Some(run),
+            );
+        }
+    }
+    // The scale, outside the block (ISO 7200 §4), above its right end.
+    let scale = format!("SCALE {}", plan.sheet.scale);
+    let at = title_block::scale_note(block, &scale);
+    let run = (scale.as_str(), title_block::FONT, title_block::TEXT);
     label(
-        &format!(
-            "{}   SCALE {}   {}",
-            title("number"),
-            plan.sheet.scale,
-            plan.sheet.size
-        ),
-        [0.5 * (tx0 + tx1), ty0 + 9.0],
-        3.5,
+        title_block::lay(&scale, title_block::TEXT),
+        at,
         dims,
+        Some(run),
     );
     Ok(Drawing {
         page: plan.sheet.page,

@@ -246,9 +246,11 @@ fn rendered(
                 "svg" => drawing.svg().into_bytes(),
                 "dxf" => drawing.dxf(),
                 "png" => drawing.png(dpi).map_err(Error::invalid)?,
-                _ => {
-                    drawing.pdf(&|name| (name == "IBMPlexMono-Regular.ttf").then(|| MONO.to_vec()))
-                }
+                _ => drawing.pdf(&|name| match name {
+                    "IBMPlexMono-Regular.ttf" => Some(MONO.to_vec()),
+                    crate::title_block::FONT => Some(crate::title_block::FONT_DATA.to_vec()),
+                    _ => None,
+                }),
             };
             Ok((format.to_string(), bytes))
         })

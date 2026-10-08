@@ -633,3 +633,32 @@ fn pdf_fonts_hold_only_the_glyphs_shown() {
         }
     }
 }
+
+/// ISSUE-1585-a and ISSUE-1536-a, the PDF's text layer: a supplied date and an overflowing value
+/// are read back from the PDF, each whole and once, in the title block's own face.
+#[test]
+fn title_block_values_reach_the_pdf_text_layer() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (part, mut a) = model::analyse(&root.join("tests/fixtures/parts/plate.step")).unwrap();
+    let json = std::fs::read_to_string(root.join("tests/fixtures/recognition/plate.json")).unwrap();
+    model::recognise(&part, &mut a, &json).unwrap();
+    let (date, long) = ("2026-09-11", "ENGINEERING REVIEW GROUP / draftwright");
+    let spec: Spec = serde_json::from_value(json!({ "sheet": { "size": "A2", "title": {
+        "title": "FRAME", "date": date, "drawn_by": long } } }))
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "title_field_overflow")
+    );
+    let font =
+        draftwright::text::Font::new(common::fonts("IBMPlexMono-Regular.ttf").unwrap()).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let text = pdf_text(&drawing.pdf(&common::fonts));
+    for value in [date, long] {
+        assert_eq!(text.iter().filter(|t| *t == value).count(), 1, "{value}");
+        let run = drawing.text.iter().find(|t| t.text == value).unwrap();
+        assert_eq!(run.font, draftwright::title_block::FONT);
+    }
+}

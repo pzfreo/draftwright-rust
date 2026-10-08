@@ -1246,7 +1246,7 @@
   status: pending
   port_note: "Keep: bundle the same fonts in the Rust crate; planner text metrics and renderer glyphs read the same file."
   rust_test: tests/trust_rules.rs::labels_are_measured_with_the_font_they_are_drawn_with
-  rust_note: "In part: every dimension label is measured and drawn with the bundled IBM Plex Mono (dims::FONT), and its planned box is the box of the glyphs drawn, to 0.001 mm. Not ported: the title block is drawn in Plex Mono at fixed sizes, not in Plex Sans Condensed (not bundled), and its text is not measured to its cells."
+  rust_note: "In part: every dimension label is measured and drawn with the bundled IBM Plex Mono (dims::FONT), and its planned box is the box of the glyphs drawn, to 0.001 mm; the title block's values, labels and scale note are measured and drawn with the bundled IBM Plex Sans Condensed (title_block::FONT), a value's drawn ink being its measured box to 0.001 mm (tests/title_block.rs::a_value_is_drawn_as_it_is_measured). Not ported: notes (none are drawn yet)."
 
 - id: ARCH0008-1
   statement: "A feature's measurement carries a semantic role, never a rendered label; drafting symbols (counterbore, countersink, depth) are drawn as geometry, not font glyphs."
