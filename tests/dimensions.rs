@@ -23,8 +23,9 @@
 //! has a slot array, so two fixture plates with one (`tests/fixtures/recognition/slot_patterns/`:
 //! a linear array and a grid, with their recognition and draftwright's sheet facts) are compared
 //! the same way. ctc04 is not
-//! compared: the bridge refuses its recognition (face 367's area, 13.0806 here and 13.1002 in
-//! OpenCascade). Set `DIMS_REPORT=1` to print every difference.
+//! compared: the bridge refused its recognition until its face check took OpenCascade's
+//! default-precision sphere areas for what they are (`tests/fixtures/known_bridge_faces.json`),
+//! and its differences are not listed yet. Set `DIMS_REPORT=1` to print every difference.
 
 #[path = "common/corpus.rs"]
 mod corpus;
@@ -206,6 +207,9 @@ struct Item {
 type Diff = (String, String, String, String, String);
 
 fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, usize)> {
+    if name == "ctc04" {
+        return None; // not listed yet (see the module docs)
+    }
     let f = facts::load(name);
     let json = recognition(name)?;
     let a = analysed(corpus, name, &f.binding.file, &json)?;

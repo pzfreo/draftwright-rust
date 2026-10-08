@@ -58,7 +58,7 @@ fn fixtures() -> &'static [(String, Analysis)] {
 /// The sampled sheets' corpus parts (`tests/fixtures/recognition/sheets/`), each with the
 /// features draftwright's own recogniser found for it, checked to be the file the sheet was
 /// captured from; read once for every test here, and none when the corpus is missing. ctc04 is
-/// left out: the bridge refuses its recognition.
+/// left out: these tests have not been checked against it since the bridge began reading it.
 fn sampled() -> &'static [(String, Analysis)] {
     static SAMPLED: OnceLock<Vec<(String, Analysis)>> = OnceLock::new();
     SAMPLED.get_or_init(|| {

@@ -609,9 +609,21 @@ fn check_document(doc: &Document, recogniser: &str) -> Result<(), String> {
 }
 
 /// Proves that the JSON's faces are the part's: in number, and each in surface type (where both
-/// readings name an analytic surface) and area. A face whose area haecceity cannot integrate
-/// cannot be proved, so it is refused too. haecceity's areas agree with OpenCascade's
-/// within 1e-4 relative on analytic faces and 1e-3 on B-splines across the corpus.
+/// readings name an analytic surface) and area. The file is already proved the same (sha256), so
+/// this proves the order: that OpenCascade's traversal, which numbered the JSON's faces, is
+/// haecceity's. A face whose area haecceity cannot integrate cannot be proved, so it is refused.
+///
+/// The JSON's areas are OpenCascade's at its default precision; haecceity's are integrated to
+/// near machine precision. Over the 4,031 faces of the repository's recognitions
+/// (`tests/fixtures/known_bridge_faces.json` lists every face past 1e-4, with evidence), planes,
+/// cylinders, cones and tori agree within 2.4e-5 relative (to a face of 1 mm²), so they are held
+/// to 1e-3. Spheres and B-splines are held to 1e-2: OpenCascade's default rule is up to 2.5e-3 off
+/// its own converged area on sphere patches that reach a pole (nist_ctc_04's faces 367, 409 and
+/// 410; haecceity is within 1.5e-6 of the converged area), a file's pcurves can bound a sphere
+/// patch 3.9e-4 differently from its edges (nist_ftc_07; OpenCascade integrates the pcurves'
+/// region, haecceity the edges'), and a B-spline sliver of 0.002 mm² differs by 1.5e-4 mm², below
+/// what its edges' tolerance determines. Area cannot tell apart faces of the same type and size
+/// (a pattern's instances), so swapping two of those is not detected here.
 fn check_faces(part: &Part, faces: &[FaceCheck]) -> Result<(), String> {
     if faces.len() != part.faces.len() {
         return Err(format!(
@@ -630,7 +642,7 @@ fn check_faces(part: &Part, faces: &[FaceCheck]) -> Result<(), String> {
                 check.surface
             ));
         }
-        let tol = if both { 1e-3 } else { 1e-2 };
+        let tol = if both && kind != "sphere" { 1e-3 } else { 1e-2 };
         let Some([area, _]) = part.face_mass(i) else {
             return Err(format!(
                 "face {i}'s area cannot be measured here, so it cannot be matched to the recognition JSON"

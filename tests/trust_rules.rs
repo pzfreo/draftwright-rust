@@ -54,7 +54,7 @@ fn fixtures() -> Vec<(String, Analysis)> {
 
 /// The sampled sheets' corpus parts, with the features draftwright's own recogniser found for
 /// them (`tests/fixtures/recognition/sheets/`); none when the corpus is missing. ctc04 is left
-/// out: the bridge refuses its recognition (one face's area differs from OpenCascade's).
+/// out: these tests have not been checked against it since the bridge began reading it.
 fn sampled() -> Vec<(String, Analysis)> {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED (corpus part): the corpus is not found; set DRAFTWRIGHT_CORPUS");

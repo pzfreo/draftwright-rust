@@ -10,8 +10,9 @@
 //! (`recognition/corpus/`, set `corpus`) and 0.3.9's, the recogniser draftwright drew their sheets
 //! with (`recognition/sheets/`, set `sheets`), and 0.3.9's on corpus parts with features no
 //! sampled sheet has (`recognition/dims/`, set `dims`, and `recognition/steps/`, set `steps`).
-//! sheets' ctc04 is not compared: the bridge refuses its recognition (one face's area differs
-//! from OpenCascade's).
+//! sheets' ctc04 is not compared: the bridge refused its recognition until its face check took
+//! OpenCascade's default-precision sphere areas for what they are
+//! (`tests/fixtures/known_bridge_faces.json`), and its differences are not listed yet.
 //!
 //! Python's records are in its working frame and are mapped into the part's (the native ones
 //! already are): points, directions, axis letters, a turned step's `lo` and `hi` and its
@@ -1105,6 +1106,9 @@ fn native_features_match_the_bridge_or_are_listed() {
     let mut compared = 0;
     let mut fingerprints = Fingerprints::default();
     for case in cases() {
+        if (case.set, case.part.as_str()) == ("sheets", "ctc04") {
+            continue; // not listed yet (see the module docs)
+        }
         let (part, a) = model::analyse(&case.step).unwrap();
         let (recognition, features) =
             match bridge::read(&part, &a.binding.source_sha256, &case.json) {
@@ -1484,8 +1488,8 @@ fn quiddity_and_haecceity_are_pinned_together() {
     assert_eq!(source("quiddity"), source("haecceity"));
 }
 
-/// Countersinks are on no part the bridge reads (sheets' ctc04 has the corpus's only ones, and
-/// the bridge refuses it), so ctc04's native countersinks are compared with Python quiddity
+/// Countersinks are on no part compared above (sheets' ctc04 has the corpus's only ones, and is
+/// not compared there yet), so ctc04's native countersinks are compared with Python quiddity
 /// 0.3.9's records in its recognition JSON directly: faces through `caller_index`, points and
 /// directions mapped from its frame. Every one agrees (the location within quiddity's 1e-4
 /// rounding).
