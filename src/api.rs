@@ -161,7 +161,8 @@ pub fn render(
 /// Writes each rendered file at *out* with its format's extension appended (`part.rev2` →
 /// `part.rev2.svg`; an *out* already ending in a drawing format's extension has it replaced, as
 /// draftwright's `_output_prefix` does), and returns the paths written. Each is written beside its
-/// place and then moved in, so a failure leaves any earlier file as it was.
+/// place and then moved in, so a failure leaves any earlier file as it was, and the staged copy
+/// is removed (ADR5-10).
 pub fn write(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<String>, Error> {
     let stem = match out.extension().and_then(|e| e.to_str()) {
         Some(e) if FORMATS.contains(&e) || e == "png" => out.with_extension(""),
@@ -176,10 +177,20 @@ pub fn write(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<String>, Err
     for (format, bytes) in files {
         let path = named(format);
         let staged = named(&format!("{format}.part"));
-        std::fs::write(&staged, bytes)
-            .map_err(|e| Error::failed(format!("cannot write {}: {e}", staged.display())))?;
-        std::fs::rename(&staged, &path)
-            .map_err(|e| Error::failed(format!("cannot write {}: {e}", path.display())))?;
+        // A staged file that is not a file (a directory in its place) is not ours to remove.
+        let discard = || {
+            if staged.is_file() {
+                let _ = std::fs::remove_file(&staged);
+            }
+        };
+        std::fs::write(&staged, bytes).map_err(|e| {
+            discard();
+            Error::failed(format!("cannot write {}: {e}", staged.display()))
+        })?;
+        std::fs::rename(&staged, &path).map_err(|e| {
+            discard();
+            Error::failed(format!("cannot write {}: {e}", path.display()))
+        })?;
         written.push(path.display().to_string());
     }
     Ok(written)
