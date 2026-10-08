@@ -147,6 +147,14 @@ quiddity commit that has it.
     file's coordinates, so results don't depend on how the part was placed. This is the default
     for `recognise`, the CLI and the recognition document.
   - **AP242** decisions are in quiddity-rust `docs/step-ap242.md` (ap242 branch).
+- **Priority for the next dispatch (main session, 2026-10-08):** quiddity-rust's GitHub CI (Linux)
+  has been red since the first run on one platform-dependent count (cgb202 torus
+  `uv_bounds … another turn`, 13 listed, 12 found). The fix is ready on quiddity-rust's local
+  branch `q-seam-fix` (commit 1966d3c, "uv: place a loop centred on the seam deterministically",
+  with its known-divergence updates; full checks passed on macOS against 1bf3db2). Dispatch a
+  stream `q-seam-fix` whose brief is: rebase that commit onto the current branch head, re-run
+  the full checks, adjust the known-divergence counts the newer merges change, keep the 1e-9
+  seam band and its reasons; then the integrator merges it like any other stream.
 - **Main-session decisions, 2026-10-08** (judgement calls; the maintainer can overturn them):
   - fingerprints belong to quiddity (ADR R3). Once quiddity-rust publishes its recognition
     document, `bridge.rs`'s own fingerprint is retired in favour of quiddity's;
