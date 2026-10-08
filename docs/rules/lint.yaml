@@ -115,9 +115,9 @@
   source:
     module: "linting/issues.py"
     issues: [29, 623, 1018, 1127, 1711]
-  status: ported
+  status: pending
   rust_test: review_reports_the_plates_unstated_holes
-  rust_note: "lint::LintIssue: id, code, severity, message, at (page), view, subjects, requirements (hole_requirement_ids), measurements, sources, stage, annotation, related, evidence (evidence_reason), fix (suggestion, in words). Measurement spans are not carried: the port's measurement IDs are per feature and parameter."
+  rust_note: "lint::LintIssue: id, code, severity, message, at (page), view, subjects, requirements (hole_requirement_ids), measurements, sources, stage, annotation, related, evidence (evidence_reason), fix (suggestion, in words). Pending: measurement spans are not carried (the port's measurement IDs are per feature and parameter; whether spans are needed is undetermined), and the rust_test checks code, requirement, subjects and fix only, not the schema's other fields."
   port_note: "Adapt: define a Rust LintIssue struct with the same stable fields."
 
 - id: LINT-issues-pair_aggregation_ledger

@@ -81,7 +81,10 @@ covers the families and the aggregate draftwright needs.
 
 To check a change: `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus
 DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`, `cargo fmt --check` and `cargo clippy
---all-targets --release -- -D warnings` (as CI does, `.github/workflows/ci.yml`).
+--all-targets --release -- -D warnings` (as CI does, `.github/workflows/ci.yml`). With
+`DRAFTWRIGHT_CORPUS_REQUIRED=1` a missing corpus fails the bands, views and sections tests;
+`tests/dimensions.rs` and `tests/lint.rs` still keep their own lookup and skip until stream
+d-dims-lint moves them onto `tests/common/corpus.rs`.
 
 Licensed AGPL-3.0, as draftwright is; haecceity and quiddity-rust are Apache-2.0. The fonts in
 `fonts/` are IBM Plex, vendored from draftwright under the SIL Open Font License 1.1 (the

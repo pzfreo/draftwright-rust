@@ -57,7 +57,7 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
 - **Facts:** Python draftwright's sheets are recorded as facts (`tools/capture_sheet_facts.py`,
   `tests/fixtures/sheets/`, `docs/facts.md`) for 13 parts.
 - **ADRs R1–R4** are accepted. `docs/rules/` has 515 rules learnt from Python, classed drafting,
-  trust, spec or machinery, with statuses (19 ported after the d-ci-docs audit). **Update a
+  trust, spec or machinery, with statuses (18 ported after the d-ci-docs audit). **Update a
   rule's status when you port it;** a partial port stays pending with `rust_test` and
   `rust_note`.
 - `docs/plan.md` is the overall plan.
@@ -65,7 +65,9 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
   `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`,
   `cargo fmt --check` and `cargo clippy --all-targets --release -- -D warnings`. Without
   `DRAFTWRIGHT_CORPUS_REQUIRED=1`, corpus-backed tests skip (print SKIPPED and pass) when the
-  corpus is missing; with it they fail.
+  corpus is missing; with it, the bands, views and sections tests fail. As of this branch
+  `tests/dimensions.rs` and `tests/lint.rs` keep their own corpus lookup and still skip; they
+  honour the variable only once stream d-dims-lint moves them onto `tests/common/corpus.rs`.
 
 **Python references (read-only):**
 
@@ -95,7 +97,8 @@ haecceity comes by git from `pzfreo/quiddity-rust` (`Cargo.toml`: branch
 `rust-toolchain.toml`, `cargo fmt --all --check`, clippy with `-D warnings`, and
 `cargo test --release` with `DRAFTWRIGHT_CORPUS` at a sparse checkout of the public
 `pzfreo/quiddity`'s `tests/corpus` (pinned to 6d544e060cd0eeb4442d2196e5df757b5a15ea55) and
-`DRAFTWRIGHT_CORPUS_REQUIRED=1`.
+`DRAFTWRIGHT_CORPUS_REQUIRED=1` (which dimensions and lint honour only after the d-dims-lint
+merge; see Verify above).
 
 haecceity's repository, `pzfreo/quiddity-rust`, is private, and the workflow's `GITHUB_TOKEN`
 cannot read it. The workflow reads a repository secret **`HAECCEITY_READ_TOKEN`**: a token with
