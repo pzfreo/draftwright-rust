@@ -9,16 +9,16 @@
  {
   "part": "cgb245",
   "code": "annotation_off_sheet",
-  "count": 9,
+  "count": 10,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band is 20 mm and its nine lanes of y locations, the row pitch and a slot width reach 10 + 8 × 7 mm, past the sheet's left margin. Reserving the port's lanes in every band removes all nine (checked: A2 at 1:2 kept), but moves other parts' sheet and scale (see known_views questions in docs/next-session.md)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band is 20 mm and its lanes of y locations, the row pitch, a slot width and slot:3's location across its width (38.9, added by the 2026-10-08 location decision) reach past the sheet's left margin. Reserving the port's lanes in every band removed the first nine (checked: A2 at 1:2 kept), but moves other parts' sheet and scale (see known_views questions in docs/next-session.md)."
  },
  {
   "part": "cgb245",
   "code": "annotation_outside_area",
-  "count": 21,
+  "count": 22,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 21 plan items (y locations left of the plan, x locations and pitches above it) run past the plan's area. Info only; the off-sheet and overlap problems are the harm."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 22 plan items (y locations and slot:3's location across its width left of the plan, x locations and pitches above it) run past the plan's area. Info only; the off-sheet and overlap problems are the harm."
  },
  {
   "part": "connector109",

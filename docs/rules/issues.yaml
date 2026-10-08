@@ -1328,7 +1328,7 @@
     corpus_parts: ["nist_ctc_02_asme1_ap203", "nist_ctc_04_asme1_ap203"]
   status: pending
   rust_test: ctc01_slot_locations_are_exact
-  rust_note: "Partial (src/dims/slots.rs): a slot is located only along its own long axis, from the part's box to its low end (location_slot.length), drawn along that axis in the view that looks through it, so no ladder of another axis claims it; its ends come from the box around its faces (the fingerprint's position) rather than a bounding-box centre or quiddity's record rounded in its own frame (ctc01: 55, not 54.998). Not ported: plan entries carry no explicit direction field (the basis names the axis), and no position is dropped (placement reports collisions instead), so there is no drop to name its measurement. Not checked on nist_ctc_02, which has no captured sheet."
+  rust_note: "Partial (src/dims/slots.rs): a slot is located along its long axis, from the part's box to its low end (location_slot.length), and across its width to its centre line (location_slot_across.length, the maintainer's decision of 2026-10-08), each drawn along its own axis in the view that looks through it, so no ladder of another axis claims it; its ends come from the box around its faces (the fingerprint's position) rather than a bounding-box centre or quiddity's record rounded in its own frame (ctc01: 55, not 54.998). Not ported: plan entries carry no explicit direction field (the basis names the axis), and no position is dropped (placement reports collisions instead), so there is no drop to name its measurement. Not checked on nist_ctc_02, which has no captured sheet."
   port_note: "Keep: plan location entries carry an explicit direction; scenario test on CTC-02."
 
 - id: ISSUE-1229-a

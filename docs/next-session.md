@@ -277,8 +277,9 @@ improvement plan and questions are the current work. Still open from before it:
     - The port counts identical polygonal bosses once (`4× 4-SIDED 25.4 A/F` on nist_ftc_07),
       as it and draftwright do cylindrical ones; draftwright calls each polygonal boss out on
       its own. Keep the count?
-    - Answered 2026-10-08 (applied by stream d-location-decisions): a blind slot is located
-      across its width, as a through slot is.
+    - Interpreted 2026-10-08 (stream d-location-decisions): the decision says "a slot is also
+      located across its width"; the port reads that as covering blind slots too, so a blind
+      slot is located across its width, as a through slot is. Overturn if not meant.
     - An authored set that lists both a boss height and the overall extent between the same
       faces keeps both in the port (an explicit listing is kept); draftwright consolidates
       them. Which?
