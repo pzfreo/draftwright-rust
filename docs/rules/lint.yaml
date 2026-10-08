@@ -252,7 +252,7 @@
     tests: [tests/test_issue_1369_hole_completeness_evidence.py, tests/test_issue_1370_hole_pattern_completeness_evidence.py]
   status: ported
   rust_test: holes_drilled_from_opposite_faces_are_separate_groups
-  rust_note: "Stated as n× on the diameter's callout, n the group's size. A pattern group is accepted only when exactly its recognised count of holes share its count, pitch, sizes, direction and opening level (the Analysis does not name a hole's pattern)."
+  rust_note: "Stated as n× on the diameter's callout, n the group's size. A pattern group is accepted only when exactly its recognised count of holes share its count, pitch, sizes, direction and opening level (lint does not yet read the Analysis's recognised patterns, recognition.patterns: review M2)."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-location
@@ -368,7 +368,7 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_declare.py]
-  status: ported
+  status: pending
   rust_test: lint_reads_the_drawings_annotations
   rust_note: "Codes hole_requirement_missing and hole_requirement_unverifiable (a size claimed but not printed). hole_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."

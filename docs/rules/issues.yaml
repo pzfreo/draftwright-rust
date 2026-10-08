@@ -698,9 +698,9 @@
       - "tests/test_issue_1143_hole_completeness.py::test_blind_depth_and_linear_pitch_have_exact_placed_outcomes"
       - "tests/test_issue_1143_hole_completeness.py::test_compound_countersink_callout_accounts_for_every_printed_measurement"
     corpus_parts: []
-  status: ported
+  status: pending
   rust_test: tests/dimension_rules.rs::a_grid_of_holes_is_called_out_once_located_and_spaced
-  rust_note: "Both grid pitches and the centre; every singly dimensioned hole located in both directions (also blind_and_through_holes_are_separate_requirements). Centre marks are not drawn yet."
+  rust_note: "Ported for holes along x, y or z: both grid pitches and the centre, and every singly dimensioned hole located in both directions (also blind_and_through_holes_are_separate_requirements). Not ported: an off-axis hole is refused (feature_not_dimensioned, src/dims.rs::hole), so its members are not located. Centre marks are not drawn yet, so none can replace a location."
   port_note: "Keep: scenario tests -> plan has both pitches / every member location."
 
 - id: ISSUE-1143-d
@@ -1401,9 +1401,10 @@
       - "tests/test_issue_1262_automatic_turned_views.py::test_an_explicit_scale_still_selects_the_smallest_complete_view_set"
       - "tests/test_issue_1262_automatic_turned_views.py::test_grm03_callout_keeps_external_text_clearance_from_the_end_view"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
-  status: ported
+  status: pending
   rust_test: a_turned_part_leaves_out_the_view_that_repeats_its_profile
-  port_note: "Keep: view-set default with basis in Plan; scenario test on turned parts. (Rust: src/demand.rs::turned_views, with the unit test a_turned_part_drops_the_repeated_view_unless_a_feature_needs_it. The veto is a hole needing the dropped view end-on; draftwright vetoes on any planned annotation or finished-sheet loss, which waits for dimensions and lint.)"
+  rust_note: "The reduction is ported: src/demand.rs::turned_views keeps the profile and end views and says why in their basis (also its unit test a_turned_part_drops_the_repeated_view_unless_a_feature_needs_it). The veto is narrower than draftwright's: only a hole that needs the dropped view end-on vetoes it, while draftwright vetoes on any planned annotation or finished-sheet loss. The port now plans dimensions and lints holes, but the veto does not consult either yet."
+  port_note: "Keep: view-set default with basis in Plan; scenario test on turned parts."
 
 - id: ISSUE-1276-a
   statement: "Leaders for turned edge treatments (chamfers, fillets) and cylindrical notes (knurl, groove) land on the physical profile surface in the profile view, at the feature's own axial station, rotating about the feature's own axis."
