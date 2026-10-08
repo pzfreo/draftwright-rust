@@ -22,7 +22,10 @@
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
-//! has ([`FAMILIES`]); anything else is refused, not guessed at. A record of a family read here
+//! has ([`FAMILIES`]); anything else is refused, not guessed at. A record taken here that lists
+//! fields left in the part's own frame (`local`, schema 2) is refused too: those fields are not in
+//! the file's coordinates. [`recognise`] runs quiddity's caller-space recognition, whose `frame`
+//! is `caller-space` and whose records list none. A record of a family read here
 //! must carry every field draftwright reads of it ([`FIELDS`]), or it is refused. Families not in
 //! [`READ`] are known but not taken here: they still come through the bridge.
 //!
@@ -66,7 +69,7 @@ use serde_json::{Map, Value};
 use super::{FINGERPRINT_VERSION, Feature, Fingerprint, HolePattern, QHolePattern};
 
 /// The one document schema this reader knows.
-pub const SCHEMA_VERSION: &str = "quiddity-rust/recognition/1";
+pub const SCHEMA_VERSION: &str = "quiddity-rust/recognition/2";
 
 /// The identity frame: the document's coordinates are the part's.
 pub const IDENTITY: [[f64; 3]; 4] = [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
@@ -494,6 +497,15 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
             return Err(format!(
                 "{} names face {f}, which the part does not have",
                 r.id
+            ));
+        }
+        let taken = matches!(r.family.as_str(), "holes" | "hole_patterns")
+            || READ.contains(&r.family.as_str());
+        if taken && !r.local.is_empty() {
+            return Err(format!(
+                "{} leaves {} in the part's own frame, not the file's",
+                r.id,
+                r.local.join(", ")
             ));
         }
         match r.family.as_str() {

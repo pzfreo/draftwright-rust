@@ -1220,8 +1220,11 @@ fn the_reader_refuses_what_it_does_not_know() {
         edit(&mut d);
         native::read(&part, &d).unwrap_err()
     };
-    let e = refused(&|d| d.schema_version = "quiddity-rust/recognition/2".into());
-    assert!(e.contains("\"quiddity-rust/recognition/2\", not"), "{e}");
+    let e = refused(&|d| d.schema_version = "quiddity-rust/recognition/1".into());
+    assert!(e.contains("\"quiddity-rust/recognition/1\", not"), "{e}");
+    // A field left in the part's own frame is not in the file's coordinates.
+    let e = refused(&|d| d.records[0].local = vec!["axis".into()]);
+    assert!(e.contains("leaves axis in the part's own frame"), "{e}");
     let e = refused(&|d| d.coordinate_space = "working".into());
     assert!(e.contains("\"working\" coordinates"), "{e}");
     let e = refused(&|d| d.face_count += 1);
