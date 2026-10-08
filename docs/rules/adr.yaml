@@ -211,7 +211,9 @@
     issues: [121]
     tests: []
   status: pending
-  port_note: "Keep: the planner sizes each view block including its annotations before choosing page/scale. (Rust: the block and packing arithmetic is ported and checked by layout_calls_match_draftwright; model::plan reserves the bands the bridged features need (src/demand.rs, checked against draftwright's by bands_match_draftwright_or_are_known, differences in tests/fixtures/known_bands.json), but not the hole-callout band, authored/scheme bands or angular footprints, and has no measured repack yet.)"
+  rust_test: bands_match_draftwright_or_are_known
+  rust_note: "The block and packing arithmetic is ported and checked by layout_calls_match_draftwright; model::plan reserves the bands the bridged features need (src/demand.rs, checked against draftwright's by bands_match_draftwright_or_are_known, differences in tests/fixtures/known_bands.json), but not the hole-callout band, authored/scheme bands or angular footprints, and has no measured repack yet."
+  port_note: "Keep: the planner sizes each view block including its annotations before choosing page/scale."
 
 - id: ADR2-D5
   statement: "Within a view, annotations are never placed as they are rendered: every pass collects candidates, one deterministic solve per strip selects, orders and spaces them, then they are emitted."
@@ -392,7 +394,9 @@
     issues: []
     tests: ["test_adr0018_view_selection.py", "test_issue_1262_automatic_turned_views.py", "test_issue_443_grm03_axial_coverage.py", "test_issue_1190_section_decision.py"]
   status: pending
-  port_note: "Keep: planner rule; any view removal records the triggering requirement in the Plan basis. (Rust: the turned-part reduction, ISSUE-1262-a, states its reason in the kept views' basis; the isometric's requirement-aware yield is not ported, so this stays pending.)"
+  rust_test: a_turned_part_leaves_out_the_view_that_repeats_its_profile
+  rust_note: "The turned-part reduction (ISSUE-1262-a) states its reason in the kept views' basis; the isometric's requirement-aware yield is not ported."
+  port_note: "Keep: planner rule; any view removal records the triggering requirement in the Plan basis."
 
 - id: ADR2-14
   statement: "Detail and isometric view scale factors are exact, and unequal principal-view scales are refused."

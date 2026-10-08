@@ -62,8 +62,9 @@ edited.
   (`recognition.evidence`, e.g. face levels and risers) or a refusal (`recognition.refusals`,
   with quiddity's reason); a record type the bridge does not know is refused. `recognition` and
   `features` were added to `draftwright.analysis/1` as optional fields, so analyses written
-  before them still read. Rust quiddity's JSON carries no faces yet, so it cannot anchor
-  features.
+  before them still read. Rust quiddity's CLI (quiddity-rust at c9ce1cd) emits, beside its
+  records, fingerprints that name each feature's defining faces, but its records themselves do
+  not carry their defining faces, so the bridge does not read it yet.
 
 ### Spec: what the author decided
 

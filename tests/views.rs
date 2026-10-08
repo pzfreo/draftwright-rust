@@ -36,7 +36,10 @@ struct Known {
 #[test]
 fn view_planning_matches_draftwright_or_is_known() {
     let Some(dir) = corpus::dir() else {
-        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        eprintln!(
+            "SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS \
+             (DRAFTWRIGHT_CORPUS_REQUIRED=1 makes this a failure)"
+        );
         return;
     };
     let known: Vec<Known> = serde_json::from_str(

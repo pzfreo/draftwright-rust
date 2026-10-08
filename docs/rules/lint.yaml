@@ -115,9 +115,9 @@
   source:
     module: "linting/issues.py"
     issues: [29, 623, 1018, 1127, 1711]
-  status: ported
+  status: pending
   rust_test: review_finds_the_plates_holes_stated_by_its_own_callout
-  rust_note: "lint::LintIssue: id, code, severity, message, at (page), view, subjects, requirements (hole_requirement_ids), measurements, sources, stage, annotation, related, evidence (evidence_reason), fix (suggestion, in words). Measurement spans are not carried: the port's measurement IDs are per feature and parameter."
+  rust_note: "lint::LintIssue: id, code, severity, message, at (page), view, subjects, requirements (hole_requirement_ids), measurements, sources, stage, annotation, related, evidence (evidence_reason), fix (suggestion, in words). Pending: measurement spans are not carried (the port's measurement IDs are per feature and parameter; whether spans are needed is undetermined), and the rust_test checks code, requirement, subjects and fix only, not the schema's other fields."
   port_note: "Adapt: define a Rust LintIssue struct with the same stable fields."
 
 - id: LINT-issues-pair_aggregation_ledger
@@ -372,7 +372,7 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_declare.py]
-  status: ported
+  status: pending
   rust_test: lint_reads_the_drawings_annotations
   rust_note: "Codes hole_requirement_missing and hole_requirement_unverifiable (a size claimed but not printed). hole_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
