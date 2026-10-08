@@ -12,6 +12,7 @@ flate2 = "1.1.10"
 haecceity = { git = "https://github.com/pzfreo/quiddity-rust", branch = "prototype/rust-port" }
 pdf-writer = "0.15"
 png = "0.18.1"
+quiddity = { git = "https://github.com/pzfreo/quiddity-rust", branch = "prototype/rust-port" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha2 = "0.11.0"

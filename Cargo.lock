@@ -179,6 +179,7 @@ dependencies = [
  "haecceity",
  "pdf-writer",
  "png",
+ "quiddity",
  "serde",
  "serde_json",
  "sha2",
@@ -599,6 +600,16 @@ name = "pxfm"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
+
+[[package]]
+name = "quiddity"
+version = "0.1.0"
+source = "git+https://github.com/pzfreo/quiddity-rust?branch=prototype%2Frust-port#1bf3db2c995c28520c84a8e0b36ffb5cf7f7f8a0"
+dependencies = [
+ "haecceity",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "quote"
