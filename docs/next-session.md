@@ -518,7 +518,8 @@ improvement plan and questions are the current work. Still open from before it:
     draftwright's strips do.
 - From wave 4 (stream d-native-more-families): `bridge::native` also reads grooves, flats,
   angled, paired-ramp, circular blind, through and oblique through steps, and blends: every
-  family the pinned document (quiddity-rust dff320c) has that draftwright draws. Face levels and
+  family quiddity-rust dff320c's document has that draftwright draws (the families 6065d26 added,
+  slots, pockets and the rest, are still known and left to the bridge). Face levels and
   risers are not in that document (quiddity-rust's `features::levels` finds them; its document
   does not carry them), so they still come only through the bridge. Review minors fixed:
   `FIELDS` no longer requires `Fillet.side` and `Chamfer.corner` (nothing reads them), checks
@@ -541,8 +542,8 @@ improvement plan and questions are the current work. Still open from before it:
   slant and 3 native fillets on a circular blind step's wall that Python rejects
   (`reconcile_bevel_candidates`, `reconcile_circular_step_fillets`; rust-wrong, with 2 fillet ID
   shifts), and the dims and steps parts' holes, patterns and boss (12 + 2 + 1 rust-wrong, the
-  constituent-faces gap; 20 equivalent). The reader reads every corpus part (94 files, none
-  refused). Still not switched (the constituent-faces and single-frame questions above).
+  constituent-faces gap; 20 equivalent). In a one-off check (no test) the reader read every
+  corpus part (94 files, none refused). Still not switched (the constituent-faces and single-frame questions above).
   - Questions for the maintainer:
     - The boss-versus-turned-step question above now covers three more reconciliations Python's
       aggregate makes and quiddity-rust does not (blend superseded by fillet, chamfer by angled
