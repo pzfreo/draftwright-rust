@@ -521,8 +521,8 @@ pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(),
 
 /// The families draftwright reads from Python quiddity that Rust quiddity's recognition document
 /// does not carry: section recesses (pockets, channels, blind slots and circular recesses, as
-/// draftwright reads them) and raised pads.
-pub const NOT_IN_NATIVE_DOCUMENT: [&str; 2] = ["section_recesses", "pads"];
+/// draftwright reads them). Raised pads it carries (`pads`), and they are counted as not read.
+pub const NOT_IN_NATIVE_DOCUMENT: [&str; 1] = ["section_recesses"];
 
 /// Reads the STEP file at *path*, as [`analyse_with`] reads it, with its features from Rust
 /// quiddity's recognition document ([`crate::bridge::native`]) in place of Python quiddity's JSON.

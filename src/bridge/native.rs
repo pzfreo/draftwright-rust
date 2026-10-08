@@ -20,7 +20,7 @@
 //! quiddity-rust's to publish (a schema question). The other families draftwright neither draws
 //! nor lints (oriented chamfers, circular face patterns, thin-wall bodies, interior voids,
 //! sheet-metal bodies, repeating radial profiles, freeform surfaces) are known and not read
-//! either.
+//! either, and so are raised pads, which draftwright lints but this reader does not take yet.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
@@ -139,6 +139,7 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
         "oriented_slot_patterns",
         &["OrientedSlotGrid", "OrientedSlotArray"],
     ),
+    ("pads", &["RaisedPad"]),
 ];
 
 /// The families read here: each record is a feature, except an oriented slot pattern's, which is

@@ -62,8 +62,8 @@ edited.
   (absent when the document does not carry the family at all). Empty, and left out, for Python
   quiddity's JSON, which the bridge reads in full; for Rust quiddity's recognition
   (`model::analyse_native`, the command line's default) the families its document has that
-  `bridge::native` does not read yet, and section recesses and raised pads, which it does not
-  carry. `plan` reports them as one `features_not_recognised` warning. `plan` reads older
+  `bridge::native` does not read yet (raised pads among them), and section recesses, which it
+  does not carry. `plan` reports them as one `features_not_recognised` warning. `plan` reads older
   analyses with none; `render` and `review` draw only from this version.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
