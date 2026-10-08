@@ -57,8 +57,8 @@ The port's sheet, scale and view placement (`src/layout.rs`) is draftwright's la
 
 ## Lint: the port's checks on Python's sheets
 
-`tests/lint.rs` runs the port's lint (`src/lint/`) on each captured sheet and compares its hole
-findings with Python's (`lint` above). The Analysis is the part read with the recognition
+`tests/lint.rs` runs the port's lint (`src/lint/`) on each captured sheet and compares its
+findings (holes, boss heights, chamfers, fillets, blends, through steps and slots) with Python's (`lint` above). The Analysis is the part read with the recognition
 draftwright drew from: `tests/fixtures/recognition/sheets/<name>.json.gz`, written by
 `tools/recognise.py` with draftwright's own quiddity (0.3.9):
 

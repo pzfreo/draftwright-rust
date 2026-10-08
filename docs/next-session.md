@@ -58,7 +58,7 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
 - **Facts:** Python draftwright's sheets are recorded as facts (`tools/capture_sheet_facts.py`,
   `tests/fixtures/sheets/`, `docs/facts.md`) for 13 parts.
 - **ADRs R1–R4** are accepted. `docs/rules/` has 515 rules learnt from Python, classed drafting,
-  trust, spec or machinery, with statuses (18 ported after the d-ci-docs audit). **Update a
+  trust, spec or machinery, with statuses (23 ported after wave 2). **Update a
   rule's status when you port it;** a partial port stays pending with `rust_test` and
   `rust_note`.
 - `docs/plan.md` is the overall plan.
@@ -151,8 +151,12 @@ improvement plan and questions are the current work. Still open from before it:
 - quiddity-rust: the volume module's general `Probe::Prism` has no direct unit test for the
   convex case gussets use. Python's `local_degradation` path is not ported in any family.
 - From wave 1 (review H1–H5, M2 merged):
-  - A bolt circle of fewer than five holes with a hole or boss on its centre is a pattern in
-    Python; not ported (LINT-hole_coverage-bolt_circle_corroboration stays pending).
+  - Small bolt circles: lint now corroborates one of fewer than five holes by a hole or boss on
+    its centre (d-lint-next); dims and demand call `bridge::holes::established`, which counts
+    holes only, so a boss-corroborated circle is a group in lint but loose holes in dims, and
+    the dims basis for a corroborated circle of fewer than five still says "five or more holes is
+    self-evident". Switch dims and demand to `established_with(.., &holes::bosses(analysis))`
+    and fix the basis text (ISSUE-1596-a stays pending).
   - Question for haecceity: on cgb242's front view HLR emits a zero-span NURBS stretch (t0 =
     t1 = 0) at an edge's own end vertex; should it be filtered at source?
 - Closed in wave 2 (stream w2/d-model-honesty): `Drawing::problems` reach `review` and `render`;

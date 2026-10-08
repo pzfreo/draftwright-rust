@@ -2635,7 +2635,7 @@
     corpus_parts: []
   status: pending
   rust_test: tests/dimension_rules.rs::a_four_hole_bolt_circle_is_not_trusted
-  rust_note: "Corroboration by five or more members only; corroboration by a concentric feature is not ported, so such a circle falls back to single holes."
+  rust_note: "bridge::holes::established: five or more members, or a hole that is not a member on the circle's centre (axis parallel, within 0.5 mm). The dimensions and demand call established, which counts holes only; a boss on the centre corroborates in lint (established_with) but not yet in the dimensions, and the basis text of a corroborated circle of fewer than five still says five or more is self-evident."
   port_note: "Keep: scenario tests on synthetic plates (grid, 5-hole circle, flange with boss)."
 
 - id: ISSUE-1598-a
