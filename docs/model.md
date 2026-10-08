@@ -33,7 +33,7 @@ edited.
 
 ```json
 {
-  "schema": "draftwright.analysis/4",
+  "schema": "draftwright.analysis/5",
   "binding": { "source_sha256": "…", "part": "10127", "face_count": 27, "loader": "haecceity 0.1" },
   "frame": { "origin": [0, 0, 0], "axes": [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
   "envelope": { "min": [0, 0, 0], "max": [28.8, 32.3, 44.7] },
@@ -57,6 +57,14 @@ edited.
   recognition document cannot give them: it reads them in its working frame, whose z need not be
   the part's. Older analyses read with none; a version 3 analysis with levels gets an info
   problem saying the step positions could not be found.
+- **Unrecognised families** (`draftwright.analysis/5`, `unrecognised`): the quiddity families
+  the recogniser did not give, each with how many records of it its document has on the part
+  (absent when the document does not carry the family at all). Empty, and left out, for Python
+  quiddity's JSON, which the bridge reads in full; for Rust quiddity's recognition
+  (`model::analyse_native`, the command line's default) the families its document has that
+  `bridge::native` does not read yet, and section recesses and raised pads, which it does not
+  carry. `plan` reports them as one `features_not_recognised` warning. `plan` reads older
+  analyses with none; `render` and `review` draw only from this version.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.

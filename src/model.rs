@@ -31,13 +31,15 @@ use crate::title_block::{self, TitleCell};
 
 /// Version 2 added the isometric box (`iso_bounds`) and the recognised features, version 3 the
 /// horizontal face levels (`levels`), version 4 their supports and the step risers
-/// (`level_supports`, `risers`).
-pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/4";
-/// The analyses [`plan`] reads: this version, and versions 2 and 3 (it reads them with none of
+/// (`level_supports`, `risers`), version 5 the families the recogniser did not give
+/// (`unrecognised`).
+pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/5";
+/// The analyses [`plan`] reads: this version, and versions 2 to 4 (it reads them with none of
 /// what they lack).
-pub const ANALYSIS_SCHEMAS: [&str; 3] = [
+pub const ANALYSIS_SCHEMAS: [&str; 4] = [
     "draftwright.analysis/2",
     "draftwright.analysis/3",
+    "draftwright.analysis/4",
     ANALYSIS_SCHEMA,
 ];
 pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
@@ -82,6 +84,24 @@ pub struct Analysis {
     /// part's frame): where a prismatic part's steps are located along x and y.
     #[serde(default)]
     pub risers: Vec<Riser>,
+    /// The families of features the recogniser did not give, so the part may have features of
+    /// them that the Analysis lacks: empty for Python quiddity's recognition, which the bridge
+    /// reads in full; for Rust quiddity's ([`analyse_native`]), the families its document has
+    /// that [`crate::bridge::native`] does not read yet, and those it does not carry. The plan
+    /// reports them (`features_not_recognised`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unrecognised: Vec<Unrecognised>,
+}
+
+/// A family of features the recogniser did not give the Analysis (quiddity's family name).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Unrecognised {
+    pub family: String,
+    /// How many records of it the recogniser's document has on this part; absent when the
+    /// document does not carry the family at all, so whether the part has any is not known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub records: Option<usize>,
 }
 
 /// A horizontal face level's support: its height and the extents of its faces, mm.
@@ -432,6 +452,7 @@ pub fn analyse_with(
         levels: crate::demand::face_levels(&part),
         level_supports,
         risers,
+        unrecognised: Vec::new(),
     };
     let (_, toward, up) = VIEWS[3];
     let iso = View::new(toward, up).expect("standard view");
@@ -492,6 +513,88 @@ pub fn analyse_with(
 pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(), String> {
     let (recognition, features) = crate::bridge::read(part, &analysis.binding.source_sha256, json)?;
     analysis.recognition = Some(recognition);
+    analysis.features = features;
+    analysis.unrecognised.clear();
+    Ok(())
+}
+
+/// The families draftwright reads from Python quiddity that Rust quiddity's recognition document
+/// does not carry: section recesses (pockets, channels, blind slots and circular recesses, as
+/// draftwright reads them) and raised pads.
+pub const NOT_IN_NATIVE_DOCUMENT: [&str; 2] = ["section_recesses", "pads"];
+
+/// Reads the STEP file at *path*, as [`analyse_with`] reads it, with its features from Rust
+/// quiddity's recognition document ([`crate::bridge::native`]) in place of Python quiddity's JSON.
+/// Refused, as the kernel's failure, when the native reader refuses the document; never read as
+/// a part without features.
+pub fn analyse_native(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
+    let (part, mut analysis) = analyse_with(path, None)?;
+    recognise_native(&part, &mut analysis).map_err(|e| {
+        unanalysed(
+            true,
+            format!(
+                "Rust quiddity's recognition of {} was refused: {e}",
+                path.display()
+            ),
+        )
+    })?;
+    Ok((part, analysis))
+}
+
+/// Takes *analysis*'s features from Rust quiddity's recognition of *part*
+/// ([`recognise_document`]).
+pub fn recognise_native(part: &Part, analysis: &mut Analysis) -> Result<(), String> {
+    let recognition = quiddity::correspondence::recognise(part);
+    recognise_document(
+        part,
+        analysis,
+        &quiddity::recognition::document(&recognition, part.faces.len()),
+    )
+}
+
+/// Takes *analysis*'s features from *doc*, Rust quiddity's recognition document for *part*
+/// ([`crate::bridge::native`]), in the part's own frame, and records in `unrecognised` the
+/// families *doc* has that are not read, and those it does not carry
+/// ([`NOT_IN_NATIVE_DOCUMENT`]). A refused document leaves *analysis* as it was.
+pub fn recognise_document(
+    part: &Part,
+    analysis: &mut Analysis,
+    doc: &quiddity::recognition::RecognitionDocument,
+) -> Result<(), String> {
+    use crate::bridge::native;
+    let read = native::read(part, doc)?;
+    let mut features = read.holes;
+    features.extend(read.features);
+    // As the bridge orders them: by kind, then faces (each kind's IDs are ranked so already).
+    features.sort_by(|a, b| (&a.kind, &a.faces).cmp(&(&b.kind, &b.faces)));
+    let mut counts = BTreeMap::<&str, usize>::new();
+    for r in doc
+        .records
+        .iter()
+        .filter(|r| !native::READ.contains(&r.family.as_str()))
+    {
+        *counts.entry(r.family.as_str()).or_default() += 1;
+    }
+    let mut unrecognised: Vec<Unrecognised> = NOT_IN_NATIVE_DOCUMENT
+        .iter()
+        .filter(|f| !native::READ.contains(f) && !counts.contains_key(*f))
+        .map(|f| Unrecognised {
+            family: f.to_string(),
+            records: None,
+        })
+        .collect();
+    unrecognised.extend(counts.into_iter().map(|(f, n)| Unrecognised {
+        family: f.to_string(),
+        records: Some(n),
+    }));
+    analysis.unrecognised = unrecognised;
+    analysis.recognition = Some(Recognition {
+        recogniser: read.recogniser,
+        frame: native::IDENTITY,
+        evidence: Vec::new(),
+        refusals: Vec::new(),
+        patterns: read.patterns,
+    });
     analysis.features = features;
     Ok(())
 }
@@ -589,6 +692,34 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 subjects: inactive.clone(),
             });
         }
+    }
+    if !analysis.unrecognised.is_empty() {
+        let named = analysis
+            .unrecognised
+            .iter()
+            .map(|u| match u.records {
+                Some(n) => format!("{} ({n} on this part)", u.family),
+                None => format!("{} (not in its document)", u.family),
+            })
+            .collect::<Vec<_>>();
+        let recogniser = analysis
+            .recognition
+            .as_ref()
+            .map_or("the recogniser", |r| r.recogniser.as_str());
+        problems.push(Problem {
+            id: "p:features_not_recognised:part".into(),
+            code: "features_not_recognised".into(),
+            severity: "warning".into(),
+            message: format!(
+                "The features come from {recogniser}, which does not give these families: {}. Features of them are not dimensioned, sectioned or linted; Python quiddity's recognition (tools/recognise.py) gives them.",
+                named.join(", ")
+            ),
+            subjects: analysis
+                .unrecognised
+                .iter()
+                .map(|u| u.family.clone())
+                .collect(),
+        });
     }
     let given = spec;
     let spec = &effective;

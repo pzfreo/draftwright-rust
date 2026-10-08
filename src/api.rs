@@ -4,6 +4,9 @@
 //! - [`analyse`], [`plan`], [`edit`], [`render`] (with [`write`]), [`spec`] and [`review`],
 //!   typed, over the documents of [`crate::model`]; [`plan_analysed`], [`render_analysed`] and
 //!   [`review_analysed`] take an Analysis that [`analyse`] made, so the caller need not re-analyse;
+//!   [`analyse_from`], [`plan_from`], [`render_from`] and [`review_from`] take where the features
+//!   come from ([`Features`]), Rust quiddity's recognition among them (the command line's
+//!   default); the others, and [`call`], take Python quiddity's JSON or none;
 //! - [`call`]: the same operations by name with JSON arguments, as the service and the MCP server
 //!   receive them. Requests carry their documents and name the STEP file by path, so nothing is
 //!   kept between calls.
@@ -98,15 +101,53 @@ impl From<model::Invalid> for Error {
     }
 }
 
+/// Where an analysis takes the part's features from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Features<'a> {
+    /// None: no dimensions, sections or lint that need features.
+    None,
+    /// Python quiddity's recognition JSON for the same file ([`crate::bridge`]).
+    Python(&'a Path),
+    /// Rust quiddity's recognition, run on the part ([`model::analyse_native`]). Refused when
+    /// its document is refused; the families it does not give are in the Analysis's
+    /// `unrecognised` and the plan's problems.
+    Native,
+}
+
+impl<'a> From<Option<&'a Path>> for Features<'a> {
+    fn from(features: Option<&'a Path>) -> Features<'a> {
+        features.map_or(Features::None, Features::Python)
+    }
+}
+
+/// The part at *step* and its analysis, with its features from *features*.
+fn analysed(step: &Path, features: Features) -> Result<(Part, Analysis), Error> {
+    Ok(match features {
+        Features::None => model::analyse(step)?,
+        Features::Python(json) => model::analyse_with(step, Some(json))?,
+        Features::Native => model::analyse_native(step)?,
+    })
+}
+
 /// The Analysis of the STEP file at *step*, with the features in *features*, Python quiddity's
 /// recognition JSON for the same file ([`crate::bridge`]), when given.
 pub fn analyse(step: &Path, features: Option<&Path>) -> Result<Analysis, Error> {
-    Ok(model::analyse_with(step, features)?.1)
+    analyse_from(step, features.into())
+}
+
+/// The Analysis of the STEP file at *step*, with its features from *features*.
+pub fn analyse_from(step: &Path, features: Features) -> Result<Analysis, Error> {
+    Ok(analysed(step, features)?.1)
 }
 
 /// The Plan for the STEP file at *step* (with *features*, as for [`analyse`]) under *spec*.
 pub fn plan(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Plan, Error> {
-    let (_, analysis) = model::analyse_with(step, features)?;
+    plan_from(step, features.into(), spec)
+}
+
+/// The Plan for the STEP file at *step*, with its features from *features*, under *spec*.
+pub fn plan_from(step: &Path, features: Features, spec: &Spec) -> Result<Plan, Error> {
+    let (_, analysis) = analysed(step, features)?;
     Ok(model::plan(&analysis, spec)?)
 }
 
@@ -119,8 +160,8 @@ pub fn plan_analysed(analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
 /// Where an operation that draws takes the part's Analysis from.
 #[derive(Clone, Copy)]
 enum Given<'a> {
-    /// Analysed from the STEP file, with these features when given.
-    Features(Option<&'a Path>),
+    /// Analysed from the STEP file, with its features from these.
+    Features(Features<'a>),
     /// The caller's, checked against the STEP file.
     Analysis(&'a Analysis),
 }
@@ -128,7 +169,7 @@ enum Given<'a> {
 /// The part at *step* and its analysis, as *given*.
 fn read(step: &Path, given: Given) -> Result<(Part, Analysis), Error> {
     match given {
-        Given::Features(features) => Ok(model::analyse_with(step, features)?),
+        Given::Features(features) => analysed(step, features),
         Given::Analysis(analysis) => Ok((bound(step, analysis)?, analysis.clone())),
     }
 }
@@ -200,6 +241,17 @@ pub fn render(
 pub fn render_at(
     step: &Path,
     features: Option<&Path>,
+    spec: &Spec,
+    formats: &[&str],
+    dpi: f64,
+) -> Result<(Plan, Files), Error> {
+    render_from(step, features.into(), spec, formats, dpi)
+}
+
+/// [`render_at`], with the part's features from *features*.
+pub fn render_from(
+    step: &Path,
+    features: Features,
     spec: &Spec,
     formats: &[&str],
     dpi: f64,
@@ -311,6 +363,11 @@ pub struct Review {
 /// The drawing of the STEP file at *step* under *spec*, as SVG text, with its problems and
 /// lint's findings.
 pub fn review(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Review, Error> {
+    review_from(step, features.into(), spec)
+}
+
+/// [`review`], with the part's features from *features*.
+pub fn review_from(step: &Path, features: Features, spec: &Spec) -> Result<Review, Error> {
     reviewed(step, Given::Features(features), spec)
 }
 
