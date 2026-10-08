@@ -237,6 +237,8 @@
     issues: [368]
     tests: ["test_layout_cleanliness.py"]
   status: pending
+  rust_test: "tests/leaders.rs::callout_leaders_cross_nothing_unlisted"
+  rust_note: "Partial: a callout is never dropped and its search is bounded (src/dims/leaders.rs); a crossing it keeps is logged (annotation_leader_crossing for a line, annotation_ink_overlap and annotation_overlap for a label) and listed with a verdict in tests/fixtures/known_leaders.json. A linear dimension's label slides a bounded distance and otherwise stays and is reported (dims::placement::settle). Not ported: draftwright's relocation bound (one min_gap from the natural row); the port takes any clear candidate, shortest first. The problems are warnings, not info."
   port_note: "Keep: placement rule; a retained crossing is a Plan problem (info) attached to the annotation id."
 
 - id: ADR2-D7
@@ -305,6 +307,7 @@
     issues: [318]
     tests: ["test_strip_layout.py", "test_layout_property.py", "test_layout_hypothesis.py"]
   status: pending
+  rust_note: "Not ported as such: the port has no PAVA strip solve; callout rows come from src/dims/leaders.rs's bounded candidate inventory and joint assignment (minimum total leader length after crossings), which is exact within its node budget but not draftwright's strip solver or its tie rule."
   port_note: "Keep: port the PAVA solver with the identical tie rule; property-test crossing-freedom and determinism."
 
 - id: ADR2-6
@@ -328,6 +331,8 @@
     issues: [740, 1166, 1188, 1308]
     tests: ["test_issue_1166_cross_pass_feature_leaders.py", "test_issue_740_leader_assignment.py", "test_issue_1188_per_view_assignment.py", "test_issue_1308_machined_leader_analytics.py"]
   status: pending
+  rust_test: "src/dims/leaders.rs::tests::the_assignment_matches_an_exhaustive_oracle"
+  rust_note: "Partial: callout leaders are assigned jointly and late (after the dimensions; src/dims/leaders.rs). A fired node budget is the plan problem annotation_leader_search_capped (info) naming the group's callouts. Not ported: provenance classes (every callout is required)."
   port_note: "Keep: joint leader assignment in the planner; a hit budget emits a structured Plan problem naming the lost capability."
 
 - id: ADR2-8
@@ -339,6 +344,7 @@
     issues: [798, 1187]
     tests: ["test_issue_798_material_field.py", "test_issue_798_silhouette_lint.py", "test_issue_798_floor_cardinality.py", "test_issue_1187_unroutable_leaders.py"]
   status: pending
+  rust_note: "Partial: the plan has no projected material (ADR R1: it is made from the Analysis), so src/dims/leaders.rs takes the view's box as its material: a leader re-entering its own view's box after leaving it is a hard blocker (a gate, not draftwright's cost), and crossing another view is one too. Lint has no leader_crosses_silhouette check yet."
   port_note: "Keep: one re-entry function used by planner and lint; tessellation must be deterministic in the Rust kernel."
 
 - id: ADR2-9
@@ -349,9 +355,10 @@
     adr: "ADR 2 invariant 9"
     issues: []
     tests: ["test_issue_1166_cross_pass_feature_leaders.py (test_immediate_producer_floor_records_a_retained_fixed_crossing_issue_2112, test_ownerless_section_centerline_at_the_tip_is_not_a_global_axis_exemption)", "test_layout_cleanliness.py (test_finished_sheet_has_no_layout_collisions)"]
-  status: pending
+  status: ported
+  rust_test: "tests/leaders.rs::callout_leaders_cross_nothing_unlisted"
+  rust_note: "A callout leader kept across another annotation's line is the plan problem annotation_leader_crossing with the callout's and the obstruction's IDs (src/dims/placement.rs::collisions); one through a label is annotation_ink_overlap. There is no fixed-ink probe budget to exhaust (the fixed ink is the plan's own lines, measured exactly), so feature_leader_fixed_ink_unverified has no counterpart. Lines of two linear dimensions crossing are still not checked."
   port_note: "Keep: retained crossings and unverified ink become Plan problems referencing the annotation id and the obstruction id."
-  rust_note: "Not ported: placement checks label boxes against labels, views, the title block and the sheet, but not lines crossing other views' outlines or other dimensions' lines (docs/model.md, 'Not checked yet'), so a crossing is neither avoided nor recorded, and there is no fixed-ink probe. Owed with the placement solver (src/dims/placement.rs)."
 
 - id: ADR2-10
   statement: "Same-batch dimension ink is visible before commit and is resolved by a bounded strictly-improving local solve, not a second placement engine."
@@ -1361,6 +1368,8 @@
     issues: [366, 367, 368]
     tests: []
   status: pending
+  rust_test: "tests/leaders.rs::callout_leaders_cross_nothing_unlisted"
+  rust_note: "Partial: a callout's leader is tested by its exact shaft segment (src/dims/leaders.rs, and the acceptance test), never its box. Not ported: stroke width and arrowhead flare (ISSUE-367-a)."
   port_note: "Keep: exact segment-vs-box clearance in the planner and lint."
 
 - id: ARCH0009-8
@@ -1449,7 +1458,9 @@
     adr: "archive 0014 'Best-effort leader decoration places after the drain'"
     issues: [733]
     tests: []
-  status: pending
+  status: ported
+  rust_test: "tests/leaders.rs::callout_leaders_cross_nothing_unlisted"
+  rust_note: "src/dims/mod.rs::plan places and settles the linear dimensions first; src/dims/leaders.rs then places the callouts around them, the dimensions fixed: a callout yields where a dimension sits. Callouts no longer take lanes (dims::placement::fall_through ignores them); the layout's band estimate still counts a lane for them (dims::lanes), unchanged."
   port_note: "Keep: placement priority order in the planner."
 
 - id: ARCH0014-4

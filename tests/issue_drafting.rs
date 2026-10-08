@@ -1612,11 +1612,12 @@ fn placed_ink_keeps_peer_labels_off_by_the_final_measure() {
 /// and 0.9 mm wide at its tail), that reaches into another item's label box belongs to an item
 /// reported with that label (`annotation_ink_overlap`). It holds because every such arrowhead's
 /// shaft crosses the label too (m10127's side depth); the collision checks themselves test
-/// zero-width centrelines, without the flare or the stroke (see the rule's `rust_note`). The
-/// guard below depends on that one collision, the only arrowhead in a label on any part here
-/// (default plans, and every part pinned to A4 at 1:5, 1:2, 1:1, 2:1 or 5:1, or to A3 at 2:1 or
-/// 5:1): when placement clears it, the guard fails, and the test needs a planted case, which the
-/// public API cannot make.
+/// zero-width centrelines, without the flare or the stroke (see the rule's `rust_note`). Since
+/// callout leaders are placed clear of labels (stream d-callout-leaders, `src/dims/leaders.rs`),
+/// that collision is gone and no part here has an arrowhead in a label (default plans, and the
+/// fixture parts pinned to A4 or A3 at 1:5 to 10:1); the planted case that keeps the check
+/// exercised is `src/dims/placement.rs`'s unit test
+/// `an_arrowhead_and_a_leader_through_other_ink_are_reported`, which the public API cannot make.
 #[test]
 fn an_arrowhead_in_another_label_is_reported() {
     let inside_triangle = |t: [[f64; 2]; 3], b: [f64; 4]| {
@@ -1633,7 +1634,6 @@ fn an_arrowhead_in_another_label_is_reported() {
         })
     };
     let half = draftwright::dims::ARROW / 6.0;
-    let mut seen = 0;
     for (name, _, plan) in planned() {
         for a in &plan.dimensions {
             let Some(pa) = &a.placed else { continue };
@@ -1651,7 +1651,6 @@ fn an_arrowhead_in_another_label_is_reported() {
                         [tail[0] - k * n[0], tail[1] - k * n[1]],
                     ];
                     if inside_triangle(head, pb.label_box) {
-                        seen += 1;
                         assert!(
                             reported_pair(plan, "annotation_ink_overlap", &a.id, &b.id),
                             "{name}: an arrowhead of {} lies in {}'s label unreported",
@@ -1662,12 +1661,6 @@ fn an_arrowhead_in_another_label_is_reported() {
                 }
             }
         }
-    }
-    if !sampled().is_empty() {
-        assert!(
-            seen > 0,
-            "no arrowhead reaches a label (m10127's side-depth collision is gone?): the check guards nothing"
-        );
     }
 }
 

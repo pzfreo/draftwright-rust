@@ -28,13 +28,15 @@
 //!
 //! **Placement is simple and honest**, not draftwright's solver: linear dimensions stack in lanes
 //! below (horizontal) and right of (vertical) their view, sizes nearest, then locations by
-//! distance, then the overall extent outermost; callouts stack above their view with 45° leaders.
-//! A label another item's ink runs through then moves along its own line (a callout's leader
-//! may turn left) to the nearest clear place, if there is one. Whatever still collides (labels with labels, lines through labels, labels over views, ink off
+//! distance, then the overall extent outermost. A label another item's ink runs through then
+//! moves along its own line to the nearest clear place, if there is one. Callouts are placed
+//! after, around the dimensions, by draftwright's leader placement ([`leaders`]): a short leader
+//! from the feature's rim to an elbow just outside its view, a horizontal shoulder, assigned
+//! jointly to cross as little as it can. Whatever still collides (labels with labels, lines through labels, labels over views, ink off
 //! the sheet, ink past the area its view reserved, lines across another view) is reported as a
 //! problem on the dimension's ID, never silently moved or dropped. A strip without room on the
-//! page passes its outer lanes to the strip across the view, and a callout whose lane does not fit
-//! goes beside its view. Lines crossing other dimensions' lines are not checked yet. Each item's lane is its place among everything the
+//! page passes its outer lanes to the strip across the view. A dimension's lines crossing other
+//! dimensions' lines are not checked yet. Each item's lane is its place among everything the
 //! defaults would dimension, so omitting one leaves the others where they were (ARCH0003-2), and
 //! the layout reserves the side view's bands for its lanes ([`lanes`]). An item
 //! no shown view can carry is kept in the plan, unplaced, and reported (R1 invariant 3).
@@ -50,6 +52,7 @@ mod envelope;
 mod flats;
 mod grooves;
 mod holes;
+mod leaders;
 pub(crate) mod levels;
 mod placement;
 mod recesses;
@@ -581,8 +584,9 @@ pub fn plan(
                 .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
         })
         .collect();
-    let leaders = placement::leaders(&frames, &all, &chosen, &sides, &lane);
-    placement::settle(&mut placed, &chosen, &leaders, analysis, sheet, views);
+    placement::settle(&mut placed, analysis, sheet, views);
+    let page = placement::Page::new(analysis, sheet, views);
+    let leader_problems = leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page);
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
@@ -665,6 +669,16 @@ pub fn plan(
             ),
             subjects: ids,
         });
+    }
+    // Only what the plan draws: the leaders were placed for every item the part would have.
+    let drawn: BTreeSet<&str> = out.iter().map(|d| d.id.as_str()).collect();
+    for mut p in leader_problems {
+        p.subjects
+            .retain(|s| s.starts_with("v:") || drawn.contains(s.as_str()));
+        if p.subjects.iter().any(|s| !s.starts_with("v:")) {
+            p.id = format!("p:{}:{}", p.code, p.subjects.join("|"));
+            problems.push(p);
+        }
     }
     problems.extend(placement::collisions(analysis, &out, sheet, views));
     Ok((out, omitted, problems))

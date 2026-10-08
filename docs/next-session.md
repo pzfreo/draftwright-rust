@@ -1347,3 +1347,136 @@ improvement plan and questions are the current work. Still open from before it:
     prismatic pockets: should quiddity-rust's document publish Python's `SectionRecess` (into which
     prismatic pockets, pockets, channels, blind slots and passages are projected), so the native
     path can give draftwright its pockets?
+- From stream d-callout-leaders (maintainer top priority, "something is wrong with the leaders,
+  especially diagonals"): callout leaders are placed as draftwright places them, in place of the
+  fixed 45° lanes (new `src/dims/leaders.rs`; `src/dims/placement.rs` loses `place_callout`, the
+  turned and sideways leaders; on top of r/d-placement-fit and r/d-dims-turned-steps, merged here).
+  - **What it does.** The linear dimensions are placed and settled first; then every callout
+    (holes, recesses, turned diameters, fillets, chamfers, grooves, flats, bosses, steps) gets a
+    bounded inventory of leaders: columns beside its view (draftwright's plan/side hole callouts and
+    z-turned diameter column), rows above and below (its front hole callouts and x-turned row), and
+    16-direction escapes from each site (its corner and radial candidates), each elbow just past
+    the view's edge or past the dimensions of that strip, plus two text rows further out; the tip on
+    the site's rim, radial to the elbow; a horizontal shoulder and the label beyond it on the side
+    the leader runs to. Each is measured analytically: hard blockers (off the drawing area, in the
+    title block, label or shoulder over any view, leader across another view or back into its own,
+    leader under 6 mm or over 75 mm), then crossings (a line through a dimension's or leader's line,
+    including running along it within 1 mm, or through a label, or a label on a label), then length
+    (µm). The callouts are assigned jointly (groups that could conflict, exact branch and bound
+    within 200 000 nodes from a greedy floor). Nothing is dropped; what a leader still crosses is
+    reported, with a new plan problem `annotation_leader_crossing` (warning) for a leader across or
+    along another item's line. What the collision checks cannot see is reported by the leader
+    placement itself: a leader taken back across its own view (`annotation_line_over_view` on its
+    own view), one over the 75 mm limit (`annotation_leader_long`, warning), and a group whose
+    joint search stopped at its node budget (`annotation_leader_search_capped`, info).
+    `tests/leaders.rs` asserts the first two are reported wherever they occur (neither occurs on
+    the parts checked). The third fires on ftc06, whose 10 plan callouts form one group: listed
+    in known_placement.json as undetermined (a 100× budget gives the same leaders). The search
+    now starts from the greedy assignment improved by descent (single jobs, then conflicting
+    pairs, at most 50 passes); before it, ftc06's bounded search kept an assignment 28 mm longer
+    in total, which the review's question about the budget brought out. The limits (6 mm, 75 mm, 3 mm clearance, 7 mm rows) are calibrated from draftwright's
+    sheets, not its code: draftwright has no hard length cap or angle limit, and its
+    `leader_policy.py` is the region policy only; its side rule (`text_side`) is ported, and the
+    port has no angle limit. Callouts take no lanes now (`fall_through` ignores them).
+  - **Acceptance** (`tests/leaders.rs`): on the 12 captured parts with corpus recognition, and on
+    cgb245 and nist_ctc_04 natively, no callout's leader, shoulder or label crosses a view, the
+    title block, another annotation's line or label, except the 39 listed in
+    `tests/fixtures/known_leaders.json`, all rust-wrong with evidence: 8 on connector109 (the
+    turned bosses' ø118/ø122/ø130.9 are linear dimensions below the front whose extension lines run
+    up the silhouette, where groove, fillet and chamfer leaders leave it; draftwright states those
+    diameters as callouts) and 31 on ctc04 native (the plan's location ladders' extension lines run
+    from interior holes through the view; the ⌀6.6 holes in the centre pockets cannot leave without
+    crossing some; draftwright's own ctc04 sheet has 24 leader-line crossings by the same test).
+    cgb245, both ways, has none (before: three plan callouts' 45° diagonals from the lanes above
+    the plan, and leaders fanning across the plan to its right).
+  - **Leader lengths** (mm, min/median/mean/max; port's from `LEADERS_REPORT=1`, draftwright's
+    measured on its own drawings built from origin/main with the same predicates; draftwright draws
+    more callouts on most parts, its blends and some fillets not being ported):
+    cgb245 6.0/9.6/16.5/49.6 vs 7.0/15.0/19.8/52.9; ctc01 6.0/16.0/17.5/39.3 vs 7.0/7.0/16.2/52.0;
+    ctc04 (native) 6.1/11.5/20.2/57.6 vs 5.6/14.9/19.1/47.0; ftc06 6.1/9.3/13.8/34.1 vs
+    6.4/15.0/18.8/47.0; connector109 6.0/6.7/19.1/73.7 vs 7.0/10.3/18.8/73.5; spool132
+    6.1/10.9/17.6/37.0 vs 7.0/37.7/31.3/62.2; m10127 6.0/8.7/11.5/19.9 vs 7.0/39.6/32.3/60.0;
+    m1000 6.4/8.5/11.4/21.9 vs 7.0/16.7/14.4/17.2; m10046 30.4 vs 18.7 (one callout);
+    grm03 6.1/7.8/8.2/11.4 vs 7.0/11.8/15.3/28.5; grm05 6.0/6.6/6.5/7.0 vs 10.8/13.0/12.9/15.0;
+    string_post 6.0/7.6/7.5/8.9 vs 8.5/11.1/15.1/30.4; hanger 6.0/6.2/6.2/6.4 vs 7.0/7.0/9.0/15.0.
+    On most parts the port's are shorter (both minimise length; the port's floor is its 6 mm
+    minimum, draftwright's its 7 mm reach/lane spacing; and draftwright's longest run to labels
+    in its side columns or inside the views). Four parts have longer ones, each with a verdict
+    (callout by callout, from `LEADERS_REPORT=1` and a candidate dump of the port's inventory):
+    - ctc01 (median 16.0 vs 7.0): the populations differ. Six of draftwright's 15 callouts are
+      blends at 7.0 mm each (R0.8, R4.9, 6× R5, R6.3, 18× R10, 4× R25), which the port does not
+      dimension (not-applicable: blends not ported). Callout by callout the port is shorter on
+      seven of nine (⌀20 16.0 vs 23.0, ⌀35 9.5 vs 22.7, 2× R20 19.4 vs 52.0, R1.6 16.8 vs 44.6,
+      C50 8.0 vs 15.0, 2× C5 6.1 vs 15.0, 7× R50 6.0 vs 15.0) and longer on two: 4× ⌀25 36.5 vs
+      7.0 and HEX 100 A/F 39.3 vs 7.0, where draftwright's labels stand inside the plan over its
+      face (not-applicable: interior labels, below).
+    - m10046 (30.4 vs 18.7, its one callout): equivalent as leader placement, the difference is
+      the layout. Draftwright lays the part out on A3 at 2:1 with nothing right of the front, and
+      its label sits there level with the pocket. The port's A4 at 1:1 puts the y location ladder
+      (13.5, 41.0, 7.7, 1.8) right of the front and the 23.0/27.3 ladder below it. Every shorter
+      candidate in the port's inventory crosses one of their lines (right, down) or puts the
+      40 mm label off the drawing area (left, 21 mm to the sheet's edge), so the 30.4 mm leader
+      up to a row above the view is the shortest that crosses nothing.
+    - ctc04 native (max 57.6 vs 47.0, mean 20.2 vs 19.1): three of the port's four ⌀6.6 callouts
+      run 47.1–47.5 mm against draftwright's 47.0 (equivalent: both leave the centre pockets
+      horizontally for a column beside the plan). Draftwright draws two `3× ⌀6.6 ↧ 25` callouts
+      and the port four (the patterns' grouping, upstream of leaders), and the fourth takes the
+      next row out, 57.6 mm (not-applicable to leader placement). The port's 16× R4 runs 45.1 mm
+      against draftwright's 7.0: draftwright's label stands inside the front over its face
+      (not-applicable: interior labels). No candidate of the port's is free of crossings: the
+      chosen one sets its label against the 60.6 step height's label (listed in
+      known_leaders.json), and the shorter ones, up or down out of the front, cross two or more
+      of the dimension lines in the strips above and below it.
+    - connector109 (mean 19.1 vs 18.8): the chamfer's 73.7 mm against draftwright's 7.0 (rust-wrong,
+      below) accounts for it; the groove leader up the profile, 71.2 mm against draftwright's
+      73.5 for the same groove, is equivalent.
+    Shoulder: 3 mm (the port's `SHOULDER`)
+    against draftwright's 2 mm (`pad_around_text`), equivalent. Median angle from horizontal:
+    10–90° against draftwright's 0–72°, no pattern (both take vertical and horizontal leaders).
+    Where they differ: draftwright puts some labels inside a view over blank face (its interior
+    candidates; most of its leaders over 30 mm, on m10127, spool132 and ctc01, end at such labels
+    or at rows of its side columns) — the port cannot prove blank face without the projected line-work, so it keeps every label outside
+    (not-applicable to the plan as R1 defines it; draftwright's `--leader-region exterior`).
+    connector109's chamfer leader runs 73.7 mm down the profile's edge (rust-wrong: the column left
+    of the front holds the diameters, and shorter routes cross the bosses' extension lines; a
+    leader laid on the part's own silhouette is not seen, the plan having no line-work).
+  - **Visual comparison** (PNGs of both, kept in the scratchpad): cgb245's plan callouts now sit
+    just outside the plan next to their holes with short leaders and shoulders (the one above it,
+    2× ⌀6, just over its edge under the ladder), none crossing the ladder or another view;
+    connector109's step diameters form a column left of the front as draftwright's do, its groove
+    callouts right of it; spool132's and ctc01's plan callouts stand just outside the plan (draftwright's
+    stand partly inside it); ctc04's ring of 14 mm holes is called out from both sides of the plan,
+    the 6.6 mm holes by long horizontal leaders out of the centre pockets.
+  - **Outside the stream's files, minimal**: `src/dims/mod.rs` (`mod leaders`, the call after
+    `settle`, its doc); `tests/tolerances.rs`'s ctc01 test (the fillet's longer label no longer runs
+    past the area: the spec adds no problem now); `tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported`
+    (its guard needed m10127's arrowhead-in-label collision, now gone; the planted case is the unit
+    test `dims::placement::tests::an_arrowhead_and_a_leader_through_other_ink_are_reported`);
+    `tests/lint_structural.rs::the_review_reports_structural_findings_beside_coverage` and
+    `tests/fixtures/known_structural.json` (for the integrator reconciling with
+    d-lint-structural-2): r/d-placement-fit forked before lint::structural landed, so merging it
+    here moves the plate's y location right of the plan (no structural finding or off-sheet
+    problem now), cgb245's and ctc01's annotation_out_of_bounds go 10 → 1 each (the one y location
+    each that fits on neither side), ftc06's 1 → 0 (both from placement-fit's fall-through), and
+    connector109's 6 → 0 (this stream: its callouts no longer stack in lanes off the sheet).
+  - **Catalogue** (`docs/rules`): ISSUE-740-a, ISSUE-740-b, ISSUE-798-a, ARCH0014-3 and ADR2-9
+    ported; ISSUE-1188-a translated; ISSUE-1166-a/b, ISSUE-367-a, ADR2-D6, ADR2-5, ADR2-7, ADR2-8,
+    ARCH0009-7 pending with exact notes. Proposed for files this stream does not own: `docs/model.md`
+    should list `annotation_leader_crossing`, `annotation_leader_long` (a leader over 75 mm, taken
+    only when every shorter place was blocked) and `annotation_leader_search_capped` (info: a
+    group of callouts whose joint search stopped at its node budget) beside the other annotation
+    codes, and its "Not checked
+    yet" note should say leaders' line crossings are now checked (two linear dimensions' still are
+    not); `docs/rules/lint.yaml` LINT-code-leader_crosses_silhouette stays pending (no projected
+    material in the plan).
+  - Questions for the maintainer:
+    - Interior labels: draftwright places a callout's label inside its view over blank face when it
+      can prove the face blank (its default `auto` region); the port keeps every label outside, the
+      plan having no projected line-work. Should the plan see the views' line-work (a planned-view
+      projection at plan time), or is exterior-only the port's rule?
+    - The layout's band estimate still counts lanes for callouts (`dims::lanes`), though callouts no
+      longer take lanes; dropping that would change view positions on most sheets (`known_views`).
+      Keep it as a margin for the callouts beside the views, or reserve their actual footprint?
+    - Turned bosses' diameters as linear dimensions below the front (connector109) make every
+      leader leaving that side cross their extension lines; draftwright calls them out in its
+      left column. Should `dims::bosses` give a turned boss's diameter as a callout?

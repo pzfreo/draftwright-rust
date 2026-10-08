@@ -17,8 +17,8 @@
       - "tests/test_issue_367_leader_ink.py::test_zero_length_leader_uses_its_local_ink_extent"
     corpus_parts: []
   status: pending
-  rust_test: "tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported"
-  rust_note: "Not ported, checked on the drawings only: the collision checks (src/dims/placement.rs::settle and collisions) test a line's zero-width centreline against a label's box and leave out the arrowhead's flare (2.7 by 0.9 mm as drawn) and the stroke width, so a flare-only contact would go unreported. The test checks that every drawn arrowhead reaching into another label on the fixtures and sampled parts is reported; it holds because each such shaft crosses the label too (m10127's side depth). No part here has a flare-only contact, so the gap is not shown failing. The test's guard that it saw an arrowhead in a label depends on that one m10127 collision, the only one on any part here (default plans, and every part pinned to A4 at 1:5 to 5:1 or A3 at 2:1 and 5:1); when placement clears it, the guard fails and the test needs a planted case, which the public API cannot make."
+  rust_test: "src/dims/placement.rs::tests::an_arrowhead_and_a_leader_through_other_ink_are_reported"
+  rust_note: "Not ported: the collision checks (src/dims/placement.rs::settle and collisions) and the callout leaders' placement (src/dims/leaders.rs) test a line's zero-width centreline against a label's box and leave out the arrowhead's flare (2.7 by 0.9 mm as drawn) and the stroke width, so a flare-only contact would go unreported. tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported checks that every drawn arrowhead reaching into another label on the fixtures and sampled parts is reported; since stream d-callout-leaders no part there has one (m10127's side-depth collision, the only one before, is gone), so the planted unit test above keeps the check exercised: an arrowhead whose shaft runs through another label is reported. No case has a flare-only contact, so the gap is not shown failing."
   port_note: "Keep: unit test on the leader-ink collision primitive (arrow + stroked shaft polygons) used by the layout solver."
 
 - id: ISSUE-367-b
@@ -168,7 +168,9 @@
       - "tests/test_issue_740_leader_assignment.py::test_bounded_solver_matches_exhaustive_lexicographic_oracle"
       - "tests/test_issue_740_leader_assignment.py::test_public_render_is_crossing_free_and_pair_budget_is_legacy_floor"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "src/dims/leaders.rs::tests::the_assignment_matches_an_exhaustive_oracle"
+  rust_note: "src/dims/leaders.rs::assign assigns every callout's leader jointly: fewest hard blockers, then fewest crossings (with the placed dimensions and between the chosen leaders), then least total length, checked against an exhaustive oracle and, as a scenario, on the captured parts and cgb245/ctc04 natively (tests/leaders.rs::callout_leaders_cross_nothing_unlisted). The port never drops a callout for want of a clear route (ISSUE-798-a), so 'maximise the number placed' is every callout, with crossings counted instead of conflicting leaders dropped; all callouts are required (the port has no optional leader jobs)."
   port_note: "Keep: unit test the leader assignment solver against an exhaustive oracle; scenario test for crossing-free result."
 
 - id: ISSUE-740-b
@@ -182,8 +184,9 @@
       - "tests/test_issue_740_leader_assignment.py::test_bounded_legacy_fallback_preserves_drop_diagnostic"
       - "tests/test_issue_740_leader_assignment.py::test_pure_assignment_rejects_malformed_numeric_inputs"
     corpus_parts: []
-  status: pending
-  rust_note: "Not ported: there is no leader-assignment solver or work budget; placement is fixed lanes (src/dims/placement.rs). Plans are deterministic to the byte (tests/model.rs::the_same_documents_give_the_same_bytes), which covers determinism for the present placement only."
+  status: ported
+  rust_test: "src/dims/leaders.rs::tests::a_large_group_is_bounded_and_deterministic"
+  rust_note: "Costs are whole micrometres, so sub-micron noise cannot reorder candidates; ties keep generation and job order; each group of conflicting jobs is searched from its greedy assignment up to NODE_BUDGET nodes and keeps the best found, never worse than the greedy floor; every candidate search is bounded (MAX_STATIONS, DIRECTIONS, MAX_SITES, KEEP). Budget exhaustion drops nothing (every callout is placed), so there is no drop diagnostic to keep; a group whose search stopped at the budget is the structured plan problem annotation_leader_search_capped (info) naming its callouts (src/dims/leaders.rs::place; the test asserts the fired budget is returned)."
   port_note: "Keep: determinism + budget-fallback tests on the solver; budget exhaustion yields a structured problem, never a silent drop."
 
 - id: ISSUE-740-c
@@ -210,7 +213,9 @@
       - "tests/test_issue_798_floor_cardinality.py::test_a_clear_route_still_wins_immediately"
       - "tests/test_issue_798_floor_cardinality.py::test_a_job_with_no_acceptable_candidate_at_all_is_dropped"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "tests/leaders.rs::a_leader_has_a_horizontal_shoulder_and_reads_outward"
+  rust_note: "A callout whose every candidate is blocked takes the least blocked (src/dims/leaders.rs: hard blockers, then crossings, then length), and the plan reports what it still crosses (annotation_leader_crossing, annotation_ink_overlap, annotation_over_view, ...). No callout is dropped for routing; only an item no shown view can carry is unplaced (view_plan_incomplete). Material cutting is the leader re-entering its view's box (the plan has no projected material; ADR2-8)."
   port_note: "Keep: leader router unit test; plan records the crossing as a problem rather than dropping the callout."
 
 - id: ISSUE-798-b
@@ -954,6 +959,8 @@
       - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_cross_pass_objective_avoids_the_per_pass_greedy_trap"
     corpus_parts: []
   status: pending
+  rust_test: "tests/leaders.rs::callout_leaders_cross_nothing_unlisted"
+  rust_note: "Partial: every callout's leader is placed from one shared inventory (src/dims/leaders.rs) avoiding the placed dimensions' lines, arrowhead shafts and labels, the views, the title block and the other leaders. Not ported: centre marks, arrowheads' flare and filled datum faces are not in the fixed ink (the plan draws no centre marks; ISSUE-367-a), and there are no optional leaders for a required one to beat."
   port_note: "Keep: single leader solve per view over all obstacles."
 
 - id: ISSUE-1166-b
@@ -969,7 +976,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::a_dimension_in_the_title_block_is_reported"
-  rust_note: "Partial: a settled label keeps off the title block (src/dims/placement.rs::settle keeps a moved label off the views and the title block, and its lines out of it), and any dimension whose ink reaches into the title block is reported (annotation_over_title_block). Not ported: the first placement is not kept out of the title block (ISSUE-1593-a); a turning-axis centreline's tip exemption (no leader is checked against view geometry) and a future section's veto (sections are placed before dimensions)."
+  rust_note: "Partial: a callout's leader treats the title block as a hard obstacle (src/dims/leaders.rs, a hard blocker; tests/leaders.rs lists any leader in it, none on the parts checked), a settled linear label keeps off the views and the title block (src/dims/placement.rs::settle), and any dimension whose ink reaches into the title block is reported (annotation_over_title_block). Not ported: the first placement of a linear dimension is not kept out of the title block (ISSUE-1593-a); a turning-axis centreline's tip exemption (no leader is checked against view geometry, and the plan draws no centrelines) and a future section's veto (sections are placed before dimensions)."
   port_note: "Keep."
 
 - id: ISSUE-1166-c
@@ -1086,7 +1093,9 @@
       - "tests/test_issue_1188_per_view_assignment.py::test_a_conflict_spanning_views_fails_closed"
       - "tests/test_issue_1188_per_view_assignment.py::test_a_dense_fixture_reaches_the_exact_solve"
     corpus_parts: []
-  status: pending
+  status: translated
+  rust_test: "src/dims/leaders.rs::tests::the_assignment_matches_an_exhaustive_oracle"
+  rust_rule: "The joint leader assignment splits the callouts into groups whose candidates could conflict (in any views, a superset of draftwright's same-view rule, so no cross-view conflict is lost) and solves each exactly within its node budget (src/dims/leaders.rs::assign); the split is exact because the objective is a sum over jobs and conflicting pairs."
   port_note: "Translate: valid decomposition for the Rust solver; keep the oracle-equality test."
 
 - id: ISSUE-1190-a
