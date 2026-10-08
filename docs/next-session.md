@@ -964,3 +964,22 @@ improvement plan and questions are the current work. Still open from before it:
     policy treats a declared table's drop as a lost requirement). Keep error?
   - A number cell is printed as JSON writes it (`0.5`, `1e+20` as `1e20`); Python's `str()`
     would differ for some floats. Keep accepting numbers, or require text?
+
+- The CLI recognises with Rust quiddity (stream d-cli-native, maintainer priority 2):
+  `draftwright analyse|plan|render|review` without `--features` or `--analysis` take features
+  from `model::analyse_native` (`bridge::native::read` on quiddity-rust's document, the part's
+  frame); `--features` still reads Python's JSON, and the new `--no-features` draws with none
+  (the only way left to draw a part whose document the reader refuses). `api::Features` and
+  `analyse_from`/`plan_from`/`render_from`/`review_from` carry the choice; `api::call`, the
+  service, the MCP server and `api::analyse(step, None)` are unchanged. `draftwright.analysis/5`
+  adds `unrecognised` (families the document has that are not read, with counts, and section
+  recesses and pads, which it lacks); `plan` reports them as a `features_not_recognised`
+  warning. By hand (default, native): cgb245 renders (39 dimensions against Python's 51: its 3
+  slots are not read; 124 blends `dimensions_not_ported` against 82, the unreconciled blends;
+  6 `annotation_off_sheet` against 10); GRM-05 renders with its bosses' step diameters and
+  lengths (⌀6.2, ⌀6, 12.5, 5, 12) that Python's aggregate drops for its turned steps, and ⌀10
+  twice (envelope and boss, rust-wrong); nist_ctc_04 renders (no area binding natively;
+  pockets, slots and oriented chamfers named as not recognised). `tests/cli_native.rs`.
+  - Question for the maintainer: should `draftwright serve`, the MCP server and the library's
+    `None` follow the CLI to native recognition (with Python's JSON as the override), or stay
+    as they are until the constituent-faces and reconciliation questions above are settled?

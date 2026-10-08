@@ -39,25 +39,53 @@ each against what the Python implementation produces:
 A drawing is three JSON documents: the Analysis, the Spec and the Plan. Five stateless
 operations work on them (`docs/model.md`, ADR R1).
 
-Features come from Python quiddity for now: recognise the part once with
-`tools/recognise.py`, then pass the result as `--features` (without it the part has no
-features, so no dimensions, sections or hole lint):
+On the command line, `analyse`, `plan`, `render` and `review` take the part's features from
+Rust quiddity's recognition, run on the part (`src/bridge/native.rs`); the Analysis names it
+(`recognition.recogniser`, `quiddity-rust <version> (quiddity-rust/recognition/1)`).
+`--features` passes Python quiddity's recognition JSON instead, written once with
+`tools/recognise.py`; `--no-features` draws with none (no feature dimensions, sections or
+lint):
 
 ```
-~/repos/quiddity/.venv/bin/python tools/recognise.py part.step -o part.features.json
-
-draftwright analyse part.step --features part.features.json      # the Analysis
-draftwright plan part.step --features part.features.json --spec part.drawing.json
-                                                       # the Plan, every choice with its basis
+draftwright analyse part.step                          # the Analysis, features from Rust quiddity
+draftwright plan part.step --spec part.drawing.json    # the Plan, every choice with its basis
 draftwright edit part.drawing.json ops.json            # apply edits to a Spec
-draftwright render part.step --features part.features.json --spec part.drawing.json -o out
+draftwright render part.step --spec part.drawing.json -o out
                                                        # out.svg, out.dxf, out.pdf
-draftwright review part.step --features part.features.json --spec part.drawing.json
-                                                       # the drawing as SVG text, with problems and lint
+draftwright review part.step --spec part.drawing.json  # the drawing as SVG text, with problems and lint
+
+~/repos/quiddity/.venv/bin/python tools/recognise.py part.step -o part.features.json
+draftwright render part.step --features part.features.json -o out
+                                                       # features from Python quiddity instead
 draftwright spec out.dxf                               # the Spec a drawing (SVG, DXF, PDF) was made from
 draftwright serve                                      # the same operations as a JSON-lines service
 draftwright-mcp                                        # the same operations as an MCP server (stdio)
 ```
+
+The service, the MCP server and the library (`api::analyse(step, None)` and the rest) are not
+switched: there no `features` still means no features, and Python's JSON is passed as
+`features`. `api::analyse_from` and its siblings take `Features::Native` for the command line's
+choice.
+
+Native recognition, current limitations (details and verdicts in `docs/next-session.md`, the
+d-native-holes, d-native-families and d-native-more-families entries):
+
+- **Not every family.** Rust quiddity's document does not carry section recesses (pockets,
+  channels, blind slots, circular recesses) or raised pads, and the reader does not yet take
+  every family the document has (slots, oriented chamfers, …). The Analysis lists what it
+  lacks (`unrecognised`, with each family's record count on the part) and the plan reports it as
+  a `features_not_recognised` warning: features of those families are not dimensioned,
+  sectioned or linted. Use `--features` for them.
+- **A hole lacks the face that closes it** (a drill point's cone, a blind floor), and a boss
+  its free-end face, as the document carries only defining faces (rust-wrong).
+- **No cross-family reconciliation.** Python's aggregate drops a boss whose faces are a turned
+  step's, a blend whose faces are fillets', a chamfer on an angled step's slant and a fillet on
+  a circular blind step's wall; Rust quiddity keeps both, so those radii and diameters can be
+  asked for twice (rust-wrong; on GRM-05 ⌀10 is stated twice, as the envelope's and as a
+  boss's).
+- **A refusal is not drawn around.** When the reader refuses Rust quiddity's document (an
+  unknown schema, family or record type) the command fails with the reason; `--no-features` or
+  `--features` draws the part anyway.
 
 To use the MCP server from an MCP client, register the `draftwright-mcp` binary as a stdio
 server (for Claude Code: `claude mcp add draftwright -- /path/to/draftwright-mcp`).
@@ -81,8 +109,8 @@ The plan (`docs/plan.md`), the ADRs (`docs/adr/`), the rules catalogue that trac
 Python version learnt (`docs/rules/`) and the latest review (`docs/review-2026-10-08.md`) are in
 `docs/`.
 
-Feature recognition is bridged from Python quiddity's JSON results until the Rust quiddity
-covers the families and the aggregate draftwright needs.
+Feature recognition on the command line is Rust quiddity's by default, with Python quiddity's
+JSON (`--features`) for what it does not cover yet (above).
 
 To check a change: `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus
 DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`, `cargo fmt --check` and `cargo clippy

@@ -1,17 +1,17 @@
 //! The command line over the document model (ADR R1), through [`draftwright::api`]. Each command
 //! prints JSON.
 //!
-//! - `draftwright analyse part.step [--features r.json]`: the Analysis
-//! - `draftwright plan part.step [--features r.json] [--spec s.json]`: the Plan; or
-//!   `draftwright plan [part.step] --analysis a.json [--spec s.json]`, from an Analysis without
-//!   analysing again
-//! - `draftwright render part.step [--features r.json | --analysis a.json] [--spec s.json] -o out
-//!   [--formats svg,dxf,pdf,png] [--dpi 150]`: writes the files (`out.svg`, …; svg, dxf and pdf
-//!   unless named, a PNG at `--dpi` pixels per inch) and prints what was written, with the
-//!   problems: the plan's, and what could not be drawn as planned
-//! - `draftwright review part.step [--features r.json | --analysis a.json] [--spec s.json]`: the
-//!   drawing as SVG
-//!   text, with the problems and lint's findings on the drawing
+//! - `draftwright analyse part.step [--features r.json | --no-features]`: the Analysis
+//! - `draftwright plan part.step [--features r.json | --no-features] [--spec s.json]`: the Plan;
+//!   or `draftwright plan [part.step] --analysis a.json [--spec s.json]`, from an Analysis
+//!   without analysing again
+//! - `draftwright render part.step [--features r.json | --no-features | --analysis a.json]
+//!   [--spec s.json] -o out [--formats svg,dxf,pdf,png] [--dpi 150]`: writes the files
+//!   (`out.svg`, …; svg, dxf and pdf unless named, a PNG at `--dpi` pixels per inch) and prints
+//!   what was written, with the problems: the plan's, and what could not be drawn as planned
+//! - `draftwright review part.step [--features r.json | --no-features | --analysis a.json]
+//!   [--spec s.json]`: the drawing as SVG text, with the problems and lint's findings on the
+//!   drawing
 //! - `draftwright edit s.json ops.json`: the edited Spec
 //! - `draftwright spec drawing.(svg|dxf|pdf|png)`: the Spec embedded in a rendered drawing
 //! - `draftwright serve`: the JSON-lines service. One request per line on stdin, such as
@@ -20,10 +20,18 @@
 //!   "message", "choices"?}}`. `{"op": "hello"}` gives the protocol version and the operations;
 //!   the others, and their arguments, are those of [`draftwright::api::call`].
 //!
+//! The features come from Rust quiddity's recognition, run on the part
+//! ([`draftwright::api::Features::Native`]), unless one of these says otherwise. A part whose
+//! recognition document is refused is not drawn (exit 1, with the refusal), and the families
+//! that recognition does not give are named in the plan's problems (`features_not_recognised`).
 //! `--features` names Python quiddity's recognition JSON for the same file
-//! (`tools/recognise.py`, read by [`draftwright::bridge`]). `--analysis` names an Analysis that
-//! `draftwright analyse` printed for the same STEP file (with its features), used in place of
-//! analysing the file again; it is refused with `--features`, or when made from another file.
+//! (`tools/recognise.py`, read by [`draftwright::bridge`]), used instead. `--no-features`
+//! analyses the part with no features (no feature dimensions, sections or lint), as the library
+//! does when given none: the way to draw a part whose recognition is refused. `--analysis` names
+//! an Analysis that `draftwright analyse` printed for the same STEP file (with its features),
+//! used in place of analysing the file again; it is refused with `--features` or
+//! `--no-features`, or when made from another file. `serve` takes Python's JSON or none, as
+//! [`draftwright::api::call`] does.
 //!
 //! Exit codes: 0 done; 2 the request is invalid (the JSON error says what would be accepted);
 //! 1 something failed and nothing was written in its place.
@@ -31,7 +39,8 @@
 use std::io::{BufRead, Write};
 use std::process::ExitCode;
 
-use draftwright::api::{self, Error};
+use draftwright::api::{self, Error, Features};
+use draftwright::model::Spec;
 use serde_json::{Value, json};
 
 /// The service's protocol version, given by `hello`.
@@ -90,6 +99,54 @@ fn run(args: &[String]) -> Result<Value, Error> {
         Some(path) => read_json(path)?,
         None => Value::Null,
     };
+    let no_features = args.iter().any(|a| a == "--no-features");
+    if no_features && (features.is_some() || !analysis.is_null()) {
+        return Err(Error::invalid(
+            "--no-features is not taken with --features or --analysis: it means no features at all.",
+        ));
+    }
+    let output = || flag(args, "-o").ok_or_else(|| Error::invalid("render needs -o <output stem>"));
+    let formats = || {
+        flag(args, "--formats")
+            .unwrap_or("svg,dxf,pdf")
+            .split(',')
+            .collect::<Vec<_>>()
+    };
+    let dpi = || {
+        flag(args, "--dpi")
+            .map(|d| {
+                d.parse::<f64>()
+                    .map_err(|_| Error::invalid(format!("--dpi {d:?} is not a number")))
+            })
+            .transpose()
+    };
+    if matches!(command.as_str(), "analyse" | "plan" | "render" | "review")
+        && features.is_none()
+        && analysis.is_null()
+        && !no_features
+    {
+        let step = std::path::Path::new(arg(1)?);
+        let spec: Spec = if spec.is_null() {
+            Spec::default()
+        } else {
+            serde_json::from_value(spec)
+                .map_err(|e| Error::invalid(format!("the spec is not valid: {e}")))?
+        };
+        let native = Features::Native;
+        return guarded(command, || {
+            Ok(match command.as_str() {
+                "analyse" => json_of(&api::analyse_from(step, native)?),
+                "plan" => json_of(&api::plan_from(step, native, &spec)?),
+                "review" => json_of(&api::review_from(step, native, &spec)?),
+                _ => {
+                    let (output, dpi) = (output()?, dpi()?.unwrap_or(api::DPI));
+                    let (plan, files) = api::render_from(step, native, &spec, &formats(), dpi)?;
+                    let written = api::write(std::path::Path::new(output), &files)?;
+                    json!({ "written": written, "problems": plan.problems })
+                }
+            })
+        });
+    }
     let request = match command.as_str() {
         // From an Analysis, plan needs no STEP file: the first argument may be a flag.
         "plan" if !analysis.is_null() => json!({
@@ -106,9 +163,9 @@ fn run(args: &[String]) -> Result<Value, Error> {
             "features": features,
             "analysis": analysis,
             "spec": spec,
-            "output": flag(args, "-o").ok_or_else(|| Error::invalid("render needs -o <output stem>"))?,
-            "formats": flag(args, "--formats").unwrap_or("svg,dxf,pdf").split(',').collect::<Vec<_>>(),
-            "dpi": flag(args, "--dpi").map(|d| d.parse::<f64>().map_err(|_| Error::invalid(format!("--dpi {d:?} is not a number")))).transpose()?,
+            "output": output()?,
+            "formats": formats(),
+            "dpi": dpi()?,
         }),
         "edit" => json!({ "spec": read_json(arg(1)?)?, "ops": read_json(arg(2)?)? }),
         "spec" => json!({ "drawing": arg(1)? }),
@@ -119,6 +176,22 @@ fn run(args: &[String]) -> Result<Value, Error> {
         }
     };
     api::call(command, &request)
+}
+
+/// *op*'s result, a panic inside it answered as `failed`, as [`api::call`] answers it.
+fn guarded(op: &str, f: impl FnOnce() -> Result<Value, Error>) -> Result<Value, Error> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|panic| {
+        let why = panic
+            .downcast_ref::<&str>()
+            .map(|s| s.to_string())
+            .or_else(|| panic.downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        Err(Error::failed(format!("{op} stopped: {why}")))
+    })
+}
+
+fn json_of(document: &impl serde::Serialize) -> Value {
+    serde_json::to_value(document).expect("a document serialises")
 }
 
 /// Answers requests, one JSON object per line, until stdin closes.
