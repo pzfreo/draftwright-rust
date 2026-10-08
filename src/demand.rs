@@ -37,7 +37,8 @@ pub struct Hole {
     /// bottom, counterbore, spotface, countersink): holes with the same requirement are one
     /// feature, called out once.
     pub spec: Vec<i64>,
-    /// The recognised pattern it belongs to (`Analysis.recognition.patterns`), if any.
+    /// The recognised pattern it is called out with (`Analysis.recognition.patterns`), if that
+    /// pattern is established as one requirement ([`holes::established`]).
     pub pattern: Option<String>,
 }
 
@@ -152,18 +153,26 @@ pub fn read(analysis: &Analysis) -> Demand {
     d.step_zs.sort_by(f64::total_cmp);
     d.step_zs.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
 
-    // The holes that can be read (the dimensions report the others).
-    let pattern_of = |id: &str| {
-        let patterns = analysis.recognition.as_ref().map(|r| r.patterns.as_slice());
-        patterns
-            .unwrap_or_default()
-            .iter()
-            .find(|p| p.members.iter().any(|m| m == id))
-            .map(|p| p.id.clone())
-    };
-    d.holes = holes::read(analysis)
+    // The holes that can be read (the dimensions report the others), each in the recognised
+    // pattern that is established as one requirement ([`holes::established`], as the dimensions
+    // and lint group them; the first pattern to claim a hole keeps it), else loose.
+    let read = holes::read(analysis);
+    let readable: Vec<&holes::Hole> = read.iter().filter_map(|(_, h)| h.as_ref().ok()).collect();
+    let mut pattern: Vec<Option<String>> = vec![None; readable.len()];
+    let patterns = analysis.recognition.as_ref().map(|r| r.patterns.as_slice());
+    for p in patterns.unwrap_or_default() {
+        if let Ok(members) = holes::established(p, &readable)
+            && members.iter().all(|&m| pattern[m].is_none())
+        {
+            for m in members {
+                pattern[m] = Some(p.id.clone());
+            }
+        }
+    }
+    d.holes = readable
         .iter()
-        .filter_map(|(f, h)| h.as_ref().ok().map(|h| hole(h, pattern_of(&f.id))))
+        .zip(pattern)
+        .map(|(h, p)| hole(h, p))
         .collect();
     // Polygonal stock's length takes the overall height's slot; other axial heights add one.
     let mut stock = false;
@@ -267,7 +276,7 @@ pub fn turned_views(d: &Demand) -> Option<([&'static str; 2], &'static str, Stri
     ))
 }
 
-/// The holes as draftwright's hole features: a recognised pattern is one feature, and loose
+/// The holes as draftwright's hole features: an established pattern is one feature, and loose
 /// holes of one machining requirement another (draftwright's machining-spec groups). Returns,
 /// per feature, its axis, its members' locations and whether it is a pattern.
 fn hole_features(holes: &[Hole]) -> Vec<(Option<usize>, Vec<[f64; 3]>, bool)> {

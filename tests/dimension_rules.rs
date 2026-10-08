@@ -395,6 +395,50 @@ fn a_turned_parts_diameter_follows_its_view() {
     );
 }
 
+/// Review M8, and ARCH0017-1 in part: a recognised feature of a kind no planner dimensions yet is
+/// reported once, as info, in the Analysis's feature order; a record type draftwright itself
+/// leaves undimensioned (here a freeform surface) is no gap in the port and is not reported, and
+/// the holes the port plans are not reported either.
+#[test]
+fn features_with_no_ported_dimensions_are_reported() {
+    let not_ported = |plan: &Plan| -> Vec<String> {
+        plan.problems
+            .iter()
+            .filter(|p| p.code == "dimensions_not_ported")
+            .map(|p| {
+                assert_eq!(p.severity, "info");
+                assert_eq!(p.id, format!("p:dimensions_not_ported:{}", p.subjects[0]));
+                p.subjects.concat()
+            })
+            .collect()
+    };
+    let (_, mut a) = analysed_with("turned", &recognition("turned"));
+    let kinds: Vec<&str> = a.features.iter().map(|f| f.kind.as_str()).collect();
+    assert!(kinds.contains(&"fillet") && kinds.contains(&"turned_step"));
+    assert!(!kinds.contains(&"hole"));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let ids: Vec<String> = a.features.iter().map(|f| f.id.clone()).collect();
+    assert_eq!(not_ported(&plan), ids);
+    let step = plan
+        .problems
+        .iter()
+        .find(|p| p.subjects[0].starts_with("f:turned_step:"))
+        .unwrap();
+    assert!(
+        step.message
+            .ends_with("no dimensions for turned_step are ported yet."),
+        "{}",
+        step.message
+    );
+
+    a.features[0].fingerprint.subtype = "FreeformSurface".into();
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(not_ported(&plan), ids[1..]);
+
+    let plate = planned("plate", &recognition("plate"), &Spec::default());
+    assert!(not_ported(&plate).is_empty(), "{:?}", plate.problems);
+}
+
 /// An ID names the view that carries its dimension, so omitting that view renames it; a spec
 /// still keyed by the old ID is refused, and the refusal names the new ID first.
 #[test]
@@ -452,6 +496,47 @@ fn a_countersunk_hole_states_its_countersink() {
             .collect();
         assert_eq!(m, [value; 4], "{parameter}");
     }
+}
+
+/// A hole with both a counterbore and a spotface (quiddity finds both when a shallow facing cut
+/// and a deeper step lie between the opening and the bore) states both, the counterbore first as
+/// in draftwright's segment order, and claims all four sizes; lint then finds nothing missing.
+/// draftwright itself prints only the counterbore (its one recess slot), which its own lint
+/// would report: the port departs from it here (accuracy over parity). No captured part has
+/// such a hole, so the plate's holes are given both.
+#[test]
+fn a_hole_with_a_counterbore_and_a_spotface_states_both() {
+    let mut json = recognition("plate");
+    for f in json["quiddity"]["features"].as_array_mut().unwrap() {
+        f["record"]["spotface"] = json!({ "diameter": 20.0, "depth": 1.0 });
+        f["record"]["cbore"] = json!({ "diameter": 11.0, "depth": 6.4 });
+    }
+    let (part, analysis) = analysed_with("plate", &json);
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter@plan");
+    assert_eq!(c.label, "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 ⌴ ⌀20 ↧ 1 (2×2)");
+    for (parameter, value) in [
+        ("counterbore.diameter", 11.0),
+        ("counterbore.depth", 6.4),
+        ("spotface.diameter", 20.0),
+        ("spotface.depth", 1.0),
+    ] {
+        let m: Vec<f64> = c
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == parameter)
+            .map(|m| m.value)
+            .collect();
+        assert_eq!(m, [value; 4], "{parameter}");
+    }
+    let font =
+        Font::new(std::fs::read(fixture("../../fonts/IBMPlexMono-Regular.ttf")).unwrap()).unwrap();
+    let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+    let found: Vec<String> = draftwright::lint::lint(&analysis, &drawing)
+        .iter()
+        .map(|i| format!("{} {:?}", i.code, i.requirements))
+        .collect();
+    assert!(found.is_empty(), "{found:#?}");
 }
 
 /// ADR4-7: a through hole's depth is not part of its callout, so a through hole whose record

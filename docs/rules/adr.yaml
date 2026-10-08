@@ -733,7 +733,7 @@
     tests: ["test_compiled_plan_boundary.py", "test_label_provenance.py (test_no_renderer_formats_a_number_the_compiler_did_not, test_the_ratchet_actually_bites)"]
   status: pending
   rust_test: tests/dimension_rules.rs::renderers_draw_only_from_the_plan
-  rust_note: "Ported for dimensions and callouts (src/dims.rs: render draws each item's planned terms and ink). No PMI text exists yet."
+  rust_note: "Ported for dimensions and callouts (src/dims/mod.rs: render draws each item's planned terms and ink). No PMI text exists yet."
   port_note: "Keep: renderers read only Plan entries' text; author-supplied PMI/GD&T text is carried verbatim in the Plan with a 'source-authored' basis."
 
 - id: ADR4-5
@@ -1583,6 +1583,8 @@
     tests: []
   status: pending
   port_note: "Keep: completeness ledger outcome vocabulary in the report."
+  rust_test: tests/dimension_rules.rs::features_with_no_ported_dimensions_are_reported
+  rust_note: "In part: every recognised feature of a kind no dimension planner handles yet ends in an info problem (dimensions_not_ported) rather than leaving no trace, and lint's hole coverage gives hole requirements their outcomes. Not ported: the per-requirement outcome vocabulary (placed, satisfied by structured note, authored-suppressed, dropped, missing, unverifiable) as one ledger in the report."
 
 - id: ARCH0017-2
   statement: "Requirements are counted per independent manufacturing measurement: derived values are not counted again, pattern members share one requirement set, and a nested countersink shares its hole's requirement."

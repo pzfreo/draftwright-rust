@@ -163,3 +163,42 @@ fn bands_match_draftwright_or_are_known() {
         "differences not in known_bands.json: {unlisted:#?}\nlisted but no longer differing: {stale:#?}"
     );
 }
+
+/// demand groups holes as the dimensions and lint do (`bridge::holes::established`): a recognised
+/// pattern that is not established as one requirement, here a bolt circle of four holes
+/// (ISSUE-1596-a), leaves its holes loose, so the bands are sized for the callouts and locations
+/// the sheet will carry.
+#[test]
+fn demand_groups_holes_by_established_patterns() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let (part, mut a) = draftwright::model::analyse(&fixtures.join("parts/plate.step")).unwrap();
+    let json = std::fs::read_to_string(fixtures.join("recognition/plate.json")).unwrap();
+    let (r, features) = draftwright::bridge::read(&part, &a.binding.source_sha256, &json).unwrap();
+    a.recognition = Some(r);
+    a.features = features;
+    let callouts = |a: &draftwright::model::Analysis| -> Vec<String> {
+        let plan = draftwright::model::plan(a, &draftwright::model::Spec::default()).unwrap();
+        plan.dimensions
+            .iter()
+            .filter(|d| d.kind == "callout")
+            .map(|d| d.label.clone())
+            .collect()
+    };
+
+    let grid = demand::read(&a);
+    assert_eq!(grid.holes.len(), 4);
+    assert!(
+        grid.holes
+            .iter()
+            .all(|h| h.pattern.as_deref() == Some("f:hole_pattern:1"))
+    );
+    assert_eq!(callouts(&a), ["4× ⌀6 THRU (2×2)"]);
+
+    a.recognition.as_mut().unwrap().patterns[0].arrangement = "bolt_circle".into();
+    let circle = demand::read(&a);
+    assert!(circle.holes.iter().all(|h| h.pattern.is_none()));
+    assert_eq!(callouts(&a), ["4× ⌀6 THRU"]);
+    // Loose, the holes are located singly: two x positions to tier above the plan, not one.
+    let strips = |d: &demand::Demand| demand::strips(d, 0, true);
+    assert!(strips(&circle).top > strips(&grid).top);
+}

@@ -131,7 +131,7 @@ mention takes its default.
 
 ### Dimensions (first cut)
 
-`src/dims.rs` plans the dimensions draftwright's defaults would state for the families ported
+`src/dims/` plans the dimensions draftwright's defaults would state for the families ported
 so far, each a Plan item `{id, kind, view, value, label, terms, measurements, default, basis,
 placed}`:
 
@@ -144,11 +144,21 @@ placed}`:
   looks along the hole. Identical holes drilled the same way are grouped and counted; quiddity's
   hole patterns (kept by the bridge in `recognition.patterns` as `f:hole_pattern:<n>`) are called
   out as grids `(r×c)` or bolt circles `EQ SP ON øD BC` (five or more members), or as linear
-  patterns. THRU is the feature's fact (`bottom: through`).
+  patterns. THRU is the feature's fact (`bottom: through`). A hole with both a counterbore and a
+  spotface states both (`⌴ ⌀11 ↧ 6.4 ⌴ ⌀20 ↧ 1`, counterbore first), where draftwright prints only
+  the counterbore and loses the spotface its own lint requires.
 - **Locations** (`location.length.<axis>`) from the part's box, in the hole's view, one
   dimension per distance; patterns by their centre (or a linear pattern by its first member), with
   their pitches (`grid_pitch.length.row|col`, `pitch.length`). A hole or bolt circle on a turned
   part's axis is not located across it.
+
+Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`), listed in
+`dims::PLANNERS` with the feature kinds it dimensions. Every other recognised feature (fillets,
+chamfers, bosses, slots, turned steps, …) gets one info problem, `dimensions_not_ported`, on its
+ID: draftwright dimensions those kinds and the port does not yet, so this is a gap in the port,
+not in the part. Record types draftwright itself leaves undimensioned (freeform surfaces,
+thin-wall and sheet-metal bodies, oriented chamfers, …; `detect.py`'s unconsumed and orchestrated
+records) are not reported.
 
 `placed` is the item's ink on the page (lines, arrowheads, the label's baseline origin, rotation
 and box); renderers draw it and the terms, and nothing else. Placement is simple: lanes outward
