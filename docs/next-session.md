@@ -185,6 +185,23 @@ quiddity commit that has it.
   5. measure before and after on a pushed branch or a workflow_dispatch run, and record the
      numbers in the status file. Do the same for draftwright-rust's CI afterwards if it is cheap
      (now ~20 min, one job).
+- **Priority from the maintainer (2026-10-08 evening): draw PMI.** draftwright-rust reads no PMI
+  today (only Spec tolerances on dimensions); Python draftwright reads AP242 semantic PMI
+  (pmi.py, _pmi_part21.py, _pmi_schema.py, _pmi_topology.py, _pmi_datum_geometry.py,
+  _pmi_linear_geometry.py, _pmi_support_blockers.py), lowers it to drawing items
+  (model/pmi_lowering.py: feature control frames and datum symbols, annotations/_gdt.py;
+  toleranced dimensions, annotations/_pmi_dimensions.py) and lints coverage
+  (linting/pmi_coverage.py). As soon as `q-merge-ap242` has merged and been pinned here (haecceity's
+  `pmi` model and reader: semantic datums, tolerances and dimensions anchored to faces, checked on
+  NIST CTC/FTC), dispatch draftwright-rust streams to: (1) read the part's PMI through haecceity
+  into the Analysis (fail closed: what the model reports as a finding is a problem, not guessed);
+  (2) port the lowering to Plan items and their rendering: feature control frames, datum feature
+  symbols, toleranced and basic dimensions, in the views draftwright chooses; (3) port the PMI
+  coverage lint; (4) test on NIST CTC/FTC files and specify-core-written files (quiddity-rust
+  tests/fixtures/ap242), each compared with Python draftwright's drawing, every difference given
+  a verdict; update the PMI rules in docs/rules. Split so streams own disjoint files.
+ - **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`
+   branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and
 - **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`
   branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and
   writer, removal plan, `quiddity parts` / `quiddity pmi read|write`; four stages each integrated
