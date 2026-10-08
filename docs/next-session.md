@@ -552,3 +552,56 @@ improvement plan and questions are the current work. Still open from before it:
       twice.
     - Face levels and risers (`step_levels`, `risers`) are evidence the bridge carries: should
       quiddity-rust's document carry them (a schema change) so the native path can replace it?
+- From wave 4 (stream d-dims-steps-levels): `dims::steps` (a through step's two legs in the view
+  along its run; circular blind steps `R4 × 25 DEEP` and paired ramps `2× 51.3° × 25 RUN` as one
+  callout each) and `dims::levels`, draftwright's height ladder: each face level's height from the
+  base in the front view (witnesses on the level's support; three or more equal rises one
+  `n× rise`) and the shoulders' positions along x (plan) and y (side). The levels come less what
+  draftwright's ownership stage gives other owners (a multi-axis part's base-plate top, a
+  side-facing pad's edges, an edge-open pocket's floor along z, a lowered through step's corner),
+  and a through step along x or y whose legs the ladder, a plate and the overall extents already
+  state is left to them, as in draftwright (reported, info). The shoulders need the part's risers
+  in its own frame, which quiddity's document cannot give (its working frame's z is the part's x
+  on cgb245), so the Analysis is now `draftwright.analysis/4`, recording `level_supports` and
+  `risers` read with Rust quiddity's levels module (`dims::levels::evidence`); a version 3
+  analysis gets an info problem. Fixtures: quiddity's golden through step, circular blind step,
+  paired ramp and plates/pads/levels parts, and a block stepped along y, with their recognition
+  and draftwright's sheet facts (`tests/fixtures/recognition/steps/`, `make.py`). Compared with
+  draftwright (`tests/dimensions.rs`): of draftwright's 25 step and ladder items on the 12 sheets
+  and 5 fixtures, 24 agree (all but hanger's 65, in its detail view); 32 differences listed: 21
+  undetermined (20 rungs draftwright withholds or drops at the sheet's scale, its legibility
+  gate, and hanger's 65 in a detail view vs the front, counted on both sides), 1 rust-correct
+  (m10046's 13.5, which draftwright's solver drops with an error), 10 equivalent (the fixtures'
+  overall width in the front, not the plan). AngledStep and ObliqueThroughStep stay in `UNDRAFTED`. Left:
+  - **Lint expectation (tests/lint.rs, the one known failing test):** the port's own drawing of
+    m10127 now states its through step's legs, so `known_lint.json`'s `own_drawings` entry
+    `{"part": "m10127", "code": "through_step_requirement_missing", "count": 2, …}` must come off
+    (owned by d-lint-remainder; not edited here).
+  - **Placement problems the new items add** (for d-placement; `src/dims/placement.rs` not
+    edited): cgb245 20 `annotation_ink_overlap` and 8 `annotation_over_view` (its 11 rungs in the
+    front view's right strip, the overall height pushed over the side view); ftc06 3 ink overlaps
+    (the y shoulder under the depth, a rung under a hole location, the x shoulder through the
+    pattern pitch) and 1 over-view (a chamfer callout over the isometric); m1000 2 ink overlaps
+    and the overall height over the side view. The layout reserves the right strip for the rungs
+    legible at the scale (`layout::legible_steps`) while the plan draws every rung.
+  - Not ported: draftwright's legibility gate (`_classify_steps`: withhold a rung shorter than
+    its arrows, drop one too close to the last and escalate to a detail view); a correlated set
+    addressed by one ID (ARCH0015-2 stays pending: each rung and shoulder is its own item,
+    `step_height.length.<i>`, `step_position.length.<axis><i>`, ranked by height or position);
+    draftwright's channel absorption into the ladder (`_step_level_owns_channel`); lint's
+    alternative grammars that credit a ladder-owned through step's legs (`lint::steps`). The
+    plate a through step shares is found by shared constituent faces (draftwright uses defining
+    faces); Rust quiddity's risers carry their solid's levels within 0.5 mm of its ends where
+    draftwright's aggregate uses 0.6 (no sampled part differs). Equal shoulders are stated once
+    (draftwright draws each riser's: ctc04's two 75s and two 225s, not compared).
+  - Proposed catalogue changes in files not edited here: issues.yaml ISSUE-915-a stays pending,
+    rust_note "the ladder's witnesses stand on each level's own support (src/dims/levels.rs); no
+    detail views"; ISSUE-924-a stays pending, rust_note "a shoulder on the box is reported
+    (step_position_coincident_with_datum), not drawn; quiddity never gives one, and the plan's
+    omitted list does not record it". lint.yaml unchanged.
+  - Questions for the maintainer:
+    - Port draftwright's legibility gate? It is a placement decision at the sheet's scale, which
+      the planners do not see (`dims::Context`); without it cgb245 states 11 heights where
+      draftwright states 1 and withholds 10 (info), and the port's sheet collides.
+    - Address a ladder as one correlated set (ARCH0015-2), or keep per-rung IDs a spec can omit
+      one at a time? Ranked IDs shift when a revision adds a level, as feature ranks do.

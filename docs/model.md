@@ -33,7 +33,7 @@ edited.
 
 ```json
 {
-  "schema": "draftwright.analysis/3",
+  "schema": "draftwright.analysis/4",
   "binding": { "source_sha256": "…", "part": "10127", "face_count": 27, "loader": "haecceity 0.1" },
   "frame": { "origin": [0, 0, 0], "axes": [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
   "envelope": { "min": [0, 0, 0], "max": [28.8, 32.3, 44.7] },
@@ -49,6 +49,14 @@ edited.
 - **Levels** (`draftwright.analysis/3`) are the heights of the part's horizontal face levels,
   read from the geometry as quiddity's `step_level_records` reads them but in the part's own
   frame: what a prismatic part's height ladder dimensions. Older analyses read with none.
+- **Level supports and risers** (`draftwright.analysis/4`): each level's support (its height and
+  the x and y extents of its faces, per solid) and the step risers between the levels (quiddity's
+  `FaceLevel` and `RiserEvidence`, read with Rust quiddity in the part's own frame, as
+  draftwright's own recognition run reads them). The height ladder's witnesses stand on a level's
+  support, and its shoulders' positions come from the risers (`src/dims/levels.rs`). quiddity's
+  recognition document cannot give them: it reads them in its working frame, whose z need not be
+  the part's. Older analyses read with none; a version 3 analysis with levels gets an info
+  problem saying the step positions could not be found.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.

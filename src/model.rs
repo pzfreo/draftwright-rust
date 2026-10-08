@@ -27,10 +27,16 @@ use crate::output::{
 use crate::text::{Font, Segment};
 
 /// Version 2 added the isometric box (`iso_bounds`) and the recognised features, version 3 the
-/// horizontal face levels (`levels`).
-pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/3";
-/// The analyses [`plan`] reads: this version, and version 2 (it reads with no `levels`).
-pub const ANALYSIS_SCHEMAS: [&str; 2] = ["draftwright.analysis/2", ANALYSIS_SCHEMA];
+/// horizontal face levels (`levels`), version 4 their supports and the step risers
+/// (`level_supports`, `risers`).
+pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/4";
+/// The analyses [`plan`] reads: this version, and versions 2 and 3 (it reads them with none of
+/// what they lack).
+pub const ANALYSIS_SCHEMAS: [&str; 3] = [
+    "draftwright.analysis/2",
+    "draftwright.analysis/3",
+    ANALYSIS_SCHEMA,
+];
 pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
 pub const PLAN_SCHEMA: &str = "draftwright.plan/1";
 
@@ -65,6 +71,43 @@ pub struct Analysis {
     /// ladder dimensions ([`crate::demand::face_levels`]).
     #[serde(default)]
     pub levels: Vec<f64>,
+    /// Each horizontal face level's support (quiddity's `FaceLevel` records, read in the part's
+    /// frame): its height and the x and y extents of its faces, per solid.
+    #[serde(default)]
+    pub level_supports: Vec<LevelSupport>,
+    /// The walls and ramps that rise between the levels (quiddity's `RiserEvidence`, read in the
+    /// part's frame): where a prismatic part's steps are located along x and y.
+    #[serde(default)]
+    pub risers: Vec<Riser>,
+}
+
+/// A horizontal face level's support: its height and the extents of its faces, mm.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LevelSupport {
+    pub z: f64,
+    pub x_span: [f64; 2],
+    pub y_span: [f64; 2],
+}
+
+/// A step riser as quiddity records it (`RiserEvidence`): a wall (`vertical`) or ramp facing
+/// along `axis`, at `positions` along it (and, for a bounded ramp, `other_positions` along
+/// `other_axis`), rising from `z_lo` to `z_hi`; whether each end lies on the part's top or bottom;
+/// the tolerance it was read with; and the heights of its solid's levels.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Riser {
+    pub vertical: bool,
+    pub axis: String,
+    pub positions: Vec<f64>,
+    pub other_axis: String,
+    pub other_positions: Vec<f64>,
+    pub z_lo: f64,
+    pub z_hi: f64,
+    pub lo_at_envelope: bool,
+    pub hi_at_envelope: bool,
+    pub tol: f64,
+    pub body_levels: Vec<f64>,
 }
 
 /// What the author decided. Anything absent takes its default.
@@ -343,6 +386,7 @@ pub fn analyse_with(
         )
     })?;
     let b = part.bounds();
+    let (level_supports, risers) = crate::dims::levels::evidence(&part);
     let mut analysis = Analysis {
         schema: ANALYSIS_SCHEMA.into(),
         binding: Binding {
@@ -361,6 +405,8 @@ pub fn analyse_with(
         features: Vec::new(),
         iso_bounds: [0.0; 4],
         levels: crate::demand::face_levels(&part),
+        level_supports,
+        risers,
     };
     let (_, toward, up) = VIEWS[3];
     let iso = View::new(toward, up).expect("standard view");

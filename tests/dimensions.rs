@@ -4,10 +4,12 @@
 //! a turned part's `od.diameter`), hole callouts (bore, counterbore, spotface, countersink and
 //! bolt-circle terms, on holes, patterns and turned bores), hole and pattern locations, pattern
 //! pitches, slot sizes (`slot`: width, length, end radius) and locations (`location.slot`), boss
-//! diameters, sizes across flats and heights (`boss`), and fillet and chamfer callouts. Each of
-//! draftwright's annotations that states one of them is matched with a plan item of the same
-//! family, view and printed label whose measurement identity agrees: for an extent, a pitch or a
-//! location (whose family names its axis), the same value within half the printed unit; for a
+//! diameters, sizes across flats and heights (`boss`), fillet and chamfer callouts, through-step
+//! legs (`through_step`), circular blind step and paired-ramp callouts, and the height ladder's
+//! heights and shoulder positions (`step_height`, `step_position`). Each of draftwright's
+//! annotations that states one of them is matched with a plan item of the same family, view and
+//! printed label whose measurement identity agrees: for an extent, a pitch, a location (whose
+//! family names its axis) or a step, the same value within half the printed unit; for a
 //! callout (fillets' and chamfers' too), every feature draftwright names sits where one of the
 //! item's features (or its pattern) does, within 0.01 mm across the view. Every difference is
 //! listed, with a count, a verdict and the reason, in
@@ -85,6 +87,13 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
         "od.diameter" => Some("envelope".into()),
         "fillet.radius" => Some("fillet".into()),
         "chamfer.length" => Some("chamfer".into()),
+        "step_height.length" => Some("step_height".into()),
+        "step_position.length" => Some("step_position".into()),
+        "circular_step_radius.radius" | "circular_step_depth.length" => {
+            Some("circular_blind_step".into())
+        }
+        "ramp_angle.angle" | "ramp_run.length" => Some("paired_ramp_step".into()),
+        p if p.starts_with("through_step_leg.") => Some("through_step".into()),
         "pitch.length" => Some("pitch".into()),
         "slot_width.length" | "slot_length.length" | "slot_end_radius.radius" => {
             Some("slot".into())
@@ -124,6 +133,17 @@ fn rust_family(d: &PlannedDimension) -> String {
             .unwrap_or("");
     if d.id.starts_with("d:envelope/") {
         "envelope".into()
+    } else if let Some(family) = [
+        ("step_height", "step_height"),
+        ("step_position", "step_position"),
+        ("through_step_leg", "through_step"),
+        ("circular_step_", "circular_blind_step"),
+        ("ramp_", "paired_ramp_step"),
+    ]
+    .iter()
+    .find_map(|(stem, family)| parameter.starts_with(stem).then_some(family))
+    {
+        (*family).into()
     } else if parameter.starts_with("location_slot_pattern") {
         format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
     } else if parameter.starts_with("location_slot") {
@@ -169,14 +189,25 @@ fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, u
     Some(compare_sheet(name, &f, &a))
 }
 
-/// The fixture parts beside their recognition in `tests/fixtures/recognition/slot_patterns/`
-/// (no corpus part has a slot array), with draftwright's sheet facts for each
-/// (`<name>.facts.json.gz`, captured by `capture.py` there).
-const FIXTURES: [&str; 2] = ["slot_array", "slot_grid"];
+/// The fixture parts beside their recognition in `tests/fixtures/recognition/<dir>/`, with
+/// draftwright's sheet facts for each (`<name>.facts.json.gz`, captured by
+/// `slot_patterns/capture.py`): plates with slot arrays (no corpus part has one), and quiddity's
+/// golden step parts with a block stepped along y (no captured corpus sheet has a circular blind
+/// step, a paired-ramp step or a through step along y).
+const FIXTURES: [(&str, &str); 7] = [
+    ("slot_patterns", "slot_array"),
+    ("slot_patterns", "slot_grid"),
+    ("steps", "rectangular_through_step"),
+    ("steps", "circular_blind_step"),
+    ("steps", "paired_ramp_step"),
+    ("steps", "plates_pads_levels_and_slanted_steps"),
+    ("steps", "stepped_block"),
+];
 
-fn compare_fixture(name: &str) -> (usize, BTreeMap<Diff, usize>, usize) {
-    let dir =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition/slot_patterns");
+fn compare_fixture((dir, name): (&str, &str)) -> (usize, BTreeMap<Diff, usize>, usize) {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/recognition")
+        .join(dir);
     let f = facts::load_file(&dir.join(format!("{name}.facts.json.gz")));
     let mut json = String::new();
     flate2::read::GzDecoder::new(std::fs::File::open(dir.join(format!("{name}.json.gz"))).unwrap())
@@ -346,8 +377,8 @@ fn dimensions_match_draftwright_or_are_known() {
         compared += 1;
         found.extend(d);
     }
-    for name in FIXTURES {
-        let (a, d, o) = compare_fixture(name);
+    for fixture in FIXTURES {
+        let (a, d, o) = compare_fixture(fixture);
         agree += a;
         outside += o;
         found.extend(d);
