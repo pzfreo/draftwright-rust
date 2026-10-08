@@ -18,7 +18,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported"
-  rust_note: "Not ported, checked on the drawings only: the collision checks (src/dims/placement.rs::settle and collisions) test a line's zero-width centreline against a label's box and leave out the arrowhead's flare (2.7 by 0.9 mm as drawn) and the stroke width, so a flare-only contact would go unreported. The test checks that every drawn arrowhead reaching into another label on the fixtures and sampled parts is reported; it holds because each such shaft crosses the label too (m10127's side depth). No part here has a flare-only contact, so the gap is not shown failing."
+  rust_note: "Not ported, checked on the drawings only: the collision checks (src/dims/placement.rs::settle and collisions) test a line's zero-width centreline against a label's box and leave out the arrowhead's flare (2.7 by 0.9 mm as drawn) and the stroke width, so a flare-only contact would go unreported. The test checks that every drawn arrowhead reaching into another label on the fixtures and sampled parts is reported; it holds because each such shaft crosses the label too (m10127's side depth). No part here has a flare-only contact, so the gap is not shown failing. The test's guard that it saw an arrowhead in a label depends on that one m10127 collision, the only one on any part here (default plans, and every part pinned to A4 at 1:5 to 5:1 or A3 at 2:1 and 5:1); when placement clears it, the guard fails and the test needs a planted case, which the public API cannot make."
   port_note: "Keep: unit test on the leader-ink collision primitive (arrow + stroked shaft polygons) used by the layout solver."
 
 - id: ISSUE-367-b
@@ -360,7 +360,8 @@
       - "tests/test_issue_915_dense_case.py::test_issue_915_a2_detail_uses_each_levels_supporting_geometry"
     corpus_parts: ["issue_915_case_study_2.step"]
   status: pending
-  rust_note: "The ladder's witnesses stand on each level's own support (src/dims/levels.rs); no detail views."
+  rust_test: "tests/issue_drafting.rs::a_rungs_witnesses_stand_on_its_levels_support"
+  rust_note: "Partial: the ladder's witnesses stand on each level's own support (src/dims/levels.rs): on every part both witness lines of each height start at its level's support (its faces' largest x and smallest y, as draftwright's rung span does), not at the part's box (checked to differ on a sampled part), and a level with no recorded support is reported (step_level_support_missing). Not ported: the single spacing solve for a dense plan view's hole callouts, and detail views (none is drawn, so neither the crop nor the search for an empty region matching the detail's shape exists). issue_915_case_study_2.step is not among the parts here (draftwright's own test of it is an expected failure on quiddity#536)."
   port_note: "Keep: scenario test; detail-view placement searches rectangular free regions, not just squares."
 
 - id: ISSUE-916-a
@@ -403,7 +404,8 @@
       - "tests/test_issue_924_zero_length_shoulders.py::test_an_omitted_shoulder_does_not_require_its_directional_view"
     corpus_parts: []
   status: pending
-  rust_note: "A shoulder on the box is reported (step_position_coincident_with_datum), not drawn; quiddity never gives one, and the plan's omitted list does not record it."
+  rust_test: "tests/issue_drafting.rs::a_shoulder_on_the_box_is_reported_not_drawn"
+  rust_note: "Partial: a shoulder on the box is not drawn but reported, an info step_position_coincident_with_datum naming its axis (src/dims/levels.rs, exact zero as draftwright's _is_zero_step_position); only it leaves its chain (the stepped block given risers on its low x and low y faces keeps its 20 and draws nothing of zero length), and with only a coincident shoulder and its view omitted the plan needs no view for it. Quiddity never gives such a riser, so the test plants it, as draftwright's tests declare one. Not ported: draftwright also lists the shoulder among its suppressions (value 0, not authored), where the plan's omitted list holds only items the plan has (a spec can address), and a coincident shoulder is none; whether it should be an omitted entry is the port_note's ask."
   port_note: "Keep: plan omission with basis 'coincident with datum'; renderer never sees zero-length dims."
 
 - id: ISSUE-955-a
@@ -1393,7 +1395,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::a_label_over_the_isometric_is_reported"
-  rust_note: "Partial: on every part with an isometric, a placed label over its drawn box is an annotation_over_view naming v:iso (src/dims/placement.rs::collisions). Not ported: clamping a strip below an overlapping isometric and capping the isometric's growth at placed annotations (the port fits the isometric into the space the views' areas leave, before anything is placed, and does not re-fit it)."
+  rust_note: "Partial: on every part with an isometric, a placed label over its drawn box is an annotation_over_view naming v:iso (src/dims/placement.rs::collisions). On a default plan such a label is itself a placement defect (ftc06's, rust-wrong in known_placement.json), so the test also runs on plate pinned to A3 at 2:1, whose annotations the sheet has no room for, and requires a label over the isometric there, so it stays exercised once the defects are fixed. Not ported: clamping a strip below an overlapping isometric and capping the isometric's growth at placed annotations (the port fits the isometric into the space the views' areas leave, before anything is placed, and does not re-fit it)."
   port_note: "Keep: layout unit tests with planted obstacles; single layout solve should make this structural."
 
 - id: ISSUE-1245-a
@@ -1519,8 +1521,8 @@
       - "tests/test_issue_1276_turned_leader_targets.py::test_sheet_knurl_leader_lands_on_the_cylindrical_surface"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
   status: pending
-  rust_test: src/dims/edges.rs::tests::a_turned_site_turns_onto_the_profile
-  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). A groove's callout leads to its floor: sites at the floor radius off its own axis, at its own axial station, on both radial axes, so the tip lands on the floor in whichever profile view carries it (src/dims/grooves.rs). Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl notes are not planned."
+  rust_test: "tests/issue_drafting.rs::a_groove_callout_leads_to_its_floor"
+  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; src/dims/edges.rs::tests::a_turned_site_turns_onto_the_profile; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). A groove's callout leads to its floor: sites at the floor radius off its own axis, at its own axial station, on both radial axes, so the tip lands on the floor in whichever profile view carries it (src/dims/grooves.rs; the rust_test checks every placed groove callout's tip on the projected floor, connector109's three grooves). draftwright's groove case is a per-feature note (POLISH GROOVE), which the port does not plan; the groove callout is the port's leader to a groove. Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl notes are not planned."
   port_note: "Keep: plan leader targets reference analysis edges/faces; scenario on GRM-03."
 
 - id: ISSUE-1281-a
@@ -1592,6 +1594,7 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_document_note_table_drop_is_a_source_complete_annotate_error"
     corpus_parts: ["GRM-03"]
   status: pending
+  rust_note: "Not-applicable until AP242 PMI is read: the port reads no PMI (as ISSUE-1116-a and ISSUE-1296-b note) and draws no datum symbols, so there is no document-level requirement to lower and no source datum note to omit or restore. The notes it can carry are the spec's general notes (src/notes.rs): typed only as authored text, drawn in one GENERAL NOTES block, and a block with no place is a notes_not_placed error on every note, never a silent drop (tests/notes.rs)."
   port_note: "Keep."
 
 - id: ISSUE-1298-c

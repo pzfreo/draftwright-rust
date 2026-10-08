@@ -1540,7 +1540,11 @@ fn placed_ink_keeps_peer_labels_off_by_the_final_measure() {
 /// and 0.9 mm wide at its tail), that reaches into another item's label box belongs to an item
 /// reported with that label (`annotation_ink_overlap`). It holds because every such arrowhead's
 /// shaft crosses the label too (m10127's side depth); the collision checks themselves test
-/// zero-width centrelines, without the flare or the stroke (see the rule's `rust_note`).
+/// zero-width centrelines, without the flare or the stroke (see the rule's `rust_note`). The
+/// guard below depends on that one collision, the only arrowhead in a label on any part here
+/// (default plans, and every part pinned to A4 at 1:5, 1:2, 1:1, 2:1 or 5:1, or to A3 at 2:1 or
+/// 5:1): when placement clears it, the guard fails, and the test needs a planted case, which the
+/// public API cannot make.
 #[test]
 fn an_arrowhead_in_another_label_is_reported() {
     let inside_triangle = |t: [[f64; 2]; 3], b: [f64; 4]| {
@@ -1590,19 +1594,35 @@ fn an_arrowhead_in_another_label_is_reported() {
     if !sampled().is_empty() {
         assert!(
             seen > 0,
-            "no arrowhead reaches a label: the check guards nothing"
+            "no arrowhead reaches a label (m10127's side-depth collision is gone?): the check guards nothing"
         );
     }
 }
 
 /// ISSUE-1240-a, in part: annotations and the isometric view do not overlap unreported. On every
 /// part with an isometric, each placed label over its drawn box (the projected bounds at its
-/// scale) is an `annotation_over_view` naming `v:iso`. Not ported: clamping a strip below an
-/// overlapping isometric, and capping the isometric's growth at placed annotations (the port fits
-/// it into the space the views' areas leave, before anything is placed).
+/// scale) is an `annotation_over_view` naming `v:iso`. A default plan's label over the isometric
+/// is itself a placement defect (ftc06's, recorded rust-wrong in known_placement.json), so the
+/// check is also run on plate pinned to A3 at 2:1, a scale whose annotations the sheet has no
+/// room for (some run off it, reported), where labels crowd onto the isometric: that keeps the
+/// check exercised once the defects are fixed. Not ported: clamping a strip below an overlapping isometric, and capping the
+/// isometric's growth at placed annotations (the port fits it into the space the views' areas
+/// leave, before anything is placed).
 #[test]
 fn a_label_over_the_isometric_is_reported() {
-    for (name, analysis, plan) in planned() {
+    let plate = &fixtures().iter().find(|p| p.0 == "plate").unwrap().1;
+    let crowded = model::plan(
+        plate,
+        &spec(json!({ "sheet": { "size": "A3", "scale": "2:1" } })),
+    )
+    .unwrap();
+    assert!(codes(&crowded).contains("annotation_off_sheet"));
+    let cases = planned()
+        .iter()
+        .map(|(n, a, p)| (n.as_str(), a, p))
+        .chain([("plate on A3 at 2:1", plate, &crowded)]);
+    let mut seen = 0;
+    for (name, analysis, plan) in cases {
         let Some(iso) = plan.views.iter().find(|v| v.id == "v:iso") else {
             continue;
         };
@@ -1616,6 +1636,7 @@ fn a_label_over_the_isometric_is_reported() {
         for d in &plan.dimensions {
             let Some(p) = &d.placed else { continue };
             if overlap(p.label_box, drawn) {
+                seen += 1;
                 assert!(
                     reported_pair(plan, "annotation_over_view", &d.id, "v:iso"),
                     "{name}: {} lies over the isometric unreported",
@@ -1623,5 +1644,211 @@ fn a_label_over_the_isometric_is_reported() {
                 );
             }
         }
+    }
+    assert!(
+        seen > 0,
+        "no label lies over an isometric: the check guards nothing"
+    );
+}
+
+/// ISSUE-1276-a, for grooves: a groove's callout leads to its floor. On every part, each placed
+/// groove callout's arrow tip lies on the groove's floor in its view: the floor radius off the
+/// groove's own axis, at its own axial station, so neither the outer surface nor another
+/// station's floor takes the tip (connector109's three grooves, two of them equal). Not ported:
+/// rotation about a feature's own shaft on a part with several or partial shafts, knurl notes,
+/// and draftwright's per-feature notes on a groove (`POLISH GROOVE`).
+#[test]
+fn a_groove_callout_leads_to_its_floor() {
+    let mut seen = 0;
+    for (name, analysis, plan) in planned() {
+        let frame = holes::frame(analysis);
+        for d in &plan.dimensions {
+            let Some(m) = d
+                .measurements
+                .iter()
+                .find(|m| m.parameter == "groove.diameter")
+            else {
+                continue;
+            };
+            let (Some(p), Some(v)) = (&d.placed, plan.views.iter().find(|v| v.id == d.view)) else {
+                continue;
+            };
+            seen += 1;
+            let f = analysis
+                .features
+                .iter()
+                .find(|f| f.id == m.feature)
+                .unwrap();
+            let at = lint::parameters::place(&frame, f.parameters.get("at")).unwrap();
+            let axis = lint::parameters::direction(&frame, f.parameters.get("axis")).unwrap();
+            let k = holes::principal(axis).unwrap();
+            let r = 0.5 * m.value;
+            let tip = p.arrows[0][0];
+            let on_floor = (0..3).filter(|&j| j != k).any(|j| {
+                [-r, r].into_iter().any(|o| {
+                    let mut site = at;
+                    site[j] += o;
+                    let s = page_of(v, analysis, site);
+                    (tip[0] - s[0]).hypot(tip[1] - s[1]) < 1e-3
+                })
+            });
+            assert!(on_floor, "{name}: {} tip at {tip:?}", d.id);
+        }
+    }
+    if !sampled().is_empty() {
+        assert!(seen >= 3, "{seen}");
+    }
+}
+
+/// ISSUE-915-a, its witness clause: each level's own face support defines its rung's witnesses.
+/// On every part, both witness lines of each height in the ladder stand (one extension-line gap
+/// off) at its level's support (its faces' largest x and smallest y), not at the part's box; a
+/// level with no recorded support is reported, its witnesses on the box. Checked to differ from
+/// the box on some part. Not ported: draftwright's single spacing solve for a dense plan view's
+/// hole callouts, and detail views (none is drawn, so no crop or empty-region search).
+#[test]
+fn a_rungs_witnesses_stand_on_its_levels_support() {
+    // dims::GAP: an extension line starts this far off the point it extends from.
+    const GAP: f64 = 1.0;
+    let (mut seen, mut off_box) = (0, 0);
+    for (name, analysis, plan) in planned() {
+        let [lo, hi] = analysis.envelope;
+        let front = plan.views.iter().find(|v| v.id == "v:front");
+        for d in &plan.dimensions {
+            let Some(height) = d.id.strip_prefix("d:step_level/step_height.length.h") else {
+                continue;
+            };
+            let (Some(p), Some(v)) = (&d.placed, front) else {
+                continue;
+            };
+            assert!(height.ends_with("@front"), "{name}: {}", d.id);
+            seen += 1;
+            let z = lo[2] + d.value;
+            let key = |z: f64| (z * 1e3).round() as i64;
+            let support = analysis
+                .level_supports
+                .iter()
+                .rev()
+                .find(|s| key(s.z) == key(z));
+            let [x, y] = match support {
+                Some(s) => [s.x_span[1], s.y_span[0]],
+                None => {
+                    assert!(codes(plan).contains("step_level_support_missing"), "{name}");
+                    [hi[0], lo[1]]
+                }
+            };
+            if (x - hi[0]).abs() > 1e-6 {
+                off_box += 1;
+            }
+            for (line, foot) in p.lines.iter().zip([[x, y, lo[2]], [x, y, z]]) {
+                let f = page_of(v, analysis, foot);
+                let start = line[0];
+                assert!(
+                    (start[1] - f[1]).abs() < 1e-6 && ((start[0] - f[0]).abs() - GAP).abs() < 1e-6,
+                    "{name}: {} witness from {start:?}, its level's support at {f:?}",
+                    d.id
+                );
+            }
+        }
+    }
+    assert!(seen > 0);
+    if !sampled().is_empty() {
+        assert!(off_box > 0, "no rung's support differs from the box");
+    }
+}
+
+/// A part of `tests/fixtures/recognition/steps/` with its recognition.
+fn steps_part(name: &str) -> (draftwright::haecceity::Part, Analysis) {
+    let dir = fixture("recognition/steps");
+    let mut json = String::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(dir.join(format!("{name}.json.gz"))).unwrap())
+        .read_to_string(&mut json)
+        .unwrap();
+    let (part, mut a) = model::analyse(&dir.join(format!("{name}.step"))).unwrap();
+    model::recognise(&part, &mut a, &json).unwrap();
+    (part, a)
+}
+
+/// ISSUE-924-a, in part: a shoulder coincident with its datum is not drawn but reported, and only
+/// it leaves its chain. The block stepped along x (from -20 to 20, its shoulder 20 from the box)
+/// is given risers standing on its box's low x and low y faces, as draftwright's tests declare
+/// them: the ladder keeps the 20 and draws no zero-length shoulder, each coincident one an info
+/// `step_position_coincident_with_datum` naming its axis. With only a coincident shoulder and its
+/// view omitted, the plan needs no view for it. Not ported: draftwright also lists the shoulder
+/// among its suppressions (value 0, not authored); the plan's `omitted` lists only items it
+/// holds, and a coincident shoulder is no item.
+#[test]
+fn a_shoulder_on_the_box_is_reported_not_drawn() {
+    let (part, mut a) = steps_part("stepped_block");
+    let [lo, _] = a.envelope;
+    a.features.clear();
+    let wall = a.risers[0].clone();
+    assert_eq!(
+        (wall.axis.as_str(), wall.positions.as_slice()),
+        ("x", &[0.0][..])
+    );
+    let on_box = |axis: &str, at: f64| model::Riser {
+        axis: axis.into(),
+        positions: vec![at],
+        ..wall.clone()
+    };
+    let shoulders = |plan: &Plan| -> Vec<(String, String)> {
+        plan.dimensions
+            .iter()
+            .filter(|d| d.id.contains("/step_position."))
+            .map(|d| (d.id.clone(), d.label.clone()))
+            .collect()
+    };
+    let coincident = |plan: &Plan| -> Vec<String> {
+        plan.problems
+            .iter()
+            .filter(|p| p.code == "step_position_coincident_with_datum")
+            .inspect(|p| assert_eq!(p.severity, "info"))
+            .map(|p| p.message.clone())
+            .collect()
+    };
+
+    a.risers = vec![wall.clone(), on_box("x", lo[0]), on_box("y", lo[1])];
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        shoulders(&plan),
+        [(
+            "d:step_level/step_position.length.x20@plan".to_string(),
+            "20".to_string()
+        )]
+    );
+    assert!(plan.dimensions.iter().all(|d| d.value > 0.0));
+    let reports = coincident(&plan);
+    assert_eq!(reports.len(), 2, "{reports:?}");
+    assert!(
+        reports[0].starts_with("The X shoulder at -20 "),
+        "{reports:?}"
+    );
+    assert!(
+        reports[1].starts_with("The Y shoulder at -15 "),
+        "{reports:?}"
+    );
+    let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+    let drawn: Vec<&str> = drawing
+        .annotations
+        .iter()
+        .filter(|n| n.name.contains("/step_position."))
+        .map(|n| n.name.as_str())
+        .collect();
+    assert_eq!(drawn, ["d:step_level/step_position.length.x20@plan"]);
+
+    for (axis, at, view) in [("x", lo[0], "plan"), ("y", lo[1], "side")] {
+        a.risers = vec![on_box(axis, at)];
+        let plan = model::plan(&a, &spec(json!({ "views": { view: { "omit": true } } }))).unwrap();
+        assert!(shoulders(&plan).is_empty(), "{axis}");
+        assert_eq!(coincident(&plan).len(), 1, "{axis}");
+        assert!(
+            plan.problems
+                .iter()
+                .all(|p| p.code == "step_position_coincident_with_datum"
+                    || !p.subjects.iter().any(|s| s == "step_level")),
+            "{axis}: {:#?}",
+            plan.problems
+        );
     }
 }
