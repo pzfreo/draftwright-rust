@@ -237,12 +237,14 @@ const CONCENTRIC: f64 = 0.5;
 /// holes, more than one, with one [`Hole::requirement`], drilled along an axis of the part, and
 /// on distinct axis lines (draftwright refuses an oblique pattern plane and coaxial members,
 /// in drafting and so in lint). A grid or linear pattern is not judged for its regularity
-/// here: draftwright keeps quiddity's as one requirement whatever its spacing. A bolt circle of fewer than five holes
-/// does not establish a circle by itself (three points, or a rectangle's corners, always fit
-/// one: ISSUE-1596-a); it is one requirement only when something round sits on its centre: a
-/// hole of *holes* that is not a member here, whose axis is parallel to the members' and passes
-/// within 0.5 mm of quiddity's fitted centre (draftwright's `bolt_circle_is_corroborated`,
-/// LINT-hole_coverage-bolt_circle_corroboration). [`established_with`] counts bosses too.
+/// here: draftwright keeps quiddity's as one requirement whatever its spacing.
+///
+/// A bolt circle of fewer than five holes does not establish a circle by itself (three points,
+/// or a rectangle's corners, always fit one: ISSUE-1596-a); it is one requirement only when
+/// something round sits on its centre: a hole of *holes* that is not a member here, whose axis
+/// is parallel to the members' and passes within 0.5 mm of quiddity's fitted centre
+/// (draftwright's `bolt_circle_is_corroborated`, LINT-hole_coverage-bolt_circle_corroboration).
+/// [`established_with`] counts bosses too.
 pub fn established(p: &HolePattern, holes: &[&Hole]) -> Result<Vec<usize>, String> {
     established_with(p, holes, &[])
 }
@@ -406,7 +408,7 @@ mod tests {
     /// onto the part's x, so the centre is taken through it.
     #[test]
     fn a_small_bolt_circle_needs_something_round_on_its_centre() {
-        // quiddity's x, y, z are the part's y, z, x; the part's origin is at quiddity's (5, 0, 0).
+        // quiddity's x, y, z are the part's y, z, x, and its origin is at the part's (5, 0, 0).
         let frame = [
             [5.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],

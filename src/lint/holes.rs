@@ -644,10 +644,10 @@ mod tests {
 
     /// With a recognition record, the recognised patterns are the groups: a grid of identical
     /// holes is one, even these four in a row, which the port's dimensions decline as no lattice
-    /// (Python's lint and drafting keep it); a bolt circle of fewer than five holes with nothing on its centre is not
-    /// established (ISSUE-1596-a), so its holes join the loose holes of the same requirement, as
-    /// the dimensions call them out; with a bore on its centre it is a pattern
-    /// (LINT-hole_coverage-bolt_circle_corroboration).
+    /// (Python's lint and drafting keep it); a bolt circle of fewer than five holes with nothing
+    /// on its centre is not established (ISSUE-1596-a), so its holes join the loose holes of the
+    /// same requirement, as the dimensions call them out; with a bore on its centre it is a
+    /// pattern (LINT-hole_coverage-bolt_circle_corroboration).
     #[test]
     fn recognised_patterns_are_the_groups() {
         let mut a = part(

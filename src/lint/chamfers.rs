@@ -1,12 +1,12 @@
 //! Chamfer coverage (Python's `linting/chamfer_coverage.py`): every recognised chamfer states its
 //! size (LINT-chamfer_coverage-size, LINT-code-chamfer_requirement_state).
 //!
-//! Each of the Analysis's `chamfer` features (quiddity's `Chamfer`: `leg1`, `leg2`, `angle`, `axis`,
-//! `at`) has one requirement, `chamfer.length`, its first leg, judged by
-//! [`parameters::coverage`]. Its callout is draftwright's (`_geometry._fmt_chamfer`): `C<leg>` for
-//! legs within 0.05 mm of each other at an angle within 0.5° of 45°, otherwise `<leg> × <angle>°`.
-//! So the claiming annotation must print the leg, and for the second form the angle too: a leg
-//! alone does not size an unequal bevel. (Python's lint follows the measurement's identity alone;
+//! Each of the Analysis's `chamfer` features (quiddity's `Chamfer`: `leg1`, `leg2`, `angle`,
+//! `axis`, `at`) has one requirement, `chamfer.length`, its first leg, judged by
+//! [`parameters::coverage`]. Its callout is draftwright's (`_geometry._fmt_chamfer`): `C<leg>`
+//! for legs within 0.05 mm of each other at an angle within 0.5° of 45°, otherwise
+//! `<leg> × <angle>°`. So the claiming annotation must print the leg, and for the second form the
+//! angle too: a leg alone does not size an unequal bevel. (Python's lint follows the measurement's identity alone;
 //! printing the angle is the port's reading of what the callout must state.)
 //!
 //! quiddity's `OrientedChamfer` (a bevel along an oblique edge) is another family, which Python's
@@ -63,14 +63,14 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         let p = &f.parameters;
         let mut s = format!("chamfer {}", f.id);
         if let (Ok(a), Ok(b)) = (parameters::size(f, "leg1"), parameters::size(f, "leg2")) {
-            s += &format!(" {} × {}", fmt(a), fmt(b));
+            s += &format!(", legs {} × {}", fmt(a), fmt(b));
         }
         if let Ok(angle) = parameters::size(f, "angle") {
-            s += &format!(" at {}°", fmt(angle));
+            s += &format!(", {}°", fmt(angle));
         }
         if let Some(a) = parameters::direction(&frame, p.get("axis")) {
             let turned = p.get("turned").and_then(|v| v.as_bool()) == Some(true);
-            s += &format!(" {} {}", if turned { "about" } else { "along" }, fmt3(a));
+            s += &format!(", {} {}", if turned { "about" } else { "along" }, fmt3(a));
         }
         if let Some(at) = parameters::place(&frame, p.get("at")) {
             s += &format!(", at {}", fmt3(at));
@@ -168,7 +168,7 @@ mod tests {
         let issue = &coverage(&a, &stated)[0];
         assert_eq!(
             issue.message,
-            "chamfer f:chamfer:3 2 × 2 at 45° along (0, 1, 0), at (5, 5, 5): requirement chamfer.length (C2) is not stated on the sheet"
+            "chamfer f:chamfer:3, legs 2 × 2, 45°, along (0, 1, 0), at (5, 5, 5): requirement chamfer.length (C2) is not stated on the sheet"
         );
     }
 
