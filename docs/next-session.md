@@ -900,3 +900,21 @@ improvement plan and questions are the current work. Still open from before it:
     stage over levels, shoulders, plates and `envelope_is_emittable`). That last filter has no
     counterpart in the Analysis, so it waits on LINT-plate_coverage-thickness's open question
     (should the Analysis carry draftwright's plate conversion and step ladder?).
+
+- From stream d-issue-drafting-3 (issue regressions, third batch; only tests/issue_drafting.rs,
+  docs/rules/issues.yaml and this entry): scenario tests for ISSUE-1276-a (a groove callout's tip
+  on its floor), ISSUE-915-a (each rung's witnesses on its level's support) and ISSUE-924-a (a
+  shoulder on the box reported, not drawn, and only it leaves the chain); all stay pending, with
+  rust_test and what is missing. ISSUE-1298-b gets a not-applicable rust_note (no PMI). The
+  batch-2 review minors: ISSUE-1240-a's test now also runs on plate pinned to A3 at 2:1 and
+  requires a label over the isometric there; ISSUE-367-a's guard still rests on m10127's one
+  collision (no other case on any part or pinned sheet tried), now recorded in its rust_note and
+  the test. No pending issues.yaml rule states the coincident-location rule (ARCH0009-6, already
+  ported in adr.yaml), so none moved for it. Noted, not pursued: a riser 0.001 mm off the box is
+  drawn as a `0.0` shoulder, as draftwright's exact-zero `_is_zero_step_position` would draw it.
+  Question for the maintainer:
+  - A shoulder on the box (ISSUE-924-a) is an info problem only; draftwright also lists it among
+    its suppressions (value 0, not authored), and the rule's port_note asks for a plan omission
+    with basis "coincident with datum". The plan's `omitted` holds only items a spec can address.
+    Add such shoulders to `omitted` (with an ID like `d:step_level/step_position.length.x0@plan`),
+    or keep the problem alone and settle the rule on that?
