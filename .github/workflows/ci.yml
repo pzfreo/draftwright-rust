@@ -93,12 +93,18 @@ jobs:
           cargo nextest run --archive-file nextest-archive.tar.zst
           --workspace-remap . --extract-to . --extract-overwrite
           --profile ci --partition hash:${{ matrix.shard }}
-      # The binaries the `ci` profile's default filter leaves out, each run whole.
+      # The binaries the `ci` profile's default filter leaves out, each run whole (`shell: bash`
+      # adds pipefail).
       - if: matrix.shard == 'harness'
+        shell: bash
         run: |
           left_out=$(cargo nextest list --archive-file nextest-archive.tar.zst \
             --workspace-remap . --profile ci --ignore-default-filter -E 'not default()' \
-            --message-format oneline | awk '{print $1}' | sort -u | sed 's/^draftwright:://')
+            --message-format oneline --color never | awk '{print $1}' | sort -u | sed 's/^draftwright:://')
+          if [ -z "$left_out" ]; then
+            echo "::error::the ci profile leaves no binary out; this job has nothing to run"
+            exit 1
+          fi
           for name in $left_out; do
             bin=(target/release/deps/$name-*)
             if [ ${#bin[@]} != 1 ] || [ ! -x "${bin[0]}" ]; then
