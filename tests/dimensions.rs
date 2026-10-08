@@ -92,6 +92,8 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
         "location_slot.length" => Some("location.slot".into()),
         "boss.diameter" | "boss_height.length" => Some("boss".into()),
         "polygon_across_flats.length" if kind == "polygonal_boss" => Some("boss".into()),
+        "groove.length" | "groove.diameter" => Some("groove".into()),
+        "flat.length" => Some("flat".into()),
         p if p.starts_with("grid_pitch.") => Some("pitch".into()),
         p if p.starts_with("location")
             && (kind == "hole" || kind == "pattern" || kind == "slot_pattern") =>
@@ -132,6 +134,8 @@ fn rust_family(d: &PlannedDimension) -> String {
         "slot".into()
     } else if parameter.starts_with("boss") || parameter.starts_with("polygon_") {
         "boss".into()
+    } else if parameter.starts_with("groove.") || parameter == "flat.length" {
+        parameter.split('.').next().unwrap_or("").into()
     } else if parameter.starts_with("location") {
         format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
     } else if parameter.contains("pitch") {
@@ -215,7 +219,10 @@ fn compare_sheet(
             .measurements
             .iter()
             .filter_map(|m| m.feature.as_ref())
-            .filter(|f| ["hole", "pattern", "fillet", "chamfer"].contains(&f.kind.as_str()))
+            .filter(|f| {
+                ["hole", "pattern", "fillet", "chamfer", "groove", "flat"]
+                    .contains(&f.kind.as_str())
+            })
             .filter_map(|f| f.origin)
             .collect();
         python.push(Item {
@@ -251,7 +258,7 @@ fn compare_sheet(
         // Values agree within half the printed unit (the labels are already equal); a location's
         // identity is its view, axis and distance; a callout's, where its features are.
         match p.family.as_str() {
-            "callout" | "fillet" | "chamfer" => {
+            "callout" | "fillet" | "chamfer" | "groove" | "flat" => {
                 let skip = depth_axis(&p.view);
                 p.origins.iter().all(|o| {
                     r.origins

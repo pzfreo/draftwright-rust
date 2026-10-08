@@ -39,6 +39,8 @@
 mod bosses;
 mod edges;
 mod envelope;
+mod flats;
+mod grooves;
 mod holes;
 mod placement;
 mod slots;
@@ -272,13 +274,15 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 6] = [
+const PLANNERS: [Planner; 8] = [
     turned::PLANNER,
     envelope::PLANNER,
     holes::PLANNER,
     slots::PLANNER,
     bosses::PLANNER,
     edges::PLANNER,
+    grooves::PLANNER,
+    flats::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way.

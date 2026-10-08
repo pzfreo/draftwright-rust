@@ -638,3 +638,68 @@ improvement plan and questions are the current work. Still open from before it:
   its candidates lazily: `tests/views.rs::a_fallback_scale_or_sheet_says_so_in_its_basis` (a
   200 km part at 1:1) built one per 0.5 mm of a 200 km line and was killed at 16 GB on main
   448031a; the same candidates are tried in the same order.
+
+- From wave 3 (stream d-dims-grooves-flats): `dims::grooves` (`10 WIDE × ø122`, one callout per
+  groove, stating `groove.length` and `groove.diameter`, in the view that shows its profile, the
+  leader to its floor) and `dims::flats` (`52.6 A/F`, one callout per across-flats definition,
+  counted `n×` over independent stock, every face's `flat.length` stated, in the view down the
+  stock; draftwright's mixed-size decimals). On the captured sheets all five of draftwright's
+  groove and flat callouts (connector109, string_post) agree in label, view, parameters and
+  values (`tests/dimensions.rs` now compares the two families; no `known_dimensions.json` entry
+  was needed); `tests/dims_grooves_flats.rs` has the scenarios. Differences from draftwright that
+  no captured sheet shows, with verdicts:
+  - a groove whose profile view is not shown falls back to the other profile view; draftwright
+    skips it without trace (rust-correct: nothing is dropped silently);
+  - a record that cannot be stated (no width, floor diameter, size, position, or a direction off
+    its named axis) is a `feature_not_dimensioned` warning; draftwright skips such a groove
+    without trace, and fails conversion on a flat whose direction is off its axis (rust-correct);
+  - flat decimals are chosen over every recognised flat, draftwright's over the sizes the spec
+    keeps, so omitting one flat of two sizes can leave the other with a decimal draftwright drops
+    (rust-wrong, minor: the planners run before the spec is applied; fixing it touches
+    `dims::plan`);
+  - callouts are ordered, and take their IDs, by the Analysis's first member, not by
+    draftwright's sorted keys (equivalent).
+  Left:
+  - Rebased onto main 7b155db (stream d-rebase-grooves-steps): `known_lint.json` lost the three
+    `own_drawings` entries the new callouts resolve (`string_post flat_requirement_missing` 1;
+    `connector109 flat_requirement_missing` 1 and `groove_requirement_missing` 6, checked with
+    `LINT_OWN_ALL=1`). With d-placement's settling, connector109's grooves add no ink overlap
+    but 3 `annotation_off_sheet` (`d:f:groove:2`, `d:f:groove:3`, and the chamfer callout pushed
+    out past them; 1 → 4) and 3 `annotation_outside_area` (5 → 8), all below the front view,
+    recorded rust-wrong in `known_placement.json` with the front/plan band question.
+  - lint keys a flat by its record's raw `stock_span` (as draftwright's lint does), the planner by
+    the span along the canonical direction (as draftwright's `FlatFeature` does), so a reversed
+    face whose span runs along its own direction is one definition to the planner and two
+    requirements to lint, in both programs. No corpus part has one.
+  - ADR3-12 (a groove that cannot name one turned-profile owner is refused) is not checked.
+  - `src/dims/mod.rs`'s module docs still list only the earlier families (only the planner
+    list was touched, as other streams edit that file).
+  - Pending for the integrator (`docs/rules/issues.yaml` belongs to d-issue-drafting-2, so this
+    branch does not edit it): apply this hunk, verbatim from the original commit a991e49, once
+    that stream has merged (it applies to main 7b155db with `git apply`):
+
+    ```diff
+    diff --git a/docs/rules/issues.yaml b/docs/rules/issues.yaml
+    index 7c37cb4..f416476 100644
+    --- a/docs/rules/issues.yaml
+    +++ b/docs/rules/issues.yaml
+    @@ -1484,7 +1484,7 @@
+         corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
+       status: pending
+       rust_test: src/dims/edges.rs::tests::a_turned_site_turns_onto_the_profile
+    -  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl and groove notes are not planned."
+    +  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). A groove's callout leads to its floor: sites at the floor radius off its own axis, at its own axial station, on both radial axes, so the tip lands on the floor in whichever profile view carries it (src/dims/grooves.rs). Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl notes are not planned."
+       port_note: "Keep: plan leader targets reference analysis edges/faces; scenario on GRM-03."
+     
+     - id: ISSUE-1281-a
+    @@ -1969,7 +1969,8 @@
+           - "tests/test_issue_1371_flat_completeness_evidence.py::test_deleting_provider_flats_cannot_shrink_the_independent_denominator"
+         corpus_parts: ["flat-coaxial.step", "flat-double-d.step", "flat-topology-a.step"]
+       status: pending
+    -  rust_note: "Not ported: flats are not dimensioned and lint has no flat coverage (LINT-flat_coverage-across_flats)."
+    +  rust_test: "tests/dims_grooves_flats.rs::equal_flats_on_other_stock_are_counted_and_a_double_d_is_one"
+    +  rust_note: "Partly ported: flats are dimensioned by definition (faces reflected through their stock's axis are one, distinct stock is not merged; src/dims/flats.rs, tests/dims_grooves_flats.rs), and lint groups flat requirements by stock and loses credit for a misprinted value (src/lint/flats.rs::tests::the_two_faces_of_a_double_d_share_one_across_flats_requirement). Not checked: a severed provenance, and a denominator that cannot shrink when provider flats are deleted."
+       port_note: "Keep."
+     
+     - id: ISSUE-1371-b
+    ```

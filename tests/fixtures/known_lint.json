@@ -207,20 +207,6 @@
       "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
-      "part": "connector109",
-      "code": "flat_requirement_missing",
-      "count": 1,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its flat's across-flats size (the port's dimensions have no A/F dimension yet), and lint reports the requirement missing. Python's sheet states it (\"52.6 A/F\", m_flat_z0), and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). Checked only with LINT_OWN_ALL=1. The entry goes when the dimensions state it."
-    },
-    {
-      "part": "connector109",
-      "code": "groove_requirement_missing",
-      "count": 6,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its three grooves' widths and floor diameters (the port's dimensions have no groove callout yet), and lint reports each of the six requirements missing. Python's sheet states them (\"10 WIDE × ø122\", \"6 WIDE × ø122\" twice), and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). Checked only with LINT_OWN_ALL=1. The entry goes when the dimensions state them."
-    },
-    {
       "part": "ctc01",
       "code": "blend_requirement_missing",
       "count": 31,
@@ -359,13 +345,6 @@
       "count": 2,
       "verdict": "rust-correct",
       "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "string_post",
-      "code": "flat_requirement_missing",
-      "count": 1,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its double-D's across-flats size (the port's dimensions have no A/F dimension yet), and lint reports the one requirement its two flat faces share missing. Python's sheet states it (\"2.4 A/F\", m_flat_z0), and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state it."
     }
   ],
   "ledgers": [

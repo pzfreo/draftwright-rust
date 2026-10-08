@@ -23,16 +23,16 @@
  {
   "part": "connector109",
   "code": "annotation_off_sheet",
-  "count": 1,
+  "count": 4,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the front's lower band is 20 mm and holds seven lanes of callouts and diameters, so d:f:fillet:1/fillet.radius@front (R1) in the outermost runs below the sheet's margin. Reserving the front's lanes clears it but drops the sheet's scale from 1:2 to 1:5."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the front's lower band is 20 mm and holds the lanes of callouts and diameters, so the outermost run below the sheet's margin: d:f:fillet:1/fillet.radius@front (R1), and, since dims::grooves added the three groove callouts (6 WIDE × ø122 twice, stacked below the front), d:f:groove:2, d:f:groove:3 and the chamfer callout pushed out past them. draftwright's captured sheet (tests/fixtures/sheets/connector109.json.gz) has every one of these labels inside the A2 drawing area (the lowest, a groove's, 46 mm above the page's bottom edge). Reserving the front's lanes clears it but drops the sheet's scale from 1:2 to 1:5."
  },
  {
   "part": "connector109",
   "code": "annotation_outside_area",
-  "count": 5,
+  "count": 8,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: five front items in the lanes below the front run past its 20 mm band."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: eight front items in the lanes below the front run past its 20 mm band, the three groove callouts dims::grooves adds among them."
  },
  {
   "part": "ctc01",
