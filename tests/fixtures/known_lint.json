@@ -26,9 +26,9 @@
       "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
       "parameter": "grouping.count",
       "python": "hole_requirement_unverifiable",
-      "rust": null,
-      "verdict": "rust-correct",
-      "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
+      "rust": "hole_requirement_missing",
+      "verdict": "not-applicable",
+      "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of one draftwright hole feature that owns all 2 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 2, the callout's covers_count 2, members (182, -29.719, -6.737), (-182, -29.719, -6.737)), so the sheet counts every member; draftwright's own finding is its recognition-to-IR join failing (\"which no IR feature claimed\"), as for this group's other requirements above. The sheet facts name the feature by one member's origin only (hole@(182.000,-29.719,-6.737)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
     },
     {
       "part": "cgb245",
@@ -189,6 +189,76 @@
       "rust": "pocket_requirement_missing",
       "verdict": "equivalent",
       "reason": "Equivalent: both lints say the sheet does not locate this pocket along z. Python's sheet planned the pocket's position dimensions (m10046's pocket0, 22.963 across and 7.691 along from the part's corner) but placement dropped both for want of room beside the front view, and Python reports that drop as pocket_dim_dropped (twice on this sheet), so its coverage ledger counts the requirement dropped and reports nothing more. The port's lint judges the finished drawing only and cannot see a placement drop, so it reports the location missing. Python also reports the aggregate pocket_not_located for this pocket (coverage.py's prismatic check, not ported)."
+    },
+    {
+      "part": "cgb245",
+      "subject": "f:hole:1",
+      "group": "4× ø7 THRU at (0.000, 19.214, -13.387)",
+      "parameter": "grouping.count",
+      "python": null,
+      "rust": "hole_requirement_missing",
+      "verdict": "not-applicable",
+      "reason": "hc_plan4 prints \"4× ⌀7 THRU\" and claims bore.diameter of one draftwright hole feature that owns all 4 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 4, the callout's covers_count 4, members (-182, 72.249, -9.387), (182, 72.249, -9.387), (118.421, -33.822, -15.387), (-118.421, -33.822, -15.387)), so the sheet counts every member and draftwright's lint places the quantity. The sheet facts name the feature by one member's origin only (hole@(-182.000,72.249,-9.387)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
+    },
+    {
+      "part": "cgb245",
+      "subject": "f:hole:3",
+      "group": "2× ø6 THRU at (0.000, 17.405, -11.387)",
+      "parameter": "grouping.count",
+      "python": null,
+      "rust": "hole_requirement_missing",
+      "verdict": "not-applicable",
+      "reason": "hc_plan3 prints \"2× ⌀6 THRU\" and claims bore.diameter of one draftwright hole feature that owns all 2 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 2, the callout's covers_count 2, members (0, 68.631, -5.387), (0, -33.822, -15.387)), so the sheet counts every member and draftwright's lint places the quantity. The sheet facts name the feature by one member's origin only (hole@(0.000,68.631,-5.387)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
+    },
+    {
+      "part": "cgb245",
+      "subject": "f:hole:4",
+      "group": "4× ø10 THRU at (0.000, -18.171, -6.387)",
+      "parameter": "grouping.count",
+      "python": null,
+      "rust": "hole_requirement_missing",
+      "verdict": "not-applicable",
+      "reason": "hc_plan0 prints \"4× ⌀10 THRU\" and claims bore.diameter of one draftwright hole feature that owns all 4 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 4, the callout's covers_count 4, members (56.752, 18.961, 4.613), (-56.752, 18.961, 4.613), (107.926, -55.303, -15.387), (-107.926, -55.303, -15.387)), so the sheet counts every member and draftwright's lint places the quantity. The sheet facts name the feature by one member's origin only (hole@(56.752,18.961,4.613)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
+    },
+    {
+      "part": "ctc01",
+      "subject": "f:hole:1",
+      "group": "2× ø20 blind at (0.000, -99.496, -25.000)",
+      "parameter": "grouping.count",
+      "python": null,
+      "rust": "hole_requirement_missing",
+      "verdict": "not-applicable",
+      "reason": "hc_front0 prints \"2× ⌀20 ↧ 45\" and claims bore.diameter of one draftwright hole feature that owns all 2 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 2, the callout's covers_count 2, members (-30, -125, -25), (30, -125, -25)), so the sheet counts every member and draftwright's lint places the quantity. The sheet facts name the feature by one member's origin only (hole@(-30.000,-125.000,-25.000)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
+    },
+    {
+      "part": "ftc06",
+      "subject": "f:hole:11",
+      "group": "2× ø6.35 blind at (0.000, 77.786, -158.750)",
+      "parameter": "grouping.count",
+      "python": null,
+      "rust": "hole_requirement_missing",
+      "verdict": "not-applicable",
+      "reason": "hc_front1 prints \"2× ⌀6.3 ↧ 12.7\" and claims bore.diameter of one draftwright hole feature that owns all 2 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 2, the callout's covers_count 2, members (76.2, 85.09, -158.75), (-76.2, 85.09, -158.75)), so the sheet counts every member and draftwright's lint places the quantity. The sheet facts name the feature by one member's origin only (hole@(76.200,85.090,-158.750)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
+    },
+    {
+      "part": "ftc06",
+      "subject": "f:hole:5",
+      "group": "2× ø14.2875 THRU at (0.000, 78.740, -15.875)",
+      "parameter": "grouping.count",
+      "python": null,
+      "rust": "hole_requirement_missing",
+      "verdict": "not-applicable",
+      "reason": "hc_plan1 prints \"2× ⌀14.3 THRU ⌴ ⌀20.6 ↧ 14.3\" and claims bore.diameter of one draftwright hole feature that owns all 2 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 2, the callout's covers_count 2, members (127, 78.74, -31.75), (-127, 78.74, -31.75)), so the sheet counts every member and draftwright's lint places the quantity. The sheet facts name the feature by one member's origin only (hole@(127.000,78.740,-31.750)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
+    },
+    {
+      "part": "hanger",
+      "subject": "f:hole:1",
+      "group": "2× ø10 THRU at (0.000, 0.000, 79.992)",
+      "parameter": "grouping.count",
+      "python": null,
+      "rust": "hole_requirement_missing",
+      "verdict": "not-applicable",
+      "reason": "hc_side0 prints \"2× ⌀10 THRU\" and claims bore.diameter of one draftwright hole feature that owns all 2 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 2, the callout's covers_count 2, members (-24, 0, 80), (28, 0, 80)), so the sheet counts every member and draftwright's lint places the quantity. The sheet facts name the feature by one member's origin only (hole@(-24.000,0.000,80.000)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
     }
   ],
   "own_drawings": [
@@ -229,13 +299,6 @@
     },
     {
       "part": "ftc06",
-      "code": "channel_requirement_missing",
-      "count": 7,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan channel widths (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports each of the seven channels' widths missing (their overall extents are stated by the port's envelope dimensions). Python's sheet of the same part states the widths, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "ftc06",
       "code": "channel_requirement_unverifiable",
       "count": 7,
       "verdict": "rust-correct",
@@ -257,31 +320,10 @@
     },
     {
       "part": "m1000",
-      "code": "circular_channel_requirement_missing",
-      "count": 6,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan circular seats (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the seat's diameter, run, arc and its axis's location along x, y and z missing. Python's sheet of the same part states them, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "m1000",
-      "code": "hex_pocket_requirement_missing",
-      "count": 2,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan hexagonal pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the hex pocket's size across flats and depth missing. Python's sheet of the same part states them, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "m1000",
       "code": "passage_requirement_unsupported",
       "count": 4,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
-    },
-    {
-      "part": "m1000",
-      "code": "pocket_requirement_missing",
-      "count": 5,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the pocket's width, length, depth and two locations missing. Python's sheet of the same part states them (m1000) or plans them (m10046, whose locations placement dropped), and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
       "part": "m1000",
@@ -306,24 +348,10 @@
     },
     {
       "part": "m10046",
-      "code": "pocket_requirement_missing",
-      "count": 5,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the pocket's width, length, depth and two locations missing. Python's sheet of the same part states them (m1000) or plans them (m10046, whose locations placement dropped), and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "m10046",
       "code": "prismatic_pocket_requirement_unsupported",
       "count": 2,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
-    },
-    {
-      "part": "m10127",
-      "code": "hex_pocket_requirement_missing",
-      "count": 2,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan hexagonal pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the hex pocket's size across flats and depth missing. Python's sheet of the same part states them, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
       "part": "m10127",

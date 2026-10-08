@@ -22,24 +22,27 @@
 //!   (-cbore_diameter_depth, -spotface_diameter_depth, -csink_diameter_angle); and, for more than
 //!   one hole, the quantity (-grouping_count).
 //!
-//! A requirement is **placed** when an annotation claims that measurement of one of the group's
-//! holes *and* its printed text states the part's value at the precision printed (THRU for
-//! `bore.through`; `<n>×` with n the group's size for `grouping.count`, both carried by the
-//! diameter's callout). A size is **unverifiable** when an annotation claims it but its text
-//! does not state it, or when the Analysis does not give it (a blind hole without a depth);
-//! otherwise a requirement is **missing**, THRU and the quantity included when the diameter's
-//! callout leaves them off (LINT-code-hole_requirement_state). Only those two are reported
+//! A size, or THRU, is **placed** when an annotation claims that measurement of one of the
+//! group's holes *and* its printed text states the part's value at the precision printed (THRU
+//! for `bore.through`, carried by the diameter's callout): one truthful statement serves a common
+//! machining specification, as in draftwright (`_state`). The size must be stated by the term
+//! that states it ([`Callout`]: the bore's diameter is the number after its `⌀`, the
+//! counterbore's depth the one after its `↧`, …), so neither a quantity nor another size of the
+//! same value confirms it (ISSUE-1217-a). The quantity is placed only when every member is
+//! counted: claimed by a diameter's callout whose printed quantity is the number of holes it
+//! claims, all of them the group's ([`uncounted`]; ISSUE-1143-b). A size is **unverifiable**
+//! when an annotation claims it but its text does not state it, or when the Analysis does not
+//! give it (a blind hole without a depth); otherwise a requirement is **missing**, THRU and the
+//! quantity included when the diameter's callouts leave them off
+//! (LINT-code-hole_requirement_state). Only those two are reported
 //! (LINT-_parameter_coverage-report_uncovered_only). Lint cannot see the author's omissions or
 //! placement drops, so the `suppressed` and `dropped` outcomes are not reached here.
-//!
-//! A size counts as printed when any number in the claiming callout rounds from it, so a callout
-//! that misprints one size but prints another of the same value is not caught.
 //!
 //! Not yet ported: hole and pattern locations, pattern spacing, threads and profiled bores, the
 //! assembly severity (the Analysis does not say whether the part is several bodies), and the
 //! `suppressed` outcome.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{LintIssue, Mark, Requirement, Severity};
 use crate::bridge::holes::{self, Countersink, Hole, Recess};
@@ -271,9 +274,8 @@ pub fn groups(analysis: &Analysis) -> Vec<HoleGroup> {
     out
 }
 
-/// The numbers a text prints, each with its count of decimals, and whether `×` (or `X`, `x`)
-/// follows it directly.
-fn numbers(text: &str) -> Vec<(f64, usize, bool)> {
+/// The numbers a text prints, each with its count of decimals.
+fn numbers(text: &str) -> Vec<(f64, usize)> {
     let chars: Vec<char> = text.chars().collect();
     let mut out = Vec::new();
     let mut i = 0;
@@ -292,9 +294,8 @@ fn numbers(text: &str) -> Vec<(f64, usize, bool)> {
                 }
             }
             let s: String = chars[start..i].iter().collect();
-            let times = matches!(chars.get(i), Some('×' | 'X' | 'x'));
             if let Ok(v) = s.parse() {
-                out.push((v, decimals, times));
+                out.push((v, decimals));
             }
         } else {
             i += 1;
@@ -304,10 +305,17 @@ fn numbers(text: &str) -> Vec<(f64, usize, bool)> {
 }
 
 /// Whether *text* states *value* at the precision it prints: some number in it rounds from it.
+/// The families sharing [`super::parameters`] read their labels this way; hole coverage reads a
+/// callout term by term ([`Callout`]).
 pub fn states(text: &str, value: f64) -> bool {
-    numbers(text).iter().any(|&(n, decimals, _)| {
-        (n - value).abs() <= 0.5 * 10f64.powi(-(decimals as i32)) + 1e-9 * value.abs().max(1.0)
-    })
+    numbers(text)
+        .iter()
+        .any(|&(n, decimals)| rounds(n, decimals, value))
+}
+
+/// Whether the number *n*, printed with *decimals* decimals, rounds from *value*.
+fn rounds(n: f64, decimals: usize, value: f64) -> bool {
+    (n - value).abs() <= 0.5 * 10f64.powi(-(decimals as i32)) + 1e-9 * value.abs().max(1.0)
 }
 
 /// Whether *text* states THRU.
@@ -316,17 +324,247 @@ fn says_thru(text: &str) -> bool {
         .any(|w| w == "THRU")
 }
 
-/// Whether *text* states the quantity *n* (`n×`).
-fn says_count(text: &str, n: usize) -> bool {
-    numbers(text)
+/// What opened a segment of a hole callout: the bore, `⌴` (a counterbore, or the port's
+/// spotface), `SF`, `⌵`, or a `⌀` printed after the bore's with no symbol (a captured sheet's
+/// text runs lose the symbols draftwright draws as strokes: `4× ø 12 20 ø 20 20`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Opened {
+    Bore,
+    Recess,
+    Spotface,
+    Countersink,
+    Bare,
+}
+
+/// One segment of a hole callout: the sizes its terms state, each a printed number and its count
+/// of decimals.
+#[derive(Clone, Debug, PartialEq)]
+struct Segment {
+    opened: Opened,
+    diameter: Option<(f64, usize)>,
+    depth: Option<(f64, usize)>,
+    angle: Option<(f64, usize)>,
+}
+
+impl Segment {
+    fn new(opened: Opened) -> Segment {
+        Segment {
+            opened,
+            diameter: None,
+            depth: None,
+            angle: None,
+        }
+    }
+}
+
+/// A hole callout read term by term, in draftwright's grammar
+/// (`[n×] ⌀d [fit] (THRU | ↧ depth) [⌴ ⌀d [↧ depth]]… [⌵ ⌀d [× a°]] [(r×c) | EQ SP ON ⌀D BC]`):
+/// the leading quantity, the segments, and the numbers it prints outside them.
+///
+/// A size is a term's: the number after a `⌀` is its segment's diameter, the number after `↧`
+/// (or, with the symbol lost, the bare number after a diameter) its depth, a number before `°`
+/// its angle. A segment with an angle is the countersink. Not sizes: the quantity (`n×` at the
+/// start, before a diameter, as draftwright's `_REPEAT_RE` reads it), a tolerance (a number
+/// after `±`, `+` or `-`), a fit class (`H7`), and anything from a `(` (a grid's `(2×2)`) or
+/// from `EQ`, `ON` or `BC` on (a bolt circle's diameter).
+#[derive(Clone, Debug, PartialEq)]
+struct Callout {
+    count: Option<usize>,
+    segments: Vec<Segment>,
+    /// The numbers no term owns.
+    loose: Vec<(f64, usize)>,
+}
+
+impl Callout {
+    fn read(text: &str) -> Callout {
+        let chars: Vec<char> = text.chars().collect();
+        let mut out = Callout {
+            count: None,
+            segments: vec![Segment::new(Opened::Bore)],
+            loose: Vec::new(),
+        };
+        let (mut diameter, mut depth, mut thru, mut first) = (false, false, false, true);
+        let mut i = 0;
+        while i < chars.len() {
+            let c = chars[i];
+            if c.is_ascii_digit() {
+                let start = i;
+                while i < chars.len() && chars[i].is_ascii_digit() {
+                    i += 1;
+                }
+                let mut decimals = 0;
+                if i + 1 < chars.len() && chars[i] == '.' && chars[i + 1].is_ascii_digit() {
+                    i += 1;
+                    while i < chars.len() && chars[i].is_ascii_digit() {
+                        i += 1;
+                        decimals += 1;
+                    }
+                }
+                let v: f64 = chars[start..i]
+                    .iter()
+                    .collect::<String>()
+                    .parse()
+                    .unwrap_or(f64::NAN);
+                let signed = start > 0 && matches!(chars[start - 1], '±' | '+' | '-');
+                let mut j = i;
+                while j < chars.len() && chars[j] == ' ' {
+                    j += 1;
+                }
+                let times = matches!(chars.get(j), Some('×' | 'x' | 'X'));
+                let mut k = j + 1;
+                while times && k < chars.len() && chars[k] == ' ' {
+                    k += 1;
+                }
+                let segment = out.segments.last_mut().unwrap();
+                if first && times && decimals == 0 && matches!(chars.get(k), Some('⌀' | 'ø' | 'Ø'))
+                {
+                    out.count = Some(v as usize);
+                    i = k;
+                } else if signed {
+                    // A tolerance's deviation.
+                } else if chars.get(i) == Some(&'°') {
+                    segment.angle = Some((v, decimals));
+                    if segment.opened == Opened::Bare {
+                        segment.opened = Opened::Countersink;
+                    }
+                } else if diameter {
+                    if segment.diameter.is_some() {
+                        out.segments.push(Segment::new(Opened::Bare));
+                    }
+                    out.segments.last_mut().unwrap().diameter = Some((v, decimals));
+                } else if depth
+                    || (segment.diameter.is_some()
+                        && segment.depth.is_none()
+                        && segment.angle.is_none()
+                        && !(segment.opened == Opened::Bore && thru))
+                {
+                    segment.depth = Some((v, decimals));
+                } else {
+                    out.loose.push((v, decimals));
+                }
+                (diameter, depth, first) = (false, false, false);
+                continue;
+            }
+            if c.is_alphabetic() && c != 'ø' && c != 'Ø' {
+                let start = i;
+                while i < chars.len() && chars[i].is_alphanumeric() {
+                    i += 1;
+                }
+                let word: String = chars[start..i].iter().collect();
+                match word.as_str() {
+                    "THRU" => thru = true,
+                    "SF" => out.segments.push(Segment::new(Opened::Spotface)),
+                    "EQ" | "ON" | "BC" => break,
+                    _ => {}
+                }
+                first = false;
+                continue;
+            }
+            match c {
+                '(' => break,
+                '⌀' | 'ø' | 'Ø' => diameter = true,
+                '↧' => depth = true,
+                '⌴' => out.segments.push(Segment::new(Opened::Recess)),
+                '⌵' => out.segments.push(Segment::new(Opened::Countersink)),
+                _ => {}
+            }
+            if !c.is_whitespace() {
+                first = false;
+            }
+            i += 1;
+        }
+        out
+    }
+
+    /// The term stating *parameter*, a hole's size; *counterbore* says whether the hole has a
+    /// counterbore, which the port prints, as its first `⌴` segment, before its spotface's.
+    fn term(&self, parameter: &str, counterbore: bool) -> Option<(f64, usize)> {
+        let recesses: Vec<&Segment> = self.segments[1..]
+            .iter()
+            .filter(|s| s.opened != Opened::Countersink)
+            .collect();
+        let unmarked = || recesses.iter().filter(|s| s.opened != Opened::Spotface);
+        let countersink = || {
+            self.segments[1..]
+                .iter()
+                .find(|s| s.opened == Opened::Countersink)
+        };
+        let spotface = || {
+            recesses
+                .iter()
+                .find(|s| s.opened == Opened::Spotface)
+                .or_else(|| unmarked().nth(usize::from(counterbore)))
+        };
+        match parameter {
+            "bore.diameter" => self.segments[0].diameter,
+            "bore.depth" => self.segments[0].depth,
+            "counterbore.diameter" => unmarked().next()?.diameter,
+            "counterbore.depth" => unmarked().next()?.depth,
+            "spotface.diameter" => spotface()?.diameter,
+            "spotface.depth" => spotface()?.depth,
+            "countersink.diameter" => countersink()?.diameter,
+            "countersink.angle" => countersink()?.angle,
+            _ => None,
+        }
+    }
+
+    /// Whether the callout states *value* for *parameter*: its term prints a number that rounds
+    /// from it. Text with no diameter at all (a plain dimension) states the one number it prints.
+    fn states(&self, parameter: &str, value: f64, counterbore: bool) -> bool {
+        let term = if self.segments.iter().any(|s| s.diameter.is_some()) {
+            self.term(parameter, counterbore)
+        } else {
+            let numbers: Vec<(f64, usize)> = self
+                .segments
+                .iter()
+                .flat_map(|s| [s.depth, s.angle])
+                .flatten()
+                .chain(self.loose.iter().copied())
+                .collect();
+            (numbers.len() == 1).then(|| numbers[0])
+        };
+        term.is_some_and(|(n, decimals)| rounds(n, decimals, value))
+    }
+}
+
+/// The holes whose bore diameters *m* claims.
+fn diameters(m: &Mark) -> BTreeSet<&str> {
+    m.claims
         .iter()
-        .any(|&(v, d, times)| times && d == 0 && v == n as f64)
+        .filter(|c| c.parameter == "bore.diameter")
+        .map(|c| c.feature.as_str())
+        .collect()
+}
+
+/// The members of *g* whose quantity no mark states (draftwright's `_synthetic_placed`: every
+/// owner of the group carries its count, the counts summing to the group's). A mark counts the
+/// holes whose diameters it claims when they are all the group's and its quantity (`n×`, or one
+/// when it prints none) is how many it claims, as a grouped callout's printed quantity must
+/// agree with its member allocations (`_index_hole_evidence`). So one hole's callout counts that
+/// hole only, whatever quantity it prints.
+fn uncounted<'a>(g: &'a HoleGroup, marks: &[Mark]) -> Vec<&'a str> {
+    let counted: BTreeSet<&str> = marks
+        .iter()
+        .filter_map(|m| {
+            let claimed = diameters(m);
+            let n = Callout::read(&m.text).count.unwrap_or(1);
+            (claimed.len() == n && claimed.iter().all(|f| g.members.iter().any(|x| x == f)))
+                .then_some(claimed)
+        })
+        .flatten()
+        .collect();
+    g.members
+        .iter()
+        .map(String::as_str)
+        .filter(|f| !counted.contains(f))
+        .collect()
 }
 
 /// The hole coverage findings: each requirement of each group that the marks do not state.
 pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = Vec::new();
     for g in groups(analysis) {
+        let uncounted = uncounted(&g, marks);
         for (parameter, value) in g.requirements() {
             // THRU and the quantity are stated by the diameter's callout.
             let carrier = match parameter {
@@ -381,12 +619,15 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                     continue;
                 }
             };
+            let counterbore = g.sizes.counterbore.is_some();
             let stated = |m: &&Mark| match parameter {
                 "bore.through" => says_thru(&m.text),
-                "grouping.count" => says_count(&m.text, g.members.len()),
-                _ => states(&m.text, value),
+                _ => Callout::read(&m.text).states(parameter, value, counterbore),
             };
-            if claiming.iter().any(stated) {
+            if match parameter {
+                "grouping.count" => uncounted.is_empty(),
+                _ => claiming.iter().any(stated),
+            } {
                 continue;
             }
             let what = match parameter {
@@ -414,8 +655,21 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                         "{}: requirement {parameter} ({what}) is not stated on the sheet",
                         g.noun()
                     ),
-                    first.map(|m| {
-                        format!("the diameter's callout {:?} does not state {what}", m.text)
+                    first.map(|m| match parameter {
+                        "grouping.count" => {
+                            let k = diameters(m).len();
+                            format!(
+                                "the diameter's callout {:?} prints {} for the {k} hole{} it claims; {} {} counted by no callout",
+                                m.text,
+                                Callout::read(&m.text)
+                                    .count
+                                    .map_or("no quantity".into(), |n| format!("{n}×")),
+                                if k == 1 { "" } else { "s" },
+                                uncounted.join(", "),
+                                if uncounted.len() == 1 { "is" } else { "are" }
+                            )
+                        }
+                        _ => format!("the diameter's callout {:?} does not state {what}", m.text),
                     }),
                     first.map(|m| m.name.clone()),
                     first.and_then(|m| m.view.clone()),
@@ -563,10 +817,23 @@ mod tests {
         assert_eq!(g[0].members, ["f:hole:1", "f:hole:2"]);
         assert_eq!(g[1].members, ["f:hole:3"]);
         // One callout for the pair leaves the opposed hole unstated.
-        let pair = mark("2× ⌀6.6 THRU", &[("f:hole:1", "bore.diameter")]);
+        let pair = mark(
+            "2× ⌀6.6 THRU",
+            &[("f:hole:1", "bore.diameter"), ("f:hole:2", "bore.diameter")],
+        );
         assert_eq!(
             found(&a, &[pair]),
             [
+                "hole_requirement_missing f:hole:3 bore.diameter",
+                "hole_requirement_missing f:hole:3 bore.through"
+            ]
+        );
+        // Claiming one of the pair, it counts that one only (ISSUE-1143-b).
+        let one = mark("2× ⌀6.6 THRU", &[("f:hole:1", "bore.diameter")]);
+        assert_eq!(
+            found(&a, &[one]),
+            [
+                "hole_requirement_missing f:hole:1+f:hole:2 grouping.count",
                 "hole_requirement_missing f:hole:3 bore.diameter",
                 "hole_requirement_missing f:hole:3 bore.through"
             ]
@@ -817,11 +1084,67 @@ mod tests {
 
     #[test]
     fn thru_and_the_quantity_are_read_as_words() {
+        let count = |text: &str| Callout::read(text).count;
         assert!(says_thru("12× ⌀8 THRU EQ SP"));
         assert!(!says_thru("THRUST"));
-        assert!(says_count("12× ⌀8 THRU", 12));
-        assert!(says_count("4X ⌀5", 4));
-        assert!(!says_count("12× ⌀8 THRU", 8));
-        assert!(!says_count("1.5× ⌀8", 1));
+        assert_eq!(count("12× ⌀8 THRU"), Some(12));
+        assert_eq!(count("4X ⌀5"), Some(4));
+        assert_eq!(count("4× ø 10 THRU"), Some(4));
+        assert_eq!(count("1.5× ⌀8"), None);
+        // Only a leading quantity before a diameter: not a grid's shape, not a pitch.
+        assert_eq!(count("⌀8 THRU (6×2)"), None);
+        assert_eq!(count("2× 25"), None);
+    }
+
+    /// ISSUE-1217-a: each size is read from the term that states it, in the port's callouts and
+    /// in a captured sheet's text runs, which lose the symbols drawn as strokes.
+    #[test]
+    fn a_size_is_read_from_its_own_term() {
+        let term = |text: &str, parameter: &str, counterbore: bool| {
+            Callout::read(text)
+                .term(parameter, counterbore)
+                .map(|(v, _)| v)
+        };
+        let port = "4× ⌀10 +0.1 -0.02 ↧ 12 ⌴ ⌀16 ↧ 5 ⌴ ⌀20 ↧ 0.5 (2×2)";
+        assert_eq!(term(port, "bore.diameter", true), Some(10.0));
+        assert_eq!(term(port, "bore.depth", true), Some(12.0));
+        assert_eq!(term(port, "counterbore.diameter", true), Some(16.0));
+        assert_eq!(term(port, "counterbore.depth", true), Some(5.0));
+        assert_eq!(term(port, "spotface.diameter", true), Some(20.0));
+        assert_eq!(term(port, "spotface.depth", true), Some(0.5));
+        // The port's lone spotface prints as `⌴`; a hand-written one as `SF`.
+        assert_eq!(
+            term("⌀6.6 THRU ⌴ ⌀14 ↧ 0.5", "spotface.diameter", false),
+            Some(14.0)
+        );
+        assert_eq!(
+            term("⌀6.6 THRU SF ⌀14 ↧ 0.5", "spotface.depth", false),
+            Some(0.5)
+        );
+        let sunk = "⌀8.1 H7 THRU ⌵ ⌀12.4 × 90°";
+        assert_eq!(term(sunk, "bore.diameter", false), Some(8.1));
+        assert_eq!(term(sunk, "bore.depth", false), None);
+        assert_eq!(term(sunk, "countersink.diameter", false), Some(12.4));
+        assert_eq!(term(sunk, "countersink.angle", false), Some(90.0));
+        // Captured text runs: `ø 12 20 ø 20 20` is ⌀12 ↧ 20 ⌴ ⌀20 ↧ 20.
+        let captured = "4× ø 12 20 ø 20 20";
+        assert_eq!(term(captured, "bore.depth", true), Some(20.0));
+        assert_eq!(term(captured, "counterbore.diameter", true), Some(20.0));
+        assert_eq!(term(captured, "counterbore.depth", true), Some(20.0));
+        let thru = "4× ø 10.5 THRU ø 15.9 12.7 (2×2)";
+        assert_eq!(term(thru, "bore.depth", true), None);
+        assert_eq!(term(thru, "counterbore.depth", true), Some(12.7));
+        // A bolt circle's diameter is not the bore's, nor a second segment.
+        let circle = Callout::read("12× ø 8 THRU EQ SP ON ø110 BC UPPER FACE");
+        assert_eq!(circle.segments.len(), 1);
+        assert!(circle.states("bore.diameter", 8.0, false));
+        assert!(!circle.states("bore.diameter", 110.0, false));
+        // A repeat count, a grid's shape or another size of the same value states no diameter.
+        assert!(!Callout::read("6× ⌀8 THRU").states("bore.diameter", 6.0, false));
+        assert!(!Callout::read("4× ⌀8 THRU (6×2)").states("bore.diameter", 6.0, false));
+        assert!(!Callout::read("⌀8 ↧ 6").states("bore.diameter", 6.0, false));
+        // A plain dimension states its one number.
+        assert!(Callout::read("10.0").states("bore.depth", 10.0, false));
+        assert!(!Callout::read("10 12").states("bore.depth", 10.0, false));
     }
 }

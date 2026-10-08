@@ -964,3 +964,109 @@ improvement plan and questions are the current work. Still open from before it:
     policy treats a declared table's drop as a lost requirement). Keep error?
   - A number cell is printed as JSON writes it (`0.5`, `1e+20` as `1e20`); Python's `str()`
     would differ for some floats. Keep accepting numbers, or require text?
+
+- From stream d-rebase-lint-native-recesses (2026-10-08), for the integrator:
+  r/d-lint-holes-slot-patterns (1406131, merged here) proposes these docs/rules/issues.yaml
+  changes, not applied because issues.yaml belongs to the issue streams. Copied verbatim from
+  that stream's report; apply them to the three entries (only status, rust_test and rust_note
+  change). Its author kept ISSUE-1142-b pending because centre-line overlap by text box is placement's, not lint's; if
+  the maintainer treats that part as out of scope, the rule could be marked ported. Also stale
+  since dims::recesses merged (not edited here, same reason): ISSUE-827-a's and ISSUE-885-b's
+  rust_notes say pockets are not dimensioned (`dimensions_not_ported`); pockets, hexagonal
+  pockets, circular seats and open channels now are (src/dims/recesses.rs; pads still are not),
+  and ISSUE-885-b's "lint has no pad or pocket coverage" was already out of date
+  (src/lint/pads.rs, src/lint/pockets.rs).
+
+  ```yaml
+  - id: ISSUE-1143-b
+    status: pending
+    rust_test: "tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims"
+    rust_note: "Partly ported. Checked: a callout claiming every member of one group does not certify another group of the same size; text with no claim certifies no hole; a callout claiming one member of a group certifies its common sizes (one truthful statement, as draftwright's _state) but not its quantity, whatever it prints: grouping.count is reported missing, naming the members no callout counts (draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). src/lint/holes.rs::uncounted: a member is counted by a diameter callout whose leading n× (or one) equals the holes it claims, all of them the group's. Holes drilled from opposite faces are separate groups (holes_drilled_from_opposite_faces_are_separate_groups). The port has no declarations or IR to join, so there is no tool-centre fallback. Not ported: hole locations (LINT-hole_coverage-location). Difference: draftwright credits a callout whose label was rewritten while its IDs survive; lint also needs the text to state the value (rust-correct, ISSUE-1217-a)."
+  - id: ISSUE-1217-a
+    status: pending
+    rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+    rust_note: "Partly ported. Hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout): each size is credited only when the term that states it (the number after ⌀, after ↧, in its recess or countersink segment) rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing ('6× ⌀8 THRU' and '4× ⌀8 THRU (6×2)' no longer confirm ⌀6 on plate.step; draftwright's test_a_repeat_count_cannot_confirm_a_diameter). Stricter than draftwright's evidence.py, which strips only the leading count (rust-correct: the rule asks for every number of a compound callout). Not ported: the families sharing lint::parameters still accept any number in the label (holes::states); locations and pitches are not verified against spans; there are no hole tables."
+  - id: ISSUE-1142-b
+    status: pending
+    rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+    rust_note: "Partly ported: lint credits a requirement only through a structured claim on the feature by ID, so a callout's words cannot claim a feature; a count is read from the callout's leading n× against the holes it claims (no count shortfall is waived, ISSUE-1143-b), and a bolt circle's diameter (after EQ/ON/BC) or any other term cannot confirm a hole's size. Not ported: centre-line overlap by text box (placement's)."
+  ```
+
+- From wave 5 (stream d-native-recess-families): `bridge::native` also reads through slots and
+  slot patterns (members named by slot ID, as the bridge does), polygonal bosses and stock,
+  double-D bores, plates, and gusset ribs and their patterns, each against a `FIELDS` table
+  (member records checked too). `tests/native.rs` adds two fixture sets that need no corpus: the
+  slot-pattern plates and quiddity-rust's golden double-D bore, gusset rib and hexagonal stock
+  parts (`recognition/golden/`, Python quiddity 0.4.0.dev0): 43 parts. `known_native.json` grows
+  by 71 entries (887 in all): 53 equivalent (named dimensions; a polygon's ring starting at
+  another flat; a slot array's direction sense and a grid's angle and member order in the other
+  frame), 11 rust-wrong (6 polygonal-boss and 1 boss free-end cap faces, the constituent-faces
+  gap; m1000's slot, which Python's aggregate rejects as superseded by passages, twice; grm03's
+  plate, which Python's orchestration does not look for on a turned solid, twice), 6
+  undetermined (cgb245's slot body keys, OpenCascade against haecceity) and 1 rust-correct (the
+  gusset mirror pair, which Python's document publishes only as its ribs' links, so the bridge
+  drops it). The recess families (pockets, channels, pocket patterns, blind slots, section
+  passages, edge-open pockets and recesses) stay known and not read: draftwright reads them only
+  as `section_recess` features, which the document does not carry.
+  - Questions for the maintainer:
+    - Should quiddity-rust's document publish section recesses (Python's `SectionRecess`: frame,
+      section profile, run interval, ends, classification) in place of, or beside, its internal
+      pocket, channel, blind-slot, passage and edge-open records? Without them no native reader
+      can give draftwright its pockets, channels, blind slots and passages.
+    - The cross-family reconciliation question above now also covers slots superseded by passages
+      (`reconcile_recess_candidates`) and plates on turned solids (`plates._discover`).
+    - A native polygonal boss's fingerprint has no height (the document has no
+      `named_dimensions`), and `demand.rs` counts z boss heights from fingerprint sizes: take it
+      from `top - base`, or have the document carry named dimensions?
+
+- From wave 5 (stream d-dims-recesses): `dims::recesses` dimensions the section recesses
+  draftwright reads as pockets, hexagonal pockets, circular seats and open channels, through lint's
+  port of `section_recess_fields` (`lint::section_recesses::grammar`, `lint::pockets`,
+  `lint::channels`): a pocket's `W × L × D DEEP` (`MAX DEEP` for a cylindrical mouth) in the view
+  that looks into it, located from the box to its centre (or its near end on the box) in both
+  directions across it, in that view; `HEX AF A/F × D DEEP`; `øD × L LONG × A° ARC` with the seat
+  axis's x, y and z locations; an open channel's width (only with plates along two axes, as
+  draftwright). Identical hex pockets and coaxial seats are counted once, as draftwright batches
+  them. Every recess item on the captured sheets agrees with draftwright's (16 more items agree in
+  `tests/dimensions.rs`, which now compares a `recess` family), and so do m10047's and m10245's
+  pockets in `tests/dims_slots.rs`. 4 new `known_dimensions.json` entries, all rust-correct: m1000's
+  pocket y location in the plan, not the side (2 entries, ADR1-6 decision), and m10046's two pocket
+  locations that draftwright drops (its own lint: `pocket_dim_dropped`). Depth values differ from
+  draftwright's by 0.001 mm (m10127 9.960 against 9.959, m1000 3.446 against 3.445): the fixture's
+  records are rounded in quiddity's frame, draftwright's in the part's; labels agree. Left:
+  - Done on merge (stream d-rebase-lint-native-recesses): these `own_drawings` entries of
+    `known_lint.json` came off, the lint test showing exactly these six stale (each requirement is
+    now stated): ftc06 `channel_requirement_missing` (7), m1000
+    `circular_channel_requirement_missing` (6), m1000 `hex_pocket_requirement_missing` (2), m1000
+    `pocket_requirement_missing` (5), m10046 `pocket_requirement_missing` (5), m10127
+    `hex_pocket_requirement_missing` (2). The views memory kill was main's (`dims::placement`
+    `slides`, fixed since); the merged suite passes with nothing killed.
+  - Placement, for the placement work (`known_placement.json`, rust-wrong): the recess callouts'
+    long labels run past the estimated bands (m1000, m10046, m10127, ftc06's channel widths); m1000's
+    seat callout runs into the title block; m10127's hex callout overlaps the side's depth label.
+    On top of the steps and levels planners (merged since) the recess items also push ftc06's plan
+    and front lanes 7 to 14 mm further out (28 items past the areas, the label over the isometric
+    now the front width's instead of three plan callouts'), and on m1000 the seat's z location
+    joins the front's lanes beyond the height ladder, so the front height's label lies over the
+    side view and two side recess items' lines cross it (a new `annotation_ink_overlap`, 2).
+  - Not done: quiddity's `section_recess_patterns` (draftwright's `N×` pocket patterns): the bridge
+    does not read them, so pattern members would be dimensioned singly; no captured recognition has
+    one. draftwright consolidates a seat's run onto the overall extent when the seat spans the box;
+    the port always states the run. A spec tolerance on a recess callout follows its first value
+    only (as for blind slots); draftwright suffixes each value. A recess the grammar reads but
+    whose axes lie along no part axis gets `feature_not_dimensioned` and also
+    `dimensions_not_ported` (the not-ported filter in `dims::wants` reads only stated features).
+    Pads are quiddity's `RaisedPad` records, not section recesses: out of this stream's scope.
+  - Questions for the maintainer:
+    - draftwright locates no hexagonal pocket (only pockets and seats are locatable), and the port
+      follows it; a hex pocket's position is then unstated. Locate it from the box like a boss
+      (beyond draftwright), or keep draftwright's choice?
+    - draftwright locates a seat along its own axis to the axis's midpoint, and sends x and z to
+      the front and y to the side whatever the seat's axis. The port states the same three values
+      but puts the two across the seat in the view along it and the one along it in its first
+      profile view (the same views for a y seat, the only one sampled). Keep the along-axis
+      location (half the run, for a seat open at both ends), and is the view rule right?
+    - Section recesses draftwright has no grammar for (passages, triangular and 12- or 20-sided
+      pockets) are still `dimensions_not_ported` info problems, whose message says "no dimensions
+      for section_recess are ported yet", now only partly true. This joins the earlier question on
+      undimensioned records (warnings, and from lint or the plan?).

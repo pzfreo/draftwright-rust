@@ -335,8 +335,10 @@ fn asking_for_less_never_buys_silence() {
 /// ISSUE-1143-b, in part: hole correspondence is by feature ID. One group's callout, claiming
 /// every member, does not certify another group of the same size, and text that states the
 /// right sizes but claims no hole certifies none (there is no fallback by value or position).
-/// Not checked here: a claim on one member of a group is credited for the whole group
-/// (`lint::holes::coverage`), which the rule forbids; see the rule's rust_note.
+/// A callout claiming one member of a group certifies the group's common sizes (one truthful
+/// statement, as draftwright's `_state`) but not its quantity, whatever quantity it prints: the
+/// members it does not claim are reported (draftwright's
+/// `test_one_singleton_cannot_claim_an_entire_multi_owner_group`).
 #[test]
 fn a_callout_certifies_only_the_holes_it_claims() {
     let (_, analysis) = analysed("two_grids");
@@ -364,6 +366,41 @@ fn a_callout_certifies_only_the_holes_it_claims() {
     others.remove(&groups[0].members[0]);
     assert_eq!(claimed, others);
 
+    // One member claimed, the group's quantity printed: only the quantity is missing, and its
+    // finding names the two members nothing counts.
+    let one = [mark(
+        "3× ⌀6 THRU",
+        &[(groups[0].members[0].as_str(), "bore.diameter")],
+    )];
+    let issues: Vec<LintIssue> = lint::check(&analysis, &one)
+        .into_iter()
+        .filter(|i| i.code.starts_with("hole_requirement_"))
+        .filter(|i| i.subjects[0] == groups[0].members[0])
+        .collect();
+    assert_eq!(
+        issues
+            .iter()
+            .map(|i| (i.code.as_str(), i.requirements[0].parameter.as_str()))
+            .collect::<Vec<_>>(),
+        [("hole_requirement_missing", "grouping.count")]
+    );
+    let evidence = issues[0].evidence.as_deref().unwrap();
+    assert!(
+        evidence.contains(&format!(
+            "{}, {} are counted by no callout",
+            groups[0].members[1], groups[0].members[2]
+        )),
+        "{evidence}"
+    );
+    assert_eq!(missing(&one), firsts);
+    // Each member claimed by its own callout, counting itself: the quantity is stated.
+    let each: Vec<Mark> = groups[0]
+        .members
+        .iter()
+        .map(|m| mark("⌀6 THRU", &[(m.as_str(), "bore.diameter")]))
+        .collect();
+    assert_eq!(missing(&each), others);
+
     // Every size printed, no hole claimed.
     assert_eq!(missing(&[mark("12× ⌀6 THRU", &[])]), firsts);
     // A claim on a part that has no such hole certifies nothing.
@@ -373,10 +410,12 @@ fn a_callout_certifies_only_the_holes_it_claims() {
     );
 }
 
-/// ISSUE-1217-a, in part: a claim is verified against the ink. A callout that claims a hole's
-/// diameter is credited only when a number it prints rounds, at its printed precision, from the
-/// part's value: neither a number that merely contains the value's digits nor one at a finer
-/// precision that does not round from it.
+/// ISSUE-1217-a, in part, and ISSUE-1142-b: a claim is verified against the ink. A callout that
+/// claims a hole's diameter is credited only when the term that states the diameter (the number
+/// after its `⌀`) rounds, at its printed precision, from the part's value: neither a number that
+/// merely contains the value's digits, nor one at a finer precision that does not round from it,
+/// nor another number of the callout (a repeat count, a grid's shape, a depth) of the same value
+/// (draftwright's `test_a_repeat_count_cannot_confirm_a_diameter`).
 #[test]
 fn a_claim_is_credited_only_when_its_text_states_the_value() {
     let (_, analysis) = analysed("plate");
@@ -403,6 +442,9 @@ fn a_claim_is_credited_only_when_its_text_states_the_value() {
         "4× ⌀61 THRU",
         "4× ⌀5.6 THRU",
         "4× ⌀6.06 THRU",
+        "6× ⌀8 THRU",
+        "4× ⌀8 THRU (6×2)",
+        "4× ⌀8 ↧ 6",
     ] {
         assert_eq!(
             diameter(wrong),
