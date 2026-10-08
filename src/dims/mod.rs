@@ -9,6 +9,7 @@
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
 //!   pitches that locate a pattern's members;
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
+//!   **slot patterns** by one `N× SLOT W × L` callout with their pitches and centre;
 //!   **blind slots** (rectangular and round-bottom section recesses) by one callout each;
 //! - **bosses**: diameter (or size across flats for a polygonal boss), height and location;
 //! - **fillet and chamfer callouts** (`4× R3`, `C1`, `4.5 × 42.1°`) where the edge is seen end-on,

@@ -14,12 +14,15 @@
 //!   (draftwright's `location_slot.length`, datum `bbox`). As in draftwright, its position across
 //!   the width axis is not dimensioned.
 //!
-//! A slot inside a recognised slot pattern (`slot_pattern`) is the pattern's, as in draftwright,
-//! and the pattern would be reported as not dimensioned. quiddity publishes its slot arrays only
-//! as derived `slot_patterns`, which the bridge does not read yet (it keeps the derived hole
-//! patterns only), so no `slot_pattern` reaches the Analysis: the members of an array are
-//! dimensioned as lone slots, where draftwright prints one grouped `N× SLOT W × L` callout and
-//! its pitches.
+//! A **slot pattern** (quiddity's `SlotArray` or `SlotGrid`, a `slot_pattern` feature naming its
+//! member slots) is called out once, as draftwright's `render_slot_patterns` does, in the view that
+//! looks through its slots: one `N× SLOT W × L` callout, an obround's `2× R`, the pitch that spaces
+//! a linear array (`2× 25`) or the column and row pitches of a grid (quiddity's own `cols` and
+//! `rows`), and the pattern's centre located from the part's box on both of that view's axes
+//! (draftwright's `location_slot_pattern`, from the array's centroid or the grid's centre). Its
+//! members are not dimensioned again. A pattern whose members do not hold together as quiddity
+//! describes them (not identical, not along the view's axes, not at its pitches) is reported
+//! (`feature_not_dimensioned`), and its slots are dimensioned singly.
 //!
 //! **Blind slots** reach the Analysis as `section_recess` features, a kind shared with pockets,
 //! channels and passages, so the planner claims no kind for them: it reads each record's section
@@ -29,7 +32,7 @@
 //! LONG`. Every other section recess stays reported as not dimensioned. As in draftwright, a
 //! blind slot is not located (it opens at the part's edge).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
 
@@ -41,7 +44,7 @@ use crate::bridge::Feature;
 use crate::bridge::holes::principal;
 
 pub(super) const PLANNER: Planner = Planner {
-    kinds: &["slot"],
+    kinds: &["slot", "slot_pattern"],
     wants,
 };
 
@@ -196,19 +199,37 @@ fn size(s: &Slot, view: &str, m: usize, lo: f64, hi: f64, order: u8) -> Shape {
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let analysis = cx.analysis;
     let [lo, _] = analysis.envelope;
-    let patterns: Vec<&Feature> = analysis
+    let mut problems = Vec::new();
+    let mut out = Vec::new();
+    // Patterns first: each that holds together takes its members.
+    let mut taken: BTreeSet<&str> = BTreeSet::new();
+    for p in analysis
         .features
         .iter()
         .filter(|f| f.kind == "slot_pattern")
-        .collect();
-    let mut problems = Vec::new();
+    {
+        match pattern(cx, p) {
+            Ok((wants, more, members)) => {
+                out.extend(wants);
+                problems.extend(more);
+                taken.extend(members);
+            }
+            Err(why) => problems.push(Problem {
+                id: format!("p:feature_not_dimensioned:{}", p.id),
+                code: "feature_not_dimensioned".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "{} is not dimensioned as a pattern: {why}; its slots are dimensioned singly.",
+                    p.id
+                ),
+                subjects: vec![p.id.clone()],
+            }),
+        }
+    }
     let mut slots = Vec::new();
     for f in analysis.features.iter().filter(|f| f.kind == "slot") {
-        if patterns
-            .iter()
-            .any(|p| f.faces.iter().all(|i| p.faces.binary_search(i).is_ok()))
-        {
-            continue; // the pattern's (reported as not dimensioned)
+        if taken.contains(f.id.as_str()) {
+            continue; // the pattern's
         }
         match read(f, &cx.frame) {
             Ok(s) => slots.push(s),
@@ -246,7 +267,6 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         members.push(i);
     }
 
-    let mut out = Vec::new();
     for k in order {
         let members = &widths[&k];
         let s = &slots[members[0]];
@@ -375,6 +395,304 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .map(|b| b.want()),
     );
     (out, problems)
+}
+
+/// A slot pattern's items, the problems met, and its member slots' IDs.
+type Grouped<'a> = (Vec<Want>, Vec<Problem>, Vec<&'a str>);
+
+/// A slot pattern's items (callout, end radius, pitches, location), the problems met, and its
+/// member slots' IDs; or why it does not hold together as quiddity describes it.
+fn pattern<'a>(cx: &Context<'a>, p: &'a Feature) -> Result<Grouped<'a>, String> {
+    let analysis = cx.analysis;
+    let ids: Vec<&str> = p
+        .parameters
+        .get("slots")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    if ids.len() < 2 {
+        return Err("it names fewer than two member slots".into());
+    }
+    let mut slots = Vec::new();
+    for id in &ids {
+        let f = analysis
+            .features
+            .iter()
+            .find(|f| f.id == *id && f.kind == "slot")
+            .ok_or_else(|| format!("its member {id} is not a slot of the part"))?;
+        slots.push(read(f, &cx.frame).map_err(|why| format!("its member {id}: {why}"))?);
+    }
+    let s = &slots[0];
+    let same = |a: f64, b: f64| (a - b).abs() < 1e-6;
+    if !slots.iter().all(|t| {
+        (t.long, t.wide, t.deep) == (s.long, s.wide, s.deep)
+            && same(t.width, s.width)
+            && same(t.length, s.length)
+            && t.end_radius.is_some() == s.end_radius.is_some()
+            && t.end_radius
+                .zip(s.end_radius)
+                .is_none_or(|(a, b)| same(a, b))
+    }) {
+        return Err("its slots are not identical".into());
+    }
+    let view = end_on(s.deep);
+    let in_view = [s.long, s.wide];
+    let centres: Vec<P3> = slots
+        .iter()
+        .map(|t| t.at(0.5 * (t.ends[0] + t.ends[1]), t.centre))
+        .collect();
+    let number = |k: &str| {
+        p.parameters
+            .get(k)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| format!("its record gives no {k}"))
+    };
+    // A direction of quiddity's frame, as the world axis it lies along.
+    let world = |local: P3| {
+        let d = (0..3).fold([0.0; 3], |d, j| {
+            [0, 1, 2].map(|k| d[k] + local[j] * cx.frame.0[j + 1][k])
+        });
+        principal(d)
+            .filter(|k| in_view.contains(k))
+            .ok_or("its arrangement lies along no axis of the view that looks through it")
+    };
+    let n = slots.len();
+    let mut out = Vec::new();
+    let (centre, why) = if p.fingerprint.subtype == "SlotGrid" {
+        // quiddity's lattice: columns along `angle` from the first axis of its plane basis
+        // (`_plane_uv`: x → (y, z), y → (z, x), z → (x, y)), rows across them.
+        let qd = AXES
+            .iter()
+            .position(|a| {
+                ![
+                    &s.feature.parameters["long_axis"],
+                    &s.feature.parameters["width_axis"],
+                ]
+                .contains(&&Value::from(*a))
+            })
+            .ok_or("its slots' axes are not two of quiddity's")?;
+        let (u, v) = ((qd + 1) % 3, (qd + 2) % 3);
+        let a = number("angle")?.to_radians();
+        let mut col = [0.0; 3];
+        col[u] = a.cos();
+        col[v] = a.sin();
+        let col = world(col)?;
+        let row = s.long + s.wide - col;
+        let count = |k: &str| {
+            p.parameters
+                .get(k)
+                .and_then(Value::as_u64)
+                .ok_or_else(|| format!("its record gives no {k}"))
+        };
+        let (cols, rows) = (count("cols")?, count("rows")?);
+        for (along, m, pitch, name) in [
+            (col, cols, number("col_pitch")?, "col"),
+            (row, rows, number("row_pitch")?, "row"),
+        ] {
+            let values = spaced(&centres, along, m as usize, pitch).ok_or_else(|| {
+                format!(
+                    "its {name}s are not {m} at {} along {}",
+                    fmt(pitch),
+                    AXES[along]
+                )
+            })?;
+            if values.len() > 1 {
+                out.push(pitch_want(
+                    &p.id,
+                    &format!("grid_pitch.length.{name}"),
+                    view,
+                    centres[0],
+                    along,
+                    &values,
+                ));
+            }
+        }
+        if (rows * cols) as usize != n {
+            return Err(format!("its {n} slots are not {rows}×{cols}"));
+        }
+        let c = point(p.parameters.get("center")).ok_or("its record gives no centre")?;
+        (
+            cx.frame.point(c),
+            format!("a grid of {rows}×{cols} identical slots"),
+        )
+    } else {
+        let along =
+            world(point(p.parameters.get("direction")).ok_or("its record gives no direction")?)?;
+        let across = s.long + s.wide - along;
+        let values = spaced(&centres, along, n, number("pitch")?)
+            .filter(|_| spaced(&centres, across, 1, 0.0).is_some())
+            .ok_or_else(|| {
+                format!(
+                    "its slots are not in one line along {} at its pitch",
+                    AXES[along]
+                )
+            })?;
+        out.push(pitch_want(
+            &p.id,
+            "pitch.length",
+            view,
+            centres[0],
+            along,
+            &values,
+        ));
+        let c = centres
+            .iter()
+            .fold([0.0; 3], |c, m| [0, 1, 2].map(|k| c[k] + m[k] / n as f64));
+        (c, format!("a linear array of {n} identical slots"))
+    };
+
+    let m = |parameter: &str, value: f64| Measurement {
+        feature: p.id.clone(),
+        parameter: parameter.into(),
+        value,
+    };
+    let mut items = vec![Want {
+        id: want_id(&p.id, "slot_width.length", view),
+        views: vec![view],
+        value: s.width,
+        terms: vec![
+            format!("{n}×"),
+            "SLOT".into(),
+            fmt(s.width),
+            "×".into(),
+            fmt(s.length),
+        ],
+        measurements: vec![
+            m("slot_width.length", s.width),
+            m("slot_length.length", s.length),
+        ],
+        turning: None,
+        basis: format!(
+            "{why} is called out once with its width and length, in the view that looks through them, as draftwright's grouped slot callout"
+        ),
+        shape: Shape::Callout {
+            sites: slots
+                .iter()
+                .flat_map(|t| {
+                    let mid = 0.5 * (t.ends[0] + t.ends[1]);
+                    [-1.0, 1.0].map(|sign| (t.at(mid, t.edge(t.wide, sign)), 0.0))
+                })
+                .collect(),
+        },
+    }];
+    if let Some(r) = s.end_radius {
+        items.push(Want {
+            id: want_id(&p.id, "slot_end_radius.radius", view),
+            views: vec![view],
+            value: r,
+            terms: vec!["2×".into(), format!("R{}", fmt(r))],
+            measurements: vec![m("slot_end_radius.radius", r)],
+            turning: None,
+            basis: "the pattern's obround ends are proven arcs: their radius is called out once, with a leader to an end of one slot".into(),
+            shape: Shape::Callout {
+                sites: vec![
+                    (s.at(s.ends[0] + r, s.centre), r),
+                    (s.at(s.ends[1] - r, s.centre), r),
+                ],
+            },
+        });
+    }
+    items.extend(out);
+    let [lo, _] = analysis.envelope;
+    let mut problems = Vec::new();
+    for k in [s.wide.min(s.long), s.wide.max(s.long)] {
+        let d = centre[k] - lo[k];
+        if d.abs() < 1e-6 {
+            problems.push(Problem {
+                id: format!("p:location_on_datum:{}/{}", p.id, AXES[k]),
+                code: "location_on_datum".into(),
+                severity: "info".into(),
+                message: format!(
+                    "{} is centred on the part's {} face, so its {} location measures nothing and is not dimensioned.",
+                    p.id,
+                    ["left", "front", "bottom"][k],
+                    AXES[k]
+                ),
+                subjects: vec![p.id.clone()],
+            });
+            continue;
+        }
+        let parameter = format!("location_slot_pattern.length.{}", AXES[k]);
+        let mut a = centre;
+        a[k] = lo[k];
+        items.push(Want {
+            id: want_id(&p.id, &parameter, view),
+            views: vec![view],
+            value: d,
+            terms: vec![fmt(d)],
+            measurements: vec![m(&parameter, d)],
+            turning: None,
+            basis: format!(
+                "the pattern is located by its centre, in {} from the part's {} face, in the view that looks through its slots",
+                AXES[k],
+                ["left", "front", "bottom"][k]
+            ),
+            shape: Shape::Linear {
+                a,
+                b: centre,
+                axis: k,
+                a_edge: true,
+                b_edge: false,
+                order: 1,
+            },
+        });
+    }
+    Ok((items, problems, ids))
+}
+
+/// The centres' distinct positions along *axis*, when there are *count* of them *pitch* apart.
+fn spaced(centres: &[P3], axis: usize, count: usize, pitch: f64) -> Option<Vec<f64>> {
+    let mut v: Vec<f64> = centres.iter().map(|c| c[axis]).collect();
+    v.sort_by(f64::total_cmp);
+    v.dedup_by(|a, b| (*a - *b).abs() < 1e-3);
+    (v.len() == count && v.windows(2).all(|w| (w[1] - w[0] - pitch).abs() < 1e-3)).then_some(v)
+}
+
+/// The pitch between a pattern's first two positions *values* along *along*, counted across its
+/// intervals (`2× 25`).
+fn pitch_want(
+    pattern: &str,
+    parameter: &str,
+    view: &'static str,
+    at: P3,
+    along: usize,
+    values: &[f64],
+) -> Want {
+    let p = values[1] - values[0];
+    let intervals = values.len() - 1;
+    let text = if intervals > 1 {
+        format!("{intervals}× {}", fmt(p))
+    } else {
+        fmt(p)
+    };
+    let (mut a, mut b) = (at, at);
+    a[along] = values[0];
+    b[along] = values[1];
+    Want {
+        id: want_id(pattern, parameter, view),
+        views: vec![view],
+        value: p,
+        terms: vec![text],
+        measurements: vec![Measurement {
+            feature: pattern.into(),
+            parameter: parameter.into(),
+            value: p,
+        }],
+        turning: None,
+        basis: format!(
+            "the slot pattern's spacing in {}, between its first two members, counted across its {intervals} interval{}",
+            AXES[along],
+            if intervals == 1 { "" } else { "s" }
+        ),
+        shape: Shape::Linear {
+            a,
+            b,
+            axis: along,
+            a_edge: false,
+            b_edge: false,
+            order: 0,
+        },
+    }
 }
 
 /// A blind slot: a section recess draftwright reads as a rectangular or a round-bottom open

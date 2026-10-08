@@ -448,5 +448,95 @@
     "count": 1,
     "verdict": "rust-wrong",
     "reason": "The hex boss (f:polygonal_boss:1) stands at the centre of the 2×2 hole grid f:hole_pattern:1, so the port's boss location repeats that pattern's location in the plan view (400 from the left face, 225 from the front): one point located twice. The port locates a boss as it does a hole (src/dims/bosses.rs; draftwright locates no boss, see ftc06's entries), but coincident hole and boss locations are not merged yet (ARCH0009-6: the hole location outranks and the boss's is conveyed by it), which is pending with the hole planner's owner. The entry goes when they are merged."
+  },
+  {
+    "part": "slot_array",
+    "side": "python",
+    "family": "envelope",
+    "view": "plan",
+    "label": "120",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "slot_array",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "120",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "slot_array",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "30",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a slot pattern's centre coordinates in the view that looks through its slots, as it does a hole pattern's (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "slot_array",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "30",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a slot pattern's centre coordinates in the view that looks through its slots, as it does a hole pattern's (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "slot_grid",
+    "side": "python",
+    "family": "envelope",
+    "view": "plan",
+    "label": "160",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "slot_grid",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "160",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "slot_grid",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "50",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a slot pattern's centre coordinates in the view that looks through its slots, as it does a hole pattern's (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "slot_grid",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "50",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a slot pattern's centre coordinates in the view that looks through its slots, as it does a hole pattern's (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends the y coordinate (its location_slot_pattern.location.y) to the side view, where the slots are hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+  },
+  {
+    "part": "slot_grid",
+    "side": "rust",
+    "family": "pitch",
+    "view": "plan",
+    "label": "2× 40",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The grid's row pitch (quiddity's row_pitch 40, three rows along x). draftwright drops it: its own lint reports slot_dim_dropped ('slot pattern pitch 40 not placed (no clear room beside the plan)') and plan_incomplete, so its sheet leaves the rows' spacing unstated. A grid is spaced by both its pitches (draftwright's render_slot_patterns places both grid_pitch dimensions when there is room)."
   }
 ]

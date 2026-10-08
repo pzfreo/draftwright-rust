@@ -183,12 +183,16 @@ pub fn names() -> Vec<String> {
 }
 
 pub fn load(name: &str) -> Facts {
+    load_file(&dir().join(format!("{name}.json.gz")))
+}
+
+/// The facts captured in *path* (gzipped), wherever they are kept.
+pub fn load_file(path: &Path) -> Facts {
     let mut text = String::new();
-    flate2::read::GzDecoder::new(
-        std::fs::File::open(dir().join(format!("{name}.json.gz"))).unwrap(),
-    )
-    .read_to_string(&mut text)
-    .unwrap();
+    flate2::read::GzDecoder::new(std::fs::File::open(path).unwrap())
+        .read_to_string(&mut text)
+        .unwrap();
+    let name = path.display();
     let facts: Facts = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{name}: {e}"));
     assert_eq!(facts.schema, SCHEMA, "{name}");
     facts

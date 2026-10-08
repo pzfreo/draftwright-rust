@@ -14,7 +14,10 @@
 //! `tests/fixtures/known_dimensions.json`; a listed difference that goes away must come off.
 //!
 //! The features come from Python quiddity 0.3.9 (draftwright's own recogniser for these sheets),
-//! through `tools/recognise.py`, stored in `tests/fixtures/recognition/sheets/`. ctc04 is not
+//! through `tools/recognise.py`, stored in `tests/fixtures/recognition/sheets/`. No corpus part
+//! has a slot array, so two fixture plates with one (`tests/fixtures/recognition/slot_patterns/`:
+//! a linear array and a grid, with their recognition and draftwright's sheet facts) are compared
+//! the same way. ctc04 is not
 //! compared: the bridge refuses its recognition (face 367's area, 13.0806 here and 13.1002 in
 //! OpenCascade). Set `DIMS_REPORT=1` to print every difference.
 
@@ -90,7 +93,9 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
         "boss.diameter" | "boss_height.length" => Some("boss".into()),
         "polygon_across_flats.length" if kind == "polygonal_boss" => Some("boss".into()),
         p if p.starts_with("grid_pitch.") => Some("pitch".into()),
-        p if p.starts_with("location") && (kind == "hole" || kind == "pattern") => {
+        p if p.starts_with("location")
+            && (kind == "hole" || kind == "pattern" || kind == "slot_pattern") =>
+        {
             Some(format!("location.{}", p.rsplit('.').next().unwrap_or("")))
         }
         p if [
@@ -119,6 +124,8 @@ fn rust_family(d: &PlannedDimension) -> String {
             .unwrap_or("");
     if d.id.starts_with("d:envelope/") {
         "envelope".into()
+    } else if parameter.starts_with("location_slot_pattern") {
+        format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
     } else if parameter.starts_with("location_slot") {
         "location.slot".into()
     } else if parameter.starts_with("slot_") {
@@ -159,8 +166,33 @@ fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, u
     let f = facts::load(name);
     let json = recognition(name)?;
     let a = analysed(corpus, name, &f.binding.file, &json)?;
+    Some(compare_sheet(name, &f, &a))
+}
+
+/// The fixture parts beside their recognition in `tests/fixtures/recognition/slot_patterns/`
+/// (no corpus part has a slot array), with draftwright's sheet facts for each
+/// (`<name>.facts.json.gz`, captured by `capture.py` there).
+const FIXTURES: [&str; 2] = ["slot_array", "slot_grid"];
+
+fn compare_fixture(name: &str) -> (usize, BTreeMap<Diff, usize>, usize) {
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition/slot_patterns");
+    let f = facts::load_file(&dir.join(format!("{name}.facts.json.gz")));
+    let mut json = String::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(dir.join(format!("{name}.json.gz"))).unwrap())
+        .read_to_string(&mut json)
+        .unwrap();
+    let a = analysed(&dir, name, &f.binding.file, &json).unwrap();
+    compare_sheet(name, &f, &a)
+}
+
+fn compare_sheet(
+    name: &str,
+    f: &facts::Facts,
+    a: &Analysis,
+) -> (usize, BTreeMap<Diff, usize>, usize) {
     assert_eq!(a.binding.source_sha256, f.binding.sha256, "{name}");
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = model::plan(a, &Spec::default()).unwrap();
 
     let mut python: Vec<Item> = Vec::new();
     let mut outside = 0;
@@ -207,7 +239,7 @@ fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, u
                 .iter()
                 .map(|m| m.feature.as_str())
                 .chain(d.id.strip_prefix("d:").and_then(|s| s.split('/').next()))
-                .filter_map(|f| dims::feature_origin(&a, f))
+                .filter_map(|f| dims::feature_origin(a, f))
                 .collect(),
         })
         .collect();
@@ -265,7 +297,7 @@ fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, u
                 .or_default() += 1;
         }
     }
-    Some((agree, diffs, outside))
+    (agree, diffs, outside)
 }
 
 #[test]
@@ -312,6 +344,12 @@ fn dimensions_match_draftwright_or_are_known() {
         agree += a;
         outside += o;
         compared += 1;
+        found.extend(d);
+    }
+    for name in FIXTURES {
+        let (a, d, o) = compare_fixture(name);
+        agree += a;
+        outside += o;
         found.extend(d);
     }
     if std::env::var_os("DIMS_REPORT").is_some() {

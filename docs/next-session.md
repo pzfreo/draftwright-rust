@@ -298,3 +298,35 @@ improvement plan and questions are the current work. Still open from before it:
       That unblocks the switch.
     - Who owns fingerprints, draftwright or quiddity? Until that is decided the native reader
       keeps draftwright's (`draftwright-bridge/2`) and does not adopt quiddity's.
+- From wave 3 (stream d-bridge-slot-patterns): slot patterns are unblocked end to end. The bridge
+  reads quiddity's derived `slot_patterns` as `slot_pattern` features (`f:slot_pattern:<n>`, ranked
+  by faces, on their members' faces, the members named by feature ID in the record's `slots`),
+  the representation `lint::slots` and `dims::slots` already took; a member must be one slot
+  record and the members' `pattern_sibling` links must agree, or the read is refused; members and
+  pattern carry count and pitch in their fingerprints. `dims::slots` calls a pattern out as
+  draftwright does: `3× SLOT 6 × 20`, `2× R3`, `2× 25` (or the grid's column and row pitches, as
+  quiddity names them), and the centre located on both axes; a pattern whose slots do not stand
+  as quiddity says is reported and its slots dimensioned singly. No corpus part has a slot array,
+  so two fixture plates (`tests/fixtures/recognition/slot_patterns/`: a 1×3 array and a 3×2 grid
+  of obround slots, `make.py`, recognised by quiddity 0.3.9, draftwright's sheet facts captured by
+  `capture.py` there) join `tests/dimensions.rs`: 12 of draftwright's items agree, 9 differences
+  listed (4 equivalent: the overall width's view; 4 undetermined: the pattern's y location in the
+  plan, not the side, pending the maintainer's decision on hole locations; 1 rust-correct: the
+  grid's row pitch `2× 40`, which draftwright drops and its own lint reports). The captured
+  corpus sheets' dimensions are unchanged. ADR3-4 on the bridge path: quiddity's document is
+  refused unless it is `quiddity-recognition` version 3, written by quiddity 0.3.9 or 0.4.0.dev0
+  (and the release the wrapper names), in local coordinates, with known families, family/record
+  pairs and derived collections (`tests/bridge.rs::a_document_the_bridge_does_not_know_is_refused`);
+  ADR3-4 stays pending (below). Left:
+  - Placement problems from the new items: on both fixtures the `N× SLOT` and `2× R` callouts
+    lie over the isometric (`annotation_over_view`); on the grid, the y location runs off the
+    sheet and through the column pitch's label.
+  - LINT-slot_coverage-slot_pattern (lint.yaml, not edited here) still reports each pattern
+    unverifiable; its requirements can now be checked against the fixtures' sheets.
+  - Questions for the maintainer:
+    - ADR3-4 pins the provider's exact version. 0.4.0.dev0, which wrote most fixtures, names no
+      exact quiddity commit, and the document carries none. Regenerate those fixtures with
+      0.3.9 and accept only it, or pin 0.4.0.dev0 some other way?
+    - The bridge knows but does not read quiddity's `oriented_slot_patterns` and
+      `section_recess_patterns` (their members are read singly). Refuse a document that has
+      them, as unknown records are refused, or keep reading the members?

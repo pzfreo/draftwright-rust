@@ -11,12 +11,21 @@
 //! and declined to call it a feature). A record type the bridge does not know is refused.
 //!
 //! quiddity's derived hole patterns are kept beside the features (`Recognition::patterns`), each
-//! naming its member holes by feature ID, as `f:hole_pattern:<n>`, ranked by faces.
+//! naming its member holes by feature ID, as `f:hole_pattern:<n>`, ranked by faces. Its derived
+//! slot patterns (`SlotArray`, `SlotGrid`) become `slot_pattern` features, `f:slot_pattern:<n>`
+//! ranked by faces like any feature, on their members' faces, whose `slots` parameter names the
+//! member slots by feature ID in quiddity's order: the slot features the lint and dimension
+//! planners already take a `slot_pattern`'s faces to own. A member must be exactly one slot
+//! record, and the members' own pattern links (`dependents`) must agree, or the read is refused.
+//!
+//! The read is fail-closed on what the bridge knows (ADR3-4): quiddity's document format and
+//! version, the quiddity release that wrote it ([`QUIDDITY_VERSIONS`]), its coordinate space, its
+//! families and the record types each carries ([`RECORDS`]), and its derived collections.
 //!
 //! A feature's ID is `f:<kind>:<n>`: its rank, from 1, among the features of its kind ordered by
 //! their faces. Its fingerprint follows quiddity-rust's `docs/correspondence.md` until quiddity
 //! issues its own: family and subtype, intrinsic sizes, axis, position in the part's frame, and
-//! pattern count and pitch.
+//! pattern count and pitch (a hole's or slot's in its pattern, and a slot pattern's own).
 
 use std::collections::BTreeMap;
 
@@ -30,6 +39,23 @@ pub mod native;
 
 pub const RECOGNITION_FORMAT: &str = "draftwright.recognition/1";
 pub const FINGERPRINT_VERSION: &str = "draftwright-bridge/2";
+/// The one quiddity document format and version the bridge reads (`document.py`).
+pub const QUIDDITY_FORMAT: &str = "quiddity-recognition";
+pub const QUIDDITY_FORMAT_VERSION: u64 = 3;
+/// The quiddity releases whose documents the bridge is checked against (ADR3-4: the provider's
+/// version is pinned): 0.3.9, draftwright's own, and 0.4.0.dev0, quiddity's main, which wrote the
+/// fixtures in `tests/fixtures/recognition/`. Another is refused until it is checked and added.
+pub const QUIDDITY_VERSIONS: [&str; 2] = ["0.3.9", "0.4.0.dev0"];
+/// The derived collections a format-3 document carries that the bridge does not read, and why:
+/// `hole_pairs` restates pairs of holes it reads; `turned_profiles` restates the turned steps;
+/// `oriented_slot_patterns` and `section_recess_patterns` group features it reads one by one
+/// (draftwright gives oriented slot arrays no drafting grammar, #1430). Any other is refused.
+const DERIVED_NOT_READ: [&str; 4] = [
+    "hole_pairs",
+    "oriented_slot_patterns",
+    "section_recess_patterns",
+    "turned_profiles",
+];
 
 /// Where the features came from, and the frame quiddity's coordinates are in.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -88,50 +114,90 @@ enum Home {
     Refusal,
 }
 
-/// The home of each record type quiddity's recognition document can carry: its capability
-/// manifest's `output` records are features, its `evidence` records evidence, and its section
-/// recess refusals refusals. Anything else is refused until it is given a home here.
-fn home(record_type: &str) -> Option<Home> {
-    Some(match record_type {
-        "AngledStep"
-        | "Blend"
-        | "BossRecord"
-        | "Chamfer"
-        | "CircularBlindStep"
-        | "CircularFacePattern"
-        | "CounterSink"
-        | "DoubleDBore"
-        | "Fillet"
-        | "Flat"
-        | "FreeformSurface"
-        | "Groove"
-        | "GussetRib"
-        | "GussetRibArray"
-        | "GussetRibMirrorPair"
-        | "HoleRecord"
-        | "InteriorVoid"
-        | "ObliqueThroughStep"
-        | "OrientedChamfer"
-        | "OrientedSlot"
-        | "OrientedSlotArray"
-        | "OrientedSlotGrid"
-        | "PairedRampStep"
-        | "Plate"
-        | "PolygonalBoss"
-        | "PolygonalStock"
-        | "RaisedPad"
-        | "SectionRecess"
-        | "SheetMetalBody"
-        | "Slot"
-        | "SlotArray"
-        | "SlotGrid"
-        | "ThinWallBody"
-        | "ThroughStep"
-        | "TurnedStep" => Home::Feature,
-        "FaceLevel" | "HoleSpec" | "RepeatingRadialProfile" | "RiserEvidence" => Home::Evidence,
-        "SectionRecessRefusal" => Home::Refusal,
-        _ => return None,
-    })
+/// Every family and record type quiddity's recognition document (format 3) can carry, and the
+/// home each takes: its capability manifest's `output` records are features, its `evidence`
+/// records evidence, and its section recess refusals refusals. The families are the document's
+/// (`RecognitionResult` fields), as quiddity 0.3.9's manifest lists them (0.4.0.dev0's is the
+/// same); a section recess refusal comes in `section_recesses`, as `evidence.py` files it, and a
+/// countersink in either `countersinks` or `holes`. Anything else is refused until it is given a
+/// home here (ADR3-4, ADR3-5).
+const RECORDS: &[(&str, &str, Home)] = &[
+    ("angled_steps", "AngledStep", Home::Feature),
+    ("blends", "Blend", Home::Feature),
+    ("bosses", "BossRecord", Home::Feature),
+    ("chamfers", "Chamfer", Home::Feature),
+    ("circular_blind_steps", "CircularBlindStep", Home::Feature),
+    (
+        "circular_face_patterns",
+        "CircularFacePattern",
+        Home::Feature,
+    ),
+    ("countersinks", "CounterSink", Home::Feature),
+    ("holes", "CounterSink", Home::Feature),
+    ("double_d_bores", "DoubleDBore", Home::Feature),
+    ("fillets", "Fillet", Home::Feature),
+    ("flats", "Flat", Home::Feature),
+    ("freeform_surfaces", "FreeformSurface", Home::Feature),
+    ("grooves", "Groove", Home::Feature),
+    ("gusset_ribs", "GussetRib", Home::Feature),
+    ("gusset_rib_patterns", "GussetRibArray", Home::Feature),
+    ("gusset_rib_patterns", "GussetRibMirrorPair", Home::Feature),
+    ("holes", "HoleRecord", Home::Feature),
+    ("interior_voids", "InteriorVoid", Home::Feature),
+    ("oblique_through_steps", "ObliqueThroughStep", Home::Feature),
+    ("oriented_chamfers", "OrientedChamfer", Home::Feature),
+    ("oriented_slots", "OrientedSlot", Home::Feature),
+    ("oriented_slot_patterns", "OrientedSlotArray", Home::Feature),
+    ("oriented_slot_patterns", "OrientedSlotGrid", Home::Feature),
+    ("paired_ramp_steps", "PairedRampStep", Home::Feature),
+    ("plates", "Plate", Home::Feature),
+    ("polygonal_bosses", "PolygonalBoss", Home::Feature),
+    ("polygonal_stock", "PolygonalStock", Home::Feature),
+    ("pads", "RaisedPad", Home::Feature),
+    ("section_recesses", "SectionRecess", Home::Feature),
+    ("sheet_metal_bodies", "SheetMetalBody", Home::Feature),
+    ("slots", "Slot", Home::Feature),
+    ("slot_patterns", "SlotArray", Home::Feature),
+    ("slot_patterns", "SlotGrid", Home::Feature),
+    ("thin_wall_bodies", "ThinWallBody", Home::Feature),
+    ("through_steps", "ThroughStep", Home::Feature),
+    ("turned_steps", "TurnedStep", Home::Feature),
+    ("step_levels", "FaceLevel", Home::Evidence),
+    ("holes", "HoleSpec", Home::Evidence),
+    (
+        "repeating_radial_profiles",
+        "RepeatingRadialProfile",
+        Home::Evidence,
+    ),
+    ("risers", "RiserEvidence", Home::Evidence),
+    ("section_recesses", "SectionRecessRefusal", Home::Refusal),
+];
+
+/// The home of a record of *record_type* in *family*, or why it has none: a record type, or a
+/// family, the bridge does not know, or a known record type in a family it does not come in.
+fn home(family: &str, record_type: &str) -> Result<Home, String> {
+    if let Some(&(_, _, h)) = RECORDS.iter().find(|r| r.0 == family && r.1 == record_type) {
+        return Ok(h);
+    }
+    if !RECORDS.iter().any(|r| r.1 == record_type) {
+        return Err(format!(
+            "quiddity reports a {record_type} ({family}), which the bridge has no home for"
+        ));
+    }
+    if !RECORDS.iter().any(|r| r.0 == family) {
+        return Err(format!(
+            "quiddity reports a family {family:?} (a {record_type}), which the bridge does not know"
+        ));
+    }
+    let known: Vec<&str> = RECORDS
+        .iter()
+        .filter(|r| r.1 == record_type)
+        .map(|r| r.0)
+        .collect();
+    Err(format!(
+        "quiddity reports a {record_type} in {family}; the bridge knows it only in {}",
+        known.join(" or ")
+    ))
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -141,7 +207,9 @@ pub struct Feature {
     pub kind: String,
     /// The part's faces, ascending.
     pub faces: Vec<usize>,
-    /// quiddity's record, without its links to other records (those are by discovery order).
+    /// quiddity's record, without its links to other records (those are by discovery order). A
+    /// slot pattern's `slots` are its members' feature IDs, in quiddity's order, in place of
+    /// their records.
     pub parameters: Map<String, Value>,
     pub fingerprint: Fingerprint,
 }
@@ -219,10 +287,20 @@ struct FaceCheck {
 
 #[derive(Deserialize)]
 struct Document {
+    format: String,
+    format_version: u64,
+    package: Package,
+    coordinate_space: String,
     frame: QFrame,
     faces: Vec<QFace>,
     features: Vec<QFeature>,
-    derived: Derived,
+    derived: Map<String, Value>,
+}
+
+#[derive(Deserialize)]
+struct Package {
+    name: String,
+    version: String,
 }
 
 #[derive(Deserialize)]
@@ -241,6 +319,7 @@ struct QFace {
 
 #[derive(Deserialize)]
 struct QFeature {
+    index: usize,
     family: String,
     record_type: String,
     record: Map<String, Value>,
@@ -258,11 +337,21 @@ struct QInstance {
 struct Derived {
     #[serde(default)]
     hole_patterns: Vec<QHolePattern>,
+    #[serde(default)]
+    slot_patterns: Vec<QSlotPattern>,
 }
 
 #[derive(Deserialize)]
 struct QHolePattern {
     holes: Vec<Map<String, Value>>,
+    #[serde(flatten)]
+    rest: Map<String, Value>,
+}
+
+/// quiddity's `SlotArray` or `SlotGrid`: its member `Slot` records, and its arrangement.
+#[derive(Deserialize)]
+struct QSlotPattern {
+    slots: Vec<Map<String, Value>>,
     #[serde(flatten)]
     rest: Map<String, Value>,
 }
@@ -286,6 +375,9 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
     check_faces(part, &w.faces)?;
 
     let doc = w.quiddity;
+    check_document(&doc, &w.recogniser)?;
+    let derived: Derived = serde_json::from_value(Value::from(doc.derived.clone()))
+        .map_err(|e| format!("quiddity's derived records are not readable ({e})"))?;
     let mut to_part = vec![None; doc.faces.len()];
     for f in &doc.faces {
         if f.index >= to_part.len() || f.caller_index >= part.faces.len() {
@@ -310,15 +402,12 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
     let f = &doc.frame;
     let frame = [f.origin, f.x, f.y, f.z];
 
-    let mut features = Vec::new();
+    // Each feature with the document index of its record, and a slot pattern's members'.
+    let mut features: Vec<(Feature, Option<usize>, Vec<usize>)> = Vec::new();
     let (mut evidence, mut refusals) = (Vec::new(), Vec::new());
+    let slot_members = slot_members(&derived.slot_patterns, &doc.features)?;
     for q in &doc.features {
-        let home = home(&q.record_type).ok_or_else(|| {
-            format!(
-                "quiddity reports a {} ({}), which the bridge has no home for",
-                q.record_type, q.family
-            )
-        })?;
+        let home = home(&q.family, &q.record_type)?;
         let faces = map(&q.constituent_faces)?;
         let mut parameters = q.record.clone();
         parameters.remove("dependents");
@@ -345,32 +434,85 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
                 .map(|i| Ok(centre(part, &map(&i.face_indices)?)))
                 .collect::<Result<Vec<_>, String>>()?;
             Some(pattern(&centres))
+        } else if let Some(members) = slot_members.iter().find(|m| m.contains(&q.index)) {
+            Some(slot_pattern(members, &doc.features)?)
         } else {
-            hole_pattern(&doc.derived.hole_patterns, &q.record)?
+            hole_pattern(&derived.hole_patterns, &q.record)?
         };
-        features.push(Feature {
-            id: String::new(),
-            kind: kind(&q.family),
-            fingerprint: Fingerprint {
-                version: FINGERPRINT_VERSION.into(),
-                family: q.family.clone(),
-                subtype: q.record_type.clone(),
-                sizes: sizes(&q.record),
-                axis: axis(&q.record, &frame)
-                    .map_err(|e| format!("a {}'s axis {e}", q.record_type))?,
-                position: centre(part, &faces).map(round),
-                pattern,
-                neighbourhood: neighbourhood(part, &faces),
+        features.push((
+            Feature {
+                id: String::new(),
+                kind: kind(&q.family),
+                fingerprint: Fingerprint {
+                    version: FINGERPRINT_VERSION.into(),
+                    family: q.family.clone(),
+                    subtype: q.record_type.clone(),
+                    sizes: sizes(&q.record),
+                    axis: axis(&q.record, &frame)
+                        .map_err(|e| format!("a {}'s axis {e}", q.record_type))?,
+                    position: centre(part, &faces).map(round),
+                    pattern,
+                    neighbourhood: neighbourhood(part, &faces),
+                },
+                faces,
+                parameters,
             },
-            faces,
-            parameters,
-        });
+            Some(q.index),
+            Vec::new(),
+        ));
+    }
+    for (p, members) in derived.slot_patterns.iter().zip(slot_members) {
+        let mut faces = Vec::new();
+        for m in &members {
+            let q = doc
+                .features
+                .iter()
+                .find(|q| q.index == *m)
+                .expect("a member");
+            faces.extend(map(&q.constituent_faces)?);
+        }
+        faces.sort_unstable();
+        faces.dedup();
+        let has = |k: &str| p.rest.contains_key(k);
+        let subtype = if ["rows", "cols", "row_pitch", "col_pitch", "center"]
+            .iter()
+            .all(|k| has(k))
+        {
+            "SlotGrid"
+        } else if has("pitch") && has("direction") {
+            "SlotArray"
+        } else {
+            return Err(format!(
+                "a slot pattern has neither a grid's nor a linear array's sizes ({:?})",
+                p.rest.keys().collect::<Vec<_>>()
+            ));
+        };
+        features.push((
+            Feature {
+                id: String::new(),
+                kind: "slot_pattern".into(),
+                fingerprint: Fingerprint {
+                    version: FINGERPRINT_VERSION.into(),
+                    family: "slot_patterns".into(),
+                    subtype: subtype.into(),
+                    sizes: sizes(&p.rest),
+                    axis: None,
+                    position: centre(part, &faces).map(round),
+                    pattern: Some(slot_pattern(&members, &doc.features)?),
+                    neighbourhood: neighbourhood(part, &faces),
+                },
+                faces,
+                parameters: p.rest.clone(),
+            },
+            None,
+            members,
+        ));
     }
 
     // IDs: by kind, then by faces. Two features of one kind on the same faces have no ID apart.
-    features.sort_by(|a, b| (&a.kind, &a.faces).cmp(&(&b.kind, &b.faces)));
+    features.sort_by(|a, b| (&a.0.kind, &a.0.faces).cmp(&(&b.0.kind, &b.0.faces)));
     for i in 1..features.len() {
-        let (a, b) = (&features[i - 1], &features[i]);
+        let (a, b) = (&features[i - 1].0, &features[i].0);
         if a.kind == b.kind && a.faces == b.faces {
             return Err(format!(
                 "quiddity reports two {}s on faces {:?}; they cannot be told apart",
@@ -380,14 +522,30 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
     }
     let mut n = 0;
     for i in 0..features.len() {
-        n = if i > 0 && features[i - 1].kind == features[i].kind {
+        n = if i > 0 && features[i - 1].0.kind == features[i].0.kind {
             n + 1
         } else {
             1
         };
-        features[i].id = format!("f:{}:{n}", features[i].kind);
+        features[i].0.id = format!("f:{}:{n}", features[i].0.kind);
     }
-    let patterns = hole_patterns(&doc.derived.hole_patterns, &features)?;
+    // A slot pattern names its members by their IDs, in quiddity's order, where its record had
+    // their records.
+    let ids: BTreeMap<usize, String> = features
+        .iter()
+        .filter_map(|(f, index, _)| Some(((*index)?, f.id.clone())))
+        .collect();
+    let features: Vec<Feature> = features
+        .into_iter()
+        .map(|(mut f, _, members)| {
+            if !members.is_empty() {
+                let named: Vec<Value> = members.iter().map(|m| ids[m].clone().into()).collect();
+                f.parameters.insert("slots".into(), named.into());
+            }
+            f
+        })
+        .collect();
+    let patterns = hole_patterns(&derived.hole_patterns, &features)?;
     // Records with no ID are ordered by everything they carry.
     let key = |r: &Record| {
         (
@@ -407,6 +565,47 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
         patterns,
     };
     Ok((recognition, features))
+}
+
+/// Proves that quiddity's document is one the bridge reads (ADR3-4): its format and version, the
+/// quiddity release that wrote it (one of [`QUIDDITY_VERSIONS`], and the one the wrapper names),
+/// local coordinates (mapped by its frame), and only derived collections the bridge knows.
+fn check_document(doc: &Document, recogniser: &str) -> Result<(), String> {
+    if doc.format != QUIDDITY_FORMAT || doc.format_version != QUIDDITY_FORMAT_VERSION {
+        return Err(format!(
+            "quiddity's document is {:?} version {}; the bridge reads {QUIDDITY_FORMAT:?} version {QUIDDITY_FORMAT_VERSION} only",
+            doc.format, doc.format_version
+        ));
+    }
+    let (name, version) = (&doc.package.name, &doc.package.version);
+    if name != "quiddity" || !QUIDDITY_VERSIONS.contains(&version.as_str()) {
+        return Err(format!(
+            "the recognition JSON was written by {name} {version}; the bridge is checked against quiddity {} only",
+            QUIDDITY_VERSIONS.join(" and ")
+        ));
+    }
+    if recogniser != format!("quiddity {version}") {
+        return Err(format!(
+            "the recognition JSON says it was written by {recogniser:?}, but quiddity's document by quiddity {version}; write it with tools/recognise.py"
+        ));
+    }
+    if doc.coordinate_space != "local" {
+        return Err(format!(
+            "quiddity's document is in {:?} coordinates; the bridge reads local ones, mapped by its frame",
+            doc.coordinate_space
+        ));
+    }
+    let read = ["hole_patterns", "slot_patterns"];
+    if let Some(other) = doc
+        .derived
+        .keys()
+        .find(|k| !read.contains(&k.as_str()) && !DERIVED_NOT_READ.contains(&k.as_str()))
+    {
+        return Err(format!(
+            "quiddity's document derives {other:?}, which the bridge does not know"
+        ));
+    }
+    Ok(())
 }
 
 /// Proves that the JSON's faces are the part's: in number, and each in surface type (where both
@@ -620,6 +819,100 @@ fn hole_patterns(qs: &[QHolePattern], features: &[Feature]) -> Result<Vec<HolePa
         p.id = format!("f:hole_pattern:{}", n + 1);
     }
     Ok(out)
+}
+
+/// The document indices of each slot pattern's members, in quiddity's order. A member is the one
+/// slot record its record equals; the members' own pattern links (`dependents`,
+/// `pattern_sibling`) must name each other and no other slot. A member that resolves to no slot,
+/// or to more than one, or whose links disagree, is refused.
+fn slot_members(
+    patterns: &[QSlotPattern],
+    features: &[QFeature],
+) -> Result<Vec<Vec<usize>>, String> {
+    let is_slot = |q: &QFeature| q.family == "slots" && q.record_type == "Slot";
+    let mut out: Vec<Vec<usize>> = Vec::new();
+    for p in patterns {
+        let mut members = Vec::new();
+        for m in &p.slots {
+            let found: Vec<usize> = features
+                .iter()
+                .filter(|q| is_slot(q) && m.iter().all(|(k, v)| q.record.get(k) == Some(v)))
+                .map(|q| q.index)
+                .collect();
+            match found[..] {
+                [i] => members.push(i),
+                [] => {
+                    return Err("a slot pattern has a member that is not a recognised slot".into());
+                }
+                _ => {
+                    return Err(format!(
+                        "a slot pattern's member matches {} slots; it cannot be told which",
+                        found.len()
+                    ));
+                }
+            }
+        }
+        let mut sorted = members.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        if sorted.len() != members.len() || out.iter().flatten().any(|i| sorted.contains(i)) {
+            return Err("quiddity puts one slot in a slot pattern twice".into());
+        }
+        for &i in &members {
+            let q = features.iter().find(|q| q.index == i).expect("a member");
+            let mut linked: Vec<usize> = q
+                .record
+                .get("dependents")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|d| d.get("relation").and_then(Value::as_str) == Some("pattern_sibling"))
+                .filter_map(|d| d.get("feature_index").and_then(Value::as_u64))
+                .map(|d| d as usize)
+                .filter(|d| features.iter().any(|q| q.index == *d && is_slot(q)))
+                .collect();
+            linked.sort_unstable();
+            let others: Vec<usize> = sorted.iter().copied().filter(|&m| m != i).collect();
+            if linked != others {
+                return Err(format!(
+                    "quiddity's slot {i} links to slots {linked:?} as its pattern siblings, but its slot pattern has {others:?}"
+                ));
+            }
+        }
+        out.push(members);
+    }
+    Ok(out)
+}
+
+/// The count and pitch of a slot pattern with *members* (document indices): the least distance
+/// between their centres (quiddity's `Slot.location`).
+fn slot_pattern(members: &[usize], features: &[QFeature]) -> Result<Pattern, String> {
+    let centres = members
+        .iter()
+        .map(|m| {
+            let r = &features
+                .iter()
+                .find(|q| q.index == *m)
+                .expect("a member")
+                .record;
+            let letter = |k: &str| {
+                let a = r.get(k)?.as_str()?;
+                ["x", "y", "z"].iter().position(|x| *x == a)
+            };
+            let number = |k: &str| r.get(k).and_then(Value::as_f64);
+            let mut c = [0.0; 3];
+            let (long, wide) = (letter("long_axis")?, letter("width_axis")?);
+            if long == wide {
+                return None;
+            }
+            c[long] = 0.5 * (number("lo")? + number("hi")?);
+            c[wide] = number("w_center")?;
+            c[3 - long - wide] = 0.5 * (number("d_lo")? + number("d_hi")?);
+            Some(c)
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or("a slot pattern has a member with no location")?;
+    Ok(pattern(&centres))
 }
 
 /// The hole pattern a hole belongs to: quiddity lists its members' records.
