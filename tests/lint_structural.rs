@@ -564,29 +564,23 @@ fn structural_checks_on_pythons_sheets_agree_with_pythons_lint() {
 }
 
 /// The review reports the structural findings beside coverage (`Review::structural`; draftwright
-/// runs them first in one list). `Review::lint` stays coverage alone, as `tests/lint.rs` pins it:
-/// the plate's own drawing has a y location 0.1 mm past the left border, which the plan reports
-/// too (`annotation_off_sheet`), and coverage finds nothing. On A4 at 10:1 the plate runs off
-/// the sheet.
+/// runs them first in one list). `Review::lint` stays coverage alone, as `tests/lint.rs` pins it.
+/// The plate's own drawing has nothing past the border: its y location, once 0.1 mm past the
+/// left border, falls through to the strip right of the plan (dims::placement::fall_through,
+/// merged with stream d-callout-leaders), so neither the review nor the plan reports one, and
+/// coverage finds nothing. On A4 at 10:1 the plate runs off the sheet.
 #[test]
 fn the_review_reports_structural_findings_beside_coverage() {
     let step = fixture("parts/plate.step");
     let features = fixture("recognition/plate.json");
     let review = draftwright::api::review(&step, Some(&features), &model::Spec::default()).unwrap();
     assert!(review.lint.is_empty());
-    assert_eq!(
-        review
-            .structural
-            .iter()
-            .map(|i| i.id.as_str())
-            .collect::<Vec<_>>(),
-        ["l:annotation_out_of_bounds:d:f:hole_pattern:1/location.length.y@plan:left"]
-    );
+    assert!(review.structural.is_empty(), "{:#?}", review.structural);
     assert!(
-        review
+        !review
             .problems
             .iter()
-            .any(|p| p.id == "p:annotation_off_sheet:d:f:hole_pattern:1/location.length.y@plan")
+            .any(|p| p.code == "annotation_off_sheet")
     );
     let mut spec = model::Spec::default();
     spec.sheet.size = Some("A4".into());

@@ -223,13 +223,11 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
         assert_eq!(d.from_spec, [given], "{id}");
         assert!(!d.default, "{id}");
     }
-    // The spec changes nothing else, and adds one problem only: the longer labels place as the
-    // shorter ones did on this sheet, except that the fillet callout, beside the plan since
-    // placement moves a callout whose lane does not fit the page (stream d-placement-fit), now
-    // runs past the plan's reserved area (info), its label 7× R50 ±0.5 longer than 7× R50.
-    // rust-wrong, as ctc01's annotation_outside_area entry in known_placement.json: no band
-    // reserves the space beside the plan (layout::Strips::reserve reserves the port's lanes for
-    // the side view only; the front/plan band question in docs/next-session.md).
+    // The spec changes nothing else and adds no problem: the longer labels place as the shorter
+    // ones did on this sheet. (From stream d-placement-fit until callout leaders were placed
+    // around the dimensions, stream d-callout-leaders, the fillet callout beside the plan ran
+    // past the plan's reserved area with its longer label 7× R50 ±0.5; its leader now stands
+    // where either label fits.)
     let bare = model::plan(&a, &Spec::default()).unwrap();
     let added = "p:annotation_outside_area:d:f:fillet:6/fillet.radius@plan|v:plan";
     assert_eq!(
@@ -244,9 +242,8 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
             .collect::<Vec<_>>()
     );
     assert!(
-        plan.problems
-            .iter()
-            .any(|p| p.id == added && p.severity == "info")
+        !plan.problems.iter().any(|p| p.id == added),
+        "the fillet callout's longer label still fits beside the plan"
     );
     // Members with different fits: draftwright holds the pair as one feature, so it cannot be
     // told two fits (not-applicable); the port withholds the fit and names both.
