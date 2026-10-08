@@ -712,11 +712,10 @@ improvement plan and questions are the current work. Still open from before it:
     face whose span runs along its own direction is one definition to the planner and two
     requirements to lint, in both programs. No corpus part has one.
   - ADR3-12 (a groove that cannot name one turned-profile owner is refused) is not checked.
-  - `src/dims/mod.rs`'s module docs still list only the earlier families (only the planner
-    list was touched, as other streams edit that file).
-  - Pending for the integrator (`docs/rules/issues.yaml` belongs to d-issue-drafting-2, so this
-    branch does not edit it): apply this hunk, verbatim from the original commit a991e49, once
-    that stream has merged (it applies to main 7b155db with `git apply`):
+  - `src/dims/mod.rs`'s module docs name steps and levels but not grooves and flats (only the
+    planner list was touched for them, as other streams edit that file).
+  - Applied by the integrator after d-issue-drafting-2 merged (integration run 2): this hunk,
+    verbatim from the original commit a991e49, is now in `docs/rules/issues.yaml`:
 
     ```diff
     diff --git a/docs/rules/issues.yaml b/docs/rules/issues.yaml
@@ -799,7 +798,7 @@ improvement plan and questions are the current work. Still open from before it:
     (draftwright draws each riser's: ctc04's two 75s and two 225s; ctc04 is not among the
     compared sheets, so this has no verdict entry: see the question below). A level with no
     recorded support is reported (`step_level_support_missing`), its witnesses on the box.
-  - Proposed catalogue changes in files not edited here: issues.yaml ISSUE-915-a stays pending,
+  - Catalogue changes (applied by the integrator, run 2): issues.yaml ISSUE-915-a stays pending,
     rust_note "the ladder's witnesses stand on each level's own support (src/dims/levels.rs); no
     detail views"; ISSUE-924-a stays pending, rust_note "a shoulder on the box is reported
     (step_position_coincident_with_datum), not drawn; quiddity never gives one, and the plan's
@@ -817,8 +816,8 @@ improvement plan and questions are the current work. Still open from before it:
   - Pending for the integrator (`docs/model.md` belongs to d-general-notes, so this branch does
     not edit it): apply this hunk, verbatim from the original commit 065dd08 (the analysis/4
     schema line and the "Level supports and risers" paragraph), once that stream has merged (it
-    applies to main 7b155db with `git apply`). With it, the ISSUE-915-a and ISSUE-924-a
-    `rust_note`s proposed above go into `docs/rules/issues.yaml` (d-issue-drafting-2's file).
+    applies to main 7b155db with `git apply`). The ISSUE-915-a and ISSUE-924-a `rust_note`s
+    above are already in `docs/rules/issues.yaml`.
 
     ```diff
     diff --git a/docs/model.md b/docs/model.md
