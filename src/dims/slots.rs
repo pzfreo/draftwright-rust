@@ -403,12 +403,20 @@ fn along(v: P3) -> Option<(usize, f64)> {
 }
 
 /// *f* as a blind slot, when draftwright's `section_recess_fields` reads it as one: an
-/// edge-open recess with planar run ends normal to its run, a principal frame, and an open
-/// four-vertex U section, either straight with two perpendicular walls (`rectangular`) or two
+/// edge-open recess with defining-face evidence, planar run ends normal to its run, a principal
+/// frame, and an open four-vertex U section, either straight with two perpendicular walls (`rectangular`) or two
 /// equal quarter arcs joined by a flat floor (`general`). Anything else (pockets, channels,
 /// passages, other profiles) is not a slot here, and stays reported as not dimensioned.
 fn blind<'a>(f: &'a Feature, frame: &QFrame) -> Option<Blind<'a>> {
     let p = &f.parameters;
+    // draftwright refuses a record without defining-face evidence.
+    if p.get("evidence")?
+        .get("defining_faces")?
+        .as_array()?
+        .is_empty()
+    {
+        return None;
+    }
     let class = p.get("classification")?;
     let shape = class.get("section_shape")?.as_str()?;
     if class.get("feature_kind")?.as_str()? != "edge_open_recess"

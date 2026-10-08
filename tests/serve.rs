@@ -95,11 +95,14 @@ fn the_service_answers_each_line() {
         .to_string(),
         json!({ "id": 2, "op": "review", "step": step, "spec": spec }).to_string(),
         json!({ "id": 3, "op": "render", "step": step, "output": out.display().to_string(),
-            "formats": ["png"] })
+            "formats": ["tiff"] })
+        .to_string(),
+        json!({ "id": 4, "op": "render", "step": step, "spec": spec,
+            "output": out.display().to_string(), "formats": ["png"], "dpi": 50 })
         .to_string(),
     ]);
     assert_eq!(replies[0]["ok"], true, "{}", replies[0]);
-    let written = replies[0]["result"]["written"].as_array().unwrap();
+    let mut written = replies[0]["result"]["written"].as_array().unwrap().clone();
     assert_eq!(written.len(), 3);
     assert!(
         replies[1]["result"]["svg"]
@@ -110,7 +113,13 @@ fn the_service_answers_each_line() {
     assert_eq!(replies[1]["result"]["problems"], json!([]));
     // No features were given, so lint has no requirements to find unmet.
     assert_eq!(replies[1]["result"]["lint"], json!([]));
-    assert_eq!(replies[2]["error"]["choices"], json!(["svg", "dxf", "pdf"]));
+    assert_eq!(
+        replies[2]["error"]["choices"],
+        json!(["svg", "dxf", "pdf", "png"])
+    );
+    assert_eq!(replies[3]["ok"], true, "{}", replies[3]);
+    written.extend(replies[3]["result"]["written"].as_array().unwrap().clone());
+    assert_eq!(written.len(), 4);
     let reads: Vec<String> = written
         .iter()
         .enumerate()

@@ -1196,14 +1196,19 @@ fn svg_item(item: &Item) -> String {
     }
 }
 
-/// The PDF path for *curve*, from its start (already reached): arcs as cubics of at most a
-/// quarter turn each.
-fn pdf_curve(c: &mut pdf_writer::Content, curve: &Curve) {
-    let f = |p: P| (p[0] as f32, p[1] as f32);
+/// A path segment from the point already reached: a line to a point, or a cubic by its two
+/// control points and its end.
+pub(crate) enum PathSeg {
+    Line(P),
+    Cubic(P, P, P),
+}
+
+/// *curve*, from its start, as lines and cubics, as the PDF and the PNG draw it: arcs as cubics
+/// of at most a quarter turn each, quadratics raised to cubics, rational pieces as
+/// [`polynomial`] draws them.
+pub(crate) fn path_segments(curve: &Curve) -> Vec<PathSeg> {
     match curve {
-        Curve::Line(_, b) => {
-            c.line_to(b[0] as f32, b[1] as f32);
-        }
+        Curve::Line(_, b) => vec![PathSeg::Line(*b)],
         Curve::Conic {
             centre,
             radii,
@@ -1223,40 +1228,52 @@ fn pdf_curve(c: &mut pdf_writer::Content, curve: &Curve) {
                     s * x_axis[1] + co * y_axis[1],
                 ]
             };
-            for i in 0..n {
-                let (a, b) = (t0 + dt * i as f64, t0 + dt * (i + 1) as f64);
-                let (pa, pb, ta, tb) = (at(a), at(b), tangent(a), tangent(b));
-                let c1 = [pa[0] + alpha * ta[0], pa[1] + alpha * ta[1]];
-                let c2 = [pb[0] - alpha * tb[0], pb[1] - alpha * tb[1]];
-                let ((x1, y1), (x2, y2), (x3, y3)) = (f(c1), f(c2), f(pb));
-                c.cubic_to(x1, y1, x2, y2, x3, y3);
-            }
+            (0..n)
+                .map(|i| {
+                    let (a, b) = (t0 + dt * i as f64, t0 + dt * (i + 1) as f64);
+                    let (pa, pb, ta, tb) = (at(a), at(b), tangent(a), tangent(b));
+                    let c1 = [pa[0] + alpha * ta[0], pa[1] + alpha * ta[1]];
+                    let c2 = [pb[0] - alpha * tb[0], pb[1] - alpha * tb[1]];
+                    PathSeg::Cubic(c1, c2, pb)
+                })
+                .collect()
         }
-        Curve::Rational(pieces) => pdf_curve(c, &Curve::Beziers(polynomial(pieces))),
-        Curve::Beziers(pieces) => {
-            for p in pieces {
-                match p.len() {
-                    2 => {
-                        c.line_to(p[1][0] as f32, p[1][1] as f32);
-                    }
-                    3 => {
-                        let c1 = [
-                            p[0][0] + 2.0 / 3.0 * (p[1][0] - p[0][0]),
-                            p[0][1] + 2.0 / 3.0 * (p[1][1] - p[0][1]),
-                        ];
-                        let c2 = [
-                            p[2][0] + 2.0 / 3.0 * (p[1][0] - p[2][0]),
-                            p[2][1] + 2.0 / 3.0 * (p[1][1] - p[2][1]),
-                        ];
-                        let ((x1, y1), (x2, y2), (x3, y3)) = (f(c1), f(c2), f(p[2]));
-                        c.cubic_to(x1, y1, x2, y2, x3, y3);
-                    }
-                    n => {
-                        assert_eq!(n, 4, "a Bézier piece of {n} poles (at most 4 are drawn)");
-                        let ((x1, y1), (x2, y2), (x3, y3)) = (f(p[1]), f(p[2]), f(p[3]));
-                        c.cubic_to(x1, y1, x2, y2, x3, y3);
-                    }
+        Curve::Rational(pieces) => path_segments(&Curve::Beziers(polynomial(pieces))),
+        Curve::Beziers(pieces) => pieces
+            .iter()
+            .map(|p| match p.len() {
+                2 => PathSeg::Line(p[1]),
+                3 => {
+                    let c1 = [
+                        p[0][0] + 2.0 / 3.0 * (p[1][0] - p[0][0]),
+                        p[0][1] + 2.0 / 3.0 * (p[1][1] - p[0][1]),
+                    ];
+                    let c2 = [
+                        p[2][0] + 2.0 / 3.0 * (p[1][0] - p[2][0]),
+                        p[2][1] + 2.0 / 3.0 * (p[1][1] - p[2][1]),
+                    ];
+                    PathSeg::Cubic(c1, c2, p[2])
                 }
+                n => {
+                    assert_eq!(n, 4, "a Bézier piece of {n} poles (at most 4 are drawn)");
+                    PathSeg::Cubic(p[1], p[2], p[3])
+                }
+            })
+            .collect(),
+    }
+}
+
+/// The PDF path for *curve*, from its start (already reached).
+fn pdf_curve(c: &mut pdf_writer::Content, curve: &Curve) {
+    let f = |p: P| (p[0] as f32, p[1] as f32);
+    for seg in path_segments(curve) {
+        match seg {
+            PathSeg::Line(b) => {
+                c.line_to(b[0] as f32, b[1] as f32);
+            }
+            PathSeg::Cubic(c1, c2, b) => {
+                let ((x1, y1), (x2, y2), (x3, y3)) = (f(c1), f(c2), f(b));
+                c.cubic_to(x1, y1, x2, y2, x3, y3);
             }
         }
     }
@@ -1390,7 +1407,9 @@ mod tests {
         });
     }
 
-    /// cgb242's front view has a hidden stretch of a clamped cubic from t = 0 to t = 0.
+    /// A hidden stretch of a clamped cubic from t = 0 to t = 0, as cgb242's front view had
+    /// until haecceity stopped making stretches that short (quiddity-rust 56a5c4f): a guard
+    /// now, not drawn, and reported.
     #[test]
     fn a_stretch_of_no_span_is_not_drawn() {
         let poles = vec![
@@ -1422,6 +1441,15 @@ mod tests {
         assert_eq!(
             projected(&piece(None, vec![[1.0, 1.0], [2.0, 1.0]])),
             Some(Curve::Beziers(vec![vec![[1.0, 1.0], [2.0, 1.0]]]))
+        );
+        let reported = undrawn(&BTreeMap::from([("v:front".to_string(), 1)]));
+        assert_eq!(reported.len(), 1);
+        assert_eq!(reported[0].id, "p:edges_not_drawn:v:front");
+        assert_eq!(reported[0].subjects, ["v:front"]);
+        assert!(
+            reported[0]
+                .message
+                .starts_with("1 projected edge piece in v:front")
         );
     }
 

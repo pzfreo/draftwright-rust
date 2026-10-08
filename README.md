@@ -69,12 +69,13 @@ What it draws so far (at bbd3dd7):
   its features need.
 - **Section A–A** by draftwright's rule (a z-axis hole that is counterbored, spotfaced or
   blind), hatched at 45°, with its cutting-plane line and caption.
-- **First dimensions:** the overall envelope, turned steps, and hole callouts with their
-  locations and pattern pitches, each a Plan item with an ID, label and basis.
+- **First dimensions:** the overall envelope, turned steps, hole callouts with their
+  locations and pattern pitches, through slots, bosses, and fillet and chamfer callouts, each a
+  Plan item with an ID, label and basis.
 - **Lint for holes:** every recognised hole's sizes, THRU or depth, recesses and count must be
   stated on the drawing; `review` reports what is not, reading the port's own callouts.
 
-Other feature kinds (fillets, chamfers, slots, bosses, …), notes and tables are not drawn yet.
+Other feature kinds (blends, slot patterns, blind slots, …), notes and tables are not drawn yet.
 The plan (`docs/plan.md`), the ADRs (`docs/adr/`), the rules catalogue that tracks what the
 Python version learnt (`docs/rules/`) and the latest review (`docs/review-2026-10-08.md`) are in
 `docs/`.
@@ -87,6 +88,6 @@ DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`, `cargo fmt --check` and `ca
 --all-targets --release -- -D warnings` (as CI does, `.github/workflows/ci.yml`). With
 `DRAFTWRIGHT_CORPUS_REQUIRED=1` a missing corpus fails every corpus-backed test.
 
-Licensed AGPL-3.0, as draftwright is; haecceity and quiddity-rust are Apache-2.0. The fonts in
-`fonts/` are IBM Plex, vendored from draftwright under the SIL Open Font License 1.1 (the
-`LICENSE-*-OFL.txt` files beside them).
+Licensed AGPL-3.0, as draftwright is; so are haecceity and quiddity-rust (AGPL-3.0-only since
+quiddity-rust 8023ea7). The fonts in `fonts/` are IBM Plex, vendored from draftwright under the
+SIL Open Font License 1.1 (the `LICENSE-*-OFL.txt` files beside them).

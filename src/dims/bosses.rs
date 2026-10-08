@@ -144,8 +144,9 @@ fn read_polygon<'a>(f: &'a Feature, frame: &QFrame) -> Result<Boss<'a>, String> 
     let centre = point(p.get("center")).ok_or("its record gives no center")?;
     // quiddity rounds `center` to 1e-4 mm in its own frame, whose origin is not round in the
     // part's, so a boss 400 mm from an edge reads 400.00002 there. Across its axis the box around
-    // its faces (the fingerprint's position) is exact for a regular prism; it is taken when it
-    // agrees within that rounding, and the record otherwise.
+    // its faces (the fingerprint's position) is exact for a round boss and a prism with an even
+    // number of sides (not an odd one: a pentagon's box is not centred on it); it is taken when
+    // it agrees within that rounding, and the record otherwise.
     let c = f.fingerprint.position;
     let at = |t: f64| {
         let mut l = centre;
@@ -507,6 +508,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
 
 /// How far two support planes may differ and still be one face: quiddity records a boss's
 /// height to 0.01 mm, so the base it gives lies within half that of the face it stands on.
+/// draftwright's `_same_support_planes` compares at 1e-6; the difference is a maintainer
+/// question in `docs/next-session.md`.
 const SAME_PLANE: f64 = 0.005 + 1e-6;
 
 /// One measurement, one owner (ISSUE-1154-a, draftwright's `_consolidated_owner`): a boss

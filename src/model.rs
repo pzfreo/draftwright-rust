@@ -29,6 +29,8 @@ use crate::text::{Font, Segment};
 /// Version 2 added the isometric box (`iso_bounds`) and the recognised features, version 3 the
 /// horizontal face levels (`levels`).
 pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/3";
+/// The analyses [`plan`] reads: this version, and version 2 (it reads with no `levels`).
+pub const ANALYSIS_SCHEMAS: [&str; 2] = ["draftwright.analysis/2", ANALYSIS_SCHEMA];
 pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
 pub const PLAN_SCHEMA: &str = "draftwright.plan/1";
 
@@ -433,6 +435,26 @@ pub(crate) fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
 /// The scale and sheet are draftwright's first choice, before it re-plans on its finished
 /// drawing's findings.
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    // A document of a version this build does not know is refused, never read as the nearest
+    // one it does (ADR3-4).
+    if !ANALYSIS_SCHEMAS.contains(&analysis.schema.as_str()) {
+        return Err(invalid(
+            format!(
+                "The analysis is {:?}, which this draftwright does not read; analyse the STEP file again.",
+                analysis.schema
+            ),
+            &ANALYSIS_SCHEMAS,
+        ));
+    }
+    if spec.schema != SPEC_SCHEMA {
+        return Err(invalid(
+            format!(
+                "The spec is {:?}, which this draftwright does not read.",
+                spec.schema
+            ),
+            &[SPEC_SCHEMA],
+        ));
+    }
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let mut effective = spec.clone();
@@ -1132,7 +1154,9 @@ fn embeddable(spec: &Spec) -> String {
 pub fn embedded_spec(file: &[u8]) -> Result<Option<Spec>, String> {
     let text = String::from_utf8_lossy(file);
     let start = text.trim_start_matches('\u{feff}').trim_start();
-    let json = if file.starts_with(b"%PDF-") {
+    let json = if crate::png::is_png(file) {
+        crate::png::spec(file)?
+    } else if file.starts_with(b"%PDF-") {
         pdf_spec(&text)?
     } else if start.starts_with('<') {
         svg_spec(&text)?
@@ -1144,7 +1168,7 @@ pub fn embedded_spec(file: &[u8]) -> Result<Option<Spec>, String> {
         // A DXF opens with a group code.
         dxf_spec(&text)
     } else {
-        return Err("it is not an SVG, DXF or PDF drawing".into());
+        return Err("it is not an SVG, DXF, PDF or PNG drawing".into());
     };
     json.map(|j| {
         serde_json::from_str(&j)

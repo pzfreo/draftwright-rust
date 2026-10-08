@@ -10,7 +10,9 @@
 //!   pitches that locate a pattern's members;
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
 //!   **blind slots** (rectangular and round-bottom section recesses) by one callout each;
-//! - **bosses**: diameter (or size across flats for a polygonal boss), height and location.
+//! - **bosses**: diameter (or size across flats for a polygonal boss), height and location;
+//! - **fillet and chamfer callouts** (`4× R3`, `C1`, `4.5 × 42.1°`) where the edge is seen end-on,
+//!   or in the profile of a turned part.
 //!
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>@<view>`, its value,
 //! its printed terms and label, the measurements it states, a default flag and a basis.
@@ -24,10 +26,12 @@
 //! no shown view can carry is kept in the plan, unplaced, and reported (R1 invariant 3).
 //!
 //! The module is a driver over one planner per family ([`PLANNERS`]): [`envelope`], [`turned`],
-//! [`holes`], [`slots`] and [`bosses`] each say what their family wants dimensioned, and
-//! [`placement`] places it. A new family is a new planner module and an entry in the list.
+//! [`holes`], [`slots`], [`bosses`] and [`edges`] (fillet and chamfer callouts) each say what
+//! their family wants dimensioned, and [`placement`] places it. A new family is a new planner
+//! module and an entry in the list.
 
 mod bosses;
+mod edges;
 mod envelope;
 mod holes;
 mod placement;
@@ -257,12 +261,13 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 5] = [
+const PLANNERS: [Planner; 6] = [
     turned::PLANNER,
     envelope::PLANNER,
     holes::PLANNER,
     slots::PLANNER,
     bosses::PLANNER,
+    edges::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way.
@@ -653,12 +658,14 @@ pub fn render(
     annotations
 }
 
-/// Where a feature or pattern sits in the part's frame: a hole's point on its axis, a pattern's
-/// centre (its members' mean), for comparing with draftwright's feature keys.
+/// Where a feature or pattern sits in the part's frame: a hole's point on its axis, a fillet's or
+/// chamfer's `at`, a pattern's centre (its members' mean), for comparing with draftwright's
+/// feature keys.
 pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
     let frame = QFrame(analysis.recognition.as_ref()?.frame);
     if let Some(f) = analysis.features.iter().find(|f| f.id == id) {
-        return point(f.parameters.get("location")).map(|l| frame.point(l));
+        let at = f.parameters.get("location").or(f.parameters.get("at"));
+        return point(at).map(|l| frame.point(l));
     }
     let p = analysis
         .recognition

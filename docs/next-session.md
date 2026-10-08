@@ -40,11 +40,14 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
   against 285 recorded Python calls. Differences from Python's final sheets are listed with
   verdicts in `tests/fixtures/known_views.json` (71 entries).
 - **Bridge:** quiddity's features come in through `src/bridge.rs`, with stable IDs and
-  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 05c5d99
-  (`Cargo.lock`); the bridge reads nist_ftc_07 and nist_ftc_10. nist_ctc_04 is still refused
-  (one face's area differs from OpenCascade's by 0.15 %). Since 05c5d99 haecceity refuses to
-  draw a part whose drawn faces or edges did not resolve on reading; `analyse` and `render`
-  pass that refusal on (`render` as a `failed` error).
+  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust a46b91c
+  (`Cargo.lock`; AGPL-3.0-only since 8023ea7); the bridge reads nist_ftc_07 and nist_ftc_10.
+  nist_ctc_04 is still refused (one face's area differs from OpenCascade's by 0.15 %). Since
+  05c5d99 haecceity refuses to draw a part whose drawn faces or edges did not resolve on
+  reading, and since 8023ea7 one with a stretch whose visibility no ray can decide (no corpus
+  part has one); `analyse` and `render` pass that refusal on (`render` as a `failed` error).
+  Since 8023ea7 it makes no stretch of no span, so cgb242 no longer reports `edges_not_drawn`
+  and no corpus part has a drawing problem (`output::projected` stays as a guard).
 - **Merged streams** (2026-10-07):
   - **View gaps** (d707219): a turned part drops the view that repeats its profile (ISSUE-1262-a,
     pending: the veto is narrower than Python's); annotation bands reserved from the features
@@ -134,16 +137,30 @@ improvement plan and questions are the current work. Still open from before it:
   identity-collision nulls.
 - The MCP server hasn't been tried in a real client.
 - PDF fonts are embedded whole, not subset.
-- PNG output isn't written yet.
+- PNG output (stream d-png, `src/png.rs`, `tests/png.rs`): `render` writes `png` when it is named
+  in `formats`, at `dpi` (150 by default, `--dpi` on the command line; `dpi <= 0` refused with
+  draftwright's message). It rasterises the layers the PDF draws (tiny-skia, BSD-3-Clause,
+  without SIMD; PNG through the `png` crate, MIT/Apache-2.0) and carries the spec in an iTXt
+  chunk `DraftwrightSpec`, which `spec` reads back. Differences from draftwright, with verdicts:
+  - the pixels are tiny-skia's, not PDFium's (equivalent: the same page at the same size,
+    `ceil(page × dpi)`; no pixel parity is claimed);
+  - the PNG carries the spec, attribution text and a `pHYs` resolution, where Pillow's has none
+    (rust-correct: model.md asks every format to carry the spec, and the size in mm is kept);
+  - 8-bit RGB, as PDFium renders to Pillow (equivalent);
+  - a raster over 2^28 pixels is refused (`invalid`, "choose a lower dpi") where draftwright
+    would try to allocate it (rust-correct: one bad request must not exhaust a long-lived
+    service's memory);
+  - `formats` absent still means svg, dxf and pdf, and the CLI's default too, where draftwright's
+    CLI defaults to pdf alone (not-applicable: the port's default predates PNG; adding PNG to it
+    would be a new default for every caller).
+  Left: ADR5-1's `rust_note` in `docs/rules/adr.yaml` (owned by another stream during wave 3)
+  should add that PNG bytes are also pinned run to run and across time zones (`tests/png.rs`).
+  Cross-platform bytes are not checked: points go to the rasteriser on a 1/256-pixel grid, which
+  absorbs last-bit differences in the platform's sine and cosine except at a grid boundary, and
+  tiny-skia's clipping of a cubic that crosses the page edge calls `acos`/`cos`.
 - quiddity-rust: the volume module's general `Probe::Prism` has no direct unit test for the
   convex case gussets use. Python's `local_degradation` path is not ported in any family.
 - From wave 1 (review H1–H5, M2 merged):
-  - Small bolt circles: lint now corroborates one of fewer than five holes by a hole or boss on
-    its centre (d-lint-next); dims and demand call `bridge::holes::established`, which counts
-    holes only, so a boss-corroborated circle is a group in lint but loose holes in dims, and
-    the dims basis for a corroborated circle of fewer than five still says "five or more holes is
-    self-evident". Switch dims and demand to `established_with(.., &holes::bosses(analysis))`
-    and fix the basis text (ISSUE-1596-a stays pending).
   - Answered by haecceity (quiddity-rust d6a4703): HLR no longer emits cgb242's zero-span NURBS
     stretch (breakpoints within 1e-9 of the part's size are passed over), so cgb242 draws with
     no `edges_not_drawn`; the port's check stays as a guard, unit-tested in `output`.
@@ -174,9 +191,6 @@ improvement plan and questions are the current work. Still open from before it:
     - A hole with both recesses prints the counterbore first (draftwright's segment order),
       although quiddity's spotface is usually the outer, wider step nearer the opening. Keep
       the segment order, or state them from the opening inward? Tied to the ⌴/SF question.
-  - Unrelated finding: `bridge::kind` turns `sheet_metal_bodies` and `thin_wall_bodies` into
-    the kinds `sheet_metal_bodie` and `thin_wall_bodie` (it strips one `s`). dims matches those
-    records by fingerprint subtype, so it is unaffected.
 - From wave 3 (stream d-dims-slots): `dims::slots` (through slots: width, length, end radius,
   location along the length; equal widths counted) and `dims::bosses` (diameter, height,
   location; groove floors left to the groove). Left: round-bottom and rectangular blind slots
@@ -228,3 +242,37 @@ improvement plan and questions are the current work. Still open from before it:
     - An authored set that lists both a boss height and the overall extent between the same
       faces keeps both in the port (an explicit listing is kept); draftwright consolidates
       them. Which?
+    - ISSUE-1154-a's consolidation compares the boss's base and top with the extent's faces
+      within 0.005 mm (half quiddity's 0.01 mm rounding of a boss height, from which
+      draftwright builds the span), where draftwright's `_same_support_planes` uses 1e-6 and
+      says nothing looser is admissible. No corpus sheet differs. Keep the port's tolerance, or
+      take the height unrounded from the faces and compare at 1e-6?
+- From wave 3 (stream d-dims-edges): `dims::edges` (fillet `R`, chamfer `C` or `a × θ` callouts,
+  equal ones counted, where the edge is seen end-on or in a turned profile). Oriented chamfers
+  (always oblique in quiddity) stay in `UNDRAFTED`, undimensioned and unreported, as draftwright
+  #1365. Left: ISSUE-1276-a only partly ported (on a part with several or partial shafts the
+  leader stays at the treatment's physical point, not turned about its own shaft); ISSUE-1374-a/b
+  not ported (no loss of credit for a leader moved off the bevel or into the wrong view); blends
+  still get `dimensions_not_ported`; older `known_lint.json` reason texts still say the port draws
+  only envelope, turned and hole dimensions.
+  - Questions for the maintainer:
+    - One n× callout counts equal members along other axes or seen in other views, as
+      draftwright does, and its leader points only at the largest set in one view. Keep that, or
+      split callouts per view?
+    - Oriented chamfers stay undimensioned and unreported, as in draftwright #1365. Do they need
+      a callout, and in which view?
+- From wave 3 (stream d-trust-rules): the trust rules of `adr.yaml` (61) now read 16 ported, 4
+  translated, 41 pending, every pending one with a `rust_note` saying what is missing; the new
+  guards are in `tests/trust_rules.rs`. `plan` now refuses an Analysis or Spec of a schema it
+  does not read (a `draftwright.spec/2` was read as spec/1 and rewritten as one), and
+  `api::write` removes its staged copy when a write fails. Left:
+  - Edit locality (ARCH0003-2) does not hold: lanes are packed in order, so omitting one item
+    moves others (on plate.step, omitting the column pitch moves the x location and the
+    callout). Owed in placement.
+  - Questions for the maintainer:
+    - ADR5-16: the Plan records the analysis's binding and the spec, but not the recognition
+      it was planned from, so two plans of one file and spec made with different `--features`
+      JSON agree on everything they record and still differ. Should the Plan name its
+      recognition (for example the recogniser and a hash of the recognition JSON), and where?
+    - ADR5-13: should the `bounded-clear` / `needs-attention` summary live in the Plan (and so
+      in `plan` and `review` replies) or wait for a report document?
