@@ -581,6 +581,8 @@
     issues: [1560]
     tests: [tests/test_issue_1560_envelope_axes.py]
   status: pending
+  rust_test: ledgers_on_pythons_sheets_match_pythons_or_are_known
+  rust_note: "Partial (src/lint/envelope.rs): a ledger, lint::envelope::outcomes, placed or missing per non-zero axis of the Analysis's box; as in Python it gives no lint finding, so lint::check does not run it, and no completeness report reads it yet. Carriers: an envelope extent claim, a centred turned-step, boss or overall (envelope od.diameter) diameter, or a contiguous chain of turned-step lengths on one axis line, each only when its text prints the value. Not ported: any other measurement whose span runs end to end, profile_group chains, and the suppressed, dropped and satisfied states (omissions and drops live outside the drawing). Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers)."
   port_note: "Keep."
 
 - id: LINT-code-missing_principal_dimension
@@ -785,6 +787,8 @@
     issues: [1374]
     tests: [tests/test_issue_1374_turned_step_completeness_evidence.py]
   status: pending
+  rust_test: ledgers_on_pythons_sheets_match_pythons_or_are_known
+  rust_note: "Partial (src/lint/turned.rs): a ledger, lint::turned::outcomes, step.length and step.diameter per turned band not owned by a groove (groove_owns_turned_step_band; ambiguous ownership makes every band unverifiable), placed when a claiming annotation prints the value, the diameter also by the overall OD for a profile's unique largest band. As in Python it gives no lint finding, so lint::check does not run it. Not ported: the suppressed, dropped and satisfied states, and Python's IR-join unverifiable. Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers)."
   port_note: "Keep."
 
 - id: LINT-groove_coverage-width_and_floor
@@ -796,7 +800,9 @@
     module: "linting/groove_coverage.py"
     issues: [1372]
     tests: [tests/test_groove_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: a_groove_states_its_width_and_floor_diameter
+  rust_note: "src/lint/grooves.rs: groove.length (the width) and groove.diameter per groove feature, judged by the claiming annotation's printed text (lint::parameters). On the captured sheets connector109's three grooves (\"10 WIDE × ø122\", \"6 WIDE × ø122\") are stated, as Python finds (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known)."
   port_note: "Keep."
 
 - id: LINT-code-groove_requirement_state
@@ -808,6 +814,8 @@
     issues: [1372, 1397]
     tests: [tests/test_groove_completeness_evidence.py, tests/test_issue_1397_unverifiable_requirement_message.py]
   status: pending
+  rust_test: a_groove_states_its_width_and_floor_diameter
+  rust_note: "Codes groove_requirement_missing and groove_requirement_unverifiable (claimed but not printed, or a size the record lacks). groove_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-flat_coverage-across_flats
@@ -819,7 +827,9 @@
     module: "linting/flat_coverage.py"
     issues: [1018, 1371]
     tests: [tests/test_flat_completeness.py]
-  status: pending
+  status: ported
+  rust_test: the_two_faces_of_a_double_d_share_one_across_flats_requirement
+  rust_note: "src/lint/flats.rs: flats with the same axis, direction (sign made positive), axis line, stock span and A/F (to 1e-3) share one flat.length requirement, met by a claim of any of them whose text prints the size. On the captured sheets string_post's double-D (one requirement, two faces) and connector109's flat are stated, as Python finds."
   port_note: "Keep."
 
 - id: LINT-code-flat_requirement_state
@@ -831,6 +841,8 @@
     issues: [1018]
     tests: [tests/test_flat_completeness.py, tests/test_flat_stock_identity.py]
   status: pending
+  rust_test: the_two_faces_of_a_double_d_share_one_across_flats_requirement
+  rust_note: "Codes flat_requirement_missing and flat_requirement_unverifiable (claimed but not printed, or a record without its stock). flat_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-profiled_bore_coverage-double_d
@@ -1131,7 +1143,9 @@
     module: "linting/circular_blind_step_coverage.py"
     issues: [1382]
     tests: [tests/test_circular_blind_step_semantics.py]
-  status: pending
+  status: ported
+  rust_test: a_circular_blind_step_states_its_radius_and_depth
+  rust_note: "src/lint/circular_blind_steps.rs: circular_step_radius.radius and circular_step_depth.length per circular_blind_step feature, judged by the claiming annotation's printed text. Python's centreline/section validation serves only its record-to-IR join, which the port does not need. No captured sheet has one, so the evidence is the unit test, not a comparison with Python's sheets."
   port_note: "Keep."
 
 - id: LINT-code-circular_blind_step_requirement_state
@@ -1143,6 +1157,8 @@
     issues: [1382]
     tests: [tests/test_circular_blind_step_semantics.py]
   status: pending
+  rust_test: a_circular_blind_step_states_its_radius_and_depth
+  rust_note: "Codes circular_blind_step_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-paired_ramp_step_coverage-angle_run
@@ -1154,7 +1170,9 @@
     module: "linting/paired_ramp_step_coverage.py"
     issues: [1382]
     tests: [tests/test_paired_ramp_semantics.py]
-  status: pending
+  status: ported
+  rust_test: a_paired_ramp_step_states_its_angle_and_run
+  rust_note: "src/lint/paired_ramp_steps.rs: ramp_angle.angle and ramp_run.length per paired_ramp_step feature, judged by the claiming annotation's printed text. No captured sheet has one, so the evidence is the unit test, not a comparison with Python's sheets."
   port_note: "Keep."
 
 - id: LINT-code-paired_ramp_step_requirement_state
@@ -1166,6 +1184,8 @@
     issues: [1382]
     tests: [tests/test_paired_ramp_semantics.py]
   status: pending
+  rust_test: a_paired_ramp_step_states_its_angle_and_run
+  rust_note: "Codes paired_ramp_step_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-through_step_coverage-two_legs
@@ -1227,7 +1247,9 @@
     module: "linting/angled_step_coverage.py"
     issues: [1247]
     tests: [tests/test_issue_1247_angled_step_disposition.py]
-  status: pending
+  status: ported
+  rust_test: an_angled_step_is_reported_unsupported
+  rust_note: "src/lint/angled_steps.rs: one warning per angled_step feature (k of N), whatever the marks say, naming no requirement. On the captured sheets neither side reports one (no part has an angled step)."
   port_note: "Keep until Rust supports angled steps."
 
 - id: LINT-code-passage_requirement_unsupported

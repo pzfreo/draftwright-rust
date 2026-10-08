@@ -1,0 +1,813 @@
+{
+ "cgb245": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 380.0,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 168.356239,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 37.225947,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "cadgenbench_inputs/cgb245.step",
+  "turned_steps": []
+ },
+ "connector109": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 130.94,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 130.94,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 420.0,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "cadgenbench/threaded_connector_109.step",
+  "turned_steps": [
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     0.0,
+     57.42
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     0.0,
+     57.42
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     67.42,
+     87.42
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     67.42,
+     87.42
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     93.42,
+     113.42
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     93.42,
+     113.42
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     113.42,
+     343.13
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     113.42,
+     343.13
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     366.82,
+     420.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     366.82,
+     420.0
+    ],
+    "state": "placed"
+   }
+  ]
+ },
+ "ctc01": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 800.0,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 450.0,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 150.0,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "nist/nist_ctc_01_asme1_rd.stp",
+  "turned_steps": []
+ },
+ "ctc04": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 500.0,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 780.0,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 130.603933,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "nist/nist_ctc_04_asme1_rd.stp",
+  "turned_steps": []
+ },
+ "ftc06": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 304.8,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 97.79,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 247.65,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "nist/nist_ftc_06_asme1_rd.stp",
+  "turned_steps": []
+ },
+ "grm03": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 23.5,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 10.0,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 10.0,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "gramel/GRM-03_thumbwheel_drive_screw.step",
+  "turned_steps": [
+   {
+    "axis": "x",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     0.0,
+     0.5
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "x",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     0.0,
+     0.5
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "x",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     0.5,
+     2.5
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "x",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     0.5,
+     2.5
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "x",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     2.5,
+     5.5
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "x",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     2.5,
+     5.5
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "x",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     5.5,
+     23.5
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "x",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     5.5,
+     23.5
+    ],
+    "state": "placed"
+   }
+  ]
+ },
+ "grm05": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 10.0,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 10.0,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 32.0,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "gramel/GRM-05_depth_lock_bolt.step",
+  "turned_steps": [
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     0.0,
+     14.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     0.0,
+     14.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     14.0,
+     19.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     14.0,
+     19.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     19.0,
+     32.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     19.0,
+     32.0
+    ],
+    "state": "placed"
+   }
+  ]
+ },
+ "hanger": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 234.806824,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 112.52,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 88.0,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "ttt_inputs/sm-hanger.step",
+  "turned_steps": []
+ },
+ "m1000": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 48.413353,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 12.593335,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 29.138443,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "mfcadpp/1000.step",
+  "turned_steps": []
+ },
+ "m10046": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 27.340476,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 32.389361,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 40.994364,
+    "parameter": "height.length",
+    "state": "dropped"
+   }
+  ],
+  "file": "mfcadpp/10046.step",
+  "turned_steps": []
+ },
+ "m10127": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 28.794382,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 32.267721,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 44.72925,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "mfcadpp/10127.step",
+  "turned_steps": []
+ },
+ "spool132": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 130.0,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 130.0,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 140.0,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "cadgenbench/flanged_spool_132.step",
+  "turned_steps": [
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     0.0,
+     5.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     0.0,
+     5.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     5.0,
+     108.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     5.0,
+     108.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     108.0,
+     113.0
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     108.0,
+     113.0
+    ],
+    "state": "placed"
+   }
+  ]
+ },
+ "string_post": {
+  "envelope": [
+   {
+    "axis": "x",
+    "extent": 7.5,
+    "parameter": "width.length",
+    "state": "placed"
+   },
+   {
+    "axis": "y",
+    "extent": 7.5,
+    "parameter": "depth.length",
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "extent": 14.8,
+    "parameter": "height.length",
+    "state": "placed"
+   }
+  ],
+  "file": "gramel/string_post.step",
+  "turned_steps": [
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     0.0,
+     7.2
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     0.0,
+     7.2
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     7.2,
+     8.3
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     7.2,
+     8.3
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     8.3,
+     13.8
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     8.3,
+     13.8
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.length",
+    "span": [
+     13.8,
+     14.8
+    ],
+    "state": "placed"
+   },
+   {
+    "axis": "z",
+    "line": [
+     0.0,
+     0.0
+    ],
+    "parameter": "step.diameter",
+    "span": [
+     13.8,
+     14.8
+    ],
+    "state": "placed"
+   }
+  ]
+ }
+}

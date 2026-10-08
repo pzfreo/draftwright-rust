@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 use draftwright::lint::holes::{HoleGroup, groups};
-use draftwright::lint::{self, Mark};
+use draftwright::lint::{self, Mark, envelope, turned};
 use draftwright::model::{self, Analysis};
 use draftwright::output::Claim;
 use serde::Deserialize;
@@ -195,11 +195,18 @@ fn sized(parameter: &str) -> bool {
 
 /// The feature families lint judges by a feature's own sizes, by Python's kind, with the
 /// parameters it checks.
-const FAMILIES: [(&str, &[&str]); 6] = [
+const FAMILIES: [(&str, &[&str]); 10] = [
     ("boss", &["boss_height.length"]),
+    ("flat", &["flat.length"]),
+    ("groove", &["groove.length", "groove.diameter"]),
     ("chamfer", &["chamfer.length"]),
     ("fillet", &["fillet.radius"]),
     ("blend", &["blend.radius"]),
+    ("paired_ramp_step", &["ramp_angle.angle", "ramp_run.length"]),
+    (
+        "circular_blind_step",
+        &["circular_step_radius.radius", "circular_step_depth.length"],
+    ),
     (
         "through_step",
         &[
@@ -226,8 +233,8 @@ fn checked(kind: &str, parameter: &str) -> bool {
         .any(|(k, ps)| *k == kind && ps.contains(&parameter))
 }
 
-/// A feature record's point in quiddity's frame that Python names it by: a fillet's, chamfer's or
-/// through step's `at`, a blend path's `at` or `center`, a boss's `location`, a slot's centre
+/// A feature record's point in quiddity's frame that Python names it by: a fillet's, chamfer's,
+/// through step's, groove's or flat's `at`, a blend path's `at` or `center`, a boss's `location`, a slot's centre
 /// (quiddity's `Slot.location`: mid-span along its long axis, its centreline across, mid-depth).
 fn local_point(f: &draftwright::bridge::Feature) -> Option<[f64; 3]> {
     let p = &f.parameters;
@@ -326,8 +333,49 @@ fn join_feature(analysis: &Analysis, feature: &facts::Feature) -> Option<String>
     (fits.len() == 1).then(|| fits[0].id.clone())
 }
 
-/// Python's sheet as marks, and how many of its claims that lint checks (hole sizes and the
-/// [`FAMILIES`]' sizes) could not be joined.
+/// The Analysis turned step a Python `step` names, when exactly one fits: its band along Python's
+/// axis letter, of Python's diameter and length (within 1.5e-3), with its axial midpoint at
+/// Python's origin (within 2e-3).
+fn join_step(analysis: &Analysis, feature: &facts::Feature) -> Option<String> {
+    use draftwright::bridge::holes::frame;
+    let frame = frame(analysis);
+    let axis = ["x", "y", "z"]
+        .iter()
+        .position(|a| Some(*a) == feature.axis.as_deref())?;
+    let origin = feature.origin?;
+    let size = |k: &str| -> Option<f64> {
+        feature
+            .key
+            .as_deref()?
+            .split(&format!("{k}="))
+            .nth(1)?
+            .split([',', ']'])
+            .next()?
+            .parse()
+            .ok()
+    };
+    let (diameter, length) = (size("diameter")?, size("length")?);
+    let fits: Vec<&draftwright::bridge::Feature> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .filter(|f| {
+            turned::band(&frame, f).is_ok_and(|b| {
+                let mut mid = b.on;
+                mid[b.axis] = (b.lo + b.hi) / 2.0;
+                b.axis == axis
+                    && (b.diameter - diameter).abs() <= 1.5e-3
+                    && (b.hi - b.lo - length).abs() <= 1.5e-3
+                    && (0..3).all(|k| (mid[k] - origin[k]).abs() <= 2e-3)
+            })
+        })
+        .collect();
+    (fits.len() == 1).then(|| fits[0].id.clone())
+}
+
+/// Python's sheet as marks, and how many of its claims that lint reads (hole sizes, the
+/// [`FAMILIES`]' sizes, and the ledgers' extents, step lengths and diameters) could not be
+/// joined.
 fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Mark>, usize) {
     let mut unjoined = 0;
     let marks = f
@@ -337,6 +385,28 @@ fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Ma
             let mut claims = Vec::new();
             for m in &a.measurements {
                 let Some(feature) = &m.feature else { continue };
+                // The ledgers' evidence: the overall extents (Python's `rotational` OD is the
+                // port's `envelope` one), the turned steps' lengths and diameters, and the
+                // bosses' diameters.
+                let ledger = match (feature.kind.as_str(), m.parameter.as_str()) {
+                    ("envelope", p) if envelope::PARAMETERS.contains(&p) => {
+                        Some(Some("envelope".to_string()))
+                    }
+                    ("rotational", "od.diameter") => Some(Some("envelope".to_string())),
+                    ("step", "step.length" | "step.diameter") => Some(join_step(analysis, feature)),
+                    ("boss", "boss.diameter") => Some(join_feature(analysis, feature)),
+                    _ => None,
+                };
+                if let Some(joined) = ledger {
+                    match joined {
+                        Some(id) => claims.push(Claim {
+                            feature: id,
+                            parameter: m.parameter.clone(),
+                        }),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
                 if checked(&feature.kind, &m.parameter) {
                     match join_feature(analysis, feature) {
                         Some(id) => claims.push(Claim {
@@ -642,13 +712,41 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
 
         // The feature families: each side's findings by (feature, requirement).
         {
-            use draftwright::lint::{blends, bosses, chamfers, fillets, slots, steps};
+            use draftwright::lint::{
+                blends, bosses, chamfers, circular_blind_steps, fillets, flats, grooves,
+                paired_ramp_steps, slots, steps,
+            };
             judged += bosses::wanted(&analysis).len()
+                + flats::wanted(&analysis).len()
+                + grooves::wanted(&analysis).len()
                 + chamfers::wanted(&analysis).len()
                 + fillets::wanted(&analysis).len()
                 + blends::wanted(&analysis).len()
+                + paired_ramp_steps::wanted(&analysis).len()
+                + circular_blind_steps::wanted(&analysis).len()
                 + steps::wanted(&analysis).len()
                 + slots::wanted(&analysis).len();
+        }
+        // Angled steps are reported whatever the sheet says, and name no requirement: the two
+        // lints agree when they report as many.
+        let code = "angled_step_requirement_unsupported";
+        let (theirs, mine) = (
+            f.lint.iter().filter(|l| l.code == code).count(),
+            ours.iter().filter(|i| i.code == code).count(),
+        );
+        if theirs == mine {
+            agree += theirs;
+        } else {
+            differ.insert(
+                (
+                    name.clone(),
+                    "angled_steps".into(),
+                    "*".into(),
+                    Some(format!("{theirs}× {code}")),
+                    Some(format!("{mine}× {code}")),
+                ),
+                "angled steps".into(),
+            );
         }
         let rust: BTreeMap<(String, String), String> = ours
             .iter()
@@ -762,6 +860,214 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
     assert!(
         unlisted.is_empty() && stale.is_empty(),
         "differences not in known_lint.json: {unlisted:#?}\nlisted but no longer differing: {stale:#?}"
+    );
+}
+
+/// A difference between the two sides' completeness ledgers, listed in `known_lint.json`
+/// (`ledgers`).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct KnownLedger {
+    part: String,
+    /// `envelope` or `turned_steps`.
+    ledger: String,
+    /// The envelope's axis, or the turned step's Analysis ID (its span when only Python has it).
+    subject: String,
+    parameter: String,
+    python: Option<String>,
+    rust: Option<String>,
+    /// `rust-correct`, `rust-wrong`, `equivalent`, `undetermined` or `not-applicable`.
+    verdict: String,
+    reason: String,
+}
+
+fn state(s: turned::State) -> String {
+    match s {
+        turned::State::Placed => "placed",
+        turned::State::Missing => "missing",
+        turned::State::Unverifiable => "unverifiable",
+    }
+    .into()
+}
+
+/// The envelope's and the turned steps' completeness ledgers ([`envelope::outcomes`],
+/// [`turned::outcomes`]) on Python's captured sheets, against Python's own ledgers for the same
+/// drawings (`tests/fixtures/lint_ledgers.json`, written by `tools/capture_lint_ledgers.py`:
+/// Python's lint reports no finding for either, so the sheet facts do not carry them). A turned
+/// step is matched to Python's by its band's axis and span in the part's frame (to 1e-3). Every difference is
+/// listed, with a verdict, in `known_lint.json` (`ledgers`), and a listed one that has gone away
+/// must be taken off.
+#[test]
+fn ledgers_on_pythons_sheets_match_pythons_or_are_known() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let known: Vec<KnownLedger> = serde_json::from_value(
+        serde_json::from_str::<Value>(
+            &std::fs::read_to_string(fixture("known_lint.json")).unwrap(),
+        )
+        .unwrap()["ledgers"]
+            .clone(),
+    )
+    .unwrap();
+    let python: BTreeMap<String, Value> =
+        serde_json::from_str(&std::fs::read_to_string(fixture("lint_ledgers.json")).unwrap())
+            .unwrap();
+    type Key = (
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+    );
+    let mut listed = BTreeSet::new();
+    for k in &known {
+        assert!(
+            [
+                "rust-correct",
+                "rust-wrong",
+                "equivalent",
+                "undetermined",
+                "not-applicable"
+            ]
+            .contains(&k.verdict.as_str())
+                && !k.reason.is_empty(),
+            "{k:?}"
+        );
+        assert!(
+            listed.insert((
+                k.part.clone(),
+                k.ledger.clone(),
+                k.subject.clone(),
+                k.parameter.clone(),
+                k.python.clone(),
+                k.rust.clone(),
+            )),
+            "{k:?} is listed twice"
+        );
+    }
+    let mut differ: BTreeSet<Key> = BTreeSet::new();
+    let mut agree = 0;
+    let names = facts::names();
+    assert_eq!(
+        python.keys().collect::<BTreeSet<_>>(),
+        names.iter().collect::<BTreeSet<_>>(),
+        "lint_ledgers.json has a ledger for each captured sheet"
+    );
+    for name in names {
+        let f = facts::load(&name);
+        let theirs = &python[&name];
+        assert_eq!(theirs["file"], f.binding.file.as_str(), "{name}");
+        let analysis = match analysis(&corpus, &name, &f.binding.file) {
+            Ok(a) => a,
+            Err(_) => {
+                differ.insert((
+                    name.clone(),
+                    "*".into(),
+                    "analysis".into(),
+                    "*".into(),
+                    None,
+                    None,
+                ));
+                continue;
+            }
+        };
+        let groups = groups(&analysis);
+        let (marks, _) = marks(&analysis, &groups, &f);
+        let mut compare = |ledger: &str, subject: String, parameter: &str, p: Option<String>, r| {
+            if p == r {
+                agree += 1;
+            } else {
+                differ.insert((name.clone(), ledger.into(), subject, parameter.into(), p, r));
+            }
+        };
+
+        let ours = envelope::outcomes(&analysis, &marks);
+        let mut axes: BTreeMap<String, (Option<String>, Option<String>)> = BTreeMap::new();
+        for o in theirs["envelope"].as_array().unwrap() {
+            axes.entry(o["axis"].as_str().unwrap().into())
+                .or_default()
+                .0 = Some(o["state"].as_str().unwrap().into());
+        }
+        for o in &ours {
+            axes.entry(o.axis.into()).or_default().1 = Some(state(o.state));
+        }
+        for (axis, (p, r)) in axes {
+            let k = ["x", "y", "z"].iter().position(|a| *a == axis).unwrap();
+            compare("envelope", axis, envelope::PARAMETERS[k], p, r);
+        }
+
+        // Python's turned step outcomes: (axis, span, parameter, state), in the part's frame. Each
+        // of the port's takes the one of its axis and parameter whose span is its own (within
+        // 1e-3); those left are Python's alone.
+        let frame = draftwright::bridge::holes::frame(&analysis);
+        let mut steps: Vec<(String, f64, f64, String, String)> = theirs["turned_steps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| {
+                let s = &o["span"];
+                (
+                    o["axis"].as_str().unwrap_or("?").to_string(),
+                    s[0].as_f64().unwrap_or(f64::NAN),
+                    s[1].as_f64().unwrap_or(f64::NAN),
+                    o["parameter"].as_str().unwrap().to_string(),
+                    o["state"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        for o in turned::outcomes(&analysis, &marks) {
+            let f = analysis
+                .features
+                .iter()
+                .find(|f| f.id == o.feature)
+                .unwrap();
+            let b = turned::band(&frame, f).unwrap();
+            let axis = ["x", "y", "z"][b.axis];
+            let theirs = steps
+                .iter()
+                .position(|(a, lo, hi, p, _)| {
+                    a == axis
+                        && *p == o.parameter
+                        && (lo - b.lo).abs() <= 1e-3
+                        && (hi - b.hi).abs() <= 1e-3
+                })
+                .map(|i| steps.remove(i).4);
+            compare(
+                "turned_steps",
+                o.feature.clone(),
+                &o.parameter,
+                theirs,
+                Some(state(o.state)),
+            );
+        }
+        for (axis, lo, hi, parameter, p) in steps {
+            let at = format!("{axis} {lo:.3}..{hi:.3}");
+            compare("turned_steps", at, &parameter, Some(p), None);
+        }
+    }
+    let unlisted: Vec<_> = differ.difference(&listed).collect();
+    let stale: Vec<_> = listed.difference(&differ).collect();
+    eprintln!(
+        "ledgers: {agree} outcomes agree, {} differ ({} known)",
+        differ.len(),
+        known.len()
+    );
+    assert!(
+        unlisted.is_empty() && stale.is_empty(),
+        "ledger differences not in known_lint.json:\n{}\nlisted but no longer differing:\n{}",
+        unlisted
+            .iter()
+            .map(|k| format!("{k:?}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        stale
+            .iter()
+            .map(|k| format!("{k:?}"))
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }
 
