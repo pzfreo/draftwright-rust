@@ -9,19 +9,21 @@
 //!   a level whose every support is a side-facing pad's edge, the floor of an edge-open pocket
 //!   cut along z, and the corner of a through step dimensioned as one ([`ownership`]). A part
 //!   with turned steps has no ladder.
-//! - **Heights** are `step_height.length.<i>` (the `i`th level up), base to level, each a linear
+//! - **Heights** are `step_height.length.h<height>` (16 → `h16`, 12.5 → `h12_5`), base to level, each a linear
 //!   dimension whose witnesses stand on the level's support (its faces' largest x and smallest y;
 //!   the part's box when it has none), the shortest innermost. Three or more equal rises (within
 //!   10 %) are one `N× rise`, `step_height.length` (`_step_repeat`), counting the rise to the top
 //!   when it matches too.
 //! - **Shoulders** are quiddity's risers projected onto the levels (`project_step_shoulders`: a
 //!   wall's foot on a level, a ramp's ends on levels or the part's top or bottom), less those at
-//!   a through step's leg; each is `step_position.length.<axis><i>` from the part's box, in the
-//!   plan (x) or the side (y). One standing exactly on the box is not a distance
-//!   (`_is_zero_step_position`): it is reported, not drawn. Equal shoulders are stated once
+//!   a through step's leg; each is `step_position.length.<axis><position>` (`x42_5`) from the
+//!   part's box, in the plan (x) or the side (y). One standing exactly on the box is not a
+//!   distance (`_is_zero_step_position`): it is reported, not drawn. Equal shoulders are stated once
 //!   (draftwright draws each riser's).
-//! - Each rung and shoulder is its own item and measurement, discriminated by its rank, where
-//!   draftwright addresses each set as one (`step_height.length`, `step_position.length`).
+//! - Each rung and shoulder is its own item and measurement, discriminated by its own value
+//!   (to the thousandth), never by its rank among its siblings, so a level a revision adds
+//!   renames no other rung (ADR4-6). draftwright addresses each set as one (`step_height.length`,
+//!   `step_position.length`; ARCH0015-2, not ported).
 //!
 //! Not ported: draftwright's legibility gate (`_classify_steps`, which withholds a rung shorter
 //! than its arrows and drops one too close to the last at the sheet's scale): it is a placement
@@ -73,7 +75,8 @@ pub(crate) fn evidence(part: &haecceity::Part) -> (Vec<LevelSupport>, Vec<Riser>
             let b = scope(&faces);
             let margin = END_MARGIN.min((b.max[2] - b.min[2]).max(0.0) * 0.25);
             let inside = b.min[2] + margin < level.z && level.z < b.max[2] - margin;
-            let (x, y) = (level.x_span?, level.y_span?);
+            // quiddity reads both spans of every level it finds with its faces.
+            let (x, y) = (level.x_span.expect("x span"), level.y_span.expect("y span"));
             inside.then_some(LevelSupport {
                 z: level.z,
                 x_span: [x.0, x.1],
@@ -349,6 +352,19 @@ fn thousandths(z: f64) -> i64 {
     (z * 1e3).round() as i64
 }
 
+/// A value to the thousandth as an ID word: 16 → `16`, 12.5 → `12_5`, -3.25 → `m3_25`.
+fn word(v: f64) -> String {
+    let t = thousandths(v);
+    let (sign, t) = if t < 0 { ("m", -t) } else { ("", t) };
+    let frac = format!("{:03}", t % 1000);
+    let frac = frac.trim_end_matches('0');
+    if frac.is_empty() {
+        format!("{sign}{}", t / 1000)
+    } else {
+        format!("{sign}{}_{frac}", t / 1000)
+    }
+}
+
 fn near(z: f64, zs: &[f64]) -> bool {
     zs.iter().any(|o| (z - o).abs() < NEAR)
 }
@@ -600,7 +616,8 @@ pub(super) fn ownership<'a>(cx: &Context<'a>) -> Ownership<'a> {
         a.levels.clone()
     };
     zs.sort_by(f64::total_cmp);
-    zs.dedup();
+    // One level per thousandth of height, which its rung's ID names.
+    zs.dedup_by(|a, b| thousandths(*a - lo[2]) == thousandths(*b - lo[2]));
     let ownership_zs: Vec<f64> = zs
         .iter()
         .copied()
@@ -680,7 +697,9 @@ pub(super) fn ownership<'a>(cx: &Context<'a>) -> Ownership<'a> {
         .into_iter()
         .filter(|(k, at)| *k < 2 && !sites.iter().any(|(sk, s)| sk == k && (at - s).abs() < NEAR))
         .collect();
-    shoulders.dedup_by(|a, b| a.0 == b.0 && (a.1 - b.1).abs() <= 1e-6);
+    // One shoulder per thousandth of position, which its ID names (draftwright draws each riser's).
+    shoulders
+        .dedup_by(|a, b| a.0 == b.0 && thousandths(a.1 - lo[a.0]) == thousandths(b.1 - lo[b.0]));
     Ownership {
         levels,
         shoulders,
@@ -716,16 +735,32 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let [lo, hi] = a.envelope;
     let base = lo[2];
     // The witnesses stand on the level's support: its faces' largest x and smallest y (the last
-    // support at that height, as draftwright keys them), else the part's box.
+    // support at that height to the thousandth, as draftwright keys them), else the part's box.
+    // The levels and their supports are read by different paths, so a level with no support is
+    // reported (an Analysis of version 3 has none, and says so below).
     let station = |z: f64| {
         a.level_supports
             .iter()
             .rev()
-            .find(|s| (s.z - z).abs() <= 1e-9)
-            .map_or([hi[0], lo[1]], |s| [s.x_span[1], s.y_span[0]])
+            .find(|s| thousandths(s.z) == thousandths(z))
+            .map(|s| [s.x_span[1], s.y_span[0]])
     };
+    if !a.level_supports.is_empty() {
+        for &z in o.levels.iter().filter(|&&z| station(z).is_none()) {
+            problems.push(Problem {
+                id: format!("p:step_level_support_missing:{}", fmt(z - base)),
+                code: "step_level_support_missing".into(),
+                severity: "info".into(),
+                message: format!(
+                    "No support is recorded for the face level {} above the base, so its height's witnesses stand on the part's box.",
+                    fmt(z - base)
+                ),
+                subjects: vec![FEATURE.into()],
+            });
+        }
+    }
     let rung = |z: f64| {
-        let [x, y] = station(z);
+        let [x, y] = station(z).unwrap_or([hi[0], lo[1]]);
         Shape::Linear {
             a: [x, y, base],
             b: [x, y, z],
@@ -735,8 +770,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             order: 1,
         }
     };
-    // Each rung is its own measurement, discriminated by its rank (draftwright's `dim_step_<i>`),
-    // as its ID is.
+    // Each rung is its own measurement, discriminated by its height, as its ID is.
     let height =
         |parameter: String, value: f64, terms: Vec<String>, shape: Shape, basis: String| Want {
             id: super::want_id(FEATURE, &parameter, "front"),
@@ -765,9 +799,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             ),
         ));
     } else {
-        for (i, &z) in o.levels.iter().enumerate() {
+        for &z in &o.levels {
             out.push(height(
-                format!("step_height.length.{i}"),
+                format!("step_height.length.h{}", word(z - base)),
                 z - base,
                 vec![fmt(z - base)],
                 rung(z),
@@ -775,10 +809,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             ));
         }
     }
-    let mut counts = [0usize; 2];
     for &(k, at) in &o.shoulders {
         let value = (at - lo[k]).abs();
         let view = if k == 0 { "plan" } else { "side" };
+        // Exact, as draftwright's `_is_zero_step_position` is: any nonzero shoulder is a distance.
         if value == 0.0 {
             problems.push(Problem {
                 id: format!("p:step_position_coincident_with_datum:{}{}", AXES[k], fmt(at)),
@@ -793,11 +827,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             });
             continue;
         }
-        let i = counts[k];
-        counts[k] += 1;
         let mut b = lo;
         b[k] = at;
-        let parameter = format!("step_position.length.{}{i}", AXES[k]);
+        let parameter = format!("step_position.length.{}{}", AXES[k], word(value));
         out.push(Want {
             id: super::want_id(FEATURE, &parameter, view),
             views: vec![view],
