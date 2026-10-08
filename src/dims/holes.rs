@@ -39,21 +39,33 @@ impl<'a> std::ops::Deref for Hole<'a> {
 }
 
 impl Hole<'_> {
-    /// The recess the grammar prints (the counterbore, else the spotface): role, diameter, depth.
-    fn recess(&self) -> Option<(&'static str, holes::Recess)> {
-        self.counterbore
-            .map(|r| ("counterbore", r))
-            .or(self.spotface.map(|r| ("spotface", r)))
+    /// The recesses the grammar prints, each its role and sizes: the counterbore, then the
+    /// spotface, in draftwright's segment order (`callout.py`'s `_CALLOUT_SEGMENTS`).
+    ///
+    /// draftwright prints one recess slot, the counterbore shadowing the spotface (`_recess`,
+    /// `_shadowed`), so a hole quiddity finds both on (`holes.py`'s `_near_side_steps`: a shallow
+    /// step is a spotface, a deep one a counterbore) loses its spotface on the sheet while its
+    /// own lint still requires it (`_physical_requirement_count`). The port prints both, each a
+    /// `⌴` segment as the spotface is printed alone (whether a spotface reads `⌴` or `SF` is a
+    /// maintainer question): rust-correct, since the spotface is a machining requirement the
+    /// callout would otherwise leave unstated.
+    fn recesses(&self) -> impl Iterator<Item = (&'static str, holes::Recess)> {
+        [
+            ("counterbore", self.counterbore),
+            ("spotface", self.spotface),
+        ]
+        .into_iter()
+        .filter_map(|(role, r)| r.map(|r| (role, r)))
     }
 
-    /// The terms after the count: `⌀d`, `THRU` or `↧ depth`, the recess, the countersink.
+    /// The terms after the count: `⌀d`, `THRU` or `↧ depth`, the recesses, the countersink.
     fn terms(&self) -> Vec<String> {
         let mut t = vec![format!("⌀{}", fmt(self.diameter))];
         match self.depth {
             Some(depth) if !self.through => t.extend(["↧".into(), fmt(depth)]),
             _ => t.push("THRU".into()),
         }
-        if let Some((_, r)) = self.recess() {
+        for (_, r) in self.recesses() {
             t.extend(["⌴".into(), format!("⌀{}", fmt(r.diameter))]);
             if let Some(depth) = r.depth {
                 t.extend(["↧".into(), fmt(depth)]);
@@ -79,7 +91,7 @@ impl Hole<'_> {
         if let Some(depth) = self.depth.filter(|_| !self.through) {
             out.push(m("bore.depth", depth));
         }
-        if let Some((role, r)) = self.recess() {
+        for (role, r) in self.recesses() {
             out.push(m(&format!("{role}.diameter"), r.diameter));
             if let Some(depth) = r.depth {
                 out.push(m(&format!("{role}.depth"), depth));

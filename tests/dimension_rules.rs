@@ -498,6 +498,47 @@ fn a_countersunk_hole_states_its_countersink() {
     }
 }
 
+/// A hole with both a counterbore and a spotface (quiddity finds both when a shallow facing cut
+/// and a deeper step lie between the opening and the bore) states both, the counterbore first as
+/// in draftwright's segment order, and claims all four sizes; lint then finds nothing missing.
+/// draftwright itself prints only the counterbore (its one recess slot), which its own lint
+/// would report: the port departs from it here (accuracy over parity). No captured part has
+/// such a hole, so the plate's holes are given both.
+#[test]
+fn a_hole_with_a_counterbore_and_a_spotface_states_both() {
+    let mut json = recognition("plate");
+    for f in json["quiddity"]["features"].as_array_mut().unwrap() {
+        f["record"]["spotface"] = json!({ "diameter": 20.0, "depth": 1.0 });
+        f["record"]["cbore"] = json!({ "diameter": 11.0, "depth": 6.4 });
+    }
+    let (part, analysis) = analysed_with("plate", &json);
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter@plan");
+    assert_eq!(c.label, "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 ⌴ ⌀20 ↧ 1 (2×2)");
+    for (parameter, value) in [
+        ("counterbore.diameter", 11.0),
+        ("counterbore.depth", 6.4),
+        ("spotface.diameter", 20.0),
+        ("spotface.depth", 1.0),
+    ] {
+        let m: Vec<f64> = c
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == parameter)
+            .map(|m| m.value)
+            .collect();
+        assert_eq!(m, [value; 4], "{parameter}");
+    }
+    let font =
+        Font::new(std::fs::read(fixture("../../fonts/IBMPlexMono-Regular.ttf")).unwrap()).unwrap();
+    let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+    let found: Vec<String> = draftwright::lint::lint(&analysis, &drawing)
+        .iter()
+        .map(|i| format!("{} {:?}", i.code, i.requirements))
+        .collect();
+    assert!(found.is_empty(), "{found:#?}");
+}
+
 /// ADR4-7: a through hole's depth is not part of its callout, so a through hole whose record
 /// gives none is still called out; a blind hole without a depth cannot be, and says why.
 #[test]
