@@ -37,16 +37,16 @@
  {
   "part": "ctc01",
   "code": "annotation_off_sheet",
-  "count": 10,
+  "count": 9,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band (20 mm) holds the y location and row pitches, and the callouts above the plan run past the sheet's top margin (two bore and fillet callouts, two row pitches, the y location, a slot width and an end radius). Since d-slots-rest the polygonal boss adds its across-flats callout and y location there, and the first pattern's bore callout is pushed one lane further out by them (7 before that merge). Reserving the port's lanes in every band (the question in docs/next-session.md) is what would clear them."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band (20 mm) holds the y location and row pitches, and the callouts above the plan run past the sheet's top margin (two bore and fillet callouts, two row pitches, the y location, a slot width and an end radius). Since d-slots-rest the polygonal boss adds its across-flats callout and y location there, and the first pattern's bore callout is pushed one lane further out by them (7 before that merge). Since d-coincident-locations the boss's y location is conveyed by the hole grid's (ARCH0009-6) and no longer drawn (10 before), its lane kept, so nothing else moved. Reserving the port's lanes in every band (the question in docs/next-session.md) is what would clear them."
  },
  {
   "part": "ctc01",
   "code": "annotation_outside_area",
-  "count": 22,
+  "count": 20,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 18 plan and 4 front items (the polygonal boss's height in the front and its across flats and x and y locations in the plan since d-slots-rest; 18 before that merge)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 16 plan and 4 front items (the polygonal boss's height in the front and its across flats in the plan since d-slots-rest; 18 before that merge). Its x and y locations, counted here from d-slots-rest (22), are conveyed by the hole grid's since d-coincident-locations (ARCH0009-6) and no longer drawn; nothing else moved."
  },
  {
   "part": "ftc06",

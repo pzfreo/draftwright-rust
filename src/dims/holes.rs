@@ -2,6 +2,10 @@
 //! holes grouped and counted, quiddity's hole patterns called out as patterns with the pitches
 //! that space them, and every hole or pattern located from the part's box in the view that looks
 //! along it.
+//!
+//! Coincident locations from every family that locates from the part's box (holes, hole and slot
+//! patterns, bosses, slots) are merged here into one dimension per span ([`consolidate`],
+//! ARCH0009-6).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -9,10 +13,11 @@ use serde_json::Value;
 
 use super::turned::Turned;
 use super::{
-    AXES, Context, Measurement, NAMES, P3, Planner, Problem, Shape, Want, end_on, fmt, key, point,
-    want_id,
+    AXES, Context, Measurement, NAMES, Omitted, P3, Planner, Problem, Shape, Want, end_on, fmt,
+    key, point, want_id,
 };
 use crate::bridge::{HolePattern, holes};
+use crate::model::Analysis;
 
 pub(super) const PLANNER: Planner = Planner {
     kinds: &["hole"],
@@ -607,5 +612,270 @@ fn pitch_want(
             b_edge: false,
             order: 0,
         },
+    }
+}
+
+/// A kept item, as `dims::plan` holds it: the want, whether it is a default, the view that
+/// carries it, and the views that look along it.
+type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
+
+/// How far apart two raw endpoints may be and still be one span, mm: geometric identity, not
+/// the label's rounding (quiddity's 0.01 mm record rounding is already undone where it is read).
+const SAME_SPAN: f64 = 1e-6;
+
+/// What each [`rank`] locates, for the bases.
+const NAMED: [&str; 3] = ["slot position", "boss location", "hole or pattern location"];
+
+/// A location's rank among coincident ones (ARCH0009-6), higher surviving, or `None` for an item
+/// that is no location from the part's box. draftwright's corridor dedup ranks a hole or pattern
+/// location (`_locations.py`'s `_location_candidate`, `precedence=2`, which also carries a slot
+/// pattern's `location_slot_pattern`, as `render_locations` takes every z location but
+/// `location_slot`) above a slot position line (`_slots.py`, `precedence=1 if is_pos`). It
+/// locates no boss; the port's boss location ranks between them: a hole down the same point
+/// states it as well, and it is a located feature rather than a slot's position line.
+fn rank(analysis: &Analysis, w: &Want) -> Option<u8> {
+    let lead = w.measurements.first()?;
+    let p = lead.parameter.as_str();
+    if p.starts_with("location.length.") {
+        let boss = analysis
+            .features
+            .iter()
+            .any(|f| f.id == lead.feature && matches!(f.kind.as_str(), "boss" | "polygonal_boss"));
+        Some(if boss { 1 } else { 2 })
+    } else if p.starts_with("location_slot_pattern.length.") {
+        Some(2)
+    } else if matches!(p, "location_slot.length" | "location_slot_across.length") {
+        Some(0)
+    } else {
+        None
+    }
+}
+
+/// One span, one dimension (ARCH0009-6, draftwright's `_ordered_corridor_candidates`): kept
+/// locations that measure the same span (the same view and axis, the same raw origin and
+/// endpoint, and the same label, its tolerance included, so different stated precision never
+/// collapses) are drawn once. The survivor is the highest [`rank`]ed, then one the spec lists
+/// over a default (draftwright's pinned location, `precedence=3`), then the smaller ID; each
+/// displaced one moves to *omitted*, `conveyed by` the survivor, and is not reported as a drop.
+/// The survivor's measurements stay its own: draftwright's survivor also claims the displaced
+/// ones' (`_group_measurements`), but a location dimension here states one feature's axis
+/// (ISSUE-883-a), and the omitted entry records what it conveys. Coincidence is decided among the
+/// kept items, so omitting the survivor promotes its top loser. *given* (what the spec gave each
+/// kept item) stays aligned with *kept*.
+pub(super) fn consolidate(
+    analysis: &Analysis,
+    kept: &mut Vec<Kept>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<Omitted>,
+) {
+    merge(kept, given, omitted, |w| rank(analysis, w));
+}
+
+fn merge(
+    kept: &mut Vec<Kept>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<Omitted>,
+    rank: impl Fn(&Want) -> Option<u8>,
+) {
+    // The span each location measures: its view, axis, raw ends on that axis, and label.
+    type Span = (&'static str, usize, f64, f64, String);
+    let span = |(w, _, view, _): &Kept| match w.shape {
+        Shape::Linear { a, b, axis, .. } => Some((
+            view.unwrap_or(w.views[0]),
+            axis,
+            a[axis],
+            b[axis],
+            w.terms.join(" "),
+        )),
+        Shape::Callout { .. } => None,
+    };
+    let same = |s: &Span, t: &Span| {
+        s.0 == t.0
+            && s.1 == t.1
+            && (s.2 - t.2).abs() <= SAME_SPAN
+            && (s.3 - t.3).abs() <= SAME_SPAN
+            && s.4 == t.4
+    };
+    let mut groups: Vec<(Span, Vec<usize>)> = Vec::new();
+    for (i, k) in kept.iter().enumerate() {
+        let (Some(_), Some(s)) = (rank(&k.0), span(k)) else {
+            continue;
+        };
+        match groups.iter_mut().find(|(t, _)| same(&s, t)) {
+            Some((_, members)) => members.push(i),
+            None => groups.push((s, vec![i])),
+        }
+    }
+    let mut gone = BTreeSet::new();
+    for (s, mut members) in groups.into_iter().filter(|(_, m)| m.len() > 1) {
+        members.sort_by(|&x, &y| {
+            let order = |i: usize| (rank(&kept[i].0), !kept[i].1);
+            order(y)
+                .cmp(&order(x))
+                .then_with(|| kept[x].0.id.cmp(&kept[y].0.id))
+        });
+        let (winner, losers) = members.split_first().expect("a group of two or more");
+        let owner = kept[*winner].0.id.clone();
+        let top = rank(&kept[*winner].0);
+        let mut conveyed = Vec::new();
+        for &i in losers {
+            let w = &kept[i].0;
+            let why = if top > rank(w) {
+                format!(
+                    "a {} outranks a {}",
+                    NAMED[top.map_or(0, usize::from)],
+                    NAMED[rank(w).map_or(0, usize::from)]
+                )
+            } else if kept[*winner].1 != kept[i].1 {
+                "the spec lists it".into()
+            } else {
+                "of equal rank, its ID is the first".into()
+            };
+            omitted.push(Omitted {
+                id: w.id.clone(),
+                basis: format!(
+                    "conveyed by {owner}: it locates the same span in {} ({}) from the part's box, in the same view, and {why} (one span, one dimension: ARCH0009-6)",
+                    AXES[s.1], s.4
+                ),
+            });
+            conveyed.push(w.id.clone());
+            gone.insert(i);
+        }
+        kept[*winner].0.basis += &format!(
+            "; one span, one dimension: it also conveys the coincident {} (ARCH0009-6)",
+            conveyed.join(", ")
+        );
+    }
+    let mut i = 0;
+    kept.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
+    let mut i = 0;
+    given.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A default location of *feature* in the plan, from x = 0 to *at*, labelled *label*.
+    fn location(feature: &str, parameter: &str, at: f64, label: &str) -> Kept {
+        let want = Want {
+            id: want_id(feature, parameter, "plan"),
+            views: vec!["plan"],
+            value: at,
+            terms: vec![label.into()],
+            measurements: vec![Measurement {
+                feature: feature.into(),
+                parameter: parameter.into(),
+                value: at,
+            }],
+            basis: String::new(),
+            shape: Shape::Linear {
+                a: [0.0, 5.0, 0.0],
+                b: [at, 5.0, 0.0],
+                axis: 0,
+                a_edge: true,
+                b_edge: false,
+                order: 1,
+            },
+            turning: None,
+        };
+        (want, true, Some("plan"), vec![])
+    }
+
+    /// The kept IDs and the omitted ones with their owners, after merging under a rank by
+    /// parameter as `rank` gives it (bosses told by their ID).
+    fn merged(mut kept: Vec<Kept>) -> (Vec<String>, Vec<(String, String)>) {
+        let mut given = vec![Vec::new(); kept.len()];
+        let mut omitted = Vec::new();
+        merge(&mut kept, &mut given, &mut omitted, |w| {
+            let m = &w.measurements[0];
+            match m.parameter.as_str() {
+                p if p.starts_with("location.length.") && m.feature.contains("boss") => Some(1),
+                p if p.starts_with("location.length.") => Some(2),
+                "location_slot_across.length" => Some(0),
+                _ => None,
+            }
+        });
+        assert_eq!(given.len(), kept.len());
+        let owner = |b: &str| b["conveyed by ".len()..b.find(": ").unwrap()].to_string();
+        (
+            kept.into_iter().map(|k| k.0.id).collect(),
+            omitted
+                .into_iter()
+                .map(|o| (o.id, owner(&o.basis)))
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn a_hole_location_outranks_a_coincident_boss_and_slot_location() {
+        let (kept, gone) = merged(vec![
+            location("f:slot:1", "location_slot_across.length", 40.0, "40"),
+            location("f:boss:1", "location.length.x", 40.0, "40"),
+            location("f:hole:1", "location.length.x", 40.0, "40"),
+        ]);
+        let hole = "d:f:hole:1/location.length.x@plan";
+        assert_eq!(kept, [hole]);
+        assert_eq!(
+            gone,
+            [
+                ("d:f:boss:1/location.length.x@plan".into(), hole.into()),
+                (
+                    "d:f:slot:1/location_slot_across.length@plan".into(),
+                    hole.into()
+                ),
+            ]
+        );
+        // Omitting the hole's (it is then not kept) promotes the boss's, which conveys the slot's.
+        let (kept, gone) = merged(vec![
+            location("f:slot:1", "location_slot_across.length", 40.0, "40"),
+            location("f:boss:1", "location.length.x", 40.0, "40"),
+        ]);
+        assert_eq!(kept, ["d:f:boss:1/location.length.x@plan"]);
+        assert_eq!(gone.len(), 1);
+    }
+
+    #[test]
+    fn coincidence_is_decided_on_raw_ends_and_the_label() {
+        // 40.02 and 40 both print 40 when rounded, but are different spans: both are kept.
+        let (kept, gone) = merged(vec![
+            location("f:hole:1", "location.length.x", 40.02, "40"),
+            location("f:boss:1", "location.length.x", 40.0, "40"),
+        ]);
+        assert_eq!(kept.len(), 2, "{gone:?}");
+        // The same span with a different stated precision (a tolerance) is not collapsed either.
+        let (kept, _) = merged(vec![
+            location("f:hole:1", "location.length.x", 40.0, "40 ±0.1"),
+            location("f:boss:1", "location.length.x", 40.0, "40"),
+        ]);
+        assert_eq!(kept.len(), 2);
+        // Round-off below a micrometre is the same span.
+        let (kept, _) = merged(vec![
+            location("f:hole:1", "location.length.x", 40.0 + 1e-9, "40"),
+            location("f:boss:1", "location.length.x", 40.0, "40"),
+        ]);
+        assert_eq!(kept, ["d:f:hole:1/location.length.x@plan"]);
+    }
+
+    #[test]
+    fn the_spec_lists_then_the_smaller_id_survives_among_equals() {
+        let (kept, _) = merged(vec![
+            location("f:hole:2", "location.length.x", 40.0, "40"),
+            location("f:hole:1", "location.length.x", 40.0, "40"),
+        ]);
+        assert_eq!(kept, ["d:f:hole:1/location.length.x@plan"]);
+        let mut listed = location("f:hole:2", "location.length.x", 40.0, "40");
+        listed.1 = false;
+        let (kept, _) = merged(vec![
+            listed,
+            location("f:hole:1", "location.length.x", 40.0, "40"),
+        ]);
+        assert_eq!(kept, ["d:f:hole:2/location.length.x@plan"]);
     }
 }

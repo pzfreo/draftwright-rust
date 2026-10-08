@@ -15,7 +15,8 @@
 //!   from the part's box to its centre line (`location_slot_across.length`). draftwright states
 //!   no position across; the maintainer's decision of 2026-10-08 is that a slot is located across
 //!   its width too. Slots at the same distance across in one view share one dimension, as hole
-//!   locations do.
+//!   locations do, and a slot location that a hole's, pattern's or boss's states is conveyed by it
+//!   (`dims::holes::consolidate`, ARCH0009-6).
 //!
 //! A **slot pattern** (quiddity's `SlotArray` or `SlotGrid`, a `slot_pattern` feature naming its
 //! member slots) is called out once, as draftwright's `render_slot_patterns` does, in the view that
@@ -41,8 +42,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::Value;
 
 use super::{
-    AXES, Context, Measurement, Omitted, P3, Planner, Problem, QFrame, Shape, Want, end_on, fmt,
-    key, point, want_id,
+    AXES, Context, Measurement, P3, Planner, Problem, QFrame, Shape, Want, end_on, fmt, key, point,
+    want_id,
 };
 use crate::bridge::Feature;
 use crate::bridge::holes::principal;
@@ -990,57 +991,4 @@ impl Blind<'_> {
             },
         }
     }
-}
-
-/// One span, one dimension (ARCH0009-6: a hole location outranks a coincident slot position): a
-/// default slot location across that measures the same distance, on the same axis in the same
-/// view, as a kept hole, boss or slot-pattern location moves to *omitted*, naming the dimension
-/// that states it. One the spec lists is kept.
-pub(super) fn consolidate(
-    kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
-    omitted: &mut Vec<Omitted>,
-) {
-    let span = |w: &Want| match w.shape {
-        Shape::Linear { axis, .. } => Some((w.views.clone(), axis, w.value)),
-        Shape::Callout { .. } => None,
-    };
-    let parameter = |w: &Want| w.measurements.first().map(|m| m.parameter.clone());
-    type Span = (Vec<&'static str>, usize, f64);
-    let owners: Vec<(String, Span)> = kept
-        .iter()
-        .filter(|(w, ..)| {
-            parameter(w).is_some_and(|p| {
-                p.starts_with("location.length.") || p.starts_with("location_slot_pattern.")
-            })
-        })
-        .filter_map(|(w, ..)| Some((w.id.clone(), span(w)?)))
-        .collect();
-    let mut gone = BTreeSet::new();
-    for (i, (w, default, ..)) in kept.iter().enumerate() {
-        if !*default || parameter(w).as_deref() != Some("location_slot_across.length") {
-            continue;
-        }
-        let Some((views, k, d)) = span(w) else {
-            continue;
-        };
-        let Some((owner, _)) = owners
-            .iter()
-            .find(|(_, (v, k2, d2))| *v == views && *k2 == k && (d - d2).abs() < 1e-6)
-        else {
-            continue;
-        };
-        gone.insert(i);
-        omitted.push(Omitted {
-            id: w.id.clone(),
-            basis: format!(
-                "conveyed by {owner}: it locates the same distance in {} from the part's box, in the same view (one span, one dimension: ARCH0009-6)",
-                AXES[k]
-            ),
-        });
-    }
-    let mut i = 0;
-    kept.retain(|_| {
-        i += 1;
-        !gone.contains(&(i - 1))
-    });
 }

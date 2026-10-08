@@ -344,14 +344,12 @@ fn ctc01_hex_boss_states_its_size_across_flats_and_its_height() {
     let a = analysed(&corpus, "ctc01");
     let plan = model::plan(&a, &Spec::default()).unwrap();
     // As on draftwright's sheet: HEX 100 A/F in the plan, its height 50 in the front. The port
-    // also locates it (400, 225), repeating the hole grid it stands in the middle of
-    // (known_dimensions.json, ARCH0009-6).
+    // also locates a boss, but this one stands at the centre of the 2×2 hole grid, whose own
+    // location (400, 225) conveys it (ARCH0009-6).
     assert_eq!(
         stating(&plan, &a, "polygonal_boss"),
         strs(&[
             ("boss_height.length", "front", "50"),
-            ("location.length.x", "plan", "400"),
-            ("location.length.y", "plan", "225"),
             ("polygon_across_flats.length", "plan", "HEX 100 A/F"),
         ])
     );
@@ -853,4 +851,57 @@ fn a_slot_pattern_is_located_across_its_slots_by_its_centre() {
     assert_eq!(x.label, "60");
     // Its slots run along y and are 6 wide in x: x is across them.
     assert!(plan.dimensions.iter().any(|d| d.label == "3× SLOT 6 × 20"));
+}
+
+/// ARCH0009-6 on ctc01: the hex boss stands at the centre of the 2×2 hole grid, so its location
+/// and the grid's measure the same spans in the plan view. Each is drawn once, by the grid (a hole
+/// location outranks a boss's); the boss's own location is omitted as conveyed by it, and is not reported as a drop. Omitting the grid's promotes the
+/// boss's.
+#[test]
+fn ctc01_hex_boss_location_is_conveyed_by_its_hole_grid() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = analysed(&corpus, "ctc01");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let in_plan = |plan: &Plan, label: &str| {
+        plan.dimensions
+            .iter()
+            .filter(|d| d.view == "v:plan" && d.kind == "linear" && d.label == label)
+            .map(|d| d.id.clone())
+            .collect::<Vec<_>>()
+    };
+    for (axis, label) in [("x", "400"), ("y", "225")] {
+        let stated = in_plan(&plan, label);
+        let grid = format!("d:f:hole_pattern:1/location.length.{axis}@plan");
+        let boss = format!("d:f:polygonal_boss:1/location.length.{axis}@plan");
+        assert_eq!(
+            stated,
+            std::slice::from_ref(&grid),
+            "{label} is stated once, by the grid"
+        );
+        let gone = plan.omitted.iter().find(|o| o.id == boss).unwrap();
+        assert!(
+            gone.basis.starts_with(&format!("conveyed by {grid}: "))
+                && gone.basis.contains("ARCH0009-6"),
+            "{gone:?}"
+        );
+        assert!(
+            plan.problems.iter().all(|p| !p.subjects.contains(&boss)),
+            "a conveyed location is no drop"
+        );
+
+        // Omitting the grid's location promotes the boss's in its place.
+        let mut spec = Spec::default();
+        spec.dimensions.insert(
+            grid.clone(),
+            serde_json::from_str(r#"{"omit": true}"#).unwrap(),
+        );
+        let again = model::plan(&a, &spec).unwrap();
+        assert_eq!(in_plan(&again, label), std::slice::from_ref(&boss));
+        assert!(again.omitted.iter().all(|o| o.id != boss));
+        let promoted = again.dimensions.iter().find(|d| d.id == boss).unwrap();
+        assert!(promoted.placed.is_some(), "{promoted:?}");
+    }
 }

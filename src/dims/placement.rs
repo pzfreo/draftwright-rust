@@ -451,7 +451,7 @@ pub(super) fn settle(
         let linear = rims[i].is_none();
         let candidates = match rims[i] {
             None => slides(p),
-            Some(rim) => vec![turned(p, rim)],
+            Some(rim) => Box::new(std::iter::once(turned(p, rim))),
         };
         let others = || {
             items
@@ -487,58 +487,58 @@ pub(super) fn settle(
                 && keep_off.iter().all(|o| !boxes_overlap(c.label_box, *o))
                 && !c.lines.iter().any(|l| crosses(*l, sheet.title_block))
         };
-        if let Some(c) = candidates.into_iter().find(|c| fits(c) && clear(c)) {
+        let found = candidates.into_iter().find(|c| fits(c) && clear(c));
+        if let Some(c) = found {
             items[i] = Some(c);
         }
     }
 }
 
-/// A linear dimension's other label places along its line, nearest first (see [`settle`]).
-fn slides(p: &Placed) -> Vec<Placed> {
+/// A linear dimension's other label places along its line, nearest first (see [`settle`]),
+/// made as they are tried: a line far longer than the sheet (a part drawn at a scale too large
+/// for it) has more places than memory holds.
+fn slides(p: &Placed) -> Box<dyn Iterator<Item = Placed> + '_> {
     // Along the line: x for a horizontal dimension, y for a vertical one.
     let k = usize::from(p.rotation != 0.0);
     let Some(&line) = p.lines.get(2) else {
-        return Vec::new();
+        return Box::new(std::iter::empty());
     };
     let (l0, l1) = (line[0][k].min(line[1][k]), line[0][k].max(line[1][k]));
     let b = p.label_box;
     let width = b[k + 2] - b[k];
     // Each a shift of the label and the line's new extent.
-    let mut shifts: Vec<(f64, [f64; 2])> = Vec::new();
     let (lo, hi) = (l0 + ARROW + SLIDE_CLEAR, l1 - ARROW - SLIDE_CLEAR);
-    if b[k] >= lo && b[k + 2] <= hi {
+    let shifts: Box<dyn Iterator<Item = (f64, [f64; 2])>> = if b[k] >= lo && b[k + 2] <= hi {
         let steps = ((hi - lo - width) / SLIDE_STEP).ceil() as i64;
-        for d in (1..=steps)
-            .flat_map(|n| [n, -n])
-            .map(|n| n as f64 * SLIDE_STEP)
-        {
-            if b[k] + d >= lo && b[k + 2] + d <= hi {
-                shifts.push((d, [l0, l1]));
-            }
-        }
+        Box::new(
+            (1..=steps)
+                .flat_map(|n| [n, -n])
+                .map(|n| n as f64 * SLIDE_STEP)
+                .filter(move |d| b[k] + d >= lo && b[k + 2] + d <= hi)
+                .map(move |d| (d, [l0, l1])),
+        )
     } else if b[k] > l1 {
         // Beyond the far end, 1 mm past the line; the near end mirrors it.
         let back = (l0 - 1.0 - width) - b[k];
-        for n in 0..=(SLIDE_REACH / SLIDE_STEP) as i64 {
+        Box::new((0..=(SLIDE_REACH / SLIDE_STEP) as i64).flat_map(move |n| {
             let d = n as f64 * SLIDE_STEP;
-            if n > 0 {
-                shifts.push((d, [l0, b[k] + d - 1.0]));
-            }
-            shifts.push((back - d, [b[k + 2] + back - d + 1.0, l1]));
-        }
-    }
-    shifts
-        .into_iter()
-        .map(|(d, extent)| {
-            let mut c = p.clone();
-            c.label_box[k] += d;
-            c.label_box[k + 2] += d;
-            c.label_at[k] += d;
-            c.lines[2][0][k] = extent[0];
-            c.lines[2][1][k] = extent[1];
-            c
-        })
-        .collect()
+            (n > 0)
+                .then_some((d, [l0, b[k] + d - 1.0]))
+                .into_iter()
+                .chain([(back - d, [b[k + 2] + back - d + 1.0, l1])])
+        }))
+    } else {
+        Box::new(std::iter::empty())
+    };
+    Box::new(shifts.map(move |(d, extent)| {
+        let mut c = p.clone();
+        c.label_box[k] += d;
+        c.label_box[k + 2] += d;
+        c.label_at[k] += d;
+        c.lines[2][0][k] = extent[0];
+        c.lines[2][1][k] = extent[1];
+        c
+    }))
 }
 
 /// A callout with its leader turned the other way: mirrored about the vertical through its site's

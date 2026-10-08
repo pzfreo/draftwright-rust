@@ -623,3 +623,18 @@ improvement plan and questions are the current work. Still open from before it:
     `<author> / draftwright`, with a link over the cell). The port leaves them blank and draws a
     supplied `drawn_by` as given. Fill them as draftwright does? (`A` is an invented revision;
     `UNSPECIFIED` and the attribution are not.)
+- From wave 5 (stream d-coincident-locations): ARCH0009-6 is ported. `dims::holes::consolidate`
+  (replacing `slots::consolidate`) runs once over every kept location from the part's box, after
+  the spec's tolerances: equal view, axis, raw ends (within 1e-6 mm) and label make one span,
+  drawn once. Rank: hole, hole-pattern and slot-pattern locations (draftwright's
+  `_location_candidate`, `precedence=2`), then bosses (port-only), then slot positions
+  (`precedence=1`); then listed over default (pinned), then the smaller ID. Losers are omitted,
+  `conveyed by <id>: ...`; omitting the survivor promotes the top loser. A spec-listed loser now
+  yields too (it was kept before), as draftwright's pinned slot position does. ctc01's hex boss
+  location is conveyed by its hole grid's (two rust-wrong `known_dimensions.json` entries gone,
+  `known_placement.json` counts 10 → 9 and 22 → 20); boss_circle's boss location by its bolt
+  circle's. The edit-locality tests (`tests/placement.rs`, `tests/issue_drafting.rs`) now expect
+  the conveyed item back when its survivor is omitted. Separately, `placement::slides` now makes
+  its candidates lazily: `tests/views.rs::a_fallback_scale_or_sheet_says_so_in_its_basis` (a
+  200 km part at 1:1) built one per 0.5 mm of a 200 km line and was killed at 16 GB on main
+  448031a; the same candidates are tried in the same order.

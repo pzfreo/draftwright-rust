@@ -165,9 +165,9 @@
     "family": "location.y",
     "view": "plan",
     "label": "225",
-    "count": 2,
-    "verdict": "rust-wrong",
-    "reason": "Two items. The hole grid f:hole_pattern:1's y location: rust-correct by the maintainer's decision of 2026-10-08 (a hole's or pattern's in-plane position is dimensioned in the view that sees it end-on, ADR1-6; draftwright sends this coordinate to the side view, where the hole is hidden lines). And the hex boss's y location, rust-wrong: The hex boss (f:polygonal_boss:1) stands at the centre of the 2×2 hole grid f:hole_pattern:1, so the port's boss location repeats that pattern's location in the plan view (400 from the left face, 225 from the front): one point located twice. The port locates a boss as it does a hole (src/dims/bosses.rs; draftwright locates no boss, see ftc06's entries), but coincident hole and boss locations are not merged yet (ARCH0009-6: the hole location outranks and the boss's is conveyed by it), which is pending with the hole planner's owner. The entry goes when they are merged. The verdict is the second item's; the first is rust-correct, as its python-side entry."
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The hole grid f:hole_pattern:1's y location: rust-correct by the maintainer's decision of 2026-10-08 (a hole's or pattern's in-plane position is dimensioned in the view that sees it end-on, ADR1-6; draftwright sends this coordinate to the side view, where the hole is hidden lines). The hex boss f:polygonal_boss:1 stands at the grid's centre: its own location is conveyed by the grid's (ARCH0009-6, src/dims/holes.rs::consolidate: omitted, 'conveyed by' the grid's location), so it adds no item."
   },
   {
     "part": "ftc06",
@@ -448,16 +448,6 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The port locates a boss as it does a hole: both coordinates of its axis from the part's box, in the view that looks down it (src/dims/bosses.rs). draftwright locates no boss: its boss ledger requires only the diameter and the height (LINT-boss_coverage-diameter_height), and its ftc06 sheet states neither coordinate of the two ø22.9 y-axis bosses (no hole runs down them, so no hole location stands in): nothing on it fixes where they stand. A feature whose position is not stated cannot be made; ISO 129-1 asks that each feature be fully defined. One dimension serves both, at the same height."
-  },
-  {
-    "part": "ctc01",
-    "side": "rust",
-    "family": "location.x",
-    "view": "plan",
-    "label": "400",
-    "count": 1,
-    "verdict": "rust-wrong",
-    "reason": "The hex boss (f:polygonal_boss:1) stands at the centre of the 2×2 hole grid f:hole_pattern:1, so the port's boss location repeats that pattern's location in the plan view (400 from the left face, 225 from the front): one point located twice. The port locates a boss as it does a hole (src/dims/bosses.rs; draftwright locates no boss, see ftc06's entries), but coincident hole and boss locations are not merged yet (ARCH0009-6: the hole location outranks and the boss's is conveyed by it), which is pending with the hole planner's owner. The entry goes when they are merged."
   },
   {
     "part": "slot_array",
