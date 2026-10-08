@@ -1,0 +1,569 @@
+//! Turned steps' own dimensions (`src/dims/turned.rs`): each band's diameter and length, the
+//! overall diameter that also states the band it is, and the overall length the step chain
+//! conveys. On the captured turned corpus parts (`tests/fixtures/recognition/sheets/`) they are
+//! checked against what draftwright's sheets print; on the turned fixture (`parts/turned.step`,
+//! its recognition edited) the rules one at a time. The item-by-item comparison over every
+//! captured sheet, with the differences' verdicts, is `tests/dimensions.rs`.
+
+#[path = "common/corpus.rs"]
+mod corpus;
+#[path = "common/facts.rs"]
+mod facts;
+
+use std::io::Read as _;
+use std::path::{Path, PathBuf};
+
+use draftwright::lint::{self, Mark};
+use draftwright::model::{self, Analysis, DimensionSpec, Plan, Spec};
+use draftwright::output::Claim;
+use serde_json::{Value, json};
+
+fn fixture(path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(path)
+}
+
+/// A sampled corpus part read with the recognition draftwright drew its sheet from.
+fn sheet_part(corpus: &Path, name: &str) -> Analysis {
+    let f = facts::load(name);
+    let mut json = String::new();
+    flate2::read::GzDecoder::new(
+        std::fs::File::open(fixture(&format!("recognition/sheets/{name}.json.gz"))).unwrap(),
+    )
+    .read_to_string(&mut json)
+    .unwrap();
+    let (part, mut a) = model::analyse(&corpus.join(&f.binding.file)).unwrap();
+    let (r, features) = draftwright::bridge::read(&part, &a.binding.source_sha256, &json).unwrap();
+    a.recognition = Some(r);
+    a.features = features;
+    a
+}
+
+/// The turned fixture (a ø30 band 40 long and a ø16 band 30 long about the part's z, quiddity's
+/// x) with its recognition.
+fn turned() -> Analysis {
+    let json = std::fs::read_to_string(fixture("recognition/turned.json")).unwrap();
+    let (part, mut a) = model::analyse(&fixture("parts/turned.step")).unwrap();
+    let (r, features) = draftwright::bridge::read(&part, &a.binding.source_sha256, &json).unwrap();
+    a.recognition = Some(r);
+    a.features = features;
+    a
+}
+
+/// The turned fixture with its bands replaced by *bands*, each `(lo, hi, diameter)` along
+/// quiddity's x (the part's z from 26.153 below quiddity's origin), on the fixture's profile.
+fn with_bands(bands: &[(f64, f64, f64)]) -> Analysis {
+    let mut a = turned();
+    let template = a
+        .features
+        .iter()
+        .find(|f| f.kind == "turned_step")
+        .unwrap()
+        .clone();
+    a.features.retain(|f| f.kind != "turned_step");
+    for (i, (lo, hi, d)) in bands.iter().enumerate() {
+        let mut f = template.clone();
+        f.id = format!("f:turned_step:{}", i + 1);
+        f.parameters.insert("lo".into(), json!(lo));
+        f.parameters.insert("hi".into(), json!(hi));
+        f.parameters.insert("diameter".into(), json!(d));
+        a.features.push(f);
+    }
+    a
+}
+
+/// quiddity's x of the part's z = *z* on the turned fixture.
+fn q(z: f64) -> f64 {
+    z - 26.152_728_066_648_48
+}
+
+/// The plan's items that state a turned step or the overall extents, as (ID, label), in plan
+/// order; each must be drawn.
+fn turned_items(plan: &Plan) -> Vec<(String, String)> {
+    plan.dimensions
+        .iter()
+        .filter(|d| {
+            d.id.starts_with("d:envelope/")
+                || d.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:turned_step:"))
+        })
+        .map(|d| {
+            assert!(d.placed.is_some(), "{} is not drawn", d.id);
+            (d.id.clone(), d.label.clone())
+        })
+        .collect()
+}
+
+fn strs(items: &[(&str, &str)]) -> Vec<(String, String)> {
+    items
+        .iter()
+        .map(|(a, b)| (a.to_string(), b.to_string()))
+        .collect()
+}
+
+/// Lint's turned-step ledger of *a* against the plan's items as marks (their labels and claims),
+/// as `feature parameter state`.
+fn ledger(a: &Analysis, plan: &Plan) -> Vec<String> {
+    let marks: Vec<Mark> = plan
+        .dimensions
+        .iter()
+        .map(|d| Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.clone(),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        })
+        .collect();
+    lint::turned::outcomes(a, &marks)
+        .into_iter()
+        .map(|o| format!("{} {} {:?}", o.feature, o.parameter, o.state))
+        .collect()
+}
+
+fn reported(plan: &Plan, code: &str) -> Vec<String> {
+    plan.problems
+        .iter()
+        .filter(|p| p.code == code)
+        .flat_map(|p| p.subjects.clone())
+        .collect()
+}
+
+/// GRM-05 (a bolt turned about z: ø10 × 14, ø6.25 × 5, ø6 × 13): draftwright's sheet prints the
+/// overall ø10 (which also states the ø10 band), a ø leader for each smaller band, and the chain
+/// 14, 5, 13, which conveys the overall 32. The plan states the same, every step claimed, none
+/// reported.
+#[test]
+fn grm05_states_its_step_diameters_and_lengths_as_draftwright_does() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = sheet_part(&corpus, "grm05");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        turned_items(&plan),
+        strs(&[
+            ("d:envelope/od.diameter@front", "ø10"),
+            ("d:f:turned_step:2/step.diameter@front", "ø6.2"),
+            ("d:f:turned_step:3/step.diameter@front", "ø6"),
+            ("d:f:turned_step:1/step.length@front", "14"),
+            ("d:f:turned_step:2/step.length@front", "5"),
+            ("d:f:turned_step:3/step.length@front", "13"),
+        ])
+    );
+    let od = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:envelope/od.diameter@front")
+        .unwrap();
+    let claims: Vec<String> = od
+        .measurements
+        .iter()
+        .map(|m| format!("{}/{}", m.feature, m.parameter))
+        .collect();
+    assert_eq!(
+        claims,
+        ["envelope/od.diameter", "f:turned_step:1/step.diameter"]
+    );
+    assert!(
+        reported(&plan, "dimensions_not_ported").is_empty()
+            && reported(&plan, "feature_not_dimensioned").is_empty(),
+        "{:?}",
+        plan.problems
+    );
+}
+
+/// The other captured turned parts, against draftwright's sheets: each turned step's diameter
+/// and length items (view and label) are the sheet's (`step.diameter` and `step.length`
+/// annotations), the overall diameter prints as the sheet's `dim_od` (`2× ø130` where it stands
+/// for spool132's two flanges), and the overall length is stated exactly where the chain does
+/// not run end to end (spool132's hub and connector109's grooves and thread leave gaps; there
+/// draftwright prints it too). grm03 differs once, listed in `known_dimensions.json`: draftwright
+/// has no overall diameter for it and leads its ø10 band on its own.
+#[test]
+fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    for (name, od, length) in [
+        ("grm03", "ø10", None),
+        ("string_post", "ø7.5", None),
+        ("spool132", "2× ø130", Some("140")),
+        ("connector109", "ø130.9", Some("420")),
+    ] {
+        let a = sheet_part(&corpus, name);
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let mut rust: Vec<(String, String)> = plan
+            .dimensions
+            .iter()
+            .filter(|d| !d.id.starts_with("d:envelope/"))
+            .filter(|d| {
+                d.measurements
+                    .iter()
+                    .any(|m| m.parameter.starts_with("step."))
+            })
+            .map(|d| (d.view.trim_start_matches("v:").to_string(), d.label.clone()))
+            .collect();
+        rust.sort();
+        let f = facts::load(name);
+        let mut python: Vec<(String, String)> = f
+            .annotations
+            .iter()
+            .filter(|n| n.name != "dim_od")
+            .filter(|n| {
+                n.measurements
+                    .iter()
+                    .any(|m| m.parameter == "step.diameter" || m.parameter == "step.length")
+            })
+            .map(|n| {
+                (
+                    n.view.clone().unwrap_or_default(),
+                    n.label.clone().unwrap_or_default(),
+                )
+            })
+            .collect();
+        if name == "grm03" {
+            python.retain(|(_, l)| l != "ø10");
+        }
+        python.sort();
+        assert_eq!(rust, python, "{name}");
+        let label = |id: &str| {
+            plan.dimensions
+                .iter()
+                .find(|d| d.id == id)
+                .map(|d| d.label.clone())
+        };
+        assert_eq!(
+            label("d:envelope/od.diameter@front").as_deref(),
+            Some(od),
+            "{name}"
+        );
+        let along = plan
+            .dimensions
+            .iter()
+            .find(|d| d.id.starts_with("d:envelope/") && d.id.contains(".length@"))
+            .map(|d| d.label.as_str());
+        assert_eq!(along, length, "{name}");
+        assert!(
+            reported(&plan, "dimensions_not_ported")
+                .iter()
+                .all(|s| !s.starts_with("f:turned_step:")),
+            "{name}"
+        );
+    }
+}
+
+/// Each band states its own diameter and length; the overall diameter states the band of its
+/// size, and the chain (40 + 30) the overall 70, which is not stated again. With a band taken
+/// away the chain no longer runs end to end, so the overall length is stated.
+#[test]
+fn the_chain_states_the_overall_length_only_when_it_runs_end_to_end() {
+    let plan = model::plan(&turned(), &Spec::default()).unwrap();
+    assert_eq!(
+        turned_items(&plan),
+        strs(&[
+            ("d:envelope/od.diameter@front", "ø30"),
+            ("d:f:turned_step:2/step.diameter@front", "ø16"),
+            ("d:f:turned_step:1/step.length@front", "40"),
+            ("d:f:turned_step:2/step.length@front", "30"),
+        ])
+    );
+    let a = with_bands(&[(q(0.0), q(40.0), 30.0)]);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        turned_items(&plan),
+        strs(&[
+            ("d:envelope/od.diameter@front", "ø30"),
+            ("d:envelope/height.length@front", "70"),
+            ("d:f:turned_step:1/step.length@front", "40"),
+        ])
+    );
+    let height = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:envelope/height.length@front")
+        .unwrap();
+    assert!(
+        height.basis.contains("does not run end to end"),
+        "{}",
+        height.basis
+    );
+}
+
+/// Three or more bands of one printed length are one `N× L` claiming each (draftwright also
+/// collapses lengths that print apart, within 10 % of their mean: the port keeps those apart, as
+/// `3× 23.3` would misstate a 23 and a 23.7); and two
+/// bands of the largest diameter at separate stations are both stated by the overall
+/// diameter (`2× ø30`), while two that adjoin are not.
+#[test]
+fn repeated_lengths_and_twin_flanges_are_stated_once() {
+    let a = with_bands(&[
+        (q(0.0), q(23.0), 30.0),
+        (q(23.0), q(46.3), 20.0),
+        (q(46.3), q(70.0), 30.0),
+    ]);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let lengths: Vec<String> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/step.length@"))
+        .map(|d| d.label.clone())
+        .collect();
+    assert_eq!(lengths, ["23", "23.3", "23.7"]);
+    let a = with_bands(&[
+        (q(0.0), q(23.34), 30.0),
+        (q(23.34), q(46.66), 20.0),
+        (q(46.66), q(70.0), 30.0),
+    ]);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        turned_items(&plan),
+        strs(&[
+            ("d:envelope/od.diameter@front", "2× ø30"),
+            ("d:f:turned_step:2/step.diameter@front", "ø20"),
+            ("d:f:turned_step:1/step.length@front", "3× 23.3"),
+        ])
+    );
+    let chain = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:turned_step:1/step.length@front")
+        .unwrap();
+    let members: Vec<&str> = chain
+        .measurements
+        .iter()
+        .map(|m| m.feature.as_str())
+        .collect();
+    assert_eq!(
+        members,
+        ["f:turned_step:1", "f:turned_step:2", "f:turned_step:3"]
+    );
+    let od = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:envelope/od.diameter@front")
+        .unwrap();
+    assert_eq!(od.measurements.len(), 3);
+    // Lint credits every band's length and diameter on these labels.
+    assert!(
+        ledger(&a, &plan).iter().all(|o| o.ends_with("Placed")),
+        "{:?}",
+        ledger(&a, &plan)
+    );
+
+    // Adjoining twins: the overall diameter states neither, so they have their own callout,
+    // one for the two, as two equal bands along z share one.
+    let a = with_bands(&[(q(0.0), q(40.0), 30.0), (q(40.0), q(70.0), 30.0)]);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        turned_items(&plan),
+        strs(&[
+            ("d:envelope/od.diameter@front", "ø30"),
+            ("d:f:turned_step:1/step.diameter@front", "2× ø30"),
+            ("d:f:turned_step:1/step.length@front", "40"),
+            ("d:f:turned_step:2/step.length@front", "30"),
+        ])
+    );
+}
+
+/// Along z, exactly two bands of one diameter at different stations share one `2× ø16`
+/// callout; a band whose diameter prints as a coaxial bore's reads `ø… OD`.
+#[test]
+fn equal_z_bands_share_a_callout_and_a_bore_sized_band_reads_od() {
+    let mut a = with_bands(&[
+        (q(0.0), q(10.0), 16.0),
+        (q(10.0), q(60.0), 30.0),
+        (q(60.0), q(70.0), 16.0),
+    ]);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        turned_items(&plan)[..2],
+        strs(&[
+            ("d:envelope/od.diameter@front", "ø30"),
+            ("d:f:turned_step:1/step.diameter@front", "2× ø16"),
+        ])
+    );
+    let pair = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:turned_step:1/step.diameter@front")
+        .unwrap();
+    assert_eq!(pair.measurements.len(), 2);
+    assert_eq!(pair.measurements[1].feature, "f:turned_step:3");
+
+    // A blind ø16 bore down the axis from the top face (quiddity's x is the part's z).
+    let mut hole = a.features[0].clone();
+    hole.id = "f:hole:1".into();
+    hole.kind = "hole".into();
+    hole.parameters = serde_json::from_value(json!({
+        "axis": [-1.0, 0.0, 0.0], "location": [q(70.0), 0.0, 0.0], "diameter": 16.0,
+        "depth": 5.0, "bottom": "flat", "cbore": null, "csink": null, "spotface": null,
+        "named_dimensions": {}
+    }))
+    .unwrap();
+    a.features.push(hole);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:turned_step:1/step.diameter@front")
+        .unwrap();
+    assert_eq!(d.label, "2× ø16 OD");
+}
+
+/// A part turned about y: its bands' diameters are led to their circles in the front view, which
+/// looks along y, and their lengths are in the side view, where each contiguous run of three or
+/// more equal lengths is one `N× L`.
+#[test]
+fn a_part_turned_about_y_reads_its_diameters_end_on() {
+    let mut a = with_bands(&[
+        (q(0.0), q(10.0), 20.0),
+        (q(10.0), q(20.0), 24.0),
+        (q(20.0), q(30.0), 20.0),
+        (q(30.0), q(70.0), 30.0),
+    ]);
+    // quiddity's x is now the part's y.
+    let r = a.recognition.as_mut().unwrap();
+    r.frame = [
+        [0.0, 26.152_728_066_648_48, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+    ];
+    a.envelope = [[-15.0, 0.0, -15.0], [15.0, 70.0, 15.0]];
+    a.features.retain(|f| f.kind == "turned_step");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        turned_items(&plan),
+        strs(&[
+            ("d:envelope/od.diameter@side", "ø30"),
+            ("d:f:turned_step:1/step.diameter@front", "ø20"),
+            ("d:f:turned_step:2/step.diameter@front", "ø24"),
+            ("d:f:turned_step:3/step.diameter@front", "ø20"),
+            ("d:f:turned_step:1/step.length@side", "3× 10"),
+            ("d:f:turned_step:4/step.length@side", "40"),
+        ])
+    );
+}
+
+/// A band whose record cannot be read is reported (`feature_not_dimensioned`), the others still
+/// stated; and with a groove whose width is missing no band's ownership can be decided, so every
+/// band is reported, none guessed. No turned step is ever `dimensions_not_ported`.
+#[test]
+fn a_band_that_cannot_be_stated_is_reported() {
+    let mut a = turned();
+    let f = a
+        .features
+        .iter_mut()
+        .find(|f| f.id == "f:turned_step:2")
+        .unwrap();
+    f.parameters["profile"]
+        .as_object_mut()
+        .unwrap()
+        .remove("axis_origin");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        reported(&plan, "feature_not_dimensioned"),
+        ["f:turned_step:2"]
+    );
+    assert!(reported(&plan, "dimensions_not_ported").is_empty());
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id == "d:f:turned_step:1/step.length@front")
+    );
+
+    let mut a = turned();
+    let mut groove = a.features[0].clone();
+    groove.id = "f:groove:1".into();
+    groove.kind = "groove".into();
+    let profile: Value = a
+        .features
+        .iter()
+        .find(|f| f.kind == "turned_step")
+        .unwrap()
+        .parameters["profile"]
+        .clone();
+    groove.parameters = serde_json::from_value(json!({
+        "axis": "x", "at": [q(50.0), 0.0, 0.0], "diameter": 12.0, "profile": profile,
+        "named_dimensions": {}
+    }))
+    .unwrap();
+    a.features.push(groove);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        reported(&plan, "feature_not_dimensioned"),
+        ["f:turned_step:1", "f:turned_step:2", "f:groove:1"]
+    );
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.id.starts_with("d:f:turned_step:"))
+    );
+}
+
+/// A spec's tolerance reaches a step's length and diameter by their IDs, as for every planner,
+/// and an omitted step item leaves the others (and the withheld overall length) as they were.
+#[test]
+fn spec_tolerances_and_omissions_reach_the_step_items() {
+    let a = turned();
+    let mut spec = Spec::default();
+    for (id, band) in [
+        ("d:f:turned_step:2/step.length@front", "±0.05"),
+        ("d:f:turned_step:2/step.diameter@front", "+0 -0.1"),
+    ] {
+        spec.dimensions.insert(
+            id.into(),
+            DimensionSpec {
+                tolerance: Some(band.into()),
+                ..Default::default()
+            },
+        );
+    }
+    let plan = model::plan(&a, &spec).unwrap();
+    for (id, label) in [
+        ("d:f:turned_step:2/step.length@front", "30 ±0.05"),
+        ("d:f:turned_step:2/step.diameter@front", "ø16 +0.0 -0.1"),
+    ] {
+        let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+        assert_eq!(d.label, label);
+        assert_eq!(d.from_spec, ["tolerance"]);
+        assert!(!d.default);
+    }
+    let mut spec = Spec::default();
+    spec.dimensions.insert(
+        "d:f:turned_step:1/step.length@front".into(),
+        DimensionSpec {
+            omit: true,
+            ..Default::default()
+        },
+    );
+    let less = model::plan(&a, &spec).unwrap();
+    let full = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        less.omitted
+            .iter()
+            .any(|o| o.id == "d:f:turned_step:1/step.length@front")
+    );
+    for d in &less.dimensions {
+        let same = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
+        assert_eq!(d.placed, same.placed, "{}", d.id);
+    }
+    assert!(
+        !less
+            .dimensions
+            .iter()
+            .any(|d| d.id.starts_with("d:envelope/height"))
+    );
+}

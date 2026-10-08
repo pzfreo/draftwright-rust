@@ -315,5 +315,9 @@ fn a_record_that_cannot_be_stated_is_reported() {
         .map(|i| i.0)
         .collect();
     assert_eq!(labels, ["10 WIDE × ø122", "6 WIDE × ø122"]);
-    assert_eq!(codes(&plan, "feature_not_dimensioned"), ["f:groove:3"]);
+    // Without the groove's width no band's ownership can be decided, so every turned step is
+    // reported too (src/dims/turned.rs), none guessed.
+    let mut reported: Vec<String> = (1..=7).map(|i| format!("f:turned_step:{i}")).collect();
+    reported.push("f:groove:3".into());
+    assert_eq!(codes(&plan, "feature_not_dimensioned"), reported);
 }

@@ -93,7 +93,7 @@
     tests: ["test_turned_steps.py", "test_principal_profile_classifier.py"]
   status: pending
   rust_test: tests/dimension_rules.rs::a_holes_view_follows_from_its_axis
-  rust_note: "Ported for holes (and their locations, pitches and callouts), the overall extents, and fillet and chamfer callouts (end-on to the edge, or in the profile when turned: src/dims/edges.rs); turned steps are not planned yet. By the maintainer's decision of 2026-10-08, a hole's or pattern's (a slot pattern's too) in-plane position is dimensioned on both axes in the view that sees it end-on, not in the side view as draftwright does (rust-correct in tests/fixtures/known_dimensions.json); and a slot, through or blind, is also located across its width, by its centre line, in the view that sees it end-on (beyond draftwright: src/dims/slots.rs, tests/dims_slots.rs). By the same decision a pocket's position is dimensioned in the view that looks into it, where draftwright sends a z pocket's y location to the side view; a pocket's, hexagonal pocket's and circular seat's callouts, and an open channel's width, are in the view along the feature's axis, as in draftwright; a seat's location along its own axis is in its first profile view (src/dims/recesses.rs, tests/dims_recesses.rs)."
+  rust_note: "Ported for holes (and their locations, pitches and callouts), the overall extents, and fillet and chamfer callouts (end-on to the edge, or in the profile when turned: src/dims/edges.rs), and turned steps: a band's length in its first profile view and its diameter in the front view, led to its silhouette (x, z) or, along y, to its circle in the front view, which looks along it (src/dims/turned.rs, tests/dims_turned.rs). By the maintainer's decision of 2026-10-08, a hole's or pattern's (a slot pattern's too) in-plane position is dimensioned on both axes in the view that sees it end-on, not in the side view as draftwright does (rust-correct in tests/fixtures/known_dimensions.json); and a slot, through or blind, is also located across its width, by its centre line, in the view that sees it end-on (beyond draftwright: src/dims/slots.rs, tests/dims_slots.rs). By the same decision a pocket's position is dimensioned in the view that looks into it, where draftwright sends a z pocket's y location to the side view; a pocket's, hexagonal pocket's and circular seat's callouts, and an open channel's width, are in the view along the feature's axis, as in draftwright; a seat's location along its own axis is in its first profile view (src/dims/recesses.rs, tests/dims_recesses.rs)."
   port_note: "Keep: view routing is a pure function of feature axis and measurement kind in the planner; record it as the plan entry's basis."
 
 - id: ADR1-7
@@ -823,7 +823,7 @@
     tests: ["test_issue_955_height_contingency.py"]
   status: pending
   port_note: "Keep: Plan carries contingent entries with a 'contingent_on <id>' basis; activation is a planner decision recorded in the Plan."
-  rust_note: "Not ported: there are no contingent plan items; the port plans no step chain for a Z-turned part, so Python's case (the overall height released when the chain places nothing) does not arise yet."
+  rust_note: "Not ported: there are no contingent plan items. The port plans a turned part's step chain and, as draftwright, withholds the overall length when the chain runs end to end (src/dims/turned.rs, tests/dims_turned.rs::the_chain_states_the_overall_length_only_when_it_runs_end_to_end); an omitted chain item does not release it (an authored omission never becomes a contingency). The port's placement never drops a chain item (each is placed or reported), so Python's case, the overall length released when the chain places nothing, does not arise."
 
 - id: ADR4-11
   statement: "Edits are scale-independent intents in the shared solve: pin and priority, never raw coordinates; the raw single-slot placement verb survives only as a deprecated escape hatch."
@@ -1885,6 +1885,8 @@
     issues: [354]
     tests: ["test_issue_1357_plural_turned_profiles.py"]
   status: pending
+  rust_test: tests/issue_drafting.rs::eccentric_cylinders_are_not_one_turned_profile
+  rust_note: "Partial: each turned profile (the bands of one axis line and one recorded profile) has its own chain, one item per band, so equal lengths on parallel shafts keep separate items (src/dims/turned.rs). Not ported: witnesses on the body's own silhouette (they run from the view's outline), and moving a profile that would share a lane to the other profile view, or dropping its chain with a diagnostic; no fixture has two parallel bodies."
   port_note: "Keep: planner per-body chain placement; Plan problem on drop."
 
 - id: ARCH0020-3
