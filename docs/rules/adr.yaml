@@ -905,6 +905,8 @@
     tests: ["test_export_reproducible.py", "test_issue_1196_deterministic_view_names.py"]
   status: pending
   port_note: "Keep: Rust output is deterministic; port as a reproducibility test over Plan JSON and rendered SVG/PDF bytes."
+  rust_test: tests/timezone.rs::the_same_bytes_in_every_time_zone
+  rust_note: "Ported in part: the same documents give the same SVG, DXF and PDF bytes run to run (tests/model.rs::the_same_documents_give_the_same_bytes) and under four time zones whose 1900 and present offsets differ (tests/timezone.rs). Not checked: bytes across operating systems and architectures, and the strip solver's PAVA lower-median tie rule."
 
 - id: ADR5-2
   statement: "Lint derives no completeness denominator from the plan or the IR; it may compare a claim the drawing makes against the plan."

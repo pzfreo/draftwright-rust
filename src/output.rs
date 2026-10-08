@@ -9,6 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::fmt::Write as _;
 
+use crate::model::Problem;
+
 pub type P = [f64; 2];
 
 /// A curve as the exporters draw it.
@@ -25,10 +27,10 @@ pub enum Curve {
         t0: f64,
         t1: f64,
     },
-    /// Bézier pieces of 2 to 4 poles, end to end.
+    /// Bézier pieces of 2 to 4 poles, end to end; at least one.
     Beziers(Vec<Vec<P>>),
     /// Rational Bézier pieces, end to end, by their homogeneous poles `[x w, y w, w]`: a NURBS
-    /// curve cut at its knots.
+    /// curve cut at its knots; at least one.
     Rational(Vec<Vec<[f64; 3]>>),
 }
 
@@ -163,6 +165,8 @@ pub struct Drawing {
     pub text: Vec<TextRun>,
     /// The annotations drawn, with what each states. Written to no file format.
     pub annotations: Vec<Annotation>,
+    /// What could not be drawn as planned ([`undrawn`]). Written to no file format.
+    pub problems: Vec<Problem>,
     /// The spec the drawing was made from (JSON), carried in the SVG's metadata, the DXF's
     /// opening comments and the PDF's document information so the drawing can be resumed from
     /// the file alone.
@@ -300,12 +304,16 @@ impl Drawing {
         d.header.default_drawing_units = Units::Millimeters;
         // The crate stamps the clock and random GUIDs: pin them, so the same drawing gives the
         // same bytes (reportlab's `invariant` dates for draftwright's PDFs are 2000-01-01 too).
+        // The crate writes a local date as its time since local midnight, 1900-01-01, and the
+        // zone's offset then and in 2000 differ (local mean time in many zones): the local date is
+        // that epoch plus the 36524 days to 2000-01-01, so it is Julian day 2451545 in every zone.
         {
             use chrono::TimeZone;
             let local = chrono::Local
-                .with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
-                .earliest()
-                .expect("a fixed local time");
+                .with_ymd_and_hms(1900, 1, 1, 0, 0, 0)
+                .single()
+                .expect("the crate's local epoch")
+                + chrono::Duration::days(36524);
             let utc = chrono::Utc
                 .with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
                 .single()
@@ -742,13 +750,13 @@ fn rational_at(poles: &[[f64; 3]], t: f64) -> P {
     point(q[0])
 }
 
-/// Rational pieces as the polynomial ones SVG and PDF can draw: a piece of equal weights is
-/// one already; any other is drawn as chords within 0.1 µm of it.
+/// Rational pieces as the polynomial ones SVG and PDF can draw (up to cubics): a piece of equal
+/// weights and at most 4 poles is one already; any other is drawn as chords within 0.1 µm of it.
 fn polynomial(pieces: &[Vec<[f64; 3]>]) -> Vec<Vec<P>> {
     let mut out = Vec::new();
     for piece in pieces {
         let w = piece[0][2];
-        if piece.iter().all(|q| (q[2] - w).abs() <= 1e-12 * w) {
+        if piece.len() <= 4 && piece.iter().all(|q| (q[2] - w).abs() <= 1e-12 * w) {
             out.push(piece.iter().map(|q| point(*q)).collect());
             continue;
         }
@@ -822,12 +830,37 @@ impl From<&haecceity::hlr::Exact> for Curve {
     }
 }
 
-/// A projected stretch as drawn: its exact curve where it has one, else its points.
-pub fn projected(piece: &haecceity::hlr::Projected) -> Curve {
-    match &piece.exact {
+/// A projected stretch as drawn: its exact curve where it has one, else its points. None when
+/// there is nothing to draw: an exact stretch of no span (t0 == t1) or fewer than 2 points.
+pub fn projected(piece: &haecceity::hlr::Projected) -> Option<Curve> {
+    let curve = match &piece.exact {
         Some(exact) => Curve::from(exact),
         None => Curve::Beziers(piece.points.windows(2).map(|w| w.to_vec()).collect()),
+    };
+    match &curve {
+        Curve::Beziers(b) if b.is_empty() => None,
+        Curve::Rational(r) if r.is_empty() => None,
+        _ => Some(curve),
     }
+}
+
+/// The problems for projected stretches left undrawn ([`projected`]), by view ID and count.
+pub fn undrawn(counts: &BTreeMap<String, usize>) -> Vec<Problem> {
+    counts
+        .iter()
+        .map(|(view, n)| Problem {
+            id: format!("p:edges_not_drawn:{view}"),
+            code: "edges_not_drawn".into(),
+            severity: "info".into(),
+            message: format!(
+                "{n} projected edge piece{} in {view} had no length to draw (an exact curve's \
+                 stretch of no span, or fewer than two points) and {} left out.",
+                if *n == 1 { "" } else { "s" },
+                if *n == 1 { "was" } else { "were" }
+            ),
+            subjects: vec![view.clone()],
+        })
+        .collect()
 }
 
 /// Boehm's insertion of knot *t* into a B-spline of *degree* (homogeneous poles).
@@ -1006,7 +1039,10 @@ fn svg_segments(curve: &Curve, d: &mut String) {
                 let cmd = match p.len() {
                     2 => "L",
                     3 => "Q",
-                    _ => "C",
+                    n => {
+                        assert_eq!(n, 4, "a Bézier piece of {n} poles (at most 4 are drawn)");
+                        "C"
+                    }
                 };
                 let _ = write!(d, " {cmd} {}", pts.join(" "));
             }
@@ -1122,7 +1158,8 @@ fn pdf_curve(c: &mut pdf_writer::Content, curve: &Curve) {
                         let ((x1, y1), (x2, y2), (x3, y3)) = (f(c1), f(c2), f(p[2]));
                         c.cubic_to(x1, y1, x2, y2, x3, y3);
                     }
-                    _ => {
+                    n => {
+                        assert_eq!(n, 4, "a Bézier piece of {n} poles (at most 4 are drawn)");
                         let ((x1, y1), (x2, y2), (x3, y3)) = (f(p[1]), f(p[2]), f(p[3]));
                         c.cubic_to(x1, y1, x2, y2, x3, y3);
                     }
@@ -1258,5 +1295,107 @@ mod tests {
             t0: 3.5,
             t1: 6.5,
         });
+    }
+
+    /// cgb242's front view has a hidden stretch of a clamped cubic from t = 0 to t = 0.
+    #[test]
+    fn a_stretch_of_no_span_is_not_drawn() {
+        let poles = vec![
+            [0.0, 0.0, 1.0],
+            [1.0, 2.0, 1.0],
+            [2.0, -1.0, 1.0],
+            [3.0, 0.0, 1.0],
+        ];
+        let knots = vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+        for t in [0.0, 0.4, 1.0] {
+            assert!(bezier_pieces(3, knots.clone(), poles.clone(), t, t).is_empty());
+        }
+        let piece = |exact, points| haecceity::hlr::Projected {
+            class: haecceity::hlr::Class::Sharp,
+            visible: false,
+            points,
+            exact,
+        };
+        let nurbs = Exact::Nurbs {
+            degree: 3,
+            poles: poles.iter().map(|q| [q[0], q[1]]).collect(),
+            weights: vec![1.0; 4],
+            knots,
+            t0: 0.0,
+            t1: 0.0,
+        };
+        assert_eq!(projected(&piece(Some(nurbs), vec![[0.0, 0.0]; 2])), None);
+        assert_eq!(projected(&piece(None, vec![[1.0, 1.0]])), None);
+        assert_eq!(
+            projected(&piece(None, vec![[1.0, 1.0], [2.0, 1.0]])),
+            Some(Curve::Beziers(vec![vec![[1.0, 1.0], [2.0, 1.0]]]))
+        );
+    }
+
+    /// A degree-5 polynomial piece is drawn by chords: SVG commands of the right arity, and a
+    /// PDF path that ends where the curve does.
+    #[test]
+    fn a_quintic_is_drawn_whole() {
+        let exact = Exact::Nurbs {
+            degree: 5,
+            poles: vec![
+                [0.0, 0.0],
+                [1.0, 3.0],
+                [2.0, -2.0],
+                [3.0, 4.0],
+                [4.0, -1.0],
+                [5.0, 2.0],
+            ],
+            weights: vec![1.0; 6],
+            knots: [[0.0; 6], [1.0; 6]].concat(),
+            t0: 0.0,
+            t1: 1.0,
+        };
+        let curve = Curve::from(&exact);
+        let svg = svg_item(&Item::Edge(curve.clone()));
+        let d = &svg[svg.find("d=\"").unwrap() + 3..svg.rfind('"').unwrap()];
+        let tokens: Vec<&str> = d.split([' ', ',']).filter(|t| !t.is_empty()).collect();
+        let mut i = 0;
+        while i < tokens.len() {
+            let arity = match tokens[i] {
+                "M" | "L" => 2,
+                "Q" => 4,
+                "C" => 6,
+                other => panic!("unexpected command {other:?} in {d}"),
+            };
+            let args = tokens[i + 1..]
+                .iter()
+                .take_while(|t| t.parse::<f64>().is_ok())
+                .count();
+            assert_eq!(args, arity, "{} in {d}", tokens[i]);
+            i += 1 + args;
+        }
+        let end = exact.at(1.0);
+        let last: Vec<f64> = tokens[tokens.len() - 2..]
+            .iter()
+            .map(|t| t.parse().unwrap())
+            .collect();
+        assert!(
+            (last[0] - end[0]).hypot(last[1] - end[1]) < 1e-6,
+            "{last:?}"
+        );
+
+        let mut c = pdf_writer::Content::new();
+        c.move_to(0.0, 0.0);
+        pdf_curve(&mut c, &curve);
+        let ops = String::from_utf8(c.finish().to_vec()).unwrap();
+        let last_op = ops.lines().last().unwrap();
+        let xy: Vec<f64> = last_op
+            .split(' ')
+            .rev()
+            .skip(1)
+            .take(2)
+            .map(|t| t.parse().unwrap())
+            .collect();
+        let (x, y) = (xy[1], xy[0]);
+        assert!(
+            (x - end[0]).abs() < 1e-5 && (y - end[1]).abs() < 1e-5,
+            "the PDF path ends at {last_op:?}, not {end:?}"
+        );
     }
 }
