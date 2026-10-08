@@ -21,6 +21,7 @@
    }
   ],
   "file": "cadgenbench_inputs/cgb245.step",
+  "section_recesses": [],
   "turned_steps": []
  },
  "connector109": {
@@ -45,6 +46,7 @@
    }
   ],
   "file": "cadgenbench/threaded_connector_109.step",
+  "section_recesses": [],
   "turned_steps": [
    {
     "axis": "z",
@@ -200,6 +202,83 @@
    }
   ],
   "file": "nist/nist_ctc_01_asme1_rd.stp",
+  "section_recesses": [
+   {
+    "grammar": "unsupported",
+    "index": 0,
+    "reason": "general pocket requires a rounded rectangular profile"
+   },
+   {
+    "grammar": "unsupported",
+    "index": 1,
+    "reason": "general pocket requires a rounded rectangular profile"
+   },
+   {
+    "fields": {
+     "d_hi": -400.348,
+     "d_lo": -402.348,
+     "hi": -52.57,
+     "lo": -74.637,
+     "open_sign": -1.0,
+     "w_center": -1.624,
+     "width": 4.6548
+    },
+    "grammar": "channel",
+    "index": 2
+   },
+   {
+    "fields": {
+     "d_hi": -400.348,
+     "d_lo": -402.348,
+     "hi": 12.914,
+     "lo": -3.951,
+     "open_sign": -1.0,
+     "w_center": -111.31905,
+     "width": 4.6537
+    },
+    "grammar": "channel",
+    "index": 3
+   },
+   {
+    "fields": {
+     "d_hi": -400.348,
+     "d_lo": -402.348,
+     "hi": 13.807,
+     "lo": -3.951,
+     "open_sign": -1.0,
+     "w_center": -40.286,
+     "width": 4.6538
+    },
+    "grammar": "channel",
+    "index": 4
+   },
+   {
+    "fields": {
+     "d_hi": -400.348,
+     "d_lo": -402.348,
+     "hi": -52.656,
+     "lo": -66.234,
+     "open_sign": -1.0,
+     "w_center": 7.255,
+     "width": 4.655
+    },
+    "grammar": "channel",
+    "index": 5
+   },
+   {
+    "fields": {
+     "d_hi": -400.348,
+     "d_lo": -402.348,
+     "hi": 18.549,
+     "lo": 2.342,
+     "open_sign": -1.0,
+     "w_center": -78.626,
+     "width": 4.6984
+    },
+    "grammar": "channel",
+    "index": 6
+   }
+  ],
   "turned_steps": []
  },
  "ctc04": {
@@ -224,6 +303,57 @@
    }
   ],
   "file": "nist/nist_ctc_04_asme1_rd.stp",
+  "section_recesses": [
+   {
+    "grammar": "unsupported",
+    "index": 0,
+    "reason": "general pocket requires a rounded rectangular profile"
+   },
+   {
+    "grammar": "unsupported",
+    "index": 1,
+    "reason": "general pocket requires a rounded rectangular profile"
+   },
+   {
+    "fields": {
+     "d_hi": 360.963,
+     "d_lo": 358.963,
+     "hi": 154.012,
+     "lo": 139.301,
+     "open_sign": 1.0,
+     "w_center": -28.827,
+     "width": 3.1032
+    },
+    "grammar": "channel",
+    "index": 2
+   },
+   {
+    "fields": {
+     "d_hi": 360.963,
+     "d_lo": 358.963,
+     "hi": 148.41,
+     "lo": 139.358,
+     "open_sign": 1.0,
+     "w_center": -22.907,
+     "width": 3.1034
+    },
+    "grammar": "channel",
+    "index": 3
+   },
+   {
+    "fields": {
+     "d_hi": 360.963,
+     "d_lo": 358.963,
+     "hi": 129.56,
+     "lo": 123.151,
+     "open_sign": 1.0,
+     "w_center": -16.959,
+     "width": 3.161
+    },
+    "grammar": "channel",
+    "index": 4
+   }
+  ],
   "turned_steps": []
  },
  "ftc06": {
@@ -248,6 +378,109 @@
    }
   ],
   "file": "nist/nist_ftc_06_asme1_rd.stp",
+  "section_recesses": [
+   {
+    "grammar": "unsupported",
+    "index": 0,
+    "reason": "general pocket requires a rounded rectangular profile"
+   },
+   {
+    "grammar": "unsupported",
+    "index": 1,
+    "reason": "general pocket requires a rounded rectangular profile"
+   },
+   {
+    "fields": {
+     "d_hi": 125.35,
+     "d_lo": 122.81,
+     "hi": 12.777,
+     "lo": -1.934,
+     "open_sign": 1.0,
+     "w_center": -21.107,
+     "width": 3.103
+    },
+    "grammar": "channel",
+    "index": 2
+   },
+   {
+    "fields": {
+     "d_hi": 125.35,
+     "d_lo": 122.81,
+     "hi": -11.415,
+     "lo": -22.659,
+     "open_sign": 1.0,
+     "w_center": -26.38905,
+     "width": 3.1025
+    },
+    "grammar": "channel",
+    "index": 3
+   },
+   {
+    "fields": {
+     "d_hi": 125.35,
+     "d_lo": 122.81,
+     "hi": -10.82,
+     "lo": -22.659,
+     "open_sign": 1.0,
+     "w_center": 20.967,
+     "width": 3.1024
+    },
+    "grammar": "channel",
+    "index": 4
+   },
+   {
+    "fields": {
+     "d_hi": 125.35,
+     "d_lo": 122.81,
+     "hi": 12.72,
+     "lo": 3.668,
+     "open_sign": 1.0,
+     "w_center": -15.188,
+     "width": 3.1034
+    },
+    "grammar": "channel",
+    "index": 5
+   },
+   {
+    "fields": {
+     "d_hi": 125.35,
+     "d_lo": 122.81,
+     "hi": -7.659,
+     "lo": -18.463,
+     "open_sign": 1.0,
+     "w_center": -4.593,
+     "width": 3.1322
+    },
+    "grammar": "channel",
+    "index": 6
+   },
+   {
+    "fields": {
+     "d_hi": 37.031,
+     "d_lo": 23.061,
+     "hi": -77.85,
+     "lo": -109.6,
+     "open_sign": 1.0,
+     "w_center": -82.55,
+     "width": 12.7
+    },
+    "grammar": "channel",
+    "index": 7
+   },
+   {
+    "fields": {
+     "d_hi": 37.031,
+     "d_lo": 23.061,
+     "hi": -77.85,
+     "lo": -109.6,
+     "open_sign": 1.0,
+     "w_center": 82.55,
+     "width": 12.7
+    },
+    "grammar": "channel",
+    "index": 8
+   }
+  ],
   "turned_steps": []
  },
  "grm03": {
@@ -272,6 +505,7 @@
    }
   ],
   "file": "gramel/GRM-03_thumbwheel_drive_screw.step",
+  "section_recesses": [],
   "turned_steps": [
    {
     "axis": "x",
@@ -401,6 +635,7 @@
    }
   ],
   "file": "gramel/GRM-05_depth_lock_bolt.step",
+  "section_recesses": [],
   "turned_steps": [
    {
     "axis": "z",
@@ -504,6 +739,7 @@
    }
   ],
   "file": "ttt_inputs/sm-hanger.step",
+  "section_recesses": [],
   "turned_steps": []
  },
  "m1000": {
@@ -528,6 +764,62 @@
    }
   ],
   "file": "mfcadpp/1000.step",
+  "section_recesses": [
+   {
+    "fields": {
+     "depth": 2.104,
+     "open_sign": 1.0
+    },
+    "grammar": "hex_pocket",
+    "index": 0
+   },
+   {
+    "fields": {
+     "length": 12.593,
+     "radius": 1.0
+    },
+    "grammar": "circular_channel",
+    "index": 1
+   },
+   {
+    "fields": {
+     "depth": 3.446,
+     "hi": 5.332,
+     "length": 2.81,
+     "lo": 2.522,
+     "open_sign": 1.0,
+     "w_center": -13.284,
+     "width": 2.0
+    },
+    "grammar": "pocket",
+    "index": 2
+   },
+   {
+    "grammar": "unsupported",
+    "index": 3,
+    "reason": "profile has no supported drafting grammar"
+   },
+   {
+    "grammar": "unsupported",
+    "index": 4,
+    "reason": "profile has no supported drafting grammar"
+   },
+   {
+    "grammar": "unsupported",
+    "index": 5,
+    "reason": "profile has no supported drafting grammar"
+   },
+   {
+    "grammar": "unsupported",
+    "index": 6,
+    "reason": "profile has no supported drafting grammar"
+   },
+   {
+    "grammar": "unsupported",
+    "index": 7,
+    "reason": "profile has no supported drafting grammar"
+   }
+  ],
   "turned_steps": []
  },
  "m10046": {
@@ -552,6 +844,36 @@
    }
   ],
   "file": "mfcadpp/10046.step",
+  "section_recesses": [
+   {
+    "grammar": "unsupported",
+    "index": 0,
+    "reason": "profile has no supported drafting grammar"
+   },
+   {
+    "grammar": "unsupported",
+    "index": 1,
+    "reason": "profile has no supported drafting grammar"
+   },
+   {
+    "fields": {
+     "depth": 10.559,
+     "hi": 18.163,
+     "length": 11.698,
+     "lo": 6.465,
+     "open_sign": 1.0,
+     "w_center": 9.316,
+     "width": 5.042
+    },
+    "grammar": "pocket",
+    "index": 2
+   },
+   {
+    "grammar": "unsupported",
+    "index": 3,
+    "reason": "profile has no supported drafting grammar"
+   }
+  ],
   "turned_steps": []
  },
  "m10127": {
@@ -576,6 +898,16 @@
    }
   ],
   "file": "mfcadpp/10127.step",
+  "section_recesses": [
+   {
+    "fields": {
+     "depth": 9.96,
+     "open_sign": 1.0
+    },
+    "grammar": "hex_pocket",
+    "index": 0
+   }
+  ],
   "turned_steps": []
  },
  "spool132": {
@@ -600,6 +932,7 @@
    }
   ],
   "file": "cadgenbench/flanged_spool_132.step",
+  "section_recesses": [],
   "turned_steps": [
    {
     "axis": "z",
@@ -703,6 +1036,7 @@
    }
   ],
   "file": "gramel/string_post.step",
+  "section_recesses": [],
   "turned_steps": [
    {
     "axis": "z",
