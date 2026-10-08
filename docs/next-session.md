@@ -136,7 +136,22 @@ improvement plan and questions are the current work. Still open from before it:
 - Facts: `capture_sheet_facts.py` gives no usage message. `docs/facts.md` doesn't explain the
   identity-collision nulls.
 - The MCP server hasn't been tried in a real client.
-- PDF fonts are embedded whole, not subset.
+- PDF fonts are subset (stream d-font-subset, `src/output.rs`, `tests/output.rs`): each embedded
+  font program holds only the glyphs the sheet's text shows, `.notdef` and the parts of composite
+  glyphs (the `subsetter` crate, MIT/Apache-2.0, without its variable-font feature), tagged
+  `ABCDEF+name` with the tag drawn from the glyphs kept. The CIDs, `/W` widths, ToUnicode map
+  and content stream are unchanged; a `CIDToGIDMap` maps each CID shown to its glyph's new ID.
+  Measured: ctc01's PDF 244,241 → 146,131 bytes, m10127's 174,017 → 75,836, string_post's
+  165,159 → 66,529; the plate's (counterbored) 113,025 → 58,883. PDFium renders the same
+  pixels, and PDFium and Poppler extract the same text and character boxes, before and after;
+  `tools/compare_pdf.py` reports the same against draftwright's captures. Differences from
+  draftwright, with verdicts:
+  - draftwright subsets too (ReportLab's `TTFont`), as simple TrueType fonts of up to 256
+    glyphs each, tagged by subset number (`AAAAAA+` for the first, so the same tag for every
+    sheet's first subset). Parity on subsetting; the tag from the glyph set is rust-correct, as
+    PDF asks different subsets of a font for different tags;
+  - one CID font per face, not simple fonts, so the callout symbols keep their own codes
+    (equivalent; already so before subsetting).
 - PNG output (stream d-png, `src/png.rs`, `tests/png.rs`): `render` writes `png` when it is named
   in `formats`, at `dpi` (150 by default, `--dpi` on the command line; `dpi <= 0` refused with
   draftwright's message). It rasterises the layers the PDF draws (tiny-skia, BSD-3-Clause,
