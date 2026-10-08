@@ -1,5 +1,5 @@
 //! Lint on Python draftwright's captured sheets (`tests/fixtures/sheets/`), against the findings
-//! Python's own lint made on them.
+//! Python's own lint made on them, and on the port's own drawings of the same parts.
 //!
 //! The port's lint judges a drawing from what it prints and claims, against the Analysis. Here
 //! the drawing is Python's: each captured annotation becomes a mark (its PDF text runs, and the
@@ -10,13 +10,16 @@
 //! Python names a measured feature by its geometry (`hole@(x,y,z)/axis[sizes]`, or
 //! `pattern@(centre)/axis`), so each is joined to the Analysis exactly, and only when exactly one
 //! hole (or one hole group) fits: the same axis, the opening on its axis line within 0.01 mm and
-//! within its length, the same diameter. A claim that fits none or several is dropped and counted
-//! (LINT-_coverage_common-exact_correspondence: never guess).
+//! within its length, the same diameter. The other families lint checks (bosses, chamfers,
+//! fillets, blends, through steps, slots: [`FAMILIES`]) are joined the same way, by kind, axis,
+//! sizes and the record's point ([`join_feature`]). A claim that fits none or several is dropped
+//! and counted (LINT-_coverage_common-exact_correspondence: never guess).
 //!
-//! Every difference between the two lints' hole findings must be listed, with a verdict and the
-//! reason, in `tests/fixtures/known_lint.json`; a listed difference that has gone away must be
-//! taken off the list. The parts are read from the corpus (`DRAFTWRIGHT_CORPUS`, by default
-//! `~/repos/quiddity/tests/corpus`).
+//! Every difference between the two lints' findings must be listed, with a verdict and the
+//! reason, in `tests/fixtures/known_lint.json` (`python_sheets`); a listed difference that has
+//! gone away must be taken off the list. What lint finds on the port's own drawings is listed
+//! there too (`own_drawings`), by part and code. The parts are read from the corpus
+//! (`DRAFTWRIGHT_CORPUS`, by default `~/repos/quiddity/tests/corpus`).
 
 #[path = "common/corpus.rs"]
 mod corpus;
@@ -487,9 +490,14 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };
-    let known: Vec<Known> =
-        serde_json::from_str(&std::fs::read_to_string(fixture("known_lint.json")).unwrap())
-            .unwrap();
+    let known: Vec<Known> = serde_json::from_value(
+        serde_json::from_str::<Value>(
+            &std::fs::read_to_string(fixture("known_lint.json")).unwrap(),
+        )
+        .unwrap()["python_sheets"]
+            .clone(),
+    )
+    .unwrap();
     let verdicts = [
         "rust-correct",
         "rust-wrong",
@@ -1056,5 +1064,114 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     assert_eq!(
         codes(&misprinted),
         ["fillet_requirement_unverifiable fillet.radius"]
+    );
+}
+
+/// What lint finds on the port's own drawing of a captured part, by code: a known entry.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct KnownOwn {
+    part: String,
+    code: String,
+    count: usize,
+    /// `rust-correct`, `rust-wrong`, `equivalent`, `undetermined` or `not-applicable`.
+    verdict: String,
+    reason: String,
+}
+
+/// Lint on the port's own drawings of the captured parts (the corpus's, with their features from
+/// `tests/fixtures/recognition/corpus/`, planned under the default spec and rendered): every
+/// finding, counted by part and code, is listed in `known_lint.json` (`own_drawings`) with a
+/// verdict. The port's dimensions do not yet state fillets, chamfers, blends, slots, steps or boss
+/// heights, so lint reports those requirements missing on its drawings: correct, and pinned here
+/// until the dimensions state them. Set `LINT_REPORT=1` to print each finding, and `LINT_OWN_ALL=1`
+/// to draw connector109 too (see below).
+#[test]
+fn lint_on_the_ports_own_drawings_is_known() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let known: Vec<KnownOwn> = serde_json::from_value(
+        serde_json::from_str::<Value>(
+            &std::fs::read_to_string(fixture("known_lint.json")).unwrap(),
+        )
+        .unwrap()["own_drawings"]
+            .clone(),
+    )
+    .unwrap();
+    let font = draftwright::text::Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    // ctc04 has no features: the bridge refuses its recognition. connector109 takes about six
+    // minutes to render (haecceity's hidden lines over its 140 freeform thread faces; the other
+    // parts take a second or less), so it is drawn only with LINT_OWN_ALL=1; its entries stay
+    // listed, and are checked then.
+    let all = std::env::var_os("LINT_OWN_ALL").is_some();
+    let names: Vec<String> = facts::names()
+        .into_iter()
+        .filter(|n| corpus::recognition(n).is_some())
+        .filter(|n| all || n != "connector109")
+        .collect();
+    // Each part on its own thread: rendering (hidden lines) dominates, and the parts are
+    // independent. The findings are gathered in part order.
+    let linted: Vec<Vec<lint::LintIssue>> = std::thread::scope(|s| {
+        let handles: Vec<_> = names
+            .iter()
+            .map(|name| {
+                let (dir, font) = (&dir, &font);
+                s.spawn(move || {
+                    let f = facts::load(name);
+                    let (part, analysis) = corpus::analyse(dir, &f.binding.file, name);
+                    let plan = model::plan(&analysis, &model::Spec::default()).unwrap();
+                    let drawing = model::render(&part, &analysis, &plan, font).unwrap();
+                    lint::lint(&analysis, &drawing)
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+    let mut found: BTreeMap<(String, String), usize> = BTreeMap::new();
+    for (name, issues) in names.iter().zip(linted) {
+        for issue in issues {
+            if std::env::var_os("LINT_REPORT").is_some() {
+                eprintln!("{name}: {} {}", issue.code, issue.message);
+            }
+            *found.entry((name.clone(), issue.code)).or_default() += 1;
+        }
+    }
+    let listed: BTreeMap<(String, String), usize> = known
+        .iter()
+        .map(|k| {
+            assert!(
+                [
+                    "rust-correct",
+                    "rust-wrong",
+                    "equivalent",
+                    "undetermined",
+                    "not-applicable"
+                ]
+                .contains(&k.verdict.as_str())
+                    && !k.reason.is_empty(),
+                "{k:?}"
+            );
+            ((k.part.clone(), k.code.clone()), k.count)
+        })
+        .collect();
+    assert_eq!(listed.len(), known.len(), "a part and code is listed twice");
+    let listed: BTreeMap<(String, String), usize> = listed
+        .into_iter()
+        .filter(|((part, _), _)| names.contains(part))
+        .collect();
+    eprintln!(
+        "{} findings on the port's own drawings, in {} part and code pairs",
+        found.values().sum::<usize>(),
+        found.len()
+    );
+    assert_eq!(
+        found, listed,
+        "lint's findings on the port's own drawings (left) differ from known_lint.json's own_drawings (right)"
     );
 }
