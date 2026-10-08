@@ -157,8 +157,9 @@ improvement plan and questions are the current work. Still open from before it:
     the dims basis for a corroborated circle of fewer than five still says "five or more holes is
     self-evident". Switch dims and demand to `established_with(.., &holes::bosses(analysis))`
     and fix the basis text (ISSUE-1596-a stays pending).
-  - Question for haecceity: on cgb242's front view HLR emits a zero-span NURBS stretch (t0 =
-    t1 = 0) at an edge's own end vertex; should it be filtered at source?
+  - Answered by haecceity (quiddity-rust d6a4703): HLR no longer emits cgb242's zero-span NURBS
+    stretch (breakpoints within 1e-9 of the part's size are passed over), so cgb242 draws with
+    no `edges_not_drawn`; the port's check stays as a guard, unit-tested in `output`.
 - Closed in wave 2 (stream w2/d-model-honesty): `Drawing::problems` reach `review` and `render`;
   the unresolved-geometry refusal is tested (`tests/fixtures/parts/unresolved.step`); the sheet's
   basis names a computed or overflow fallback; an empty iso projection is reported

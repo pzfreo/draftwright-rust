@@ -54,11 +54,12 @@ fn svg_and_dxf_match_draftwright() {
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
-/// cgb242's front view has a hidden stretch of no span (an exact cubic from t = 0 to t = 0, at a
-/// vertex several edges share): it is left out and reported, and the rest of the sheet is drawn
-/// and reviewed.
+/// cgb242's front view had a hidden stretch of no span (an exact cubic from t = 0 to t = 0, at a
+/// vertex several edges share), which the port left out and reported (`edges_not_drawn`, still
+/// tested on its own in `output`). haecceity now passes over such stretches at source, so every
+/// stretch is drawn, nothing is reported, and the sheet is drawn and reviewed.
 #[test]
-fn a_stretch_of_no_span_is_left_out_and_reported() {
+fn cgb242_is_drawn_whole() {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
@@ -83,12 +84,7 @@ fn a_stretch_of_no_span_is_left_out_and_reported() {
     .unwrap();
     let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
     let ids: Vec<&str> = drawing.problems.iter().map(|p| p.id.as_str()).collect();
-    assert_eq!(ids, ["p:edges_not_drawn:v:front"]);
-    assert!(
-        drawing.problems[0]
-            .message
-            .starts_with("1 projected edge piece in v:front")
-    );
+    assert!(ids.is_empty(), "{ids:?}");
     assert!(drawing.svg().contains("<path d="));
     assert!(!drawing.dxf().is_empty());
     assert!(!drawing.pdf(&common::fonts).is_empty());
