@@ -256,8 +256,8 @@ fn golden_plates_pads_levels_ladder_leaves_the_base_plates_top_to_the_plate() {
     assert_eq!(
         ladder,
         strs(&[
-            ("step_height.length.0", "front", "16"),
-            ("step_height.length.1", "front", "32"),
+            ("step_height.length.h16", "front", "16"),
+            ("step_height.length.h32", "front", "32"),
         ])
     );
     let f = facts_of("plates_pads_levels_and_slanted_steps");
@@ -278,8 +278,8 @@ fn a_through_step_the_ladder_states_is_left_to_it() {
     assert_eq!(
         ladder,
         strs(&[
-            ("step_height.length.0", "front", "10"),
-            ("step_position.length.x0", "plan", "20"),
+            ("step_height.length.h10", "front", "10"),
+            ("step_position.length.x20", "plan", "20"),
         ])
     );
     assert_eq!(
@@ -330,9 +330,9 @@ fn a_uniform_staircase_is_one_counted_rise() {
     assert_eq!(
         items(&plan, &LADDER),
         strs(&[
-            ("step_height.length.0", "front", "5"),
-            ("step_height.length.1", "front", "10"),
-            ("step_height.length.2", "front", "16"),
+            ("step_height.length.h10", "front", "10"),
+            ("step_height.length.h16", "front", "16"),
+            ("step_height.length.h5", "front", "5"),
         ])
     );
 }
@@ -394,23 +394,41 @@ fn an_unreadable_step_is_reported() {
     );
 }
 
-/// The spec omits a rung by its ID; the others stay.
+/// ADR4-6: a rung's ID names its height, never its rank, so losing a level renames no other
+/// rung, and an ID naming a level that is gone is refused rather than taken for another. A rung
+/// is omitted by its ID; the others stay (half a ladder, which ARCH0015-2 forbids: pending).
 #[test]
-fn a_rung_is_omitted_by_its_id() {
-    let a = fixture("plates_pads_levels_and_slanted_steps");
+fn a_rungs_id_names_its_height_not_its_rank() {
+    let mut a = fixture("plates_pads_levels_and_slanted_steps");
     let spec: Spec = serde_json::from_value(serde_json::json!({
-        "dimensions": { "d:step_level/step_height.length.1@front": { "omit": true } }
+        "dimensions": { "d:step_level/step_height.length.h16@front": { "omit": true } }
     }))
     .unwrap();
     let plan = model::plan(&a, &spec).unwrap();
     assert_eq!(
         items(&plan, &LADDER),
-        strs(&[("step_height.length.0", "front", "16")])
+        strs(&[("step_height.length.h32", "front", "32")])
     );
     assert!(
         plan.omitted
             .iter()
-            .any(|o| o.id == "d:step_level/step_height.length.1@front")
+            .any(|o| o.id == "d:step_level/step_height.length.h16@front")
+    );
+
+    // Without the lower level the upper rung keeps its ID; omitting the lost one is refused.
+    let base = a.envelope[0][2];
+    a.levels.retain(|z| (z - base - 16.0).abs() > 1e-6);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        items(&plan, &LADDER),
+        strs(&[("step_height.length.h32", "front", "32")])
+    );
+    let e = model::plan(&a, &spec).unwrap_err();
+    assert!(
+        e.choices
+            .iter()
+            .any(|c| c == "d:step_level/step_height.length.h32@front"),
+        "{e}"
     );
 }
 
@@ -455,9 +473,9 @@ fn ftc06_shoulders_and_heights_match_draftwrights_sheet() {
     assert_eq!(
         positions,
         strs(&[
-            ("step_position.length.x0", "plan", "136.5"),
-            ("step_position.length.x1", "plan", "168.3"),
-            ("step_position.length.y0", "side", "47.0"),
+            ("step_position.length.x136_525", "plan", "136.5"),
+            ("step_position.length.x168_275", "plan", "168.3"),
+            ("step_position.length.y46_99", "side", "47.0"),
         ])
     );
     let heights = shown(&items(&plan, &["step_height"]));

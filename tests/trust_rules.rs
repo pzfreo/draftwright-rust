@@ -428,9 +428,9 @@ fn id_parts(id: &str) -> (&str, &str, &str) {
 }
 
 /// ADR4-6 (R1 invariant 5): a dimension's ID is derived, never positional: its feature (the
-/// envelope, the height ladder `step_level`, a recognised feature or pattern), its parameter in the role vocabulary
-/// (`role.kind[.discriminator]`, the kind always present) and its view; IDs are unique and do not
-/// change with the order recognition reports features in. A bare role is refused, with the IDs
+/// envelope, the height ladder `step_level`, a recognised feature or pattern), its parameter in
+/// the role vocabulary (`role.kind[.discriminator]`, the kind always present) and its view; IDs
+/// are unique and do not change with the order recognition reports features in. A bare role is refused, with the IDs
 /// it could mean.
 #[test]
 fn dimension_ids_are_derived_and_a_bare_role_is_refused() {

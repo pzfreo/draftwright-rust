@@ -577,23 +577,30 @@ improvement plan and questions are the current work. Still open from before it:
     m10127 now states its through step's legs, so `known_lint.json`'s `own_drawings` entry
     `{"part": "m10127", "code": "through_step_requirement_missing", "count": 2, …}` must come off
     (owned by d-lint-remainder; not edited here).
-  - **Placement problems the new items add** (for d-placement; `src/dims/placement.rs` not
-    edited): cgb245 20 `annotation_ink_overlap` and 8 `annotation_over_view` (its 11 rungs in the
-    front view's right strip, the overall height pushed over the side view); ftc06 3 ink overlaps
-    (the y shoulder under the depth, a rung under a hole location, the x shoulder through the
-    pattern pitch) and 1 over-view (a chamfer callout over the isometric); m1000 2 ink overlaps
-    and the overall height over the side view. The layout reserves the right strip for the rungs
-    legible at the scale (`layout::legible_steps`) while the plan draws every rung.
+  - **Placement problems the new items add** (for d-placement; `src/layout.rs` and
+    `src/dims/placement.rs` not edited), on main after d-placement's merge (no new ink overlap or
+    off-sheet problem): cgb245 `annotation_outside_area` 21 → 29 (7 rungs and the overall
+    height past the front's area) and 1 new `annotation_over_view` (the overall height's label
+    over the side view, beyond the 11 rungs); ftc06 `annotation_outside_area` 21 → 23 (the
+    three shoulders) and `annotation_over_view` 2 → 3 (chamfer:2's label over the isometric);
+    m1000 `annotation_outside_area` 1 → 2 and 1 new `annotation_over_view` (the overall height,
+    beyond its rungs). Recorded with verdicts (rust-wrong) in `tests/fixtures/known_placement.json`
+    so `tests/placement.rs` stays green; the cause is the legibility gate below: the layout reserves
+    the front's right band for the rungs legible at the scale while the plan draws every rung.
   - Not ported: draftwright's legibility gate (`_classify_steps`: withhold a rung shorter than
     its arrows, drop one too close to the last and escalate to a detail view); a correlated set
-    addressed by one ID (ARCH0015-2 stays pending: each rung and shoulder is its own item,
-    `step_height.length.<i>`, `step_position.length.<axis><i>`, ranked by height or position);
+    addressed by one ID (ARCH0015-2 stays pending: each rung and shoulder is its own item, named
+    by its own value to the thousandth, `step_height.length.h16`, `step_position.length.x136_525`,
+    never by its rank, so a level a revision adds renames no other rung (ADR4-6); a spec can
+    still omit one rung);
     draftwright's channel absorption into the ladder (`_step_level_owns_channel`); lint's
     alternative grammars that credit a ladder-owned through step's legs (`lint::steps`). The
     plate a through step shares is found by shared constituent faces (draftwright uses defining
     faces); Rust quiddity's risers carry their solid's levels within 0.5 mm of its ends where
     draftwright's aggregate uses 0.6 (no sampled part differs). Equal shoulders are stated once
-    (draftwright draws each riser's: ctc04's two 75s and two 225s, not compared).
+    (draftwright draws each riser's: ctc04's two 75s and two 225s; ctc04 is not among the
+    compared sheets, so this has no verdict entry: see the question below). A level with no
+    recorded support is reported (`step_level_support_missing`), its witnesses on the box.
   - Proposed catalogue changes in files not edited here: issues.yaml ISSUE-915-a stays pending,
     rust_note "the ladder's witnesses stand on each level's own support (src/dims/levels.rs); no
     detail views"; ISSUE-924-a stays pending, rust_note "a shoulder on the box is reported
@@ -604,4 +611,8 @@ improvement plan and questions are the current work. Still open from before it:
       the planners do not see (`dims::Context`); without it cgb245 states 11 heights where
       draftwright states 1 and withholds 10 (info), and the port's sheet collides.
     - Address a ladder as one correlated set (ARCH0015-2), or keep per-rung IDs a spec can omit
-      one at a time? Ranked IDs shift when a revision adds a level, as feature ranks do.
+      one at a time? One set ID needs the plan driver (`src/dims/mod.rs`) to take a set's
+      omission for all its members; until then each rung's ID is its height.
+    - Two shoulders at the same position (ctc04's two risers at 75, two at 225): one dimension
+      (the port, as one value stated twice is redundant, ISO 129-1) or one per riser
+      (draftwright)?
