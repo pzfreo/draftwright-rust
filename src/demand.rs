@@ -38,7 +38,8 @@ pub struct Hole {
     /// feature, called out once.
     pub spec: Vec<i64>,
     /// The recognised pattern it is called out with (`Analysis.recognition.patterns`), if that
-    /// pattern is established as one requirement ([`holes::established`]).
+    /// pattern is established as one requirement ([`holes::established_with`], given the
+    /// [`holes::bosses`]).
     pub pattern: Option<String>,
 }
 
@@ -154,14 +155,16 @@ pub fn read(analysis: &Analysis) -> Demand {
     d.step_zs.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
 
     // The holes that can be read (the dimensions report the others), each in the recognised
-    // pattern that is established as one requirement ([`holes::established`], as the dimensions
-    // and lint group them; the first pattern to claim a hole keeps it), else loose.
+    // pattern that is established as one requirement ([`holes::established_with`], a boss on a
+    // small bolt circle's centre counting, as the dimensions and lint group them; the first
+    // pattern to claim a hole keeps it), else loose.
     let read = holes::read(analysis);
+    let bosses = holes::bosses(analysis);
     let readable: Vec<&holes::Hole> = read.iter().filter_map(|(_, h)| h.as_ref().ok()).collect();
     let mut pattern: Vec<Option<String>> = vec![None; readable.len()];
     let patterns = analysis.recognition.as_ref().map(|r| r.patterns.as_slice());
     for p in patterns.unwrap_or_default() {
-        if let Ok(members) = holes::established(p, &readable)
+        if let Ok(members) = holes::established_with(p, &readable, &bosses)
             && members.iter().all(|&m| pattern[m].is_none())
         {
             for m in members {

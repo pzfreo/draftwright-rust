@@ -164,7 +164,7 @@ fn bands_match_draftwright_or_are_known() {
     );
 }
 
-/// demand groups holes as the dimensions and lint do (`bridge::holes::established`): a recognised
+/// demand groups holes as the dimensions and lint do (`bridge::holes::established_with`): a recognised
 /// pattern that is not established as one requirement, here a bolt circle of four holes
 /// (ISSUE-1596-a), leaves its holes loose, so the bands are sized for the callouts and locations
 /// the sheet will carry.
@@ -201,4 +201,60 @@ fn demand_groups_holes_by_established_patterns() {
     // Loose, the holes are located singly: two x positions to tier above the plan, not one.
     let strips = |d: &demand::Demand| demand::strips(d, 0, true);
     assert!(strips(&circle).top > strips(&grid).top);
+}
+
+/// A bolt circle of fewer than five holes with a boss on its centre is one requirement in the
+/// dimensions and demand, as it is in lint (`bridge::holes::established_with`, ISSUE-1596-a).
+/// `boss_circle.step` is draftwright's `test_a_concentric_feature_alone_can_carry_it` part
+/// (#1595's 60 × 90 × 6 plate with six ⌀2.4 holes at x ±12.15, y −32.3, −7.92 and 32.3, plus a
+/// ⌀12 boss 3 high on the fitted circle's centre (0, −20.11)), made in build123d and recognised by
+/// `tools/recognise.py` (quiddity 0.4.0.dev0): quiddity fits a ø34.42 circle through the four
+/// lower holes, and draftwright's sheet for it prints `4× ⌀2.4 THRU EQ SP ON ø34.4 BC` and
+/// `2× ⌀2.4 THRU`. Without the boss, the circle is refused and the six are loose.
+#[test]
+fn a_boss_on_its_centre_establishes_a_small_bolt_circle() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let (_, mut a) = draftwright::model::analyse_with(
+        &fixtures.join("parts/boss_circle.step"),
+        Some(&fixtures.join("recognition/boss_circle.json")),
+    )
+    .unwrap();
+    let callouts = |a: &draftwright::model::Analysis| -> Vec<(String, String)> {
+        let plan = draftwright::model::plan(a, &draftwright::model::Spec::default()).unwrap();
+        plan.dimensions
+            .iter()
+            .filter(|d| d.kind == "callout" && d.label.contains("⌀2.4"))
+            .map(|d| (d.label.clone(), d.basis.clone()))
+            .collect()
+    };
+
+    let pattern = a.recognition.as_ref().unwrap().patterns[0].id.clone();
+    let d = demand::read(&a);
+    assert_eq!(d.holes.len(), 6);
+    assert_eq!(
+        d.holes
+            .iter()
+            .filter(|h| h.pattern.as_deref() == Some(pattern.as_str()))
+            .count(),
+        4
+    );
+    let c = callouts(&a);
+    let labels: Vec<&str> = c.iter().map(|(l, _)| l.as_str()).collect();
+    assert_eq!(labels, ["4× ⌀2.4 THRU EQ SP ON ø34.4 BC", "2× ⌀2.4 THRU"]);
+    assert!(
+        c[0].1
+            .contains("corroborated by a hole or boss on its centre")
+            && !c[0].1.contains("five or more"),
+        "{}",
+        c[0].1
+    );
+
+    // Without the boss nothing corroborates the circle: all six are loose, in both.
+    a.features.retain(|f| f.kind != "boss");
+    assert!(demand::read(&a).holes.iter().all(|h| h.pattern.is_none()));
+    let c = callouts(&a);
+    assert_eq!(
+        c.iter().map(|(l, _)| l.as_str()).collect::<Vec<_>>(),
+        ["6× ⌀2.4 THRU"]
+    );
 }

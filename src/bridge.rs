@@ -446,10 +446,13 @@ fn check_faces(part: &Part, faces: &[FaceCheck]) -> Result<(), String> {
     Ok(())
 }
 
-/// A family's name for one of its features: `holes` → `hole`, `bosses` → `boss`.
+/// A family's name for one of its features: `holes` → `hole`, `bosses` → `boss`,
+/// `thin_wall_bodies` → `thin_wall_body`; `polygonal_stock` has no plural to strip.
 fn kind(family: &str) -> String {
     if let Some(stem) = family.strip_suffix("sses") {
         format!("{stem}ss")
+    } else if let Some(stem) = family.strip_suffix("ies") {
+        format!("{stem}y")
     } else {
         family.strip_suffix('s').unwrap_or(family).to_string()
     }
@@ -644,4 +647,64 @@ fn hole_pattern(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Some(pattern(&members)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::kind;
+
+    /// Every family in draftwright's family table (`family_table.py`), with `-` as `_`.
+    #[test]
+    fn kinds_are_singular() {
+        let cases = [
+            ("angled_steps", "angled_step"),
+            ("blends", "blend"),
+            ("bosses", "boss"),
+            ("chamfers", "chamfer"),
+            ("channels", "channel"),
+            ("circular_blind_steps", "circular_blind_step"),
+            ("circular_face_patterns", "circular_face_pattern"),
+            ("countersinks", "countersink"),
+            ("double_d_bores", "double_d_bore"),
+            ("fillets", "fillet"),
+            ("flats", "flat"),
+            ("freeform_surfaces", "freeform_surface"),
+            ("grooves", "groove"),
+            ("gusset_rib_patterns", "gusset_rib_pattern"),
+            ("gusset_ribs", "gusset_rib"),
+            ("hole_patterns", "hole_pattern"),
+            ("holes", "hole"),
+            ("interior_voids", "interior_void"),
+            ("oblique_through_steps", "oblique_through_step"),
+            ("oriented_chamfers", "oriented_chamfer"),
+            ("oriented_slot_patterns", "oriented_slot_pattern"),
+            ("oriented_slots", "oriented_slot"),
+            ("outer_profile_angles", "outer_profile_angle"),
+            ("pads", "pad"),
+            ("paired_ramp_steps", "paired_ramp_step"),
+            ("passages", "passage"),
+            ("plates", "plate"),
+            ("pocket_patterns", "pocket_pattern"),
+            ("pockets", "pocket"),
+            ("polygonal_bosses", "polygonal_boss"),
+            ("polygonal_stock", "polygonal_stock"),
+            ("prismatic_pockets", "prismatic_pocket"),
+            ("rectangular_blind_slots", "rectangular_blind_slot"),
+            ("repeating_radial_profiles", "repeating_radial_profile"),
+            ("risers", "riser"),
+            ("round_bottom_blind_slots", "round_bottom_blind_slot"),
+            ("section_recess_patterns", "section_recess_pattern"),
+            ("section_recesses", "section_recess"),
+            ("sheet_metal_bodies", "sheet_metal_body"),
+            ("slot_patterns", "slot_pattern"),
+            ("slots", "slot"),
+            ("step_levels", "step_level"),
+            ("thin_wall_bodies", "thin_wall_body"),
+            ("through_steps", "through_step"),
+            ("turned_steps", "turned_step"),
+        ];
+        for (family, singular) in cases {
+            assert_eq!(kind(family), singular, "{family}");
+        }
+    }
 }

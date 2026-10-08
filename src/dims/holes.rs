@@ -179,8 +179,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut declined: BTreeMap<usize, String> = BTreeMap::new();
     let mut coincident: Vec<(usize, P3, Sites)> = Vec::new(); // callout index, station
     let reads: Vec<&holes::Hole> = holes.iter().map(|h| &h.read).collect();
+    let bosses = holes::bosses(analysis);
     for p in patterns {
-        let members = match holes::established(p, &reads) {
+        let members = match holes::established_with(p, &reads, &bosses) {
             Ok(members) => members,
             Err(why) => {
                 for m in &p.members {
@@ -211,7 +212,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                         (
                             Some(format!("EQ SP ON ø{} BC", fmt(d))),
                             Some(d),
-                            "a bolt circle of five or more holes is self-evident (ISSUE-1596-a): it is called out with its circle and located by its centre".to_string(),
+                            if n >= 5 {
+                                "a bolt circle of five or more holes is self-evident (ISSUE-1596-a): it is called out with its circle and located by its centre".to_string()
+                            } else {
+                                "a bolt circle of fewer than five holes is corroborated by a hole or boss on its centre (ISSUE-1596-a): it is called out with its circle and located by its centre".to_string()
+                            },
                         )
                     }
                     _ => {
