@@ -169,6 +169,26 @@
       "rust": "recognised 3-edge prismatic through-opening (3 of 4) is not represented by Draftwright dimensions: profile has no supported drafting grammar; review and define its manufacturing section outside automatic drawing approval",
       "verdict": "equivalent",
       "reason": "Equivalent: the same four passages, each reported whatever the sheet says, with the same sides and reason; only their ordinals differ. Python's lint counts the recesses in quiddity's RecognitionResult order (index 5 the 3-sided passage on faces 19-21, 6 and 7 the 8-sided ones), while quiddity's recognition document, which the bridge reads (tests/fixtures/recognition/sheets/m1000.json.gz), numbers them differently (index 5 the 8-sided passage on faces 39-46, 6 the 3-sided one on faces 19-21; checked with quiddity 0.3.9's build_recognition_result and build_recognition_document on mfcadpp/1000.step). The port counts in the document's index order, so the second and third passages swap ordinals."
+    },
+    {
+      "part": "m10046",
+      "subject": "f:section_recess:4",
+      "group": "section_recess [] at (22.963, 5.279, 7.691)",
+      "parameter": "location_pocket.x",
+      "python": null,
+      "rust": "pocket_requirement_missing",
+      "verdict": "equivalent",
+      "reason": "Equivalent: both lints say the sheet does not locate this pocket along x. Python's sheet planned the pocket's position dimensions (m10046's pocket0, 22.963 across and 7.691 along from the part's corner) but placement dropped both for want of room beside the front view, and Python reports that drop as pocket_dim_dropped (twice on this sheet), so its coverage ledger counts the requirement dropped and reports nothing more. The port's lint judges the finished drawing only and cannot see a placement drop, so it reports the location missing. Python also reports the aggregate pocket_not_located for this pocket (coverage.py's prismatic check, not ported)."
+    },
+    {
+      "part": "m10046",
+      "subject": "f:section_recess:4",
+      "group": "section_recess [] at (22.963, 5.279, 7.691)",
+      "parameter": "location_pocket.z",
+      "python": null,
+      "rust": "pocket_requirement_missing",
+      "verdict": "equivalent",
+      "reason": "Equivalent: both lints say the sheet does not locate this pocket along z. Python's sheet planned the pocket's position dimensions (m10046's pocket0, 22.963 across and 7.691 along from the part's corner) but placement dropped both for want of room beside the front view, and Python reports that drop as pocket_dim_dropped (twice on this sheet), so its coverage ledger counts the requirement dropped and reports nothing more. The port's lint judges the finished drawing only and cannot see a placement drop, so it reports the location missing. Python also reports the aggregate pocket_not_located for this pocket (coverage.py's prismatic check, not ported)."
     }
   ],
   "own_drawings": [
@@ -244,6 +264,13 @@
     },
     {
       "part": "m1000",
+      "code": "pocket_requirement_missing",
+      "count": 5,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's dimensions do not plan pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the pocket's width, length, depth and two locations missing. Python's sheet of the same part states them (m1000) or plans them (m10046, whose locations placement dropped), and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "m1000",
       "code": "prismatic_pocket_requirement_unsupported",
       "count": 1,
       "verdict": "rust-correct",
@@ -262,6 +289,13 @@
       "count": 1,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
+    },
+    {
+      "part": "m10046",
+      "code": "pocket_requirement_missing",
+      "count": 5,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's dimensions do not plan pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the pocket's width, length, depth and two locations missing. Python's sheet of the same part states them (m1000) or plans them (m10046, whose locations placement dropped), and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
       "part": "m10046",

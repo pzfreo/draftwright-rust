@@ -196,7 +196,7 @@ fn sized(parameter: &str) -> bool {
 
 /// The feature families lint judges by a feature's own sizes, by Python's kind, with the
 /// parameters it checks.
-const FAMILIES: [(&str, &[&str]); 12] = [
+const FAMILIES: [(&str, &[&str]); 13] = [
     ("boss", &["boss_height.length"]),
     (
         "polygonal_boss",
@@ -222,6 +222,20 @@ const FAMILIES: [(&str, &[&str]); 12] = [
             "through_step_leg.length.x",
             "through_step_leg.length.y",
             "through_step_leg.length.z",
+        ],
+    ),
+    (
+        "pocket",
+        &[
+            "pocket_width.length",
+            "pocket_length.length",
+            "pocket_depth.length",
+            "pocket_max_depth.length",
+            "location_pocket.location.x",
+            "location_pocket.location.y",
+            "location_pocket.x",
+            "location_pocket.y",
+            "location_pocket.z",
         ],
     ),
     (
@@ -352,6 +366,36 @@ fn join_feature(analysis: &Analysis, feature: &facts::Feature) -> Option<String>
     (fits.len() == 1).then(|| fits[0].id.clone())
 }
 
+/// The Analysis section recess a Python `pocket` names, when exactly one fits: read as a pocket in
+/// the part's frame ([`lint::pockets::placed`]), cut along Python's axis letter, of Python's
+/// depth, width and length (within 1.5e-3), centred at Python's origin (within 2e-3).
+fn join_pocket(analysis: &Analysis, feature: &facts::Feature) -> Option<String> {
+    let origin = feature.origin?;
+    let key = feature.key.as_deref()?;
+    let size = |k: &str| -> Option<f64> {
+        key.split(&format!("{k}="))
+            .nth(1)?
+            .split([',', ']'])
+            .next()?
+            .parse()
+            .ok()
+    };
+    let (depth, width, length) = (size("depth")?, size("width")?, size("length")?);
+    let fits: Vec<String> = lint::pockets::placed(analysis)
+        .into_iter()
+        .filter_map(|(f, p)| Some((f, p.ok()?)))
+        .filter(|(_, p)| {
+            Some(["x", "y", "z"][p.depth_axis]) == feature.axis.as_deref()
+                && (p.depth - depth).abs() <= 1.5e-3
+                && (p.width - width).abs() <= 1.5e-3
+                && (p.length - length).abs() <= 1.5e-3
+                && (0..3).all(|k| (p.centre[k] - origin[k]).abs() <= 2e-3)
+        })
+        .map(|(f, _)| f.id.clone())
+        .collect();
+    (fits.len() == 1).then(|| fits[0].clone())
+}
+
 /// The Analysis turned step a Python `step` names, when exactly one fits: its band along Python's
 /// axis letter, of Python's diameter and length (within 1.5e-3), with its axial midpoint at
 /// Python's origin (within 2e-3).
@@ -422,6 +466,26 @@ fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Ma
                             feature: id,
                             parameter: m.parameter.clone(),
                         }),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
+                if feature.kind == "pocket" {
+                    // A Z pocket's two locations are one structured fact on Python's sheet,
+                    // claimed by both of its location dimensions; here each is a requirement.
+                    let parameters: Vec<String> = if m.parameter == "location_pocket.location" {
+                        vec![
+                            "location_pocket.location.x".into(),
+                            "location_pocket.location.y".into(),
+                        ]
+                    } else {
+                        vec![m.parameter.clone()]
+                    };
+                    match join_pocket(analysis, feature) {
+                        Some(id) => claims.extend(parameters.into_iter().map(|parameter| Claim {
+                            feature: id.clone(),
+                            parameter,
+                        })),
                         None => unjoined += 1,
                     }
                     continue;
@@ -733,11 +797,12 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
         {
             use draftwright::lint::{
                 blends, blind_slots, bosses, chamfers, circular_blind_steps, fillets, flats,
-                grooves, paired_ramp_steps, polygonal, slots, steps,
+                grooves, paired_ramp_steps, pockets, polygonal, slots, steps,
             };
             judged += bosses::wanted(&analysis).len()
                 + polygonal::boss_wanted(&analysis).len()
                 + polygonal::stock_wanted(&analysis).len()
+                + pockets::wanted(&analysis).len()
                 + flats::wanted(&analysis).len()
                 + grooves::wanted(&analysis).len()
                 + chamfers::wanted(&analysis).len()

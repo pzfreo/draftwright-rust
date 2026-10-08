@@ -40,6 +40,7 @@ pub mod grooves;
 pub mod holes;
 pub mod paired_ramp_steps;
 pub mod parameters;
+pub mod pockets;
 pub mod polygonal;
 pub mod section_recesses;
 pub mod slots;
@@ -170,5 +171,6 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(slots::coverage(analysis, marks));
     issues.extend(holes::coverage(analysis, marks));
     issues.extend(polygonal::stock_coverage(analysis, marks));
+    issues.extend(pockets::coverage(analysis, marks));
     issues
 }

@@ -972,6 +972,8 @@
     issues: [1372]
     tests: [tests/test_pocket_completeness_evidence.py]
   status: pending
+  rust_test: a_pocket_states_its_sizes_and_location
+  rust_note: "Partial (src/lint/pockets.rs): each section_recess feature that section_recesses::grammar reads as a pocket, read in the part's frame, has pocket_width.length, pocket_length.length and pocket_depth.length (pocket_max_depth.length under a cylindrical mouth), and, unless edge-anchored, its two locations from the part's box corner (datum_xy) to its reference point (pocket_location_reference): location_pocket.location.x/.y for a Z pocket, location_pocket.<long>/<width> otherwise, a direction on the datum (within 1e-6) left out as Python's compiler omits it. On m1000's captured sheet all five are read as stated, as Python's lint finds; on m10046's the two locations Python's placement dropped are reported missing (known_lint.json, equivalent). Not ported: pattern members are not left to the pocket-pattern family, because the bridge drops quiddity's derived section_recess_patterns (no corpus recognition has one)."
   port_note: "Keep."
 
 - id: LINT-code-pocket_requirement_state
@@ -983,6 +985,8 @@
     issues: [1372]
     tests: [tests/test_pocket_completeness_evidence.py, tests/test_issue_1485_curved_pockets.py]
   status: pending
+  rust_test: a_pocket_states_its_sizes_and_location
+  rust_note: "Codes pocket_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops (a dropped location is reported missing). Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-pocket_pattern_coverage-requirements
