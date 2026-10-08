@@ -103,14 +103,16 @@ fn tools() -> Value {
             "name": "render",
             "description": "Draw a STEP file under a spec and write the drawing beside the \
                 output stem, one file per format (out.svg, out.dxf, out.pdf). Each file embeds \
-                the spec. Returns the paths written and the plan's problems.",
+                the spec. Returns the paths written and the problems (the plan's, and what could not \
+                be drawn as planned).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "step": path("Path of the STEP file."),
                     "features": features,
                     "spec": spec,
-                    "output": path("Output path without extension; each format's extension is added."),
+                    "output": path("Output path; each format's extension is appended (a drawing format's extension \
+                    already on it is replaced)."),
                     "formats": {
                         "type": "array",
                         "items": { "type": "string", "enum": api::FORMATS },
@@ -123,7 +125,8 @@ fn tools() -> Value {
         {
             "name": "review",
             "description": "Draw a STEP file under a spec without writing a file, to check it by \
-                eye: returns the plan's problems and lint's findings as JSON, then the drawing as \
+                eye: returns the problems (the plan's, and what could not be drawn as planned) and \
+                lint's findings as JSON, then the drawing as \
                 SVG text (page in mm; layers part, hidden and dims). Lint judges the drawn sheet \
                 against the part alone: each finding names the features (subjects), what is \
                 wrong, and a fix.",

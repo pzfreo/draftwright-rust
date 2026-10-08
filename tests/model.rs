@@ -1,9 +1,15 @@
 //! The document model (ADR R1): analyse, plan, edit, render, and the spec carried in the output.
 
+#[path = "common/corpus.rs"]
+mod corpus;
+
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
+use draftwright::api;
 use draftwright::model::{self, Spec};
 use draftwright::text::Font;
+use serde_json::json;
 
 fn part(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -123,7 +129,9 @@ fn edits_apply_and_the_spec_travels_in_the_output() {
             .ok()
     });
     for bytes in [drawing.svg().into_bytes(), drawing.dxf(), pdf] {
-        let back = model::embedded_spec(&bytes).expect("the spec is embedded");
+        let back = model::embedded_spec(&bytes)
+            .unwrap()
+            .expect("the spec is embedded");
         assert_eq!(back, plan.spec);
         assert_eq!(
             back.binding.as_ref().unwrap().source_sha256,
@@ -150,4 +158,317 @@ fn the_same_documents_give_the_same_bytes() {
     assert!(a.1 == b.1, "svg differs");
     assert!(a.2 == b.2, "dxf differs");
     assert!(a.3 == b.3, "pdf differs");
+}
+
+fn scratch(name: &str) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("model");
+    std::fs::create_dir_all(&dir).unwrap();
+    dir.join(name)
+}
+
+fn codes(problems: &[model::Problem]) -> Vec<&str> {
+    problems.iter().map(|p| p.code.as_str()).collect()
+}
+
+/// What could not be drawn as planned (cgb242's front view has a hidden stretch of no span,
+/// `edges_not_drawn`) reaches the problems `review` and `render` answer, and so the command
+/// line, the service and the MCP server, which answer through `api::call`.
+#[test]
+fn the_drawings_problems_reach_review_and_render() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let mut step = Vec::new();
+    flate2::read::GzDecoder::new(
+        std::fs::File::open(dir.join("cadgenbench_inputs/cgb242.step.gz")).unwrap(),
+    )
+    .read_to_end(&mut step)
+    .unwrap();
+    let path = scratch("cgb242.step");
+    std::fs::write(&path, step).unwrap();
+    let step = path.display().to_string();
+
+    let review = api::call("review", &json!({ "step": step })).unwrap();
+    let render = api::call(
+        "render",
+        &json!({ "step": step, "output": scratch("cgb242").display().to_string(),
+            "formats": ["svg"] }),
+    )
+    .unwrap();
+    for reply in [&review, &render] {
+        let ids: Vec<&str> = reply["problems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["id"].as_str().unwrap())
+            .collect();
+        assert!(ids.contains(&"p:edges_not_drawn:v:front"), "{ids:?}");
+    }
+}
+
+/// tests/fixtures/parts/unresolved.step is turned.step with one plane (#148) written as an
+/// `OFFSET_SURFACE`, which haecceity does not model: it reads the part, records face 3 as
+/// unresolved and refuses to draw it. Every operation that draws answers `failed`, naming the
+/// cause, and no file is written; rendering that part under a plan made from the sound file is
+/// refused by `model::render`.
+#[test]
+fn geometry_the_kernel_did_not_resolve_is_refused_as_failed() {
+    let step = part("unresolved.step");
+    let out = scratch("unresolved");
+    for (op, args) in [
+        ("analyse", json!({ "step": step })),
+        ("plan", json!({ "step": step })),
+        ("review", json!({ "step": step })),
+        (
+            "render",
+            json!({ "step": step, "output": out.display().to_string() }),
+        ),
+    ] {
+        let e = api::call(op, &args).unwrap_err();
+        assert_eq!(e.code, "failed", "{op}: {e}");
+        assert!(
+            e.message.contains("did not resolve") && e.message.contains("faces [3]"),
+            "{op}: {e}"
+        );
+    }
+    assert!(!out.with_extension("svg").exists());
+
+    let (_, analysis) = model::analyse(&part("turned.step")).unwrap();
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    let broken = draftwright::haecceity::read_step(&std::fs::read(&step).unwrap()).unwrap();
+    let refused = model::render(&broken, &analysis, &plan, &font()).unwrap_err();
+    assert_eq!(refused.faces, [3]);
+}
+
+/// L2: input that is not what the request should name is `invalid`; input that is, which the
+/// kernel or the bridge could not use, is `failed`.
+#[test]
+fn a_kernel_or_bridge_failure_is_failed_and_bad_input_invalid() {
+    let code =
+        |step: &Path, features: Option<&Path>| api::analyse(step, features).unwrap_err().code;
+    assert_eq!(code(&part("missing.step"), None), "invalid");
+    let not_step = scratch("not.step");
+    std::fs::write(&not_step, "solid nothing\n").unwrap();
+    assert_eq!(code(&not_step, None), "invalid");
+    let recognition = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition");
+    // Another file's recognition is the caller's mistake.
+    assert_eq!(
+        code(&part("plate.step"), Some(&recognition.join("turned.json"))),
+        "invalid"
+    );
+    // This file's, with a face the kernel measures differently, is a failure.
+    let mut json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(recognition.join("plate.json")).unwrap())
+            .unwrap();
+    json["faces"][3]["area"] = 301.0.into();
+    let disagreeing = scratch("plate-disagreeing.json");
+    std::fs::write(&disagreeing, json.to_string()).unwrap();
+    let e = api::analyse(&part("plate.step"), Some(&disagreeing)).unwrap_err();
+    assert_eq!(e.code, "failed", "{e}");
+    assert!(e.message.contains("face 3 has area"), "{e}");
+}
+
+/// M4, ADR R3 invariant 3: across a revision, a feature's ID may name another feature, so the
+/// spec's feature-keyed dimension entries are kept but inactive, listed in one warning, and the
+/// spec stays bound to its revision; the envelope's entries carry over.
+#[test]
+fn feature_entries_from_another_revision_are_kept_inactive() {
+    let recognition = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition");
+    let (_, plate) =
+        model::analyse_with(&part("plate.step"), Some(&recognition.join("plate.json"))).unwrap();
+    let (_, other) = model::analyse(&part("prismatic.step")).unwrap();
+    let hole = "d:f:hole_pattern:1/bore.diameter@plan";
+    let gone = "d:f:hole:9/bore.diameter@plan";
+    let envelope = "d:envelope/width.length@front";
+    let spec: Spec = serde_json::from_value(json!({
+        "binding": other.binding,
+        "dimensions": { hole: { "omit": true }, gone: { "omit": true }, envelope: { "omit": true } },
+    }))
+    .unwrap();
+    let plan = model::plan(&plate, &spec).unwrap();
+    let ids: Vec<&str> = plan.dimensions.iter().map(|d| d.id.as_str()).collect();
+    assert!(ids.contains(&hole), "the inactive omission is not applied");
+    assert!(!ids.contains(&envelope), "the envelope's carries over");
+    let dimension = plan.dimensions.iter().find(|d| d.id == hole).unwrap();
+    assert!(dimension.default);
+    let inactive: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "spec_entries_inactive")
+        .collect();
+    assert_eq!(inactive.len(), 1, "{:?}", plan.problems);
+    assert_eq!(inactive[0].severity, "warning");
+    assert_eq!(inactive[0].subjects, [gone, hole]);
+    assert!(codes(&plan.problems).contains(&"spec_from_other_revision"));
+    // Kept, and still bound to the revision they were made for.
+    assert_eq!(plan.spec.dimensions.len(), 3);
+    assert_eq!(plan.spec.binding, Some(other.binding.clone()));
+
+    // In an authored set, an inactive entry does not count as listed, and says so.
+    let mut authored = spec.clone();
+    authored.dimension_source = model::DimensionSource::Authored;
+    authored
+        .dimensions
+        .values_mut()
+        .for_each(|d| d.omit = false);
+    let plan = model::plan(&plate, &authored).unwrap();
+    let omitted = plan.omitted.iter().find(|o| o.id == hole).unwrap();
+    assert!(omitted.basis.starts_with("inactive"), "{}", omitted.basis);
+    assert!(plan.dimensions.iter().any(|d| d.id == envelope));
+
+    // Without them, the spec rebinds to this revision.
+    let mut rebound = spec.clone();
+    rebound.dimensions.retain(|id, _| !id.starts_with("d:f:"));
+    let plan = model::plan(&plate, &rebound).unwrap();
+    assert!(!codes(&plan.problems).contains(&"spec_entries_inactive"));
+    assert_eq!(plan.spec.binding, Some(plate.binding.clone()));
+}
+
+/// M5, ISSUE-1190-b: a section the part needs is never dropped silently. nist_ftc_06 needs
+/// section A–A; it is not drawn when the plan view that marks its cut is omitted, or when both
+/// views of its row are; a spec that asks for a section on a part that has none is told so.
+/// The author's own omission of the section needs no saying.
+#[test]
+fn a_section_not_drawn_says_why() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let (_, analysis) = corpus::analyse(&dir, "nist/nist_ftc_06_asme1_rd.stp", "ftc06");
+    let planned = |views: serde_json::Value| {
+        let spec: Spec = serde_json::from_value(json!({ "views": views })).unwrap();
+        model::plan(&analysis, &spec).unwrap()
+    };
+    let not_shown = |plan: &model::Plan| {
+        plan.problems
+            .iter()
+            .find(|p| p.code == "section_not_shown")
+            .map(|p| p.message.clone())
+    };
+    let plan = planned(json!({ "plan": { "omit": true } }));
+    assert!(plan.views.iter().all(|v| v.id != "v:section_aa"));
+    let why = not_shown(&plan).expect("reported");
+    assert!(
+        why.contains("plan view") && why.contains("views/plan/omit"),
+        "{why}"
+    );
+    let plan = planned(json!({ "front": { "omit": true }, "side": { "omit": true } }));
+    let why = not_shown(&plan).expect("reported");
+    assert!(why.contains("front and side"), "{why}");
+    assert_eq!(not_shown(&planned(json!({}))), None);
+    assert_eq!(
+        not_shown(&planned(json!({ "section_aa": { "omit": true } }))),
+        None
+    );
+
+    let (_, plate) = model::analyse(&part("plate.step")).unwrap();
+    let spec: Spec = serde_json::from_value(json!({ "views": { "section_aa": {} } })).unwrap();
+    let plan = model::plan(&plate, &spec).unwrap();
+    let why = not_shown(&plan).expect("reported");
+    assert!(why.contains("no plane to cut"), "{why}");
+}
+
+/// M6: `remove` of a path that is not there is refused, and makes nothing on its way.
+#[test]
+fn removing_what_is_not_there_is_refused() {
+    for path in [
+        "views/iso/omit",
+        "sheet/size",
+        "dimensions/d:envelope~1width.length@front",
+    ] {
+        let e =
+            model::edit(&Spec::default(), &json!([{ "op": "remove", "path": path }])).unwrap_err();
+        assert!(e.message.contains("nothing at"), "{path}: {e}");
+    }
+    let spec = model::edit(
+        &Spec::default(),
+        &json!([{ "op": "set", "path": "views/iso/omit", "value": true }]),
+    )
+    .unwrap();
+    let e = model::edit(
+        &spec,
+        &json!([{ "op": "remove", "path": "views/plan/omit" }]),
+    )
+    .unwrap_err();
+    assert!(e.message.contains("views/plan/omit"), "{e}");
+    let back = model::edit(
+        &spec,
+        &json!([{ "op": "remove", "path": "views/iso/omit" }]),
+    )
+    .unwrap();
+    assert!(!back.views["iso"].omit && !back.views.contains_key("plan"));
+}
+
+/// M6: the spec travels intact through every format whatever it holds (markup, a CDATA end,
+/// characters outside ASCII); the format is told by the file's signature; a spec that does not
+/// read is an error, not "no spec".
+#[test]
+fn the_embedded_spec_reads_back_exactly_or_is_refused() {
+    let (p, a) = model::analyse(&part("prismatic.step")).unwrap();
+    let awkward =
+        "</draftwright:spec> <![CDATA[ ]]> ]]]]><![CDATA[> & &amp; < > \u{00df} \u{2013} \u{1f600}";
+    let spec = model::edit(
+        &Spec::default(),
+        &json!([{ "op": "set", "path": "sheet/title/material", "value": awkward }]),
+    )
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let drawing = model::render(&p, &a, &plan, &font()).unwrap();
+    let svg = drawing.svg();
+    // The JSON carries no markup: one CDATA section holds it all.
+    let i = svg.find("<![CDATA[").unwrap() + "<![CDATA[".len();
+    let body = &svg[i..i + svg[i..].find("]]>").unwrap()];
+    assert!(svg[i + body.len()..].starts_with("]]></draftwright:spec>"));
+    assert!(!body.contains(['<', '>', '&']), "{body}");
+    let pdf = drawing.pdf(&|_| None);
+    for bytes in [svg.clone().into_bytes(), drawing.dxf(), pdf] {
+        let back = model::embedded_spec(&bytes).unwrap().unwrap();
+        assert_eq!(back.sheet.title["material"], awkward);
+        assert_eq!(back, plan.spec);
+    }
+    // An editor's re-save without CDATA still reads.
+    let i = svg.find("<![CDATA[").unwrap();
+    let j = svg.find("]]></draftwright:spec>").unwrap();
+    let json = &svg[i + "<![CDATA[".len()..j];
+    let escaped = format!(
+        "{}{}{}",
+        &svg[..i],
+        json.replace('&', "&amp;").replace('<', "&lt;"),
+        &svg[j + "]]>".len()..]
+    );
+    assert_eq!(
+        model::embedded_spec(escaped.as_bytes()).unwrap().unwrap(),
+        plan.spec
+    );
+
+    // A corrupt spec is an error; a drawing without one is none; a file that is no drawing is
+    // an error.
+    let corrupt = svg.replacen("\"schema\"", "\"schema", 1);
+    assert!(model::embedded_spec(corrupt.as_bytes()).is_err());
+    let mut bare = drawing.clone();
+    bare.spec = None;
+    assert_eq!(model::embedded_spec(bare.svg().as_bytes()), Ok(None));
+    assert_eq!(model::embedded_spec(&bare.dxf()), Ok(None));
+    assert_eq!(model::embedded_spec(&bare.pdf(&|_| None)), Ok(None));
+    assert!(model::embedded_spec(b"solid nothing\n").is_err());
+    let e = api::spec(&part("turned.step")).unwrap_err();
+    assert_eq!(e.code, "invalid");
+}
+
+/// L2: the format's extension is appended to the output's name, so two revisions' stems do not
+/// write the same files; a drawing format's extension already on it is replaced, as
+/// draftwright's `_output_prefix` does.
+#[test]
+fn render_appends_the_formats_extension() {
+    let files = vec![("svg".to_string(), b"<svg/>".to_vec())];
+    for (out, written) in [
+        ("part.rev2", "part.rev2.svg"),
+        ("part.rev3", "part.rev3.svg"),
+        ("part.svg", "part.svg"),
+        ("part.pdf", "part.svg"),
+    ] {
+        let paths = api::write(&scratch(out), &files).unwrap();
+        assert_eq!(paths, [scratch(written).display().to_string()]);
+    }
 }

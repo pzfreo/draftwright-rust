@@ -123,3 +123,27 @@ fn the_service_answers_each_line() {
         assert_eq!(back["binding"]["part"], "prismatic");
     }
 }
+
+/// A part whose geometry the kernel did not resolve (`unresolved.step`, see tests/model.rs) is
+/// answered `failed`, naming the cause, and the service goes on to the next line.
+#[test]
+fn the_service_answers_unresolved_geometry_as_failed() {
+    let step = part("unresolved.step");
+    let out = scratch("unresolved");
+    let replies = serve(&[
+        json!({ "id": 1, "op": "analyse", "step": step }).to_string(),
+        json!({ "id": 2, "op": "render", "step": step, "output": out.display().to_string() })
+            .to_string(),
+        json!({ "id": 3, "op": "plan", "step": part("turned.step") }).to_string(),
+    ]);
+    for reply in &replies[..2] {
+        assert_eq!(reply["ok"], false, "{reply}");
+        assert_eq!(reply["error"]["code"], "failed", "{reply}");
+        let message = reply["error"]["message"].as_str().unwrap();
+        assert!(
+            message.contains("did not resolve its geometry"),
+            "{message}"
+        );
+    }
+    assert_eq!(replies[2]["ok"], true);
+}

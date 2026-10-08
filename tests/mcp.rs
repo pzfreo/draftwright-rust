@@ -156,3 +156,20 @@ fn a_drawing_is_planned_edited_rendered_and_resumed() {
         assert_eq!(back["binding"]["part"], "turned");
     }
 }
+
+/// Geometry the kernel did not resolve is a tool error coded `failed`, naming the cause.
+#[test]
+fn unresolved_geometry_is_a_failed_tool_error() {
+    let replies = session(&[call(
+        1,
+        "review",
+        json!({ "step": part("unresolved.step") }),
+    )]);
+    assert_eq!(replies[0]["result"]["isError"], true);
+    let error = &first(&replies[0])["error"];
+    assert_eq!(error["code"], "failed", "{error}");
+    assert!(
+        error["message"].as_str().unwrap().contains("faces [3]"),
+        "{error}"
+    );
+}

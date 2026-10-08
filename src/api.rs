@@ -70,6 +70,16 @@ impl std::fmt::Display for Error {
     }
 }
 
+impl From<model::Unanalysed> for Error {
+    fn from(e: model::Unanalysed) -> Error {
+        if e.failed {
+            Error::failed(e.message)
+        } else {
+            Error::invalid(e.message)
+        }
+    }
+}
+
 impl From<model::Invalid> for Error {
     fn from(e: model::Invalid) -> Error {
         Error {
@@ -83,14 +93,12 @@ impl From<model::Invalid> for Error {
 /// The Analysis of the STEP file at *step*, with the features in *features*, Python quiddity's
 /// recognition JSON for the same file ([`crate::bridge`]), when given.
 pub fn analyse(step: &Path, features: Option<&Path>) -> Result<Analysis, Error> {
-    Ok(model::analyse_with(step, features)
-        .map_err(Error::invalid)?
-        .1)
+    Ok(model::analyse_with(step, features)?.1)
 }
 
 /// The Plan for the STEP file at *step* (with *features*, as for [`analyse`]) under *spec*.
 pub fn plan(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Plan, Error> {
-    let (_, analysis) = model::analyse_with(step, features).map_err(Error::invalid)?;
+    let (_, analysis) = model::analyse_with(step, features)?;
     Ok(model::plan(&analysis, spec)?)
 }
 
@@ -99,22 +107,28 @@ pub fn edit(spec: &Spec, ops: &Value) -> Result<Spec, Error> {
     Ok(model::edit(spec, ops)?)
 }
 
-/// The analysis, the plan and the drawing of the STEP file at *step* under *spec*.
+/// The analysis, the plan and the drawing of the STEP file at *step* under *spec*. The plan's
+/// problems include the drawing's: what could not be drawn as planned.
 fn drawn(
     step: &Path,
     features: Option<&Path>,
     spec: &Spec,
 ) -> Result<(Analysis, Plan, Drawing), Error> {
-    let (part, analysis) = model::analyse_with(step, features).map_err(Error::invalid)?;
-    let plan = model::plan(&analysis, spec)?;
+    let (part, analysis) = model::analyse_with(step, features)?;
+    let mut plan = model::plan(&analysis, spec)?;
     let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
-    let drawing = model::render(&part, &analysis, &plan, &font)
-        .map_err(|e| Error::failed(format!("cannot draw {}: {e}", step.display())))?;
+    let drawing = model::render(&part, &analysis, &plan, &font).map_err(|e| {
+        Error::failed(format!(
+            "cannot draw {}: the kernel did not resolve its {e} on reading",
+            step.display()
+        ))
+    })?;
+    plan.problems.extend(drawing.problems.iter().cloned());
     Ok((analysis, plan, drawing))
 }
 
-/// The plan, and the drawing in each of *formats* (from [`FORMATS`]) as bytes, each carrying the
-/// spec.
+/// The plan (its problems with the drawing's), and the drawing in each of *formats* (from
+/// [`FORMATS`]) as bytes, each carrying the spec.
 pub fn render(
     step: &Path,
     features: Option<&Path>,
@@ -144,14 +158,24 @@ pub fn render(
     Ok((plan, files))
 }
 
-/// Writes each rendered file beside *out* with its format's extension, and returns the paths
-/// written. Each is written beside its place and then moved in, so a failure leaves any earlier
-/// file as it was.
+/// Writes each rendered file at *out* with its format's extension appended (`part.rev2` →
+/// `part.rev2.svg`; an *out* already ending in a drawing format's extension has it replaced, as
+/// draftwright's `_output_prefix` does), and returns the paths written. Each is written beside its
+/// place and then moved in, so a failure leaves any earlier file as it was.
 pub fn write(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<String>, Error> {
+    let stem = match out.extension().and_then(|e| e.to_str()) {
+        Some(e) if FORMATS.contains(&e) || e == "png" => out.with_extension(""),
+        _ => out.to_path_buf(),
+    };
+    let named = |suffix: &str| {
+        let mut name = stem.clone().into_os_string();
+        name.push(format!(".{suffix}"));
+        std::path::PathBuf::from(name)
+    };
     let mut written = Vec::new();
     for (format, bytes) in files {
-        let path = out.with_extension(format);
-        let staged = out.with_extension(format!("{format}.part"));
+        let path = named(format);
+        let staged = named(&format!("{format}.part"));
         std::fs::write(&staged, bytes)
             .map_err(|e| Error::failed(format!("cannot write {}: {e}", staged.display())))?;
         std::fs::rename(&staged, &path)
@@ -161,11 +185,12 @@ pub fn write(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<String>, Err
     Ok(written)
 }
 
-/// A drawing to look at: the plan rendered as SVG, with the plan's problems and lint's findings
-/// on the drawing.
+/// A drawing to look at: the plan rendered as SVG, with its problems and lint's findings on the
+/// drawing.
 #[derive(Clone, Debug, Serialize)]
 pub struct Review {
     pub svg: String,
+    /// The plan's problems, and the drawing's: what could not be drawn as planned.
     pub problems: Vec<Problem>,
     /// What lint finds on the rendered drawing, judged against the part's analysis alone
     /// ([`crate::lint`]): e.g. a hole whose sizes the sheet does not state.
@@ -188,6 +213,12 @@ pub fn spec(drawing: &Path) -> Result<Spec, Error> {
     let bytes = std::fs::read(drawing)
         .map_err(|e| Error::invalid(format!("cannot read {}: {e}", drawing.display())))?;
     model::embedded_spec(&bytes)
+        .map_err(|e| {
+            Error::invalid(format!(
+                "cannot read the spec in {}: {e}",
+                drawing.display()
+            ))
+        })?
         .ok_or_else(|| Error::invalid(format!("{} carries no draftwright spec", drawing.display())))
 }
 

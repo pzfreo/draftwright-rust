@@ -167,3 +167,83 @@ fn views_keep_projection_alignment_and_their_areas_apart() {
         assert!(iso.scale > 0.0 && plan.sheet.scale_factor > 0.0);
     }
 }
+
+/// The sheet's basis says what a fallback is, not the rule that found nothing: a part too big
+/// for every standard scale takes a computed one, and one too big for every sheet at a pinned
+/// scale overflows; each also has its problem.
+#[test]
+fn a_fallback_scale_or_sheet_says_so_in_its_basis() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/parts/prismatic.step");
+    let (_, mut analysis) = model::analyse(&path).unwrap();
+    // 200 km on a side: no sheet holds it even at 1:10000.
+    analysis.envelope = [[0.0; 3], [2e8; 3]];
+    let planned = |sheet: serde_json::Value| {
+        let spec: Spec = serde_json::from_value(serde_json::json!({ "sheet": sheet })).unwrap();
+        model::plan(&analysis, &spec).unwrap()
+    };
+    let codes = |plan: &model::Plan| -> Vec<String> {
+        plan.problems.iter().map(|p| p.code.clone()).collect()
+    };
+    let plan = planned(serde_json::json!({}));
+    assert!(codes(&plan).contains(&"scale_fallback_applied".into()));
+    assert!(
+        plan.sheet.basis.contains("not a standard scale")
+            && !plan.sheet.basis.contains("first sheet and scale"),
+        "{}",
+        plan.sheet.basis
+    );
+    let plan = planned(serde_json::json!({ "size": "A3" }));
+    assert!(
+        plan.sheet.basis.contains("no standard scale fits") && plan.sheet.basis.contains("A3"),
+        "{}",
+        plan.sheet.basis
+    );
+    let plan = planned(serde_json::json!({ "scale": "1:1" }));
+    assert!(codes(&plan).contains(&"views_do_not_fit".into()));
+    assert!(
+        plan.sheet.basis.contains("no sheet holds the views at 1:1")
+            && plan.sheet.basis.contains("do not fit"),
+        "{}",
+        plan.sheet.basis
+    );
+    let plan = planned(serde_json::json!({ "scale": "1:1", "size": "A4" }));
+    assert!(codes(&plan).contains(&"page_fit_uncertain".into()));
+    assert!(
+        plan.sheet.basis.contains("may not fit"),
+        "{}",
+        plan.sheet.basis
+    );
+}
+
+/// An isometric projection with no edges leaves nothing to fit the isometric by: reported, not
+/// left as a box of zero size.
+#[test]
+fn an_empty_isometric_projection_is_reported() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/parts/prismatic.step");
+    let (_, mut analysis) = model::analyse(&path).unwrap();
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| p.code != "iso_projection_empty")
+    );
+    analysis.iso_bounds = [0.0; 4];
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "iso_projection_empty")
+        .expect("reported");
+    assert_eq!(p.subjects, ["v:iso"]);
+    let spec: Spec =
+        serde_json::from_value(serde_json::json!({ "views": { "iso": { "omit": true } } }))
+            .unwrap();
+    let plan = model::plan(&analysis, &spec).unwrap();
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| p.code != "iso_projection_empty")
+    );
+}

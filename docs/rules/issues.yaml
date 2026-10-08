@@ -1053,6 +1053,8 @@
       - "tests/test_issue_1190_section_decision.py::test_every_scale_records_an_outcome_with_a_reason"
     corpus_parts: ["GRM-01"]
   status: pending
+  rust_test: tests/model.rs::a_section_not_drawn_says_why
+  rust_note: "Partly ported: a section the part needs that is not drawn (its plan view or its row omitted or left out, or no place made for it) and one the spec asks for on a part with no plane to cut are each a section_not_shown problem saying why and how to fix it; an authored omission is not reported. Not ported: the closed vocabulary recorded on every plan (not needed, placed, no room, title block, failed cut, never ran) and lint seeing the outcome. draftwright refuses outright when the plan view or both row views are missing (sections.py:389-404); the port draws the rest and reports, as for a dimension no view can carry (R4 decision 2)."
   port_note: "Keep: plan carries a section decision enum per candidate section."
 
 - id: ISSUE-1196-a
@@ -2027,6 +2029,8 @@
       - "tests/test_issue_1396_layout_advisories.py::test_caller_pinned_sub_render_scale_is_still_rejected"
     corpus_parts: []
   status: pending
+  rust_test: tests/views.rs::a_fallback_scale_or_sheet_says_so_in_its_basis
+  rust_note: "Partly ported: a computed scale (scale_fallback_applied), an overflow (views_do_not_fit) and a pinned sheet and scale that may not fit (page_fit_uncertain) are plan problems, and the sheet's basis says which fallback was taken. Not ported: legibility at scale and unresolved repack advisories; there is no advisory kind registry to refuse unknown kinds."
   port_note: "Keep: plan problems/advisories; no log scraping."
 
 - id: ISSUE-1397-a
@@ -2173,6 +2177,8 @@
       - "tests/test_issue_1460_step_inspection.py::test_a_deliberate_refusal_is_not_demoted_to_a_warning"
     corpus_parts: []
   status: pending
+  rust_test: tests/model.rs::a_kernel_or_bridge_failure_is_failed_and_bad_input_invalid
+  rust_note: "Partly ported: a missing or unparsable STEP file is refused before any document (invalid); one the kernel reads but cannot model or resolve is refused as failed, never a warning (also geometry_the_kernel_did_not_resolve_is_refused_as_failed). Not ported: an undrawable but readable source still yielding its output; the port has no scripts, and refuses the Analysis when the isometric cannot be drawn."
   port_note: "Keep: typed errors for input failures vs plan problems."
 
 - id: ISSUE-1460-d
