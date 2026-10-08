@@ -2,7 +2,7 @@
 //! projected curves carried through (`cargo run --release --example views -- part.step out`).
 //! Views are set side by side, unscaled; draftwright's placement comes later.
 
-use draftwright::output::{Drawing, Item, Layer, layer_styles, projected};
+use draftwright::output::{Drawing, Item, Layer, layer_styles, projected, undrawn};
 use haecceity::hlr::{View, project};
 
 fn main() {
@@ -24,6 +24,7 @@ fn main() {
         ([1.0, -1.0, 1.0], [0.0, 0.0, 1.0]),
     ];
     let mut x = 20.0;
+    let mut dropped = std::collections::BTreeMap::new();
     for (toward, up) in views {
         let pieces = project(&part, &View::new(toward, up).unwrap());
         let (lo, hi) = pieces.iter().flat_map(|p| p.points.iter()).fold(
@@ -43,9 +44,12 @@ fn main() {
                 .iter_mut()
                 .for_each(|q| *q = [q[0] + shift[0], q[1] + shift[1]]);
             moved.exact = p.exact.as_ref().map(|e| shifted(e, shift));
-            layers[usize::from(!p.visible)]
-                .items
-                .push(Item::Edge(projected(&moved)));
+            match projected(&moved) {
+                Some(curve) => layers[usize::from(!p.visible)]
+                    .items
+                    .push(Item::Edge(curve)),
+                None => *dropped.entry(format!("{toward:?}")).or_default() += 1,
+            }
         }
         x += hi[0] - lo[0] + 20.0;
     }
@@ -55,8 +59,12 @@ fn main() {
         link: None,
         text: Vec::new(),
         annotations: Vec::new(),
+        problems: undrawn(&dropped),
         spec: None,
     };
+    for p in &drawing.problems {
+        eprintln!("{}", p.message);
+    }
     let out = &args[2];
     std::fs::write(format!("{out}.svg"), drawing.svg()).unwrap();
     std::fs::write(format!("{out}.dxf"), drawing.dxf()).unwrap();

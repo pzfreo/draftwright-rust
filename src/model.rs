@@ -697,6 +697,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
             items: Vec::new(),
         })
         .collect();
+    let mut undrawn = BTreeMap::new();
     for v in &plan.views {
         let view = View::new(v.direction, v.up).expect("a planned view");
         let s = v.scale;
@@ -716,9 +717,12 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
             let mut moved = piece.clone();
             moved.points = piece.points.iter().map(|q| place(*q)).collect();
             moved.exact = piece.exact.as_ref().map(|e| placed(e, s, centre, v.at));
-            layers[usize::from(!piece.visible)]
-                .items
-                .push(Item::Edge(projected(&moved)));
+            match projected(&moved) {
+                Some(curve) => layers[usize::from(!piece.visible)]
+                    .items
+                    .push(Item::Edge(curve)),
+                None => *undrawn.entry(v.id.clone()).or_default() += 1,
+            }
         }
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
             let f = section_furniture(part, analysis, plan, v, (plane, cut));
@@ -804,6 +808,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
         link: None,
         text,
         annotations: Vec::new(),
+        problems: crate::output::undrawn(&undrawn),
         spec: Some(serde_json::to_string(&plan.spec).expect("a spec serialises")),
     }
 }
