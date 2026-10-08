@@ -491,6 +491,7 @@ pub fn plan(
         }
     }
     bosses::consolidate(analysis, &mut kept, &mut omitted);
+    slots::consolidate(&mut kept, &mut omitted);
     let given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
 
     let (sides, lane) = placement::lanes(&frames, kept.iter().map(|(w, _, view, _)| (w, *view)));

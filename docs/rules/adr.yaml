@@ -93,7 +93,7 @@
     tests: ["test_turned_steps.py", "test_principal_profile_classifier.py"]
   status: pending
   rust_test: tests/dimension_rules.rs::a_holes_view_follows_from_its_axis
-  rust_note: "Ported for holes (and their locations, pitches and callouts), the overall extents, and fillet and chamfer callouts (end-on to the edge, or in the profile when turned: src/dims/edges.rs); turned steps are not planned yet."
+  rust_note: "Ported for holes (and their locations, pitches and callouts), the overall extents, and fillet and chamfer callouts (end-on to the edge, or in the profile when turned: src/dims/edges.rs); turned steps are not planned yet. By the maintainer's decision of 2026-10-08, a hole's or pattern's (a slot pattern's too) in-plane position is dimensioned on both axes in the view that sees it end-on, not in the side view as draftwright does (rust-correct in tests/fixtures/known_dimensions.json); and a slot, through or blind, is also located across its width, by its centre line, in the view that sees it end-on (beyond draftwright: src/dims/slots.rs, tests/dims_slots.rs)."
   port_note: "Keep: view routing is a pure function of feature axis and measurement kind in the planner; record it as the plan entry's basis."
 
 - id: ADR1-7
@@ -930,7 +930,7 @@
   status: pending
   port_note: "Keep: Rust output is deterministic; port as a reproducibility test over Plan JSON and rendered SVG/PDF bytes."
   rust_test: tests/timezone.rs::the_same_bytes_in_every_time_zone
-  rust_note: "Ported in part: the same documents give the same SVG, DXF and PDF bytes run to run (tests/model.rs::the_same_documents_give_the_same_bytes) and under four time zones whose 1900 and present offsets differ (tests/timezone.rs). Not checked: bytes across operating systems and architectures, and the strip solver's PAVA lower-median tie rule."
+  rust_note: "Ported in part: the same documents give the same SVG, DXF and PDF bytes run to run (tests/model.rs::the_same_documents_give_the_same_bytes) and under four time zones whose 1900 and present offsets differ (tests/timezone.rs); PNG bytes are pinned the same way, run to run and across time zones (tests/png.rs::the_same_drawing_gives_the_same_bytes, the_same_bytes_in_every_time_zone). Not checked: bytes across operating systems and architectures, and the strip solver's PAVA lower-median tie rule."
 
 - id: ADR5-2
   statement: "Lint derives no completeness denominator from the plan or the IR; it may compare a claim the drawing makes against the plan."
@@ -1344,6 +1344,8 @@
     tests: []
   status: pending
   port_note: "Keep: dedup rule in the planner; the losing entry appears in the Plan as omitted with basis 'conveyed_by <id>'."
+  rust_test: tests/dims_slots.rs::cgb245_slots_state_width_length_end_radius_and_location
+  rust_note: "Ported in part: hole locations share one dimension per distinct distance (src/dims/holes.rs), and a slot's location across its width that a hole's, boss's or slot pattern's location in the same view already states moves to omitted, 'conveyed by <id>' (src/dims/slots.rs::consolidate); omitting the winner promotes it (tests/trust_rules.rs::every_planned_dimension_can_be_addressed). Not yet: coincident hole and boss locations (ctc01's hex boss at its hole grid's centre, rust-wrong in known_dimensions.json), and the coincidence key from raw endpoints across all families."
 
 - id: ARCH0009-7
   statement: "A diagonal leader's collision is tested against its exact shaft (with stroke width and arrowhead flare), not its axis-aligned bounding box."

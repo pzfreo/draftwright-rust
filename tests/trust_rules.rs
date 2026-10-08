@@ -528,7 +528,8 @@ fn an_omission_is_never_reported_as_a_drop() {
 }
 
 /// ARCH0016-2: every dimension the plan states can be addressed by its ID. Omitting it (in
-/// `auto`) takes it, and only it, off; listing it alone (in `authored`) gives a plan of it
+/// `auto`) takes it, and only it, off, except that an item it conveyed (ARCH0009-6: a dropped
+/// winner promotes its loser) comes back; listing it alone (in `authored`) gives a plan of it
 /// alone, so any dimension dropped can be added back.
 #[test]
 fn every_planned_dimension_can_be_addressed() {
@@ -545,8 +546,27 @@ fn every_planned_dimension_can_be_addressed() {
         for id in &all {
             let without = model::plan(analysis, &omitting(&[id])).unwrap();
             let expected: Vec<&str> = all.iter().copied().filter(|i| i != id).collect();
-            assert_eq!(ids(&without), expected, "{name}: omitting {id}");
-            assert_eq!(without.omitted.len(), 1, "{name}: {id}");
+            let promoted: Vec<&str> = plan
+                .omitted
+                .iter()
+                .filter(|o| o.basis.starts_with(&format!("conveyed by {id}: ")))
+                .map(|o| o.id.as_str())
+                .collect();
+            let kept: Vec<&str> = ids(&without)
+                .into_iter()
+                .filter(|i| !promoted.contains(i))
+                .collect();
+            assert_eq!(kept, expected, "{name}: omitting {id}");
+            assert_eq!(
+                ids(&without).len(),
+                expected.len() + promoted.len(),
+                "{name}: omitting {id} brings back what it conveyed"
+            );
+            assert_eq!(
+                without.omitted.len(),
+                1 + plan.omitted.len() - promoted.len(),
+                "{name}: {id}"
+            );
 
             let mut alone = Spec {
                 dimension_source: DimensionSource::Authored,

@@ -93,7 +93,9 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
     let a = analysed(&corpus, "cgb245");
     let plan = model::plan(&a, &Spec::default()).unwrap();
     // Three through slots in the plan: two obrounds (6 × 15.0, ends R3) and one straight slot
-    // (7.0 × 16.9, corner radius 2: no end radius), each located from the box along x.
+    // (7.0 × 16.9, corner radius 2: no end radius), each located from the box along x, and across
+    // in y by its centre line: one at 38.9; two share 50.4, which is a hole's y location in the
+    // same view, so that states it (ARCH0009-6).
     assert_eq!(
         items(&plan, "slot_"),
         strs(&[
@@ -113,7 +115,22 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
             ("location_slot.length", "plan", "181.6"),
             ("location_slot.length", "plan", "286.0"),
             ("location_slot.length", "plan", "79.1"),
+            ("location_slot_across.length", "plan", "38.9"),
         ])
+    );
+    let conveyed: Vec<_> = plan
+        .omitted
+        .iter()
+        .filter(|o| o.id.contains("/location_slot_across.length@"))
+        .collect();
+    assert_eq!(conveyed.len(), 1, "{:#?}", plan.omitted);
+    assert!(conveyed[0].basis.contains("ARCH0009-6"));
+    let basis = &conveyed[0].basis;
+    let owner = &basis["conveyed by ".len()..basis.find(": ").unwrap()];
+    let hole = plan.dimensions.iter().find(|d| d.id == owner).unwrap();
+    assert!(
+        hole.id.contains("/location.length.y@plan") && hole.label == "50.4",
+        "{hole:?}"
     );
     for d in plan.dimensions.iter().filter(|d| d.id.contains("slot")) {
         drawn(&plan, d);
@@ -415,13 +432,16 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
     };
     // draftwright's labels and views for the same parts (captured 2026-10-08 at origin/main
     // 586628b with tools/capture_sheet_facts.py): the section recesses its
-    // `section_recess_fields` reads as rectangular or round-bottom blind slots.
+    // `section_recess_fields` reads as rectangular or round-bottom blind slots; and, beyond
+    // draftwright, each one's location across its width (the maintainer's decision of 2026-10-08).
     type Case<'a> = (&'a str, &'a str, &'a [(&'a str, &'a str, &'a str)]);
     let cases: [Case; 3] = [
         (
             "m10047",
             "mfcadpp/10047.step",
             &[
+                ("location_slot_across.length", "plan", "16.1"),
+                ("location_slot_across.length", "side", "11.0"),
                 (
                     "round_bottom_blind_slot_flat_width.length",
                     "plan",
@@ -437,30 +457,48 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
         (
             "m10245",
             "mfcadpp/10245.step",
-            &[(
-                "rectangular_blind_slot_width.length",
-                "front",
-                "OPEN SLOT 3.3 × 9.2 × 2.0 DEEP",
-            )],
+            &[
+                ("location_slot_across.length", "front", "33.9"),
+                (
+                    "rectangular_blind_slot_width.length",
+                    "front",
+                    "OPEN SLOT 3.3 × 9.2 × 2.0 DEEP",
+                ),
+            ],
         ),
         (
             "m11512",
             "mfcadpp_regressions/11512.step",
-            &[(
-                "rectangular_blind_slot_width.length",
-                "plan",
-                "OPEN SLOT 2.5 × 11.7 × 6.7 DEEP",
-            )],
+            // Its walls stand at x = 12.837 and 15.295 (OpenCascade's face boxes), so its centre
+            // line is 14.066 from the part's left face.
+            &[
+                ("location_slot_across.length", "plan", "14.1"),
+                (
+                    "rectangular_blind_slot_width.length",
+                    "plan",
+                    "OPEN SLOT 2.5 × 11.7 × 6.7 DEEP",
+                ),
+            ],
         ),
     ];
     for (name, file, want) in cases {
         let a = analysed_file(&corpus, name, file);
         let plan = model::plan(&a, &Spec::default()).unwrap();
         assert_eq!(stating(&plan, &a, "section_recess"), strs(want), "{name}");
+        // Each blind slot is located across its width by its centre line, in the view that looks
+        // into it (beyond draftwright); the locations are in *want* beside the callouts.
+        for d in plan
+            .dimensions
+            .iter()
+            .filter(|d| d.id.contains("/location_slot_across.length@"))
+        {
+            assert!(d.placed.is_some(), "{name}: {} is not drawn", d.id);
+        }
         // The other section recesses (pockets, channels, passages) stay reported, one each.
         let recesses = of_kind(&a, "section_recess");
         let reported = not_ported(&plan, &recesses);
-        assert_eq!(reported.len(), recesses.len() - want.len(), "{name}");
+        let callouts = want.iter().filter(|w| w.0.contains("blind_slot")).count();
+        assert_eq!(reported.len(), recesses.len() - callouts, "{name}");
         for d in plan
             .dimensions
             .iter()
@@ -728,4 +766,91 @@ fn a_slot_pattern_that_does_not_hold_together_is_reported_and_its_slots_dimensio
             .count(),
         3
     );
+}
+
+/// The across-width locations a plan states, as (label, the slots it serves), sorted.
+fn across(plan: &Plan) -> Vec<(String, usize)> {
+    let mut out: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/location_slot_across.length@"))
+        .map(|d| (d.label.clone(), d.measurements.len()))
+        .collect();
+    out.sort();
+    out
+}
+
+/// The maintainer's decision of 2026-10-08: a slot is also located across its width, from the
+/// part's box to its centre line, in the view that looks through it (beyond draftwright). On the
+/// array plate with its pattern broken (so its three slots are dimensioned singly), each slot,
+/// running along y, is located in x, the middle one too although it stands at the plate's
+/// centre (60 of 120): a centred slot is located, not left to symmetry.
+#[test]
+fn a_lone_slot_is_located_across_its_width_from_the_box_to_its_centre_line() {
+    let a = slot_fixture("slot_array", |j| {
+        j["quiddity"]["derived"]["slot_patterns"][0]["pitch"] = 26.0.into();
+    });
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        across(&plan),
+        [("35", 1), ("60", 1), ("85", 1)].map(|(l, n)| (l.to_string(), n))
+    );
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/location_slot_across.length@"))
+    {
+        assert_eq!(d.view, "v:plan", "{d:?}");
+        assert_eq!(d.kind, "linear", "{d:?}");
+        assert_eq!(d.measurements[0].parameter, "location_slot_across.length");
+        assert!(d.basis.contains("across its width (x)"), "{}", d.basis);
+        drawn(&plan, d);
+    }
+    // Only the middle slot is the plate's centre, and it is still located.
+    let middle = plan.dimensions.iter().find(|d| d.label == "60").unwrap();
+    assert!((middle.value - 60.0).abs() < 1e-6);
+    assert!(plan.problems.iter().all(|p| p.code != "location_on_datum"));
+}
+
+/// Slots whose centre lines stand at the same distance across, in one view, share one location,
+/// as hole locations do: the grid plate with its pattern broken has two rows of three slots
+/// (running along x) at y = 35 and 65.
+#[test]
+fn slots_at_the_same_distance_across_share_one_location() {
+    let a = slot_fixture("slot_grid", |j| {
+        j["quiddity"]["derived"]["slot_patterns"][0]["col_pitch"] = 31.0.into();
+    });
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "feature_not_dimensioned" && p.subjects == ["f:slot_pattern:1"])
+    );
+    assert_eq!(
+        across(&plan),
+        [("35", 3), ("65", 3)].map(|(l, n)| (l.to_string(), n))
+    );
+    let d = plan.dimensions.iter().find(|d| d.label == "35").unwrap();
+    assert!(
+        d.basis.contains("one dimension serves every slot"),
+        "{}",
+        d.basis
+    );
+}
+
+/// A slot pattern is located by its centre on both of its view's axes, across its slots' width
+/// too; its members get no location of their own.
+#[test]
+fn a_slot_pattern_is_located_across_its_slots_by_its_centre() {
+    let a = slot_fixture("slot_array", |_| {});
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(across(&plan), []);
+    let x = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:slot_pattern:1/location_slot_pattern.length.x@plan")
+        .unwrap();
+    assert_eq!(x.label, "60");
+    // Its slots run along y and are 6 wide in x: x is across them.
+    assert!(plan.dimensions.iter().any(|d| d.label == "3× SLOT 6 × 20"));
 }
