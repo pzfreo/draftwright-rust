@@ -451,7 +451,33 @@ pub fn analyse_with(
 ) -> Result<(Part, Analysis), Unanalysed> {
     let bytes = std::fs::read(path)
         .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
-    let part = haecceity::read_step(&bytes).map_err(|e| {
+    let (part, mut analysis) = analyse_step(path, &bytes)?;
+    if let Some(r) = recognition {
+        let json = std::fs::read_to_string(r)
+            .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", r.display())))?;
+        recognise(&part, &mut analysis, &json).map_err(|e| {
+            // JSON of the right format made from this very file is what the request should
+            // name; the bridge refusing it after that (a face it measures differently, a record
+            // it has no home for) is the port's failure, not the caller's.
+            let header = serde_json::from_str::<serde_json::Value>(&json).ok();
+            let field = |k: &str| {
+                header
+                    .as_ref()
+                    .and_then(|h| h.get(k)?.as_str().map(String::from))
+            };
+            let failed = field("format").as_deref() == Some(crate::bridge::RECOGNITION_FORMAT)
+                && field("source_sha256").as_ref() == Some(&analysis.binding.source_sha256);
+            unanalysed(failed, format!("{}: {e}", r.display()))
+        })?;
+    }
+    Ok((part, analysis))
+}
+
+/// Reads *bytes*, the STEP file named *path* (which is not read: the name is for the part and
+/// for messages), as [`analyse_with`] reads a file, without features: for callers that have the
+/// file's bytes and no file system, such as a browser.
+pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
+    let part = haecceity::read_step(bytes).map_err(|e| {
         // A file that does not parse is not STEP; one that parses but holds what the kernel
         // does not model (or lost on reading) is the kernel's failure.
         let failed = !matches!(e, haecceity::step::StepError::Parse(_));
@@ -465,7 +491,7 @@ pub fn analyse_with(
     let mut analysis = Analysis {
         schema: ANALYSIS_SCHEMA.into(),
         binding: Binding {
-            source_sha256: Sha256::digest(&bytes)
+            source_sha256: Sha256::digest(bytes)
                 .iter()
                 .map(|x| format!("{x:02x}"))
                 .collect(),
@@ -519,24 +545,21 @@ pub fn analyse_with(
     if bounds[0].is_finite() {
         analysis.iso_bounds = bounds;
     }
-    if let Some(r) = recognition {
-        let json = std::fs::read_to_string(r)
-            .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", r.display())))?;
-        recognise(&part, &mut analysis, &json).map_err(|e| {
-            // JSON of the right format made from this very file is what the request should
-            // name; the bridge refusing it after that (a face it measures differently, a record
-            // it has no home for) is the port's failure, not the caller's.
-            let header = serde_json::from_str::<serde_json::Value>(&json).ok();
-            let field = |k: &str| {
-                header
-                    .as_ref()
-                    .and_then(|h| h.get(k)?.as_str().map(String::from))
-            };
-            let failed = field("format").as_deref() == Some(crate::bridge::RECOGNITION_FORMAT)
-                && field("source_sha256").as_ref() == Some(&analysis.binding.source_sha256);
-            unanalysed(failed, format!("{}: {e}", r.display()))
-        })?;
-    }
+    Ok((part, analysis))
+}
+
+/// [`analyse_step`], with its features from Rust quiddity's recognition, as [`analyse_native`].
+pub fn analyse_native_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
+    let (part, mut analysis) = analyse_step(path, bytes)?;
+    recognise_native(&part, &mut analysis).map_err(|e| {
+        unanalysed(
+            true,
+            format!(
+                "Rust quiddity's recognition of {} was refused: {e}",
+                path.display()
+            ),
+        )
+    })?;
     Ok((part, analysis))
 }
 
