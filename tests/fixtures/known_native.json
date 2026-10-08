@@ -1,0 +1,1152 @@
+[
+  {
+    "set": "parts",
+    "part": "boss_circle",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"adjacent_center_spacing\":24.3,\"bolt_circle_diameter\":34.42,\"direction\":\"circumferential\"}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "parts",
+    "part": "plate",
+    "subject": "f:hole_pattern:1",
+    "field": "members",
+    "python": "[\"f:hole:2\", \"f:hole:4\", \"f:hole:3\", \"f:hole:1\"]",
+    "rust": "[\"f:hole:1\", \"f:hole:2\", \"f:hole:4\", \"f:hole:3\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "parts",
+    "part": "plate",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.angle",
+    "python": "90.0",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
+  },
+  {
+    "set": "parts",
+    "part": "two_grids",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"center_spacing\":10.0,\"direction\":[1.0,0.0,0.0]}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "parts",
+    "part": "two_grids",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"center_spacing\":10.0,\"direction\":[1.0,0.0,0.0]}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "parts",
+    "part": "two_grids",
+    "subject": "f:hole_pattern:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"center_spacing\":10.0,\"direction\":[-1.0,0.0,0.0]}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "parts",
+    "part": "two_grids",
+    "subject": "f:hole_pattern:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"center_spacing\":10.0,\"direction\":[1.0,0.0,0.0]}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "corpus",
+    "part": "cgb245",
+    "subject": "f:hole_pattern:1",
+    "field": "members",
+    "python": "[\"f:hole:16\", \"f:hole:15\", \"f:hole:10\", \"f:hole:9\"]",
+    "rust": "[\"f:hole:15\", \"f:hole:10\", \"f:hole:9\", \"f:hole:16\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "corpus",
+    "part": "cgb245",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.angle",
+    "python": "90.0",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:hole:1",
+    "field": "faces",
+    "python": "[73, 74]",
+    "rust": "[74]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 73, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:hole:2",
+    "field": "faces",
+    "python": "[75, 76]",
+    "rust": "[76]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 75, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:hole_pattern:1",
+    "field": "members",
+    "python": "[\"f:hole:5\", \"f:hole:6\", \"f:hole:4\", \"f:hole:3\"]",
+    "rust": "[\"f:hole:3\", \"f:hole:5\", \"f:hole:6\", \"f:hole:4\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.angle",
+    "python": "90.0",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:hole_pattern:2",
+    "field": "members",
+    "python": "[\"f:hole:9\", \"f:hole:10\", \"f:hole:8\", \"f:hole:7\"]",
+    "rust": "[\"f:hole:7\", \"f:hole:9\", \"f:hole:10\", \"f:hole:8\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.angle",
+    "python": "90.0",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:hole:11",
+    "field": "faces",
+    "python": "[106, 107]",
+    "rust": "[107]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 106, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:hole:12",
+    "field": "faces",
+    "python": "[108, 109]",
+    "rust": "[109]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 108, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:hole_pattern:1",
+    "field": "members",
+    "python": "[\"f:hole:1\", \"f:hole:2\", \"f:hole:4\", \"f:hole:3\"]",
+    "rust": "[\"f:hole:4\", \"f:hole:3\", \"f:hole:1\", \"f:hole:2\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"center_spacing\":72.39,\"direction\":[-1.0,0.0,0.0]}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "f:hole:1",
+    "field": "faces",
+    "python": "[12, 13]",
+    "rust": "[12]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 13, a plane (the blind floor) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "corpus",
+    "part": "hanger",
+    "subject": "f:hole:1",
+    "field": "opening",
+    "python": "[24.0,0.0,80.0] along [1.0,0.0,0.0]",
+    "rust": "[28.000001,0.0,80.0] along [-1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "hanger",
+    "subject": "f:hole:2",
+    "field": "opening",
+    "python": "[-28.0,0.0,80.0] along [1.0,0.0,0.0]",
+    "rust": "[-24.0,0.0,80.0] along [-1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "m10127",
+    "subject": "f:hole:1",
+    "field": "opening",
+    "python": "[0.0,23.89024,19.67575] along [1.0,0.0,0.0]",
+    "rust": "[28.794382,23.89024,19.67575] along [-1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "m10127",
+    "subject": "f:hole:2",
+    "field": "faces",
+    "python": "[8, 10, 11, 16]",
+    "rust": "[10, 11, 16]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 8, a plane (the blind floor) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:1",
+    "field": "opening",
+    "python": "[-22.5,-38.971143,128.0] along [0.0,0.0,1.0]",
+    "rust": "[-22.5,-38.971143,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:10",
+    "field": "opening",
+    "python": "[-47.631397,-27.5,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-47.631397,-27.5,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:11",
+    "field": "opening",
+    "python": "[27.5,-47.631397,108.0] along [0.0,0.0,1.0]",
+    "rust": "[27.5,-47.631397,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:12",
+    "field": "opening",
+    "python": "[47.631397,-27.5,108.0] along [0.0,0.0,1.0]",
+    "rust": "[47.631397,-27.5,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:13",
+    "field": "opening",
+    "python": "[-55.0,0.0,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-55.0,0.0,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:14",
+    "field": "opening",
+    "python": "[-47.631397,27.5,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-47.631397,27.5,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:15",
+    "field": "opening",
+    "python": "[-27.5,47.631397,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-27.5,47.631397,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:16",
+    "field": "opening",
+    "python": "[55.0,0.0,108.0] along [0.0,0.0,1.0]",
+    "rust": "[55.0,0.0,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:17",
+    "field": "opening",
+    "python": "[47.631397,27.5,108.0] along [0.0,0.0,1.0]",
+    "rust": "[47.631397,27.5,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:18",
+    "field": "opening",
+    "python": "[0.0,55.0,108.0] along [0.0,0.0,1.0]",
+    "rust": "[0.0,55.0,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:19",
+    "field": "opening",
+    "python": "[27.5,47.631397,108.0] along [0.0,0.0,1.0]",
+    "rust": "[27.5,47.631397,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:2",
+    "field": "opening",
+    "python": "[22.5,-38.971143,128.0] along [0.0,0.0,1.0]",
+    "rust": "[22.5,-38.971143,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:20",
+    "field": "opening",
+    "python": "[27.5,-47.631397,0.0] along [0.0,0.0,1.0]",
+    "rust": "[27.5,-47.631397,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:21",
+    "field": "opening",
+    "python": "[47.631397,-27.5,0.0] along [0.0,0.0,1.0]",
+    "rust": "[47.631397,-27.5,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:22",
+    "field": "opening",
+    "python": "[0.0,-55.0,0.0] along [0.0,0.0,1.0]",
+    "rust": "[0.0,-55.0,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:23",
+    "field": "opening",
+    "python": "[-27.5,-47.631397,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-27.5,-47.631397,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:24",
+    "field": "opening",
+    "python": "[-47.631397,-27.5,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-47.631397,-27.5,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:25",
+    "field": "opening",
+    "python": "[55.0,0.0,0.0] along [0.0,0.0,1.0]",
+    "rust": "[55.0,0.0,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:26",
+    "field": "opening",
+    "python": "[47.631397,27.5,0.0] along [0.0,0.0,1.0]",
+    "rust": "[47.631397,27.5,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:27",
+    "field": "opening",
+    "python": "[27.5,47.631397,0.0] along [0.0,0.0,1.0]",
+    "rust": "[27.5,47.631397,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:28",
+    "field": "opening",
+    "python": "[-55.0,0.0,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-55.0,0.0,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:29",
+    "field": "opening",
+    "python": "[-47.631397,27.5,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-47.631397,27.5,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:3",
+    "field": "opening",
+    "python": "[-45.0,0.0,128.0] along [0.0,0.0,1.0]",
+    "rust": "[-45.0,0.0,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:30",
+    "field": "opening",
+    "python": "[0.0,55.0,0.0] along [0.0,0.0,1.0]",
+    "rust": "[0.0,55.0,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:31",
+    "field": "opening",
+    "python": "[-27.5,47.631397,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-27.5,47.631397,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:4",
+    "field": "opening",
+    "python": "[-22.5,38.971143,128.0] along [0.0,0.0,1.0]",
+    "rust": "[-22.5,38.971143,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:5",
+    "field": "opening",
+    "python": "[45.0,0.0,128.0] along [0.0,0.0,1.0]",
+    "rust": "[45.0,0.0,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:6",
+    "field": "opening",
+    "python": "[22.5,38.971143,128.0] along [0.0,0.0,1.0]",
+    "rust": "[22.5,38.971143,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:8",
+    "field": "opening",
+    "python": "[-27.5,-47.631397,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-27.5,-47.631397,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole:9",
+    "field": "opening",
+    "python": "[0.0,-55.0,108.0] along [0.0,0.0,1.0]",
+    "rust": "[0.0,-55.0,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.center",
+    "python": "[0.0,0.0,128.0]",
+    "rust": "[0.0,0.0,139.0]",
+    "verdict": "equivalent",
+    "evidence": "The bolt circle's centre is its members' openings' mean, so it follows their openings (see this part's 'opening' entries). The two centres lie on one axis line, the members' depth apart (11 mm or 5 mm)."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"adjacent_center_spacing\":45.0,\"bolt_circle_diameter\":90.0,\"direction\":\"circumferential\"}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.center",
+    "python": "[0.0,0.0,108.0]",
+    "rust": "[0.0,0.0,113.0]",
+    "verdict": "equivalent",
+    "evidence": "The bolt circle's centre is its members' openings' mean, so it follows their openings (see this part's 'opening' entries). The two centres lie on one axis line, the members' depth apart (11 mm or 5 mm)."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"adjacent_center_spacing\":28.470095,\"bolt_circle_diameter\":110.0,\"direction\":\"circumferential\"}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole_pattern:3",
+    "field": "parameters.center",
+    "python": "[0.0,0.0,0.0]",
+    "rust": "[0.0,0.0,5.0]",
+    "verdict": "equivalent",
+    "evidence": "The bolt circle's centre is its members' openings' mean, so it follows their openings (see this part's 'opening' entries). The two centres lie on one axis line, the members' depth apart (11 mm or 5 mm)."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:hole_pattern:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"adjacent_center_spacing\":28.470095,\"bolt_circle_diameter\":110.0,\"direction\":\"circumferential\"}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "corpus",
+    "part": "string_post",
+    "subject": "f:hole:2",
+    "field": "faces",
+    "python": "[17, 19]",
+    "rust": "[17]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 19, a plane (the blind floor) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "sheets",
+    "part": "cgb245",
+    "subject": "f:hole_pattern:1",
+    "field": "members",
+    "python": "[\"f:hole:16\", \"f:hole:15\", \"f:hole:10\", \"f:hole:9\"]",
+    "rust": "[\"f:hole:15\", \"f:hole:10\", \"f:hole:9\", \"f:hole:16\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "sheets",
+    "part": "cgb245",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.angle",
+    "python": "90.0",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:hole:1",
+    "field": "faces",
+    "python": "[73, 74]",
+    "rust": "[74]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 73, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:hole:2",
+    "field": "faces",
+    "python": "[75, 76]",
+    "rust": "[76]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 75, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:hole_pattern:1",
+    "field": "members",
+    "python": "[\"f:hole:5\", \"f:hole:6\", \"f:hole:4\", \"f:hole:3\"]",
+    "rust": "[\"f:hole:3\", \"f:hole:5\", \"f:hole:6\", \"f:hole:4\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.angle",
+    "python": "90.0",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:hole_pattern:2",
+    "field": "members",
+    "python": "[\"f:hole:9\", \"f:hole:10\", \"f:hole:8\", \"f:hole:7\"]",
+    "rust": "[\"f:hole:7\", \"f:hole:9\", \"f:hole:10\", \"f:hole:8\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.angle",
+    "python": "90.0",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:hole:11",
+    "field": "faces",
+    "python": "[106, 107]",
+    "rust": "[107]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 106, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:hole:12",
+    "field": "faces",
+    "python": "[108, 109]",
+    "rust": "[109]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 108, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:hole_pattern:1",
+    "field": "members",
+    "python": "[\"f:hole:1\", \"f:hole:2\", \"f:hole:4\", \"f:hole:3\"]",
+    "rust": "[\"f:hole:4\", \"f:hole:3\", \"f:hole:1\", \"f:hole:2\"]",
+    "verdict": "equivalent",
+    "evidence": "The same member holes. quiddity orders a rectangle's corners by their angle about its centre in the record's frame (rectangular_hole_set), so the order follows the frame. draftwright reads no member order: bridge::holes::established takes the first member only for the requirement and direction all members share."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"center_spacing\":72.39,\"direction\":[-1.0,0.0,0.0]}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "f:hole:1",
+    "field": "faces",
+    "python": "[12, 13]",
+    "rust": "[12]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 13, a plane (the blind floor) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "sheets",
+    "part": "hanger",
+    "subject": "f:hole:1",
+    "field": "opening",
+    "python": "[24.0,0.0,80.0] along [1.0,0.0,0.0]",
+    "rust": "[28.000001,0.0,80.0] along [-1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "hanger",
+    "subject": "f:hole:2",
+    "field": "opening",
+    "python": "[-28.0,0.0,80.0] along [1.0,0.0,0.0]",
+    "rust": "[-24.0,0.0,80.0] along [-1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "m10127",
+    "subject": "f:hole:1",
+    "field": "opening",
+    "python": "[0.0,23.89024,19.67575] along [1.0,0.0,0.0]",
+    "rust": "[28.794382,23.89024,19.67575] along [-1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "m10127",
+    "subject": "f:hole:2",
+    "field": "faces",
+    "python": "[8, 10, 11, 16]",
+    "rust": "[10, 11, 16]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 8, a plane (the blind floor) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:1",
+    "field": "opening",
+    "python": "[-22.5,-38.971143,128.0] along [0.0,0.0,1.0]",
+    "rust": "[-22.5,-38.971143,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:10",
+    "field": "opening",
+    "python": "[-47.631397,-27.5,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-47.631397,-27.5,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:11",
+    "field": "opening",
+    "python": "[27.5,-47.631397,108.0] along [0.0,0.0,1.0]",
+    "rust": "[27.5,-47.631397,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:12",
+    "field": "opening",
+    "python": "[47.631397,-27.5,108.0] along [0.0,0.0,1.0]",
+    "rust": "[47.631397,-27.5,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:13",
+    "field": "opening",
+    "python": "[-55.0,0.0,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-55.0,0.0,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:14",
+    "field": "opening",
+    "python": "[-47.631397,27.5,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-47.631397,27.5,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:15",
+    "field": "opening",
+    "python": "[-27.5,47.631397,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-27.5,47.631397,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:16",
+    "field": "opening",
+    "python": "[55.0,0.0,108.0] along [0.0,0.0,1.0]",
+    "rust": "[55.0,0.0,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:17",
+    "field": "opening",
+    "python": "[47.631397,27.5,108.0] along [0.0,0.0,1.0]",
+    "rust": "[47.631397,27.5,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:18",
+    "field": "opening",
+    "python": "[0.0,55.0,108.0] along [0.0,0.0,1.0]",
+    "rust": "[0.0,55.0,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:19",
+    "field": "opening",
+    "python": "[27.5,47.631397,108.0] along [0.0,0.0,1.0]",
+    "rust": "[27.5,47.631397,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:2",
+    "field": "opening",
+    "python": "[22.5,-38.971143,128.0] along [0.0,0.0,1.0]",
+    "rust": "[22.5,-38.971143,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:20",
+    "field": "opening",
+    "python": "[27.5,-47.631397,0.0] along [0.0,0.0,1.0]",
+    "rust": "[27.5,-47.631397,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:21",
+    "field": "opening",
+    "python": "[47.631397,-27.5,0.0] along [0.0,0.0,1.0]",
+    "rust": "[47.631397,-27.5,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:22",
+    "field": "opening",
+    "python": "[0.0,-55.0,0.0] along [0.0,0.0,1.0]",
+    "rust": "[0.0,-55.0,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:23",
+    "field": "opening",
+    "python": "[-27.5,-47.631397,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-27.5,-47.631397,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:24",
+    "field": "opening",
+    "python": "[-47.631397,-27.5,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-47.631397,-27.5,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:25",
+    "field": "opening",
+    "python": "[55.0,0.0,0.0] along [0.0,0.0,1.0]",
+    "rust": "[55.0,0.0,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:26",
+    "field": "opening",
+    "python": "[47.631397,27.5,0.0] along [0.0,0.0,1.0]",
+    "rust": "[47.631397,27.5,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:27",
+    "field": "opening",
+    "python": "[27.5,47.631397,0.0] along [0.0,0.0,1.0]",
+    "rust": "[27.5,47.631397,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:28",
+    "field": "opening",
+    "python": "[-55.0,0.0,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-55.0,0.0,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:29",
+    "field": "opening",
+    "python": "[-47.631397,27.5,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-47.631397,27.5,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:3",
+    "field": "opening",
+    "python": "[-45.0,0.0,128.0] along [0.0,0.0,1.0]",
+    "rust": "[-45.0,0.0,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:30",
+    "field": "opening",
+    "python": "[0.0,55.0,0.0] along [0.0,0.0,1.0]",
+    "rust": "[0.0,55.0,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:31",
+    "field": "opening",
+    "python": "[-27.5,47.631397,0.0] along [0.0,0.0,1.0]",
+    "rust": "[-27.5,47.631397,5.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:4",
+    "field": "opening",
+    "python": "[-22.5,38.971143,128.0] along [0.0,0.0,1.0]",
+    "rust": "[-22.5,38.971143,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:5",
+    "field": "opening",
+    "python": "[45.0,0.0,128.0] along [0.0,0.0,1.0]",
+    "rust": "[45.0,0.0,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:6",
+    "field": "opening",
+    "python": "[22.5,38.971143,128.0] along [0.0,0.0,1.0]",
+    "rust": "[22.5,38.971143,139.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:8",
+    "field": "opening",
+    "python": "[-27.5,-47.631397,108.0] along [0.0,0.0,1.0]",
+    "rust": "[-27.5,-47.631397,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole:9",
+    "field": "opening",
+    "python": "[0.0,-55.0,108.0] along [0.0,0.0,1.0]",
+    "rust": "[0.0,-55.0,113.0] along [0.0,0.0,-1.0]",
+    "verdict": "equivalent",
+    "evidence": "A through hole has two openings. Python quiddity drills it from the end its working frame calls high, Rust quiddity from the end the file's frame does. Same faces, diameter, depth and bottom; the two locations are the ends of the bore, the depth (to quiddity's 0.01 rounding) apart along the axis."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.center",
+    "python": "[0.0,0.0,128.0]",
+    "rust": "[0.0,0.0,139.0]",
+    "verdict": "equivalent",
+    "evidence": "The bolt circle's centre is its members' openings' mean, so it follows their openings (see this part's 'opening' entries). The two centres lie on one axis line, the members' depth apart (11 mm or 5 mm)."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"adjacent_center_spacing\":45.0,\"bolt_circle_diameter\":90.0,\"direction\":\"circumferential\"}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.center",
+    "python": "[0.0,0.0,108.0]",
+    "rust": "[0.0,0.0,113.0]",
+    "verdict": "equivalent",
+    "evidence": "The bolt circle's centre is its members' openings' mean, so it follows their openings (see this part's 'opening' entries). The two centres lie on one axis line, the members' depth apart (11 mm or 5 mm)."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole_pattern:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"adjacent_center_spacing\":28.470095,\"bolt_circle_diameter\":110.0,\"direction\":\"circumferential\"}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole_pattern:3",
+    "field": "parameters.center",
+    "python": "[0.0,0.0,0.0]",
+    "rust": "[0.0,0.0,5.0]",
+    "verdict": "equivalent",
+    "evidence": "The bolt circle's centre is its members' openings' mean, so it follows their openings (see this part's 'opening' entries). The two centres lie on one axis line, the members' depth apart (11 mm or 5 mm)."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:hole_pattern:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"adjacent_center_spacing\":28.470095,\"bolt_circle_diameter\":110.0,\"direction\":\"circumferential\"}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "sheets",
+    "part": "string_post",
+    "subject": "f:hole:2",
+    "field": "faces",
+    "python": "[17, 19]",
+    "rust": "[17]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 19, a plane (the blind floor) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  }
+]

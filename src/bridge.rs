@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 pub mod holes;
+pub mod native;
 
 pub const RECOGNITION_FORMAT: &str = "draftwright.recognition/1";
 pub const FINGERPRINT_VERSION: &str = "draftwright-bridge/2";

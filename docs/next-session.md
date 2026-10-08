@@ -83,11 +83,13 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
 
 ## Taking a new haecceity
 
-haecceity comes by git from `pzfreo/quiddity-rust` (`Cargo.toml`: branch
-`prototype/rust-port`), pinned to one commit in `Cargo.lock`. To move the pin:
+haecceity and quiddity come by git from `pzfreo/quiddity-rust` (`Cargo.toml`: branch
+`prototype/rust-port`), pinned to one commit in `Cargo.lock`, the same for both
+(`tests/native.rs` checks it). To move the pin:
 
-1. `cargo update -p haecceity`, and note the old and new commits (the `source` line of
-   `haecceity` in `Cargo.lock`).
+1. `cargo update -p haecceity -p quiddity`, and note the old and new commits (the `source`
+   lines in `Cargo.lock`). A new recognition schema version or family fails
+   `tests/native.rs` until `bridge::native` is taught it.
 2. Re-run the full verify line above.
 3. Record every change it causes: a known-differences entry that went away or appeared, a part
    the bridge now reads or refuses, a changed count. Each gets a verdict with evidence in its
@@ -276,3 +278,23 @@ improvement plan and questions are the current work. Still open from before it:
       recognition (for example the recogniser and a hash of the recognition JSON), and where?
     - ADR5-13: should the `bounded-clear` / `needs-attention` summary live in the Plan (and so
       in `plan` and `review` replies) or wait for a report document?
+- From wave 3 (stream d-native-holes): `bridge::native` reads holes and hole patterns from Rust
+  quiddity's recognition document (`quiddity-rust/recognition/1`, quiddity pinned with
+  haecceity at 1bf3db2), fail-closed on schema version, family, record type, coordinate space
+  and face count, with draftwright's IDs and fingerprints. `tests/native.rs` compares it with the
+  bridge on 29 parts (the 5 fixtures, and the corpus and sheets recognitions; sheets' ctc04 is
+  refused by the bridge): 115 differences in `known_native.json`, 101 equivalent (a through
+  hole drilled from its other opening, and what follows from it; frame-relative rectangle angles
+  and member order; Python's `named_dimensions` restating sizes) and 14 rust-wrong. **The live
+  pipeline is not switched:** the rust-wrong ones are 7 holes per corpus set whose native faces
+  lack the face that closes them (a drill point's cone or a blind floor). Rust quiddity finds
+  that face (the hole occurrence's context) but `recognition::document` carries only defining
+  faces, while Python's bridge gives constituent faces. Also owed before a switch: the Analysis
+  has one recognition frame, Python's working frame, so native holes (in the file's frame) must
+  be mapped into it or the frame made per feature; and the drawings compared before and after.
+  - Questions for the maintainer:
+    - Should quiddity-rust's recognition document carry each record's constituent faces
+      (defining plus context, as Python's `constituent_faces`), under a new schema version?
+      That unblocks the switch.
+    - Who owns fingerprints, draftwright or quiddity? Until that is decided the native reader
+      keeps draftwright's (`draftwright-bridge/2`) and does not adopt quiddity's.
