@@ -191,3 +191,18 @@ improvement plan and questions are the current work. Still open from before it:
       Should it?
     - Boss locations go beyond draftwright, which locates no boss (ftc06's 266.7, 38.1, 139.7
       are marked rust-correct). Keep them?
+- From wave 3 (stream d-trust-rules): the trust rules of `adr.yaml` (61) now read 16 ported, 4
+  translated, 41 pending, every pending one with a `rust_note` saying what is missing; the new
+  guards are in `tests/trust_rules.rs`. `plan` now refuses an Analysis or Spec of a schema it
+  does not read (a `draftwright.spec/2` was read as spec/1 and rewritten as one), and
+  `api::write` removes its staged copy when a write fails. Left:
+  - Edit locality (ARCH0003-2) does not hold: lanes are packed in order, so omitting one item
+    moves others (on plate.step, omitting the column pitch moves the x location and the
+    callout). Owed in placement.
+  - Questions for the maintainer:
+    - ADR5-16: the Plan records the analysis's binding and the spec, but not the recognition
+      it was planned from, so two plans of one file and spec made with different `--features`
+      JSON agree on everything they record and still differ. Should the Plan name its
+      recognition (for example the recogniser and a hash of the recognition JSON), and where?
+    - ADR5-13: should the `bounded-clear` / `needs-attention` summary live in the Plan (and so
+      in `plan` and `review` replies) or wait for a report document?

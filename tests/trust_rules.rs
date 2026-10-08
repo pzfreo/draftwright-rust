@@ -1,0 +1,763 @@
+//! The trust rules of the catalogue (`docs/rules/adr.yaml`, class `trust`) that the port upholds
+//! and no other test checks: determinism of reading, honest failure, provenance and the spec's
+//! standing as the source of truth. Each test names the rules it checks; a part (and its
+//! recognition) and a spec go in, a property of the plan, its problems or the output comes out.
+
+#[path = "common/corpus.rs"]
+mod corpus;
+#[path = "common/facts.rs"]
+mod facts;
+
+use std::collections::BTreeSet;
+use std::io::Read as _;
+use std::path::{Path, PathBuf};
+
+use draftwright::api;
+use draftwright::dims::PlannedDimension;
+use draftwright::model::{self, Analysis, DimensionSource, DimensionSpec, Plan, Spec};
+use draftwright::output::{Curve, Item};
+use draftwright::text::Font;
+use serde_json::{Value, json};
+
+fn fixture(path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(path)
+}
+
+fn font() -> Font {
+    Font::open(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+        .unwrap()
+}
+
+fn recognition(name: &str) -> Value {
+    serde_json::from_str(
+        &std::fs::read_to_string(fixture(&format!("recognition/{name}.json"))).unwrap(),
+    )
+    .unwrap()
+}
+
+/// The fixture part *name* with *json* as its recognition.
+fn analysed_with(name: &str, json: &Value) -> (draftwright::haecceity::Part, Analysis) {
+    let (part, mut a) = model::analyse(&fixture(&format!("parts/{name}.step"))).unwrap();
+    model::recognise(&part, &mut a, &json.to_string()).unwrap();
+    (part, a)
+}
+
+/// The fixture parts with their recognition.
+fn fixtures() -> Vec<(String, Analysis)> {
+    ["plate", "turned", "prismatic", "two_grids"]
+        .iter()
+        .map(|n| (n.to_string(), analysed_with(n, &recognition(n)).1))
+        .collect()
+}
+
+/// The sampled sheets' corpus parts, with the features draftwright's own recogniser found for
+/// them (`tests/fixtures/recognition/sheets/`); none when the corpus is missing. ctc04 is left
+/// out: the bridge refuses its recognition (one face's area differs from OpenCascade's).
+fn sampled() -> Vec<(String, Analysis)> {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED (corpus part): the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return Vec::new();
+    };
+    let names = std::fs::read_dir(fixture("recognition/sheets")).unwrap();
+    let mut names: Vec<String> = names
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter_map(|f| f.strip_suffix(".json.gz").map(String::from))
+        .filter(|n| n != "ctc04")
+        .collect();
+    names.sort();
+    names
+        .into_iter()
+        .map(|name| {
+            let f = facts::load(&name);
+            let mut json = String::new();
+            flate2::read::GzDecoder::new(
+                std::fs::File::open(fixture(&format!("recognition/sheets/{name}.json.gz")))
+                    .unwrap(),
+            )
+            .read_to_string(&mut json)
+            .unwrap();
+            let (part, mut a) = model::analyse(&dir.join(&f.binding.file)).unwrap();
+            model::recognise(&part, &mut a, &json).unwrap_or_else(|e| panic!("{name}: {e}"));
+            (name, a)
+        })
+        .collect()
+}
+
+fn scratch(name: &str) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("trust_rules");
+    std::fs::create_dir_all(&dir).unwrap();
+    dir.join(name)
+}
+
+/// An empty directory of its own under the scratch directory.
+fn fresh(name: &str) -> PathBuf {
+    let dir = scratch(name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+fn listing(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+fn codes(plan: &Plan) -> Vec<&str> {
+    plan.problems.iter().map(|p| p.code.as_str()).collect()
+}
+
+fn ids(plan: &Plan) -> Vec<&str> {
+    plan.dimensions.iter().map(|d| d.id.as_str()).collect()
+}
+
+/// A spec that omits the dimensions *omit* (in `auto`).
+fn omitting(omit: &[&str]) -> Spec {
+    let mut spec = Spec::default();
+    for id in omit {
+        spec.dimensions
+            .insert(id.to_string(), DimensionSpec { omit: true });
+    }
+    spec
+}
+
+/// ADR3-4: a document of a version this build does not know is refused, never read as the
+/// nearest it does: an Analysis or a Spec of another schema, and recognition JSON of another
+/// format. (Record types without a home are refused too: `tests/bridge.rs`.)
+#[test]
+fn a_document_of_an_unknown_version_is_refused() {
+    let (_, analysis) = analysed_with("plate", &recognition("plate"));
+    assert!(model::plan(&analysis, &Spec::default()).is_ok());
+
+    let mut future = analysis.clone();
+    future.schema = "draftwright.analysis/9".into();
+    let e = model::plan(&future, &Spec::default()).unwrap_err();
+    assert!(e.message.contains("draftwright.analysis/9"), "{e}");
+    assert!(
+        e.choices.contains(&model::ANALYSIS_SCHEMA.to_string()),
+        "{e}"
+    );
+    // Version 2 is read (with no levels).
+    let mut older = analysis.clone();
+    older.schema = "draftwright.analysis/2".into();
+    assert!(model::plan(&older, &Spec::default()).is_ok());
+
+    let spec: Spec = serde_json::from_value(json!({ "schema": "draftwright.spec/2" })).unwrap();
+    let e = model::plan(&analysis, &spec).unwrap_err();
+    assert!(e.message.contains("draftwright.spec/2"), "{e}");
+    assert_eq!(e.choices, [model::SPEC_SCHEMA]);
+    // Through the adapters' one entry point, it is the caller's to fix.
+    let e = api::call(
+        "plan",
+        &json!({ "step": fixture("parts/plate.step"), "spec": { "schema": "draftwright.spec/2" } }),
+    )
+    .unwrap_err();
+    assert_eq!(e.code, "invalid", "{e}");
+
+    let mut json = recognition("plate");
+    json["format"] = "draftwright.recognition/2".into();
+    let path = scratch("plate-recognition-2.json");
+    std::fs::write(&path, json.to_string()).unwrap();
+    let e = model::analyse_with(&fixture("parts/plate.step"), Some(&path)).unwrap_err();
+    assert!(e.contains("draftwright.recognition/1"), "{e}");
+}
+
+/// ADR5-10: every file the port writes is staged beside its place and moved in, so a failure
+/// leaves the destination as it was (and no staged copy behind), and rendering writes the
+/// drawings asked for and nothing else: no report beside them, no parent directory made.
+#[test]
+fn a_failed_write_leaves_the_destination_as_it_was() {
+    let dir = fresh("atomic");
+    let out = dir.join("part");
+    let files = |format: &str| vec![(format.to_string(), b"new".to_vec())];
+
+    // The staged copy cannot be written: the drawing already there is kept.
+    std::fs::write(dir.join("part.svg"), "old").unwrap();
+    std::fs::create_dir(dir.join("part.svg.part")).unwrap();
+    let e = api::write(&out, &files("svg")).unwrap_err();
+    assert_eq!(e.code, "failed", "{e}");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("part.svg")).unwrap(),
+        "old"
+    );
+
+    // It cannot be moved in (a directory is in its place): what was there is kept, and the
+    // staged copy is removed.
+    std::fs::create_dir(dir.join("part.dxf")).unwrap();
+    std::fs::write(dir.join("part.dxf/keep"), "kept").unwrap();
+    let e = api::write(&out, &files("dxf")).unwrap_err();
+    assert_eq!(e.code, "failed", "{e}");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("part.dxf/keep")).unwrap(),
+        "kept"
+    );
+    assert_eq!(listing(&dir), ["part.dxf", "part.svg", "part.svg.part"]);
+
+    // A missing directory is not made.
+    let e = api::write(&dir.join("missing/part"), &files("pdf")).unwrap_err();
+    assert_eq!(e.code, "failed", "{e}");
+    assert!(!dir.join("missing").exists());
+
+    // A render writes exactly the formats asked for.
+    let dir = fresh("render-only");
+    let reply = api::call(
+        "render",
+        &json!({ "step": fixture("parts/plate.step"), "features": fixture("recognition/plate.json"),
+            "output": dir.join("plate").display().to_string(), "formats": ["pdf", "svg"] }),
+    )
+    .unwrap();
+    assert_eq!(reply["written"].as_array().unwrap().len(), 2);
+    assert_eq!(listing(&dir), ["plate.pdf", "plate.svg"]);
+}
+
+/// ADR5-12: the Analysis's hash and its geometry come from one read of the file. The file here
+/// is a pipe that gives turned.step's bytes to its first reader and, should the file be opened
+/// again while the analysis is under way, prismatic.step's: an analysis that read it twice would
+/// bind one file's hash to the other's faces. Only the file's name and hash are recorded, not
+/// where it was.
+#[cfg(unix)]
+#[test]
+fn the_hash_and_the_geometry_come_from_one_read() {
+    use sha2::{Digest, Sha256};
+    use std::io::Write as _;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let pipe = scratch("snapshot.step");
+    let _ = std::fs::remove_file(&pipe);
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&pipe)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let first = std::fs::read(fixture("parts/turned.step")).unwrap();
+    let second = std::fs::read(fixture("parts/prismatic.step")).unwrap();
+    let (done, analysed) = mpsc::channel::<()>();
+    let to = pipe.clone();
+    let bytes = first.clone();
+    std::thread::spawn(move || {
+        let give = |b: &[u8]| {
+            if let Ok(mut f) = std::fs::OpenOptions::new().write(true).open(&to) {
+                let _ = f.write_all(b);
+            }
+        };
+        give(&bytes);
+        // A second open while the analysis is under way gets the other file.
+        if analysed.recv_timeout(Duration::from_secs(5)).is_err() {
+            give(&second);
+        }
+    });
+    let (_, analysis) = model::analyse(&pipe).unwrap();
+    let _ = done.send(());
+
+    let (_, direct) = model::analyse(&fixture("parts/turned.step")).unwrap();
+    let hash: String = Sha256::digest(&first)
+        .iter()
+        .map(|x| format!("{x:02x}"))
+        .collect();
+    assert_eq!(analysis.binding.source_sha256, hash);
+    assert_eq!(analysis.binding.part, "snapshot");
+    assert_eq!(analysis.binding.face_count, direct.binding.face_count);
+    assert_eq!(analysis.envelope, direct.envelope);
+    assert_eq!(analysis.iso_bounds, direct.iso_bounds);
+    let text = serde_json::to_string(&analysis).unwrap();
+    let dir = pipe.parent().unwrap().display().to_string();
+    assert!(
+        !text.contains(&dir),
+        "the analysis records where the file was"
+    );
+}
+
+/// ADR5-D2: no document infers manufacturing intent. With the default spec, every plan's title
+/// says only the part's name and a drawing number (no material), and every printed term is a
+/// count, a size, a symbol or one of the callout grammar's words: no fit, tolerance, thread or
+/// finish the spec did not give.
+#[test]
+fn no_document_infers_manufacturing_intent() {
+    // The callout grammar's words (which face of a turned part a bolt circle is on included),
+    // and a radius's and a diameter's prefix.
+    const WORDS: [&str; 13] = [
+        "THRU", "EQ", "SP", "ON", "BC", "UPPER", "LOWER", "FACE", "OF", "FROM", "END", "R", "ø",
+    ];
+    let mut parts = fixtures();
+    parts.extend(sampled());
+    for (name, analysis) in &parts {
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        assert_eq!(
+            plan.sheet.title.keys().collect::<Vec<_>>(),
+            ["number", "title"],
+            "{name}"
+        );
+        for d in &plan.dimensions {
+            for term in &d.terms {
+                for word in term.split_whitespace() {
+                    let letters: String = word.chars().filter(|c| c.is_alphabetic()).collect();
+                    assert!(
+                        letters.is_empty() || WORDS.contains(&letters.as_str()),
+                        "{name}: {} prints {term:?}",
+                        d.id
+                    );
+                }
+                assert!(
+                    !term.contains(['±', '+']),
+                    "{name}: {} prints {term:?}",
+                    d.id
+                );
+            }
+        }
+    }
+}
+
+/// ADR4-D2: the spec records intent, never outcomes. A plan whose items do not all fit (a view
+/// omitted, a sheet too small at the scale asked) carries its spec back unchanged but for the
+/// binding, and planning again from that spec gives the same plan.
+#[test]
+fn planning_never_writes_its_outcomes_into_the_spec() {
+    let (_, analysis) = analysed_with("plate", &recognition("plate"));
+    let given: Spec = serde_json::from_value(json!({
+        "sheet": { "size": "A4", "scale": "10:1", "title": { "material": "6082-T6" } },
+        "views": { "plan": { "omit": true } },
+        "dimensions": { "d:envelope/height.length@front": { "omit": true } },
+    }))
+    .unwrap();
+    let plan = model::plan(&analysis, &given).unwrap();
+    assert!(
+        codes(&plan).contains(&"view_plan_incomplete"),
+        "{:?}",
+        codes(&plan)
+    );
+    assert!(plan.dimensions.iter().any(|d| d.placed.is_none()));
+    let mut expected = given.clone();
+    expected.binding = Some(analysis.binding.clone());
+    assert_eq!(plan.spec, expected);
+    let again = model::plan(&analysis, &plan.spec).unwrap();
+    assert_eq!(
+        serde_json::to_string(&again).unwrap(),
+        serde_json::to_string(&plan).unwrap()
+    );
+}
+
+/// ADR2-D3: an authored constraint is never relaxed to make the sheet work. A sheet and scale
+/// that cannot hold the views are kept, and the plan says so; a scale alone is kept on the
+/// largest sheet, which is said not to fit; an omitted view stays omitted and what it carried is
+/// reported.
+#[test]
+fn an_authored_constraint_is_kept_and_its_infeasibility_reported() {
+    let (_, analysis) = analysed_with("plate", &recognition("plate"));
+    let sheet = |v: Value| -> Plan {
+        let spec: Spec = serde_json::from_value(json!({ "sheet": v })).unwrap();
+        model::plan(&analysis, &spec).unwrap()
+    };
+    let both = sheet(json!({ "size": "A4", "scale": "10:1" }));
+    assert_eq!(
+        (both.sheet.size.as_str(), both.sheet.scale.as_str()),
+        ("A4", "10:1")
+    );
+    assert!(
+        codes(&both)
+            .iter()
+            .any(|c| ["page_fit_uncertain", "views_do_not_fit"].contains(c)),
+        "{:?}",
+        codes(&both)
+    );
+    // two_grids is 140 mm long: at 10:1 no sheet holds it.
+    let (_, long) = analysed_with("two_grids", &recognition("two_grids"));
+    let spec: Spec = serde_json::from_value(json!({ "sheet": { "scale": "10:1" } })).unwrap();
+    let scale = model::plan(&long, &spec).unwrap();
+    assert_eq!(
+        (scale.sheet.size.as_str(), scale.sheet.scale.as_str()),
+        ("A0", "10:1")
+    );
+    assert!(
+        codes(&scale).contains(&"views_do_not_fit"),
+        "{:?}",
+        codes(&scale)
+    );
+    let size = sheet(json!({ "size": "A4" }));
+    assert_eq!(size.sheet.size, "A4");
+
+    let spec: Spec =
+        serde_json::from_value(json!({ "views": { "plan": { "omit": true } } })).unwrap();
+    let plan = model::plan(&analysis, &spec).unwrap();
+    assert!(plan.views.iter().all(|v| v.id != "v:plan"));
+    assert!(codes(&plan).contains(&"view_plan_incomplete"));
+}
+
+/// The parts of a dimension's ID: its feature, its parameter and the view that carries it.
+fn id_parts(id: &str) -> (&str, &str, &str) {
+    let rest = id.strip_prefix("d:").unwrap_or_else(|| panic!("{id}"));
+    let (feature, rest) = rest.split_once('/').unwrap_or_else(|| panic!("{id}"));
+    let (parameter, view) = rest.split_once('@').unwrap_or_else(|| panic!("{id}"));
+    (feature, parameter, view)
+}
+
+/// ADR4-6 (R1 invariant 5): a dimension's ID is derived, never positional: its feature (the
+/// envelope, a recognised feature or pattern), its parameter in the role vocabulary
+/// (`role.kind[.discriminator]`, the kind always present) and its view; IDs are unique and do not
+/// change with the order recognition reports features in. A bare role is refused, with the IDs
+/// it could mean.
+#[test]
+fn dimension_ids_are_derived_and_a_bare_role_is_refused() {
+    let mut parts = fixtures();
+    parts.extend(sampled());
+    for (name, analysis) in &parts {
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let mut features: BTreeSet<&str> =
+            analysis.features.iter().map(|f| f.id.as_str()).collect();
+        if let Some(r) = &analysis.recognition {
+            features.extend(r.patterns.iter().map(|p| p.id.as_str()));
+        }
+        features.insert("envelope");
+        let mut seen = BTreeSet::new();
+        for d in &plan.dimensions {
+            let (feature, parameter, view) = id_parts(&d.id);
+            assert!(features.contains(feature), "{name}: {}", d.id);
+            let words: Vec<&str> = parameter.split('.').collect();
+            assert!(
+                (2..=3).contains(&words.len())
+                    && words.iter().all(|w| {
+                        !w.is_empty()
+                            && w.chars()
+                                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+                    }),
+                "{name}: {}",
+                d.id
+            );
+            assert_eq!(d.view, format!("v:{view}"), "{name}: {}", d.id);
+            assert!(seen.insert(d.id.clone()), "{name}: {} twice", d.id);
+        }
+    }
+
+    // The same records in the opposite order give the same items.
+    let json = recognition("plate");
+    let mut reversed = json.clone();
+    reversed["quiddity"]["features"]
+        .as_array_mut()
+        .unwrap()
+        .reverse();
+    let plan = model::plan(&analysed_with("plate", &json).1, &Spec::default()).unwrap();
+    let again = model::plan(&analysed_with("plate", &reversed).1, &Spec::default()).unwrap();
+    assert_eq!(
+        serde_json::to_string(&plan.dimensions).unwrap(),
+        serde_json::to_string(&again.dimensions).unwrap()
+    );
+
+    let (_, analysis) = analysed_with("plate", &json);
+    let e = model::plan(&analysis, &omitting(&["d:f:hole_pattern:1/bore@plan"])).unwrap_err();
+    assert!(
+        e.choices
+            .iter()
+            .any(|c| c == "d:f:hole_pattern:1/bore.diameter@plan"),
+        "{e}"
+    );
+}
+
+/// ARCH0016-1: an omission is not a drop. What the spec leaves out is listed as omitted, with
+/// its basis, and is no problem's subject; what the plan approves and cannot draw stays among its
+/// dimensions, unplaced, and is reported; nothing is both.
+#[test]
+fn an_omission_is_never_reported_as_a_drop() {
+    let (_, analysis) = analysed_with("plate", &recognition("plate"));
+    let width = "d:envelope/width.length@front";
+    let mut spec = omitting(&[width]);
+    spec.views.entry("plan".into()).or_default().omit = true;
+    let plan = model::plan(&analysis, &spec).unwrap();
+
+    assert_eq!(plan.omitted.len(), 1);
+    assert_eq!(plan.omitted[0].id, width);
+    assert!(plan.omitted[0].basis.starts_with("authored"));
+    assert!(!ids(&plan).contains(&width));
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| !p.subjects.iter().any(|s| s == width))
+    );
+
+    let dropped: Vec<&PlannedDimension> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_none())
+        .collect();
+    assert!(!dropped.is_empty());
+    for d in dropped {
+        assert!(
+            plan.problems
+                .iter()
+                .any(|p| p.code == "view_plan_incomplete" && p.subjects.contains(&d.id)),
+            "{} is not reported",
+            d.id
+        );
+        assert!(plan.omitted.iter().all(|o| o.id != d.id));
+    }
+}
+
+/// ARCH0016-2: every dimension the plan states can be addressed by its ID. Omitting it (in
+/// `auto`) takes it, and only it, off; listing it alone (in `authored`) gives a plan of it
+/// alone, so any dimension dropped can be added back.
+#[test]
+fn every_planned_dimension_can_be_addressed() {
+    let mut parts = fixtures();
+    parts.extend(
+        sampled()
+            .into_iter()
+            .filter(|(n, _)| ["cgb245", "ftc06", "m10127"].contains(&n.as_str())),
+    );
+    for (name, analysis) in &parts {
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let all = ids(&plan);
+        assert!(!all.is_empty(), "{name}");
+        for id in &all {
+            let without = model::plan(analysis, &omitting(&[id])).unwrap();
+            let expected: Vec<&str> = all.iter().copied().filter(|i| i != id).collect();
+            assert_eq!(ids(&without), expected, "{name}: omitting {id}");
+            assert_eq!(without.omitted.len(), 1, "{name}: {id}");
+
+            let mut alone = Spec {
+                dimension_source: DimensionSource::Authored,
+                ..Spec::default()
+            };
+            alone
+                .dimensions
+                .insert(id.to_string(), DimensionSpec::default());
+            let alone = model::plan(analysis, &alone).unwrap();
+            assert_eq!(ids(&alone), [*id], "{name}");
+        }
+    }
+}
+
+/// ADR5-4: provenance is recorded once, where the plan is drawn: each annotation on the drawing
+/// is one placed plan item, named by its ID and claiming exactly the measurements the item
+/// states, and the annotations of a feature are exactly what omitting its dimensions takes off.
+#[test]
+fn annotations_carry_their_plan_items_provenance() {
+    let mut parts: Vec<(String, draftwright::haecceity::Part, Analysis)> = ["plate", "two_grids"]
+        .iter()
+        .map(|n| {
+            let (p, a) = analysed_with(n, &recognition(n));
+            (n.to_string(), p, a)
+        })
+        .collect();
+    if let Some(dir) = corpus::dir() {
+        let (p, a) = corpus::analyse(&dir, "nist/nist_ftc_06_asme1_rd.stp", "ftc06");
+        parts.push(("ftc06".into(), p, a));
+    }
+    let font = font();
+    for (name, part, analysis) in &parts {
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let drawing = model::render(part, analysis, &plan, &font).unwrap();
+        let placed: Vec<&PlannedDimension> = plan
+            .dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .collect();
+        assert_eq!(drawing.annotations.len(), placed.len(), "{name}");
+        for (a, d) in drawing.annotations.iter().zip(&placed) {
+            assert_eq!(a.name, d.id, "{name}");
+            assert_eq!(a.view.as_deref(), Some(d.view.as_str()), "{name}");
+            let claims: Vec<(&str, &str)> = a
+                .claims
+                .iter()
+                .map(|c| (c.feature.as_str(), c.parameter.as_str()))
+                .collect();
+            let states: Vec<(&str, &str)> = d
+                .measurements
+                .iter()
+                .map(|m| (m.feature.as_str(), m.parameter.as_str()))
+                .collect();
+            assert_eq!(claims, states, "{name}: {}", d.id);
+        }
+
+        // Drop the feature with the most dimensions: exactly its annotations go.
+        let mut by_feature = std::collections::BTreeMap::<&str, Vec<&str>>::new();
+        for d in &plan.dimensions {
+            for m in &d.measurements {
+                by_feature
+                    .entry(m.feature.as_str())
+                    .or_default()
+                    .push(&d.id);
+            }
+        }
+        let (feature, its) = by_feature.iter().max_by_key(|(_, v)| v.len()).unwrap();
+        let dropped = model::plan(analysis, &omitting(its)).unwrap();
+        let after = model::render(part, analysis, &dropped, &font).unwrap();
+        let names = |d: &draftwright::output::Drawing| -> BTreeSet<String> {
+            d.annotations.iter().map(|a| a.name.clone()).collect()
+        };
+        let removed: BTreeSet<String> = names(&drawing)
+            .difference(&names(&after))
+            .cloned()
+            .collect();
+        let claiming: BTreeSet<String> = drawing
+            .annotations
+            .iter()
+            .filter(|a| a.claims.iter().any(|c| c.feature == *feature))
+            .map(|a| a.name.clone())
+            .collect();
+        assert_eq!(removed, claiming, "{name}: dropping {feature}");
+        assert!(
+            after
+                .annotations
+                .iter()
+                .all(|a| a.claims.iter().all(|c| c.feature != *feature))
+        );
+    }
+}
+
+/// The page box of *items*' ink: line ends, and Bézier curves sampled finely.
+fn ink_box<'a>(items: impl Iterator<Item = &'a Item>) -> [f64; 4] {
+    let mut b = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    let mut add = |p: [f64; 2]| {
+        b = [
+            b[0].min(p[0]),
+            b[1].min(p[1]),
+            b[2].max(p[0]),
+            b[3].max(p[1]),
+        ];
+    };
+    let mut curve = |c: &Curve| match c {
+        Curve::Line(a, z) => {
+            add(*a);
+            add(*z);
+        }
+        Curve::Beziers(list) => {
+            for poles in list {
+                for i in 0..=256 {
+                    let t = i as f64 / 256.0;
+                    let mut q = poles.clone();
+                    while q.len() > 1 {
+                        q = q
+                            .windows(2)
+                            .map(|w| {
+                                [
+                                    w[0][0] + t * (w[1][0] - w[0][0]),
+                                    w[0][1] + t * (w[1][1] - w[0][1]),
+                                ]
+                            })
+                            .collect();
+                    }
+                    add(q[0]);
+                }
+            }
+        }
+        _ => panic!("a glyph is lines and Béziers"),
+    };
+    for item in items {
+        match item {
+            Item::Face(wires) => wires.iter().flatten().for_each(&mut curve),
+            Item::Edge(c) => curve(c),
+        }
+    }
+    b
+}
+
+/// ARCH0006-1, in part: text is measured with the font file it is drawn with. Each label's box
+/// in the plan, measured when it was placed, is the box of the glyphs the drawing draws for it,
+/// to a thousandth of a millimetre. (Labels whose symbols are drawn as strokes, `⌴ ↧ ⌵`, are left
+/// out: their strokes cannot be told from the dimension's lines.)
+#[test]
+fn labels_are_measured_with_the_font_they_are_drawn_with() {
+    let (part, analysis) = analysed_with("plate", &recognition("plate"));
+    let font = font();
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    let mut checked = 0;
+    for d in &plan.dimensions {
+        if d.placed.is_none() || d.terms.iter().any(|t| t.contains(['⌴', '↧', '⌵'])) {
+            continue;
+        }
+        let mut alone = Spec {
+            dimension_source: DimensionSource::Authored,
+            ..Spec::default()
+        };
+        alone
+            .dimensions
+            .insert(d.id.clone(), DimensionSpec::default());
+        let one = model::plan(&analysis, &alone).unwrap();
+        let mine = one.dimensions[0].placed.as_ref().unwrap();
+        let drawing = model::render(&part, &analysis, &one, &font).unwrap();
+        let [tx0, ty0, tx1, ty1] = one.sheet.title_block;
+        let tips: Vec<[f64; 2]> = mine.arrows.iter().map(|a| a[0]).collect();
+        let glyphs = drawing.layers[2].items.iter().filter(|i| match i {
+            Item::Face(wires) => {
+                let first = match &wires[0][0] {
+                    Curve::Line(a, _) => *a,
+                    Curve::Beziers(b) => b[0][0],
+                    _ => return false,
+                };
+                let in_title = (tx0..=tx1).contains(&first[0]) && (ty0..=ty1).contains(&first[1]);
+                // An arrowhead is a triangle from a tip.
+                !in_title && !tips.contains(&first)
+            }
+            _ => false,
+        });
+        let ink = ink_box(glyphs);
+        for k in 0..4 {
+            assert!(
+                (ink[k] - mine.label_box[k]).abs() < 1e-3,
+                "{}: drawn {ink:?}, measured {:?}",
+                d.id,
+                mine.label_box
+            );
+        }
+        checked += 1;
+    }
+    assert!(checked >= 3, "{checked} labels checked");
+}
+
+/// ARCH0014-7: per-part counts of placed dimensions are one-way regression floors. A change may
+/// place more (raise the floor then); one that places fewer fails here, and lowering a floor is
+/// a decision to record. The floors are the port's own counts (at 7a966a9), not draftwright's:
+/// families it does not dimension yet would fail draftwright's. An item counts as placed when it
+/// has ink on the page, whether or not a problem is reported against it.
+#[test]
+fn placed_counts_do_not_fall_below_their_floors() {
+    const FLOORS: [(&str, usize); 16] = [
+        ("plate", 8),
+        ("turned", 2),
+        ("prismatic", 3),
+        ("two_grids", 15),
+        ("cgb245", 37),
+        ("connector109", 11),
+        ("ctc01", 22),
+        ("ftc06", 34),
+        ("grm03", 3),
+        ("grm05", 2),
+        ("hanger", 6),
+        ("m1000", 3),
+        ("m10046", 3),
+        ("m10127", 11),
+        ("spool132", 6),
+        ("string_post", 5),
+    ];
+    let mut parts = fixtures();
+    parts.extend(sampled());
+    let mut below = Vec::new();
+    for (name, analysis) in &parts {
+        let floor = FLOORS
+            .iter()
+            .find(|(n, _)| n == name)
+            .unwrap_or_else(|| panic!("{name} has no floor"))
+            .1;
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let placed = plan
+            .dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .count();
+        if placed < floor {
+            below.push(format!("{name}: {placed} placed, floor {floor}"));
+        }
+    }
+    assert!(below.is_empty(), "{}", below.join("\n"));
+}

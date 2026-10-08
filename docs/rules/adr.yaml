@@ -199,8 +199,10 @@
     adr: "ADR 2 Decision"
     issues: []
     tests: []
-  status: pending
+  status: ported
   port_note: "Keep: an infeasible Spec constraint yields a structured Plan problem naming the constraint, never a quietly altered plan."
+  rust_test: tests/trust_rules.rs::an_authored_constraint_is_kept_and_its_infeasibility_reported
+  rust_note: "The spec's constraints are its sheet size and scale, its view omissions and its dimension source and omissions. A sheet and scale that cannot hold the views are kept, with page_fit_uncertain; a scale no sheet holds is kept on A0, with views_do_not_fit; an omitted view stays omitted and what only it could carry is reported (view_plan_incomplete; also tests/dimension_rules.rs::nothing_approved_vanishes_when_its_view_is_omitted); a value outside the vocabulary is refused with the choices (tests/model.rs::invalid_requests_say_what_would_do)."
 
 - id: ADR2-D4
   statement: "Compose-then-pack: each selected view is composed with its annotation footprint before the page is packed."
@@ -349,6 +351,7 @@
     tests: ["test_issue_1166_cross_pass_feature_leaders.py (test_immediate_producer_floor_records_a_retained_fixed_crossing_issue_2112, test_ownerless_section_centerline_at_the_tip_is_not_a_global_axis_exemption)", "test_layout_cleanliness.py (test_finished_sheet_has_no_layout_collisions)"]
   status: pending
   port_note: "Keep: retained crossings and unverified ink become Plan problems referencing the annotation id and the obstruction id."
+  rust_note: "Not ported: placement checks label boxes against labels, views, the title block and the sheet, but not lines crossing other views' outlines or other dimensions' lines (docs/model.md, 'Not checked yet'), so a crossing is neither avoided nor recorded, and there is no fixed-ink probe. Owed with the placement solver (src/dims/placement.rs)."
 
 - id: ADR2-10
   statement: "Same-batch dimension ink is visible before commit and is resolved by a bounded strictly-improving local solve, not a second placement engine."
@@ -419,6 +422,7 @@
     tests: ["test_solve_trace.py"]
   status: pending
   port_note: "Keep: optional placement trace output alongside the Plan; drop problems name the occupants by annotation id."
+  rust_note: "Not ported: placement stacks lanes with no solve to trace, and drops nothing for want of room (an item is unplaced only when no shown view can carry it, reported as view_plan_incomplete). The trace belongs with the strip solver (ADR2-5), not yet ported."
 
 - id: ADR2-16
   statement: "Settled page validity precedes completeness: page/title-block bounds and annotation-ink overlaps veto an automatic page/scale proposal before required-outcome completeness is compared."
@@ -539,6 +543,8 @@
     tests: ["test_recogniser_capabilities.py", "test_inspection_contract.py"]
   status: pending
   port_note: "Keep: Analysis records the quiddity version/schema; draftwright refuses an Analysis with an unknown schema version."
+  rust_test: tests/trust_rules.rs::a_document_of_an_unknown_version_is_refused
+  rust_note: "In part: plan refuses an Analysis or a Spec of a schema it does not read (fixed here in src/model.rs: a spec of another version was read as spec/1 and rewritten as one), the bridge refuses recognition JSON of another format and any record type it has no home for (tests/bridge.rs::refusals_and_evidence_are_not_features), and haecceity is pinned in Cargo.lock. Not checked: the quiddity document's own format_version and family names (the bridge reads past them), and the recogniser's version (recorded as recognition.recogniser, not pinned or compared)."
 
 - id: ADR3-5
   statement: "Every recognition record type has exactly one home: a typed adapter, an explicit consumer disposition, or a refusal."
@@ -573,6 +579,7 @@
     tests: ["test_occurrence_recognition_ownership.py", "test_pattern_ownership.py", "test_nested_recognition_ownership.py", "test_channel_ownership.py", "test_turned_step_ownership.py", "test_through_step_ownership.py", "test_boss_ownership.py", "test_plate_ownership.py"]
   status: pending
   port_note: "Keep: analyse records, per recognised occurrence, its disposition and owning feature id at conversion time; Analysis carries the ledger."
+  rust_note: "Not ported: the bridge gives every quiddity record one home (feature, evidence or refusal) and refuses one it has none for, but the Analysis carries no per-occurrence disposition or owning feature, so an occurrence the plan then does not use (a record type draftwright leaves undimensioned) is not accounted for as such."
 
 - id: ADR3-8
   statement: "Ownerless policy is explicit per occurrence and comes from one source: families not drawn carry unsupported, deferred or evidence_only with a closed reason code."
@@ -584,6 +591,7 @@
     tests: ["test_recognition_policy_dispositions.py", "test_issue_1245_passage_disposition.py", "test_issue_1246_prismatic_pocket_disposition.py", "test_issue_1247_angled_step_disposition.py"]
   status: pending
   port_note: "Keep: one capability table in draftwright-rust drives both conversion and the per-occurrence disposition in Analysis."
+  rust_note: "Not ported: no capability table gives each family not drawn a disposition (unsupported, deferred, evidence_only) with a closed reason; the bridge's record-type table (bridge::home) and the planners' kinds (dims::PLANNERS) are two lists. Whether records draftwright leaves undimensioned are reported by the plan or by lint is an open maintainer question (docs/next-session.md, d-dims-split)."
 
 - id: ADR3-9
   statement: "Recognition is geometry-only; PMI lowering may change which feature owns a record but never what was recognised."
@@ -607,6 +615,7 @@
     tests: ["test_issue_1357_framed_boundary.py", "test_issue_1357_framed_activation.py", "test_issue_1357_pmi_frame.py"]
   status: pending
   port_note: "Keep: if the port adopts framed recognition, a frame refusal is a typed Analysis outcome, not a fallback hidden in the adapter."
+  rust_note: "Not applicable yet: the port does not use framed recognition. The bridge records quiddity's working frame (Analysis.recognition.frame) and reads parameters through it; there is no frame refusal to type. Owed when Rust quiddity's framed preparation is consumed."
 
 - id: ADR3-11
   statement: "Frame gauge limits semantic claims, not geometry: ORTHOGONAL and AXIAL frames do not establish authored side or material-axis identity."
@@ -618,6 +627,7 @@
     tests: ["test_issue_1357_framed_boundary.py"]
   status: pending
   port_note: "Keep: Analysis records the frame gauge; the planner does not derive side/handedness facts the gauge cannot support."
+  rust_note: "Not ported: the Analysis records quiddity's frame but no gauge (FULL, ORTHOGONAL, AXIAL). No planner reads side or handedness from the frame yet, so nothing claims what a gauge would forbid."
 
 - id: ADR3-12
   statement: "Plural turned profiles are one compiler input: no consumer selects the first profile or merges disjoint bodies, and a groove that cannot name one owner is refused."
@@ -663,8 +673,10 @@
     adr: "ADR 4 Decision; archive 0016"
     issues: []
     tests: []
-  status: pending
+  status: ported
   port_note: "Keep: the Spec is never rewritten from Plan outcomes; placement results live only in the Plan."
+  rust_test: tests/trust_rules.rs::planning_never_writes_its_outcomes_into_the_spec
+  rust_note: "plan returns the spec it was given with only its binding set (to the analysis's, or kept across a revision while entries are inactive); an item that cannot be drawn stays in the spec and is a problem in the plan; no operation writes plan outcomes into a spec."
 
 - id: ADR4-D3
   statement: "A view= or side= on a dimension is a derived-with-override routing hint, not a placement; intent never chooses a view, strip or coordinate."
@@ -757,8 +769,10 @@
     adr: "ADR 4 invariant 6; archive 0016 Amendment 3"
     issues: [869, 870, 871]
     tests: ["test_parameter_id.py", "test_dimension_role_vocabulary.py", "test_add_dimension.py (test_an_ambiguous_role_raises_rather_than_guessing)"]
-  status: pending
+  status: ported
   port_note: "Keep: stable Spec/Plan ids use the same derived scheme so Python-era ids map one-to-one."
+  rust_test: tests/trust_rules.rs::dimension_ids_are_derived_and_a_bare_role_is_refused
+  rust_note: "Over the fixture parts and the sampled corpus parts, every ID is d:<feature>/<role.kind[.discriminator]>@<view>, unique, naming a recognised feature, pattern or the envelope, and unchanged when recognition reports its features in reverse order (feature IDs: tests/bridge.rs::ids_are_unique_stable_and_independent_of_discovery_order). The spec addresses a dimension only by its whole ID, so no selector can be ambiguous: a bare role or an unknown ID is refused with the nearest IDs. The parameter names are draftwright's, compared fact by fact in tests/dimensions.rs."
 
 - id: ADR4-7
   statement: "Suppression changes what is shown, never what the drawing asserts: no renderer derives an engineering fact from a parameter's absence."
@@ -782,6 +796,8 @@
     tests: ["test_suppression_ledger.py (test_an_authored_omission_is_distinguished_from_a_rule_suppression)"]
   status: pending
   port_note: "Keep: Plan omissions carry basis 'authored' vs 'rule:<name>'."
+  rust_test: tests/dimension_rules.rs::both_dimension_sources_and_their_validation
+  rust_note: "In part: every authored omission is a row in the plan's omitted, with basis 'authored: …' (and 'inactive: …' across a revision). The planner suppresses nothing by rule yet (ADR1-8's conveyed_by is not ported), so there is no rule row to tell apart; when one is, it must be an omitted row with basis 'rule:<name>'."
 
 - id: ADR4-9
   statement: "Nothing the plan approves may vanish silently: a tolerance reaches the ink through the label, and an undrawable approved mark is reported against its measurement."
@@ -805,6 +821,7 @@
     tests: ["test_issue_955_height_contingency.py"]
   status: pending
   port_note: "Keep: Plan carries contingent entries with a 'contingent_on <id>' basis; activation is a planner decision recorded in the Plan."
+  rust_note: "Not ported: there are no contingent plan items; the port plans no step chain for a Z-turned part, so Python's case (the overall height released when the chain places nothing) does not arise yet."
 
 - id: ADR4-11
   statement: "Edits are scale-independent intents in the shared solve: pin and priority, never raw coordinates; the raw single-slot placement verb survives only as a deprecated escape hatch."
@@ -888,6 +905,7 @@
     tests: []
   status: pending
   port_note: "Keep: each ported rule's guard test should be shown to fail under a deliberate mutation."
+  rust_note: "A practice, not a property a test can hold. The guards in tests/trust_rules.rs were shown to fail under a deliberate break before being kept (the STEP file read twice; the staged copy left behind; the schema check removed); lint's guard has its own (the_guard_catches_what_it_should)."
 
 - id: ADR5-D2
   statement: "No machine-readable document infers material, process, finish, thread, fit or tolerance intent."
@@ -896,8 +914,10 @@
     adr: "ADR 5 Decision"
     issues: []
     tests: []
-  status: pending
+  status: ported
   port_note: "Keep: Analysis and reports state only recognised geometry and authored intent; manufacturing intent comes only from Spec or source PMI."
+  rust_test: tests/trust_rules.rs::no_document_infers_manufacturing_intent
+  rust_note: "With the default spec, every plan of the fixture parts and the sampled corpus parts has a title of the part's name and a drawing number only (no material), and prints only counts, sizes, symbols and the callout grammar's words: no fit, tolerance, thread or finish. Such intent enters only through the spec (sheet/title); no PMI is read yet."
 
 - id: ADR5-1
   statement: "Same input, same sheet, every platform."
@@ -935,6 +955,7 @@
     tests: ["test_repair.py (test_repair_dim_inside_part_flips_side, test_repair_idempotent_on_clean_drawing, test_repair_does_not_increase_issue_counts)", "test_issue_1333_bounded_ink_repair.py"]
   status: pending
   port_note: "Translate: prefer fixing placement in the planner; if a repair pass is ported it operates Plan->Plan with the same acceptance rules."
+  rust_note: "Not ported: plan has no repair step (R4 decision 6: allow-listed, idempotent, accepted on strict improvement and recorded); collisions are reported as problems only."
 
 - id: ADR5-4
   statement: "Provenance is recorded once, at the render seam, for every feature kind: the annotations of a feature are exactly what dropping it removes."
@@ -944,8 +965,10 @@
     adr: "ADR 5 invariant 4; archive 0010"
     issues: [408]
     tests: ["test_render_seam.py", "test_feature_provenance.py (test_drop_is_complete_for_a_multi_feature_prismatic_part, test_drop_is_complete_for_a_turned_part, test_drop_is_complete_for_side_drilled_holes)"]
-  status: pending
+  status: ported
   port_note: "Keep: every Plan annotation carries its feature id and dimension ids; rendered elements carry the annotation id."
+  rust_test: tests/trust_rules.rs::annotations_carry_their_plan_items_provenance
+  rust_note: "Each annotation on the drawing is one placed plan item, named by its ID and claiming exactly the measurements the item states (on plate, two_grids and ftc06); dropping a feature (omitting its dimensions by ID: the spec has no per-feature drop) takes off exactly the annotations that claim it, and listing an ID in an authored set adds it back (tests/trust_rules.rs::every_planned_dimension_can_be_addressed). Section furniture and the title block claim no feature."
 
 - id: ADR5-5
   statement: "Quality is reported as components and completeness names its bound: no composite score; the completeness figure is audited_score."
@@ -957,6 +980,7 @@
     tests: ["test_quality_components.py (test_the_audited_score_carries_its_qualifier_in_its_own_name)", "test_issue_1176_quality_fidelity.py"]
   status: pending
   port_note: "Keep: quality report fields with the same names and bounds."
+  rust_note: "Not ported: there is no quality report and no audited_score; the plan's problems and lint's findings are the only measures."
 
 - id: ADR5-6
   statement: "A claim on the sheet is checked against the compiler, not against a pattern: a measurement the plan never approved is reported, and an approved tolerance reaches the ink verbatim."
@@ -968,6 +992,7 @@
     tests: ["test_issue_1217_claimed_representations.py", "test_issue_1215_no_approved_tolerance_is_dropped.py"]
   status: pending
   port_note: "Keep: render output is checked against Plan text by id."
+  rust_note: "Not ported: lint judges the drawing against the Analysis (hole coverage), not a claim's text against the plan item it names, so claimed_measurement_not_compiled has no counterpart. The renderer side is checked (tests/dimension_rules.rs::renderers_draw_only_from_the_plan); no tolerances are planned yet."
 
 - id: ADR5-7
   statement: "An approved dimension that is not drawn is reported against its measurement, does not gate the build, and is retracted if a later pass draws it."
@@ -990,6 +1015,8 @@
     tests: ["test_suppression_ledger.py (test_an_authored_omission_is_distinguished_from_a_rule_suppression)"]
   status: pending
   port_note: "Keep: Plan omission basis distinguishes authored vs rule."
+  rust_test: tests/dimension_rules.rs::both_dimension_sources_and_their_validation
+  rust_note: "In part, as ADR4-8: authored omissions are rows with basis 'authored: …'; the planner suppresses nothing by rule yet, so there is no rule row to tell apart."
 
 - id: ADR5-9
   statement: "A report refuses rather than shrinks its denominator, and serialises no identity meant to survive another run."
@@ -1001,6 +1028,7 @@
     tests: ["test_report_projection.py"]
   status: pending
   port_note: "Keep: report generation returns an error rather than a partial document; no quiddity-internal ids in JSON. Note tension with Spec stable ids - those are draftwright-owned, not recognition identities."
+  rust_note: "Not ported: there is no report. The documents hold draftwright IDs and face indices bound to one file by source_sha256, as R4's reading allows. Not checked: a non-finite number in a document would be written by serde_json as null, not refused."
 
 - id: ADR5-10
   statement: "Report persistence is explicit and atomic: a failure leaves the destination untouched, and export does not write reports as a side effect."
@@ -1010,8 +1038,10 @@
     adr: "ADR 5 invariant 10; archive 0017 Amendment 22"
     issues: []
     tests: ["test_report_writer.py"]
-  status: pending
+  status: ported
   port_note: "Keep: atomic write for every JSON document (Analysis/Spec/Plan/report)."
+  rust_test: tests/trust_rules.rs::a_failed_write_leaves_the_destination_as_it_was
+  rust_note: "Every file the port writes is a rendered drawing, staged beside its place and renamed in (api::write); a failure leaves the destination as it was and now removes the staged copy (fixed here in src/api.rs; it was left behind), and no parent directory is made. render writes exactly the formats asked for. Documents are replied, not written; a report sidecar (R4 decision 5, --report) does not exist yet."
 
 - id: ADR5-11
   statement: "Direct CLI rendering writes the report beside its output by default; --no-report opts out."
@@ -1033,8 +1063,10 @@
     adr: "ADR 5 invariant 12; archive 0017 Amendment 24"
     issues: []
     tests: ["test_sheet_generation_snapshot.py"]
-  status: pending
+  status: ported
   port_note: "Keep: Analysis records the source file SHA-256 computed from the exact bytes analysed."
+  rust_test: tests/trust_rules.rs::the_hash_and_the_geometry_come_from_one_read
+  rust_note: "analyse reads the STEP file once and hashes and parses the same bytes; the test feeds it through a named pipe that would give another file to a second read (Unix only). Only the file's stem and hash are recorded. The recognition JSON is a second file, bound to the first by its source_sha256 (the bridge refuses another file's)."
 
 - id: ADR5-13
   statement: "A clear result names its bound: bounded-clear when no assessed predicate needs attention, otherwise needs-attention; neither claims manufacturing readiness or complete recognition."
@@ -1045,6 +1077,7 @@
     tests: ["test_report_projection.py", "test_sheet_generation_snapshot.py"]
   status: pending
   port_note: "Keep: same status vocabulary in the report/Plan summary."
+  rust_note: "Not ported: neither the plan nor review has a summary status (bounded-clear, needs-attention). Where it lives (the Plan or a report) is open; question in docs/next-session.md."
 
 - id: ADR5-14
   statement: "Read-only evidence is a projection, never a build: inspection returns what recognition found and what was done with it without a drawing, plan, placement, render, export or score."
@@ -1079,6 +1112,7 @@
     tests: ["test_issue_1460_step_inspection.py"]
   status: pending
   port_note: "Keep: Analysis/Plan headers carry source hash, producer version and all options."
+  rust_note: "Not upheld for the Plan: the Analysis records its source hash, its loader (producer and version) and the recognition it took in full, but the Plan records only the analysis's binding and the spec, so two plans of one STEP file under one spec, made with different --features JSON, agree on source, producer and options yet differ. Owed: the Plan names the recognition it was planned from; the field is a document-schema choice, asked in docs/next-session.md."
 
 - id: ADR5-17
   statement: "An evidence document states what it cannot say: unclaimed geometry is not a missed feature, and what recognition rejected is reported as unavailable rather than as nothing."
@@ -1089,6 +1123,7 @@
     tests: ["test_issue_1460_step_inspection.py"]
   status: pending
   port_note: "Keep: Analysis has explicit 'unavailable' fields rather than empty lists for unknowns."
+  rust_note: "In part: an Analysis made without recognition has no recognition field, and one made with it has the field even when nothing was recognised; quiddity's refusals are kept (recognition.refusals; tests/bridge.rs::refusals_and_evidence_are_not_features). Not ported: faces no feature claims are not stated, and nothing says which recognised families draftwright cannot draw."
 
 - id: ADR5-U1
   statement: "Lint's coverage of everything a competent reviewer would flag is a goal, not a property; visual-channel defects are outside lint by definition."
@@ -1100,6 +1135,7 @@
     tests: []
   status: pending
   port_note: "Keep as documented limitation in reports."
+  rust_note: "A documented limitation (R4), not a check: docs/model.md says what lint and the collision checks do not cover, and review's picture is the visual channel. To be stated in the report once one exists."
 
 # ---------------------------------------------------------------------------
 # Archived ADRs - rules not captured by ADR 1-5 that still look relevant
@@ -1114,6 +1150,7 @@
     tests: []
   status: pending
   port_note: "Keep: Plan problem codes name drafting outcomes (feature_not_dimensioned, callout_dropped), not solver internals."
+  rust_note: "Not ported: plan problem codes name drafting outcomes (annotation_overlap, view_plan_incomplete, section_not_shown, dimensions_not_ported, …) and most messages say what to change, but problems carry no fix edit (docs/model.md's fix; R4 decision 5), so 'every finding is expressible as a domain fix' is not checked."
 
 - id: ARCH0002-2
   statement: "Deleting an authored dimension is not credited as an engineering-correct redundancy decision: it remains a visible suppressed requirement and scores as unplaced."
@@ -1125,6 +1162,8 @@
     tests: []
   status: pending
   port_note: "Keep: completeness counts authored suppression as unplaced; a future 'waived' state must be explicit in the Spec."
+  rust_test: tests/lint.rs::review_finds_the_plates_holes_stated_by_its_own_callout
+  rust_note: "In part: an authored omission stays visible: it is a row in the plan's omitted, and lint, which reads the drawing and the Analysis, reports the omitted callout's requirements as missing. Not ported: there is no completeness score to count it as unplaced, and no waived state."
 
 - id: ARCH0003-1
   statement: "A deliberate placement wins: a pinned annotation survives every later re-solve and repair never moves it."
@@ -1136,6 +1175,7 @@
     tests: []
   status: pending
   port_note: "Keep: Spec pins are honoured by every plan() call and never altered by a repair step."
+  rust_note: "Not ported: the spec has no pins, and there is no repair step that could move one."
 
 - id: ARCH0003-2
   statement: "Edit locality: adding or nudging one annotation must not silently shift unrelated ones; an edit's blast radius is part of the editability contract."
@@ -1146,6 +1186,7 @@
     tests: []
   status: pending
   port_note: "Translate: re-planning after a small Spec edit should change only affected Plan entries; add a stability test (Plan diff size) since Python never guarded it."
+  rust_note: "R4 translates it: a small spec edit changes only the affected plan items. Not upheld: lanes are packed in order, so omitting one item moves others. On plate.step with its recognition, omitting d:f:hole_pattern:1/grid_pitch.length.col@plan moves location.length.x and the bore callout; omitting location.length.x moves the callout. Owed in placement (src/dims/placement.rs, another stream's), with a stability test."
 
 - id: ARCH0004-1
   statement: "Page packing follows projection alignment: plan above front sharing X, side beside front sharing Y; isometric and tables go in free rectangles."
@@ -1201,6 +1242,8 @@
     tests: []
   status: pending
   port_note: "Keep: bundle the same fonts in the Rust crate; planner text metrics and renderer glyphs read the same file."
+  rust_test: tests/trust_rules.rs::labels_are_measured_with_the_font_they_are_drawn_with
+  rust_note: "In part: every dimension label is measured and drawn with the bundled IBM Plex Mono (dims::FONT), and its planned box is the box of the glyphs drawn, to 0.001 mm. Not ported: the title block is drawn in Plex Mono at fixed sizes, not in Plex Sans Condensed (not bundled), and its text is not measured to its cells."
 
 - id: ARCH0008-1
   statement: "A feature's measurement carries a semantic role, never a rendered label; drafting symbols (counterbore, countersink, depth) are drawn as geometry, not font glyphs."
@@ -1234,8 +1277,10 @@
     adr: "archive 0008 Amendment 2-3; 0004 Amendment 2026-06-20; 0005 §3"
     issues: []
     tests: ["test_e2e_standards.py"]
-  status: pending
+  status: ported
   port_note: "Translate: the Python-parity comparison is a disposable migration gate; the standing contract is this rules catalogue plus standards tests."
+  rust_test: tests/views.rs::view_planning_matches_draftwright_or_is_known
+  rust_note: "The comparisons with draftwright are not golden gates: every difference is listed with a verdict (rust-correct, rust-wrong, equivalent, undetermined, not-applicable) in a known-differences file (views, bands, dimensions, lint), and a rust-correct difference passes. The writer comparison (tests/output.rs::svg_and_dxf_match_draftwright) feeds both writers the same drawing, a scoped check of a port, not of the layout."
 
 - id: ARCH0009-1
   statement: "A recognised pattern that cannot be called out inline escalates to one balloon tagging the pattern once, with an n× count, not one balloon per member (ISO)."
@@ -1340,6 +1385,8 @@
     tests: []
   status: pending
   port_note: "Keep: Spec export marks features it cannot express (e.g. 'auto' entries with reason) rather than omitting them."
+  rust_test: tests/dimension_rules.rs::features_with_no_ported_dimensions_are_reported
+  rust_note: "In part: every recognised feature of a kind no planner dimensions is flagged in the plan (dimensions_not_ported, on its ID). Record types draftwright itself leaves undimensioned are flagged nowhere (open maintainer question in docs/next-session.md, d-dims-split). There is no spec export to mark."
 
 - id: ARCH0012-1
   statement: "A pin or a declared dimension is a strong request, not a bounds override: an infeasible one drops with a finding, competing pins resolve by priority, and equal priority resolves by deterministic key."
@@ -1361,6 +1408,7 @@
     tests: []
   status: pending
   port_note: "Keep: quiddity-rust must use the same tie rule; draftwright-rust keeps presentation_axis as planner policy."
+  rust_note: "Belongs to quiddity-rust (R4): the tie rule is in its recognisers' dominant-axis choices, checked there against Python's captured calls; draftwright-rust takes quiddity's axes and chooses none of its own. Not checked from here."
 
 - id: ARCH0014-1
   statement: "A leader tip may touch a centre-line only when it is the explicitly marked global turning axis, and only within the arrow-sized tip neighbourhood; section and cutting lines are ordinary fixed ink."
@@ -1431,8 +1479,10 @@
     adr: "archive 0014 Amendment 3 (clarified 2026-09-01)"
     issues: [1418]
     tests: ["test_issue_1187_unroutable_leaders.py"]
-  status: pending
+  status: ported
   port_note: "Keep: corpus test asserting placed counts >= recorded floor."
+  rust_test: tests/trust_rules.rs::placed_counts_do_not_fall_below_their_floors
+  rust_note: "The floors are the port's own counts of placed items at 7a966a9, for the four fixture parts and twelve sampled corpus parts (ctc04 is refused by the bridge), not draftwright's: families not yet dimensioned would fail those. An item counts as placed when it has ink, whether or not a problem is reported against it. Raise a floor as a family lands."
 
 - id: ARCH0015-1
   statement: "Machined features use compact leader callouts in a fixed grammar carrying only approved values."
@@ -1484,8 +1534,10 @@
     adr: "archive 0016 Amendment 1"
     issues: []
     tests: []
-  status: pending
+  status: ported
   port_note: "Keep: distinct Plan outcome kinds 'omitted' and 'dropped'."
+  rust_test: tests/trust_rules.rs::an_omission_is_never_reported_as_a_drop
+  rust_note: "An authored omission is a row in the plan's omitted with its basis and is no problem's subject; an approved item that cannot be drawn stays in the plan's dimensions, unplaced, with view_plan_incomplete naming it; no item is both."
 
 - id: ARCH0016-2
   statement: "Every printed number is addressable: a dimension the author cannot address is a dimension the author cannot omit, and accepted intent that cannot be drawn is refused or reported, never silently lost."
@@ -1495,8 +1547,10 @@
     adr: "archive 0016 'Locations are addressable'"
     issues: [925, 883]
     tests: ["test_compiled_plan_boundary.py"]
-  status: pending
+  status: ported
   port_note: "Keep: every Plan dimension has a stable id usable in the Spec; Spec references to non-eligible measurements are validation errors."
+  rust_test: tests/trust_rules.rs::every_planned_dimension_can_be_addressed
+  rust_note: "Every item of the default plan (four fixture parts and cgb245, ftc06, m10127) can be omitted by its ID, which takes off it alone, and listed alone in an authored set, which gives a plan of it alone; an unknown ID is refused with the nearest. A pattern is located by its centre; per-member locations are open in draftwright too (#883)."
 
 - id: ARCH0016-3
   statement: "A compound callout is several addressable dimensions sharing one annotation: dimensional dependents (counterbore ø, countersink angle, bolt-circle ø) need their head, while non-dimensional riders (n×, thread spec, grid size) live on the feature."
@@ -1541,6 +1595,7 @@
     tests: []
   status: pending
   port_note: "Keep as target: relation dimension ids in the Spec/Plan id scheme (not built in Python; spans emit as comments)."
+  rust_note: "Not ported: no inter-feature measurements are planned (draftwright never built them either)."
 
 - id: ARCH0016-7
   statement: "A hard-number (measured) dimension is visibly distinct from a referential one; imported PMI that proves a unique canonical owner is consumed once as that parameter's aspect, otherwise it stays a measured dimension with a structured reason."
@@ -1551,6 +1606,7 @@
     tests: []
   status: pending
   port_note: "Keep: Plan basis distinguishes 'derived from geometry' vs 'source-authored value'; PMI correlation recorded in Analysis."
+  rust_note: "Not ported: no PMI is read, so every value is derived from the geometry; the plan has no basis for a source-authored value and the Analysis no PMI correlation."
 
 - id: ARCH0016-8
   statement: "Once a semantic owner is designated for a fact, parallel inference paths are deleted, not redirected."
@@ -1596,6 +1652,7 @@
     tests: []
   status: pending
   port_note: "Keep: requirement cardinality rules in the completeness ledger."
+  rust_note: "Not ported: there is no requirement ledger. Lint's hole coverage judges a recognised pattern's members together, but the counting rules (derived values, nested countersinks, slot parameters) are not a ledger."
 
 - id: ARCH0017-3
   statement: "Recognition loss cannot self-certify: completeness benchmarks use an independently authored denominator, so removing a recognised inventory shows up as missing outcomes."
@@ -1606,6 +1663,7 @@
     tests: []
   status: pending
   port_note: "Keep: corpus tests with hand-authored expected requirement counts."
+  rust_note: "Not ported: there are no hand-authored expected requirement counts; tests/lint.rs compares with draftwright's lint, which shares recognition's inventory."
 
 - id: ARCH0017-4
   statement: "A newly recognised family is visible before it is semantic: reported as recognised-but-unscored, never coerced into an existing grammar and never admitted to the audited denominator until reviewed."
@@ -1616,6 +1674,8 @@
     tests: []
   status: pending
   port_note: "Keep: Analysis disposition 'deferred' feeds report excludes."
+  rust_test: tests/dimension_rules.rs::features_with_no_ported_dimensions_are_reported
+  rust_note: "In part: a recognised feature of a kind no planner handles is visible as dimensions_not_ported. Record types draftwright leaves undimensioned are not reported (open question in docs/next-session.md), and there is no audited denominator to keep them out of."
 
 - id: ARCH0017-5
   statement: "When an authored subset of a compound callout survives, each surviving term is spelled with its role word (WIDE, LONG, DEEP; LONG, BOTTOM FLAT, R) so it cannot be mistaken for another position in the grammar."
@@ -1669,6 +1729,7 @@
     tests: []
   status: pending
   port_note: "Keep: Plan status 'infeasible' with structured problems; plan() errors only when nothing is renderable."
+  rust_note: "In part: plan returns a plan with its problems whenever anything can be drawn, and refuses only a request that cannot be planned at all (every principal view omitted, an unknown view, size or scale); problems name the causes (view_plan_incomplete, views_do_not_fit, page_fit_uncertain, section_not_shown). Not ported: there are no candidate plans to rank and no plan_infeasible status."
 
 - id: ARCH0018-4
   statement: "One drawing plans one physical sheet; extra sheets are never an implicit fallback for an infeasible single sheet."
@@ -1721,6 +1782,7 @@
     tests: []
   status: pending
   port_note: "Keep: Plan->Spec freeze/export refuses unnameable targets rather than emitting incidental coordinates."
+  rust_note: "Not ported: there is no plan-to-spec export. The spec is written by the author or by edit, and holds no cut coordinate (section A–A's plane is derived by plan)."
 
 - id: ARCH0019-1
   statement: "The plan carries display-complete label text (value, tolerance suffix, fit code, collapse wording); renderers render it and never compose it."
@@ -1767,6 +1829,8 @@
     tests: []
   status: pending
   port_note: "Keep (adopt): the Plan is naturally the expected-mark table; outcomes are per mark id."
+  rust_test: tests/dimension_rules.rs::nothing_approved_vanishes_when_its_view_is_omitted
+  rust_note: "In part: every plan item is placed, or unplaced with a problem naming it (view_plan_incomplete). Not ported: a mandatory flag, a per-mark identity apart from the dimension ID, and a dropped mandatory mark failing the drawing."
 
 - id: ARCH0019-5
   statement: "The plan is compiled once per build under one recorded formatting policy, and consumers verify against that same plan."
@@ -1778,6 +1842,7 @@
     tests: []
   status: pending
   port_note: "Keep: Plan header records formatting policy; render/lint read the Plan instead of recomputing."
+  rust_note: "Not ported: the plan records no formatting policy. Labels are formatted once, by dims::fmt (draftwright's one decimal place), and drawn from the plan; lint reads the drawing."
 
 - id: ARCH0020-1
   statement: "A rigid motion of the part should not change which features are recognised or which views are planned; framed recognition keeps records in the frame where they were proved."
@@ -1789,6 +1854,7 @@
     tests: ["test_issue_1357_framed_activation.py", "test_issue_1357_pmi_frame.py"]
   status: pending
   port_note: "Keep as target: rigid-motion invariance test over Analysis/Plan once quiddity-rust exposes framed preparation."
+  rust_note: "Not ported here: quiddity-rust checks its recognisers under rigid motion, but no test plans a moved part and compares the Analysis's features and the plan's views; the port does not use framed recognition."
 
 - id: ARCH0020-2
   statement: "Each turned body gets its own step chain anchored to its own silhouette: equal lengths on parallel shafts keep separate marks, and if no conflict-free lane exists a chain is dropped with a required-outcome diagnostic rather than drawn over a sibling."
@@ -1810,3 +1876,4 @@
     tests: ["test_issue_1357_framed_activation.py"]
   status: pending
   port_note: "Keep: Analysis records source vs working geometry and any frame fallback decision."
+  rust_note: "Not ported: the Analysis has one geometry (the STEP file's) and, with no framed recognition, no frame fallback decision to record."
