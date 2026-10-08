@@ -68,9 +68,7 @@ jobs:
       matrix:
         # Five nextest shards of the `ci` profile, and the binaries it leaves out run whole
         # under their own harness (.config/nextest.toml says why).
-        shard: [1/5, 2/5, 3/5, 4/5, 5/5]
-        include:
-          - harness: issue_drafting issue_trust
+        shard: [1/5, 2/5, 3/5, 4/5, 5/5, harness]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -90,14 +88,18 @@ jobs:
       # CARGO_TARGET_TMPDIR), which are this job's too: the archive's target/ is extracted over
       # the workspace, and target/tmp, which cargo makes when it builds, is made here.
       - run: tar --zstd -xf nextest-archive.tar.zst && mkdir -p target/tmp
-      - if: matrix.shard
+      - if: matrix.shard != 'harness'
         run: >-
           cargo nextest run --archive-file nextest-archive.tar.zst
           --workspace-remap . --extract-to . --extract-overwrite
           --profile ci --partition hash:${{ matrix.shard }}
-      - if: matrix.harness
+      # The binaries the `ci` profile's default filter leaves out, each run whole.
+      - if: matrix.shard == 'harness'
         run: |
-          for name in ${{ matrix.harness }}; do
+          left_out=$(cargo nextest list --archive-file nextest-archive.tar.zst \
+            --workspace-remap . --profile ci --ignore-default-filter -E 'not default()' \
+            --message-format oneline | awk '{print $1}' | sort -u | sed 's/^draftwright:://')
+          for name in $left_out; do
             bin=(target/release/deps/$name-*)
             if [ ${#bin[@]} != 1 ] || [ ! -x "${bin[0]}" ]; then
               echo "::error::the archive does not hold exactly one $name test binary"

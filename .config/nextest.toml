@@ -4,7 +4,7 @@
 # through a `OnceLock` repeats it in every test: issue_drafting's tests took 1136 s in all under
 # nextest (CI run 37848776092) against 57 s for the binary under its own harness (CI run
 # 37851506194), and issue_trust's 314 s against 90 s. The profile leaves those binaries out, and
-# the workflow's `harness` job runs them whole, failing if one of them is not in the archive.
+# the workflow's `harness` job runs whatever binaries it leaves out whole.
 [profile.ci]
 default-filter = 'not (binary(issue_drafting) | binary(issue_trust))'
 fail-fast = false
