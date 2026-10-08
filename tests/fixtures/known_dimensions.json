@@ -274,30 +274,20 @@
     "side": "rust",
     "family": "envelope",
     "view": "front",
-    "label": "23.5",
-    "count": 1,
-    "verdict": "equivalent",
-    "reason": "draftwright states a turned part's length as its step chain (m_steplen*, outside this port's families); the port plans no chain yet and states the overall length, as draftwright itself releases the overall length when its chain is dropped (ISSUE-955-a). Revisit when step chains are ported: the overall length then becomes a contingency."
-  },
-  {
-    "part": "grm03",
-    "side": "rust",
-    "family": "envelope",
-    "view": "front",
     "label": "ø10",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "grm03 is turned whole about x: its size across the axis is a diameter, which the port prints ø10. draftwright prints it as a plain height '10' (dim_height, its value unsettled in the facts)."
   },
   {
-    "part": "grm05",
-    "side": "rust",
-    "family": "envelope",
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
     "view": "front",
-    "label": "32",
+    "label": "ø10",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "draftwright states a turned part's length as its step chain (m_steplen*, outside this port's families); the port plans no chain yet and states the overall length, as draftwright itself releases the overall length when its chain is dropped (ISSUE-955-a). Revisit when step chains are ported: the overall length then becomes a contingency."
+    "reason": "The ø10 band's diameter (f:turned_step:2). grm03 is turned whole about x, so the port's overall diameter ø10 (envelope od.diameter) states it and claims its step.diameter, as draftwright's dim_od does for the one band of a part's largest diameter (_share_unique_outer_diameter); draftwright has no rotational feature for grm03, prints the size across the axis as a plain height '10', and so leads the band's ø10 on its own (m_dia_x1). Both sheets state the band's diameter once."
   },
   {
     "part": "m1000",
@@ -392,16 +382,6 @@
   {
     "part": "spool132",
     "side": "python",
-    "family": "envelope",
-    "view": "front",
-    "label": "2× ø130",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Both state the ø130 outside diameter. draftwright folds the two ø130 flanges' step diameters into it ('2×'); step diameters are outside this port's families, so the port states the OD alone. Revisit when turned steps are ported."
-  },
-  {
-    "part": "spool132",
-    "side": "python",
     "family": "location.x",
     "view": "plan",
     "label": "65",
@@ -430,16 +410,6 @@
     "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (↧ 10), which draftwright's two leaders do not."
   },
   {
-    "part": "spool132",
-    "side": "rust",
-    "family": "envelope",
-    "view": "front",
-    "label": "ø130",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Both state the ø130 outside diameter. draftwright folds the two ø130 flanges' step diameters into it ('2×'); step diameters are outside this port's families, so the port states the OD alone. Revisit when turned steps are ported."
-  },
-  {
     "part": "string_post",
     "side": "python",
     "family": "location.x",
@@ -448,16 +418,6 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The cross hole lies on the turning axis (x = 0, half the ø7.5 from the box's edge), so its centre line locates it across the axis; the port locates it only along the axis (11.1), as LINT-hole_coverage-turned_axis_location states."
-  },
-  {
-    "part": "string_post",
-    "side": "rust",
-    "family": "envelope",
-    "view": "front",
-    "label": "14.8",
-    "count": 1,
-    "verdict": "equivalent",
-    "reason": "draftwright states a turned part's length as its step chain (m_steplen*, outside this port's families); the port plans no chain yet and states the overall length, as draftwright itself releases the overall length when its chain is dropped (ISSUE-955-a). Revisit when step chains are ported: the overall length then becomes a contingency."
   },
   {
     "part": "ftc06",

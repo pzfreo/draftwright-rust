@@ -1150,3 +1150,39 @@ improvement plan and questions are the current work. Still open from before it:
   Question for the maintainer: area cannot tell apart same-sized faces (a pattern's instances);
   should `tools/recognise.py` also write each face's area centre, so the bridge proves order by
   place?
+
+- From stream d-dims-turned-steps (CLI-trial priority 4; `src/dims/turned.rs`,
+  `tests/dims_turned.rs`): turned steps are dimensioned. Each band no groove owns (lint's
+  `turned::bands`) gets `step.diameter` (a `ø` callout in the front view, led to its silhouette for
+  x and z, to its circle for y) and `step.length` (one chain item per band in its first profile
+  view, per turned profile); the overall diameter also claims the band it is (one band, or two
+  separate flanges as `2× ø130`, draftwright's `_share_unique_outer_diameter`); a z band printing as
+  a coaxial bore reads `ø70 OD`; two equal z bands share `2× ø16`; and a turned part's overall
+  length is withheld when its chain (bands and grooves) runs end to end. `turned_step` is claimed;
+  an unreadable band, or every band when groove ownership cannot be decided, is
+  `feature_not_dimensioned`. GRM-05 now reads ø10, ø6.2, ø6, 14, 5, 13 (and C1, C1.5), as
+  draftwright's sheet; before, ø10 and 32. On the five captured turned sheets the step items equal
+  draftwright's; `known_dimensions.json` loses 5 entries (the overall lengths, spool132's `2× ø130`)
+  and gains grm03's ø10 band (equivalent: the port's overall ø10 states it). Not ported (placement,
+  the planners do not see the scale): draftwright's smallest-diameter drop, chain stagger and dense
+  drop, crowded-head details, and moving a parallel profile to the other view; a baseline ladder
+  comes only from authored PMI, which the port does not read. Left:
+  - Placement, for the placement work: the step diameter callouts stack in the lanes below the
+    front with 45° leaders (draftwright: a column left of the front for z, a row below for x), so
+    `known_placement.json` grows on connector109, grm03, grm05, spool132 and string_post
+    (rust-wrong). The ratchet holds one entry per part and code, so those five parts' existing
+    entries had their counts raised and a sentence added; two new `annotation_ink_overlap` entries.
+  - The native reader (`src/bridge/native.rs`) reads every field the planner uses (axis, lo, hi,
+    diameter, `profile.axis_origin`; grooves' axis, at, width, profile), and `known_native.json`
+    shows those agreeing with Python on every pair. A native step whose `profile` is null (the
+    schema allows it) is reported, not dimensioned: draftwright then puts the band on the box's
+    centre line. Profile grouping and groove ownership compare whole `profile` objects, as lint
+    does.
+  - Questions for the maintainer:
+    - draftwright collapses three or more chain lengths within 10 % of their mean into `N× L`
+      whatever they print, so `3× 23.3` can stand for 23, 23.3 and 23.7. The port collapses only
+      when each prints as `L` (no captured sheet has a collapse). Keep the stricter rule?
+    - A z band whose diameter equals a coaxial hole's counterbore or spotface (not only its bore)
+      reads `OD`, standing in for draftwright's rotational bores (spool132's ø70, which the port
+      states as a spotface). Is `OD` wanted beyond z (draftwright limits it to z, where its bore
+      leaders share the front view)?

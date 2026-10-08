@@ -661,7 +661,7 @@
       - "tests/test_issue_1132_turned_profile_span_is_reported.py::test_a_malformed_groove_does_not_raise"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: no check that a recognised turned profile spans the part (LINT-code-turned_profile_not_spanned); turned steps get dimensions_not_ported. draftwright's captured sheet of connector109 (CADGenBench 109) no longer reports a shortfall, so no sampled part is known to differ."
+  rust_note: "Not ported: no check that a recognised turned profile spans the part (LINT-code-turned_profile_not_spanned); the plan dimensions the bands it has (src/dims/turned.rs) and states the overall length when they do not run end to end. draftwright's captured sheet of connector109 (CADGenBench 109) no longer reports a shortfall, so no sampled part is known to differ."
   port_note: "Keep: plan problem (geometry class, warning) with summed gap length."
 
 - id: ISSUE-1142-a
@@ -1896,7 +1896,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::eccentric_cylinders_are_not_one_turned_profile"
-  rust_note: "Partial: with the turned fixture's smaller band moved 2 mm off the other's axis line, the plan stops reading the part as turned whole (three extents, no overall diameter) and reports each band, none merged or chosen (src/dims/turned.rs::turned requires one axis line). Not ported: turned steps' own dimensions, and several bodies in one compound (no fixture has one)."
+  rust_note: "Partial: with the turned fixture's smaller band moved 2 mm off the other's axis line, the plan stops reading the part as turned whole (three extents, no overall diameter) and states each band's diameter and length on its own, none merged or chosen (src/dims/turned.rs::turned requires one axis line). Not ported: several bodies in one compound (no fixture has one)."
   port_note: "Keep: Analysis exposes a list of turned profiles."
 
 - id: ISSUE-1357-c
@@ -2101,7 +2101,7 @@
     corpus_parts: ["turned-step-axis-x.step", "turned-step-axis-z.step", "turned-step-compound.step", "turned-step-repeated-lengths.step", "turned-step-through-bore.step", "turned-step-translated-blind-bore.step", "groove-lone-y.step"]
   status: pending
   rust_test: "tests/issue_drafting.rs::each_turned_band_carries_its_diameter_and_length"
-  rust_note: "Partial: on every part lint's turned-step ledger has exactly step.length and step.diameter for each band it reads, and none for a band a groove owns (checked to occur on a sampled part with grooves). Not ported: the plan does not dimension turned steps (src/dims/turned.rs), so the grouped length label (exact count, no skipped equal neighbour) has nothing to check."
+  rust_note: "Partial: on every part lint's turned-step ledger has exactly step.length and step.diameter for each band it reads, and none for a band a groove owns (checked to occur on a sampled part with grooves). The plan states both for each band a groove does not own, and a grouped length `N× L` claims every band it stands for (src/dims/turned.rs; tests/dims_turned.rs::repeated_lengths_and_twin_flanges_are_stated_once). Not ported: lint's check of a grouped label's exact count and that it skips no equal neighbour (lint credits each band's claim by its printed value)."
   port_note: "Keep: scenario tests per corpus part."
 
 - id: ISSUE-1374-d
@@ -2116,7 +2116,7 @@
       - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_deleting_provider_profiles_cannot_shrink_independent_denominator"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: turned steps are not dimensioned (dimensions_not_ported), and lint's step coverage reads claims, not where a witness or leader lands."
+  rust_note: "Not ported: lint's step coverage reads claims, not where a witness or leader lands (the plan dimensions turned steps, src/dims/turned.rs, with witnesses at each band's shoulders and the diameter leader on its silhouette)."
   port_note: "Keep."
 
 - id: ISSUE-1378-a
@@ -2457,7 +2457,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::equal_diameters_on_different_features_are_stated_apart"
-  rust_note: "Partial: on every part no dimension states both a hole's bore and an outside diameter (a boss's or the part's overall), and lint's turned-step ledger (src/lint/turned.rs::overall) lets the overall diameter stand for a band's only when it is the unique largest of its profile and alone on its axis line with its diameter (turned fixture, and the same with two largest bands, where it stands for neither). Not ported: the plan does not dimension turned steps' own diameters (src/dims/turned.rs), so a bore equal to a shoulder has no shoulder dimension to keep apart."
+  rust_note: "Partial: on every part no dimension states both a hole's bore and an outside diameter (a boss's or the part's overall), and lint's turned-step ledger (src/lint/turned.rs::overall) lets the overall diameter stand for a band's only when it is the unique largest of its profile and alone on its axis line with its diameter (turned fixture, and the same with two largest bands, where it stands for neither). The plan's overall diameter claims the one band of its size (or two separate flanges, `2× ø`, as draftwright's _share_unique_outer_diameter), every other band has its own diameter callout, and a band along z whose diameter prints as a coaxial bore's reads `OD` (src/dims/turned.rs). Not ported: the tolerance and decoration clauses (a toleranced overall diameter still stands for its band)."
   port_note: "Keep."
 
 - id: ISSUE-1505-b

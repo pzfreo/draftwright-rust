@@ -6,7 +6,8 @@
 //! pitches, slot sizes (`slot`: width, length, end radius) and locations (`location.slot`), boss
 //! diameters, sizes across flats and heights (`boss`), fillet and chamfer callouts, through-step
 //! legs (`through_step`), circular blind step and paired-ramp callouts, the height ladder's
-//! heights and shoulder positions (`step_height`, `step_position`), and section recesses
+//! heights and shoulder positions (`step_height`, `step_position`), turned steps' diameters and
+//! lengths (`turned_step`), and section recesses
 //! (`recess`: pocket, hexagonal pocket and circular seat callouts and open channel widths; their
 //! locations are `location.<axis>`, a z pocket's axis read from which of its two compiled values
 //! draftwright's label prints). Each of draftwright's annotations that states one of them is
@@ -89,6 +90,7 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
             Some("envelope".into())
         }
         "od.diameter" => Some("envelope".into()),
+        "step.diameter" | "step.length" => Some("turned_step".into()),
         "fillet.radius" => Some("fillet".into()),
         "chamfer.length" => Some("chamfer".into()),
         "step_height.length" => Some("step_height".into()),
@@ -151,6 +153,8 @@ fn rust_family(d: &PlannedDimension) -> String {
             .unwrap_or("");
     if d.id.starts_with("d:envelope/") {
         "envelope".into()
+    } else if parameter == "step.diameter" || parameter == "step.length" {
+        "turned_step".into()
     } else if let Some(family) = [
         ("step_height", "step_height"),
         ("step_position", "step_position"),

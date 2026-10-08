@@ -795,7 +795,7 @@
     tests: [tests/test_issue_1374_turned_step_completeness_evidence.py]
   status: pending
   rust_test: ledgers_on_pythons_sheets_match_pythons_or_are_known
-  rust_note: "Partial (src/lint/turned.rs): a ledger, lint::turned::outcomes, step.length and step.diameter per turned band not owned by a groove (groove_owns_turned_step_band; ambiguous ownership makes every band unverifiable), placed when a claiming annotation prints the value, the diameter also by the overall OD for a profile's unique largest band. As in Python it gives no lint finding, so lint::check does not run it. Not ported: the suppressed, dropped and satisfied states, and Python's IR-join unverifiable. Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers)."
+  rust_note: "Partial (src/lint/turned.rs): a ledger, lint::turned::outcomes, step.length and step.diameter per turned band not owned by a groove (groove_owns_turned_step_band; ambiguous ownership makes every band unverifiable), placed when a claiming annotation prints the value, the diameter also by the overall OD for a profile's unique largest band. The port's own plan claims each band's step.length and step.diameter (src/dims/turned.rs), its overall diameter the band or two flanges it stands for. As in Python it gives no lint finding, so lint::check does not run it. Not ported: the suppressed, dropped and satisfied states, and Python's IR-join unverifiable. Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers)."
   port_note: "Keep."
 
 - id: LINT-groove_coverage-width_and_floor

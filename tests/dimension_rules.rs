@@ -328,21 +328,23 @@ fn both_dimension_sources_and_their_validation() {
 }
 
 /// A part turned whole states its diameter (with ø) and its length, not a width and depth that
-/// are both its diameter.
+/// are both its diameter. Its step chain (40 and 30) runs end to end, so it states the length
+/// (ISSUE-955-a: a surviving chain does not release a redundant overall length).
 #[test]
 fn a_turned_part_states_its_diameter_and_length() {
     let plan = planned("turned", &recognition("turned"), &Spec::default());
     let env: Vec<(&str, &str)> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.starts_with("d:envelope"))
+        .filter(|d| d.id.starts_with("d:envelope") || d.id.contains("/step.length@"))
         .map(|d| (d.id.as_str(), d.label.as_str()))
         .collect();
     assert_eq!(
         env,
         [
             ("d:envelope/od.diameter@front", "ø30"),
-            ("d:envelope/height.length@front", "70")
+            ("d:f:turned_step:1/step.length@front", "40"),
+            ("d:f:turned_step:2/step.length@front", "30")
         ]
     );
 }
@@ -356,7 +358,7 @@ fn a_turned_parts_diameter_follows_its_view() {
     let plan = planned("turned", &recognition("turned"), &spec);
     for id in [
         "d:envelope/od.diameter@side",
-        "d:envelope/height.length@side",
+        "d:f:turned_step:1/step.length@side",
     ] {
         let d = find(&plan, id);
         assert!(d.placed.is_some(), "{id} is drawn");
@@ -416,8 +418,10 @@ fn features_with_no_ported_dimensions_are_reported() {
     let kinds: Vec<&str> = a.features.iter().map(|f| f.kind.as_str()).collect();
     assert!(kinds.contains(&"fillet") && kinds.contains(&"turned_step"));
     assert!(!kinds.contains(&"hole"));
-    let plan = model::plan(&a, &Spec::default()).unwrap();
-    // The fillets are planned (`dims::edges`); the turned steps are not yet.
+    // The fillets and turned steps are planned (`dims::edges`, `dims::turned`): with nothing
+    // else, nothing is reported.
+    assert!(not_ported(&model::plan(&a, &Spec::default()).unwrap()).is_empty());
+    // The turned steps relabelled as blends, a kind no planner claims yet, are reported.
     let ids: Vec<String> = a
         .features
         .iter()
@@ -425,6 +429,10 @@ fn features_with_no_ported_dimensions_are_reported() {
         .map(|f| f.id.clone())
         .collect();
     assert_eq!(ids.len(), 2);
+    for f in a.features.iter_mut().filter(|f| f.kind == "turned_step") {
+        f.kind = "blend".into();
+    }
+    let plan = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(not_ported(&plan), ids);
     let step = plan
         .problems
@@ -433,7 +441,7 @@ fn features_with_no_ported_dimensions_are_reported() {
         .unwrap();
     assert!(
         step.message
-            .ends_with("no dimensions for turned_step are ported yet."),
+            .ends_with("no dimensions for blend are ported yet."),
         "{}",
         step.message
     );

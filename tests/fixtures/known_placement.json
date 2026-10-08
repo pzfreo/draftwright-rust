@@ -30,16 +30,23 @@
  {
   "part": "connector109",
   "code": "annotation_off_sheet",
-  "count": 4,
+  "count": 9,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the front's lower band is 20 mm and holds the lanes of callouts and diameters, so the outermost run below the sheet's margin: d:f:fillet:1/fillet.radius@front (R1), and, since dims::grooves added the three groove callouts (6 WIDE × ø122 twice, stacked below the front), d:f:groove:2, d:f:groove:3 and the chamfer callout pushed out past them. draftwright's captured sheet (tests/fixtures/sheets/connector109.json.gz) has every one of these labels inside the A2 drawing area (the lowest, a groove's, 46 mm above the page's bottom edge). Reserving the front's lanes clears it but drops the sheet's scale from 1:2 to 1:5."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the front's lower band is 20 mm and holds the lanes of callouts and diameters, so the outermost run below the sheet's margin: d:f:fillet:1/fillet.radius@front (R1), and, since dims::grooves added the three groove callouts (6 WIDE × ø122 twice, stacked below the front), d:f:groove:2, d:f:groove:3 and the chamfer callout pushed out past them. draftwright's captured sheet (tests/fixtures/sheets/connector109.json.gz) has every one of these labels inside the A2 drawing area (the lowest, a groove's, 46 mm above the page's bottom edge). Reserving the front's lanes clears it but drops the sheet's scale from 1:2 to 1:5. Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs), the callouts for f:turned_step:1, 2, 5 and 6 stack in the same lanes below the front and run off too; draftwright's column of step diameters left of the front (m_dia_z*) is inside the drawing area."
  },
  {
   "part": "connector109",
   "code": "annotation_outside_area",
-  "count": 8,
+  "count": 13,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: eight front items in the lanes below the front run past its 20 mm band, the three groove callouts dims::grooves adds among them."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: eight front items in the lanes below the front run past its 20 mm band, the three groove callouts dims::grooves adds among them. Since dims::turned added the turned steps' diameter callouts, five of them (f:turned_step:1, 2, 3, 5, 6) join the lanes below the front, their 45° leaders running far along it from the bands at the top of this 420 mm z-turned profile (draftwright leads them to a column left of the front)."
+ },
+ {
+  "part": "connector109",
+  "code": "annotation_ink_overlap",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs): the leader of d:f:groove:2/groove.length@front (6 WIDE × ø122) runs through the label of d:f:turned_step:6/step.diameter@front (ø130.9), both stacked in the lanes below the front with 45° leaders. draftwright's sheet keeps the step diameters in a column left of the front and the groove callouts right of it, apart."
  },
  {
   "part": "ctc01",
@@ -86,16 +93,16 @@
  {
   "part": "grm03",
   "code": "annotation_outside_area",
-  "count": 3,
+  "count": 8,
   "verdict": "rust-wrong",
-  "reason": "Run along their lanes, past the view's area sideways: the side's callout d:f:hole:1/bore.diameter@side (⌀1.6 ↧ 3.8) runs right of the side's 20 mm right band, and two front items run past the front's band. No other problem follows on this sheet."
+  "reason": "Run along their lanes, past the view's area sideways: the side's callout d:f:hole:1/bore.diameter@side (⌀1.6 ↧ 3.8) runs right of the side's 20 mm right band, and two front items run past the front's band. No other problem follows on this sheet. Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs), the three of them (ø5, ø3, ø6) and two more front items in the lanes below the front run past its band; draftwright's row of step diameters below the front fits its sheet."
  },
  {
   "part": "grm05",
   "code": "annotation_outside_area",
-  "count": 2,
+  "count": 4,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: two front items below the front run past its 20 mm band (three lanes need 28 mm; reserving them drops the sheet from 2:1 to 1:1, which waits for the maintainer)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: two front items below the front run past its 20 mm band (three lanes need 28 mm; reserving them drops the sheet from 2:1 to 1:1, which waits for the maintainer). Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs), its two (ø6.2, ø6) also take lanes below the front past the band; draftwright leads them to a column left of the front."
  },
  {
   "part": "m1000",
@@ -163,15 +170,22 @@
  {
   "part": "spool132",
   "code": "annotation_outside_area",
-  "count": 5,
+  "count": 7,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: four plan callouts with long bolt-circle labels and one front item."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: four plan callouts with long bolt-circle labels and one front item. Since dims::turned added the turned steps' diameter callout ø70 OD (src/dims/turned.rs), it and one more front item in the lanes below the front run past the band; draftwright leads it to the column left of the front."
  },
  {
   "part": "string_post",
   "code": "annotation_outside_area",
+  "count": 5,
+  "verdict": "rust-wrong",
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: one front item below the front runs past its band. Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs), the three of them (ø6, ø5, ø3.4) and the item below them run past the front's band; draftwright leads them to a column left of the front."
+ },
+ {
+  "part": "string_post",
+  "code": "annotation_ink_overlap",
   "count": 1,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: one front item below the front runs past its band."
+  "reason": "Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs): the leader of d:f:hole:1/bore.diameter@front (⌀1.7 ↧ 5.4) runs through the label of d:f:turned_step:4/step.diameter@front (ø3.4), both in the lanes below the front with 45° leaders. draftwright's sheet puts the step diameters in a column left of the front and the cross hole's callout above it, apart."
  }
 ]
