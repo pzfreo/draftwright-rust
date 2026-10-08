@@ -191,3 +191,17 @@ improvement plan and questions are the current work. Still open from before it:
       Should it?
     - Boss locations go beyond draftwright, which locates no boss (ftc06's 266.7, 38.1, 139.7
       are marked rust-correct). Keep them?
+- From wave 3 (stream d-dims-edges): `dims::edges` (fillet `R`, chamfer `C` or `a × θ` callouts,
+  equal ones counted, where the edge is seen end-on or in a turned profile). Oriented chamfers
+  (always oblique in quiddity) stay in `UNDRAFTED`, undimensioned and unreported, as draftwright
+  #1365. Left: ISSUE-1276-a only partly ported (on a part with several or partial shafts the
+  leader stays at the treatment's physical point, not turned about its own shaft); ISSUE-1374-a/b
+  not ported (no loss of credit for a leader moved off the bevel or into the wrong view); blends
+  still get `dimensions_not_ported`; older `known_lint.json` reason texts still say the port draws
+  only envelope, turned and hole dimensions.
+  - Questions for the maintainer:
+    - One n× callout counts equal members along other axes or seen in other views, as
+      draftwright does, and its leader points only at the largest set in one view. Keep that, or
+      split callouts per view?
+    - Oriented chamfers stay undimensioned and unreported, as in draftwright #1365. Do they need
+      a callout, and in which view?
