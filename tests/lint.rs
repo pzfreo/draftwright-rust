@@ -226,6 +226,14 @@ const FAMILIES: [(&str, &[&str]); 10] = [
     ),
 ];
 
+/// The codes of the section recess dispositions, reported whatever the sheet says.
+const DISPOSITIONS: [&str; 4] = [
+    "passage_requirement_unsupported",
+    "prismatic_pocket_requirement_unsupported",
+    "section_recess_requirement_unsupported",
+    "section_recess_recognition_refused",
+];
+
 /// Whether lint checks *parameter* of a Python feature of *kind* (outside hole coverage).
 fn checked(kind: &str, parameter: &str) -> bool {
     FAMILIES
@@ -747,6 +755,46 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
                 ),
                 "angled steps".into(),
             );
+        }
+        // Section recesses no grammar reads, and refused recess recognitions, are reported
+        // whatever the sheet says, by Python's message: the two lints agree finding by finding.
+        for code in DISPOSITIONS {
+            let messages = |found: Vec<&String>| {
+                let mut m: Vec<String> = found.into_iter().cloned().collect();
+                m.sort();
+                m
+            };
+            let theirs = messages(
+                f.lint
+                    .iter()
+                    .filter(|l| l.code == code)
+                    .map(|l| &l.message)
+                    .collect(),
+            );
+            let mine = messages(
+                ours.iter()
+                    .filter(|i| i.code == code)
+                    .map(|i| &i.message)
+                    .collect(),
+            );
+            for m in &theirs {
+                if mine.contains(m) {
+                    agree += 1;
+                }
+            }
+            for (side, list, other) in [(0, &theirs, &mine), (1, &mine, &theirs)] {
+                for m in list.iter().filter(|m| !other.contains(m)) {
+                    let (p, r) = if side == 0 {
+                        (Some(m.clone()), None)
+                    } else {
+                        (None, Some(m.clone()))
+                    };
+                    differ.insert(
+                        (name.clone(), "section_recesses".into(), code.into(), p, r),
+                        "section recess disposition".into(),
+                    );
+                }
+            }
         }
         let rust: BTreeMap<(String, String), String> = ours
             .iter()
@@ -1303,11 +1351,19 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     let groups = groups(&analysis);
     let (marks, unjoined) = marks(&analysis, &groups, &f);
     assert_eq!(unjoined, 0);
-    assert!(lint::check(&analysis, &marks).is_empty());
+    // quiddity refused one recess recognition on m10127, which is reported whatever the sheet
+    // says (as Python's lint reports it on this sheet); nothing else is found.
+    let refused = "section_recess_recognition_refused";
+    let found: Vec<String> = lint::check(&analysis, &marks)
+        .into_iter()
+        .map(|i| i.code)
+        .collect();
+    assert_eq!(found, [refused]);
     // hc_side0 prints "⌀8.1 THRU" for the through hole.
     let codes = |marks: &[Mark]| {
         lint::check(&analysis, marks)
             .into_iter()
+            .filter(|i| i.code != refused)
             .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
             .collect::<Vec<_>>()
     };

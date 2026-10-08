@@ -129,6 +129,46 @@
       "rust": null,
       "verdict": "not-applicable",
       "reason": "The port cannot read ctc04's features, so lint has no requirements to judge: face 367 is a sphere whose area haecceity integrates as 13.0806 mm² against OpenCascade's 13.1002 mm² (0.15%), beyond the bridge's 1e-3 tolerance for analytic faces. A haecceity face_mass accuracy question like handoff item F, not a lint difference; Python's two hole findings on this sheet (both unverifiable, for oblique holes its IR declared on z) stay unjudged until the bridge reads the part."
+    },
+    {
+      "part": "m1000",
+      "subject": "section_recesses",
+      "group": "section recess disposition",
+      "parameter": "passage_requirement_unsupported",
+      "python": "recognised 3-edge prismatic through-opening (2 of 4) is not represented by Draftwright dimensions: profile has no supported drafting grammar; review and define its manufacturing section outside automatic drawing approval",
+      "rust": null,
+      "verdict": "equivalent",
+      "reason": "Equivalent: the same four passages, each reported whatever the sheet says, with the same sides and reason; only their ordinals differ. Python's lint counts the recesses in quiddity's RecognitionResult order (index 5 the 3-sided passage on faces 19-21, 6 and 7 the 8-sided ones), while quiddity's recognition document, which the bridge reads (tests/fixtures/recognition/sheets/m1000.json.gz), numbers them differently (index 5 the 8-sided passage on faces 39-46, 6 the 3-sided one on faces 19-21; checked with quiddity 0.3.9's build_recognition_result and build_recognition_document on mfcadpp/1000.step). The port counts in the document's index order, so the second and third passages swap ordinals."
+    },
+    {
+      "part": "m1000",
+      "subject": "section_recesses",
+      "group": "section recess disposition",
+      "parameter": "passage_requirement_unsupported",
+      "python": "recognised 8-edge prismatic through-opening (3 of 4) is not represented by Draftwright dimensions: profile has no supported drafting grammar; review and define its manufacturing section outside automatic drawing approval",
+      "rust": null,
+      "verdict": "equivalent",
+      "reason": "Equivalent: the same four passages, each reported whatever the sheet says, with the same sides and reason; only their ordinals differ. Python's lint counts the recesses in quiddity's RecognitionResult order (index 5 the 3-sided passage on faces 19-21, 6 and 7 the 8-sided ones), while quiddity's recognition document, which the bridge reads (tests/fixtures/recognition/sheets/m1000.json.gz), numbers them differently (index 5 the 8-sided passage on faces 39-46, 6 the 3-sided one on faces 19-21; checked with quiddity 0.3.9's build_recognition_result and build_recognition_document on mfcadpp/1000.step). The port counts in the document's index order, so the second and third passages swap ordinals."
+    },
+    {
+      "part": "m1000",
+      "subject": "section_recesses",
+      "group": "section recess disposition",
+      "parameter": "passage_requirement_unsupported",
+      "python": null,
+      "rust": "recognised 8-edge prismatic through-opening (2 of 4) is not represented by Draftwright dimensions: profile has no supported drafting grammar; review and define its manufacturing section outside automatic drawing approval",
+      "verdict": "equivalent",
+      "reason": "Equivalent: the same four passages, each reported whatever the sheet says, with the same sides and reason; only their ordinals differ. Python's lint counts the recesses in quiddity's RecognitionResult order (index 5 the 3-sided passage on faces 19-21, 6 and 7 the 8-sided ones), while quiddity's recognition document, which the bridge reads (tests/fixtures/recognition/sheets/m1000.json.gz), numbers them differently (index 5 the 8-sided passage on faces 39-46, 6 the 3-sided one on faces 19-21; checked with quiddity 0.3.9's build_recognition_result and build_recognition_document on mfcadpp/1000.step). The port counts in the document's index order, so the second and third passages swap ordinals."
+    },
+    {
+      "part": "m1000",
+      "subject": "section_recesses",
+      "group": "section recess disposition",
+      "parameter": "passage_requirement_unsupported",
+      "python": null,
+      "rust": "recognised 3-edge prismatic through-opening (3 of 4) is not represented by Draftwright dimensions: profile has no supported drafting grammar; review and define its manufacturing section outside automatic drawing approval",
+      "verdict": "equivalent",
+      "reason": "Equivalent: the same four passages, each reported whatever the sheet says, with the same sides and reason; only their ordinals differ. Python's lint counts the recesses in quiddity's RecognitionResult order (index 5 the 3-sided passage on faces 19-21, 6 and 7 the 8-sided ones), while quiddity's recognition document, which the bridge reads (tests/fixtures/recognition/sheets/m1000.json.gz), numbers them differently (index 5 the 8-sided passage on faces 39-46, 6 the 3-sided one on faces 19-21; checked with quiddity 0.3.9's build_recognition_result and build_recognition_document on mfcadpp/1000.step). The port counts in the document's index order, so the second and third passages swap ordinals."
     }
   ],
   "own_drawings": [
@@ -168,6 +208,13 @@
       "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
+      "part": "ctc01",
+      "code": "prismatic_pocket_requirement_unsupported",
+      "count": 2,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
+    },
+    {
       "part": "ftc06",
       "code": "blend_requirement_missing",
       "count": 5,
@@ -175,11 +222,60 @@
       "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
+      "part": "ftc06",
+      "code": "prismatic_pocket_requirement_unsupported",
+      "count": 2,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
+    },
+    {
       "part": "hanger",
       "code": "blend_requirement_missing",
       "count": 22,
       "verdict": "rust-correct",
       "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "m1000",
+      "code": "passage_requirement_unsupported",
+      "count": 4,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
+    },
+    {
+      "part": "m1000",
+      "code": "prismatic_pocket_requirement_unsupported",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
+    },
+    {
+      "part": "m1000",
+      "code": "section_recess_recognition_refused",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part: quiddity refused to recognise a recess on these faces (its SectionRecessRefusal, kept in the recognition's refusals), and lint says so rather than treating them as no recess."
+    },
+    {
+      "part": "m10046",
+      "code": "passage_requirement_unsupported",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
+    },
+    {
+      "part": "m10046",
+      "code": "prismatic_pocket_requirement_unsupported",
+      "count": 2,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
+    },
+    {
+      "part": "m10127",
+      "code": "section_recess_recognition_refused",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part: quiddity refused to recognise a recess on these faces (its SectionRecessRefusal, kept in the recognition's refusals), and lint says so rather than treating them as no recess."
     },
     {
       "part": "m10127",

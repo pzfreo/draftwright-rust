@@ -1260,7 +1260,9 @@
     module: "linting/section_recess_coverage.py, linting/passage_coverage.py"
     issues: [1245]
     tests: [tests/test_issue_1245_passage_disposition.py]
-  status: pending
+  status: ported
+  rust_test: a_recess_no_grammar_reads_is_reported_unsupported
+  rust_note: "src/lint/section_recesses.rs: every section_recess feature that draftwright's section_recess_fields (ported as section_recesses::grammar) reads by no grammar, of quiddity kind passage, is one warning with Python's message ('recognised N-edge prismatic through-opening (k of n) ... : <reason>; review ...'), whatever the marks say. On the captured sheets it agrees with Python's lint message for message (m1000's four, m10046's one), except that two of m1000's passages swap ordinals: the bridge reads quiddity's recognition document, which numbers the recesses differently from the RecognitionResult Python's lint counts in (known_lint.json, equivalent). A record that breaks quiddity's contract, where Python's lint would raise, is reported too, with why."
   port_note: "Keep."
 
 - id: LINT-code-prismatic_pocket_requirement_unsupported
@@ -1271,7 +1273,9 @@
     module: "linting/section_recess_coverage.py, linting/prismatic_pocket_coverage.py"
     issues: [1246]
     tests: [tests/test_issue_1246_prismatic_pocket_disposition.py]
-  status: pending
+  status: ported
+  rust_test: a_recess_no_grammar_reads_is_reported_unsupported
+  rust_note: "src/lint/section_recesses.rs: as the passage disposition, for quiddity kind pocket ('recognised N-sided blind prismatic recess D mm deep (k of n)', D in Python's {:g}). Agrees with Python's lint message for message on ctc01's, ftc06's, m1000's and m10046's captured sheets (ctc04's recognition the bridge refuses whole)."
   port_note: "Keep."
 
 - id: LINT-code-section_recess_requirement_unsupported
@@ -1281,7 +1285,9 @@
     lint_code: "section_recess_requirement_unsupported"
     module: "linting/section_recess_coverage.py"
     tests: [tests/test_recognition_boundary_failures.py]
-  status: pending
+  status: ported
+  rust_test: other_recesses_and_invalid_records_are_reported_with_why
+  rust_note: "src/lint/section_recesses.rs: as the passage disposition, for any other quiddity kind ('section recess <index> on body <body>'). No captured sheet has one; the evidence is the unit test."
   port_note: "Keep."
 
 - id: LINT-code-section_recess_recognition_refused
@@ -1291,7 +1297,9 @@
     lint_code: "section_recess_recognition_refused"
     module: "linting/section_recess_coverage.py"
     tests: [tests/test_section_recess_contract.py]
-  status: pending
+  status: ported
+  rust_test: a_recess_no_grammar_reads_is_reported_unsupported
+  rust_note: "src/lint/section_recesses.rs: each SectionRecessRefusal the bridge keeps in the recognition's refusals is one warning, 'section recess recognition on body B refused: <reason>'. Agrees with Python's lint on m1000's and m10127's captured sheets."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
