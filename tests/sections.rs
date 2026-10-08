@@ -82,7 +82,10 @@ fn an_unknown_view_names_the_section_among_the_choices() {
 #[test]
 fn section_a_a_is_planned_placed_and_drawn() {
     let Some(dir) = corpus::dir() else {
-        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        eprintln!(
+            "SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS \
+             (DRAFTWRIGHT_CORPUS_REQUIRED=1 makes this a failure)"
+        );
         return;
     };
     let (part, analysis) = corpus::analyse(&dir, "nist/nist_ftc_06_asme1_rd.stp", "ftc06");

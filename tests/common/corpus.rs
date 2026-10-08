@@ -2,6 +2,9 @@
 //! corpus (`DRAFTWRIGHT_CORPUS`, by default `~/repos/quiddity/tests/corpus`), with Python
 //! quiddity's recognition for each (`tests/fixtures/recognition/corpus/<name>.json.gz`, written
 //! by `tools/recognise.py`) when there is one.
+//!
+//! A test that needs the corpus skips when it is missing, unless `DRAFTWRIGHT_CORPUS_REQUIRED=1`
+//! (as in CI and the verify line), which makes a missing corpus a failure.
 
 #![allow(dead_code)]
 
@@ -11,13 +14,22 @@ use std::path::{Path, PathBuf};
 use draftwright::haecceity::Part;
 use draftwright::model::{self, Analysis};
 
+/// The corpus directory, or `None` (the caller skips) when it is not found. Panics instead when
+/// `DRAFTWRIGHT_CORPUS_REQUIRED=1`, so a run that must cover the corpus cannot pass without it.
 pub fn dir() -> Option<PathBuf> {
     let dir = std::env::var_os("DRAFTWRIGHT_CORPUS")
         .map(PathBuf::from)
         .or_else(|| {
             std::env::var_os("HOME").map(|h| PathBuf::from(h).join("repos/quiddity/tests/corpus"))
-        })?;
-    dir.is_dir().then_some(dir)
+        })
+        .filter(|d| d.is_dir());
+    if dir.is_none() && std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_some_and(|v| v == "1") {
+        panic!(
+            "DRAFTWRIGHT_CORPUS_REQUIRED=1 but the corpus is not found: set DRAFTWRIGHT_CORPUS to \
+             quiddity's tests/corpus (default ~/repos/quiddity/tests/corpus)"
+        );
+    }
+    dir
 }
 
 /// The recognition JSON for sampled part *name*, if it has one.
