@@ -1235,6 +1235,8 @@
     tests: []
   status: pending
   port_note: "Keep: planner page choice rule; forced page in Spec is honoured when complete."
+  rust_test: tests/tables.rs::a_long_table_moves_the_sheet_on_rather_than_be_dropped
+  rust_note: "In part: authored tables and the notes block are reserved when the sheet is chosen. Not yet: a caller-forced page is not checked to place every requirement."
 
 - id: ARCH0006-1
   statement: "Text is measured with the same font file it is rendered with: a monospace face for dimensions, callouts and notes, and a condensed face for the title block."

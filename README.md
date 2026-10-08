@@ -75,7 +75,8 @@ What it draws so far (at bbd3dd7):
 - **Lint for holes:** every recognised hole's sizes, THRU or depth, recesses and count must be
   stated on the drawing; `review` reports what is not, reading the port's own callouts.
 
-Other feature kinds (blends, slot patterns, blind slots, …), notes and tables are not drawn yet.
+Other feature kinds (blends, slot patterns, blind slots, …) and hole tables are not drawn yet;
+the spec's notes and corner-block tables are.
 The plan (`docs/plan.md`), the ADRs (`docs/adr/`), the rules catalogue that tracks what the
 Python version learnt (`docs/rules/`) and the latest review (`docs/review-2026-10-08.md`) are in
 `docs/`.

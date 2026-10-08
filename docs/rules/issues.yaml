@@ -859,7 +859,7 @@
     corpus_parts: []
   status: ported
   rust_test: "tests/issue_drafting.rs::every_view_lies_on_the_page_or_the_plan_says_it_does_not"
-  rust_note: "Checked on the fixtures and sampled parts: every planned view's area lies on the page and no two principal views' areas (each with its annotation bands) overlap, unless the plan reports views_do_not_fit; a pinned A4 at 10:1 that cannot hold them is reported (page_fit_uncertain). Authored tables do not exist in the port (not-applicable). Observed, verdict undetermined (owed in layout, src/layout.rs): ftc06's section A-A area overlaps the side view's by 10 mm, and ctc01's isometric, as drawn, reaches into the plan view's right band; neither is a principal pair."
+  rust_note: "Checked on the fixtures and sampled parts: every planned view's area lies on the page and no two principal views' areas (each with its annotation bands) overlap, unless the plan reports views_do_not_fit; a pinned A4 at 10:1 that cannot hold them is reported (page_fit_uncertain). Authored tables (src/tables.rs) take part in page and scale selection: tests/tables.rs::a_long_table_moves_the_sheet_on_rather_than_be_dropped. Observed, verdict undetermined (owed in layout, src/layout.rs): ftc06's section A-A area overlaps the side view's by 10 mm, and ctc01's isometric, as drawn, reaches into the plan view's right band; neither is a principal pair."
   port_note: "Keep: page/scale selection unit tests."
 
 - id: ISSUE-1147-a
