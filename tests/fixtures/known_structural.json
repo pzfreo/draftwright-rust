@@ -33,12 +33,5 @@
   "count": 1,
   "verdict": "rust-wrong",
   "reason": "The label of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1) lies over the side view's line-work: known_placement.json's m1000 annotation_over_view (rust-wrong; the height ladder's rungs push it out). 2 before stream d-placement-fit merged with this check (the front's overall height now takes the lane left of the front)."
- },
- {
-  "part": "m10127",
-  "code": "annotation_ink_overlap",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "A line of d:envelope/depth.length@side (32.3) runs 25.3 mm through the label of the hexagonal pocket's callout d:f:section_recess:1/polygon_across_flats.length@front (HEX 4.2 A/F × 10.0 DEEP), and the leader of d:f:fillet:1/fillet.radius@front (R4.2) 3.2 mm through the label of d:f:hole:2/bore.diameter@front (⌀13.0 ↧ 5.7): known_placement.json's m10127 annotation_ink_overlap (rust-wrong). draftwright's sheet reports none."
  }
 ]
