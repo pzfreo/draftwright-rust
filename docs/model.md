@@ -285,8 +285,26 @@ the same operations by name with JSON arguments. Requests carry their documents 
 path, so no adapter keeps state between calls. Errors are `{"code": "invalid" | "failed",
 "message", "choices"?}`.
 
+`plan`, `render` and `review` take the part either as `step` (the STEP file's path) with
+`features`? (Python quiddity's recognition JSON), which they analyse, or as `analysis`: the
+Analysis document that `analyse` returned, carried inline as the spec is, so the caller need not
+analyse again (typed: `api::plan_analysed`, `api::render_analysed`, `api::review_analysed`). The
+output is byte-identical to analysing the same STEP with the same features.
+
+- `plan` with `analysis` reads no file: `step` may be omitted, and plans any Analysis version
+  `plan` reads (`draftwright.analysis/2` or `/3`).
+- `render` and `review` still need the part's geometry, so they take `step` beside `analysis`
+  and read it without recognition. They take only the version this build writes
+  (`draftwright.analysis/3`), and refuse, as `invalid`, an Analysis whose binding's
+  `source_sha256` or `face_count` is not the STEP file's, naming both digests: one part is never
+  drawn with another's analysis. `plan` given both checks them the same way.
+- `analysis` beside `features` is refused (the analysis already carries the features it was made
+  with), and so is an Analysis that does not parse (unknown or missing fields, not an object).
+
 - **CLI.** `draftwright analyse part.step`, `draftwright plan part.step --spec part.drawing.json`,
-  `draftwright review …` and `draftwright render … -o out` all print JSON. Exit code 2 means
+  `draftwright review …` and `draftwright render … -o out` all print JSON. `--analysis a.json`
+  names an Analysis file in place of `--features` (`draftwright plan --analysis a.json` needs no
+  STEP file). Exit code 2 means
   invalid input; exit code 1 means a write failed and the output was left as it was.
 - **JSON-lines service.** `draftwright serve` takes one request and gives one reply per line, in
   the shape of specify-core's `serve`: `{"id": 1, "op": "plan", "step": "part.step", "spec": {…}}`
@@ -295,7 +313,8 @@ path, so no adapter keeps state between calls. Errors are `{"code": "invalid" | 
   and the service carries on.
 - **MCP server.** `draftwright-mcp` speaks MCP over stdio (JSON-RPC 2.0, one message per line).
   Its tools map one-to-one onto the operations, each with an input schema and a description
-  written for an LLM. Results are the documents as JSON text; `review` adds the drawing as SVG
+  written for an LLM; `plan`, `render` and `review` take `analysis` as an object, and `plan`
+  requires no `step`. Results are the documents as JSON text; `review` adds the drawing as SVG
   text. A refused request is a tool error (`isError`) carrying the message and the choices.
 
 **The spec in each output** (invariant 8): in the SVG's metadata, in the PDF's document

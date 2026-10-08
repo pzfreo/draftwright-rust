@@ -571,3 +571,11 @@ improvement plan and questions are the current work. Still open from before it:
     (`annotation_ink_overlap`).
   - ARCH0009-6 stays pending: coincident hole and boss locations (ctc01's 400, 225) are still
     not merged.
+- `plan`, `render` and `review` accept an Analysis document (stream d-api-analysis, per the
+  main-session decision of 2026-10-08; `src/api.rs`, both binaries, `tests/api_analysis.rs`):
+  `analysis` inline in `api::call`, the service and the MCP tools, `--analysis a.json` on the
+  command line, and `api::{plan,render,review}_analysed`. `plan` then needs no STEP file;
+  `render` and `review` read the STEP without recognition and refuse an Analysis made from
+  another file (binding SHA-256 or face count), of another version, or given beside `features`.
+  Output is byte-identical to the re-analysing path (plate, prismatic, corpus grm03). See
+  `docs/model.md`, "Adapters". `src/model.rs` is unchanged.

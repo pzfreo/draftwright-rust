@@ -2,7 +2,8 @@
 //! (`draftwright serve`) and the MCP server (`draftwright-mcp`) are thin layers over these.
 //!
 //! - [`analyse`], [`plan`], [`edit`], [`render`] (with [`write`]), [`spec`] and [`review`],
-//!   typed, over the documents of [`crate::model`];
+//!   typed, over the documents of [`crate::model`]; [`plan_analysed`], [`render_analysed`] and
+//!   [`review_analysed`] take an Analysis that [`analyse`] made, so the caller need not re-analyse;
 //! - [`call`]: the same operations by name with JSON arguments, as the service and the MCP server
 //!   receive them. Requests carry their documents and name the STEP file by path, so nothing is
 //!   kept between calls.
@@ -15,8 +16,9 @@ use std::path::Path;
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use crate::haecceity::Part;
 use crate::lint::{self, LintIssue};
-use crate::model::{self, Analysis, Plan, Problem, Spec};
+use crate::model::{self, ANALYSIS_SCHEMA, Analysis, Plan, Problem, Spec};
 use crate::output::Drawing;
 use crate::text::Font;
 
@@ -108,6 +110,59 @@ pub fn plan(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Plan, E
     Ok(model::plan(&analysis, spec)?)
 }
 
+/// The Plan for *analysis* (made by [`analyse`]) under *spec*. No STEP file is read; a document
+/// of a version [`model::plan`] does not read is refused.
+pub fn plan_analysed(analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
+    Ok(model::plan(analysis, spec)?)
+}
+
+/// Where an operation that draws takes the part's Analysis from.
+#[derive(Clone, Copy)]
+enum Given<'a> {
+    /// Analysed from the STEP file, with these features when given.
+    Features(Option<&'a Path>),
+    /// The caller's, checked against the STEP file.
+    Analysis(&'a Analysis),
+}
+
+/// The part at *step* and its analysis, as *given*.
+fn read(step: &Path, given: Given) -> Result<(Part, Analysis), Error> {
+    match given {
+        Given::Features(features) => Ok(model::analyse_with(step, features)?),
+        Given::Analysis(analysis) => Ok((bound(step, analysis)?, analysis.clone())),
+    }
+}
+
+/// The part at *step*, read without recognition, when *analysis* is of this version and was made
+/// from that very file: one part is never drawn with another's analysis.
+fn bound(step: &Path, analysis: &Analysis) -> Result<Part, Error> {
+    if analysis.schema != ANALYSIS_SCHEMA {
+        return Err(Error {
+            choices: vec![ANALYSIS_SCHEMA.to_string()],
+            ..Error::invalid(format!(
+                "The analysis is {:?}, which this draftwright does not draw from; analyse {} again.",
+                analysis.schema,
+                step.display()
+            ))
+        });
+    }
+    let (part, read) = model::analyse(step)?;
+    let (given, found) = (&analysis.binding, &read.binding);
+    if given.source_sha256 != found.source_sha256 || given.face_count != found.face_count {
+        return Err(Error::invalid(format!(
+            "The analysis was made from another file (sha256 {}, {} faces), not {} (sha256 {}, \
+             {} faces); analyse {} and pass that analysis, or omit it.",
+            given.source_sha256,
+            given.face_count,
+            step.display(),
+            found.source_sha256,
+            found.face_count,
+            step.display()
+        )));
+    }
+    Ok(part)
+}
+
 /// *spec* with the edit operations *ops* applied.
 pub fn edit(spec: &Spec, ops: &Value) -> Result<Spec, Error> {
     Ok(model::edit(spec, ops)?)
@@ -115,12 +170,8 @@ pub fn edit(spec: &Spec, ops: &Value) -> Result<Spec, Error> {
 
 /// The analysis, the plan and the drawing of the STEP file at *step* under *spec*. The plan's
 /// problems include the drawing's: what could not be drawn as planned.
-fn drawn(
-    step: &Path,
-    features: Option<&Path>,
-    spec: &Spec,
-) -> Result<(Analysis, Plan, Drawing), Error> {
-    let (part, analysis) = model::analyse_with(step, features)?;
+fn drawn(step: &Path, given: Given, spec: &Spec) -> Result<(Analysis, Plan, Drawing), Error> {
+    let (part, analysis) = read(step, given)?;
     let mut plan = model::plan(&analysis, spec)?;
     let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
     let drawing = model::render(&part, &analysis, &plan, &font).map_err(|e| {
@@ -153,6 +204,29 @@ pub fn render_at(
     formats: &[&str],
     dpi: f64,
 ) -> Result<(Plan, Files), Error> {
+    rendered(step, Given::Features(features), spec, formats, dpi)
+}
+
+/// [`render_at`] from *analysis* (made by [`analyse`] from the STEP file at *step*) in place of
+/// analysing it again: refused when *analysis* is of another version, or was made from another
+/// file (its binding's SHA-256 or face count differs).
+pub fn render_analysed(
+    step: &Path,
+    analysis: &Analysis,
+    spec: &Spec,
+    formats: &[&str],
+    dpi: f64,
+) -> Result<(Plan, Files), Error> {
+    rendered(step, Given::Analysis(analysis), spec, formats, dpi)
+}
+
+fn rendered(
+    step: &Path,
+    given: Given,
+    spec: &Spec,
+    formats: &[&str],
+    dpi: f64,
+) -> Result<(Plan, Files), Error> {
     if let Some(other) = formats.iter().find(|f| !FORMATS.contains(f)) {
         return Err(Error {
             choices: FORMATS.map(String::from).to_vec(),
@@ -164,7 +238,7 @@ pub fn render_at(
             "png export needs dpi > 0, got {dpi}"
         )));
     }
-    let (_, plan, drawing) = drawn(step, features, spec)?;
+    let (_, plan, drawing) = drawn(step, given, spec)?;
     let files = formats
         .iter()
         .map(|&format| {
@@ -235,7 +309,17 @@ pub struct Review {
 /// The drawing of the STEP file at *step* under *spec*, as SVG text, with its problems and
 /// lint's findings.
 pub fn review(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Review, Error> {
-    let (analysis, plan, drawing) = drawn(step, features, spec)?;
+    reviewed(step, Given::Features(features), spec)
+}
+
+/// [`review`] from *analysis* in place of analysing the STEP file again, refused as
+/// [`render_analysed`] refuses it.
+pub fn review_analysed(step: &Path, analysis: &Analysis, spec: &Spec) -> Result<Review, Error> {
+    reviewed(step, Given::Analysis(analysis), spec)
+}
+
+fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
+    let (analysis, plan, drawing) = drawn(step, given, spec)?;
     Ok(Review {
         svg: drawing.svg(),
         problems: plan.problems,
@@ -262,16 +346,20 @@ pub fn spec(drawing: &Path) -> Result<Spec, Error> {
 /// | op | arguments | result |
 /// | --- | --- | --- |
 /// | `analyse` | `step`, `features`? | the Analysis |
-/// | `plan` | `step`, `features`?, `spec`? | the Plan |
+/// | `plan` | `step` and `features`?, or `analysis` (and `step`?); `spec`? | the Plan |
 /// | `edit` | `spec`, `ops` | the edited Spec |
-/// | `render` | `step`, `features`?, `spec`?, `output`, `formats`?, `dpi`? | `{written, problems}` |
-/// | `review` | `step`, `features`?, `spec`? | `{svg, problems, lint}` |
+/// | `render` | `step`, `features`? or `analysis`?, `spec`?, `output`, `formats`?, `dpi`? | `{written, problems}` |
+/// | `review` | `step`, `features`? or `analysis`?, `spec`? | `{svg, problems, lint}` |
 /// | `spec` | `drawing` | the Spec embedded in the drawing |
 ///
 /// `step`, `features`, `output` and `drawing` are file paths; `features` is Python quiddity's
-/// recognition JSON for the STEP file ([`crate::bridge`]). An absent `spec` is the default one;
-/// absent `formats` are [`DEFAULT_FORMATS`], and an absent `dpi` (the PNG's) is [`DPI`]. A panic
-/// inside an operation is answered as `failed`, so a long-lived adapter outlives one bad part.
+/// recognition JSON for the STEP file ([`crate::bridge`]). `analysis` is the Analysis document
+/// itself, as `analyse` returned it, in place of analysing `step` again (so not beside
+/// `features`, which it already carries): `plan` then needs no `step`, and when `step` is given
+/// the analysis must have been made from it, as for `render` and `review`. An absent `spec` is
+/// the default one; absent `formats` are [`DEFAULT_FORMATS`], and an absent `dpi` (the PNG's) is
+/// [`DPI`]. A panic inside an operation is answered as `failed`, so a long-lived adapter outlives
+/// one bad part.
 pub fn call(op: &str, args: &Value) -> Result<Value, Error> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dispatch(op, args))).unwrap_or_else(
         |panic| {
@@ -308,9 +396,30 @@ fn dispatch(op: &str, args: &Value) -> Result<Value, Error> {
                 .map_err(|e| Error::invalid(format!("the spec is not valid: {e}"))),
         }
     };
+    // The caller's Analysis, if given: only in place of features, which it already carries.
+    let analysis = || -> Result<Option<Analysis>, Error> {
+        match args.get("analysis") {
+            None | Some(Value::Null) => Ok(None),
+            Some(_) if features.is_some() => Err(Error::invalid(format!(
+                "{op} takes \"analysis\" or \"features\", not both: the analysis already carries \
+                 the features it was made with."
+            ))),
+            Some(a) => serde_json::from_value(a.clone())
+                .map(Some)
+                .map_err(|e| Error::invalid(format!("the analysis is not valid: {e}"))),
+        }
+    };
     match op {
         "analyse" => Ok(json_of(&analyse(text("step")?, features)?)),
-        "plan" => Ok(json_of(&plan(text("step")?, features, &given()?)?)),
+        "plan" => match analysis()? {
+            Some(analysis) => {
+                if args.get("step").is_some_and(|s| !s.is_null()) {
+                    bound(text("step")?, &analysis)?;
+                }
+                Ok(json_of(&plan_analysed(&analysis, &given()?)?))
+            }
+            None => Ok(json_of(&plan(text("step")?, features, &given()?)?)),
+        },
         "edit" => {
             let ops = args
                 .get("ops")
@@ -335,10 +444,16 @@ fn dispatch(op: &str, args: &Value) -> Result<Value, Error> {
                 Some(_) => return Err(Error::invalid("\"dpi\" is a number of pixels per inch")),
             };
             let output = text("output")?;
-            let (plan, files) = render_at(text("step")?, features, &given()?, &formats, dpi)?;
+            let (plan, files) = match analysis()? {
+                Some(a) => render_analysed(text("step")?, &a, &given()?, &formats, dpi)?,
+                None => render_at(text("step")?, features, &given()?, &formats, dpi)?,
+            };
             Ok(json!({ "written": write(output, &files)?, "problems": plan.problems }))
         }
-        "review" => Ok(json_of(&review(text("step")?, features, &given()?)?)),
+        "review" => Ok(json_of(&match analysis()? {
+            Some(a) => review_analysed(text("step")?, &a, &given()?)?,
+            None => review(text("step")?, features, &given()?)?,
+        })),
         "spec" => Ok(json_of(&spec(text("drawing")?)?)),
         other => Err(Error {
             choices: OPERATIONS.map(String::from).to_vec(),

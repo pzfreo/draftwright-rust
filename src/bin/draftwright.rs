@@ -2,12 +2,15 @@
 //! prints JSON.
 //!
 //! - `draftwright analyse part.step [--features r.json]`: the Analysis
-//! - `draftwright plan part.step [--features r.json] [--spec s.json]`: the Plan
-//! - `draftwright render part.step [--features r.json] [--spec s.json] -o out
+//! - `draftwright plan part.step [--features r.json] [--spec s.json]`: the Plan; or
+//!   `draftwright plan [part.step] --analysis a.json [--spec s.json]`, from an Analysis without
+//!   analysing again
+//! - `draftwright render part.step [--features r.json | --analysis a.json] [--spec s.json] -o out
 //!   [--formats svg,dxf,pdf,png] [--dpi 150]`: writes the files (`out.svg`, …; svg, dxf and pdf
 //!   unless named, a PNG at `--dpi` pixels per inch) and prints what was written, with the
 //!   problems: the plan's, and what could not be drawn as planned
-//! - `draftwright review part.step [--features r.json] [--spec s.json]`: the drawing as SVG
+//! - `draftwright review part.step [--features r.json | --analysis a.json] [--spec s.json]`: the
+//!   drawing as SVG
 //!   text, with the problems and lint's findings on the drawing
 //! - `draftwright edit s.json ops.json`: the edited Spec
 //! - `draftwright spec drawing.(svg|dxf|pdf|png)`: the Spec embedded in a rendered drawing
@@ -18,7 +21,9 @@
 //!   the others, and their arguments, are those of [`draftwright::api::call`].
 //!
 //! `--features` names Python quiddity's recognition JSON for the same file
-//! (`tools/recognise.py`, read by [`draftwright::bridge`]).
+//! (`tools/recognise.py`, read by [`draftwright::bridge`]). `--analysis` names an Analysis that
+//! `draftwright analyse` printed for the same STEP file (with its features), used in place of
+//! analysing the file again; it is refused with `--features`, or when made from another file.
 //!
 //! Exit codes: 0 done; 2 the request is invalid (the JSON error says what would be accepted);
 //! 1 something failed and nothing was written in its place.
@@ -81,13 +86,25 @@ fn run(args: &[String]) -> Result<Value, Error> {
         None => Value::Null,
     };
     let features = flag(args, "--features");
+    let analysis = match flag(args, "--analysis") {
+        Some(path) => read_json(path)?,
+        None => Value::Null,
+    };
     let request = match command.as_str() {
+        // From an Analysis, plan needs no STEP file: the first argument may be a flag.
+        "plan" if !analysis.is_null() => json!({
+            "step": args.get(1).filter(|a| !a.starts_with("--")),
+            "features": features,
+            "analysis": analysis,
+            "spec": spec,
+        }),
         "analyse" | "plan" | "review" => {
-            json!({ "step": arg(1)?, "features": features, "spec": spec })
+            json!({ "step": arg(1)?, "features": features, "analysis": analysis, "spec": spec })
         }
         "render" => json!({
             "step": arg(1)?,
             "features": features,
+            "analysis": analysis,
             "spec": spec,
             "output": flag(args, "-o").ok_or_else(|| Error::invalid("render needs -o <output stem>"))?,
             "formats": flag(args, "--formats").unwrap_or("svg,dxf,pdf").split(',').collect::<Vec<_>>(),

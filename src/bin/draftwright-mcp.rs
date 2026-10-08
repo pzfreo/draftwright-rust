@@ -35,12 +35,19 @@ fn tools() -> Value {
         "Path of Python quiddity's feature recognition JSON for the same STEP file \
          (tools/recognise.py); without it the analysis has no features.",
     );
+    let analysis = json!({
+        "type": "object",
+        "description": "The Analysis the analyse tool returned for this same STEP file, passed back \
+            unchanged, so the part is not analysed again. Give it instead of features (it already \
+            carries the features it was made with). Refused if it was made from another file.",
+    });
     json!([
         {
             "name": "analyse",
             "description": "Read a STEP file and return its Analysis: the binding (the file's \
                 SHA-256, the part's name and face count) and the envelope (the part's box, mm). \
-                It is regenerated from the STEP, never edited.",
+                It is regenerated from the STEP, never edited. Pass it unchanged as plan, review \
+                or render's analysis so they need not analyse the STEP again.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "step": path("Path of the STEP file."), "features": features },
@@ -53,15 +60,17 @@ fn tools() -> Value {
                 the sheet (size, page, scale, title block), each view (id, direction, centre on \
                 the page) and problems. Every item says whether it is a default and gives its \
                 basis, the reason it was chosen. The plan's \"spec\" is the spec bound to this \
-                STEP file; keep it for later calls.",
+                STEP file; keep it for later calls. Give step (with features if any), or the \
+                analysis from the analyse tool, which needs no step.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "step": path("Path of the STEP file."),
+                    "step": path("Path of the STEP file; may be omitted when analysis is given."),
                     "features": features,
+                    "analysis": analysis,
                     "spec": spec,
                 },
-                "required": ["step"],
+                "required": [],
             },
         },
         {
@@ -114,6 +123,7 @@ fn tools() -> Value {
                 "properties": {
                     "step": path("Path of the STEP file."),
                     "features": features,
+                    "analysis": analysis,
                     "spec": spec,
                     "output": path("Output path; each format's extension is appended (a drawing format's extension \
                     already on it is replaced)."),
@@ -143,6 +153,7 @@ fn tools() -> Value {
                 "properties": {
                     "step": path("Path of the STEP file."),
                     "features": features,
+                    "analysis": analysis,
                     "spec": spec,
                 },
                 "required": ["step"],
