@@ -85,12 +85,14 @@ fn read(f: &Feature) -> Result<Flat<'_>, String> {
     }
     let sign = if raw[axis] < 0.0 { -1.0 } else { 1.0 };
     let unit = raw.map(|c| sign * c / norm);
+    let direction = unit.map(|c| (c * 1e6).round() as i64);
     // draftwright's `presentation_axis`: an exact x/z tie (recognition names it z) is drawn in
-    // the x end-on view.
-    let [x, y, z] = unit.map(f64::abs);
-    let aligned =
-        (unit[axis] - 1.0).abs() <= 1e-3 && (0..3).all(|j| j == axis || unit[j].abs() <= 1e-3);
-    let presentation = if !aligned && x > y && z > y && (x - z).abs() <= 1e-12 {
+    // the x end-on view; the tie is judged on the direction rounded to six decimals, as
+    // draftwright's canonical direction is.
+    let [x, y, z] = direction.map(i64::abs);
+    let aligned = (direction[axis] - 1_000_000).abs() <= 1000
+        && (0..3).all(|j| j == axis || direction[j].abs() <= 1000);
+    let presentation = if !aligned && x > y && z > y && x == z {
         0
     } else {
         axis
@@ -106,7 +108,7 @@ fn read(f: &Feature) -> Result<Flat<'_>, String> {
         across,
         axis,
         presentation,
-        direction: unit.map(|c| (c * 1e6).round() as i64),
+        direction,
         stock,
         at,
     })

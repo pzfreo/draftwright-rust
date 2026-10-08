@@ -201,6 +201,50 @@ fn equal_flats_on_other_stock_are_counted_and_a_double_d_is_one() {
     assert_eq!(got[0].2.len(), 2);
 }
 
+/// An x/z slant that ties once rounded to six decimals (as draftwright's canonical direction is)
+/// is drawn in the x end-on view, draftwright's `presentation_axis`; a slant that does not tie
+/// keeps its named axis's view.
+#[test]
+fn an_x_z_slant_that_ties_to_six_decimals_is_drawn_end_on_x() {
+    let Some(base) = planned("string_post", |_, _| {}) else {
+        return;
+    };
+    let base = items(&base);
+    let slant = |d: [f64; 3]| {
+        let plan = planned("string_post", move |i, r| {
+            if i == 2 || i == 3 {
+                set(r, "axis", "z".into());
+                set(r, "axis_direction", serde_json::json!(d));
+            }
+        })
+        .unwrap();
+        items(&plan)
+    };
+    let tie = slant([1.0, 0.0, 1.000_000_1]);
+    assert_eq!(tie.len(), 1, "{tie:?}");
+    assert_eq!(tie[0].1, base[0].1);
+    let no_tie = slant([1.0, 0.0, 1.01]);
+    assert_eq!(no_tie.len(), 1, "{no_tie:?}");
+    assert_ne!(no_tie[0].1, base[0].1);
+}
+
+/// A flat whose record gives no stock identity (`axis_line`, `stock_span`; quiddity always
+/// emits both) is a definition of its own, as `lint::flats` keys it, rather than draftwright's
+/// `(0, 0)` default, which would merge flats on unrelated stock.
+#[test]
+fn a_flat_without_stock_identity_is_its_own_definition() {
+    let Some(plan) = planned("string_post", |i, r| {
+        if i == 2 || i == 3 {
+            r["record"].as_object_mut().unwrap().remove("stock_span");
+        }
+    }) else {
+        return;
+    };
+    let got = items(&plan);
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(got[0].0, "2× 2.4 A/F");
+}
+
 /// Flats of different sizes print with the fewest decimals (up to two) that tell them apart, as
 /// draftwright's `flat_auto_decimals` (6.00 and 6.05 never read `6` and `6.0`).
 #[test]

@@ -431,7 +431,14 @@ improvement plan and questions are the current work. Still open from before it:
     (rust-wrong, minor: the planners run before the spec is applied; fixing it touches
     `dims::plan`);
   - callouts are ordered, and take their IDs, by the Analysis's first member, not by
-    draftwright's sorted keys (equivalent).
+    draftwright's sorted keys (equivalent);
+  - a flat record without `axis_line` or `stock_span` is a definition of its own, as
+    `lint::flats` keys it; draftwright defaults both to `(0, 0)` and so merges such flats as if
+    on one stock (rust-correct: quiddity always emits both, and its `Flat` docs name merging
+    independent stock as the defect those fields fix; no corpus record lacks them);
+  - an authored `display_decimals` on a flat (draftwright's `_group_value_text`) is not honoured
+    (not-applicable here: the port's `Spec` carries no display decimals for any family; that
+    belongs with the spec work, d-spec-tolerances).
   Left:
   - **`known_lint.json` (owned by d-lint-remainder) must lose three `own_drawings` entries**, now
     that the port's own drawings state them: `string_post flat_requirement_missing` (1), and,
