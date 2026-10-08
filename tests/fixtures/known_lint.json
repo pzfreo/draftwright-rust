@@ -299,13 +299,6 @@
     },
     {
       "part": "ftc06",
-      "code": "channel_requirement_missing",
-      "count": 7,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan channel widths (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports each of the seven channels' widths missing (their overall extents are stated by the port's envelope dimensions). Python's sheet of the same part states the widths, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "ftc06",
       "code": "channel_requirement_unverifiable",
       "count": 7,
       "verdict": "rust-correct",
@@ -327,31 +320,10 @@
     },
     {
       "part": "m1000",
-      "code": "circular_channel_requirement_missing",
-      "count": 6,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan circular seats (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the seat's diameter, run, arc and its axis's location along x, y and z missing. Python's sheet of the same part states them, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "m1000",
-      "code": "hex_pocket_requirement_missing",
-      "count": 2,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan hexagonal pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the hex pocket's size across flats and depth missing. Python's sheet of the same part states them, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "m1000",
       "code": "passage_requirement_unsupported",
       "count": 4,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
-    },
-    {
-      "part": "m1000",
-      "code": "pocket_requirement_missing",
-      "count": 5,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the pocket's width, length, depth and two locations missing. Python's sheet of the same part states them (m1000) or plans them (m10046, whose locations placement dropped), and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
       "part": "m1000",
@@ -376,24 +348,10 @@
     },
     {
       "part": "m10046",
-      "code": "pocket_requirement_missing",
-      "count": 5,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the pocket's width, length, depth and two locations missing. Python's sheet of the same part states them (m1000) or plans them (m10046, whose locations placement dropped), and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
-    },
-    {
-      "part": "m10046",
       "code": "prismatic_pocket_requirement_unsupported",
       "count": 2,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known): quiddity recognised the recess but draftwright has no drafting grammar for it, so it is left for review by hand (src/lint/section_recesses.rs). The entry stays while neither has a grammar for it."
-    },
-    {
-      "part": "m10127",
-      "code": "hex_pocket_requirement_missing",
-      "count": 2,
-      "verdict": "rust-correct",
-      "reason": "Dimensions not ported yet: the port's dimensions do not plan hexagonal pockets (src/dims/ leaves every section recess but the blind slots reported dimensions_not_ported), so lint reports the hex pocket's size across flats and depth missing. Python's sheet of the same part states them, and the port's lint finds them stated there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
     },
     {
       "part": "m10127",

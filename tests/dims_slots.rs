@@ -432,14 +432,24 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
     // 586628b with tools/capture_sheet_facts.py): the section recesses its
     // `section_recess_fields` reads as rectangular or round-bottom blind slots; and, beyond
     // draftwright, each one's location across its width (the maintainer's decision of 2026-10-08).
+    // The pockets and hexagonal pockets beside them are `src/dims/recesses.rs`'s; their labels,
+    // views and locations are draftwright's too (its sheets, built at origin/main 586628b).
     type Case<'a> = (&'a str, &'a str, &'a [(&'a str, &'a str, &'a str)]);
     let cases: [Case; 3] = [
         (
             "m10047",
             "mfcadpp/10047.step",
             &[
+                ("location_pocket.x", "front", "7.8"),
+                ("location_pocket.z", "front", "3.5"),
                 ("location_slot_across.length", "plan", "16.1"),
                 ("location_slot_across.length", "side", "11.0"),
+                ("pocket_width.length", "front", "2 × 4.1 × 27.0 DEEP"),
+                (
+                    "polygon_across_flats.length",
+                    "front",
+                    "HEX 1.7 A/F × 3.1 DEEP",
+                ),
                 (
                     "round_bottom_blind_slot_flat_width.length",
                     "plan",
@@ -456,7 +466,13 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
             "m10245",
             "mfcadpp/10245.step",
             &[
+                ("location_pocket.x", "front", "5.6"),
+                ("location_pocket.x", "front", "8.4"),
+                ("location_pocket.z", "front", "24.1"),
+                ("location_pocket.z", "front", "40.6"),
                 ("location_slot_across.length", "front", "33.9"),
+                ("pocket_width.length", "front", "2 × 2 × 16.6 DEEP"),
+                ("pocket_width.length", "front", "3.1 × 8.3 × 7.4 DEEP"),
                 (
                     "rectangular_blind_slot_width.length",
                     "front",
@@ -492,10 +508,18 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
         {
             assert!(d.placed.is_some(), "{name}: {} is not drawn", d.id);
         }
-        // The other section recesses (pockets, channels, passages) stay reported, one each.
+        // The other section recesses (channels, passages, sections no grammar reads) stay
+        // reported, one each.
         let recesses = of_kind(&a, "section_recess");
         let reported = not_ported(&plan, &recesses);
-        let callouts = want.iter().filter(|w| w.0.contains("blind_slot")).count();
+        let callouts = want
+            .iter()
+            .filter(|w| {
+                ["blind_slot", "pocket_width", "polygon_"]
+                    .iter()
+                    .any(|k| w.0.contains(k))
+            })
+            .count();
         assert_eq!(reported.len(), recesses.len() - callouts, "{name}");
         for d in plan
             .dimensions

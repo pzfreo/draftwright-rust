@@ -1,0 +1,381 @@
+//! Section recess dimensions (`src/dims/recesses.rs`): pockets, hexagonal pockets, circular
+//! seats and open channels on the sampled sheets' parts, with the features draftwright's own
+//! recogniser found for them (`tests/fixtures/recognition/sheets/`), checked against the labels
+//! draftwright prints for them (`tests/fixtures/sheets/`): what each states, in which view, and
+//! that it is drawn. The item-by-item comparison with draftwright's sheets is
+//! `tests/dimensions.rs`; blind slots, and the pockets beside them on other corpus parts, are in
+//! `tests/dims_slots.rs`; a cylindrical mouth, an edge-open pocket and a pocket on the box are the
+//! module's unit tests.
+
+#[path = "common/corpus.rs"]
+mod corpus;
+#[path = "common/facts.rs"]
+mod facts;
+
+use std::io::Read as _;
+use std::path::Path;
+
+use draftwright::model::{self, Analysis, Plan, Spec};
+
+fn analysed(corpus: &Path, name: &str) -> Analysis {
+    let f = facts::load(name);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("tests/fixtures/recognition/sheets/{name}.json.gz"));
+    let mut json = String::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(path).unwrap())
+        .read_to_string(&mut json)
+        .unwrap();
+    let (part, mut a) = model::analyse(&corpus.join(&f.binding.file)).unwrap();
+    let (r, features) = draftwright::bridge::read(&part, &a.binding.source_sha256, &json).unwrap();
+    a.recognition = Some(r);
+    a.features = features;
+    a
+}
+
+fn recesses(a: &Analysis) -> Vec<&str> {
+    a.features
+        .iter()
+        .filter(|f| f.kind == "section_recess")
+        .map(|f| f.id.as_str())
+        .collect()
+}
+
+/// The plan's items that state a section recess's measurement, as (parameter, view, label),
+/// sorted.
+fn stating(plan: &Plan, a: &Analysis) -> Vec<(String, String, String)> {
+    let ids = recesses(a);
+    let mut out: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| {
+            d.measurements
+                .iter()
+                .any(|m| ids.contains(&m.feature.as_str()))
+        })
+        .map(|d| {
+            let (_, rest) = d.id.split_once('/').unwrap();
+            let (parameter, view) = rest.split_once('@').unwrap();
+            (parameter.to_string(), view.to_string(), d.label.clone())
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+fn strs(v: &[(&str, &str, &str)]) -> Vec<(String, String, String)> {
+    v.iter()
+        .map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string()))
+        .collect()
+}
+
+/// The recesses reported `dimensions_not_ported`.
+fn not_ported(plan: &Plan, a: &Analysis) -> Vec<String> {
+    let ids = recesses(a);
+    let mut out: Vec<String> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "dimensions_not_ported")
+        .flat_map(|p| p.subjects.iter())
+        .filter(|s| ids.contains(&s.as_str()))
+        .cloned()
+        .collect();
+    out.sort();
+    out
+}
+
+/// Every recess item is drawn and says why it is there; and the recesses it states are not
+/// also reported undimensioned.
+fn drawn_and_claimed(plan: &Plan, a: &Analysis) {
+    let reported = not_ported(plan, a);
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:f:section_recess:"))
+    {
+        assert!(d.placed.is_some(), "{} is not drawn", d.id);
+        assert!(d.default && !d.basis.is_empty(), "{d:?}");
+        for m in &d.measurements {
+            assert!(!reported.contains(&m.feature), "{}: {}", d.id, m.feature);
+        }
+    }
+}
+
+#[test]
+fn m1000_pocket_hex_pocket_and_seat_are_stated_as_draftwright_states_them() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = analysed(&corpus, "m1000");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    // draftwright's sheet (tests/fixtures/sheets/m1000.json.gz) prints each of these, in the
+    // same view, but for the pocket's y location, which it sends to the side view (ADR1-6: the
+    // port keeps a pocket's position in the view that looks into it; known_dimensions.json).
+    assert_eq!(
+        stating(&plan, &a),
+        strs(&[
+            ("location_pocket.location.x", "plan", "39.3"),
+            ("location_pocket.location.y", "plan", "10.2"),
+            ("pocket_width.length", "plan", "2 × 2.8 × 3.4 DEEP"),
+            (
+                "polygon_across_flats.length",
+                "side",
+                "HEX 1.9 A/F × 2.1 DEEP"
+            ),
+            (
+                "seat_diameter.diameter",
+                "front",
+                "ø2 × 12.6 LONG × 180° ARC"
+            ),
+            ("seat_location.location.x", "front", "48.4"),
+            ("seat_location.location.y", "side", "6.3"),
+            ("seat_location.location.z", "front", "23.1"),
+        ])
+    );
+    let pocket = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label.ends_with("DEEP") && !d.label.starts_with("HEX"))
+        .unwrap();
+    let parameters: Vec<&str> = pocket
+        .measurements
+        .iter()
+        .map(|m| m.parameter.as_str())
+        .collect();
+    assert_eq!(
+        parameters,
+        [
+            "pocket_width.length",
+            "pocket_length.length",
+            "pocket_depth.length"
+        ]
+    );
+    drawn_and_claimed(&plan, &a);
+    // The triangular pocket and the four passages have no drafting grammar in draftwright (its
+    // lint reports them unsupported): still reported here, one each.
+    assert_eq!(not_ported(&plan, &a).len(), recesses(&a).len() - 3);
+}
+
+#[test]
+fn m10046_pocket_is_called_out_and_located_in_the_view_that_looks_into_it() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = analysed(&corpus, "m10046");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    // draftwright prints the callout; it drops both locations (its lint: pocket_dim_dropped, "no
+    // room beside the front", and pocket_not_located), whose values it gives as 22.963 and 7.691.
+    assert_eq!(
+        stating(&plan, &a),
+        strs(&[
+            ("location_pocket.x", "front", "23.0"),
+            ("location_pocket.z", "front", "7.7"),
+            ("pocket_width.length", "front", "5.0 × 11.7 × 10.6 DEEP"),
+        ])
+    );
+    drawn_and_claimed(&plan, &a);
+    assert_eq!(not_ported(&plan, &a).len(), recesses(&a).len() - 1);
+}
+
+#[test]
+fn m10127_hex_pocket_states_its_size_across_flats_and_depth() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = analysed(&corpus, "m10127");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        stating(&plan, &a),
+        strs(&[(
+            "polygon_across_flats.length",
+            "front",
+            "HEX 4.2 A/F × 10.0 DEEP"
+        )])
+    );
+    let hex = &plan
+        .dimensions
+        .iter()
+        .find(|d| d.label.starts_with("HEX"))
+        .unwrap();
+    // draftwright's values: 4.236456 across flats, 9.959 deep. Its quiddity call publishes the
+    // record in the part's coordinates, the fixture in quiddity's own frame, each rounded to
+    // 0.001 mm there, so the depth (the run interval's length) reads 9.960 here: the same label.
+    let parameters: Vec<&str> = hex
+        .measurements
+        .iter()
+        .map(|m| m.parameter.as_str())
+        .collect();
+    assert_eq!(
+        parameters,
+        ["polygon_across_flats.length", "pocket_depth.length"]
+    );
+    for (m, python) in hex.measurements.iter().zip([4.236456, 9.959]) {
+        assert!((m.value - python).abs() <= 0.001 + 1e-9, "{m:?}");
+    }
+    drawn_and_claimed(&plan, &a);
+    assert!(not_ported(&plan, &a).is_empty());
+}
+
+#[test]
+fn ftc06_channels_state_their_widths_in_the_view_along_them() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = analysed(&corpus, "ftc06");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    // A base and walls (quiddity's plates along two axes): each open channel's width, as
+    // draftwright's seven dim_channel_* dimensions.
+    assert_eq!(
+        stating(&plan, &a),
+        strs(&[
+            ("channel_width.length", "front", "3.1"),
+            ("channel_width.length", "front", "3.1"),
+            ("channel_width.length", "front", "3.1"),
+            ("channel_width.length", "plan", "12.7"),
+            ("channel_width.length", "plan", "12.7"),
+            ("channel_width.length", "side", "3.1"),
+            ("channel_width.length", "side", "3.1"),
+        ])
+    );
+    for d in plan.dimensions.iter().filter(|d| d.id.contains("channel")) {
+        assert_eq!(d.kind, "linear", "{d:?}");
+    }
+    drawn_and_claimed(&plan, &a);
+    // Its two 12- and 20-sided pockets have no drafting grammar (draftwright: "general pocket
+    // requires a rounded rectangular profile").
+    assert_eq!(not_ported(&plan, &a).len(), 2);
+}
+
+#[test]
+fn ctc01_recesses_draftwright_does_not_dimension_stay_reported() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = analysed(&corpus, "ctc01");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    // Its plates lie along one axis, so its five channels are rebates the step ladder owns, as in
+    // draftwright (which prints no channel width there); its two pockets are 12- and 20-sided.
+    assert!(stating(&plan, &a).is_empty(), "{:?}", stating(&plan, &a));
+    assert_eq!(not_ported(&plan, &a).len(), 7);
+}
+
+/// m1000 with a twin of its hexagonal pocket beside it, 5 mm away across its axis, and a twin of
+/// its circular seat further along the same axis.
+fn twinned(corpus: &Path) -> (Analysis, String, String) {
+    let mut a = analysed(corpus, "m1000");
+    let of = |a: &Analysis, kind: &str, shape: &str| {
+        a.features
+            .iter()
+            .find(|f| {
+                f.parameters.get("classification")
+                    == Some(&serde_json::json!({ "feature_kind": kind, "section_shape": shape }))
+            })
+            .unwrap()
+            .clone()
+    };
+    let mut hex = of(&a, "pocket", "hexagonal");
+    let mut seat = of(&a, "channel", "circular");
+    let (hex_id, seat_id) = (hex.id.clone(), seat.id.clone());
+    hex.id = "f:section_recess:98".into();
+    let g = &mut hex.parameters["geometry"]["frame"]["origin"][0];
+    *g = serde_json::json!(g.as_f64().unwrap() + 5.0);
+    seat.id = "f:section_recess:99".into();
+    let run = &mut seat.parameters["geometry"]["run_interval"];
+    let [lo, hi] = [run[0].as_f64().unwrap(), run[1].as_f64().unwrap()];
+    *run = serde_json::json!([lo + 20.0, hi + 20.0]);
+    a.features.extend([hex, seat]);
+    (a, hex_id, seat_id)
+}
+
+#[test]
+fn identical_hex_pockets_and_coaxial_seats_are_counted_once() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let (a, hex, seat) = twinned(&corpus);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let by = |id: &str| {
+        plan.dimensions
+            .iter()
+            .find(|d| d.id.starts_with(&format!("d:{id}/")) && d.kind == "callout")
+            .unwrap()
+    };
+    // draftwright batches hexagonal pockets by axis, opening and label, and coaxial seats by
+    // axis, centre and label (`polygonal_prism_jobs`, `circular_recess_jobs`).
+    let h = by(&hex);
+    assert_eq!(h.label, "2× HEX 1.9 A/F × 2.1 DEEP");
+    let features: Vec<&str> = h.measurements.iter().map(|m| m.feature.as_str()).collect();
+    assert_eq!(
+        features,
+        [
+            hex.as_str(),
+            hex.as_str(),
+            "f:section_recess:98",
+            "f:section_recess:98"
+        ]
+    );
+    let s = by(&seat);
+    assert_eq!(s.label, "2× ø2 × 12.6 LONG × 180° ARC");
+    assert_eq!(s.measurements.len(), 6);
+    // Across the axis the two seats share their locations; along it each has its own.
+    let located: Vec<(String, usize)> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/seat_location."))
+        .map(|d| (d.label.clone(), d.measurements.len()))
+        .collect();
+    assert_eq!(
+        located,
+        [
+            ("48.4".to_string(), 2),
+            ("23.1".to_string(), 2),
+            ("6.3".to_string(), 1),
+            ("26.3".to_string(), 1),
+        ]
+    );
+}
+
+#[test]
+fn recess_items_can_be_omitted_by_id_and_planning_is_deterministic() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = analysed(&corpus, "m1000");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let ids: Vec<String> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:f:section_recess:"))
+        .map(|d| d.id.clone())
+        .collect();
+    assert_eq!(ids.len(), 8, "{ids:?}");
+    for id in &ids {
+        let mut spec = Spec::default();
+        spec.dimensions.insert(
+            id.clone(),
+            serde_json::from_str(r#"{"omit": true}"#).unwrap(),
+        );
+        let again = model::plan(&a, &spec).unwrap();
+        assert!(again.dimensions.iter().all(|d| d.id != *id));
+        assert!(again.omitted.iter().any(|o| o.id == *id));
+        // Omitting one moves no other (ARCH0003-2).
+        for d in &again.dimensions {
+            let before = plan.dimensions.iter().find(|b| b.id == d.id).unwrap();
+            assert_eq!(
+                d.placed, before.placed,
+                "{} moved when {id} was omitted",
+                d.id
+            );
+        }
+    }
+    assert_eq!(
+        serde_json::to_string(&plan).unwrap(),
+        serde_json::to_string(&model::plan(&a, &Spec::default()).unwrap()).unwrap()
+    );
+}

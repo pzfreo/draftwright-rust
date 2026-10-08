@@ -320,6 +320,26 @@
     "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
   },
   {
+    "part": "m1000",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "10.2",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The pocket f:section_recess:5's y location (10.187, from the part's front face to its centre; draftwright's location_pocket.location, its second compiled span). rust-correct by the maintainer's decision of 2026-10-08 (ADR1-6: a feature's view follows from its axis by one rule): a pocket's in-plane position is dimensioned in the view that looks into it, where its outline is seen, as a hole's and a slot pattern's are; draftwright's Z-normal location ladder sends the y coordinate to the side view, where the pocket is hidden lines (its own non-z pockets keep both coordinates in the end-on view). Same measurement, other view."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "10.2",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The pocket f:section_recess:5's y location (10.187, from the part's front face to its centre; draftwright's location_pocket.location, its second compiled span). rust-correct by the maintainer's decision of 2026-10-08 (ADR1-6: a feature's view follows from its axis by one rule): a pocket's in-plane position is dimensioned in the view that looks into it, where its outline is seen, as a hole's and a slot pattern's are; draftwright's Z-normal location ladder sends the y coordinate to the side view, where the pocket is hidden lines (its own non-z pockets keep both coordinates in the end-on view). Same measurement, other view."
+  },
+  {
     "part": "m10046",
     "side": "rust",
     "family": "envelope",
@@ -328,6 +348,26 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The overall height. draftwright drops it: its own lint reports placement_unsatisfiable 'overall height dimension dropped (front-view right strip full)'. LINT-envelope_coverage-overall_extents: every non-zero extent is stated."
+  },
+  {
+    "part": "m10046",
+    "side": "rust",
+    "family": "location.x",
+    "view": "front",
+    "label": "23.0",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The pocket f:section_recess:4's x location (22.963, from the part's left face to its centre: draftwright's location_pocket.x), in the front view that looks into it (src/dims/recesses.rs). draftwright drops it: its own lint reports pocket_dim_dropped ('pocket0 position dim not placed (no room beside the front)') and pocket_not_located ('1 blind pocket(s) have no complete X/Y location scheme'), so its sheet leaves the pocket's position unstated. LINT-pocket_coverage-size_depth_location: a blind pocket is located in both directions across it."
+  },
+  {
+    "part": "m10046",
+    "side": "rust",
+    "family": "location.z",
+    "view": "front",
+    "label": "7.7",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The pocket f:section_recess:4's z location (7.691, from the part's bottom face to its centre: draftwright's location_pocket.z), in the front view that looks into it (src/dims/recesses.rs). draftwright drops it: its own lint reports pocket_dim_dropped ('pocket0 position dim not placed (no room beside the front)') and pocket_not_located ('1 blind pocket(s) have no complete X/Y location scheme'), so its sheet leaves the pocket's position unstated. LINT-pocket_coverage-size_depth_location: a blind pocket is located in both directions across it."
   },
   {
     "part": "spool132",

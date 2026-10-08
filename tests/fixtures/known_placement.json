@@ -72,16 +72,16 @@
  {
   "part": "ftc06",
   "code": "annotation_outside_area",
-  "count": 23,
+  "count": 28,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (10 plan, 6 front items). The 5 side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, and callouts' labels running right. Also the three step shoulders d:step_level/step_position.length.x136_525@plan, x168_275@plan and y46_99@side (stream d-dims-steps-levels; draftwright draws them too), in lanes beyond the estimated bands; one earlier item no longer runs past."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (14 plan, 6 front items). The 8 side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, callouts' labels running right, the step shoulder d:step_level/step_position.length.y46_99@side, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels; draftwright draws them too) and its channel width d:f:section_recess:1. Was 23 before the channel widths (merge of d-dims-recesses onto the steps and levels planners): they add 3 items past the areas and push the plan's and front's lanes 7 to 14 mm further out, so d:f:hole_pattern:2/pitch.length@plan and d:f:boss:6/location.length.x@front now run past too."
  },
  {
   "part": "ftc06",
   "code": "annotation_over_view",
-  "count": 3,
+  "count": 1,
   "verdict": "rust-wrong",
-  "reason": "The labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan and d:f:hole:5/bore.diameter@plan, in its outer lanes above, lie over the isometric, which the layout placed in the space above the plan's estimated band. With the step shoulders (stream d-dims-steps-levels) in the plan's lanes, the label of d:f:chamfer:2/chamfer.length@plan lies over the isometric too."
+  "reason": "The label of d:envelope/width.length@front (304.8), in the front's outer lane, lies over the isometric, which the layout placed in the space beyond the front's estimated band. Before the channel widths (dims::recesses) it was instead the labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan, d:f:hole:5/bore.diameter@plan and d:f:chamfer:2/chamfer.length@plan; with the channel widths' lanes the plan's and front's lanes stack 7 to 14 mm further out, and those three no longer lie over the isometric (checked with and without the recess planner)."
  },
  {
   "part": "grm03",
@@ -100,30 +100,58 @@
  {
   "part": "m1000",
   "code": "annotation_outside_area",
-  "count": 2,
+  "count": 7,
   "verdict": "rust-wrong",
-  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only. And d:envelope/height.length@front (29.1), in the lane beyond the height ladder's rungs (stream d-dims-steps-levels), runs 3.5 mm past the front's area; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes."
+  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.3) in the same way. d:envelope/height.length@front (29.1), in the lane beyond the height ladder's rungs (stream d-dims-steps-levels) and the seat's z location d:f:section_recess:4/seat_location.location.z@front, runs 10.5 mm past the front's area (3.5 mm without the seat's location); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes; the seat's z location itself runs 3.5 mm past. The three recess callouts (dims::recesses: the pocket's in the plan, the hexagonal pocket's in the side, the seat's in the front) have long labels in callout lanes the estimated bands do not hold, 13 to 56 mm past them."
  },
  {
   "part": "m1000",
   "code": "annotation_over_view",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The labels of d:envelope/height.length@front (29.1) and of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1, dims::recesses) lie over the side view: they stand in the front's right band in lanes beyond the height ladder's rungs (stream d-dims-steps-levels); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes."
+ },
+ {
+  "part": "m1000",
+  "code": "annotation_ink_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The label of d:envelope/height.length@front (29.1), pushed into the side view's space by the height ladder's rungs and the seat's z location (see annotation_over_view), is crossed by lines of two side items from dims::recesses: the hexagonal pocket's callout leader d:f:section_recess:2/polygon_across_flats.length@side and the seat's y location d:f:section_recess:4/seat_location.location.y@side. Appears only with both the steps and levels planners and the recess planner (merge of d-dims-recesses); for the placement work."
+ },
+ {
+  "part": "m1000",
+  "code": "annotation_over_title_block",
   "count": 1,
   "verdict": "rust-wrong",
-  "reason": "The label of d:envelope/height.length@front (29.1) lies over the side view: it stands in the front's right band in the lane beyond the height ladder's rungs (stream d-dims-steps-levels); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes."
+  "reason": "The circular seat's callout d:f:section_recess:4/seat_diameter.diameter@front (ø2 × 12.6 LONG × 180° ARC, dims::recesses), in the front's callout lanes, runs right into the title block: the label is long and the front's estimated band does not hold the callout lanes. For the placement work."
+ },
+ {
+  "part": "m10046",
+  "code": "annotation_outside_area",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The pocket's callout d:f:section_recess:4/pocket_width.length@front (5.0 × 11.7 × 10.6 DEEP, dims::recesses) runs 25.9 mm past the front's band (draftwright's estimate), which does not hold the callout lanes. For the placement work."
  },
  {
   "part": "m10127",
   "code": "annotation_ink_overlap",
   "count": 2,
   "verdict": "rust-wrong",
-  "reason": "The front's callout d:f:hole:2/bore.diameter@front (⌀13.0 ↧ 5.7) runs right from its leader into the side's lower band, where d:envelope/depth.length@side's extension and dimension lines cross it; d:f:fillet:1/fillet.radius@front's leader crosses it too. Neither the callout's turned leader nor the depth's slides clear it. Was 4 and one annotation_overlap before settling."
+  "reason": "d:f:fillet:1/fillet.radius@front's leader runs through the label of the front's callout d:f:hole:2/bore.diameter@front (⌀13.0 ↧ 5.7). And the hexagonal pocket's callout d:f:section_recess:1/polygon_across_flats.length@front (HEX 4.2 A/F × 10.0 DEEP, dims::recesses), in the front's outer callout lane, runs right into the side's lower band, where a line of d:envelope/depth.length@side crosses its label; without the recess planner that line crossed d:f:hole:2's label instead (checked with and without it). Neither the callouts' turned leaders nor the depth's slides clear them. For the placement work."
  },
  {
   "part": "m10127",
   "code": "annotation_outside_area",
-  "count": 4,
+  "count": 5,
   "verdict": "rust-wrong",
-  "reason": "Three front items run past the front's band (draftwright's estimate) and the side's callout d:f:hole:1/bore.diameter@side runs right past the side's right band along its lane."
+  "reason": "Four front items run past the front's band (draftwright's estimate), the hexagonal pocket's callout d:f:section_recess:1/polygon_across_flats.length@front (dims::recesses) the furthest, 45.7 mm, and the side's callout d:f:hole:1/bore.diameter@side runs right past the side's right band along its lane."
+ },
+ {
+  "part": "m10127",
+  "code": "annotation_overlap",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The hexagonal pocket's callout d:f:section_recess:1/polygon_across_flats.length@front (HEX 4.2 A/F × 10.0 DEEP, dims::recesses), running right from the front's callout lanes into the side's lower band, overlaps the label of d:envelope/depth.length@side (32.3), as d:f:hole:2/bore.diameter@front's runs into that band (the annotation_ink_overlap entry). For the placement work."
  },
  {
   "part": "spool132",
