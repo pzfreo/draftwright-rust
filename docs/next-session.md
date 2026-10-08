@@ -411,3 +411,40 @@ improvement plan and questions are the current work. Still open from before it:
     - The bridge knows but does not read quiddity's `oriented_slot_patterns` and
       `section_recess_patterns` (their members are read singly). Refuse a document that has
       them, as unknown records are refused, or keep reading the members?
+
+- From wave 3 (stream d-dims-grooves-flats): `dims::grooves` (`10 WIDE × ø122`, one callout per
+  groove, stating `groove.length` and `groove.diameter`, in the view that shows its profile, the
+  leader to its floor) and `dims::flats` (`52.6 A/F`, one callout per across-flats definition,
+  counted `n×` over independent stock, every face's `flat.length` stated, in the view down the
+  stock; draftwright's mixed-size decimals). On the captured sheets all five of draftwright's
+  groove and flat callouts (connector109, string_post) agree in label, view, parameters and
+  values (`tests/dimensions.rs` now compares the two families; no `known_dimensions.json` entry
+  was needed); `tests/dims_grooves_flats.rs` has the scenarios. Differences from draftwright that
+  no captured sheet shows, with verdicts:
+  - a groove whose profile view is not shown falls back to the other profile view; draftwright
+    skips it without trace (rust-correct: nothing is dropped silently);
+  - a record that cannot be stated (no width, floor diameter, size, position, or a direction off
+    its named axis) is a `feature_not_dimensioned` warning; draftwright skips such a groove
+    without trace, and fails conversion on a flat whose direction is off its axis (rust-correct);
+  - flat decimals are chosen over every recognised flat, draftwright's over the sizes the spec
+    keeps, so omitting one flat of two sizes can leave the other with a decimal draftwright drops
+    (rust-wrong, minor: the planners run before the spec is applied; fixing it touches
+    `dims::plan`);
+  - callouts are ordered, and take their IDs, by the Analysis's first member, not by
+    draftwright's sorted keys (equivalent).
+  Left:
+  - **`known_lint.json` (owned by d-lint-remainder) must lose three `own_drawings` entries**, now
+    that the port's own drawings state them: `string_post flat_requirement_missing` (1), and,
+    checked with `LINT_OWN_ALL=1`, `connector109 flat_requirement_missing` (1) and
+    `connector109 groove_requirement_missing` (6). Until then
+    `tests/lint.rs::lint_on_the_ports_own_drawings_is_known` fails on string_post's entry.
+  - For the placement work: on connector109 the grooves' callouts add 2 `annotation_off_sheet`
+    (`d:f:groove:2`, `d:f:groove:3`, stacked below the front view) and 2 ink overlaps (their
+    leaders through `d:f:groove:1`'s label).
+  - lint keys a flat by its record's raw `stock_span` (as draftwright's lint does), the planner by
+    the span along the canonical direction (as draftwright's `FlatFeature` does), so a reversed
+    face whose span runs along its own direction is one definition to the planner and two
+    requirements to lint, in both programs. No corpus part has one.
+  - ADR3-12 (a groove that cannot name one turned-profile owner is refused) is not checked.
+  - `src/dims/mod.rs`'s module docs still list only the earlier families (that file belongs to
+    d-spec-tolerances; only the planner list was touched).
