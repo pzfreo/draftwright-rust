@@ -487,3 +487,38 @@ improvement plan and questions are the current work. Still open from before it:
       draftwright addresses each member's axis (ISSUE-883-a). Should the spec address a member's
       coordinate inside a shared dimension?
     - Should `edit`/`plan` refuse a `sheet.title` field the port does not draw, until it does?
+- From wave 4 (stream d-title-block): the title block is draftwright's ISO 7200 grid
+  (`src/title_block.rs`, `draftwright_title_block_layout`): four 8 mm rows (legal owner and
+  document type; title and drawing number; material, general tolerance, units and format; drawn
+  by, approved by, date, revision and sheet), at the bottom of the 40 mm box the layout reserves,
+  as draftwright draws its 32 mm block in the same `_TB_H` reservation (so no height difference).
+  Each `sheet.title` key (`title number material tolerance drawn_by approved_by date revision
+  sheet company document_type`, draftwright's `Sheet` options) fills its own cell; units (`mm`)
+  and format (the sheet's size) are stated, as draftwright does. The plan records the cells
+  (`sheet.title_cells`: field, label, box, value); `render` draws every cell's label and each
+  value centred in IBM Plex Sans Condensed at 3 mm (now bundled in the PDF by `api`), as an
+  invisible text run too, and the scale note above the block's right end (`_add_scale_note`).
+  A value wider or taller than its cell is a `title_field_overflow` warning (one per cell, with
+  the full value, drawn whole); one past the drawing area is also `annotation_off_sheet`. Text is
+  measured within 0.001 mm of draftwright's `_text_size`, multi-line values included (each line
+  centred on its advance, as OpenCascade lays it). ISSUE-1585-a and ISSUE-1536-a are ported
+  (`tests/title_block.rs`, `tests/issue_drafting.rs` un-ignored and tightened, the PDF text layer
+  in `tests/output.rs`); ARCH0006-1, ISSUE-1157-a and LINT-code-title_field_overflow notes
+  updated. No corpus part's default title overflows; no captured fixture or placement result
+  changed (the grid lies inside the reservation placement already keeps out). Differences, with
+  verdicts:
+  - a `sheet.title` key with no cell (`units`, `scale`, a typo) is refused by `plan` and `edit`
+    with the keys there are (equivalent: build123d_drafting's `TitleBlock` raises for a value its
+    layout cannot place, and `Sheet` takes no other option). This answers the d-issue-drafting
+    question above in the refusing direction; a spec that carried such a key is now refused;
+  - whitespace-only values are no value, for every field (rust-correct: draftwright strips six
+    fields and draws spaces for the others);
+  - the grid's outer line is on the part layer and its dividers on the dims layer, where
+    draftwright draws all of it as 0.15 mm faces (undetermined: line weight only);
+  - the scale note's text run is in the condensed face it is drawn in (draftwright's text layer
+    names Plex Mono for it; equivalent).
+  - Questions for the maintainer: draftwright fills three cells nobody supplied: revision `A`,
+    general tolerance `UNSPECIFIED` (ISSUE-1157-a, still pending) and drawn by `draftwright` (or
+    `<author> / draftwright`, with a link over the cell). The port leaves them blank and draws a
+    supplied `drawn_by` as given. Fill them as draftwright does? (`A` is an invented revision;
+    `UNSPECIFIED` and the attribution are not.)

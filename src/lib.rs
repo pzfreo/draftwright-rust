@@ -16,3 +16,4 @@ pub mod output;
 pub mod png;
 pub mod section;
 pub mod text;
+pub mod title_block;

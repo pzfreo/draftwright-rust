@@ -926,7 +926,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/trust_rules.rs::no_document_infers_manufacturing_intent"
-  rust_note: "Partly ported: no document defaults a tolerance or a standard (the title holds only the name and drawing number unless the spec gives more, and no term prints a tolerance). Not ported: the title block has no general-tolerance cell, so an unauthored tolerance is not stated as unspecified, and an explicit empty value has no cell to leave blank."
+  rust_note: "Partly ported: no document defaults a tolerance or a standard (the title holds only the name and drawing number unless the spec gives more, and no term prints a tolerance). Not ported: the title block's GEN. TOL. cell (src/title_block.rs) is filled from sheet/title/tolerance when it is given, but an unauthored tolerance leaves it blank instead of stating UNSPECIFIED, so an explicit empty value cannot be told from none."
   port_note: "Keep: Spec general tolerance is Option; plan title block shows 'unspecified' when None."
 
 - id: ISSUE-1166-a
@@ -2629,9 +2629,9 @@
       - "tests/test_issue_1536_title_overflow.py::test_all_rendered_fields_and_multiline_height_are_checked"
       - "tests/test_issue_1536_title_overflow.py::test_export_preserves_the_full_overflowing_value"
     corpus_parts: []
-  status: pending
+  status: ported
   rust_test: "tests/issue_drafting.rs::a_title_block_value_that_overflows_is_reported"
-  rust_note: "rust-wrong (test ignored): the port draws the title and the drawing number in its title block and checks neither against the block's width, so an 86-character title on plate runs out of the block with no plan problem and no lint finding. The fix belongs in src/model.rs (the title block in render, and a plan problem) or src/lint; the port's title block has no cells yet."
+  rust_note: "Every value the title block draws (src/title_block.rs, draftwright's ISO 7200 grid) is measured with the face it is drawn in (Plex Sans Condensed at 3 mm, multi-line values with each line centred on its advance and lines 1.3 em apart, as build123d's Text; within 0.001 mm of draftwright's _text_size) against its cell: wider or taller is one title_field_overflow warning per cell, subject title_block/<field>, naming the field, the text's and the cell's sizes and the full value, and the value is drawn and exported whole (tests/title_block.rs: a_field_crossing_cells_inside_the_page_is_reported, all_rendered_fields_and_multiline_heights_are_checked, export_keeps_the_full_overflowing_value; the PDF in tests/output.rs::title_block_values_reach_the_pdf_text_layer). A value running past the sheet's drawing area is also an annotation_off_sheet error. Differences: the check is a plan problem, not a lint finding as in draftwright (port_note); draftwright's lint summary and legibility score have no counterpart (the port has no lint summary)."
   port_note: "Keep: plan problem per overflowing title-block cell."
 
 - id: ISSUE-1543-a
@@ -2756,9 +2756,9 @@
       - "tests/test_issue_1585_title_block_date.py::test_common_date_formats_fit_on_the_pages_draftwright_uses"
       - "tests/test_issue_1585_title_block_date.py::test_no_date_field_when_no_date_was_supplied"
     corpus_parts: []
-  status: pending
+  status: ported
   rust_test: "tests/issue_drafting.rs::a_supplied_date_reaches_the_title_block"
-  rust_note: "rust-wrong (test ignored): the spec's sheet.title takes any field, but src/model.rs::render draws only title and number, so a supplied date (or material) is accepted and silently left off the sheet and out of the PDF text layer. The fix belongs in src/model.rs (a date field and cell in the title block), or edit should refuse fields it does not draw."
+  rust_note: "sheet.title's date fills the date cell of draftwright's ISO 7200 grid (src/title_block.rs), recorded in the plan's sheet.title_cells, drawn centred in it and as one invisible text run, read back from the PDF (tests/output.rs::title_block_values_reach_the_pdf_text_layer). tests/title_block.rs checks each clause: the_date_is_a_field_of_its_own, the_date_is_a_text_run_at_its_cells_centre, the_date_is_drawn_inside_its_cell, common_date_formats_fit_on_the_pages_draftwright_uses (A4's 120 mm and A3's 150 mm blocks) and no_date_field_when_no_date_was_supplied (whitespace is no value; a padded date is drawn stripped). Every other sheet.title key fills its own cell, and a key the block has no cell for is refused by plan and edit (honest failure, as build123d_drafting's TitleBlock refuses a value its layout cannot place)."
   port_note: "Keep: ISO 7200 title block layout with dedicated date cell."
 
 - id: ISSUE-1593-a

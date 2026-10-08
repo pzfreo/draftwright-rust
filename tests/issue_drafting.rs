@@ -20,6 +20,7 @@ use draftwright::lint::{self, Mark};
 use draftwright::model::{self, Analysis, DimensionSource, DimensionSpec, Plan, PlannedView, Spec};
 use draftwright::output::{Claim, Drawing};
 use draftwright::text::Font;
+use draftwright::title_block;
 use serde_json::json;
 
 fn fixture(path: &str) -> PathBuf {
@@ -651,41 +652,66 @@ fn titled(name: &str, title: serde_json::Value) -> (Plan, Drawing) {
     (plan, drawing)
 }
 
-/// ISSUE-1536-a: a title-block value wider than its place is reported, and kept whole. The
-/// port draws the title and the drawing number in its title block and checks neither against
-/// the block's width, so a title longer than the block runs out of it with no problem and no
-/// finding.
+/// ISSUE-1536-a: a title-block value wider than its cell is reported, and kept whole. An
+/// 86-character title on plate is wider than its cell: the plan carries one
+/// `title_field_overflow` warning for the title's cell, with the full value, and the drawing
+/// carries the value whole. (Every field and multi-line heights: `tests/title_block.rs`.)
 #[test]
-#[ignore = "ISSUE-1536-a: rust-wrong, no title-block field is checked for overflow (src/model.rs)"]
 fn a_title_block_value_that_overflows_is_reported() {
     let long =
         "FRAME FOR THE ENGINEERING REVIEW GROUP, PRELIMINARY MACHINING ISSUE, SHEET ONE OF ONE";
     let (plan, drawing) = titled("plate", json!({ "title": long }));
-    let [x0, _, x1, _] = plan.sheet.title_block;
-    let run = drawing.text.iter().find(|t| t.text == long).unwrap();
-    let width = font().text(long, run.size).max[0] - font().text(long, run.size).min[0];
-    assert!(width > x1 - x0, "the fixture's title must overflow");
-    let analysis = &fixtures()[0].1;
-    let reported = plan.problems.iter().any(|p| p.message.contains("title"))
-        || lint::lint(analysis, &drawing)
-            .iter()
-            .any(|i| i.message.contains("title"));
-    assert!(reported, "{:?}", codes(&plan));
+    let cell = plan.sheet.title_cells.iter().find(|c| c.field == "title");
+    let [x0, _, x1, _] = cell.unwrap().cell;
+    let [width, _] = title_block::measure(long);
+    assert!(
+        width > x1 - x0,
+        "the fixture's title must overflow its cell"
+    );
+    let overflow: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "title_field_overflow")
+        .collect();
+    assert_eq!(overflow.len(), 1, "{:?}", codes(&plan));
+    assert_eq!(overflow[0].subjects, ["title_block/title"]);
+    assert_eq!(overflow[0].severity, "warning");
+    assert!(overflow[0].message.contains(long));
+    assert_eq!(drawing.text.iter().filter(|t| t.text == long).count(), 1);
 }
 
-/// ISSUE-1585-a: a supplied date reaches the title block as its own field. The spec's
-/// `sheet.title` takes any field, but the port draws only `title` and `number`: a `date` (or
-/// `material`) is accepted and silently left off the sheet.
+/// ISSUE-1585-a: a supplied date reaches the title block as its own field: recorded in the
+/// plan's date cell (not the revision's), drawn as a searchable run at that cell's centre with
+/// its ink inside the cell, and absent when not supplied. (Each of draftwright's clauses:
+/// `tests/title_block.rs`; the PDF text layer: `tests/output.rs`.)
 #[test]
-#[ignore = "ISSUE-1585-a: rust-wrong, a supplied date is accepted and not drawn (src/model.rs render's title block)"]
 fn a_supplied_date_reaches_the_title_block() {
     let (plan, drawing) = titled("plate", json!({ "title": "BRACKET", "date": "2026-09-11" }));
-    let [x0, y0, x1, y1] = plan.sheet.title_block;
-    let run = drawing.text.iter().find(|t| t.text == "2026-09-11");
-    let run = run.expect("the date is drawn");
-    assert!((x0..=x1).contains(&run.at[0]) && (y0..=y1).contains(&run.at[1]));
-    let (_, undated) = titled("plate", json!({ "title": "BRACKET" }));
-    assert!(undated.text.len() < drawing.text.len());
+    let cell = |plan: &Plan, field: &str| {
+        plan.sheet
+            .title_cells
+            .iter()
+            .find(|c| c.field == field)
+            .unwrap()
+            .clone()
+    };
+    let date = cell(&plan, "date");
+    assert_eq!(date.value.as_deref(), Some("2026-09-11"));
+    assert_ne!(date.cell, cell(&plan, "revision").cell);
+    let [x0, y0, x1, y1] = date.cell;
+    let runs: Vec<_> = drawing
+        .text
+        .iter()
+        .filter(|t| t.text == "2026-09-11")
+        .collect();
+    assert_eq!(runs.len(), 1, "the date is drawn once");
+    assert_eq!(runs[0].at, [0.5 * (x0 + x1), 0.5 * (y0 + y1)]);
+    let [w, h] = title_block::measure("2026-09-11");
+    assert!(w < x1 - x0 && h < y1 - y0);
+    assert!(!codes(&plan).contains("title_field_overflow"));
+    let (undated, drawing) = titled("plate", json!({ "title": "BRACKET" }));
+    assert_eq!(cell(&undated, "date").value, None);
+    assert!(!drawing.text.iter().any(|t| t.text == "2026-09-11"));
 }
 
 /// ISSUE-1593-a, in part: nothing is drawn into the title block unreported. On every part, a

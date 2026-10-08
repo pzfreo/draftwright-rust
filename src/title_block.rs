@@ -1,0 +1,300 @@
+//! The title block's cells: draftwright's ISO 7200 grid (`draftwright_title_block_layout` in
+//! `annotations/_sheet_furniture.py`, drawn by build123d_drafting's `TitleBlock`) as data, each
+//! supplied field placed in its own cell and checked against it.
+//!
+//! The grid is four rows of 8 mm from the bottom of the box the layout reserves for the block
+//! (`TB_H`, 40 mm, as draftwright's `_TB_H`); draftwright draws the same 32 mm block in the same
+//! 40 mm reservation and puts the scale note in the band above it, as here. Each value is drawn
+//! centred in its cell in IBM Plex Sans Condensed at 3 mm (ARCH0006-1: the condensed face for the
+//! title block), each cell's label at its lower left at 1.5 mm. A value whose ink is wider or
+//! taller than its cell is reported (`title_field_overflow`, ISSUE-1536-a) and drawn whole.
+
+use std::collections::BTreeMap;
+use std::sync::OnceLock;
+
+use serde::{Deserialize, Serialize};
+
+use crate::layout::MARGIN;
+use crate::model::{Invalid, Problem};
+use crate::text::{Font, Laid, P, Segment};
+
+/// The face the title block is measured and drawn with, by file name and data.
+pub const FONT: &str = "IBMPlexSansCondensed-Regular.ttf";
+pub const FONT_DATA: &[u8] = include_bytes!("../fonts/IBMPlexSansCondensed-Regular.ttf");
+
+/// Page mm: a row's height (build123d_drafting's `cell_height`), the values' and the labels'
+/// text heights (draftwright's `_FONT_SIZE` and half of it), the labels' inset (0.4 of the
+/// draft's 2 mm `pad_around_text`), and the scale note's gap above the block and the projection
+/// symbol's band right of it (`_TB_FURNITURE_GAP`, `_PROJECTION_BAND_W`).
+pub const ROW_H: f64 = 8.0;
+pub const TEXT: f64 = 3.0;
+pub const LABEL_TEXT: f64 = 1.5;
+pub const LABEL_PAD: f64 = 0.8;
+const FURNITURE_GAP: f64 = 3.0;
+const PROJECTION_BAND_W: f64 = 16.0;
+
+/// One cell: the field it holds, its share of the block's width, its label.
+pub struct Cell {
+    pub field: &'static str,
+    pub width: f64,
+    pub label: &'static str,
+}
+
+const fn cell(field: &'static str, width: f64, label: &'static str) -> Cell {
+    Cell {
+        field,
+        width,
+        label,
+    }
+}
+
+/// draftwright's grid, top row first. Each row's widths sum to 1; the internal lines fall at
+/// 35 %, 70 %, 88 % and 94 % of the width, shared by the rows that use them.
+pub const ROWS: [&[Cell]; 4] = [
+    &[
+        cell("legal_owner", 0.70, "LEGAL OWNER"),
+        cell("document_type", 0.30, "DOC. TYPE"),
+    ],
+    &[
+        cell("title", 0.70, "TITLE"),
+        cell("drawing_number", 0.30, "DWG NO."),
+    ],
+    &[
+        cell("material", 0.35, "MATERIAL"),
+        cell("general_tolerance", 0.35, "GEN. TOL."),
+        cell("units", 0.18, "UNITS"),
+        cell("format", 0.12, "FORMAT"),
+    ],
+    &[
+        cell("designed_by", 0.35, "DRAWN BY"),
+        cell("approved_by", 0.35, "APPROVED BY"),
+        cell("date", 0.18, "DATE"),
+        cell("revision", 0.06, "REV"),
+        cell("sheet", 0.06, "SHEET"),
+    ],
+];
+
+/// The spec's `sheet.title` keys (draftwright's `Sheet` options of the same names), each with
+/// the cell it fills. `units` and `format` are not keys: the sheet states them (millimetres, and
+/// the sheet's size), as draftwright does.
+pub const KEYS: [(&str, &str); 11] = [
+    ("title", "title"),
+    ("number", "drawing_number"),
+    ("material", "material"),
+    ("tolerance", "general_tolerance"),
+    ("drawn_by", "designed_by"),
+    ("approved_by", "approved_by"),
+    ("date", "date"),
+    ("revision", "revision"),
+    ("sheet", "sheet"),
+    ("company", "legal_owner"),
+    ("document_type", "document_type"),
+];
+
+/// A cell as the plan places it: the field, its label, its box `[x0, y0, x1, y1]` (page mm), and
+/// the value drawn in it (none: the cell is left blank).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TitleCell {
+    pub field: String,
+    pub label: String,
+    #[serde(rename = "box")]
+    pub cell: [f64; 4],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+
+pub fn font() -> &'static Font {
+    static FONT: OnceLock<Font> = OnceLock::new();
+    FONT.get_or_init(|| Font::new(FONT_DATA.to_vec()).expect("the bundled font parses"))
+}
+
+/// A `sheet.title` key the block has no cell for is refused, naming the keys it has: a value
+/// with nowhere to go would be dropped in silence (build123d_drafting's `TitleBlock` refuses a
+/// value its layout has no cell for, and draftwright's `Sheet` an option it does not take).
+pub fn check(title: &BTreeMap<String, String>) -> Result<(), Invalid> {
+    match title.keys().find(|k| !KEYS.iter().any(|(key, _)| key == k)) {
+        None => Ok(()),
+        Some(k) => Err(Invalid {
+            message: format!(
+                "The title block has no cell for sheet/title/{k}, so it would not be drawn."
+            ),
+            choices: KEYS.iter().map(|(key, _)| key.to_string()).collect(),
+        }),
+    }
+}
+
+/// The ink drawn for *value*: `⌀`, which the face lacks, as `ø` (draftwright's
+/// `_font_safe_text`); the text layer keeps the value as given.
+pub fn ink(value: &str) -> String {
+    value.replace('⌀', "ø")
+}
+
+/// *value*'s ink at *size*, centred on its box, as build123d's centred `Text` lays it: each line
+/// centred on its pen's advance, the lines a line spacing apart (OpenCascade's
+/// `Font_TextFormatter`; one line is `Font::text`'s). `⌀` is drawn as `ø`.
+pub fn lay(value: &str, size: f64) -> Laid {
+    let value = ink(value);
+    if !value.contains('\n') {
+        return font().text(&value, size);
+    }
+    let face = ttf_parser::Face::parse(FONT_DATA, 0).expect("the bundled font parses");
+    let pitch = (face.ascender() as f64 - face.descender() as f64 + face.line_gap() as f64) * size
+        / face.units_per_em() as f64;
+    let moved = |s: &Segment, d: P| {
+        let m = |p: P| [p[0] + d[0], p[1] + d[1]];
+        match *s {
+            Segment::Line(a, b) => Segment::Line(m(a), m(b)),
+            Segment::Quad(a, b, c) => Segment::Quad(m(a), m(b), m(c)),
+            Segment::Cubic(a, b, c, d) => Segment::Cubic(m(a), m(b), m(c), m(d)),
+        }
+    };
+    let mut lines = Vec::new();
+    for (row, line) in value.split('\n').enumerate() {
+        let laid = font().baseline(line, size);
+        let d = [-0.5 * font().advance(line, size), -(row as f64) * pitch];
+        lines.push((laid, d));
+    }
+    let (mut min, mut max) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+    for (laid, d) in lines.iter().filter(|(l, _)| !l.contours.is_empty()) {
+        for k in 0..2 {
+            min[k] = min[k].min(laid.min[k] + d[k]);
+            max[k] = max[k].max(laid.max[k] + d[k]);
+        }
+    }
+    if min[0] > max[0] {
+        return font().text("", size);
+    }
+    let centre = [0.5 * (min[0] + max[0]), 0.5 * (min[1] + max[1])];
+    let contours = lines
+        .iter()
+        .flat_map(|(laid, d)| {
+            let d = [d[0] - centre[0], d[1] - centre[1]];
+            laid.contours
+                .iter()
+                .map(move |c| c.iter().map(|s| moved(s, d)).collect())
+        })
+        .collect();
+    let half = [0.5 * (max[0] - min[0]), 0.5 * (max[1] - min[1])];
+    Laid {
+        contours,
+        min: [-half[0], -half[1]],
+        max: half,
+    }
+}
+
+/// The ink's width and height of *value* at the block's text height, mm: the box of its glyphs
+/// as [`lay`] lays them.
+pub fn measure(value: &str) -> [f64; 2] {
+    let laid = lay(value, TEXT);
+    [laid.max[0] - laid.min[0], laid.max[1] - laid.min[1]]
+}
+
+/// The cells in *block* (the layout's reservation, `[x0, y0, x1, y1]`), with the values from
+/// *title* (the plan's `sheet.title`, by spec key) and the sheet's *size*. A value that is empty
+/// or only whitespace is no value, and is drawn without its surrounding whitespace.
+pub fn cells(block: [f64; 4], title: &BTreeMap<String, String>, size: &str) -> Vec<TitleCell> {
+    let [x0, y0, x1, _] = block;
+    let width = x1 - x0;
+    let value = |field: &str| -> Option<String> {
+        let v = match field {
+            "units" => "mm",
+            "format" => size,
+            _ => {
+                let key = KEYS.iter().find(|(_, f)| *f == field)?.0;
+                title.get(key)?.as_str()
+            }
+        };
+        let v = v.trim();
+        (!v.is_empty()).then(|| v.to_string())
+    };
+    let mut out = Vec::new();
+    for (i, row) in ROWS.iter().enumerate() {
+        let bottom = y0 + (ROWS.len() - 1 - i) as f64 * ROW_H;
+        let mut left = 0.0;
+        for (j, c) in row.iter().enumerate() {
+            let right = if j + 1 == row.len() {
+                width
+            } else {
+                left + c.width * width
+            };
+            out.push(TitleCell {
+                field: c.field.into(),
+                label: c.label.into(),
+                cell: [x0 + left, bottom, x0 + right, bottom + ROW_H],
+                value: value(c.field),
+            });
+            left = right;
+        }
+    }
+    out
+}
+
+/// The top of the drawn grid, page mm.
+pub fn top(block: [f64; 4]) -> f64 {
+    block[1] + ROWS.len() as f64 * ROW_H
+}
+
+/// Where the scale note is centred: in the band above the grid, its right end clear of the
+/// projection symbol's band (draftwright's `_add_scale_note`, with the block's right edge as the
+/// title margin's).
+pub fn scale_note(block: [f64; 4], text: &str) -> [f64; 2] {
+    let laid = lay(text, TEXT);
+    let (w, h) = (laid.max[0] - laid.min[0], laid.max[1] - laid.min[1]);
+    let right = block[2] - 3.0 - PROJECTION_BAND_W;
+    [right - w / 2.0, top(block) + FURNITURE_GAP + h / 2.0]
+}
+
+/// The spec path a cell's value comes from, or what states it.
+fn source(field: &str) -> String {
+    match KEYS.iter().find(|(_, f)| *f == field) {
+        Some((key, _)) => format!("sheet/title/{key}"),
+        None if field == "format" => "sheet/size".into(),
+        None => format!("the title block's {field}"),
+    }
+}
+
+/// One `title_field_overflow` warning for each cell whose value's ink is wider or taller than
+/// the cell (draftwright's `_lint_title_fields`, there a lint warning, here a plan problem), and
+/// an `annotation_off_sheet` error for each value whose ink leaves the sheet's drawing area.
+/// Each carries the full value, which is drawn whole: nothing is shortened or shrunk.
+pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
+    let mut out = Vec::new();
+    for c in cells {
+        let Some(v) = &c.value else { continue };
+        let [w, h] = measure(v);
+        let [x0, y0, x1, y1] = c.cell;
+        let (cw, ch) = (x1 - x0, y1 - y0);
+        let subject = format!("title_block/{}", c.field);
+        if w > cw + 1e-9 || h > ch + 1e-9 {
+            out.push(Problem {
+                id: format!("p:title_field_overflow:{subject}"),
+                code: "title_field_overflow".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "Title-block field '{}' overflows its cell: text {w:.2} × {h:.2} mm, cell {cw:.2} × {ch:.2} mm. The value, {v:?}, is drawn whole, not shortened or shrunk; give {} a concise value.",
+                    c.field,
+                    source(&c.field)
+                ),
+                subjects: vec![subject.clone()],
+            });
+        }
+        let (cx, cy) = (0.5 * (x0 + x1), 0.5 * (y0 + y1));
+        let (lo, hi) = ([cx - w / 2.0, cy - h / 2.0], [cx + w / 2.0, cy + h / 2.0]);
+        if lo[0] < MARGIN || lo[1] < MARGIN || hi[0] > page[0] - MARGIN || hi[1] > page[1] - MARGIN
+        {
+            out.push(Problem {
+                id: format!("p:annotation_off_sheet:{subject}"),
+                code: "annotation_off_sheet".into(),
+                severity: "error".into(),
+                message: format!(
+                    "Title-block field '{}' ({v:?}) runs off the sheet's drawing area; give {} a concise value.",
+                    c.field,
+                    source(&c.field)
+                ),
+                subjects: vec![subject],
+            });
+        }
+    }
+    out
+}
