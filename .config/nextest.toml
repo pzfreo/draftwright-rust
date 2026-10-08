@@ -1,14 +1,27 @@
-# CI runs the tests in hash-partitioned shards (.github/workflows/ci.yml). A shard's wall clock
-# is bounded below by its longest test, so the tests that take most of a minute or more start
-# first rather than last.
-[[profile.default.overrides]]
+# The `ci` profile is what .github/workflows/ci.yml runs, hash-partitioned across shards.
+#
+# nextest runs each test in its own process, so a test binary whose tests share one analysis
+# through a `OnceLock` repeats it in every test: issue_drafting took 1136 s of test time under
+# nextest against 59 s under its own harness, issue_trust 314 s against 92 s and placement 292 s
+# against 94 s (CI run 37848776092 against 37831576098). The workflow runs those binaries whole
+# under their own harness, so the profile leaves them out; the workflow's `harness` job runs
+# them, and fails if one of them is not in the archive.
+[profile.ci]
+default-filter = 'not (binary(issue_drafting) | binary(issue_trust) | binary(placement))'
+fail-fast = false
+
+# A shard's wall clock is bounded below by its longest test, so the tests that take most of a
+# minute or more on CI start first rather than last.
+[[profile.ci.overrides]]
 filter = '''
     test(=the_drawings_problems_reach_review_and_render)
     | test(=cgb242_is_drawn_whole)
+    | test(=lint_on_the_ports_own_drawings_is_known)
     | test(=native_features_match_the_bridge_or_are_listed)
-    | test(=a_sections_ink_describes_its_cut)
-    | test(=every_number_on_the_sheet_carries_a_claim)
-    | test(=asking_for_less_never_buys_silence)
-    | test(=annotations_carry_their_plan_items_provenance)
+    | test(=structural_findings_on_the_ports_own_drawings_are_known)
+    | test(=face_areas_differ_from_opencascades_only_as_listed)
+    | binary(trust_rules)
+    | test(=corpus_parts_render_natively_naming_what_is_not_recognised)
+    | test(=a_turned_parts_coaxial_bosses_are_profile_bands_and_a_groove_floor_is_the_grooves)
 '''
 priority = 100
