@@ -1,4 +1,0 @@
-# quiddity-rust (which holds haecceity) is private: fetch it with the git CLI, so the same
-# credentials that clone it work here.
-[net]
-git-fetch-with-cli = true

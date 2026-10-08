@@ -13,23 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
-      # haecceity comes by git from a private repository (Cargo.toml, pinned in Cargo.lock);
-      # cargo fetches it with the git CLI so the credential below applies.
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       DRAFTWRIGHT_CORPUS: ${{ github.workspace }}/quiddity/tests/corpus
       DRAFTWRIGHT_CORPUS_REQUIRED: "1"
     steps:
-      # GITHUB_TOKEN cannot read pzfreo/quiddity-rust; a read-only token for it is a repository
-      # secret (docs/next-session.md, "CI").
-      - name: Configure read access to haecceity
-        env:
-          HAECCEITY_READ_TOKEN: ${{ secrets.HAECCEITY_READ_TOKEN }}
-        run: |
-          if [ -z "$HAECCEITY_READ_TOKEN" ]; then
-            echo "::error::The repository secret HAECCEITY_READ_TOKEN is not set: CI needs read access to pzfreo/quiddity-rust for haecceity. See docs/next-session.md (CI)."
-            exit 1
-          fi
-          git config --global url."https://x-access-token:${HAECCEITY_READ_TOKEN}@github.com/pzfreo/quiddity-rust".insteadOf https://github.com/pzfreo/quiddity-rust
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       # The corpus lives in the Python quiddity repository, pinned to a commit whose files match
       # the sha256 bindings of the recorded sheet facts and recognition fixtures; the toolchain

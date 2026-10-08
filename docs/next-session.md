@@ -98,21 +98,8 @@ haecceity comes by git from `pzfreo/quiddity-rust` (`Cargo.toml`: branch
 `pzfreo/quiddity`'s `tests/corpus` (pinned to 6d544e060cd0eeb4442d2196e5df757b5a15ea55) and
 `DRAFTWRIGHT_CORPUS_REQUIRED=1`.
 
-haecceity's repository, `pzfreo/quiddity-rust`, is private, and the workflow's `GITHUB_TOKEN`
-cannot read it. The workflow reads a repository secret **`HAECCEITY_READ_TOKEN`**: a token with
-read access to the contents of `pzfreo/quiddity-rust` (for example a fine-grained personal
-access token limited to that repository, Contents: read-only). It rewrites
-`https://github.com/pzfreo/quiddity-rust` to use it (`git config url.….insteadOf`) and has cargo
-fetch with the git CLI (`CARGO_NET_GIT_FETCH_WITH_CLI=true`). If the secret is missing, the
-first step fails with an error naming it. **The secret does not exist yet:** creating it (or
-choosing another way, such as a deploy key or publishing haecceity) is the maintainer's decision
-(the review's first question). Until then CI fails at its first step. To set it:
-
-1. Create the token (GitHub → Settings → Developer settings → Fine-grained tokens), repository
-   access `pzfreo/quiddity-rust` only, permission Contents: read-only.
-2. In `pzfreo/draftwright-rust` → Settings → Secrets and variables → Actions, add it as
-   `HAECCEITY_READ_TOKEN`.
-3. Re-run the workflow.
+haecceity comes by git from the public `pzfreo/quiddity-rust` (Cargo.toml, pinned in
+`Cargo.lock`), so CI needs no secret.
 
 When fixtures are re-captured against a changed corpus file, move the workflow's `ref` to a
 quiddity commit that has it.
