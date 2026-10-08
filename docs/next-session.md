@@ -343,13 +343,14 @@ improvement plan and questions are the current work. Still open from before it:
   - ISSUE-1332-a: one pair of labels can raise both `annotation_overlap` and
     `annotation_ink_overlap` (m10127: the side view's depth with `d:f:hole:2/bore.diameter@front`).
     Owed in placement.
-  - ISSUE-1247-a: `AngledStep` is in `dims::UNDRAFTED`, so a recognised angled step is neither
-    dimensioned nor reported; draftwright's lint warns `angled_step_requirement_unsupported`.
-    No sampled part has one.
+  - ISSUE-1247-a (corrected at integration): the stream branched before d-lint-families, which
+    added lint's `angled_step_requirement_unsupported` warning, so an angled step is now reported
+    as in draftwright. Still pending: the completeness outcome (no completeness report). No
+    sampled part has one.
   - Questions for the maintainer:
     - draftwright's lint warns for a recognised feature it cannot dimension (passages, prismatic
       pockets, pads, angled steps: ISSUE-1245-a, 1246-a, 1247-a, 1392-a); the port reports an
-      unported kind as an info `dimensions_not_ported` problem, and an angled step not at all.
+      unported kind as an info `dimensions_not_ported` problem (an angled step gets lint's warning).
       Should these be warnings, and should they come from lint (as in draftwright) or the plan?
     - `edit` does not check view names (it is given no analysis), so `views/top` is accepted
       and refused only by `plan` (ISSUE-1260-b); model.md says each edit is validated. Should
