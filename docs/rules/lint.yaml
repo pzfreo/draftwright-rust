@@ -655,9 +655,9 @@
     module: "linting/channel_coverage.py"
     issues: [917]
     tests: [tests/test_issue_917_open_channel.py]
-  status: ported
+  status: pending
   rust_test: an_open_channel_states_its_width_wall_and_extent
-  rust_note: "src/lint/channels.rs: when quiddity's plates lie along two axes or more (has_multi_axis_plates), each section_recess feature that section_recesses::grammar reads as a rectangular channel, in the part's frame, needs channel_width.length on the channel, thickness.length on the one plate running from the part's box to the channel's near wall (within 1e-3; none or several: unverifiable), and the overall extent across it on envelope. Python finds the channel and the lower plate among draftwright's own converted features; the port has no conversion and reads quiddity's features in the Analysis, so a plate draftwright's conversion drops would still be asked for here. On ftc06's captured sheet all 21 requirements of its seven channels agree with Python's lint (widths and extents stated, the lower wall unverifiable for each)."
+  rust_note: "src/lint/channels.rs: when quiddity's plates lie along two axes or more (has_multi_axis_plates), each section_recess feature that section_recesses::grammar reads as a rectangular channel, in the part's frame, needs channel_width.length on the channel, thickness.length on the one plate running from the part's box to the channel's near wall (within 1e-3; none or several: unverifiable), and the overall extent across it on envelope. Python finds the channel and the lower plate among draftwright's own converted features; the port has no conversion and reads quiddity's features in the Analysis, so a plate draftwright's conversion drops would still be asked for here. Pending until that denominator difference is shown equivalent or the Analysis carries the conversion. On ftc06's captured sheet all 21 requirements of its seven channels agree with Python's lint (widths and extents stated, the lower wall unverifiable for each)."
   port_note: "Keep."
 
 - id: LINT-code-channel_requirement_state
@@ -861,9 +861,9 @@
     module: "linting/profiled_bore_coverage.py"
     issues: [1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py, tests/test_issue_1351_structured_note_coverage.py]
-  status: ported
+  status: pending
   rust_test: a_double_d_bore_is_called_out_with_its_diameter_and_across_flats
-  rust_note: "src/lint/profiled_bores.rs: double_d_bore features keyed as Python's profiled_bore_key (axis, through, major and across-flats to 1e-3, canonical flat direction to 1e-6, in the part's frame); a bore is documented by one annotation claiming both bore.diameter and profile_across_flats.length and printing both sizes; each key short of documented bores is one profiled_bore_not_dimensioned warning with Python's message (checked against draftwright on its double-d-single-z fixture with the callout removed). Python credits a callout to the bores at its owner's sites (0.5 mm); the port's claims name the bore. Drop credit is not reached: lint cannot see the placement's drops. No corpus recognition has a double-D bore, and the port's dimensions do not call them out yet."
+  rust_note: "src/lint/profiled_bores.rs: double_d_bore features keyed as Python's profiled_bore_key (axis, through, major and across-flats to 1e-3, canonical flat direction to 1e-6, in the part's frame); a bore is documented by one annotation claiming both bore.diameter and profile_across_flats.length and printing both sizes; each key short of documented bores is one profiled_bore_not_dimensioned warning with Python's message (checked against draftwright on its double-d-single-z fixture with the callout removed). Python credits a callout to the bores at its owner's sites (0.5 mm); the port's claims name the bore. Pending: Python's credit for a callout the placement dropped (already reported as callout_dropped, so counted here only to avoid reporting it twice) is not reached, since lint cannot see the placement's drops, so a dropped double-D callout would be reported twice. No corpus recognition has a double-D bore, and the port's dimensions do not call them out yet."
   port_note: "Keep."
 
 - id: LINT-polygonal_stock_coverage-af_length
@@ -902,9 +902,9 @@
     module: "linting/section_recess_coverage.py"
     issues: [1613]
     tests: [tests/test_issue_1613_circular_channel.py]
-  status: ported
+  status: pending
   rust_test: a_circular_seat_states_its_diameter_run_arc_and_location
-  rust_note: "src/lint/channels.rs (circular_coverage): each section_recess feature read as a circular channel (circular_channel_fields and circular_channel_geometry, ported), in the part's frame, has seat_diameter.diameter, seat_run.length, seat_sweep.angle and seat_location.location.x/y/z (from the part's box corner to the midpoint of the seat's axis; a direction on the corner within 1e-9 left out as inapplicable). On m1000's captured sheet all six are read as stated, as Python's lint finds. The run may be stated by the overall extent along it when the seat spans the box: Python accepts that only when the plan consolidates the run onto the extent (an omission with conveyed_by); lint cannot see the plan and accepts the printed extent whenever the seat runs end to end."
+  rust_note: "src/lint/channels.rs (circular_coverage): each section_recess feature read as a circular channel (circular_channel_fields and circular_channel_geometry, ported), in the part's frame, has seat_diameter.diameter, seat_run.length, seat_sweep.angle and seat_location.location.x/y/z (from the part's box corner to the midpoint of the seat's axis; a direction on the corner within 1e-9 left out as inapplicable). On m1000's captured sheet all six are read as stated, as Python's lint finds. The run may be stated by the overall extent along it when the seat spans the box: Python accepts that only when the plan consolidates the run onto the extent (an omission with conveyed_by); lint cannot see the plan and accepts the printed extent whenever the seat runs end to end, so it is more lenient than Python where the plan does not consolidate; pending until that is shown equivalent or lint can see the consolidation."
   port_note: "Keep."
 
 - id: LINT-code-circular_channel_requirement_state
@@ -1269,7 +1269,7 @@
     tests: [tests/test_gusset_rib_semantics.py]
   status: ported
   rust_test: a_mirrored_gusset_pair_states_its_ribs_spacing_and_plane
-  rust_note: "src/lint/gussets.rs: each gusset_rib_pattern feature (quiddity's GussetRibArray or GussetRibMirrorPair, carrying its members' records) is one group, and each gusset_rib in no pattern a group of one, as draftwright's _append_gusset_features lowers them; read in the part's frame and checked as GussetRibFeature is (common section and thickness, pitch or mirror plane within 1e-6). Per rib: gusset_thickness.length and gusset_leg.length.<axis> for both legs; per group: gusset_pitch.length (array) or gusset_spacing.length (pair), and gusset_location.length from the part's box to the first rib's centre or the mirror plane; each judged by the text of an annotation claiming it on the group. A group draftwright would not lower has each rib's thickness unverifiable, as Python reports a rib with no IR owner. No corpus recognition has a gusset; the unit tests use test_gusset_rib_semantics's brackets and draftwright's own callouts for them. Members are kept in order along the thickness axis rather than refused when quiddity lists them out of order."
+  rust_note: "src/lint/gussets.rs: each gusset_rib_pattern feature (quiddity's GussetRibArray or GussetRibMirrorPair, carrying its members' records) is one group, and each gusset_rib in no pattern a group of one, as draftwright's _append_gusset_features lowers them; read in the part's frame and checked as GussetRibFeature is (common section and thickness, pitch or mirror plane within 1e-6). Per rib: gusset_thickness.length and gusset_leg.length.<axis> for both legs; per group: gusset_pitch.length (array) or gusset_spacing.length (pair), and gusset_location.length from the part's box to the first rib's centre or the mirror plane; each judged by the text of an annotation claiming it on the group. A group draftwright would not lower has each rib's thickness unverifiable, as Python reports a rib with no IR owner. No corpus recognition has a gusset; the unit tests use test_gusset_rib_semantics's brackets and draftwright's own callouts for them. Members quiddity lists out of order along the thickness axis are refused (their ribs unverifiable), as GussetRibFeature refuses them; the order is checked in quiddity's coordinates and the ribs then sorted along the part's axis, which only reverses them where the part's frame flips it."
   port_note: "Keep."
 
 - id: LINT-code-gusset_rib_requirement_state

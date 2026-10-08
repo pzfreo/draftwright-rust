@@ -125,7 +125,23 @@ fn facts(r: &Value) -> Vec<Option<&Value>> {
     .collect()
 }
 
-/// A group's ribs and arrangement, checked as draftwright's `GussetRibFeature` is.
+/// Whether a pattern's member records are listed with their centres strictly ascending in
+/// quiddity's own coordinates, as `GussetRibFeature` requires of the members it is given (an
+/// unreadable record is left to [`rib`] to refuse).
+fn in_order(records: &[&Value]) -> bool {
+    let centres: Vec<f64> = records
+        .iter()
+        .filter_map(|r| {
+            let t = r.get("thickness_bounds")?.as_array()?;
+            Some((t.first()?.as_f64()? + t.get(1)?.as_f64()?) / 2.0)
+        })
+        .collect();
+    centres.windows(2).all(|w| w[1] > w[0])
+}
+
+/// A group's ribs and arrangement, checked as draftwright's `GussetRibFeature` is. The members
+/// are sorted along the part's thickness axis, which reverses quiddity's order (already checked
+/// by [`in_order`]) when the part's frame flips that axis.
 fn check(mut ribs: Vec<Rib>, arrangement: Arrangement) -> Result<(Vec<Rib>, Arrangement), String> {
     let first = ribs[0].clone();
     let same = |r: &Rib| {
@@ -229,6 +245,8 @@ pub fn groups(analysis: &Analysis) -> Vec<Group<'_>> {
         };
         let read = if records.is_empty() {
             Err("its record lists no ribs".to_string())
+        } else if !in_order(&records) {
+            Err("gusset-rib members must be ordered along the thickness axis".to_string())
         } else {
             records
                 .iter()
@@ -547,7 +565,8 @@ mod tests {
     /// 25 pitch, the first's centre 17 from the box (`3× GUSSET 6 THK · LEGS 22 × 26 · 25 PITCH ·
     /// FIRST CL 17 FROM X MIN`), eleven requirements; a lone rib is its own group; a pattern whose
     /// centres are not one pitch apart has no feature in draftwright, so each of its ribs is
-    /// unverifiable (`test_declared_gusset_patterns_reject_false_relationships`).
+    /// unverifiable (`test_declared_gusset_patterns_reject_false_relationships`), and so is one whose
+    /// members quiddity lists out of order along the thickness axis (`GussetRibFeature` refuses it).
     #[test]
     fn a_gusset_array_states_its_pitch_and_first_centre() {
         let a = bracket(
@@ -580,6 +599,15 @@ mod tests {
             Some(json!({ "axis": "x", "pitch": 10.0 })),
             -40.0,
         );
+        let shuffled = bracket(
+            &[-11.0, -36.0, 14.0],
+            Some(json!({ "axis": "x", "pitch": 25.0 })),
+            -50.0,
+        );
+        let refused = coverage(&shuffled, &[callout(label, &all)]);
+        assert_eq!(refused.len(), 3);
+        assert!(refused.iter().all(|i| i.evidence.as_deref()
+            == Some("gusset-rib members must be ordered along the thickness axis")));
         let found = coverage(&skewed, &[]);
         assert_eq!(found.len(), 3);
         assert!(
