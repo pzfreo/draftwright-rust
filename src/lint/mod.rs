@@ -45,6 +45,7 @@ pub mod paired_ramp_steps;
 pub mod parameters;
 pub mod pockets;
 pub mod polygonal;
+pub mod profiled_bores;
 pub mod section_recesses;
 pub mod slots;
 pub mod steps;
@@ -163,6 +164,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(polygonal::boss_coverage(analysis, marks));
     issues.extend(section_recesses::coverage(analysis, marks));
     issues.extend(angled_steps::coverage(analysis, marks));
+    issues.extend(profiled_bores::coverage(analysis, marks));
     issues.extend(flats::coverage(analysis, marks));
     issues.extend(grooves::coverage(analysis, marks));
     issues.extend(chamfers::coverage(analysis, marks));

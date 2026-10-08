@@ -858,7 +858,9 @@
     module: "linting/profiled_bore_coverage.py"
     issues: [1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py, tests/test_issue_1351_structured_note_coverage.py]
-  status: pending
+  status: ported
+  rust_test: a_double_d_bore_is_called_out_with_its_diameter_and_across_flats
+  rust_note: "src/lint/profiled_bores.rs: double_d_bore features keyed as Python's profiled_bore_key (axis, through, major and across-flats to 1e-3, canonical flat direction to 1e-6, in the part's frame); a bore is documented by one annotation claiming both bore.diameter and profile_across_flats.length and printing both sizes; each key short of documented bores is one profiled_bore_not_dimensioned warning with Python's message (checked against draftwright on its double-d-single-z fixture with the callout removed). Python credits a callout to the bores at its owner's sites (0.5 mm); the port's claims name the bore. Drop credit is not reached: lint cannot see the placement's drops. No corpus recognition has a double-D bore, and the port's dimensions do not call them out yet."
   port_note: "Keep."
 
 - id: LINT-polygonal_stock_coverage-af_length
