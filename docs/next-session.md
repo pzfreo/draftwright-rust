@@ -143,8 +143,6 @@ quiddity commit that has it.
 The 2026-10-08 review (`docs/review-2026-10-08.md`) supersedes the old spike list: its
 improvement plan and questions are the current work. Still open from before it:
 
-- Views: the basis sentence is misleading for a computed or overflow scale fallback, and an
-  empty iso projection leaves `iso_bounds` at zero without reporting it.
 - Facts: `capture_sheet_facts.py` gives no usage message. `docs/facts.md` doesn't explain the
   identity-collision nulls.
 - The MCP server hasn't been tried in a real client.
@@ -153,8 +151,6 @@ improvement plan and questions are the current work. Still open from before it:
 - quiddity-rust: the volume module's general `Probe::Prism` has no direct unit test for the
   convex case gussets use. Python's `local_degradation` path is not ported in any family.
 - From wave 1 (review H1–H5, M2 merged):
-  - `Drawing::problems` (e.g. `edges_not_drawn` on cgb242) is not yet added to the problems
-    `api::review` and `api::render` return, so the CLI, service and MCP do not show it.
   - demand groups holes by recognised pattern without `bridge::holes::established`, so a
     bolt circle of fewer than five holes is one feature there but loose holes in dims and lint.
   - A bolt circle of fewer than five holes with a hole or boss on its centre is a pattern in
@@ -163,3 +159,14 @@ improvement plan and questions are the current work. Still open from before it:
     its spotface and lint would report it. No fixture has one.
   - Question for haecceity: on cgb242's front view HLR emits a zero-span NURBS stretch (t0 =
     t1 = 0) at an edge's own end vertex; should it be filtered at source?
+- Closed in wave 2 (stream w2/d-model-honesty): `Drawing::problems` reach `review` and `render`;
+  the unresolved-geometry refusal is tested (`tests/fixtures/parts/unresolved.step`); the sheet's
+  basis names a computed or overflow fallback; an empty iso projection is reported
+  (`iso_projection_empty`); review M4, M5, M6 and L2. Left from them: a section's outcome is
+  reported only when it is missing (`section_not_shown`), not recorded for every plan as
+  ISSUE-1190-b's closed vocabulary asks; feature-keyed spec entries stay inactive across a
+  revision until R3's rebinding lands.
+  - Question for the maintainer: draftwright refuses the drawing when section A–A is needed but
+    the plan view, or both front and side, are missing (`sections.py:389-404`); the port draws
+    the rest and reports `section_not_shown`, as R4 decision 2 does for a dimension no view can
+    carry. Keep the problem, or refuse as Python does?

@@ -56,7 +56,8 @@ pub struct Analysis {
     #[serde(default)]
     pub features: Vec<Feature>,
     /// The isometric's projected box (visible and hidden edges), `[x0, y0, x1, y1]` mm at 1:1,
-    /// about the projection of the envelope's centre: what the isometric is fitted by.
+    /// about the projection of the envelope's centre: what the isometric is fitted by. All zero
+    /// when the projection has no edges (the plan then reports `iso_projection_empty`).
     pub iso_bounds: [f64; 4],
     /// The heights (z, mm) of the part's horizontal face levels: what a prismatic part's height
     /// ladder dimensions ([`crate::demand::face_levels`]).
@@ -269,17 +270,58 @@ fn fmt_ratio(r: f64) -> String {
     }
 }
 
+/// Why a STEP file gave no Analysis. It reads as its message.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unanalysed {
+    /// `false`: the request named input that is not what it should be (a file that cannot be
+    /// read, bytes that do not parse as STEP, recognition JSON not made from this file).
+    /// `true`: the input is what it should be, and the kernel or the bridge could not use it (a
+    /// STEP entity the kernel does not model, geometry it could not resolve, a face whose area
+    /// it measures differently from the recognition's).
+    pub failed: bool,
+    pub message: String,
+}
+
+impl std::ops::Deref for Unanalysed {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.message
+    }
+}
+
+impl std::fmt::Display for Unanalysed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+fn unanalysed(failed: bool, message: String) -> Unanalysed {
+    Unanalysed { failed, message }
+}
+
 /// Reads the STEP file at *path*: the part, and its analysis, without features.
-pub fn analyse(path: &Path) -> Result<(Part, Analysis), String> {
+pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_with(path, None)
 }
 
 /// Reads the STEP file at *path*, with its features from *recognition*: Python quiddity's JSON
-/// for the same file, written by `tools/recognise.py` ([`crate::bridge`]).
-pub fn analyse_with(path: &Path, recognition: Option<&Path>) -> Result<(Part, Analysis), String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let part = haecceity::read_step(&bytes)
-        .map_err(|e| format!("cannot read {} as STEP: {e:?}", path.display()))?;
+/// for the same file, written by `tools/recognise.py` ([`crate::bridge`]). Refused when the
+/// kernel did not resolve a face or edge the isometric draws.
+pub fn analyse_with(
+    path: &Path,
+    recognition: Option<&Path>,
+) -> Result<(Part, Analysis), Unanalysed> {
+    let bytes = std::fs::read(path)
+        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
+    let part = haecceity::read_step(&bytes).map_err(|e| {
+        // A file that does not parse is not STEP; one that parses but holds what the kernel
+        // does not model (or lost on reading) is the kernel's failure.
+        let failed = !matches!(e, haecceity::step::StepError::Parse(_));
+        unanalysed(
+            failed,
+            format!("cannot read {} as STEP: {e}", path.display()),
+        )
+    })?;
     let b = part.bounds();
     let mut analysis = Analysis {
         schema: ANALYSIS_SCHEMA.into(),
@@ -310,7 +352,15 @@ pub fn analyse_with(path: &Path, recognition: Option<&Path>) -> Result<(Part, An
         f64::NEG_INFINITY,
     ];
     for p in project(&part, &iso)
-        .map_err(|e| format!("cannot draw {}: {e}", path.display()))?
+        .map_err(|e| {
+            unanalysed(
+                true,
+                format!(
+                    "cannot draw {}: the kernel did not resolve its {e} on reading",
+                    path.display()
+                ),
+            )
+        })?
         .iter()
         .flat_map(|piece| piece.points.iter())
     {
@@ -326,9 +376,22 @@ pub fn analyse_with(path: &Path, recognition: Option<&Path>) -> Result<(Part, An
         analysis.iso_bounds = bounds;
     }
     if let Some(r) = recognition {
-        let json =
-            std::fs::read_to_string(r).map_err(|e| format!("cannot read {}: {e}", r.display()))?;
-        recognise(&part, &mut analysis, &json).map_err(|e| format!("{}: {e}", r.display()))?;
+        let json = std::fs::read_to_string(r)
+            .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", r.display())))?;
+        recognise(&part, &mut analysis, &json).map_err(|e| {
+            // JSON of the right format made from this very file is what the request should
+            // name; the bridge refusing it after that (a face it measures differently, a record
+            // it has no home for) is the port's failure, not the caller's.
+            let header = serde_json::from_str::<serde_json::Value>(&json).ok();
+            let field = |k: &str| {
+                header
+                    .as_ref()
+                    .and_then(|h| h.get(k)?.as_str().map(String::from))
+            };
+            let failed = field("format").as_deref() == Some(crate::bridge::RECOGNITION_FORMAT)
+                && field("source_sha256").as_ref() == Some(&analysis.binding.source_sha256);
+            unanalysed(failed, format!("{}: {e}", r.display()))
+        })?;
     }
     Ok((part, analysis))
 }
@@ -371,18 +434,48 @@ pub(crate) fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
 /// drawing's findings.
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let mut problems = Vec::new();
+    // The spec the plan follows: across a revision, without the entries that cannot be trusted.
+    let mut effective = spec.clone();
+    let mut inactive = Vec::new();
     if let Some(b) = &spec.binding
         && b.source_sha256 != analysis.binding.source_sha256
     {
-        // Rebinding (ADR R3) arrives with feature overrides; views carry over as they are.
+        // Until rebinding (ADR R3) lands, a feature's ID is rank-based and may name another
+        // feature in this revision: its entries are kept in the spec but inactive (R3 invariant
+        // 3), and listed. The sheet, the views and the envelope's dimensions carry over.
+        inactive = spec
+            .dimensions
+            .keys()
+            .filter(|id| id.starts_with("d:f:"))
+            .cloned()
+            .collect::<Vec<_>>();
+        effective.dimensions.retain(|id, _| !id.starts_with("d:f:"));
         problems.push(Problem {
             id: "p:rebind:part".into(),
             code: "spec_from_other_revision".into(),
             severity: "info".into(),
-            message: format!("The spec was made for a different revision of {}; its view choices are carried over.", b.part),
+            message: format!(
+                "The spec was made for a different revision of {}; its sheet, view and envelope dimension choices are carried over.",
+                b.part
+            ),
             subjects: vec![],
         });
+        if !inactive.is_empty() {
+            problems.push(Problem {
+                id: "p:spec_entries_inactive:part".into(),
+                code: "spec_entries_inactive".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The spec was made for a different revision of {}, and its entries for features ({}) cannot be matched to this one's until revisions are rebound: they are kept in the spec but not applied, and the spec stays bound to its revision while they remain. Remove them (then set what is wanted by this revision's IDs), or edit the spec's binding to this revision's to apply them as they are.",
+                    b.part,
+                    inactive.join(", ")
+                ),
+                subjects: inactive.clone(),
+            });
+        }
     }
+    let given = spec;
+    let spec = &effective;
     for name in spec.views.keys() {
         if name != SECTION && !VIEWS.iter().any(|(v, ..)| v == name) {
             let mut names = VIEWS.map(|v| v.0).to_vec();
@@ -452,6 +545,33 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         .section
         .clone()
         .filter(|_| shown(SECTION) && principals.plan && (principals.front || principals.side));
+    // A section left out is said, with why and what would bring it back (draftwright records
+    // every section decision: ISSUE-1190-b); one the author omits needs no saying.
+    let section_not_shown = |why: String| Problem {
+        id: format!("p:section_not_shown:v:{SECTION}"),
+        code: "section_not_shown".into(),
+        severity: "warning".into(),
+        message: format!("Section A\u{2013}A is not drawn: {why}."),
+        subjects: vec![format!("v:{SECTION}")],
+    };
+    match &demand.section {
+        Some(_) if section.is_none() && shown(SECTION) => problems.push(section_not_shown(if !principals.plan {
+            let how = if omitted("plan") {
+                "the spec omits it; remove views/plan/omit to show it"
+            } else {
+                "it is left out as the turned part's repeated profile; set views/plan to {} to keep it"
+            };
+            format!(
+                "a z-axis hole with a counterbore, spotface or bottom needs it, but its cutting plane is marked on the plan view, and {how}"
+            )
+        } else {
+            "it sits in the row of the front and side views, and the spec omits both; remove views/front/omit or views/side/omit to show it".into()
+        })),
+        None if spec.views.get(SECTION).is_some_and(|v| !v.omit) => problems.push(section_not_shown(
+            "the spec asks for it, but the part has no z-axis hole with a counterbore, spotface or bottom whose profile it would show, so there is no plane to cut; remove views/section_aa".into(),
+        )),
+        _ => {}
+    }
     let mut request = Request::new(
         [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]],
         principals,
@@ -495,13 +615,29 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         }),
         None => {}
     }
-    let basis = match (&spec.sheet.size, &spec.sheet.scale) {
-        (None, None) => format!(
+    // A fallback is said as what it is, never as the rule that found nothing.
+    let basis = match (pick.fallback, &spec.sheet.size, &spec.sheet.scale) {
+        (Some(Fallback::Computed), None, _) => format!(
+            "past draftwright's ladder, as no sheet and standard scale fits the views and their annotation bands: the largest scale that fits the largest sheet, {size}, found by bisection: {scale}, not a standard scale"
+        ),
+        (Some(Fallback::Computed), Some(_), _) => format!(
+            "no standard scale fits the views on {size}: the largest scale that fits, found by bisection: {scale}, not a standard scale"
+        ),
+        (Some(Fallback::Overflow), _, None) => format!(
+            "nothing fits: no scale, standard or computed, fits the views on {size}; {size} at {scale} is used, and the views do not fit"
+        ),
+        (Some(Fallback::Overflow), _, Some(_)) => format!(
+            "no sheet holds the views at {scale}: the largest, {size}, is used, and the views do not fit"
+        ),
+        (Some(Fallback::Uncertain), ..) => "as the spec asks; the views may not fit".into(),
+        (None, None, None) => format!(
             "the first sheet and scale on draftwright's ladder (every enlargement on the smallest sheet first, then reductions) whose views and the annotation bands their features need fit: {size} at {scale}"
         ),
-        (Some(_), None) => format!("the largest standard scale at which the views fit {size}"),
-        (None, Some(_)) => format!("the smallest sheet that holds the views at {scale}"),
-        (Some(_), Some(_)) => "as the spec asks".into(),
+        (None, Some(_), None) => {
+            format!("the largest standard scale at which the views fit {size}")
+        }
+        (None, None, Some(_)) => format!("the smallest sheet that holds the views at {scale}"),
+        (None, Some(_), Some(_)) => "as the spec asks".into(),
     };
 
     let g = layout::geometry(
@@ -515,6 +651,15 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     );
     let ib = analysis.iso_bounds.map(|b| b * pick.scale);
     let iso_factor = layout::iso_factor(g.iso, g.iso_centre, ib);
+    if shown("iso") && analysis.iso_bounds == [0.0; 4] {
+        problems.push(Problem {
+            id: "p:iso_projection_empty:v:iso".into(),
+            code: "iso_projection_empty".into(),
+            severity: "warning".into(),
+            message: "The isometric projection of the part has no edges, so the isometric cannot be fitted to its space: it is planned at the sheet's scale and draws nothing. Omit it with views/iso/omit.".into(),
+            subjects: vec!["v:iso".into()],
+        });
+    }
     let turned = |name: &str| match &reduction {
         Some((kept, dropped, why)) if kept.contains(&name) => {
             format!("; {why}, so the {dropped} view is left out")
@@ -594,6 +739,10 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 marked_in: "v:plan".into(),
             }),
         });
+    } else if section.is_some() {
+        problems.push(section_not_shown(
+            "the layout made no place for it on the sheet".into(),
+        ));
     }
     let mut title = spec.sheet.title.clone();
     title
@@ -613,11 +762,19 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         basis,
         title,
     };
-    let (dimensions, omitted, more) = crate::dims::plan(analysis, spec, &sheet, &views)?;
+    let (dimensions, mut omitted, more) = crate::dims::plan(analysis, spec, &sheet, &views)?;
     problems.extend(more);
-    let mut spec = spec.clone();
+    for o in &mut omitted {
+        if inactive.contains(&o.id) {
+            o.basis =
+                "inactive: the spec lists it, for another revision (spec_entries_inactive)".into();
+        }
+    }
+    let mut spec = given.clone();
     spec.schema = SPEC_SCHEMA.into();
-    spec.binding = Some(analysis.binding.clone());
+    if inactive.is_empty() {
+        spec.binding = Some(analysis.binding.clone());
+    }
     Ok(Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
@@ -651,33 +808,42 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         let Some((last, parents)) = path.split_last() else {
             return Err(invalid("An edit's path is empty.", &[]));
         };
+        if !["set", "remove"].contains(&kind) {
+            return Err(invalid(
+                format!("{kind:?} is not an edit."),
+                &["set", "remove"],
+            ));
+        }
+        let absent = || {
+            invalid(
+                format!(
+                    "There is nothing at {:?} to remove.",
+                    op["path"].as_str().unwrap_or("")
+                ),
+                &[],
+            )
+        };
+        // `set` makes the objects on its path; `remove` needs every one of them there.
         let mut at = &mut doc;
         for key in parents {
-            if !at.is_object() {
+            let Some(object) = at.as_object_mut() else {
                 return Err(invalid(format!("{key:?} is not inside an object."), &[]));
-            }
-            at = at
-                .as_object_mut()
-                .expect("checked")
-                .entry(key.to_string())
-                .or_insert_with(|| serde_json::json!({}));
+            };
+            at = if kind == "set" {
+                object
+                    .entry(key.to_string())
+                    .or_insert_with(|| serde_json::json!({}))
+            } else {
+                object.get_mut(key).ok_or_else(absent)?
+            };
         }
         let object = at
             .as_object_mut()
             .ok_or_else(|| invalid(format!("{:?} is not an object.", parents.join("/")), &[]))?;
-        match kind {
-            "set" => {
-                object.insert(last.to_string(), op["value"].clone());
-            }
-            "remove" => {
-                object.remove(last.as_str());
-            }
-            other => {
-                return Err(invalid(
-                    format!("{other:?} is not an edit."),
-                    &["set", "remove"],
-                ));
-            }
+        if kind == "set" {
+            object.insert(last.to_string(), op["value"].clone());
+        } else {
+            object.remove(last.as_str()).ok_or_else(absent)?;
         }
     }
     serde_json::from_value(doc)
@@ -816,7 +982,7 @@ pub fn render(
         text,
         annotations,
         problems: crate::output::undrawn(&undrawn),
-        spec: Some(serde_json::to_string(&plan.spec).expect("a spec serialises")),
+        spec: Some(embeddable(&plan.spec)),
     })
 }
 
@@ -950,52 +1116,117 @@ fn placed(e: &Exact, s: f64, centre: [f64; 2], at: [f64; 2]) -> Exact {
     }
 }
 
+/// *spec* as the JSON a drawing carries: `<`, `>` and `&` written as `\u` escapes, so no markup
+/// (an end tag, a CDATA section's end, an entity) can be read inside it.
+fn embeddable(spec: &Spec) -> String {
+    serde_json::to_string(spec)
+        .expect("a spec serialises")
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026")
+}
+
 /// The spec embedded in a rendered SVG, DXF or PDF, so a drawing can be resumed from the file
-/// alone.
-pub fn embedded_spec(file: &[u8]) -> Option<Spec> {
+/// alone: `None` when the drawing carries none. The format is told by the file's signature; a
+/// file that is none of the three, or a spec that does not read, is an error saying why.
+pub fn embedded_spec(file: &[u8]) -> Result<Option<Spec>, String> {
     let text = String::from_utf8_lossy(file);
-    // The DXF marker counts only as a whole 999 comment line: the SVG and PDF carry the spec's
-    // JSON, which never holds a raw line break, so a spec value quoting the marker cannot match.
-    let dxf = ["999\r\n", "999\n"].iter().find_map(|code| {
+    let start = text.trim_start_matches('\u{feff}').trim_start();
+    let json = if file.starts_with(b"%PDF-") {
+        pdf_spec(&text)?
+    } else if start.starts_with('<') {
+        svg_spec(&text)?
+    } else if start
+        .lines()
+        .next()
+        .is_some_and(|l| !l.trim().is_empty() && l.trim().parse::<i32>().is_ok())
+    {
+        // A DXF opens with a group code.
+        dxf_spec(&text)
+    } else {
+        return Err("it is not an SVG, DXF or PDF drawing".into());
+    };
+    json.map(|j| {
+        serde_json::from_str(&j)
+            .map_err(|e| format!("it carries a draftwright spec that is not valid: {e}"))
+    })
+    .transpose()
+}
+
+/// The JSON of a DXF's spec: the 999 comments after the marker, joined. The marker counts only
+/// as a whole comment line.
+fn dxf_spec(text: &str) -> Option<String> {
+    let i = ["999\r\n", "999\n"].iter().find_map(|code| {
         let i = text.find(&format!("{code}{}", crate::output::DXF_SPEC))?;
         let end = i + code.len() + crate::output::DXF_SPEC.len();
         matches!(text.as_bytes().get(end), Some(b'\r' | b'\n')).then_some(i + code.len())
-    });
-    let json = if let Some(i) = dxf {
-        // DXF: the 999 comments after the marker, joined.
-        let mut lines = text[i..]
-            .split('\n')
-            .map(|l| l.strip_suffix('\r').unwrap_or(l));
-        lines.next();
-        let mut json = String::new();
-        while let (Some(code), Some(piece)) = (lines.next(), lines.next())
-            && code.trim() == "999"
-        {
-            json += piece;
-        }
-        json
-    } else if let Some(i) = text.find("<draftwright:spec") {
-        let rest = &text[i..];
-        let rest = &rest[rest.find("<![CDATA[")? + "<![CDATA[".len()..];
-        let end = rest.find("</draftwright:spec>")?;
-        // A "]]>" in the JSON was written split across two sections.
-        rest[..end]
-            .trim_end_matches("]]>")
-            .replace("]]]]><![CDATA[>", "]]>")
-    } else if let Some(i) = text.find("/DraftwrightSpec (") {
-        crate::output::pdf_unescape(&text[i + "/DraftwrightSpec (".len()..])?
-    } else {
-        // pdf-writer writes a string that is not all ASCII in hex.
-        let i = text.find("/DraftwrightSpec <")? + "/DraftwrightSpec <".len();
-        let digits: Vec<u8> = text[i..i + text[i..].find('>')?]
-            .bytes()
-            .filter(|b| !b.is_ascii_whitespace())
-            .collect();
-        let bytes = digits
-            .chunks(2)
-            .map(|d| u8::from_str_radix(std::str::from_utf8(d).ok()?, 16).ok())
-            .collect::<Option<Vec<u8>>>()?;
-        String::from_utf8(bytes).ok()?
+    })?;
+    let mut lines = text[i..]
+        .split('\n')
+        .map(|l| l.strip_suffix('\r').unwrap_or(l));
+    lines.next();
+    let mut json = String::new();
+    while let (Some(code), Some(piece)) = (lines.next(), lines.next())
+        && code.trim() == "999"
+    {
+        json += piece;
+    }
+    Some(json)
+}
+
+/// The JSON of an SVG's `draftwright:spec` element: its character data, CDATA sections taken as
+/// they are and the rest with XML's predefined entities undone (a spec a re-saving editor wrote
+/// without CDATA still reads).
+fn svg_spec(text: &str) -> Result<Option<String>, String> {
+    let Some(i) = text.find("<draftwright:spec") else {
+        return Ok(None);
     };
-    serde_json::from_str(&json).ok()
+    let broken = || "its draftwright:spec element is not closed".to_string();
+    let mut rest = &text[i + text[i..].find('>').ok_or_else(broken)? + 1..];
+    let mut json = String::new();
+    loop {
+        if let Some(r) = rest.strip_prefix("<![CDATA[") {
+            let end = r.find("]]>").ok_or_else(broken)?;
+            json += &r[..end];
+            rest = &r[end + "]]>".len()..];
+        } else if rest.starts_with("</draftwright:spec>") {
+            return Ok(Some(json));
+        } else if rest.starts_with('<') || rest.is_empty() {
+            return Err(broken());
+        } else {
+            let end = rest.find('<').unwrap_or(rest.len());
+            json += &rest[..end]
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&apos;", "'")
+                .replace("&amp;", "&");
+            rest = &rest[end..];
+        }
+    }
+}
+
+/// The JSON of a PDF's `/DraftwrightSpec` document information string.
+fn pdf_spec(text: &str) -> Result<Option<String>, String> {
+    let broken = || "its /DraftwrightSpec string does not read".to_string();
+    if let Some(i) = text.find("/DraftwrightSpec (") {
+        return crate::output::pdf_unescape(&text[i + "/DraftwrightSpec (".len()..])
+            .map(Some)
+            .ok_or_else(broken);
+    }
+    // pdf-writer writes a string that is not all ASCII in hex.
+    let Some(i) = text.find("/DraftwrightSpec <") else {
+        return Ok(None);
+    };
+    let i = i + "/DraftwrightSpec <".len();
+    let digits: Vec<u8> = text[i..i + text[i..].find('>').ok_or_else(broken)?]
+        .bytes()
+        .filter(|b| !b.is_ascii_whitespace())
+        .collect();
+    let bytes = digits
+        .chunks(2)
+        .map(|d| u8::from_str_radix(std::str::from_utf8(d).ok()?, 16).ok())
+        .collect::<Option<Vec<u8>>>()
+        .ok_or_else(broken)?;
+    String::from_utf8(bytes).map(Some).map_err(|_| broken())
 }

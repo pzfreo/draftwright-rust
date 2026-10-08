@@ -4,8 +4,8 @@
 //! - `draftwright analyse part.step [--features r.json]`: the Analysis
 //! - `draftwright plan part.step [--features r.json] [--spec s.json]`: the Plan
 //! - `draftwright render part.step [--features r.json] [--spec s.json] -o out
-//!   [--formats svg,dxf,pdf]`: writes the files and prints what was written, with the plan's
-//!   problems
+//!   [--formats svg,dxf,pdf]`: writes the files (`out.svg`, …) and prints what was written, with
+//!   the problems: the plan's, and what could not be drawn as planned
 //! - `draftwright review part.step [--features r.json] [--spec s.json]`: the drawing as SVG
 //!   text, with the problems and lint's findings on the drawing
 //! - `draftwright edit s.json ops.json`: the edited Spec
