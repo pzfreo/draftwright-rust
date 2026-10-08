@@ -4,12 +4,13 @@
 //! - `draftwright analyse part.step [--features r.json]`: the Analysis
 //! - `draftwright plan part.step [--features r.json] [--spec s.json]`: the Plan
 //! - `draftwright render part.step [--features r.json] [--spec s.json] -o out
-//!   [--formats svg,dxf,pdf]`: writes the files (`out.svg`, …) and prints what was written, with
-//!   the problems: the plan's, and what could not be drawn as planned
+//!   [--formats svg,dxf,pdf,png] [--dpi 150]`: writes the files (`out.svg`, …; svg, dxf and pdf
+//!   unless named, a PNG at `--dpi` pixels per inch) and prints what was written, with the
+//!   problems: the plan's, and what could not be drawn as planned
 //! - `draftwright review part.step [--features r.json] [--spec s.json]`: the drawing as SVG
 //!   text, with the problems and lint's findings on the drawing
 //! - `draftwright edit s.json ops.json`: the edited Spec
-//! - `draftwright spec drawing.(svg|dxf|pdf)`: the Spec embedded in a rendered drawing
+//! - `draftwright spec drawing.(svg|dxf|pdf|png)`: the Spec embedded in a rendered drawing
 //! - `draftwright serve`: the JSON-lines service. One request per line on stdin, such as
 //!   `{"id": 1, "op": "plan", "step": "part.step", "spec": {…}}`, and one reply per line on
 //!   stdout: `{"id": 1, "ok": true, "result": …}` or `{"id": 1, "ok": false, "error": {"code",
@@ -90,6 +91,7 @@ fn run(args: &[String]) -> Result<Value, Error> {
             "spec": spec,
             "output": flag(args, "-o").ok_or_else(|| Error::invalid("render needs -o <output stem>"))?,
             "formats": flag(args, "--formats").unwrap_or("svg,dxf,pdf").split(',').collect::<Vec<_>>(),
+            "dpi": flag(args, "--dpi").map(|d| d.parse::<f64>().map_err(|_| Error::invalid(format!("--dpi {d:?} is not a number")))).transpose()?,
         }),
         "edit" => json!({ "spec": read_json(arg(1)?)?, "ops": read_json(arg(2)?)? }),
         "spec" => json!({ "drawing": arg(1)? }),

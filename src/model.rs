@@ -1154,7 +1154,9 @@ fn embeddable(spec: &Spec) -> String {
 pub fn embedded_spec(file: &[u8]) -> Result<Option<Spec>, String> {
     let text = String::from_utf8_lossy(file);
     let start = text.trim_start_matches('\u{feff}').trim_start();
-    let json = if file.starts_with(b"%PDF-") {
+    let json = if crate::png::is_png(file) {
+        crate::png::spec(file)?
+    } else if file.starts_with(b"%PDF-") {
         pdf_spec(&text)?
     } else if start.starts_with('<') {
         svg_spec(&text)?
@@ -1166,7 +1168,7 @@ pub fn embedded_spec(file: &[u8]) -> Result<Option<Spec>, String> {
         // A DXF opens with a group code.
         dxf_spec(&text)
     } else {
-        return Err("it is not an SVG, DXF or PDF drawing".into());
+        return Err("it is not an SVG, DXF, PDF or PNG drawing".into());
     };
     json.map(|j| {
         serde_json::from_str(&j)

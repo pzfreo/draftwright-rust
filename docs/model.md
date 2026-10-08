@@ -204,7 +204,7 @@ calls.
 | `analyse` | STEP file | Analysis |
 | `plan` | Analysis, Spec | Plan (with problems); rebinds first if the spec's binding differs |
 | `edit` | Spec, ops | Spec, or a validation error |
-| `render` | Plan, formats | SVG, DXF, PDF (and PNG), each with the spec embedded |
+| `render` | Plan, formats, dpi | SVG, DXF and PDF by default, and PNG at `dpi` (150) when asked, each with the spec embedded |
 | `review` | Plan | a rendered image, the problems and lint's findings on the drawing, for a check |
 
 **`edit` operations** are small and addressed by path:
