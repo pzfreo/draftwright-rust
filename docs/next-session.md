@@ -164,6 +164,21 @@ quiddity commit that has it.
   5. **The bridge refuses on tiny area differences.** `render` refuses nist_ctc_04 entirely
      ("face 367 has area 13.080630 here and 13.100238 in the recognition JSON", 0.15%). Decide a
      principled tolerance (with evidence that the faces are the same) instead of exact agreement.
+- **Top priority from the maintainer (2026-10-08 evening): callout leaders.** "Something is
+  wrong with the leaders, especially diagonals." Callouts are stacked in lanes beyond every linear
+  dimension with a fixed 45° leader (`src/dims/placement.rs` `place_callout`, `turned`), so on a
+  part with location ladders the leaders run across the view, the ladders and the sheet. Even
+  with d-placement-fit (98190ba) on cgb245, three callouts (2× R3, 2× ⌀6, 4× ⌀10) still sit at
+  the sheet's top with diagonals across the plan view, and those moved to the right fan across
+  the view and its ladder. Python draftwright on the same part (the reference; render it with
+  `draftwright cgb245.step`) puts each callout just outside the view, level with or near its
+  hole, with a short leader and a horizontal shoulder that crosses no geometry or dimension.
+  Dispatch one stream (after d-placement-fit merges, same file) to port draftwright's leader
+  placement: annotations/_leader_candidates.py, leader_policy.py, _placement_occupancy.py and
+  the pending leader rules in docs/rules (crossing, length, angle, side). Accept: on cgb245,
+  ctc04 (native) and the 13 captured sheets, no leader crosses its own or another view's
+  outline or another annotation, leader lengths are comparable to Python's (report the
+  distribution), and the rendered PDFs are compared visually with Python's.
 - **Main-session decisions, 2026-10-08** (judgement calls; the maintainer can overturn them):
   - fingerprints belong to quiddity (ADR R3). Once quiddity-rust publishes its recognition
     document, `bridge.rs`'s own fingerprint is retired in favour of quiddity's;
