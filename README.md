@@ -69,12 +69,13 @@ What it draws so far (at bbd3dd7):
   its features need.
 - **Section A–A** by draftwright's rule (a z-axis hole that is counterbored, spotfaced or
   blind), hatched at 45°, with its cutting-plane line and caption.
-- **First dimensions:** the overall envelope, turned steps, and hole callouts with their
-  locations and pattern pitches, each a Plan item with an ID, label and basis.
+- **First dimensions:** the overall envelope, turned steps, hole callouts with their
+  locations and pattern pitches, through slots, bosses, and fillet and chamfer callouts, each a
+  Plan item with an ID, label and basis.
 - **Lint for holes:** every recognised hole's sizes, THRU or depth, recesses and count must be
   stated on the drawing; `review` reports what is not, reading the port's own callouts.
 
-Other feature kinds (fillets, chamfers, slots, bosses, …), notes and tables are not drawn yet.
+Other feature kinds (blends, slot patterns, blind slots, …), notes and tables are not drawn yet.
 The plan (`docs/plan.md`), the ADRs (`docs/adr/`), the rules catalogue that tracks what the
 Python version learnt (`docs/rules/`) and the latest review (`docs/review-2026-10-08.md`) are in
 `docs/`.

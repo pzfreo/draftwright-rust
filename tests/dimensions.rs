@@ -3,12 +3,14 @@
 //! In scope are the families the port plans: the overall extents (`width`, `depth`, `height`,
 //! a turned part's `od.diameter`), hole callouts (bore, counterbore, spotface, countersink and
 //! bolt-circle terms, on holes, patterns and turned bores), hole and pattern locations, pattern
-//! pitches, slot sizes (`slot`: width, length, end radius) and locations (`location.slot`), and
-//! boss diameters and heights (`boss`). Each of draftwright's annotations that states one of them is matched with
-//! a plan item of the same family, view and printed label whose measurement identity agrees:
-//! for an extent, a pitch or a location (whose family names its axis), the same value within
-//! half the printed unit; for a callout, every feature draftwright names sits where one of the
-//! item's features (or its pattern) does, within 0.01 mm across the view. Every difference is listed, with a count, a verdict and the reason, in
+//! pitches, slot sizes (`slot`: width, length, end radius) and locations (`location.slot`), boss
+//! diameters and heights (`boss`), and fillet and chamfer callouts. Each of draftwright's
+//! annotations that states one of them is matched with a plan item of the same family, view and
+//! printed label whose measurement identity agrees: for an extent, a pitch or a location (whose
+//! family names its axis), the same value within half the printed unit; for a callout (fillets'
+//! and chamfers' too), every feature draftwright names sits where one of the item's features (or
+//! its pattern) does, within 0.01 mm across the view. Every difference is listed, with a count, a
+//! verdict and the reason, in
 //! `tests/fixtures/known_dimensions.json`; a listed difference that goes away must come off.
 //!
 //! The features come from Python quiddity 0.3.9 (draftwright's own recogniser for these sheets),
@@ -35,7 +37,7 @@ struct Known {
     part: String,
     /// `python` (on draftwright's sheet, not the port's) or `rust` (the other way).
     side: String,
-    /// `envelope`, `callout`, `location.<axis>` or `pitch`.
+    /// `envelope`, `callout`, `location.<axis>`, `pitch`, `fillet` or `chamfer`.
     family: String,
     view: String,
     label: String,
@@ -78,6 +80,8 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
             Some("envelope".into())
         }
         "od.diameter" => Some("envelope".into()),
+        "fillet.radius" => Some("fillet".into()),
+        "chamfer.length" => Some("chamfer".into()),
         "pitch.length" => Some("pitch".into()),
         "slot_width.length" | "slot_length.length" | "slot_end_radius.radius" => {
             Some("slot".into())
@@ -124,6 +128,8 @@ fn rust_family(d: &PlannedDimension) -> String {
         format!("location.{}", parameter.rsplit('.').next().unwrap_or(""))
     } else if parameter.contains("pitch") {
         "pitch".into()
+    } else if parameter == "fillet.radius" || parameter == "chamfer.length" {
+        parameter.split('.').next().unwrap_or("").into()
     } else {
         "callout".into()
     }
@@ -176,7 +182,7 @@ fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, u
             .measurements
             .iter()
             .filter_map(|m| m.feature.as_ref())
-            .filter(|f| f.kind == "hole" || f.kind == "pattern")
+            .filter(|f| ["hole", "pattern", "fillet", "chamfer"].contains(&f.kind.as_str()))
             .filter_map(|f| f.origin)
             .collect();
         python.push(Item {
@@ -212,7 +218,7 @@ fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, u
         // Values agree within half the printed unit (the labels are already equal); a location's
         // identity is its view, axis and distance; a callout's, where its features are.
         match p.family.as_str() {
-            "callout" => {
+            "callout" | "fillet" | "chamfer" => {
                 let skip = depth_axis(&p.view);
                 p.origins.iter().all(|o| {
                     r.origins

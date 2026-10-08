@@ -152,13 +152,18 @@ placed}`:
   their pitches (`grid_pitch.length.row|col`, `pitch.length`). A hole or bolt circle on a turned
   part's axis is not located across it.
 
-Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`), listed in
-`dims::PLANNERS` with the feature kinds it dimensions. Every other recognised feature (fillets,
-chamfers, bosses, slots, turned steps, …) gets one info problem, `dimensions_not_ported`, on its
+- **Fillets and chamfers** (`src/dims/edges.rs`): `R3` and `C1` or `4.5 × 42.1°` callouts, equal
+  ones counted (`4× R3`), where the edge is seen end-on, or in the profile when quiddity marks
+  them turned. A record whose sizes or axis cannot be read is reported (`feature_not_dimensioned`).
+  Oriented chamfers (always oblique in quiddity) are left undimensioned, as in draftwright (#1365).
+
+Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `slots`, `bosses`,
+`edges`), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised
+feature (blends, slot patterns, turned steps, …) gets one info problem, `dimensions_not_ported`, on its
 ID: draftwright dimensions those kinds and the port does not yet, so this is a gap in the port,
 not in the part. Record types draftwright itself leaves undimensioned (freeform surfaces,
-thin-wall and sheet-metal bodies, oriented chamfers, …; `detect.py`'s unconsumed and orchestrated
-records) are not reported.
+thin-wall and sheet-metal bodies, …; `detect.py`'s unconsumed and orchestrated records) are not
+reported.
 
 `placed` is the item's ink on the page (lines, arrowheads, the label's baseline origin, rotation
 and box); renderers draw it and the terms, and nothing else. Placement is simple: lanes outward

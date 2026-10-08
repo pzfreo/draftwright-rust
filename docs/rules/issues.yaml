@@ -1361,7 +1361,9 @@
       - "tests/test_issue_1254_turned_chamfers.py::test_a_supplied_parallel_chamfer_is_not_guessed_to_be_turned"
       - "tests/test_issue_1254_turned_chamfers.py::test_same_first_leg_does_not_collapse_different_chamfer_forms"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
-  status: pending
+  status: ported
+  rust_test: tests/dims_edges.rs::grm03_states_three_chamfers_in_two_callouts
+  rust_note: "GRM-03's three turned chamfers are two callouts in the profile view covering all three measurements; chamfers sharing only their first leg are separate callouts (tests/dims_edges.rs::chamfers_are_called_out_c_or_leg_and_angle). A chamfer is turned only when quiddity's record says so (src/dims/edges.rs); the port has no declared builds, so draftwright's supplied-parallel-chamfer case is quiddity's record with turned false."
   port_note: "Keep: scenario GRM-03 -> two chamfer callouts covering three measurement IDs."
 
 - id: ISSUE-1260-a
@@ -1424,6 +1426,8 @@
       - "tests/test_issue_1276_turned_leader_targets.py::test_sheet_knurl_leader_lands_on_the_cylindrical_surface"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
   status: pending
+  rust_test: src/dims/edges.rs::tests::a_turned_site_turns_onto_the_profile
+  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl and groove notes are not planned."
   port_note: "Keep: plan leader targets reference analysis edges/faces; scenario on GRM-03."
 
 - id: ISSUE-1281-a
@@ -1435,7 +1439,9 @@
       - "tests/test_issue_1281_turned_fillets.py::test_rounded_shaft_renders_one_requirement_with_all_four_identities"
       - "tests/test_issue_1281_turned_fillets.py::test_a_supplied_parallel_fillet_is_not_guessed_to_be_turned"
     corpus_parts: ["rounded-shaft.step"]
-  status: pending
+  status: ported
+  rust_test: tests/dims_edges.rs::a_turned_fillet_reads_in_the_profile_and_is_never_guessed_turned
+  rust_note: "Turned fillets read in the shaft's profile, one n× R callout with every measurement; the same records with turned false read end-on, never guessed turned. The scenario is the port's turned fixture, not draftwright's rounded-shaft.step."
   port_note: "Keep."
 
 - id: ISSUE-1296-a
@@ -1932,6 +1938,8 @@
       - "tests/test_issue_1374_chamfer_completeness_evidence.py::test_wrong_chamfer_view_loses_drawing_credit"
     corpus_parts: ["chamfer-compound.step", "chamfer-overlap.step", "chamfer-turned.step"]
   status: pending
+  rust_test: tests/dims_edges.rs::chamfers_are_called_out_c_or_leg_and_angle
+  rust_note: "Ported in the plan: each chamfer is one requirement, equal chamfers (legs and angle) share one counted callout that keeps every member's chamfer.length measurement. Not ported: drawing credit lost by a leader moved off the bevel or into the wrong view (lint judges claims, not leader tips)."
   port_note: "Keep."
 
 - id: ISSUE-1374-b
@@ -1946,6 +1954,8 @@
       - "tests/test_issue_1374_fillet_completeness_evidence.py::test_weakening_provider_fillet_radius_reduces_fidelity"
     corpus_parts: ["fillet-overlap.step", "fillet-repeated.step"]
   status: pending
+  rust_test: tests/dims_edges.rs::equal_fillets_share_one_counted_callout
+  rust_note: "Ported in the plan: each fillet is one requirement, equal fillets share one n× R callout that keeps every member's fillet.radius measurement. Not ported: drawing credit lost by a leader moved off the round or profile (lint judges claims, not leader tips)."
   port_note: "Keep."
 
 - id: ISSUE-1374-c
