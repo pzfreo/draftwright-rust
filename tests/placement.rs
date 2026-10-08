@@ -374,3 +374,238 @@ fn omitting_one_dimension_moves_no_other() {
     }
     eprintln!("{edits} single-dimension edits, none moving another item");
 }
+
+/// Each view's drawn box on the page: a principal view's part box (the envelope projected, at
+/// its scale, centred at its position), the isometric's projected bounds.
+fn view_boxes(plan: &Plan, analysis: &Analysis) -> Vec<(String, [f64; 4])> {
+    plan.views
+        .iter()
+        .map(|v| {
+            let b = if v.id == "v:iso" {
+                let ib = analysis.iso_bounds;
+                [
+                    v.at[0] + v.scale * ib[0],
+                    v.at[1] + v.scale * ib[1],
+                    v.at[0] + v.scale * ib[2],
+                    v.at[1] + v.scale * ib[3],
+                ]
+            } else {
+                let view = haecceity::hlr::View::new(v.direction, v.up).unwrap();
+                let [lo, hi] = analysis.envelope;
+                let (mut min, mut max) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+                for i in 0..8 {
+                    let corner = [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] });
+                    let p = view.map(corner);
+                    for k in 0..2 {
+                        min[k] = min[k].min(p[k]);
+                        max[k] = max[k].max(p[k]);
+                    }
+                }
+                let half = [0.5 * (max[0] - min[0]), 0.5 * (max[1] - min[1])];
+                [
+                    v.at[0] - v.scale * half[0],
+                    v.at[1] - v.scale * half[1],
+                    v.at[0] + v.scale * half[0],
+                    v.at[1] + v.scale * half[1],
+                ]
+            };
+            (v.id.clone(), b)
+        })
+        .collect()
+}
+
+/// Whether segment *s* passes through the open box *b* (Liang–Barsky).
+fn crosses(s: [[f64; 2]; 2], b: [f64; 4]) -> bool {
+    let (p, d) = (s[0], [s[1][0] - s[0][0], s[1][1] - s[0][1]]);
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    for (num, den) in [
+        (p[0] - b[0], -d[0]),
+        (b[2] - p[0], d[0]),
+        (p[1] - b[1], -d[1]),
+        (b[3] - p[1], d[1]),
+    ] {
+        if den == 0.0 {
+            if num <= 0.0 {
+                return false;
+            }
+        } else if den < 0.0 {
+            t0 = t0.max(num / den);
+        } else {
+            t1 = t1.min(num / den);
+        }
+    }
+    t1 - t0 > 1e-9
+}
+
+fn reported_pair(plan: &Plan, code: &str, id: &str, view: &str) -> bool {
+    plan.problems
+        .iter()
+        .any(|p| p.code == code && p.subjects == [id.to_string(), view.to_string()])
+}
+
+/// ISSUE-1215-e (c) and review M3: whatever placement cannot fit stays on the plan and is
+/// reported, never dropped or clipped. On every part, each placed item whose ink leaves the
+/// drawing area is an `annotation_off_sheet` error, and each line of it that runs across a view
+/// not its own (a leader to the isometric, a ladder rung through the side view) is an
+/// `annotation_line_over_view` naming that view; and every item the plan keeps is placed.
+#[test]
+fn what_does_not_fit_the_page_is_reported() {
+    let mut parts = fixture_parts();
+    parts.extend(corpus_parts());
+    let mut crossings = 0;
+    for (name, analysis) in &parts {
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let m = draftwright::layout::MARGIN;
+        let [w, h] = plan.sheet.page;
+        let boxes = view_boxes(&plan, analysis);
+        for d in &plan.dimensions {
+            let Some(p) = d.placed.as_ref() else {
+                assert!(
+                    plan.problems
+                        .iter()
+                        .any(|q| q.code == "view_plan_incomplete" && q.subjects.contains(&d.id)),
+                    "{name}: {} is neither placed nor reported",
+                    d.id
+                );
+                continue;
+            };
+            let b = p.label_box;
+            let off = |q: &[f64; 2]| {
+                q[0] < m - 1e-9 || q[1] < m - 1e-9 || q[0] > w - m + 1e-9 || q[1] > h - m + 1e-9
+            };
+            if off(&[b[0], b[1]]) || off(&[b[2], b[3]]) || p.lines.iter().flatten().any(off) {
+                assert!(
+                    reported(&plan, "annotation_off_sheet", &d.id),
+                    "{name}: {} runs off the sheet unreported",
+                    d.id
+                );
+            }
+            for (view, vb) in &boxes {
+                if *view != d.view && p.lines.iter().any(|l| crosses(*l, *vb)) {
+                    crossings += 1;
+                    assert!(
+                        reported_pair(&plan, "annotation_line_over_view", &d.id, view),
+                        "{name}: a line of {} runs across {view} unreported",
+                        d.id
+                    );
+                }
+            }
+        }
+    }
+    eprintln!("{crossings} lines across another view, each reported");
+}
+
+/// cgb245 (CLI trial, 2026-10-08), with its corpus features.
+fn cgb245() -> Option<(Analysis, Plan)> {
+    let (_, analysis) = corpus_parts().into_iter().find(|(n, _)| n == "cgb245")?;
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    Some((analysis, plan))
+}
+
+/// ISSUE-1215-e (a): a strip with no room for its lanes passes them to the strip across the
+/// view. On cgb245 (A2 at 1:2) the band left of the plan holds two lanes before the sheet's
+/// margin, where its nine vertical dimensions used to stack off the sheet (10
+/// `annotation_off_sheet` errors). The y locations that do not fit there now stand right of the
+/// plan, on the sheet and clear of the isometric; the one that fits on neither side (hole:1's,
+/// whose next lane on the right would cross the isometric) keeps its lane and stays reported.
+#[test]
+fn a_strip_without_room_falls_through_to_the_opposite_strip() {
+    let Some((analysis, plan)) = cgb245() else {
+        return;
+    };
+    let boxes = view_boxes(&plan, &analysis);
+    let outline = boxes.iter().find(|(v, _)| v == "v:plan").unwrap().1;
+    let off: Vec<&str> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "annotation_off_sheet")
+        .map(|p| p.subjects[0].as_str())
+        .collect();
+    assert_eq!(off, ["d:f:hole:1/location.length.y@plan"]);
+    let mut moved = 0;
+    for d in &plan.dimensions {
+        if d.view != "v:plan" || !d.id.contains("location.length.y") || off.contains(&d.id.as_str())
+        {
+            continue;
+        }
+        let p = d.placed.as_ref().unwrap();
+        if p.label_box[0] > outline[2] {
+            moved += 1;
+            assert!(
+                !reported(&plan, "annotation_off_sheet", &d.id)
+                    && !plan
+                        .problems
+                        .iter()
+                        .any(|q| q.subjects.first() == Some(&d.id)
+                            && q.code == "annotation_line_over_view"),
+                "{} fell through but does not fit",
+                d.id
+            );
+        }
+    }
+    assert!(moved >= 5, "{moved} y locations fell through to the right");
+}
+
+/// ISSUE-1215-e: a starved overall extent falls through to the opposite strip. draftwright moves
+/// only the extent; the port moves every linear item past the cut, so the extent has first claim
+/// on the opposite strip's free lanes. On cgb245 and m1000 the front's right strip runs into the
+/// side view past the height ladder's rungs and its left strip has one lane before the sheet's
+/// margin: the overall height takes it (left of the front, its lines clear of the side view and
+/// nothing reported against it), not the innermost rung or location that would reach it first.
+#[test]
+fn a_starved_overall_extent_has_first_claim_on_the_opposite_strip() {
+    let parts = corpus_parts();
+    let mut checked = 0;
+    for (name, analysis) in parts.iter().filter(|(n, _)| n == "cgb245" || n == "m1000") {
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let boxes = view_boxes(&plan, analysis);
+        let front = boxes.iter().find(|(v, _)| v == "v:front").unwrap().1;
+        let id = "d:envelope/height.length@front";
+        let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+        let p = d.placed.as_ref().unwrap();
+        assert!(
+            p.label_box[2] < front[0],
+            "{name}: {id}'s label {:?} left of the front {front:?}",
+            p.label_box
+        );
+        let against: Vec<&str> = plan
+            .problems
+            .iter()
+            .filter(|q| q.subjects.first().is_some_and(|s| s == id))
+            .map(|q| q.code.as_str())
+            .collect();
+        assert!(against.is_empty(), "{name}: {id} reported {against:?}");
+        checked += 1;
+    }
+    assert!(parts.is_empty() || checked == 2, "{checked} parts checked");
+}
+
+/// Leaders stay off other views (CLI trial: on cgb245 the plan's callouts stacked above the
+/// ladder, their 45° leaders running across the sheet towards the isometric). A callout whose
+/// lane does not fit the page goes out to the side of its view as draftwright's plan callouts
+/// do: the 2×2 pattern's callout now stands right of the plan, within its height, its leader
+/// crossing no other view.
+#[test]
+fn a_callout_that_does_not_fit_its_lane_goes_beside_its_view() {
+    let Some((analysis, plan)) = cgb245() else {
+        return;
+    };
+    let boxes = view_boxes(&plan, &analysis);
+    let outline = boxes.iter().find(|(v, _)| v == "v:plan").unwrap().1;
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter@plan")
+        .unwrap();
+    let p = d.placed.as_ref().unwrap();
+    let b = p.label_box;
+    assert!(
+        b[0] > outline[2] && b[1] >= outline[1] && b[3] <= outline[3],
+        "label {b:?} beside the plan {outline:?}"
+    );
+    for (view, vb) in &boxes {
+        if view != "v:plan" {
+            assert!(!p.lines.iter().any(|l| crosses(*l, *vb)), "crosses {view}");
+        }
+    }
+}

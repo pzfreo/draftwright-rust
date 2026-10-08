@@ -1280,11 +1280,11 @@ fn a_jittered_pattern_claims_no_pitch_tolerance() {
     assert!(e.message.contains(pitch), "{e}");
 }
 
-/// ISSUE-1215-e, in part: an overall extent never leaves the sheet silently. On every part each
+/// ISSUE-1215-e: an overall extent never leaves the sheet silently. On every part each
 /// envelope extent the plan keeps is placed, and one whose ink runs off the drawing area is an
-/// `annotation_off_sheet` error naming it. Not ported: the fall-through to the opposite strip
-/// (the port keeps the extent in its lane and reports it) and draftwright's withholding and its
-/// retraction (the port withholds no extent).
+/// `annotation_off_sheet` error naming it. The fall-through to the opposite strip is checked in
+/// `tests/placement.rs`; draftwright's withholding and its retraction are not-applicable (the
+/// port withholds no extent).
 #[test]
 fn an_overall_extent_is_placed_or_reported() {
     let margin = draftwright::layout::MARGIN;
@@ -1603,9 +1603,11 @@ fn an_arrowhead_in_another_label_is_reported() {
 /// part with an isometric, each placed label over its drawn box (the projected bounds at its
 /// scale) is an `annotation_over_view` naming `v:iso`. A default plan's label over the isometric
 /// is itself a placement defect (ftc06's, recorded rust-wrong in known_placement.json), so the
-/// check is also run on plate pinned to A3 at 2:1, a scale whose annotations the sheet has no
+/// check is also run on plate pinned to A4 at 5:1, a scale whose annotations the sheet has no
 /// room for (some run off it, reported), where labels crowd onto the isometric and at least one
-/// must: that keeps the check exercised once the defects are fixed. Not ported: clamping a strip
+/// must: that keeps the check exercised once the defects are fixed. (It was A3 at 2:1 until
+/// placement's fall-through to the opposite strip and callouts beside their view, stream
+/// d-placement-fit, found room for every label there.) Not ported: clamping a strip
 /// below an overlapping isometric, and capping the isometric's growth at placed annotations (the
 /// port fits it into the space the views' areas leave, before anything is placed).
 #[test]
@@ -1613,14 +1615,14 @@ fn a_label_over_the_isometric_is_reported() {
     let plate = &fixtures().iter().find(|p| p.0 == "plate").unwrap().1;
     let crowded = model::plan(
         plate,
-        &spec(json!({ "sheet": { "size": "A3", "scale": "2:1" } })),
+        &spec(json!({ "sheet": { "size": "A4", "scale": "5:1" } })),
     )
     .unwrap();
     assert!(codes(&crowded).contains("annotation_off_sheet"));
     let cases = planned()
         .iter()
         .map(|(n, a, p)| (n.as_str(), a, p))
-        .chain([("plate on A3 at 2:1", plate, &crowded)]);
+        .chain([("plate on A4 at 5:1", plate, &crowded)]);
     let mut seen = 0;
     let mut seen_crowded = 0;
     for (name, analysis, plan) in cases {
@@ -1655,7 +1657,7 @@ fn a_label_over_the_isometric_is_reported() {
     );
     assert!(
         seen_crowded > 0,
-        "no label lies over plate's isometric on A3 at 2:1: the check loses its fixed-defect guard"
+        "no label lies over plate's isometric on A4 at 5:1: the check loses its fixed-defect guard"
     );
 }
 
