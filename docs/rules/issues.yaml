@@ -700,7 +700,7 @@
     corpus_parts: []
   status: pending
   rust_test: tests/dimension_rules.rs::a_grid_of_holes_is_called_out_once_located_and_spaced
-  rust_note: "Ported for holes along x, y or z: both grid pitches and the centre, and every singly dimensioned hole located in both directions (also blind_and_through_holes_are_separate_requirements). Not ported: an off-axis hole is refused (feature_not_dimensioned, src/dims.rs::hole), so its members are not located. Centre marks are not drawn yet, so none can replace a location."
+  rust_note: "Ported for holes along x, y or z: both grid pitches and the centre, and every singly dimensioned hole located in both directions (also blind_and_through_holes_are_separate_requirements). Not ported: an off-axis hole is refused (feature_not_dimensioned, src/dims/holes.rs::hole), so its members are not located. Centre marks are not drawn yet, so none can replace a location."
   port_note: "Keep: scenario tests -> plan has both pitches / every member location."
 
 - id: ISSUE-1143-d

@@ -131,7 +131,7 @@ mention takes its default.
 
 ### Dimensions (first cut)
 
-`src/dims.rs` plans the dimensions draftwright's defaults would state for the families ported
+`src/dims/` plans the dimensions draftwright's defaults would state for the families ported
 so far, each a Plan item `{id, kind, view, value, label, terms, measurements, default, basis,
 placed}`:
 
