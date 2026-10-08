@@ -14,7 +14,7 @@ use std::path::Path;
 
 use haecceity::Part;
 use haecceity::classify::{Classifier, State};
-use haecceity::hlr::{self, Exact, Plane, View, project, project_section};
+use haecceity::hlr::{self, Exact, Plane, Unresolved, View, project, project_section};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -310,6 +310,7 @@ pub fn analyse_with(path: &Path, recognition: Option<&Path>) -> Result<(Part, An
         f64::NEG_INFINITY,
     ];
     for p in project(&part, &iso)
+        .map_err(|e| format!("cannot draw {}: {e}", path.display()))?
         .iter()
         .flat_map(|piece| piece.points.iter())
     {
@@ -684,8 +685,14 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
 }
 
 /// Draws the plan: each view projected with hidden lines, placed and scaled, and the title
-/// block. The spec travels in the output.
-pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Drawing {
+/// block. The spec travels in the output. Refused when a drawn face or edge of *part* did not
+/// resolve on reading.
+pub fn render(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+) -> Result<Drawing, Unresolved> {
     // Section furniture (hatch, cutting plane), and its text: what, where.
     let mut furniture: Vec<Item> = Vec::new();
     let mut captions: Vec<(String, [f64; 2])> = Vec::new();
@@ -712,7 +719,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
         let pieces = match &plane {
             Some(plane) => project_section(part, &view, plane),
             None => project(part, &view),
-        };
+        }?;
         for piece in pieces {
             let mut moved = piece.clone();
             moved.points = piece.points.iter().map(|q| place(*q)).collect();
@@ -725,7 +732,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
             }
         }
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
-            let f = section_furniture(part, analysis, plan, v, (plane, cut));
+            let f = section_furniture(part, analysis, plan, v, (plane, cut))?;
             furniture.extend(f.ink);
             captions.extend(f.text);
         }
@@ -802,7 +809,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
         3.5,
         dims,
     );
-    Drawing {
+    Ok(Drawing {
         page: plan.sheet.page,
         layers,
         link: None,
@@ -810,7 +817,7 @@ pub fn render(part: &Part, analysis: &Analysis, plan: &Plan, font: &Font) -> Dra
         annotations,
         problems: crate::output::undrawn(&undrawn),
         spec: Some(serde_json::to_string(&plan.spec).expect("a spec serialises")),
-    }
+    })
 }
 
 /// A section view's furniture: ink, and texts with where each is centred.
@@ -827,7 +834,7 @@ fn section_furniture(
     plan: &Plan,
     v: &PlannedView,
     (plane, cut): (&Plane, &Cut),
-) -> Furniture {
+) -> Result<Furniture, Unresolved> {
     use crate::section::{HATCH_SPACING, OVERRUN, cutting_plane, hatch};
     let mut out = Furniture {
         ink: Vec::new(),
@@ -835,7 +842,7 @@ fn section_furniture(
     };
     let view = &View::new(v.direction, v.up).expect("a planned view");
     let (s, centre) = (v.scale, extent(analysis, view).1);
-    let page: Vec<Vec<[f64; 2]>> = hlr::section(part, plane)
+    let page: Vec<Vec<[f64; 2]>> = hlr::section(part, plane)?
         .iter()
         .map(|l| {
             l.iter()
@@ -897,7 +904,7 @@ fn section_furniture(
         out.ink.extend(ink);
         out.text.extend(letters.map(|at| (l.clone(), at)));
     }
-    out
+    Ok(out)
 }
 
 /// A projected curve scaled by *s* about *centre* and moved to *at*.

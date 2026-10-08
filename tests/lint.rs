@@ -487,7 +487,7 @@ fn reviewed(name: &str, json: &Value, spec: &model::Spec) -> (model::Plan, Vec<S
             .unwrap(),
     )
     .unwrap();
-    let drawing = model::render(&part, &analysis, &plan, &font);
+    let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
     let found = lint::lint(&analysis, &drawing)
         .into_iter()
         .map(|i| {
@@ -652,7 +652,7 @@ fn lint_reads_the_drawings_annotations() {
     let holes = &groups(&analysis)[0].members;
     let with = |label: &str| {
         // The drawing without the port's own callout, and one added by hand.
-        let mut drawing = model::render(&part, &analysis, &plan, &font);
+        let mut drawing = model::render(&part, &analysis, &plan, &font).unwrap();
         drawing.annotations.clear();
         drawing.text.push(TextRun {
             text: label.into(),

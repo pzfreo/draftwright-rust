@@ -108,7 +108,8 @@ fn drawn(
     let (part, analysis) = model::analyse_with(step, features).map_err(Error::invalid)?;
     let plan = model::plan(&analysis, spec)?;
     let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
-    let drawing = model::render(&part, &analysis, &plan, &font);
+    let drawing = model::render(&part, &analysis, &plan, &font)
+        .map_err(|e| Error::failed(format!("cannot draw {}: {e}", step.display())))?;
     Ok((analysis, plan, drawing))
 }
 

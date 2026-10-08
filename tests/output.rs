@@ -81,7 +81,7 @@ fn a_stretch_of_no_span_is_left_out_and_reported() {
         .unwrap(),
     )
     .unwrap();
-    let drawing = model::render(&part, &analysis, &plan, &font);
+    let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
     let ids: Vec<&str> = drawing.problems.iter().map(|p| p.id.as_str()).collect();
     assert_eq!(ids, ["p:edges_not_drawn:v:front"]);
     assert!(

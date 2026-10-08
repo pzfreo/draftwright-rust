@@ -40,9 +40,11 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
   against 285 recorded Python calls. Differences from Python's final sheets are listed with
   verdicts in `tests/fixtures/known_views.json` (71 entries).
 - **Bridge:** quiddity's features come in through `src/bridge.rs`, with stable IDs and
-  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 2fa7207
-  (`Cargo.lock`); that pin lets the bridge read nist_ftc_07 and nist_ftc_10. nist_ctc_04 is
-  still refused (one face's area differs from OpenCascade's by 0.15 %).
+  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 05c5d99
+  (`Cargo.lock`); the bridge reads nist_ftc_07 and nist_ftc_10. nist_ctc_04 is still refused
+  (one face's area differs from OpenCascade's by 0.15 %). Since 05c5d99 haecceity refuses to
+  draw a part whose drawn faces or edges did not resolve on reading; `analyse` and `render`
+  pass that refusal on (`render` as a `failed` error).
 - **Merged streams** (2026-10-07):
   - **View gaps** (d707219): a turned part drops the view that repeats its profile (ISSUE-1262-a,
     pending: the veto is narrower than Python's); annotation bands reserved from the features

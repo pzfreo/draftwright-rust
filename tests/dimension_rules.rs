@@ -514,6 +514,7 @@ fn renderers_draw_only_from_the_plan() {
     let mut plan = model::plan(&a, &Spec::default()).unwrap();
     let runs = |plan: &Plan| -> Vec<String> {
         model::render(&part, &a, plan, &font)
+            .unwrap()
             .text
             .iter()
             .filter(|r| r.font == dims::FONT && r.size == dims::TEXT)

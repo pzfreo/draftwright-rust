@@ -26,7 +26,7 @@ fn main() {
     let mut x = 20.0;
     let mut dropped = std::collections::BTreeMap::new();
     for (toward, up) in views {
-        let pieces = project(&part, &View::new(toward, up).unwrap());
+        let pieces = project(&part, &View::new(toward, up).unwrap()).unwrap();
         let (lo, hi) = pieces.iter().flat_map(|p| p.points.iter()).fold(
             ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]),
             |(lo, hi), q| {

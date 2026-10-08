@@ -125,7 +125,7 @@ fn section_a_a_is_planned_placed_and_drawn() {
     let font =
         Font::open(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
             .unwrap();
-    let drawing = model::render(&part, &analysis, &plan, &font);
+    let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
     let a = section.area;
     let hatch = drawing.layers[2]
         .items

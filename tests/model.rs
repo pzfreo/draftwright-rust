@@ -36,7 +36,8 @@ fn every_default_says_why_and_the_views_fit_the_sheet_apart() {
         assert!(plan.views.iter().all(|v| v.default && !v.basis.is_empty()));
         assert!(plan.problems.is_empty(), "{:?}", plan.problems);
         // Every view's ink lies inside the border, and no two views' boxes meet.
-        let drawing = model::render(&model::analyse(&part(name)).unwrap().0, &a, &plan, &font());
+        let drawing =
+            model::render(&model::analyse(&part(name)).unwrap().0, &a, &plan, &font()).unwrap();
         let [w, h] = plan.sheet.page;
         let mut boxes = Vec::new();
         for v in &plan.views {
@@ -116,7 +117,7 @@ fn edits_apply_and_the_spec_travels_in_the_output() {
     assert!(spec.views["iso"].omit && spec.sheet.size.is_none());
     let plan = model::plan(&a, &spec).unwrap();
     assert_eq!(plan.views.len(), 3);
-    let drawing = model::render(&p, &a, &plan, &font());
+    let drawing = model::render(&p, &a, &plan, &font()).unwrap();
     let pdf = drawing.pdf(&|_| {
         std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
             .ok()
@@ -136,7 +137,7 @@ fn the_same_documents_give_the_same_bytes() {
     let run = || {
         let (p, a) = model::analyse(&part("turned.step")).unwrap();
         let plan = model::plan(&a, &Spec::default()).unwrap();
-        let d = model::render(&p, &a, &plan, &font());
+        let d = model::render(&p, &a, &plan, &font()).unwrap();
         (
             serde_json::to_string(&plan).unwrap(),
             d.svg(),

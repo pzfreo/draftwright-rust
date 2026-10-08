@@ -122,7 +122,7 @@
   {
     "part": "ctc04",
     "subject": "analysis",
-    "group": "the bridge refuses the recognition: face 367 has area 13.080631 here and 13.100238 in the recognition JSON",
+    "group": "the bridge refuses the recognition: face 367 has area 13.080630 here and 13.100238 in the recognition JSON",
     "parameter": "*",
     "python": null,
     "rust": null,
