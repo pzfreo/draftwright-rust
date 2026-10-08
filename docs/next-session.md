@@ -145,6 +145,25 @@ quiddity commit that has it.
   stream `q-seam-fix` whose brief is: rebase that commit onto the current branch head, re-run
   the full checks, adjust the known-divergence counts the newer merges change, keep the 1e-9
   seam band and its reasons; then the integrator merges it like any other stream.
+- **Priorities from a CLI trial (main session, 2026-10-08, afternoon):** the maintainer is trying
+  `draftwright render` on corpus parts (at 98deec8). Dispatch these ahead of other backlog work:
+  1. **Memory blow-up in `tests/views.rs`.** Since the restart, a guard has killed the `views` test
+     binary 15 times at 16–26 GB, always in stream worktrees under the session scratchpad; the
+     same test on main uses ~150 MB in 9 s, including in a fresh worktree of origin/main. Find the
+     cause (a stream change, or something about how streams run it) and fix it; streams lose
+     whole runs to it.
+  2. **The CLI uses Rust quiddity's recognition.** `render`/`plan`/`analyse`/`review` without
+     `--features` should take features from quiddity-rust's recognition document
+     (`src/bridge/native.rs`), keeping `--features` (Python JSON) as the override; README updated.
+  3. **Annotations stay on the sheet.** On cgb245 `render` reports 10 `annotation_off_sheet`
+     errors (left-hand location ladders cut off by the border) and leaders run across the sheet
+     to the isometric view. Port the placement/fit rules that keep annotations inside the
+     drawing area (pending in docs/rules), or pick a larger sheet as draftwright does.
+  4. **Turned parts' step diameters.** On GRM-05 only ⌀10 and the overall 32 are dimensioned;
+     the smaller step diameters and their lengths are missing.
+  5. **The bridge refuses on tiny area differences.** `render` refuses nist_ctc_04 entirely
+     ("face 367 has area 13.080630 here and 13.100238 in the recognition JSON", 0.15%). Decide a
+     principled tolerance (with evidence that the faces are the same) instead of exact agreement.
 - **Main-session decisions, 2026-10-08** (judgement calls; the maintainer can overturn them):
   - fingerprints belong to quiddity (ADR R3). Once quiddity-rust publishes its recognition
     document, `bridge.rs`'s own fingerprint is retired in favour of quiddity's;
