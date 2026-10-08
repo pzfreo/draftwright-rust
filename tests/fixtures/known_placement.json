@@ -131,5 +131,12 @@
   "count": 3,
   "verdict": "rust-wrong",
   "reason": "Two step lengths below the front (d:f:turned_step:1 and :3/step.length@front, dims::turned) run along their lanes past the front's band (draftwright's estimate), and the cross hole's callout d:f:hole:1/bore.diameter@front stands just below the front (2.0 mm). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 5 before stream d-callout-leaders, with the turned steps' diameter callouts stacked in the lanes below the front; they now stand beside the view."
+ },
+ {
+  "part": "ftc06",
+  "code": "annotation_leader_search_capped",
+  "count": 1,
+  "verdict": "undetermined",
+  "reason": "The plan's 10 callouts conflict as one group (src/dims/leaders.rs::assign), and its branch and bound stops at NODE_BUDGET (200 000 nodes) from the descent-improved greedy start, so the assignment is the best found, not proved the best. In a one-off check (no test) a budget 100 times larger (20 000 000 nodes) gave the same leaders and the same crossings (none on ftc06); before the pairwise descent (stream d-callout-leaders' review round) the bounded search kept an assignment 28 mm longer in total (2× R12.7 28.6 mm against 7.7, 4× 31.8 × 25° 19.4 against 6.4). Whether the optimum is shorter still is not known."
  }
 ]

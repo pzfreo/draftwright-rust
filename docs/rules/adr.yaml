@@ -332,7 +332,7 @@
     tests: ["test_issue_1166_cross_pass_feature_leaders.py", "test_issue_740_leader_assignment.py", "test_issue_1188_per_view_assignment.py", "test_issue_1308_machined_leader_analytics.py"]
   status: pending
   rust_test: "src/dims/leaders.rs::tests::the_assignment_matches_an_exhaustive_oracle"
-  rust_note: "Partial: callout leaders are assigned jointly and late (after the dimensions; src/dims/leaders.rs). Not ported: provenance classes (every callout is required), and a fired node budget is not reported as a named capability loss."
+  rust_note: "Partial: callout leaders are assigned jointly and late (after the dimensions; src/dims/leaders.rs). A fired node budget is the plan problem annotation_leader_search_capped (info) naming the group's callouts. Not ported: provenance classes (every callout is required)."
   port_note: "Keep: joint leader assignment in the planner; a hit budget emits a structured Plan problem naming the lost capability."
 
 - id: ADR2-8

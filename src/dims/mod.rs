@@ -586,7 +586,7 @@ pub fn plan(
         .collect();
     placement::settle(&mut placed, analysis, sheet, views);
     let page = placement::Page::new(analysis, sheet, views);
-    leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page);
+    let leader_problems = leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page);
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
@@ -669,6 +669,16 @@ pub fn plan(
             ),
             subjects: ids,
         });
+    }
+    // Only what the plan draws: the leaders were placed for every item the part would have.
+    let drawn: BTreeSet<&str> = out.iter().map(|d| d.id.as_str()).collect();
+    for mut p in leader_problems {
+        p.subjects
+            .retain(|s| s.starts_with("v:") || drawn.contains(s.as_str()));
+        if p.subjects.iter().any(|s| !s.starts_with("v:")) {
+            p.id = format!("p:{}:{}", p.code, p.subjects.join("|"));
+            problems.push(p);
+        }
     }
     problems.extend(placement::collisions(analysis, &out, sheet, views));
     Ok((out, omitted, problems))

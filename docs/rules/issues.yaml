@@ -186,7 +186,7 @@
     corpus_parts: []
   status: ported
   rust_test: "src/dims/leaders.rs::tests::a_large_group_is_bounded_and_deterministic"
-  rust_note: "Costs are whole micrometres, so sub-micron noise cannot reorder candidates; ties keep generation and job order; each group of conflicting jobs is searched from its greedy assignment up to NODE_BUDGET nodes and keeps the best found, never worse than the greedy floor; every candidate search is bounded (MAX_STATIONS, DIRECTIONS, MAX_SITES, KEEP). Budget exhaustion drops nothing (every callout is placed), so there is no drop diagnostic to keep; a fired budget is not yet reported as a problem (ADR2-7)."
+  rust_note: "Costs are whole micrometres, so sub-micron noise cannot reorder candidates; ties keep generation and job order; each group of conflicting jobs is searched from its greedy assignment up to NODE_BUDGET nodes and keeps the best found, never worse than the greedy floor; every candidate search is bounded (MAX_STATIONS, DIRECTIONS, MAX_SITES, KEEP). Budget exhaustion drops nothing (every callout is placed), so there is no drop diagnostic to keep; a group whose search stopped at the budget is the structured plan problem annotation_leader_search_capped (info) naming its callouts (src/dims/leaders.rs::place; the test asserts the fired budget is returned)."
   port_note: "Keep: determinism + budget-fallback tests on the solver; budget exhaustion yields a structured problem, never a silent drop."
 
 - id: ISSUE-740-c

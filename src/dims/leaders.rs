@@ -1,6 +1,8 @@
 //! Callout leaders: draftwright's shared feature-leader placement (`annotations/leaders.py`, with
 //! the candidate producers of `holes.py`, `hole_leader_candidates.py`, `_edge_callouts.py` and
-//! `_diameters.py`), ported for the exterior region.
+//! `_diameters.py`) for the exterior region: a simplified re-implementation of its candidates and
+//! objective, not a line-by-line port (its occupancy grid, probe budgets and strip solve are not
+//! here).
 //!
 //! Every callout is a job with a bounded inventory of candidate leaders around its view. A
 //! candidate is a tip on a site's rim (radial to the elbow, `holes._rim_tip`), an elbow outside
@@ -36,7 +38,16 @@
 //! conflict; each group is solved exactly by a branch and bound whose work is bounded
 //! ([`NODE_BUDGET`]), from a greedy start that is its floor when the budget runs out. Nothing is
 //! dropped: a job whose every candidate is blocked takes the least blocked (ISSUE-798-a), and
-//! the plan's collision checks report what it still crosses.
+//! the plan's collision checks report what it still crosses; what they cannot see is reported
+//! here (a leader back across its own view, one over [`MAX_LEADER`], a search stopped at its
+//! budget).
+//!
+//! The length limits ([`MIN_LEADER`], [`MAX_LEADER`]), the clearances ([`CLEAR`], [`ROW`]) and
+//! the inventory's caps are calibrated from draftwright's captured sheets, not taken from its
+//! code: draftwright minimises length with no hard cap and no angle limit (none in `leaders.py`
+//! or `_leader_candidates.py`), and its `leader_policy.py` is the region policy only (auto,
+//! exterior, interior). Its side rule, the label on the side the leader runs to (`text_side`), is
+//! ported; the port has no angle limit either.
 //!
 //! Not ported: draftwright's interior candidates (labels inside a view over blank face,
 //! `interior_leader_candidates`) need the view's projected line-work, which the plan, made from
@@ -49,6 +60,7 @@ use std::collections::BTreeMap;
 
 use super::placement::{Frame, Page, Side, arrow, boxes_overlap, crosses, label_box};
 use super::{CAP, P2, Placed, SHOULDER, Shape, Want, font, label_ink};
+use crate::model::Problem;
 
 /// The clearance an elbow keeps from the view's edge, or from the outermost dimension ink of the
 /// strip it stands in, mm: one arrow and a little, so the leader has room for its head.
@@ -76,6 +88,9 @@ const MAX_SITES: usize = 64;
 const KEEP: usize = 40;
 /// The joint assignment's work bound per group of conflicting jobs, in search nodes.
 pub(super) const NODE_BUDGET: usize = 200_000;
+/// The descent passes (single jobs, then conflicting pairs) that improve the greedy start before
+/// the search.
+const DESCENT: usize = 50;
 /// The clearance a callout's label keeps from other labels, mm (draftwright stacks callout rows
 /// a text height and two `pad_around_text` apart; half a pad keeps them visibly apart here).
 const LABEL_PAD: f64 = 1.0;
@@ -151,6 +166,11 @@ fn side_index(side: Side) -> usize {
 /// around its view, clear of the dimensions already in *placed* (those with a strip in *sides*)
 /// as far as it can be; see the module's notes. Every item the part would have is placed, so
 /// where a callout goes does not depend on what the spec omits (ARCH0003-2).
+///
+/// Returns the problems the plan's collision checks cannot see: a callout that kept a leader
+/// back across its own view or longer than [`MAX_LEADER`] (every candidate it had was blocked),
+/// and a group of callouts whose search stopped at [`NODE_BUDGET`] (its assignment is the best
+/// found, not proved the best).
 pub(super) fn place(
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
@@ -158,7 +178,7 @@ pub(super) fn place(
     sides: &[Option<Side>],
     placed: &mut [Option<Placed>],
     page: &Page,
-) {
+) -> Vec<Problem> {
     let fixed = Fixed {
         segments: placed
             .iter()
@@ -217,10 +237,56 @@ pub(super) fn place(
         .iter()
         .map(|(_, job)| inventory(job, &fixed, page))
         .collect();
-    let choice = assign(&inventories);
-    for ((i, _), (inv, c)) in jobs.iter().zip(inventories.iter().zip(choice)) {
-        placed[*i] = inv.get(c).map(Candidate::placed);
+    let (choice, capped) = assign(&inventories);
+    let mut problems = Vec::new();
+    let named = |i: usize| format!("{} ({})", items[i].id, items[i].terms.join(" "));
+    for ((i, job), (inv, c)) in jobs.iter().zip(inventories.iter().zip(choice)) {
+        let Some(chosen) = inv.get(c) else { continue };
+        placed[*i] = Some(chosen.placed());
+        let shaft = [chosen.tip, chosen.elbow];
+        let view = format!("v:{}", job.view);
+        if reenters(shaft, job.outline) {
+            let subjects = vec![items[*i].id.clone(), view.clone()];
+            problems.push(Problem {
+                id: format!("p:annotation_line_over_view:{}", subjects.join("|")),
+                code: "annotation_line_over_view".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The leader of {} runs back across its own {view} view: every place it had was blocked.",
+                    named(*i)
+                ),
+                subjects,
+            });
+        }
+        let length = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
+        if length > MAX_LEADER {
+            let subjects = vec![items[*i].id.clone()];
+            problems.push(Problem {
+                id: format!("p:annotation_leader_long:{}", subjects.join("|")),
+                code: "annotation_leader_long".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The leader of {} is {length:.1} mm long, over the {MAX_LEADER} mm a leader may run: every shorter place it had was blocked.",
+                    named(*i)
+                ),
+                subjects,
+            });
+        }
     }
+    for group in capped {
+        let subjects: Vec<String> = group.iter().map(|&k| items[jobs[k].0].id.clone()).collect();
+        problems.push(Problem {
+            id: format!("p:annotation_leader_search_capped:{}", subjects.join("|")),
+            code: "annotation_leader_search_capped".into(),
+            severity: "info".into(),
+            message: format!(
+                "The leaders of {} callouts were placed together by a search that stopped at its bound of {NODE_BUDGET} steps: their places are the best found, not proved the best.",
+                subjects.len()
+            ),
+            subjects,
+        });
+    }
+    problems
 }
 
 /// A callout's sites on the page, at most [`MAX_SITES`]. A silhouette site (radius 0) that lands
@@ -639,9 +705,10 @@ fn conflict(a: &Candidate, b: &Candidate) -> bool {
 /// sum of the chosen candidates' scores plus [`CROSSING`] per conflicting pair. Jobs are grouped
 /// by possible conflicts; each group starts from its greedy assignment (jobs in order, each the
 /// best given those before it) and is then searched exactly, best first, up to [`NODE_BUDGET`]
-/// nodes; the best found is kept. Deterministic: ties keep the earlier job's and candidate's
+/// nodes; the best found is kept, and the groups whose search hit that bound are returned too
+/// (their members' job indices). Deterministic: ties keep the earlier job's and candidate's
 /// order.
-fn assign(inventories: &[Vec<Candidate>]) -> Vec<usize> {
+fn assign(inventories: &[Vec<Candidate>]) -> (Vec<usize>, Vec<Vec<usize>>) {
     let n = inventories.len();
     // Pairwise conflicts, per pair of jobs that have any.
     let mut pairs: BTreeMap<(usize, usize), Vec<Vec<bool>>> = BTreeMap::new();
@@ -673,13 +740,17 @@ fn assign(inventories: &[Vec<Candidate>]) -> Vec<usize> {
         groups.entry(r).or_default().push(i);
     }
     let mut choice = vec![0usize; n];
+    let mut capped = Vec::new();
     for members in groups.values() {
-        let picked = solve_group(members, inventories, &pairs);
+        let (picked, stopped) = solve_group(members, inventories, &pairs);
         for (k, &i) in members.iter().enumerate() {
             choice[i] = picked[k];
         }
+        if stopped {
+            capped.push(members.clone());
+        }
     }
-    choice
+    (choice, capped)
 }
 
 fn pair_cost(
@@ -704,7 +775,7 @@ fn solve_group(
     members: &[usize],
     inventories: &[Vec<Candidate>],
     pairs: &BTreeMap<(usize, usize), Vec<Vec<bool>>>,
-) -> Vec<usize> {
+) -> (Vec<usize>, bool) {
     let m = members.len();
     let scores: Vec<Vec<i64>> = members
         .iter()
@@ -728,7 +799,65 @@ fn solve_group(
         best_total += if scores[k].is_empty() { 0 } else { pick.0 };
     }
     if m < 2 {
-        return best;
+        return (best, false);
+    }
+    // Improved by descent (each job, then each conflicting pair of jobs, re-picks its best given
+    // all the others, while any improves, at most DESCENT passes): a better incumbent prunes the
+    // search far sooner.
+    let others = |k: usize, c: usize, skip: usize, best: &[usize]| {
+        (0..m)
+            .filter(|&j| j != k && j != skip)
+            .map(|j| pair_cost(pairs, members[k], c, members[j], best[j]))
+            .sum::<i64>()
+    };
+    for _ in 0..DESCENT {
+        let mut improved = false;
+        for k in (0..m).filter(|&k| !scores[k].is_empty()) {
+            let now = scores[k][best[k]] + others(k, best[k], k, &best);
+            let (t, c) = (0..scores[k].len())
+                .map(|c| (scores[k][c] + others(k, c, k, &best), c))
+                .min()
+                .expect("a non-empty inventory");
+            if t < now {
+                best[k] = c;
+                best_total += t - now;
+                improved = true;
+            }
+        }
+        for k in (0..m).filter(|&k| !scores[k].is_empty()) {
+            for l in (k + 1..m).filter(|&l| !scores[l].is_empty()) {
+                let key = (members[k].min(members[l]), members[k].max(members[l]));
+                if !pairs.contains_key(&key) {
+                    continue;
+                }
+                let joint = |c: usize, d: usize, best: &[usize]| {
+                    scores[k][c]
+                        + scores[l][d]
+                        + pair_cost(pairs, members[k], c, members[l], d)
+                        + others(k, c, l, best)
+                        + others(l, d, k, best)
+                };
+                let now = joint(best[k], best[l], &best);
+                let mut pick = (now, best[k], best[l]);
+                for c in 0..scores[k].len() {
+                    for d in 0..scores[l].len() {
+                        let t = joint(c, d, &best);
+                        if t < pick.0 {
+                            pick = (t, c, d);
+                        }
+                    }
+                }
+                if pick.0 < now {
+                    best[k] = pick.1;
+                    best[l] = pick.2;
+                    best_total += pick.0 - now;
+                    improved = true;
+                }
+            }
+        }
+        if !improved {
+            break;
+        }
     }
     // Exact search, bounded: the remaining jobs' best scores bound what is left.
     let floor: Vec<i64> = scores
@@ -826,7 +955,7 @@ fn solve_group(
         &rest,
         pairs,
     );
-    best
+    (best, nodes >= NODE_BUDGET)
 }
 
 #[cfg(test)]
@@ -895,7 +1024,7 @@ mod tests {
         ];
         assert!(conflict(&a[0], &b[0]));
         assert!(!conflict(&a[1], &b[0]));
-        assert_eq!(assign(&[a, b]), vec![1, 0]);
+        assert_eq!(assign(&[a, b]), (vec![1, 0], vec![]));
     }
 
     /// A small deterministic generator for the solver's tests.
@@ -949,7 +1078,7 @@ mod tests {
         let mut seed = 7u64;
         for _ in 0..40 {
             let inv = random_inventories(&mut seed, 4, 4);
-            let got = assign(&inv);
+            let got = assign(&inv).0;
             let mut best = i64::MAX;
             for k in 0..4usize.pow(4) {
                 let choice: Vec<usize> = (0..4).map(|j| k / 4usize.pow(j) % 4).collect();
@@ -965,8 +1094,10 @@ mod tests {
     fn a_large_group_is_bounded_and_deterministic() {
         let mut seed = 11u64;
         let inv = random_inventories(&mut seed, 30, KEEP);
-        let a = assign(&inv);
-        assert_eq!(a, assign(&inv));
+        let (a, capped) = assign(&inv);
+        assert_eq!(a, assign(&inv).0);
+        // The bound fired, and that is reported.
+        assert_eq!(capped, vec![(0..inv.len()).collect::<Vec<_>>()]);
         // The greedy floor: each job the best given those before it.
         let mut greedy: Vec<usize> = Vec::new();
         for k in 0..inv.len() {

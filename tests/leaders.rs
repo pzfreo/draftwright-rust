@@ -290,6 +290,32 @@ fn callout_leaders_cross_nothing_unlisted() {
                 found.insert((name.clone(), id.clone(), c));
             }
         }
+        // Honest failure: a leader back across its own view, or over the 75 mm a leader may run,
+        // is taken only when every other place was blocked, and is then reported.
+        let boxes = view_boxes(&plan, analysis);
+        for d in plan.dimensions.iter().filter(|d| d.kind == "callout") {
+            let Some(p) = d.placed.as_ref() else { continue };
+            let shaft = p.lines[0];
+            let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
+            let has = |code: &str| {
+                plan.problems
+                    .iter()
+                    .any(|q| q.code == code && q.subjects.first() == Some(&d.id))
+            };
+            if len > 75.0 {
+                assert!(has("annotation_leader_long"), "{name}: {} unreported", d.id);
+            }
+            let own = boxes.iter().find(|(v, _)| *v == d.view).map(|(_, b)| *b);
+            if let Some((t0, _)) = own.and_then(|b| clip(shaft, b))
+                && t0 * len > 0.05
+            {
+                assert!(
+                    has("annotation_line_over_view"),
+                    "{name}: {} unreported",
+                    d.id
+                );
+            }
+        }
         if report {
             for d in plan.dimensions.iter().filter(|d| d.kind == "callout") {
                 let Some(p) = d.placed.as_ref() else { continue };
