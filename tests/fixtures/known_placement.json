@@ -1,66 +1,59 @@
 [
  {
   "part": "cgb245",
-  "code": "annotation_ink_overlap",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "The leader of d:f:slot:1/slot_end_radius.radius@plan (2× R3) runs through the label of d:f:hole:1/bore.diameter@plan (4× ⌀7 THRU), and the leader of d:f:hole:8/bore.diameter@plan (2× ⌀5 THRU) through the label of d:f:hole_pattern:1/bore.diameter@plan (4× ⌀5 THRU (2×2)), in the plan's callout lanes above it; no slide clears them, and turning the leader (dims::placement::settle) does not either: a turned leader starts from the rim's left 45° point so that it stays radial, and from there the label is not clear. Was 6 before settling; 4 are cleared by labels sliding off extension lines and a leader turned."
- },
- {
-  "part": "cgb245",
   "code": "annotation_off_sheet",
-  "count": 10,
+  "count": 1,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band is 20 mm and its lanes of y locations, the row pitch, a slot width and slot:3's location across its width (38.9, added by the 2026-10-08 location decision) reach past the sheet's left margin. Reserving the port's lanes in every band removed the first nine (checked: A2 at 1:2 kept), but moves other parts' sheet and scale (see known_views questions in docs/next-session.md)."
+  "reason": "The plan's left band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side view only) and holds two of the port's lanes before the sheet's margin. dims::placement::fall_through (stream d-placement-fit, ISSUE-1215-e) passes the plan's other vertical items to the strip right of the plan (10 errors before it); d:f:hole:1/location.length.y@plan (156.4) fits on neither side (its next lane on the right would run across the isometric), so it keeps its lane left of the sheet's margin and stays reported. draftwright draws the y locations in the side view (staggered-side arrangement; the port's end-on rule, ADR1-6, puts them in the plan); its plan's left strip holds only the row pitch."
  },
  {
   "part": "cgb245",
   "code": "annotation_outside_area",
-  "count": 30,
+  "count": 24,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 22 plan items (y locations and slot:3's location across its width left of the plan, x locations and pitches above it) run past the plan's area. Also 7 of the height ladder's 11 rungs (d:step_level/step_height.length.h9_876@front to h25_226, stream d-dims-steps-levels) and the overall height in the lane beyond them run past the front's area; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. Info only; the off-sheet and overlap problems are the harm."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only): the plan's y locations that fell through to the strip right of the plan, which no band reserves, x locations above the plan past its band, the plan's callouts moved beside the plan (into the space right of it) and one y location kept off the sheet; and 6 of the height ladder's rungs past the front's area (the overall height falls through to the lane left of the front, an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e)), which draftwright withholds at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json). 30 before stream d-placement-fit. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e) and a callout whose lane does not fit the page goes beside its view (dims::placement::settle)."
  },
  {
   "part": "cgb245",
   "code": "annotation_over_view",
+  "count": 3,
+  "verdict": "rust-wrong",
+  "reason": "The labels of the height ladder's rungs h21_226, h23_226 and h25_226 (d:step_level/step_height.length.*@front) lie over the side view: they stand in the front's right band in lanes past the side view's left edge (stream d-dims-steps-levels), where draftwright states 1 rung; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The front's right strip falls through to its left, where an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e): the overall height d:envelope/height.length@front takes the one lane left of the front before the sheet's margin and is clear of the side view; the rungs keep their lanes. Before the extent's first claim it was the overall height's label over the side view (count 1) and rung h9_876 took that lane; the three rungs' labels now settle about 1 mm lower, onto the side view's box."
+ },
+ {
+  "part": "cgb245",
+  "code": "annotation_line_over_view",
+  "count": 6,
+  "verdict": "rust-wrong",
+  "reason": "Lines across the side view (a check stream d-placement-fit adds; they ran there unreported before): 6 of the height ladder's rungs (h11_226, h11_876, h13_226, h21_226, h23_226, h25_226) stand in the front's right strip in lanes past the side view's left edge. The front's right strip falls through to its left, where an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e): the overall height d:envelope/height.length@front takes the one lane before the sheet's margin, so the rungs keep their lanes (before the extent's first claim, rung h9_876 took that lane and the overall height ran across the side view instead). draftwright states 1 rung here and withholds the rest at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' verdicts, undetermined pending the maintainer, are in known_dimensions.json)."
+ },
+ {
+  "part": "connector109",
+  "code": "annotation_outside_area",
+  "count": 3,
+  "verdict": "rust-wrong",
+  "reason": "The front's lower band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side view only): three front diameters below the front run past it. 8 before stream d-placement-fit, which passed the outer lanes below the front (the callouts and grooves that ran off the sheet) to the strip above it. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e) and a callout whose lane does not fit the page goes beside its view (dims::placement::settle). On merging with dims::turned (src/dims/turned.rs, whose turned steps' diameter callouts had brought this to 13, with 9 annotation_off_sheet and 1 annotation_ink_overlap), the three left are still d:envelope/od.diameter@front (ø130.9), d:f:boss:3 (ø122) and d:f:boss:4 (ø130.9): the step callouts and grooves fall through or go beside the front, and the off-sheet labels and the groove leader through ø130.9's label are gone."
+ },
+ {
+  "part": "ctc01",
+  "code": "annotation_off_sheet",
   "count": 1,
   "verdict": "rust-wrong",
   "reason": "The label of d:envelope/height.length@front (37.2) lies over the side view: it stands in the front's right band in the lane beyond the height ladder's 11 rungs (stream d-dims-steps-levels), where draftwright states 1 rung; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes."
  },
  {
-  "part": "connector109",
-  "code": "annotation_off_sheet",
-  "count": 9,
-  "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the front's lower band is 20 mm and holds the lanes of callouts and diameters, so the outermost run below the sheet's margin: d:f:fillet:1/fillet.radius@front (R1), and, since dims::grooves added the three groove callouts (6 WIDE × ø122 twice, stacked below the front), d:f:groove:2, d:f:groove:3 and the chamfer callout pushed out past them. draftwright's captured sheet (tests/fixtures/sheets/connector109.json.gz) has every one of these labels inside the A2 drawing area (the lowest, a groove's, 46 mm above the page's bottom edge). Reserving the front's lanes clears it but drops the sheet's scale from 1:2 to 1:5. Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs), the callouts for f:turned_step:1, 2, 5 and 6 stack in the same lanes below the front and run off too; draftwright's column of step diameters left of the front (m_dia_z*) is inside the drawing area."
- },
- {
-  "part": "connector109",
+  "part": "ctc01",
   "code": "annotation_outside_area",
-  "count": 13,
+  "count": 15,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: eight front items in the lanes below the front run past its 20 mm band, the three groove callouts dims::grooves adds among them. Since dims::turned added the turned steps' diameter callouts, five of them (f:turned_step:1, 2, 3, 5, 6) join the lanes below the front, their 45° leaders running far along it from the bands at the top of this 420 mm z-turned profile (draftwright leads them to a column left of the front)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only): plan items above and beside the plan (locations, pitches, callouts moved beside it) and front items below the front run past them. 20 before stream d-placement-fit. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e) and a callout whose lane does not fit the page goes beside its view (dims::placement::settle)."
  },
  {
-  "part": "connector109",
-  "code": "annotation_ink_overlap",
+  "part": "ctc01",
+  "code": "annotation_line_over_view",
   "count": 1,
   "verdict": "rust-wrong",
-  "reason": "Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs): the leader of d:f:groove:2/groove.length@front (6 WIDE × ø122) runs through the label of d:f:turned_step:6/step.diameter@front (ø130.9), both stacked in the lanes below the front with 45° leaders. draftwright's sheet keeps the step diameters in a column left of the front and the groove callouts right of it, apart."
- },
- {
-  "part": "ctc01",
-  "code": "annotation_off_sheet",
-  "count": 9,
-  "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band (20 mm) holds the y location and row pitches, and the callouts above the plan run past the sheet's top margin (two bore and fillet callouts, two row pitches, the y location, a slot width and an end radius). Since d-slots-rest the polygonal boss adds its across-flats callout and y location there, and the first pattern's bore callout is pushed one lane further out by them (7 before that merge). Since d-coincident-locations the boss's y location is conveyed by the hole grid's (ARCH0009-6) and no longer drawn (10 before), its lane kept, so nothing else moved. Reserving the port's lanes in every band (the question in docs/next-session.md) is what would clear them."
- },
- {
-  "part": "ctc01",
-  "code": "annotation_outside_area",
-  "count": 20,
-  "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 16 plan and 4 front items (the polygonal boss's height in the front and its across flats in the plan since d-slots-rest; 18 before that merge). Its x and y locations, counted here from d-slots-rest (22), are conveyed by the hole grid's since d-coincident-locations (ARCH0009-6) and no longer drawn; nothing else moved."
+  "reason": "The leader of the plan's chamfer callout d:f:chamfer:1/chamfer.length@plan (C50) runs from the plan's top-right corner across the isometric to its lane above the plan; neither a turned leader nor a row beside the plan fits (the isometric's box covers the plan's right side from its top, the left side's rows run off the sheet, the rows below the isometric are taken by the plan's other callouts). Reported by the check stream d-placement-fit adds; draftwright's chamfer leaders are placed by its shared leader solver, not ported."
  },
  {
   "part": "ftc06",
@@ -71,31 +64,24 @@
  },
  {
   "part": "ftc06",
-  "code": "annotation_off_sheet",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: d:f:hole:5/location.length.y@plan in the plan's left lanes runs past the sheet's margin."
- },
- {
-  "part": "ftc06",
   "code": "annotation_outside_area",
-  "count": 28,
+  "count": 26,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (14 plan, 6 front items). The 8 side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, callouts' labels running right, the step shoulder d:step_level/step_position.length.y46_99@side, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels; draftwright draws them too) and its channel width d:f:section_recess:1. Was 23 before the channel widths (merge of d-dims-recesses onto the steps and levels planners): they add 3 items past the areas and push the plan's and front's lanes 7 to 14 mm further out, so d:f:hole_pattern:2/pitch.length@plan and d:f:boss:6/location.length.x@front now run past too."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, callouts' labels running right, the step shoulder d:step_level/step_position.length.y46_99@side, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels). 28 before stream d-placement-fit (d:f:hole:5/location.length.y@plan fell through to the right of the plan). 27 before the overall extent's first claim on the opposite strip (dims::placement::fall_through): d:f:hole:11/location.length.x@front is now held below the front, inside its band, while the front's width takes the free lane above the front."
  },
  {
   "part": "ftc06",
-  "code": "annotation_over_view",
-  "count": 1,
+  "code": "annotation_line_over_view",
+  "count": 2,
   "verdict": "rust-wrong",
-  "reason": "The label of d:envelope/width.length@front (304.8), in the front's outer lane, lies over the isometric, which the layout placed in the space beyond the front's estimated band. Before the channel widths (dims::recesses) it was instead the labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan, d:f:hole:5/bore.diameter@plan and d:f:chamfer:2/chamfer.length@plan; with the channel widths' lanes the plan's and front's lanes stack 7 to 14 mm further out, and those three no longer lie over the isometric (checked with and without the recess planner)."
+  "reason": "Lines across the isometric (a check stream d-placement-fit adds; they ran there unreported before): the front's locations d:f:hole:11/location.length.x@front and d:f:boss:6/location.length.x@front run into the isometric, which the layout placed in the space beyond the front's estimated band (layout::Strips::reserve reserves the port's lanes for the side view only). The strip above the front (between the front and the plan) has room for one lane, which the front's width d:envelope/width.length@front takes (an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e); before it, the width ran across the isometric and its label lay over it), so these keep their lanes."
  },
  {
   "part": "grm03",
   "code": "annotation_outside_area",
-  "count": 8,
+  "count": 7,
   "verdict": "rust-wrong",
-  "reason": "Run along their lanes, past the view's area sideways: the side's callout d:f:hole:1/bore.diameter@side (⌀1.6 ↧ 3.8) runs right of the side's 20 mm right band, and two front items run past the front's band. No other problem follows on this sheet. Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs), the three of them (ø5, ø3, ø6) and two more front items in the lanes below the front run past its band; draftwright's row of step diameters below the front fits its sheet."
+  "reason": "Run along their lanes, past the view's area sideways: the side's callout d:f:hole:1/bore.diameter@side (⌀1.6 ↧ 3.8) runs right of the side's 20 mm right band, and the two chamfer callouts (2× C0.3, C0.5) run past the front's band. No other problem follows on this sheet. Since dims::turned added the turned steps' diameters and lengths (src/dims/turned.rs), ø5, ø3 and the lengths 3 and 18 run past the front's band; draftwright's row of step diameters below the front fits its sheet. 8 before stream d-placement-fit merged (ø6 then ran past the band too; it now fits its lane)."
  },
  {
   "part": "grm05",
@@ -107,23 +93,16 @@
  {
   "part": "m1000",
   "code": "annotation_outside_area",
-  "count": 7,
+  "count": 6,
   "verdict": "rust-wrong",
-  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.3) in the same way. d:envelope/height.length@front (29.1), in the lane beyond the height ladder's rungs (stream d-dims-steps-levels) and the seat's z location d:f:section_recess:4/seat_location.location.z@front, runs 10.5 mm past the front's area (3.5 mm without the seat's location); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes; the seat's z location itself runs 3.5 mm past. The three recess callouts (dims::recesses: the pocket's in the plan, the hexagonal pocket's in the side, the seat's in the front) have long labels in callout lanes the estimated bands do not hold, 13 to 56 mm past them."
+  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.3) in the same way. The seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1), in a lane beyond the height ladder's rungs (stream d-dims-steps-levels), runs 3.5 mm past the front's area (the overall height, there before the extent's first claim on the opposite strip, now takes the front's left lane); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported). The recess callouts' long labels run past the estimated bands (the plan's pocket, the side's hex pocket, its leader now turned left, the front's seat). 7 before stream d-placement-fit, which passes the overall height to the front's left strip."
  },
  {
   "part": "m1000",
   "code": "annotation_over_view",
-  "count": 2,
+  "count": 1,
   "verdict": "rust-wrong",
-  "reason": "The labels of d:envelope/height.length@front (29.1) and of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1, dims::recesses) lie over the side view: they stand in the front's right band in lanes beyond the height ladder's rungs (stream d-dims-steps-levels); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes."
- },
- {
-  "part": "m1000",
-  "code": "annotation_ink_overlap",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "The label of d:envelope/height.length@front (29.1), pushed into the side view's space by the height ladder's rungs and the seat's z location (see annotation_over_view), is crossed by lines of two side items from dims::recesses: the hexagonal pocket's callout leader d:f:section_recess:2/polygon_across_flats.length@side and the seat's y location d:f:section_recess:4/seat_location.location.y@side. Appears only with both the steps and levels planners and the recess planner (merge of d-dims-recesses); for the placement work."
+  "reason": "The label of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1) lies over the side view: it stands in the front's right band in a lane past the height ladder's rungs (stream d-dims-steps-levels), which draftwright withholds at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The front's right strip falls through to its left strip, which has room for one lane; an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e), so the overall height d:envelope/height.length@front takes it (before the extent's first claim the seat's z location did, and the height's label lay over the side view, crossed by the seat's y location: an annotation_ink_overlap now gone)."
  },
  {
   "part": "m1000",
@@ -131,6 +110,13 @@
   "count": 1,
   "verdict": "rust-wrong",
   "reason": "The circular seat's callout d:f:section_recess:4/seat_diameter.diameter@front (ø2 × 12.6 LONG × 180° ARC, dims::recesses), in the front's callout lanes, runs right into the title block: the label is long and the front's estimated band does not hold the callout lanes. For the placement work."
+ },
+ {
+  "part": "m1000",
+  "code": "annotation_line_over_view",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "A line of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1) runs across the side view (a check stream d-placement-fit adds): it keeps its lane in the front's right band past the side view's left edge, the front's left strip's one lane going to the overall height (an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e)); draftwright withholds the height ladder's rungs at the sheet's scale (its legibility gate, not ported). See annotation_over_view."
  },
  {
   "part": "m10046",
@@ -162,13 +148,6 @@
  },
  {
   "part": "spool132",
-  "code": "annotation_ink_overlap",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "The leader of d:f:hole:7/bore.diameter@plan (a bolt-circle callout) crosses the long labels of the two other bolt-circle callouts in the plan's lanes above (12× ⌀8 THRU EQ SP ON ø110 BC UPPER/LOWER FACE); turning it left does not clear them. Was 5 before settling."
- },
- {
-  "part": "spool132",
   "code": "annotation_outside_area",
   "count": 7,
   "verdict": "rust-wrong",
@@ -179,13 +158,6 @@
   "code": "annotation_outside_area",
   "count": 5,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: one front item below the front runs past its band. Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs), the three of them (ø6, ø5, ø3.4) and the item below them run past the front's band; draftwright leads them to a column left of the front."
- },
- {
-  "part": "string_post",
-  "code": "annotation_ink_overlap",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "Since dims::turned added the turned steps' diameter callouts (src/dims/turned.rs): the leader of d:f:hole:1/bore.diameter@front (⌀1.7 ↧ 5.4) runs through the label of d:f:turned_step:4/step.diameter@front (ø3.4), both in the lanes below the front with 45° leaders. draftwright's sheet puts the step diameters in a column left of the front and the cross hole's callout above it, apart."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the cross hole's callout d:f:hole:1/bore.diameter@front (⌀1.7 ↧ 5.4) runs past the front's band. Since dims::turned added the turned steps' diameters and lengths (src/dims/turned.rs), ø5, ø3.4 and the lengths 5.5 and 1 run past the front's band too; draftwright leads the diameters to a column left of the front. Since stream d-placement-fit merged, ø6 fits its lane and the cross hole's leader no longer runs through ø3.4's label (the annotation_ink_overlap is gone)."
  }
 ]

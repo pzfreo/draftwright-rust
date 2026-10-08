@@ -1186,3 +1186,58 @@ improvement plan and questions are the current work. Still open from before it:
       reads `OD`, standing in for draftwright's rotational bores (spool132's ø70, which the port
       states as a spotface). Is `OD` wanted beyond z (draftwright limits it to z, where its bore
       leaders share the front view)?
+
+- From stream d-placement-fit (CLI-trial priority 3, 2026-10-08): annotations stay on the sheet
+  where they can (`src/dims/placement.rs`, `tests/placement.rs`).
+  - **Fall-through** (ISSUE-1215-e, now ported): a strip holds its linear dimensions up to the
+    first lane whose item does not fit the page (ink on the sheet, label off the views and the
+    title block, no line through the title block or another view); that item and those outside it
+    take the next free lanes of the strip across the view. One that fits on neither side keeps its
+    lane and is reported, never dropped. Edit-local (the page and every item's lane come from the
+    full set).
+  - **Callouts beside their view**: a callout whose lane does not fit the page (off the sheet, or
+    its leader across another view) turns left or, failing that, goes out beside its view as
+    draftwright's plan callouts do (`holes._leader_anchors`): the elbow past the strip's lanes on
+    a row within the view's height, the leader radial from the nearest site's rim, rows
+    `pad_around_text` apart where they can be.
+  - **New warning `annotation_line_over_view`**: a line (leader, extension or dimension line)
+    across a view not its own; such lines ran unreported before.
+  - **`slides` bounded by the sheet**: its places keep the label on the drawing area along the
+    line, so their count is bounded by the sheet, not the line (a unit test on a 200 km line).
+  - cgb245 before → after: `annotation_off_sheet` 10 → 1 (d:f:hole:1's y location, whose next
+    lane right of the plan would cross the isometric), `annotation_ink_overlap` 2 → 0,
+    `annotation_outside_area` 30 → 24, plan callout leaders across the isometric: none now (the
+    2×2 pattern's, 2× ⌀5's, 4× ⌀7's, the fillet's and one end radius go beside the plan; the
+    three outermost keep their lanes above the plan, their leaders long but clear of the
+    isometric), 6 `annotation_line_over_view` (the front's overall height and 5 ladder rungs
+    through the side view; unreported before). All 12 compared parts: `annotation_off_sheet` 24 →
+    2 (cgb245 1, ctc01 1); ink overlaps 9 → 4; `known_placement.json` updated with verdicts.
+  - **Escalation is not what cgb245 needs**: draftwright's captured sheet
+    (`tests/fixtures/sheets/cgb245.json.gz`) is A2 at 1:2, the port's sheet too; draftwright's
+    scale attempts there (1:5, 1:1, A1, A0) were all rejected and it kept A2 1:2. The difference
+    is where the y locations go (draftwright: the side view, staggered-side arrangement; the port:
+    the plan, by the end-on rule ADR1-6) and the bands: the plan's left band is draftwright's
+    20 mm estimate. ISSUE-1299-a (escalation, in `model::plan`) is unchanged.
+  - Left, with blockers: the front's height ladder still runs into the side view on cgb245 and
+    m1000 (the front's right band is draftwright's estimate and draftwright withholds those rungs
+    by its legibility gate: both open maintainer questions above); the strip right of the plan,
+    where items now fall, is reserved by no band (`layout::Strips::reserve`, in `src/layout.rs`,
+    outside this stream), so those items are `annotation_outside_area` (info); a leader crossing
+    other dimensions' lines is not checked; ftc06's front width and a boss location still cross
+    the isometric (no room above the front either).
+  - Outside the stream's files, minimal: `src/dims/mod.rs` wires `fall_through` and `leaders`;
+    `tests/issue_drafting.rs::a_label_over_the_isometric_is_reported` moves its crowded guard
+    from plate on A3 at 2:1 (where every label now fits) to A4 at 5:1, still asserting labels
+    over the isometric and off the sheet; `tests/tolerances.rs` expects the one info problem the
+    longer `7× R50 ±0.5` label adds beside ctc01's plan; `docs/model.md` names the new code.
+  - After review (stream d-placement-fit): an overall extent now has first claim on the opposite
+    strip's free lanes (`fall_through`; draftwright falls through only the extent), placed outside
+    the other moved items where that still fits. On cgb245 and m1000 the front's overall height
+    takes the one lane left of the front (before, cgb245's rung h9_876 and m1000's seat z location
+    took it and the height crossed the side view); on ftc06 the front width takes the one lane
+    above the front, off the isometric. Those lower-priority items keep their lanes and stay
+    reported (`known_placement.json`: ftc06 `annotation_over_view` and m1000 `annotation_ink_overlap`
+    off; cgb245's three rungs h21–h25 now have labels over the side view). Falling through every
+    linear item, beyond draftwright, has a verdict (rust-correct, with the split-ladder cost) in
+    ISSUE-1215-e's note, whose rust_test is now
+    `tests/placement.rs::a_starved_overall_extent_has_first_claim_on_the_opposite_strip`.
