@@ -280,6 +280,8 @@
       - "tests/test_issue_883_location_identity.py::test_bolt_circle_centre_is_distinct_from_a_member"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::each_axis_of_a_location_is_its_own_measurement"
+  rust_note: "Partial: on every part each location dimension measures one axis, no measurement (feature, parameter) is stated by two dimensions, a pattern's centre is measured on the pattern ID (never a member), and omitting one axis's location (boss_circle) leaves the other axis and the other members. Each loose hole is its own feature, so members have their own identities. Not ported: two members on one ordinate share one dimension (d:f:hole:5/location.length.y@plan states hole:5 and hole:6), so neither member's coordinate can be omitted alone, where draftwright addresses location.location.member.<i>.<axis>; whether the spec should address a member's coordinate inside a shared dimension is a maintainer question. Comparison of builds (member swap) has no port counterpart yet."
   port_note: "Keep: stable IDs for location components (feature, member, axis) in Plan; spec edits address them."
 
 - id: ISSUE-883-b
@@ -660,7 +662,9 @@
       - "tests/test_issue_1142_hole_leader_labels.py::test_callout_semantic_label_covers_the_rendered_compound_grammar"
       - "tests/test_issue_1142_hole_leader_labels.py::test_public_build_rejects_a_labelless_geometric_callout"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "tests/issue_drafting.rs::a_hole_callout_claims_everything_it_prints"
+  rust_note: "Checked on the five fixtures and twelve sampled parts: every number a hole callout prints (bore, depth, recesses, countersink, bolt circle) is the value of a measurement it claims and every claimed measurement is printed, and the drawn annotation carries the plan's claims and prints its label as one run. The port prints every callout on one line and never wraps, so no branch can lose its label (the wrapping clause is not-applicable); a callout without claims cannot be built (src/dims/holes.rs makes the terms and measurements together)."
   port_note: "Keep: plan callout elements are structured (terms), renderer wraps from structure."
 
 - id: ISSUE-1142-b
@@ -811,6 +815,8 @@
       - "tests/test_issue_1146_scale_completeness.py::test_permissive_policy_is_explicit_warns_and_preserves_degraded_request"
     corpus_parts: ["nist_ctc_02_asme1_ap203"]
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_scale_that_does_not_fit_is_reported"
+  rust_note: "Partial: a pinned scale is kept as asked; a pinned sheet and scale that cannot hold the views give page_fit_uncertain, a scale no sheet holds gives views_do_not_fit (ctc01 at 10:1 on A0), a non-standard scale is reported (scale_fallback_applied), and the sheet's basis names its scale. Not ported: the choice does not weigh completeness (no outcome a scale loses is counted, src/layout.rs::choose fits the views' bands only), and there is no strict or permissive scale policy."
   port_note: "Keep: plan scale default with basis; spec scale + policy -> problems."
 
 - id: ISSUE-1146-b
@@ -839,7 +845,9 @@
       - "tests/test_issue_1146_scale_completeness.py::test_orthographic_pair_cannot_fit_when_each_projection_alone_would_fit"
       - "tests/test_issue_1146_scale_completeness.py::test_authored_table_footprint_can_select_a_larger_standard_page"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "tests/issue_drafting.rs::every_view_lies_on_the_page_or_the_plan_says_it_does_not"
+  rust_note: "Checked on the fixtures and sampled parts: every planned view's area lies on the page and no two principal views' areas (each with its annotation bands) overlap, unless the plan reports views_do_not_fit; a pinned A4 at 10:1 that cannot hold them is reported (page_fit_uncertain). Authored tables do not exist in the port (not-applicable). Observed, verdict undetermined (owed in layout, src/layout.rs): ftc06's section A-A area overlaps the side view's by 10 mm, and ctc01's isometric, as drawn, reaches into the plan view's right band; neither is a principal pair."
   port_note: "Keep: page/scale selection unit tests."
 
 - id: ISSUE-1147-a
@@ -1021,6 +1029,8 @@
       - "tests/test_issue_1177_angular_dimensions.py::test_every_kind_is_either_renderable_or_explicitly_refused"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: pending
+  rust_test: "tests/issue_drafting.rs::an_angle_is_never_drawn_as_a_length"
+  rust_note: "Partial: on every part no linear dimension states an angle, and every angle the plan states (a countersink's, a chamfer's) is printed in degrees in its callout. Not ported: angular dimensions (none is planned, so none can fall back to a linear one), arcs from proven supports, and refusal of kinds that cannot be drawn."
   port_note: "Keep: plan dimension kinds are typed (linear/angular/...); renderer has no fallback from angular to linear."
 
 - id: ISSUE-1177-b
@@ -1435,6 +1445,8 @@
       - "tests/test_issue_1260_view_constraints.py::test_no_constraints_preserve_the_automatic_four_view_sheet"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::what_the_spec_asks_of_the_views_is_kept_or_reported"
+  rust_note: "Partial: on every part, omitting each shown view plans it out (the view is absent, and each dimension it carried moves to a view left or stays unplaced with view_plan_incomplete); a section is kept only with the plan view its cutting plane is marked on, and omitting the plan reports section_not_shown (ftc06, string_post); a pinned sheet scale is never relaxed (a_scale_that_does_not_fit_is_reported). Not ported: per-view scales (an exact view scale or an authored iso scale) and pinned view positions: the spec has neither."
   port_note: "Keep: Spec view constraints -> Plan honours them or reports infeasibility; never silently relaxes."
 
 - id: ISSUE-1260-b
@@ -1588,6 +1600,8 @@
       - "tests/test_issue_1299_page_escalation.py::test_exact_grm03_recovers_all_axial_stations_on_a4_with_pmi_off"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_sheet_the_spec_names_is_never_escalated"
+  rust_note: "Partial: on every part a sheet the spec names (A4, A3) is kept, alone or with a scale too large for it (then reported). Not ported: draftwright's recovery, which re-plans on its finished drawing's findings (a larger scale on the same page before a larger sheet, completeness after hard layout); the port makes its first ladder choice only (src/layout.rs::choose, model::plan). Observed, verdict undetermined: string_post's automatic choice is A4 at 2:1 (judged by the row, auto_fits) but A4 pinned gives 1:1 (judged by packed footprints, fits), as src/layout.rs::choose documents for draftwright's compose.choose_scale; not compared with a Python run."
   port_note: "Keep: page/scale default with basis; scenario GRM-03."
 
 - id: ISSUE-1308-a
@@ -1848,6 +1862,8 @@
       - "tests/test_issue_1357_framed_boundary.py::test_every_typed_frame_refusal_propagates_without_a_raw_fallback"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::eccentric_cylinders_are_not_one_turned_profile"
+  rust_note: "Partial: with the turned fixture's smaller band moved 2 mm off the other's axis line, the plan stops reading the part as turned whole (three extents, no overall diameter) and reports each band, none merged or chosen (src/dims/turned.rs::turned requires one axis line). Not ported: turned steps' own dimensions, and several bodies in one compound (no fixture has one)."
   port_note: "Keep: Analysis exposes a list of turned profiles."
 
 - id: ISSUE-1357-c
@@ -2050,6 +2066,8 @@
       - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_global_od_cannot_multiply_across_disjoint_coaxial_profiles"
     corpus_parts: ["turned-step-axis-x.step", "turned-step-axis-z.step", "turned-step-compound.step", "turned-step-repeated-lengths.step", "turned-step-through-bore.step", "turned-step-translated-blind-bore.step", "groove-lone-y.step"]
   status: pending
+  rust_test: "tests/issue_drafting.rs::each_turned_band_carries_its_diameter_and_length"
+  rust_note: "Partial: on every part lint's turned-step ledger has exactly step.length and step.diameter for each band it reads, and none for a band a groove owns (checked to occur on a sampled part with grooves). Not ported: the plan does not dimension turned steps (src/dims/turned.rs), so the grouped length label (exact count, no skipped equal neighbour) has nothing to check."
   port_note: "Keep: scenario tests per corpus part."
 
 - id: ISSUE-1374-d
@@ -2079,6 +2097,8 @@
       - "tests/test_issue_1378_diameter_leader_targets.py::test_split_declared_holes_cannot_claim_the_other_members_rim"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names"
+  rust_note: "Partial: on every part each placed hole callout's arrow tip lies on the projected bore circle of one of the holes it claims, in its view (within 0.001 mm). Not ported: lint's check of a drawn tip (a tip in blank material lowering fidelity); double-D holes are not recognised (not-applicable)."
   port_note: "Keep: leader target = projected hole boundary; post-render check verifies."
 
 - id: ISSUE-1392-a
@@ -2200,6 +2220,8 @@
       - "tests/test_issue_1433_blend_semantics.py::test_raw_and_framed_arbitrary_rigid_motion_keep_four_radius_requirements"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::fillets_share_a_callout_only_when_their_radii_are_equal"
+  rust_note: "Partial, for fillets: on every part a fillet callout's members all have the radius it prints and it counts them (4× R2), and on prismatic each occurrence is credited by it and every occurrence is reported when it is removed. Not ported: blends (quiddity's Blend, the rule's subject) are not dimensioned: each is reported dimensions_not_ported (src/dims/edges.rs plans fillets and chamfers only), though lint's blend coverage (src/lint/blends.rs) judges them."
   port_note: "Keep."
 
 - id: ISSUE-1433-b
@@ -2230,6 +2252,8 @@
       - "tests/test_issue_1450_boss_blend_ownership.py::test_detect_and_lint_decide_absorption_from_one_shared_predicate"
     corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
   status: pending
+  rust_test: "tests/issue_drafting.rs::no_face_is_both_a_boss_diameter_and_a_fillet_radius"
+  rust_note: "Partial: on every part the faces of the bosses whose diameter the plan states and of the fillets whose radius it states are disjoint. Not ported: draftwright's absorption decision itself; the port dimensions each feature quiddity gives, with no predicate to fail closed, so the check holds because no part here has a boss and a fillet on one face. GRM-04, the reported part, has no recognition fixture here."
   port_note: "Keep: scenario GRM-04 -> R4 only, no Ø of the same face."
 
 - id: ISSUE-1460-a
@@ -2396,6 +2420,8 @@
       - "tests/test_issue_1505_diameter_coverage.py::test_global_od_reuse_requires_one_undecorated_band_on_the_same_axis"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::equal_diameters_on_different_features_are_stated_apart"
+  rust_note: "Partial: on every part no dimension states both a hole's bore and an outside diameter (a boss's or the part's overall), and lint's turned-step ledger (src/lint/turned.rs::overall) lets the overall diameter stand for a band's only when it is the unique largest of its profile and alone on its axis line with its diameter (turned fixture, and the same with two largest bands, where it stands for neither). Not ported: the plan does not dimension turned steps' own diameters (src/dims/turned.rs), so a bore equal to a shoulder has no shoulder dimension to keep apart."
   port_note: "Keep."
 
 - id: ISSUE-1505-b
@@ -2457,6 +2483,7 @@
       - "tests/test_issue_1515_first_angle.py::test_plan_only_does_not_reserve_a_phantom_front_corridor"
     corpus_parts: []
   status: pending
+  rust_note: "Not-applicable until first angle is drawn: the port draws third angle only and refuses any projection asked for (tests/issue_trust.rs::a_projection_is_refused_before_the_part_is_read, ISSUE-1514-a), so there is no second convention whose measurements could differ."
   port_note: "Keep: scenario test both conventions -> same measurement set."
 
 - id: ISSUE-1516-a
@@ -2500,6 +2527,8 @@
       - "tests/test_issue_1518_explicit_rear.py::test_short_rear_location_is_a_reported_loss_and_strict_refusal"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_rear_view_is_never_added_and_one_asked_for_is_refused"
+  rust_note: "Partial: no automatic plan has a view other than front, plan, side, iso and section A-A, and a rear view asked for is refused before planning, naming the views there are. Not ported: the explicit rear view itself (handedness, bore sizes, depths and locations in it)."
   port_note: "Keep."
 
 - id: ISSUE-1524-a
@@ -2526,6 +2555,8 @@
       - "tests/test_issue_1530_section_provenance.py::test_preexisting_coplanar_boundaries_are_not_new_cut_faces"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_sections_ink_describes_its_cut"
+  rust_note: "Partial: on the parts with a section (ftc06, string_post) the cutting plane lies inside the part's extent along its normal and is marked on a planned view, and the drawing captions it SECTION A-A and letters both ends of the plane. Not ported: an authored cut (the spec cannot place one, so a cut outside the part cannot be asked for); the tangent, gap and coplanar-boundary cases have no fixture here (src/model.rs::section_furniture keeps hatch only where material lies behind the cut)."
   port_note: "Keep: section view tests in the Rust hidden-line/section kernel."
 
 - id: ISSUE-1531-a
@@ -2599,6 +2630,8 @@
       - "tests/test_issue_1536_title_overflow.py::test_export_preserves_the_full_overflowing_value"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_title_block_value_that_overflows_is_reported"
+  rust_note: "rust-wrong (test ignored): the port draws the title and the drawing number in its title block and checks neither against the block's width, so an 86-character title on plate runs out of the block with no plan problem and no lint finding. The fix belongs in src/model.rs (the title block in render, and a plan problem) or src/lint; the port's title block has no cells yet."
   port_note: "Keep: plan problem per overflowing title-block cell."
 
 - id: ISSUE-1543-a
@@ -2691,6 +2724,8 @@
       - "tests/test_issue_1560_envelope_axes.py::test_complete_authored_set_can_intentionally_omit_body_extents"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::the_parts_extents_never_leave_the_drawing_silently"
+  rust_note: "Partial: on every part each non-zero axis of the box has an outcome in lint's envelope ledger, placed by the default plan's extents; on plate an omitted extent is listed in the plan's omitted with its basis and stays in the ledger, missing, and an empty authored set leaves all three in the ledger, missing. Not ported: a local turned profile or overlapping steps standing for an axis (no part here has one), and draftwright's other carriers of an end-to-end span (src/lint/envelope.rs module note)."
   port_note: "Keep."
 
 - id: ISSUE-1563-a
@@ -2722,6 +2757,8 @@
       - "tests/test_issue_1585_title_block_date.py::test_no_date_field_when_no_date_was_supplied"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_supplied_date_reaches_the_title_block"
+  rust_note: "rust-wrong (test ignored): the spec's sheet.title takes any field, but src/model.rs::render draws only title and number, so a supplied date (or material) is accepted and silently left off the sheet and out of the PDF text layer. The fix belongs in src/model.rs (a date field and cell in the title block), or edit should refuse fields it does not draw."
   port_note: "Keep: ISO 7200 title block layout with dedicated date cell."
 
 - id: ISSUE-1593-a
@@ -2736,6 +2773,8 @@
       - "tests/test_issue_1593_title_block_keepout.py::test_the_recorded_attempt_names_the_symptom_that_opened_the_ladder"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::a_dimension_in_the_title_block_is_reported"
+  rust_note: "Partial: on every part a placed dimension whose label, lines or arrowheads reach into the title block is the subject of annotation_over_title_block. Not ported: the keep-out (src/dims/placement.rs places by lanes and reports a collision as a warning, where draftwright relocates the dimension to the opposite strip, or withholds it as an error and replans onto a sheet that fits)."
   port_note: "Keep: scenario Box(40,30,12) and stepped Box(80,60,30)."
 
 - id: ISSUE-1596-a
