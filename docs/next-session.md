@@ -276,14 +276,18 @@ improvement plan and questions are the current work. Still open from before it:
       recognition (for example the recogniser and a hash of the recognition JSON), and where?
     - ADR5-13: should the `bounded-clear` / `needs-attention` summary live in the Plan (and so
       in `plan` and `review` replies) or wait for a report document?
-- From wave 3 (stream d-issue-trust): the trust rules of `issues.yaml` (83 pending) now read 6
-  newly ported, 2 translated and 75 pending (2 of them owned by quiddity), every pending one with a
+- From wave 3 (stream d-issue-trust): the trust rules of `issues.yaml` (83 pending) now read 5
+  newly ported, 2 translated and 76 pending (2 of them owned by quiddity), every pending one with a
   `rust_note` saying what is checked and what is missing; the new guards are in
   `tests/issue_trust.rs`. Left, where the port does not uphold a rule (no `src/` change was in
   this stream's scope):
   - ISSUE-1217-a: lint credits a claimed size when *any* number in the callout rounds from it,
     so a repeat count confirms a diameter of the same value (`6× ⌀8 THRU` or `(6×2)` claiming a
     ⌀6 bore is credited on plate.step). The fix is in `lint::holes::states`.
+  - ISSUE-1143-b: lint credits a hole group's requirements when any claim names any one member
+    (`lint::holes::coverage`), so one hole's callout certifies the diameter, THRU and count of
+    every hole in its group; draftwright leaves the count missing. The fix is to require claims
+    on every member.
   - ISSUE-1332-a: one pair of labels can raise both `annotation_overlap` and
     `annotation_ink_overlap` (m10127: the side view's depth with `d:f:hole:2/bore.diameter@front`).
     Owed in placement.

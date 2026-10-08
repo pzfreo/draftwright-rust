@@ -327,10 +327,11 @@ fn asking_for_less_never_buys_silence() {
     }
 }
 
-/// ISSUE-1143-b: hole correspondence is exact. A callout earns credit only for the holes it
-/// claims, by feature ID: one group's callout does not certify another group of the same size,
-/// and text that states the right sizes but claims no hole certifies none (there is no fallback
-/// by value or position).
+/// ISSUE-1143-b, in part: hole correspondence is by feature ID. One group's callout, claiming
+/// every member, does not certify another group of the same size, and text that states the
+/// right sizes but claims no hole certifies none (there is no fallback by value or position).
+/// Not checked here: a claim on one member of a group is credited for the whole group
+/// (`lint::holes::coverage`), which the rule forbids; see the rule's rust_note.
 #[test]
 fn a_callout_certifies_only_the_holes_it_claims() {
     let (_, analysis) = analysed("two_grids");
@@ -347,10 +348,15 @@ fn a_callout_certifies_only_the_holes_it_claims() {
     let firsts: BTreeSet<String> = groups.iter().map(|g| g.members[0].clone()).collect();
     assert_eq!(missing(&[]), firsts);
 
-    let one = &groups[0].members[0];
-    let claimed = missing(&[mark("3× ⌀6 THRU", &[(one, "bore.diameter")])]);
+    assert_eq!(groups[0].members.len(), 3);
+    let all: Vec<(&str, &str)> = groups[0]
+        .members
+        .iter()
+        .map(|m| (m.as_str(), "bore.diameter"))
+        .collect();
+    let claimed = missing(&[mark("3× ⌀6 THRU", &all)]);
     let mut others = firsts.clone();
-    others.remove(one);
+    others.remove(&groups[0].members[0]);
     assert_eq!(claimed, others);
 
     // Every size printed, no hole claimed.
@@ -513,8 +519,19 @@ fn diagnostics_are_the_same_every_run() {
         let mut ids = BTreeSet::new();
         for p in &once.problems {
             assert!(ids.insert(p.id.as_str()), "{name}: {} twice", p.id);
-            for bad in ["0x", "Some(", "None", "@0", "NaN", "inf"] {
+            // Debug renderings, by whole word, so that "information" or "infeasible" pass.
+            for bad in ["Some(", "@0"] {
                 assert!(!p.message.contains(bad), "{name}: {}", p.message);
+            }
+            for word in p.message.split(|c: char| !c.is_alphanumeric() && c != '_') {
+                let address = word.len() > 2
+                    && word.starts_with("0x")
+                    && word[2..].chars().all(|c| c.is_ascii_hexdigit());
+                assert!(
+                    !address && !["None", "NaN", "inf", "Infinity"].contains(&word),
+                    "{name}: {}",
+                    p.message
+                );
             }
             for s in &p.subjects {
                 if s.starts_with("v:") {
