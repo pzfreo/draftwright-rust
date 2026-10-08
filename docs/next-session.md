@@ -1315,3 +1315,34 @@ improvement plan and questions are the current work. Still open from before it:
     - title_field_overflow is now reported twice by `api::review`: as a plan problem (asking
       for a concise value) and as a structural finding (draftwright's message, pointing to a
       notes block). Keep both, or drop one?
+
+- From stream d-native-pockets-slots: `bridge::native` reads oriented slots (`oriented_slot`
+  features, `FIELDS` as Python draftwright's converter reads them: width, length, centre, width and
+  long directions, the source passage's frame, run interval, section and ends) and checks
+  oriented slot patterns (fields, each member exactly one oriented slot, none in two patterns)
+  without making them features, as the bridge reads none of Python's (`DERIVED_NOT_READ`, #1430);
+  `READ` is 25 families. Over the 100 corpus parts only mfcadpp_holdout/467 has an oriented slot
+  in quiddity-rust's reading (and none has an oriented slot pattern), so `tests/native.rs` adds it
+  (set `oriented`, Python quiddity 0.4.0.dev0) and quiddity-rust's golden oriented slots (`golden`,
+  3 slots in one array): 4 oriented slots and 1 pattern compared field by field, 45 parts in all.
+  21 new `known_native.json` entries, all equivalent: the passage frame's run sense and in-plane
+  basis, the width and long directions' senses, and so the section's vertices and run interval,
+  chosen canonically in each recogniser's frame (the prism checked identical, to the 0.001 each
+  side rounds to; quiddity-rust's known_framed_document.json lists the same for 467), and the
+  array's direction sense, member order and named dimensions. Faces, widths, lengths, centres,
+  ends and body keys agree, and so do all 4 fingerprints. Downstream: `plan` on 467 and the golden
+  part now reports each oriented slot as `dimensions_not_ported`, exactly as with `--features`,
+  and no longer names oriented_slots in `features_not_recognised`; their SVGs are byte-identical
+  before and after. Nothing to propose for the catalogue (the port draws and lints no oriented
+  slot).
+  - Not done, and why: prismatic pockets stay known and not read. Python's published document has
+    no `prismatic_pockets` (they are in `_LegacyRecognitionResult` only); Python projects them into
+    `section_recesses` (`result.py` `_prismatic_pocket_recess`), which is what draftwright lints
+    and dimensions, so there is no Python record to compare a native one with, and reading them as
+    `prismatic_pocket` features would give consumers a kind the `--features` path never has (the
+    hexagonal pocket callouts come from section recesses). Quiddity-rust's document has prismatic
+    pockets on 45 corpus parts.
+  - Question for the maintainer: this is the earlier section-recess question again, now for
+    prismatic pockets: should quiddity-rust's document publish Python's `SectionRecess` (into which
+    prismatic pockets, pockets, channels, blind slots and passages are projected), so the native
+    path can give draftwright its pockets?
