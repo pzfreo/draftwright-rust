@@ -9,8 +9,17 @@
 //!   vanished entry fails. The placement problems of `tests/fixtures/known_placement.json` judge
 //!   the same collisions from the plan (`annotation_overlap` there is any overlap of two
 //!   dimensions' label boxes, `annotation_off_sheet` any of a dimension's label corners or line
-//!   ends off the drawable area); the reasons here cross-reference them. Set
+//!   ends off the drawable area, `annotation_ink_overlap` a dimension's lines through another's
+//!   label, `annotation_over_view` a label over a view's line-work); the reasons here
+//!   cross-reference them, and a finding between two dimensions must be among the plan's. Set
 //!   `LINT_REPORT=1` to print each finding, and `LINT_OWN_ALL=1` to draw connector109 too.
+//! - **What draftwright's lint read** (`tests/fixtures/sheet_lint/`, written by
+//!   `tools/capture_sheet_lint.py` from draftwright's own sheets of the same parts): the
+//!   arguments of its one `lint_drawing` call, each item's boxes, line-work, elbow and riders,
+//!   each view's visible edges, the title block's fields, and what the call found. The checks run
+//!   on that record and must give exactly its findings in the ported codes, by the names they
+//!   are about (by message where draftwright names none) and severity, and with
+//!   `annotation_overlap`'s line-work remedy where draftwright gives one.
 //! - **Python's captured sheets** (`tests/fixtures/sheets/`): the checks run on what the facts
 //!   record and are compared with draftwright's `lint` list, code by code. The facts carry each
 //!   view's box (visible and hidden lines, where draftwright's lint boxes the visible lines
@@ -35,7 +44,7 @@ use std::path::{Path, PathBuf};
 
 use draftwright::lint::{self, LintIssue, Severity, structural};
 use draftwright::model;
-use draftwright::output::{Drawing, Drawn, DrawnView, Kind, Sheet};
+use draftwright::output::{Curve, Drawing, Drawn, DrawnField, DrawnView, Kind, Sheet};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -58,11 +67,17 @@ const VERDICTS: [&str; 5] = [
 ];
 
 /// The codes this module ports.
-const CODES: [&str; 6] = [
+const CODES: [&str; 12] = [
     "derived_view_identifier_reused",
     "scale_not_stated",
+    "title_field_overflow",
+    "leader_line_through_text",
     "annotation_overlap",
+    "annotation_ink_overlap",
+    "label_centerline_overlap",
     "annotation_out_of_bounds",
+    "view_annotation_overlap",
+    "view_annotation_inside_extents",
     "view_overlap",
     "view_out_of_bounds",
 ];
@@ -88,9 +103,11 @@ fn sheet(views: &[(&str, [f64; 4])], items: Vec<Drawn>) -> Drawing {
                 .map(|(name, bbox)| DrawnView {
                     name: name.to_string(),
                     bbox: *bbox,
+                    edges: Vec::new(),
                 })
                 .collect(),
             items,
+            fields: Vec::new(),
         },
         problems: Vec::new(),
         spec: None,
@@ -103,6 +120,9 @@ fn item(name: &str, kind: Kind, ink: [f64; 4], label: Option<[f64; 4]>) -> Drawn
         kind,
         ink,
         label,
+        lines: Vec::new(),
+        elbow: None,
+        interior: false,
     }
 }
 
@@ -263,23 +283,312 @@ fn labels_overlap_by_more_than_half_a_millimetre_both_ways() {
         ),
     ];
     assert!(structural::check(&sheet(&[], stacked.to_vec())).is_empty());
-    // A thing with no label takes part by its whole ink; a section's hatch and cutting-plane ink
-    // take none.
+    // A thing with no label takes part by its whole ink, a section's hatch too; a centreline
+    // takes none (it is judged by label_centerline_overlap).
     let block = item(
         "title_block",
         Kind::TitleBlock,
         [55.0, 40.0, 120.0, 52.0],
         None,
     );
-    let hatch = item(
-        "section_ink",
-        Kind::SectionInk,
-        [40.0, 40.0, 80.0, 60.0],
+    let hatch = item("section_hatch", Kind::Hatch, [62.0, 40.0, 80.0, 60.0], None);
+    let mut line = item(
+        "section_line",
+        Kind::Centreline,
+        [40.0, 51.4, 61.0, 51.6],
         None,
     );
-    let found = structural::check(&sheet(&[], vec![label("d:a", a), block, hatch]));
-    assert_eq!(codes(&found), ["scale_not_stated", "annotation_overlap"]);
+    line.lines = vec![[[40.0, 51.5], [61.0, 51.5]]];
+    let found = structural::check(&sheet(&[], vec![label("d:a", a), block, hatch, line]));
+    assert_eq!(
+        codes(&found),
+        [
+            "scale_not_stated",
+            "annotation_overlap",
+            "label_centerline_overlap",
+            "annotation_overlap"
+        ]
+    );
     assert_eq!(found[1].related, ["title_block"]);
+    assert_eq!(found[3].annotation.as_deref(), Some("title_block"));
+    assert_eq!(found[3].related, ["section_hatch"]);
+}
+
+/// A dimension *name* with its label box *b* and line-work *lines*.
+fn drawn(name: &str, b: [f64; 4], lines: &[[[f64; 2]; 2]]) -> Drawn {
+    let mut d = label(name, b);
+    d.lines = lines.to_vec();
+    d.ink = lines.iter().flatten().fold(b, |k, p| {
+        [
+            k[0].min(p[0]),
+            k[1].min(p[1]),
+            k[2].max(p[0]),
+            k[3].max(p[1]),
+        ]
+    });
+    d
+}
+
+#[test]
+fn line_work_through_a_label_is_reported_from_half_a_millimetre() {
+    let b = [50.0, 50.0, 60.0, 53.0];
+    let check = |lines: &[[[f64; 2]; 2]]| {
+        structural::check(&sheet(
+            &[],
+            vec![
+                label("d:b", b),
+                drawn("d:a", [20.0, 20.0, 30.0, 23.0], lines),
+            ],
+        ))
+    };
+    // A line ending 0.49 mm into the label is a graze; 0.5 mm is reported.
+    assert!(check(&[[[55.0, 30.0], [55.0, 50.49]]]).is_empty());
+    let found = check(&[[[55.0, 30.0], [55.0, 50.5]]]);
+    assert_eq!(codes(&found), ["annotation_ink_overlap"]);
+    assert_eq!(found[0].severity, Severity::Warning);
+    // The crossed label is the subject, the thing whose line-work crosses it related.
+    assert_eq!(found[0].annotation.as_deref(), Some("d:b"));
+    assert_eq!(found[0].related, ["d:a"]);
+    assert_eq!(found[0].at, Some([55.0, 51.5]));
+    assert!(
+        found[0]
+            .message
+            .starts_with("'d:a' draws 0.5 mm of line-work through the label 'd:b'"),
+        "{}",
+        found[0].message
+    );
+    // Pieces meeting at an end inside the label are one stroke, 0.3 + 0.3 mm; apart, two
+    // grazes of 0.3 mm.
+    let joined = [[[55.0, 30.0], [55.0, 50.3]], [[55.0, 50.3], [55.3, 50.3]]];
+    assert_eq!(codes(&check(&joined)), ["annotation_ink_overlap"]);
+    let apart = [[[55.0, 30.0], [55.0, 50.3]], [[57.0, 50.3], [57.3, 50.3]]];
+    assert!(check(&apart).is_empty());
+    // A stroke clean through the label: its height, both ways round when each crosses the other.
+    let mut c = drawn(
+        "d:c",
+        [56.0, 40.0, 62.0, 43.0],
+        &[[[51.0, 45.0], [51.0, 51.0]]],
+    );
+    let mut d = label("d:b", b);
+    d.lines = vec![[[58.0, 30.0], [58.0, 46.0]]];
+    d.ink = [50.0, 30.0, 60.0, 53.0];
+    c.ink = [51.0, 40.0, 62.0, 51.0];
+    let found = structural::check(&sheet(&[], vec![d, c]));
+    assert_eq!(
+        found.iter().map(|i| i.id.as_str()).collect::<Vec<_>>(),
+        [
+            "l:annotation_ink_overlap:d:c+d:b",
+            "l:annotation_ink_overlap:d:b+d:c"
+        ]
+    );
+    assert!(
+        found[0].message.contains("draws 3.0 mm"),
+        "{}",
+        found[0].message
+    );
+    assert!(
+        found[1].message.contains("draws 1.0 mm"),
+        "{}",
+        found[1].message
+    );
+    // A thing with no label cannot be crossed (its own ink is no text).
+    let mut block = item("title_block", Kind::TitleBlock, b, None);
+    block.lines = vec![[[50.0, 50.0], [60.0, 50.0]]];
+    let found = structural::check(&sheet(
+        &[],
+        vec![
+            block,
+            drawn(
+                "d:a",
+                [20.0, 20.0, 30.0, 23.0],
+                &[[[55.0, 30.0], [55.0, 60.0]]],
+            ),
+        ],
+    ));
+    assert_eq!(codes(&found), ["scale_not_stated"]);
+}
+
+#[test]
+fn overlapping_labels_name_the_line_work_that_also_crosses() {
+    let a = [50.0, 50.0, 60.0, 53.0];
+    let b = [58.0, 51.0, 70.0, 54.0];
+    let found = structural::check(&sheet(&[], vec![label("d:a", a), label("d:b", b)]));
+    assert_eq!(codes(&found), ["annotation_overlap"]);
+    assert_eq!(
+        found[0].message,
+        "labels 'd:a' and 'd:b' overlap by 2.0×2.0 mm"
+    );
+    // d:b's leader also runs 2 mm through d:a's text: one finding for the pair, which says so.
+    let crossing = drawn("d:b", b, &[[[52.0, 40.0], [52.0, 52.0]]]);
+    let found = structural::check(&sheet(&[], vec![label("d:a", a), crossing]));
+    assert_eq!(codes(&found), ["annotation_overlap"]);
+    assert_eq!(
+        found[0].message,
+        "labels 'd:a' and 'd:b' overlap by 2.0×2.0 mm — 'd:b' also draws 2.0 mm of line-work \
+         through the label 'd:a', so separating the text is not enough"
+    );
+    assert_eq!(
+        found[0].fix.as_deref(),
+        Some("move what is drawn, not just the text")
+    );
+    // Under half a millimetre of line-work is no crossing.
+    let grazing = drawn("d:b", b, &[[[52.0, 40.0], [52.0, 50.49]]]);
+    let found = structural::check(&sheet(&[], vec![label("d:a", a), grazing]));
+    assert_eq!(
+        found[0].message,
+        "labels 'd:a' and 'd:b' overlap by 2.0×2.0 mm"
+    );
+}
+
+#[test]
+fn a_leader_does_not_turn_inside_its_own_label() {
+    let b = [50.0, 50.0, 60.0, 53.0];
+    let callout = |elbow: [f64; 2]| {
+        let mut d = drawn(
+            "d:h",
+            b,
+            &[[[40.0, 40.0], elbow], [elbow, [elbow[0] + 3.0, elbow[1]]]],
+        );
+        d.elbow = Some(elbow);
+        structural::check(&sheet(&[], vec![d]))
+    };
+    assert!(callout([49.999, 51.5]).is_empty());
+    let found = callout([50.0, 51.5]);
+    assert_eq!(codes(&found), ["leader_line_through_text"]);
+    assert_eq!(found[0].severity, Severity::Error);
+    assert_eq!(found[0].annotation.as_deref(), Some("d:h"));
+    assert_eq!(
+        found[0].message,
+        "Leader 'd:h': elbow point (50.00, 51.50) is inside the label bbox — leader line passes \
+         through the text"
+    );
+    assert_eq!(codes(&callout([55.0, 53.0])), ["leader_line_through_text"]);
+    assert!(callout([55.0, 53.001]).is_empty());
+}
+
+#[test]
+fn a_label_clears_a_centreline_by_half_a_millimetre() {
+    let b = [50.0, 50.0, 60.0, 53.0];
+    let check = |line: [[f64; 2]; 2]| {
+        let mut cl = item("section_line", Kind::Centreline, [0.0; 4], None);
+        cl.ink = [
+            line[0][0].min(line[1][0]),
+            line[0][1].min(line[1][1]),
+            line[0][0].max(line[1][0]),
+            line[0][1].max(line[1][1]),
+        ];
+        cl.lines = vec![line];
+        structural::check(&sheet(&[], vec![label("d:a", b), cl]))
+    };
+    // A line along the page is measured across by how deep it runs in: 0.5 mm is clear.
+    assert!(check([[40.0, 50.5], [70.0, 50.5]]).is_empty());
+    let found = check([[40.0, 50.51], [70.0, 50.51]]);
+    assert_eq!(codes(&found), ["label_centerline_overlap"]);
+    assert_eq!(found[0].severity, Severity::Warning);
+    assert_eq!(found[0].annotation.as_deref(), Some("d:a"));
+    assert_eq!(found[0].related, ["section_line"]);
+    assert_eq!(
+        found[0].message,
+        "label 'd:a' overlaps centerline by 10.0×0.5 mm"
+    );
+    // And along it by how far it runs inside: 0.5 mm is clear.
+    assert!(check([[49.5, 51.5], [50.5, 51.5]]).is_empty());
+    assert_eq!(
+        codes(&check([[49.5, 51.5], [50.51, 51.5]])),
+        ["label_centerline_overlap"]
+    );
+    // Across the page, the same.
+    assert!(check([[59.5, 40.0], [59.5, 60.0]]).is_empty());
+    assert_eq!(
+        codes(&check([[59.49, 40.0], [59.49, 60.0]])),
+        ["label_centerline_overlap"]
+    );
+}
+
+#[test]
+fn a_label_over_a_view_is_judged_by_its_edges() {
+    let front = [20.0, 20.0, 100.0, 80.0];
+    let view = |edges: Vec<Curve>| DrawnView {
+        name: "v:front".into(),
+        bbox: front,
+        edges,
+    };
+    let rim = Curve::Conic {
+        centre: [60.0, 50.0],
+        radii: [20.0, 20.0],
+        x_axis: [1.0, 0.0],
+        y_axis: [0.0, 1.0],
+        t0: 0.0,
+        t1: std::f64::consts::TAU,
+    };
+    let check = |b: [f64; 4], edges: Vec<Curve>, interior: bool| {
+        let mut drawing = sheet(&[], Vec::new());
+        drawing.sheet.views = vec![view(edges)];
+        let mut d = label("d:a", b);
+        d.interior = interior;
+        drawing.sheet.items = vec![d];
+        structural::check(&drawing)
+    };
+    let outline = vec![Curve::Line([20.0, 20.0], [100.0, 20.0])];
+    // Touching the view's box is not over it.
+    assert!(check([100.0, 50.0, 110.0, 53.0], outline.clone(), false).is_empty());
+    // Over its box but clear of its edges: blank face, noted.
+    let found = check([55.0, 48.0, 65.0, 51.0], outline.clone(), false);
+    assert_eq!(codes(&found), ["view_annotation_inside_extents"]);
+    assert_eq!(found[0].severity, Severity::Info);
+    assert_eq!(
+        found[0].message,
+        "label of annotation 'd:a' lies inside view 'front' extents [x=20.0–100.0, y=20.0–80.0] \
+         over a blank region — legitimate for callouts on large faces"
+    );
+    // Unless it was placed inside on purpose.
+    assert!(check([55.0, 48.0, 65.0, 51.0], outline.clone(), true).is_empty());
+    // A straight edge through the label crosses it, one along its edge does not (draftwright
+    // first compares the edge's box with the label's, a touch not counting).
+    assert!(check([55.0, 20.0, 65.0, 23.0], outline.clone(), true).is_empty());
+    let found = check([55.0, 19.0, 65.0, 22.0], outline.clone(), true);
+    assert_eq!(codes(&found), ["view_annotation_overlap"]);
+    assert_eq!(found[0].severity, Severity::Warning);
+    assert_eq!(found[0].view.as_deref(), Some("v:front"));
+    assert_eq!(
+        found[0].message,
+        "view 'front' line-work overlaps label of annotation 'd:a' — increase view spacing or \
+         move the annotation"
+    );
+    // A curved edge by its points about a millimetre apart: the rim's top passes through a
+    // label straddling y = 70, not one just under it.
+    assert_eq!(
+        codes(&check([55.0, 69.0, 65.0, 72.0], vec![rim.clone()], false)),
+        ["view_annotation_overlap"]
+    );
+    assert_eq!(
+        codes(&check([55.0, 66.0, 65.0, 69.0], vec![rim], false)),
+        ["view_annotation_inside_extents"]
+    );
+}
+
+#[test]
+fn a_title_field_fits_its_cell() {
+    let check = |w: f64| {
+        let mut drawing = sheet(&[], furniture());
+        drawing.sheet.fields = vec![DrawnField {
+            field: "title".into(),
+            cell: [107.0, 32.0, 212.0, 40.0],
+            ink: [110.0, 35.0, 110.0 + w, 37.2],
+        }];
+        structural::check(&drawing)
+    };
+    assert!(check(105.0).is_empty());
+    let found = check(105.0 + 2e-9);
+    assert_eq!(codes(&found), ["title_field_overflow"]);
+    assert_eq!(found[0].severity, Severity::Warning);
+    assert_eq!(found[0].annotation.as_deref(), Some("title_block"));
+    assert_eq!(
+        found[0].message,
+        "Title-block field 'title' overflows its cell: text 105.00 × 2.20 mm, cell 105.00 × 8.00 \
+         mm. Use a concise field value and retain the full information in a notes block; text has \
+         not been shortened or shrunk."
+    );
 }
 
 #[test]
@@ -309,7 +618,6 @@ fn one_identifier_names_one_derived_view() {
 /// turning points, not their poles.
 #[test]
 fn a_curves_box_is_tight() {
-    use draftwright::output::Curve;
     let close = |a: [f64; 4], b: [f64; 4]| (0..4).all(|k| (a[k] - b[k]).abs() < 1e-9);
     let arc = |t0: f64, t1: f64| Curve::Conic {
         centre: [1.0, 1.0],
@@ -358,11 +666,12 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
         .filter(|n| corpus::recognition(n).is_some())
         .filter(|n| all || n != "connector109")
         .collect();
+    let sections = std::sync::atomic::AtomicUsize::new(0);
     let linted: Vec<Vec<LintIssue>> = std::thread::scope(|s| {
         let handles: Vec<_> = names
             .iter()
             .map(|name| {
-                let (dir, font) = (&dir, &font);
+                let (dir, font, sections) = (&dir, &font, &sections);
                 s.spawn(move || {
                     let f = facts::load(name);
                     let (part, analysis) = corpus::analyse(dir, &f.binding.file, name);
@@ -380,6 +689,38 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
                         "{name}: every annotation drawn is measured"
                     );
                     assert_eq!(drawing.sheet.views.len(), plan.views.len(), "{name}");
+                    for v in &drawing.sheet.views {
+                        assert!(!v.edges.is_empty(), "{name}: {} records its edges", v.name);
+                    }
+                    // A section's pieces, as draftwright places them: the chain line by its one
+                    // line, and at each end a solid arrowhead (2.7 mm long, a third of that
+                    // either side of the line) and a wing stub (1.5 arrow lengths).
+                    let piece = |n: &str| drawing.sheet.items.iter().find(|d| d.name == n);
+                    if kinds.contains(&Kind::Hatch) {
+                        let line = piece("section_line").expect("a cutting plane");
+                        assert_eq!(line.kind, Kind::Centreline);
+                        let [[[x0, y0], [x1, y1]]] = line.lines[..] else {
+                            panic!("{name}: {line:?}")
+                        };
+                        assert!(y0 == y1 && x0 < x1, "{name}: {line:?}");
+                        let close = |a: f64, b: f64| (a - b).abs() < 1e-6;
+                        for (side, x) in [("left", x0), ("right", x1)] {
+                            let head = piece(&format!("section_arrow_{side}")).unwrap().ink;
+                            assert!(
+                                close(head[3] - head[1], 2.7)
+                                    && close(head[2] - head[0], 1.8)
+                                    && close(head[3], y0)
+                                    && close(head[0] + 0.9, x),
+                                "{name}: {head:?}"
+                            );
+                            let wing = piece(&format!("section_wing_{side}")).unwrap().ink;
+                            assert!(
+                                close(wing[3] - wing[1], 1.5 * 2.7) && close(wing[3], y0 - 2.7),
+                                "{name}: {wing:?}"
+                            );
+                        }
+                        sections.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
                     let issues = structural::check(&drawing);
                     // The placement problems judge the same collisions from the plan: a
                     // dimension the plan finds off the sheet (a label corner or a line end) has
@@ -403,18 +744,40 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
                             p.id
                         );
                     }
-                    let placed_overlaps: BTreeSet<String> = plan
-                        .problems
+                    let placed = |code: &str| -> BTreeSet<String> {
+                        plan.problems
+                            .iter()
+                            .filter(|p| p.code == code)
+                            .flat_map(|p| p.subjects.iter().cloned())
+                            .collect()
+                    };
+                    // Likewise line-work through a label, and a label over a view's line-work,
+                    // between dimensions: the plan reports each (annotation_ink_overlap,
+                    // annotation_over_view).
+                    for (code, plan_code) in [
+                        ("annotation_overlap", "annotation_overlap"),
+                        ("annotation_ink_overlap", "annotation_ink_overlap"),
+                    ] {
+                        let reported = placed(plan_code);
+                        for i in issues.iter().filter(|i| i.code == code) {
+                            let pair = i.annotation.iter().chain(&i.related);
+                            let dims = pair.clone().filter(|n| n.starts_with("d:")).count();
+                            assert!(
+                                dims < 2 || pair.into_iter().all(|n| reported.contains(n)),
+                                "{name}: {} the plan does not report",
+                                i.id
+                            );
+                        }
+                    }
+                    let over_view = placed("annotation_over_view");
+                    for i in issues
                         .iter()
-                        .filter(|p| p.code == "annotation_overlap")
-                        .flat_map(|p| p.subjects.iter().cloned())
-                        .collect();
-                    for i in issues.iter().filter(|i| i.code == "annotation_overlap") {
-                        let pair = i.annotation.iter().chain(&i.related);
-                        let dims = pair.clone().filter(|n| n.starts_with("d:")).count();
+                        .filter(|i| i.code == "view_annotation_overlap")
+                    {
+                        let a = i.annotation.as_deref().unwrap();
                         assert!(
-                            dims < 2 || pair.into_iter().all(|n| placed_overlaps.contains(n)),
-                            "{name}: {} overlap the plan does not report",
+                            !a.starts_with("d:") || over_view.contains(a),
+                            "{name}: {} the plan does not report",
                             i.id
                         );
                     }
@@ -424,6 +787,7 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
             .collect();
         handles.into_iter().map(|h| h.join().unwrap()).collect()
     });
+    assert!(sections.into_inner() > 0, "some drawing has a section");
     let mut found: BTreeMap<(String, String), usize> = BTreeMap::new();
     for (name, issues) in names.iter().zip(linted) {
         let ids: BTreeSet<&str> = issues.iter().map(|i| i.id.as_str()).collect();
@@ -524,10 +888,12 @@ fn structural_checks_on_pythons_sheets_agree_with_pythons_lint() {
                         Some(DrawnView {
                             name: format!("v:{}", v.name),
                             bbox: v.bbox?,
+                            edges: Vec::new(),
                         })
                     })
                     .collect(),
                 items: labelled.collect(),
+                fields: Vec::new(),
             },
             problems: Vec::new(),
             spec: None,
@@ -617,5 +983,331 @@ fn the_review_reports_structural_findings_beside_coverage() {
         lint::lint(&analysis, &drawing)
             .iter()
             .all(|i| !CODES.contains(&i.code.as_str()))
+    );
+}
+
+/// What draftwright's structural lint read on one sheet, and what it found
+/// (`tools/capture_sheet_lint.py`, `tests/fixtures/sheet_lint/`).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Captured {
+    schema: String,
+    file: String,
+    page_bbox: Option<[f64; 4]>,
+    scale: f64,
+    items: Vec<CapturedItem>,
+    views: Vec<CapturedView>,
+    issues: Vec<CapturedIssue>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapturedItem {
+    name: Option<String>,
+    #[serde(rename = "type")]
+    kind: String,
+    label: String,
+    label_bbox: Option<[f64; 4]>,
+    label_polygon: Option<Vec<[f64; 2]>>,
+    segments: Vec<[[f64; 2]; 2]>,
+    ink: Option<[f64; 4]>,
+    region: Option<String>,
+    elbow: Option<[f64; 2]>,
+    tip: Option<[f64; 2]>,
+    #[serde(default)]
+    dimension_like: bool,
+    #[serde(default)]
+    is_centerline: bool,
+    #[serde(default)]
+    is_sheet_frame: bool,
+    #[serde(default)]
+    is_zone_grid: bool,
+    #[serde(default)]
+    is_zone_label: bool,
+    #[serde(default)]
+    is_section_hatch: bool,
+    #[serde(default)]
+    is_datum_target: bool,
+    #[serde(default)]
+    is_scale_note: bool,
+    centerline_segments: Option<Vec<[[f64; 2]; 2]>>,
+    centerline_boxes: Option<Vec<[f64; 4]>>,
+    title_fields: Option<Vec<CapturedField>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapturedField {
+    field: String,
+    value: String,
+    /// Width and height, mm.
+    cell: [f64; 2],
+    text: [f64; 2],
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapturedView {
+    name: String,
+    bbox: [f64; 4],
+    edges: Vec<CapturedEdge>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapturedEdge {
+    line: Option<[[f64; 2]; 2]>,
+    points: Option<Vec<[f64; 2]>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapturedIssue {
+    code: String,
+    severity: String,
+    message: String,
+    annotation: Option<String>,
+    related: Vec<String>,
+    view: Option<String>,
+}
+
+fn captured() -> Vec<(String, Captured)> {
+    use std::io::Read as _;
+    let dir = fixture("sheet_lint");
+    let mut names: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .filter_map(|e| {
+            let name = e.unwrap().file_name().to_string_lossy().into_owned();
+            name.strip_suffix(".json.gz").map(str::to_string)
+        })
+        .collect();
+    names.sort();
+    names
+        .into_iter()
+        .map(|name| {
+            let mut text = String::new();
+            flate2::read::GzDecoder::new(
+                std::fs::File::open(dir.join(format!("{name}.json.gz"))).unwrap(),
+            )
+            .read_to_string(&mut text)
+            .unwrap();
+            let c: Captured = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert_eq!(c.schema, "draftwright.sheet-lint/1", "{name}");
+            (name, c)
+        })
+        .collect()
+}
+
+/// A captured sheet as the port's record of what was drawn: each item by its registry name (an
+/// unnamed one as `#<index>`), its kind from the riders lint dispatches on, its boxes,
+/// line-work and elbow; its label's text as a text run, so messages call it as draftwright does;
+/// each view by its box and visible edges, a sampled curve by its sample points (each a line of
+/// no length: a point is in a box as a line of no length is); the title block's fields by their
+/// measured sizes.
+fn captured_drawing(name: &str, c: &Captured) -> Drawing {
+    let mut text = Vec::new();
+    let mut annotations = Vec::new();
+    let mut items = Vec::new();
+    let mut fields = Vec::new();
+    for (k, i) in c.items.iter().enumerate() {
+        // Furniture the port does not draw, and so cannot judge as draftwright does.
+        assert!(
+            !(i.is_sheet_frame || i.is_zone_grid || i.is_zone_label || i.is_datum_target),
+            "{name}: {i:?}"
+        );
+        let item_name = i.name.clone().unwrap_or_else(|| format!("#{k}"));
+        let kind = if i.is_centerline {
+            Kind::Centreline
+        } else if i.is_section_hatch {
+            Kind::Hatch
+        } else if i.is_scale_note {
+            Kind::ScaleNote
+        } else if i.title_fields.is_some() {
+            Kind::TitleBlock
+        } else {
+            Kind::Dimension
+        };
+        if !i.label.is_empty() {
+            annotations.push(draftwright::output::Annotation {
+                name: item_name.clone(),
+                view: None,
+                runs: vec![text.len()],
+                claims: Vec::new(),
+            });
+            text.push(draftwright::output::TextRun {
+                text: i.label.clone(),
+                at: [0.0, 0.0],
+                size: 3.0,
+                rotation: 0.0,
+                font: String::new(),
+                h_align: draftwright::output::HAlign::Center,
+                v_align: draftwright::output::VAlign::Middle,
+            });
+        }
+        // A centreline's own segments are its line; draftwright's component boxes are not
+        // recorded by the port, and none is captured.
+        assert!(
+            i.centerline_boxes.as_ref().is_none_or(Vec::is_empty),
+            "{name}: {item_name}"
+        );
+        let lines = i
+            .centerline_segments
+            .clone()
+            .unwrap_or_else(|| i.segments.clone());
+        let _ = (&i.kind, i.tip, i.dimension_like, &i.label_polygon);
+        for f in i.title_fields.iter().flatten() {
+            let _ = &f.value;
+            fields.push(DrawnField {
+                field: f.field.clone(),
+                cell: [0.0, 0.0, f.cell[0], f.cell[1]],
+                ink: [0.0, 0.0, f.text[0], f.text[1]],
+            });
+        }
+        items.push(Drawn {
+            name: item_name,
+            kind,
+            ink: i
+                .ink
+                .unwrap_or_else(|| panic!("{name}: {i:?} has no ink box")),
+            label: i.label_bbox,
+            lines,
+            elbow: i.elbow,
+            interior: i.region.as_deref() == Some("interior"),
+        });
+    }
+    let views = c
+        .views
+        .iter()
+        .map(|v| DrawnView {
+            name: format!("v:{}", v.name),
+            bbox: v.bbox,
+            edges: v
+                .edges
+                .iter()
+                .flat_map(|e| match (e.line, &e.points) {
+                    (Some([p, q]), None) => vec![Curve::Line(p, q)],
+                    (None, Some(points)) => points.iter().map(|p| Curve::Line(*p, *p)).collect(),
+                    _ => panic!("{name}: {e:?}"),
+                })
+                .collect(),
+        })
+        .collect();
+    Drawing {
+        page: [0.0, 0.0],
+        layers: Vec::new(),
+        link: None,
+        text,
+        annotations,
+        sheet: Sheet {
+            drawable: c.page_bbox,
+            views,
+            items,
+            fields,
+        },
+        problems: Vec::new(),
+        spec: None,
+    }
+}
+
+/// A finding as both sides can name it: its code, the names of what it is about (an unnamed
+/// item left out), and its message where it names nothing, up to any advice the port leaves out.
+fn key(code: &str, names: &[&str], message: &str) -> String {
+    let named: Vec<&str> = names
+        .iter()
+        .copied()
+        .filter(|n| !n.starts_with('#'))
+        .collect();
+    if named.is_empty() {
+        let kept = if code == "label_centerline_overlap" {
+            message.split(" — ").next().unwrap()
+        } else {
+            message
+        };
+        format!("{code} {kept}")
+    } else {
+        format!("{code} {}", named.join("+"))
+    }
+}
+
+/// The checks on what draftwright's structural lint read on its own sheets give what it found:
+/// every finding in the ported codes, with the line-work crossing named in `annotation_overlap`
+/// where draftwright names one, and the same severity.
+#[test]
+fn structural_checks_on_what_draftwright_read_agree_with_what_it_found() {
+    let mut compared = BTreeMap::new();
+    for (name, c) in captured() {
+        assert!(c.scale > 0.0 && !c.file.is_empty(), "{name}");
+        let drawing = captured_drawing(&name, &c);
+        let issues = structural::check(&drawing);
+        let mut theirs: Vec<String> = Vec::new();
+        let mut ours: Vec<String> = Vec::new();
+        for i in c.issues.iter().filter(|i| CODES.contains(&i.code.as_str())) {
+            let names: Vec<&str> = i
+                .annotation
+                .iter()
+                .chain(&i.related)
+                .map(String::as_str)
+                .collect();
+            let mut k = key(&i.code, &names, &i.message);
+            if i.code == "annotation_overlap"
+                && let Some((_, remedy)) = i.message.split_once(" — ")
+                && remedy.contains("also draws")
+            {
+                k += &format!(" ({})", remedy.split(", so").next().unwrap());
+            }
+            let _ = &i.view;
+            theirs.push(format!("{k} [{}]", i.severity));
+            *compared.entry(i.code.clone()).or_insert(0) += 1;
+        }
+        for i in &issues {
+            let names: Vec<&str> = i
+                .annotation
+                .iter()
+                .chain(&i.related)
+                .map(String::as_str)
+                .collect();
+            // draftwright names neither side of a centreline pair, nor what a view's line-work
+            // runs through, nor the title block of a field.
+            let names = if matches!(
+                i.code.as_str(),
+                "label_centerline_overlap"
+                    | "view_annotation_overlap"
+                    | "view_annotation_inside_extents"
+                    | "title_field_overflow"
+            ) {
+                Vec::new()
+            } else {
+                names
+            };
+            let mut k = key(&i.code, &names, &i.message);
+            if i.code == "annotation_overlap"
+                && let Some((_, remedy)) = i.message.split_once(" — ")
+            {
+                k += &format!(" ({})", remedy.split(", so").next().unwrap());
+            }
+            let severity = match i.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+                Severity::Info => "info",
+            };
+            ours.push(format!("{k} [{severity}]"));
+        }
+        theirs.sort();
+        ours.sort();
+        assert_eq!(
+            ours, theirs,
+            "{name}: the port's findings (left), draftwright's (right)"
+        );
+    }
+    // ftc06's ten crossings, cgb245's and ctc04's one each; ctc04's overlapping pair (its
+    // line-work remedy included); hanger's and m10046's labels over blank face.
+    assert_eq!(
+        compared,
+        BTreeMap::from([
+            ("annotation_ink_overlap".to_string(), 12),
+            ("annotation_overlap".to_string(), 1),
+            ("view_annotation_inside_extents".to_string(), 5),
+        ]),
+        "draftwright's findings in the ported codes on its sheets"
     );
 }

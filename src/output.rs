@@ -148,6 +148,36 @@ impl Curve {
         }
         b
     }
+
+    /// The point at *u*, 0 at the start and 1 at the end: a conic's angle in proportion, and
+    /// for pieces end to end, each piece an equal share.
+    pub fn at(&self, u: f64) -> P {
+        let u = u.clamp(0.0, 1.0);
+        let piece = |n: usize| {
+            let x = u * n as f64;
+            let k = (x.floor() as usize).min(n - 1);
+            (k, x - k as f64)
+        };
+        match self {
+            Curve::Line(a, b) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u],
+            Curve::Conic {
+                centre,
+                radii,
+                x_axis,
+                y_axis,
+                t0,
+                t1,
+            } => Curve::conic_at(*centre, *radii, *x_axis, *y_axis, t0 + (t1 - t0) * u),
+            Curve::Beziers(pieces) => {
+                let (k, t) = piece(pieces.len());
+                de_casteljau(&pieces[k], t)
+            }
+            Curve::Rational(pieces) => {
+                let (k, t) = piece(pieces.len());
+                rational_at(&pieces[k], t)
+            }
+        }
+    }
 }
 
 /// A Bézier piece's point at *t*, by de Casteljau on its poles.
@@ -278,12 +308,20 @@ pub enum Kind {
     Table,
     /// A section's caption or a cutting plane's letter.
     Caption,
-    /// A section's hatch, or its cutting-plane line with its wings and arrowheads.
-    SectionInk,
+    /// A section's hatching (draftwright's `is_section_hatch`).
+    Hatch,
+    /// A centreline (draftwright's `is_centerline`): the cutting plane's chain line, by its line.
+    Centreline,
+    /// A cutting plane's arrowhead or wing stub.
+    CuttingPlane,
 }
 
 /// A thing drawn on the sheet: its name, what it is, the box of all its ink, and the box of its
-/// label's text, if it has one (a dimension's is the label's ink box).
+/// label's text, if it has one (a dimension's is the label's ink box; the port draws every label
+/// along or across the page, so the box is the text's own). Its straight line-work is each line
+/// it draws by its ends (draftwright's `segments`: extension, dimension and leader lines, a
+/// block's rules; not its glyphs or arrowheads), and a callout's leader its elbow, where the
+/// shaft meets the shoulder.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Drawn {
     pub name: String,
@@ -291,13 +329,28 @@ pub struct Drawn {
     /// `[x0, y0, x1, y1]`, mm.
     pub ink: [f64; 4],
     pub label: Option<[f64; 4]>,
+    pub lines: Vec<[P; 2]>,
+    pub elbow: Option<P>,
+    /// Placed inside its view on purpose, clear of the view's edges (draftwright's `interior`
+    /// placement region). The port places nothing there.
+    pub interior: bool,
 }
 
-/// A view as drawn: its name (`v:front`) and the box of its visible edges, mm.
+/// A view as drawn: its name (`v:front`), the box of its visible edges, mm, and those edges.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DrawnView {
     pub name: String,
     pub bbox: [f64; 4],
+    pub edges: Vec<Curve>,
+}
+
+/// A title-block field as drawn: its field (draftwright's name, `drawing_number`), its cell and
+/// the box of its value's ink, mm.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DrawnField {
+    pub field: String,
+    pub cell: [f64; 4],
+    pub ink: [f64; 4],
 }
 
 /// The sheet as lint's sheet checks read it (`crate::lint::structural`): where the drawing may
@@ -311,6 +364,8 @@ pub struct Sheet {
     pub views: Vec<DrawnView>,
     /// Every annotation and piece of sheet furniture drawn, in drawing order.
     pub items: Vec<Drawn>,
+    /// Each title-block field drawn with a value, top row first.
+    pub fields: Vec<DrawnField>,
 }
 
 #[derive(Clone, Debug)]

@@ -1126,3 +1126,34 @@ improvement plan and questions are the current work. Still open from before it:
   Question for the maintainer: area cannot tell apart same-sized faces (a pattern's instances);
   should `tools/recognise.py` also write each face's area centre, so the bridge proves order by
   place?
+- Structural sheet lint, second part (stream d-lint-structural-2): `lint::structural::check` now
+  also ports title_field_overflow, leader_line_through_text, annotation_ink_overlap (and the
+  line-work remedy annotation_overlap lacked, so annotation_overlap is ported),
+  label_centerline_overlap, view_annotation_overlap and view_annotation_inside_extents; in
+  docs/rules/lint.yaml 7 more entries are ported (pending 131 → 124, ported 34 → 41).
+  `output::Sheet` grew what they read, all measured in `model::render` as the ink is drawn
+  (plan untouched): each thing's straight line-work (`Drawn::lines`: extension, dimension and
+  leader lines, the title block's rules) and a callout's elbow, each view's visible edges
+  (`DrawnView::edges`), each title-block value's ink and cell (`Sheet::fields`), and a
+  section's furniture as draftwright places it (hatch, chain line as a `Kind::Centreline`,
+  each arrowhead and wing stub), where it was one `SectionInk` box. New fixture
+  `tests/fixtures/sheet_lint/` (13 sheets, 410 KB), written by `tools/capture_sheet_lint.py`
+  from draftwright 4dfc63f: what its one `lint_drawing` call read (each item's boxes,
+  line-work, elbow and riders, each view's edges, the title fields) and found; the port's
+  checks on that record give exactly draftwright's 18 findings in these codes (ftc06's ten
+  crossings, cgb245's and ctc04's one, ctc04's overlap, five labels over blank face). On the
+  port's own drawings: 9 annotation_ink_overlap and 4 view_annotation_overlap, all rust-wrong
+  and each one of known_placement.json's annotation_ink_overlap / annotation_over_view items
+  (known_structural.json; the test checks a finding between dimensions is among the plan's).
+  Still pending: label_vs_measured and nominal_rounded (the measured-path question above),
+  interior_label_on_narrow_material and leader_crosses_silhouette (they read the view's filled
+  material, which the drawing does not record), missing_principal_dimension (below).
+  - Questions for the maintainer:
+    - draftwright's sheet lint never runs missing_principal_dimension: its one `lint_drawing`
+      call passes no `part_bbox`, so `_lint_principal_extents` returns at once on every
+      finished drawing, and no captured sheet reports it. Port it anyway (the drawing would
+      need the part's box and scale), leave it pending, or drop it in favour of
+      `lint::envelope`'s ledger?
+    - title_field_overflow is now reported twice by `api::review`: as a plan problem (asking
+      for a concise value) and as a structural finding (draftwright's message, pointing to a
+      notes block). Keep both, or drop one?

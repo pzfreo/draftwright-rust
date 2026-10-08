@@ -1,10 +1,24 @@
 [
  {
   "part": "cgb245",
+  "code": "annotation_ink_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The leader of d:f:hole:8/bore.diameter@plan (2× ⌀5 THRU) runs 3.8 mm through the label of d:f:hole_pattern:1/bore.diameter@plan (4× ⌀5 THRU (2×2)), and the leader of d:f:slot:1/slot_end_radius.radius@plan (2× R3) 3.1 mm through the label of d:f:hole:1/bore.diameter@plan (4× ⌀7 THRU), in the plan's callout lanes: the two pairs of known_placement.json's cgb245 annotation_ink_overlap (rust-wrong). draftwright's sheet has its own one crossing (between other items), which the lint agreement test reproduces from what its lint read."
+ },
+ {
+  "part": "cgb245",
   "code": "annotation_out_of_bounds",
   "count": 10,
   "verdict": "rust-wrong",
   "reason": "Ten plan dimensions run past the left border (by 5.6 to 75.6 mm): the row pitch, the y locations of holes 1, 3, 4, 6, 7, 8 and the pattern, slot 3's width and its location across its width. They are the ten items of known_placement.json's cgb245 annotation_off_sheet (rust-wrong): the front's and the plan's bands are draftwright's estimates and the port's fixed lanes stack past them. draftwright's captured sheet reports no annotation_out_of_bounds."
+ },
+ {
+  "part": "cgb245",
+  "code": "view_annotation_overlap",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The label of d:envelope/height.length@front (37.2), in the front's right band beyond the height ladder's 11 rungs, lies over the side view and its line-work: known_placement.json's cgb245 annotation_over_view (rust-wrong; draftwright withholds the rungs at this scale)."
  },
  {
   "part": "connector109",
@@ -22,9 +36,51 @@
  },
  {
   "part": "ftc06",
+  "code": "annotation_ink_overlap",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The leader of d:f:boss:6/boss.diameter@front (2× ø22.9) runs 3.8 mm through the label of d:f:hole_pattern:1/bore.diameter@front in the front's callout lanes: known_placement.json's ftc06 annotation_ink_overlap (rust-wrong). draftwright's sheet has ten crossings of its own, between its differently placed items."
+ },
+ {
+  "part": "ftc06",
   "code": "annotation_out_of_bounds",
   "count": 1,
   "verdict": "rust-wrong",
   "reason": "d:f:hole:5/location.length.y@plan (78.7) runs 0.1 mm past the left border: the one item of known_placement.json's ftc06 annotation_off_sheet (rust-wrong). draftwright's captured sheet reports no annotation_out_of_bounds."
+ },
+ {
+  "part": "ftc06",
+  "code": "view_annotation_overlap",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The label of d:envelope/width.length@front (304.8), in the front's outer lane, lies over the isometric's line-work: known_placement.json's ftc06 annotation_over_view (rust-wrong)."
+ },
+ {
+  "part": "m1000",
+  "code": "annotation_ink_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The label of d:envelope/height.length@front (29.1), pushed into the side view's space, is crossed by the hexagonal pocket's callout leader d:f:section_recess:2/polygon_across_flats.length@side (3.1 mm) and by a line of the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.9 mm): known_placement.json's m1000 annotation_ink_overlap (rust-wrong)."
+ },
+ {
+  "part": "m1000",
+  "code": "view_annotation_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The labels of d:envelope/height.length@front (29.1) and of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1) lie over the side view's line-work: known_placement.json's m1000 annotation_over_view (rust-wrong; the height ladder's rungs push them out)."
+ },
+ {
+  "part": "m10127",
+  "code": "annotation_ink_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "A line of d:envelope/depth.length@side (32.3) runs 25.3 mm through the label of the hexagonal pocket's callout d:f:section_recess:1/polygon_across_flats.length@front (HEX 4.2 A/F × 10.0 DEEP), and the leader of d:f:fillet:1/fillet.radius@front (R4.2) 3.2 mm through the label of d:f:hole:2/bore.diameter@front (⌀13.0 ↧ 5.7): known_placement.json's m10127 annotation_ink_overlap (rust-wrong). draftwright's sheet reports none."
+ },
+ {
+  "part": "spool132",
+  "code": "annotation_ink_overlap",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The leader of d:f:hole:7/bore.diameter@plan (⌀62 THRU ⌴ ⌀70 ↧ 10) runs 3.7 mm through each of the long labels of the two bolt-circle callouts above it (12× ⌀8 THRU EQ SP ON ø110 BC UPPER and LOWER FACE): known_placement.json's spool132 annotation_ink_overlap (rust-wrong). draftwright's sheet reports none."
  }
 ]

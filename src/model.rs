@@ -23,8 +23,8 @@ use crate::dims::{Omitted, PlannedDimension};
 use crate::layout::{self, Corner, Fallback, MARGIN, Principals, Request, Scaled};
 use crate::notes::{NoteSpec, NotesBlock, PlannedNote};
 use crate::output::{
-    Curve, Drawing, Drawn, DrawnView, HAlign, Item, Kind, Layer, Sheet, TextRun, VAlign,
-    items_bbox, layer_styles, projected,
+    Curve, Drawing, Drawn, DrawnField, DrawnView, HAlign, Item, Kind, Layer, Sheet, TextRun,
+    VAlign, items_bbox, layer_styles, projected,
 };
 use crate::tables::{PlannedTable, TableSpec};
 use crate::text::{Font, Laid, Segment};
@@ -1223,21 +1223,68 @@ pub fn render(
                 None => *undrawn.entry(v.id.clone()).or_default() += 1,
             }
         }
-        if let Some(bbox) = items_bbox(&layers[0].items[visible_from..]) {
+        let visible = &layers[0].items[visible_from..];
+        if let Some(bbox) = items_bbox(visible) {
             sheet.views.push(DrawnView {
                 name: v.id.clone(),
                 bbox,
+                edges: visible
+                    .iter()
+                    .filter_map(|i| match i {
+                        Item::Edge(c) => Some(c.clone()),
+                        Item::Face(_) => None,
+                    })
+                    .collect(),
             });
         }
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
             let f = section_furniture(part, analysis, plan, v, (plane, cut))?;
-            if let Some(ink) = items_bbox(&f.ink) {
-                sheet.items.push(Drawn {
-                    name: "section_ink".into(),
-                    kind: Kind::SectionInk,
-                    ink,
-                    label: None,
-                });
+            // draftwright's pieces, each by its ink: the hatch, the chain line by its line, and
+            // each end's arrowhead and wing stub (`section::cutting_plane`'s order).
+            let mut piece = |name: String, kind: Kind, ink: &[Item], lines: Vec<[[f64; 2]; 2]>| {
+                if let Some(ink) = items_bbox(ink) {
+                    sheet.items.push(Drawn {
+                        name,
+                        kind,
+                        ink,
+                        label: None,
+                        lines,
+                        elbow: None,
+                        interior: false,
+                    });
+                }
+            };
+            piece(
+                "section_hatch".into(),
+                Kind::Hatch,
+                &f.ink[..f.hatch],
+                Vec::new(),
+            );
+            let plane_ink = &f.ink[f.hatch..];
+            if let Some(line) = f.chain {
+                let chain = plane_ink.len() - 4;
+                piece(
+                    "section_line".into(),
+                    Kind::Centreline,
+                    &plane_ink[..chain],
+                    vec![line],
+                );
+                for (k, side) in ["left", "right"].into_iter().enumerate() {
+                    let at = chain + 2 * k;
+                    let (wing, head) = (&plane_ink[at..at + 1], &plane_ink[at + 1..at + 2]);
+                    piece(
+                        format!("section_arrow_{side}"),
+                        Kind::CuttingPlane,
+                        head,
+                        Vec::new(),
+                    );
+                    piece(
+                        format!("section_wing_{side}"),
+                        Kind::CuttingPlane,
+                        wing,
+                        Vec::new(),
+                    );
+                }
             }
             // draftwright's names: the caption, then the cutting plane's letters.
             let l = cut.label.to_lowercase();
@@ -1277,11 +1324,19 @@ pub fn render(
         let from = layers[2].items.len();
         let drawn = crate::dims::render(std::slice::from_ref(d), &mut layers[2].items, &mut text);
         if let (Some(a), Some(ink)) = (drawn.first(), items_bbox(&layers[2].items[from..])) {
+            let placed = d.placed.as_ref();
             sheet.items.push(Drawn {
                 name: a.name.clone(),
                 kind: Kind::Dimension,
                 ink,
-                label: d.placed.as_ref().map(|p| p.label_box),
+                label: placed.map(|p| p.label_box),
+                lines: placed.map(|p| p.lines.clone()).unwrap_or_default(),
+                // A callout's leader runs from its tip to its elbow, then along its shoulder.
+                elbow: placed
+                    .filter(|_| d.kind == "callout")
+                    .and_then(|p| p.lines.first())
+                    .map(|l| l[1]),
+                interior: false,
             });
         }
         annotations.extend(drawn);
@@ -1340,6 +1395,9 @@ pub fn render(
             kind,
             ink: b,
             label: Some(b),
+            lines: Vec::new(),
+            elbow: None,
+            interior: false,
         })
     };
     for ((s, at), name) in captions.iter().zip(&caption_names) {
@@ -1371,12 +1429,20 @@ pub fn render(
         if let Some(v) = &c.value {
             let centre = [0.5 * (x0 + x1), 0.5 * (y0 + y1)];
             let run = (v.as_str(), title_block::FONT, title_block::TEXT);
+            let from = dims.len();
             label(
                 title_block::lay(v, title_block::TEXT),
                 centre,
                 dims,
                 Some(run),
             );
+            if let Some(ink) = items_bbox(&dims[from..]) {
+                sheet.fields.push(DrawnField {
+                    field: c.field.clone(),
+                    cell: c.cell,
+                    ink,
+                });
+            }
         }
     }
     // The block's outline and every cell's ink.
@@ -1389,11 +1455,23 @@ pub fn render(
             b[3].max(outline[3]),
         ]
     });
+    // Its rules: the outline, and each cell's divider.
+    let outline_rules = [[tx0, ty0], [tx1, ty0], [tx1, outline[3]], [tx0, outline[3]]];
+    let mut rules: Vec<[[f64; 2]; 2]> = (0..4)
+        .map(|k| [outline_rules[k], outline_rules[(k + 1) % 4]])
+        .collect();
+    rules.extend(dims[title_from..].iter().filter_map(|i| match i {
+        Item::Edge(Curve::Line(a, b)) => Some([*a, *b]),
+        _ => None,
+    }));
     sheet.items.push(Drawn {
         name: "title_block".into(),
         kind: Kind::TitleBlock,
         ink,
         label: None,
+        lines: rules,
+        elbow: None,
+        interior: false,
     });
     // The general notes: the block's rules, and each row centred on its planned ink, searchable.
     let notes_from = dims.len();
@@ -1413,6 +1491,9 @@ pub fn render(
             kind: Kind::Notes,
             ink,
             label: None,
+            lines: Vec::new(),
+            elbow: None,
+            interior: false,
         });
     }
     // The tables: each one's rules, and each cell centred on its planned ink, searchable.
@@ -1433,6 +1514,9 @@ pub fn render(
                 kind: Kind::Table,
                 ink,
                 label: None,
+                lines: Vec::new(),
+                elbow: None,
+                interior: false,
             });
         }
     }
@@ -1462,9 +1546,14 @@ pub fn render(
     })
 }
 
-/// A section view's furniture: ink, and texts with where each is centred.
+/// A section view's furniture: ink (the hatch's first lines, then the cutting plane's), and
+/// texts with where each is centred.
 struct Furniture {
     ink: Vec<Item>,
+    /// How many of the ink's first items are the hatch.
+    hatch: usize,
+    /// The cutting plane's chain line, end to end, when it is drawn.
+    chain: Option<[[f64; 2]; 2]>,
     text: Vec<(String, [f64; 2])>,
 }
 
@@ -1480,6 +1569,8 @@ fn section_furniture(
     use crate::section::{HATCH_SPACING, OVERRUN, cutting_plane, hatch};
     let mut out = Furniture {
         ink: Vec::new(),
+        hatch: 0,
+        chain: None,
         text: Vec::new(),
     };
     let view = &View::new(v.direction, v.up).expect("a planned view");
@@ -1518,6 +1609,7 @@ fn section_furniture(
     for [a, b] in hatch(&page, HATCH_SPACING, Some(&inside)) {
         out.ink.push(Item::Edge(Curve::Line(a, b)));
     }
+    out.hatch = out.ink.len();
     let half_h = 0.5 * extent(analysis, view).0[1] * v.scale;
     let l = &cut.label;
     out.text.push((
@@ -1542,8 +1634,10 @@ fn section_furniture(
             to_page([hi[0], cut.origin[1], hi[2]]),
         );
         let (x0, x1) = (a[0].min(b[0]) - OVERRUN, a[0].max(b[0]) + OVERRUN);
-        let (ink, letters) = cutting_plane(x0, x1, to_page(cut.origin)[1]);
+        let y = to_page(cut.origin)[1];
+        let (ink, letters) = cutting_plane(x0, x1, y);
         out.ink.extend(ink);
+        out.chain = Some([[x0, y], [x1, y]]);
         out.text.extend(letters.map(|at| (l.clone(), at)));
     }
     Ok(out)
