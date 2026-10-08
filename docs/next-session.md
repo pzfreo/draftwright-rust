@@ -129,6 +129,31 @@ quiddity commit that has it.
   - placement offsets are paper millimetres and a request;
   - the safe repairs run automatically and are recorded;
   - replies carry everything an LLM needs to fix a drawing, as in R4's decision 5.
+- **Maintainer decisions, 2026-10-08:**
+  - **Keep porting.** The maintainer has said "continue the port". The autonomous run keeps
+    dispatching implementation streams from the backlog until it is exhausted. A status question
+    from the maintainer ("how is it going") never pauses dispatch.
+  - **Hole locations:** a hole's or hole pattern's in-plane position is dimensioned in the view
+    that sees it end-on (the port's choice, ADR1-6), not in the side view as Python does. The 20
+    pending side-view routing entries in `tests/fixtures/known_dimensions.json` become
+    rust-correct with that reason.
+  - **Spotface:** the dedicated ASME Y14.5-2018 spotface symbol (the counterbore symbol with SF
+    inside), in both the dimension text and lint's fix text; the glyph must be in the font (and
+    searchable in PDF).
+  - **Slots and bosses:** a slot is also located across its width, and bosses are located (both
+    beyond Python, rust-correct).
+  - **Off-axis parts (quiddity-rust):** recognition canonicalises the frame first. It recognises
+    in the part's own principal frame (the ported `frames.py` path) and reports results in the
+    file's coordinates, so results don't depend on how the part was placed. This is the default
+    for `recognise`, the CLI and the recognition document.
+  - **AP242** decisions are in quiddity-rust `docs/step-ap242.md` (ap242 branch).
+- **Main-session decisions, 2026-10-08** (judgement calls; the maintainer can overturn them):
+  - fingerprints belong to quiddity (ADR R3). Once quiddity-rust publishes its recognition
+    document, `bridge.rs`'s own fingerprint is retired in favour of quiddity's;
+  - fingerprints and correspondence use only verified occurrences;
+  - `plan`, `render` and `review` accept an Analysis document, as `docs/model.md` says, so a
+    caller need not re-analyse;
+  - quiddity-rust's CI also runs on macOS, beside Linux.
 
 ## Open leftovers from earlier reviews
 
