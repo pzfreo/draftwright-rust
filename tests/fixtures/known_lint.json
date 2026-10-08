@@ -1,132 +1,318 @@
-[
-  {
-    "part": "cgb245",
-    "subject": "f:hole:8",
-    "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
-    "parameter": "bore.diameter",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
-  },
-  {
-    "part": "cgb245",
-    "subject": "f:hole:8",
-    "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
-    "parameter": "bore.through",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
-  },
-  {
-    "part": "cgb245",
-    "subject": "f:hole:8",
-    "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
-    "parameter": "grouping.count",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
-  },
-  {
-    "part": "cgb245",
-    "subject": "f:hole:9",
-    "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
-    "parameter": "bore.diameter",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
-  },
-  {
-    "part": "cgb245",
-    "subject": "f:hole:9",
-    "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
-    "parameter": "bore.through",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
-  },
-  {
-    "part": "cgb245",
-    "subject": "f:hole:9",
-    "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
-    "parameter": "grouping.count",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
-  },
-  {
-    "part": "spool132",
-    "subject": "f:hole:8",
-    "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
-    "parameter": "bore.diameter",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
-  },
-  {
-    "part": "spool132",
-    "subject": "f:hole:8",
-    "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
-    "parameter": "bore.through",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
-  },
-  {
-    "part": "spool132",
-    "subject": "f:hole:8",
-    "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
-    "parameter": "grouping.count",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
-  },
-  {
-    "part": "spool132",
-    "subject": "f:hole:20",
-    "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
-    "parameter": "bore.diameter",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
-  },
-  {
-    "part": "spool132",
-    "subject": "f:hole:20",
-    "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
-    "parameter": "bore.through",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
-  },
-  {
-    "part": "spool132",
-    "subject": "f:hole:20",
-    "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
-    "parameter": "grouping.count",
-    "python": "hole_requirement_unverifiable",
-    "rust": null,
-    "verdict": "rust-correct",
-    "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
-  },
-  {
-    "part": "ctc04",
-    "subject": "analysis",
-    "group": "the bridge refuses the recognition: face 367 has area 13.080630 here and 13.100238 in the recognition JSON",
-    "parameter": "*",
-    "python": null,
-    "rust": null,
-    "verdict": "not-applicable",
-    "reason": "The port cannot read ctc04's features, so lint has no requirements to judge: face 367 is a sphere whose area haecceity integrates as 13.0806 mm² against OpenCascade's 13.1002 mm² (0.15%), beyond the bridge's 1e-3 tolerance for analytic faces. A haecceity face_mass accuracy question like handoff item F, not a lint difference; Python's two hole findings on this sheet (both unverifiable, for oblique holes its IR declared on z) stay unjudged until the bridge reads the part."
-  }
-]
+{
+  "python_sheets": [
+    {
+      "part": "cgb245",
+      "subject": "f:hole:8",
+      "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
+      "parameter": "bore.diameter",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
+    },
+    {
+      "part": "cgb245",
+      "subject": "f:hole:8",
+      "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
+      "parameter": "bore.through",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
+    },
+    {
+      "part": "cgb245",
+      "subject": "f:hole:8",
+      "group": "2× ø5 THRU at (0.000, -29.719, -7.737)",
+      "parameter": "grouping.count",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan2 prints \"2× ⌀5 THRU\" and claims bore.diameter of hole@(182.000,-29.719,-6.737), which joins exactly to f:hole:8 of this two-hole group, so the sheet states the diameter, THRU and the quantity. Python reports the group unverifiable because its own recognition-to-IR join found no owner (\"which no IR feature claimed\"), not because the sheet lacks the callout. Python's finding also covers the group's two location requirements, which the port's lint does not check yet."
+    },
+    {
+      "part": "cgb245",
+      "subject": "f:hole:9",
+      "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
+      "parameter": "bore.diameter",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
+    },
+    {
+      "part": "cgb245",
+      "subject": "f:hole:9",
+      "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
+      "parameter": "bore.through",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
+    },
+    {
+      "part": "cgb245",
+      "subject": "f:hole:9",
+      "group": "4× ø5 THRU at (0.000, -4.271, -10.387)",
+      "parameter": "grouping.count",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan1 prints \"4× ⌀5 THRU (2×2)\" and claims bore.diameter of pattern@(0.000,-4.271,-9.387), which joins exactly to this four-hole group (its centre's axis line, within the holes' length, ø5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and grid pitch, which the port's lint does not check yet."
+    },
+    {
+      "part": "spool132",
+      "subject": "f:hole:8",
+      "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
+      "parameter": "bore.diameter",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+    },
+    {
+      "part": "spool132",
+      "subject": "f:hole:8",
+      "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
+      "parameter": "bore.through",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+    },
+    {
+      "part": "spool132",
+      "subject": "f:hole:8",
+      "group": "12× ø8 THRU at (0.000, 0.000, 110.500)",
+      "parameter": "grouping.count",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan1 prints \"12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE\" and claims bore.diameter of pattern@(0,0,113), which joins exactly to the upper flange's twelve holes (z 108 to 113), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+    },
+    {
+      "part": "spool132",
+      "subject": "f:hole:20",
+      "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
+      "parameter": "bore.diameter",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+    },
+    {
+      "part": "spool132",
+      "subject": "f:hole:20",
+      "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
+      "parameter": "bore.through",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+    },
+    {
+      "part": "spool132",
+      "subject": "f:hole:20",
+      "group": "12× ø8 THRU at (0.000, 0.000, 2.500)",
+      "parameter": "grouping.count",
+      "python": "hole_requirement_unverifiable",
+      "rust": null,
+      "verdict": "rust-correct",
+      "reason": "hc_plan2 prints \"12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE\" and claims bore.diameter of pattern@(0,0,5), which joins exactly to the lower flange's twelve holes (z 0 to 5), so the sheet states the diameter, THRU and the quantity. Python's finding is its own recognition-to-IR join failing (\"which no IR feature claimed\"); it also covers location and the bolt circle, which the port's lint does not check yet."
+    },
+    {
+      "part": "ctc04",
+      "subject": "analysis",
+      "group": "the bridge refuses the recognition: face 367 has area 13.080630 here and 13.100238 in the recognition JSON",
+      "parameter": "*",
+      "python": null,
+      "rust": null,
+      "verdict": "not-applicable",
+      "reason": "The port cannot read ctc04's features, so lint has no requirements to judge: face 367 is a sphere whose area haecceity integrates as 13.0806 mm² against OpenCascade's 13.1002 mm² (0.15%), beyond the bridge's 1e-3 tolerance for analytic faces. A haecceity face_mass accuracy question like handoff item F, not a lint difference; Python's two hole findings on this sheet (both unverifiable, for oblique holes its IR declared on z) stay unjudged until the bridge reads the part."
+    }
+  ],
+  "own_drawings": [
+    {
+      "part": "cgb245",
+      "code": "blend_requirement_missing",
+      "count": 82,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "cgb245",
+      "code": "fillet_requirement_missing",
+      "count": 42,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its fillets' radii (the port's dimensions have no fillet callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "cgb245",
+      "code": "slot_requirement_missing",
+      "count": 11,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its slots' widths, lengths, end radii and locations (the port's dimensions have no slot dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "connector109",
+      "code": "blend_requirement_missing",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "connector109",
+      "code": "boss_height_missing",
+      "count": 4,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its bosses' heights (the port's dimensions have no boss height dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "connector109",
+      "code": "chamfer_requirement_missing",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its chamfers' sizes (the port's dimensions have no chamfer callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "connector109",
+      "code": "fillet_requirement_missing",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its fillets' radii (the port's dimensions have no fillet callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ctc01",
+      "code": "blend_requirement_missing",
+      "count": 31,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ctc01",
+      "code": "chamfer_requirement_missing",
+      "count": 3,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its chamfers' sizes (the port's dimensions have no chamfer callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ctc01",
+      "code": "fillet_requirement_missing",
+      "count": 8,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its fillets' radii (the port's dimensions have no fillet callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ctc01",
+      "code": "slot_requirement_missing",
+      "count": 7,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its slots' widths, lengths, end radii and locations (the port's dimensions have no slot dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ftc06",
+      "code": "blend_requirement_missing",
+      "count": 5,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ftc06",
+      "code": "boss_height_missing",
+      "count": 8,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its bosses' heights (the port's dimensions have no boss height dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ftc06",
+      "code": "chamfer_requirement_missing",
+      "count": 7,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its chamfers' sizes (the port's dimensions have no chamfer callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "ftc06",
+      "code": "fillet_requirement_missing",
+      "count": 9,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its fillets' radii (the port's dimensions have no fillet callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "grm03",
+      "code": "chamfer_requirement_missing",
+      "count": 3,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its chamfers' sizes (the port's dimensions have no chamfer callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "grm05",
+      "code": "chamfer_requirement_missing",
+      "count": 2,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its chamfers' sizes (the port's dimensions have no chamfer callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "hanger",
+      "code": "blend_requirement_missing",
+      "count": 22,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "hanger",
+      "code": "fillet_requirement_missing",
+      "count": 6,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its fillets' radii (the port's dimensions have no fillet callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "m1000",
+      "code": "fillet_requirement_missing",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its fillets' radii (the port's dimensions have no fillet callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "m10127",
+      "code": "boss_height_missing",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its bosses' heights (the port's dimensions have no boss height dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "m10127",
+      "code": "fillet_requirement_missing",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its fillets' radii (the port's dimensions have no fillet callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "m10127",
+      "code": "through_step_requirement_missing",
+      "count": 2,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its through step's two legs (the port's dimensions have no step leg dimensions yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "spool132",
+      "code": "chamfer_requirement_missing",
+      "count": 16,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its chamfers' sizes (the port's dimensions have no chamfer callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "spool132",
+      "code": "fillet_requirement_missing",
+      "count": 2,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its fillets' radii (the port's dimensions have no fillet callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "string_post",
+      "code": "blend_requirement_missing",
+      "count": 2,
+      "verdict": "rust-correct",
+      "reason": "Dimensions not ported yet: the port's own drawing states only the envelope, turned steps and hole callouts, locations and pitches (src/dims.rs), so it does not state its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    }
+  ]
+}

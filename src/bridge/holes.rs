@@ -6,7 +6,10 @@
 //! - [`principal`] is the one rule for a direction lying along x, y or z;
 //! - [`size_key`] is the one resolution sizes are compared at, and [`Hole::requirement`] the
 //!   machining requirement identical holes share;
-//! - [`established`] says whether a recognised hole pattern is one requirement.
+//! - [`established`] (and [`established_with`], given the [`bosses`]) says whether a recognised
+//!   hole pattern is one requirement;
+//! - [`frame`], [`to_part`], [`dir_to_part`] and [`point`] read a record's coordinates into the
+//!   part's frame, for every family.
 //!
 //! The record's fields are quiddity's (`holes.py`'s `HoleRecord`, `countersinks.py`'s
 //! `CounterSink`): a countersink's sizes are `major_diameter` and `included_angle`.
@@ -53,6 +56,16 @@ pub struct Hole<'a> {
     pub counterbore: Option<Recess>,
     pub spotface: Option<Recess>,
     pub countersink: Option<Countersink>,
+    /// quiddity's frame it was read through, for its pattern's points.
+    pub frame: [[f64; 3]; 4],
+}
+
+/// The axis of a round feature a bolt circle can be concentric with (a boss's), in the part's
+/// frame: a point on it and its direction.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Axis {
+    pub at: [f64; 3],
+    pub direction: [f64; 3],
 }
 
 /// The principal axis a direction lies along, if it does: draftwright's `_is_principal_axis`,
@@ -72,7 +85,8 @@ pub fn size_key(x: f64) -> i64 {
     (x * 1e6).round() as i64
 }
 
-fn point(v: Option<&Value>) -> Option<[f64; 3]> {
+/// A record's point or vector field, if it is three numbers.
+pub fn point(v: Option<&Value>) -> Option<[f64; 3]> {
     let a = v?.as_array()?;
     Some([
         a.first()?.as_f64()?,
@@ -81,13 +95,19 @@ fn point(v: Option<&Value>) -> Option<[f64; 3]> {
     ])
 }
 
+/// quiddity's working frame in the part's: the recognition record's, or the identity when the
+/// Analysis has none.
+pub fn frame(analysis: &Analysis) -> [[f64; 3]; 4] {
+    analysis.recognition.as_ref().map_or(IDENTITY, |r| r.frame)
+}
+
 /// quiddity's local point *l* in the part's frame.
-fn to_part(frame: &[[f64; 3]; 4], l: [f64; 3]) -> [f64; 3] {
+pub fn to_part(frame: &[[f64; 3]; 4], l: [f64; 3]) -> [f64; 3] {
     [0, 1, 2].map(|k| frame[0][k] + (0..3).map(|j| l[j] * frame[j + 1][k]).sum::<f64>())
 }
 
 /// quiddity's local direction *d* in the part's frame.
-fn dir_to_part(frame: &[[f64; 3]; 4], d: [f64; 3]) -> [f64; 3] {
+pub fn dir_to_part(frame: &[[f64; 3]; 4], d: [f64; 3]) -> [f64; 3] {
     [0, 1, 2].map(|k| (0..3).map(|j| d[j] * frame[j + 1][k]).sum::<f64>())
 }
 
@@ -146,6 +166,7 @@ impl<'a> Hole<'a> {
             spotface: recess("spotface")?,
             countersink: sized(p, "csink", "major_diameter", "included_angle")?
                 .map(|(diameter, angle)| Countersink { diameter, angle }),
+            frame: *frame,
         })
     }
 
@@ -178,7 +199,7 @@ impl<'a> Hole<'a> {
 
 /// The Analysis's hole features, each read in the part's frame, or why it cannot be.
 pub fn read(analysis: &Analysis) -> Vec<(&Feature, Result<Hole<'_>, String>)> {
-    let frame = analysis.recognition.as_ref().map_or(IDENTITY, |r| r.frame);
+    let frame = frame(analysis);
     analysis
         .features
         .iter()
@@ -187,12 +208,54 @@ pub fn read(analysis: &Analysis) -> Vec<(&Feature, Result<Hole<'_>, String>)> {
         .collect()
 }
 
+/// The Analysis's bosses' axes (quiddity's `BossRecord`: `location`, `axis`), in the part's
+/// frame; a boss whose record lacks either is left out, as it could not corroborate anything.
+pub fn bosses(analysis: &Analysis) -> Vec<Axis> {
+    let frame = frame(analysis);
+    analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "boss")
+        .filter_map(|f| {
+            let at = to_part(&frame, point(f.parameters.get("location"))?);
+            let d = dir_to_part(&frame, point(f.parameters.get("axis"))?);
+            let n = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+            (n > 0.0).then(|| Axis {
+                at,
+                direction: d.map(|c| c / n),
+            })
+        })
+        .collect()
+}
+
+/// How far the axis of a round feature may pass from a bolt circle's centre and still be
+/// concentric with it, mm: draftwright's `_BC_CONCENTRIC_TOL`, deliberately tight.
+const CONCENTRIC: f64 = 0.5;
+
 /// Whether recognised pattern *p* is one machining requirement, given the readable *holes*:
 /// the indices of its members in *holes*, or why it is not. Its members must all be readable
-/// holes, more than one, with one [`Hole::requirement`]; a bolt circle needs five or more, as
-/// fewer do not establish a circle (ISSUE-1596-a; draftwright's concentric corroboration of a
-/// smaller one, LINT-hole_coverage-bolt_circle_corroboration, is not ported).
+/// holes, more than one, with one [`Hole::requirement`], drilled along an axis of the part, and
+/// on distinct axis lines (draftwright refuses an oblique pattern plane and coaxial members,
+/// in drafting and so in lint). A grid or linear pattern is not judged for its regularity
+/// here: draftwright keeps quiddity's as one requirement whatever its spacing.
+///
+/// A bolt circle of fewer than five holes does not establish a circle by itself (three points,
+/// or a rectangle's corners, always fit one: ISSUE-1596-a); it is one requirement only when
+/// something round sits on its centre: a hole of *holes* that is not a member here, whose axis
+/// is parallel to the members' and passes within 0.5 mm of quiddity's fitted centre
+/// (draftwright's `bolt_circle_is_corroborated`, LINT-hole_coverage-bolt_circle_corroboration).
+/// [`established_with`] counts bosses too.
 pub fn established(p: &HolePattern, holes: &[&Hole]) -> Result<Vec<usize>, String> {
+    established_with(p, holes, &[])
+}
+
+/// [`established`], with *bosses* (their axes, [`bosses`]) as round features a bolt circle of
+/// fewer than five holes can be concentric with, as draftwright counts them.
+pub fn established_with(
+    p: &HolePattern,
+    holes: &[&Hole],
+    bosses: &[Axis],
+) -> Result<Vec<usize>, String> {
     let members: Vec<usize> = p
         .members
         .iter()
@@ -214,11 +277,62 @@ pub fn established(p: &HolePattern, holes: &[&Hole]) -> Result<Vec<usize>, Strin
             p.id
         ));
     }
-    if p.arrangement == "bolt_circle" && members.len() < 5 {
+    // draftwright's pattern refusals (`_append_hole_features`), which its lint follows too: a
+    // pattern whose plane is oblique, or whose members share an axis line (coaxial bores apart
+    // only along the drilling direction), has no pattern callout that can be drawn.
+    let Some(k) = principal(holes[members[0]].direction) else {
         return Err(format!(
-            "quiddity's bolt circle {} has fewer than five members, which does not establish a circle (ISSUE-1596-a), so its holes are dimensioned singly",
+            "its pattern {} lies in an oblique plane, so its holes are dimensioned singly",
             p.id
         ));
+    };
+    let mut across: Vec<Vec<i64>> = members
+        .iter()
+        .map(|&m| {
+            (0..3)
+                .filter(|&i| i != k)
+                .map(|i| size_key(holes[m].at[i]))
+                .collect()
+        })
+        .collect();
+    across.sort();
+    across.dedup();
+    if across.len() < members.len() {
+        return Err(format!(
+            "its pattern {} has members on one axis line, apart only along the drilling direction, so its holes are dimensioned singly",
+            p.id
+        ));
+    }
+    if p.arrangement == "bolt_circle" && members.len() < 5 {
+        let h = holes[members[0]];
+        let centre = point(p.parameters.get("center")).map(|c| to_part(&h.frame, c));
+        let others = holes
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !members.contains(i))
+            .map(|(_, o)| Axis {
+                at: o.at,
+                direction: o.direction,
+            });
+        let dot = |u: [f64; 3], v: [f64; 3]| u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+        // Parallel to the members, and its axis line within 0.5 mm of the centre.
+        let concentric = |c: [f64; 3], a: &Axis| {
+            let d = [c[0] - a.at[0], c[1] - a.at[1], c[2] - a.at[2]];
+            let along = dot(d, a.direction);
+            dot(a.direction, h.direction).abs() >= 1.0 - 1e-6
+                && (dot(d, d) - along * along).max(0.0).sqrt() <= CONCENTRIC
+        };
+        let corroborated = centre.is_some_and(|c| {
+            others
+                .chain(bosses.iter().copied())
+                .any(|a| concentric(c, &a))
+        });
+        if !corroborated {
+            return Err(format!(
+                "quiddity's bolt circle {} has fewer than five members and no hole or boss on its centre, which does not establish a circle (ISSUE-1596-a), so its holes are dimensioned singly",
+                p.id
+            ));
+        }
     }
     Ok(members)
 }
@@ -285,5 +399,180 @@ mod tests {
         blind.0["bottom"] = json!("flat");
         blind.1["bottom"] = json!("flat");
         assert_ne!(key(&feature(blind.0)), key(&feature(blind.1)));
+    }
+
+    /// LINT-hole_coverage-bolt_circle_corroboration (draftwright's `bolt_circle_is_corroborated`):
+    /// a four-hole bolt circle is one requirement only when a hole that is not a member, or a
+    /// boss, sits on its centre (its axis parallel to the members' and within 0.5 mm of quiddity's
+    /// centre); five or more establish a circle by themselves. quiddity's frame here turns its z
+    /// onto the part's x, so the centre is taken through it.
+    #[test]
+    fn a_small_bolt_circle_needs_something_round_on_its_centre() {
+        // quiddity's x, y, z are the part's y, z, x, and its origin is at the part's (5, 0, 0).
+        let frame = [
+            [5.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ];
+        let hole = |id: &str, at: [f64; 3], diameter: f64| {
+            let mut f = feature(json!({ "axis": [0.0, 0.0, 1.0], "location": at,
+                                        "diameter": diameter, "depth": 5.0,
+                                        "bottom": "through" }));
+            f.id = id.into();
+            f
+        };
+        // Four ø6 holes on a ø40 circle about quiddity's (50, 50), and a ø20 bore on it.
+        let mut fs: Vec<Feature> = [[70.0, 50.0], [50.0, 70.0], [30.0, 50.0], [50.0, 30.0]]
+            .iter()
+            .enumerate()
+            .map(|(i, c)| hole(&format!("f:hole:{}", i + 1), [c[0], c[1], 0.0], 6.0))
+            .collect();
+        fs.push(hole("f:hole:5", [50.0, 50.0, 0.0], 20.0));
+        let read: Vec<Hole> = fs.iter().map(|f| Hole::read(f, &frame).unwrap()).collect();
+        let all: Vec<&Hole> = read.iter().collect();
+        let circle = |members: &[&str]| HolePattern {
+            id: "f:hole_pattern:1".into(),
+            arrangement: "bolt_circle".into(),
+            members: members.iter().map(|m| m.to_string()).collect(),
+            faces: vec![],
+            parameters: json!({ "center": [50.0, 50.0, 0.0], "diameter": 40.0 })
+                .as_object()
+                .unwrap()
+                .clone(),
+        };
+        let four = circle(&["f:hole:1", "f:hole:2", "f:hole:3", "f:hole:4"]);
+        assert_eq!(established(&four, &all), Ok(vec![0, 1, 2, 3]));
+        // Without the bore, nothing corroborates it.
+        let err = established(&four, &all[..4]).unwrap_err();
+        assert!(err.contains("fewer than five"), "{err}");
+        // A boss on the centre does, through established_with: in the part's frame its axis is
+        // along x through (5, 50, 50); one 0.6 mm off, or across the holes, does not.
+        let boss = |at: [f64; 3], direction: [f64; 3]| Axis { at, direction };
+        assert_eq!(
+            established_with(
+                &four,
+                &all[..4],
+                &[boss([0.0, 50.0, 50.0], [-1.0, 0.0, 0.0])]
+            ),
+            Ok(vec![0, 1, 2, 3])
+        );
+        assert!(
+            established_with(
+                &four,
+                &all[..4],
+                &[boss([0.0, 50.6, 50.0], [1.0, 0.0, 0.0])]
+            )
+            .is_err()
+        );
+        assert!(
+            established_with(
+                &four,
+                &all[..4],
+                &[boss([5.0, 50.0, 50.0], [0.0, 1.0, 0.0])]
+            )
+            .is_err()
+        );
+        // The bore cannot be a member (it is not of the members' size), and a circle without a
+        // centre has nothing on it.
+        let mut five = four.clone();
+        five.members.push("f:hole:5".into());
+        assert_eq!(
+            established(&five, &all).unwrap_err(),
+            "its pattern f:hole_pattern:1 is not of identical holes, so each is called out as itself"
+        );
+        let mut centreless = four.clone();
+        centreless.parameters.remove("center");
+        assert!(established(&centreless, &all).is_err());
+    }
+
+    /// The bosses' axes, in the part's frame; a boss without a location or axis is left out.
+    #[test]
+    fn bosses_are_read_in_the_parts_frame() {
+        let mut a: Analysis = serde_json::from_value(json!({
+            "schema": "draftwright.analysis/2",
+            "binding": { "source_sha256": "", "part": "test", "face_count": 2, "loader": "test" },
+            "envelope": [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
+            "features": [],
+            "iso_bounds": [0.0, 0.0, 0.0, 0.0],
+            "recognition": { "recogniser": "test",
+                             "frame": [[5.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0],
+                                       [1.0, 0.0, 0.0]] },
+        }))
+        .unwrap();
+        for (i, p) in [
+            json!({ "axis": [0.0, 0.0, 2.0], "location": [50.0, 50.0, 1.0], "diameter": 30.0 }),
+            json!({ "diameter": 30.0 }),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut f = feature(p);
+            f.id = format!("f:boss:{}", i + 1);
+            f.kind = "boss".into();
+            a.features.push(f);
+        }
+        assert_eq!(
+            bosses(&a),
+            [Axis {
+                at: [6.0, 50.0, 50.0],
+                direction: [1.0, 0.0, 0.0]
+            }]
+        );
+    }
+
+    /// draftwright's refusals: a pattern drilled along no axis of the part, or whose members
+    /// share an axis line, is not one requirement; a grid however spaced is.
+    #[test]
+    fn an_oblique_or_coaxial_pattern_is_not_established() {
+        let hole = |id: &str, axis: [f64; 3], at: [f64; 3]| {
+            let mut f = feature(json!({ "axis": axis, "location": at, "diameter": 6.0,
+                                        "depth": 5.0, "bottom": "through" }));
+            f.id = id.into();
+            f
+        };
+        let pattern = |arrangement: &str| HolePattern {
+            id: "f:hole_pattern:1".into(),
+            arrangement: arrangement.into(),
+            members: vec!["f:hole:1".into(), "f:hole:2".into(), "f:hole:3".into()],
+            faces: vec![],
+            parameters: Map::new(),
+        };
+        let established_of = |fs: &[Feature], arrangement: &str| {
+            let read: Vec<Hole> = fs
+                .iter()
+                .map(|f| Hole::read(f, &IDENTITY).unwrap())
+                .collect();
+            established(&pattern(arrangement), &read.iter().collect::<Vec<_>>())
+        };
+        let z = [0.0, 0.0, 1.0];
+        // Unevenly spaced, off any lattice: still one requirement.
+        let uneven = [
+            hole("f:hole:1", z, [0.0, 0.0, 0.0]),
+            hole("f:hole:2", z, [10.0, 3.0, 0.0]),
+            hole("f:hole:3", z, [25.0, 0.0, 0.0]),
+        ];
+        assert_eq!(established_of(&uneven, "grid"), Ok(vec![0, 1, 2]));
+        let tilted = [0.0, 0.6, 0.8];
+        let oblique = [
+            hole("f:hole:1", tilted, [0.0, 0.0, 0.0]),
+            hole("f:hole:2", tilted, [10.0, 0.0, 0.0]),
+            hole("f:hole:3", tilted, [20.0, 0.0, 0.0]),
+        ];
+        assert!(
+            established_of(&oblique, "linear")
+                .unwrap_err()
+                .contains("oblique")
+        );
+        let coaxial = [
+            hole("f:hole:1", z, [0.0, 0.0, 0.0]),
+            hole("f:hole:2", z, [0.0, 0.0, 10.0]),
+            hole("f:hole:3", z, [10.0, 0.0, 0.0]),
+        ];
+        assert!(
+            established_of(&coaxial, "linear")
+                .unwrap_err()
+                .contains("one axis line")
+        );
     }
 }

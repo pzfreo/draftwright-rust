@@ -6,7 +6,13 @@
 //!
 //! - **The groups** ([`groups`]): the members of a recognised hole pattern
 //!   (`Analysis.recognition.patterns`) are one group when the pattern is established
-//!   ([`holes::established`]: every member read, all identical, a bolt circle of five or more);
+//!   ([`holes::established_with`]: every member read, all identical, drilled along an axis of
+//!   the part and on distinct axis lines, and a bolt circle of five or more, or of fewer with a
+//!   hole or boss on its centre). A grid or linear pattern is one group however it is spaced,
+//!   as in Python, whose lint takes every pattern its drafting did not refuse, and whose
+//!   drafting refuses only those (`_append_hole_features`); the port's dimensions also decline a
+//!   grid that is not a lattice, or a linear pattern not evenly spaced, in the view (and call its
+//!   holes out loose), which Python's do not;
 //!   every other hole joins the loose holes with the same machining requirement, signed drilling
 //!   direction included (LINT-hole_coverage-opposed_bores_distinct). An Analysis without a
 //!   recognition record falls back to the fingerprints' pattern count and pitch.
@@ -30,9 +36,8 @@
 //! that misprints one size but prints another of the same value is not caught.
 //!
 //! Not yet ported: hole and pattern locations, pattern spacing, threads and profiled bores, the
-//! assembly severity (the Analysis does not say whether the part is several bodies), the
-//! concentric corroboration of a bolt circle of fewer than five holes, and the `suppressed`
-//! outcome.
+//! assembly severity (the Analysis does not say whether the part is several bodies), and the
+//! `suppressed` outcome.
 
 use std::collections::BTreeMap;
 
@@ -211,8 +216,9 @@ pub fn groups(analysis: &Analysis) -> Vec<HoleGroup> {
         // Patterns as quiddity recognised them: each established one is a group.
         Some(r) => {
             let refs: Vec<&Hole> = holes.iter().collect();
+            let bosses = holes::bosses(analysis);
             for p in &r.patterns {
-                if let Ok(members) = holes::established(p, &refs)
+                if let Ok(members) = holes::established_with(p, &refs, &bosses)
                     && members.iter().all(|&m| !taken[m])
                 {
                     out.push(group(&members, true));
@@ -637,9 +643,11 @@ mod tests {
     }
 
     /// With a recognition record, the recognised patterns are the groups: a grid of identical
-    /// holes is one; a bolt circle of fewer than five holes is not established (ISSUE-1596-a; the
-    /// concentric corroboration of LINT-hole_coverage-bolt_circle_corroboration is not ported), so
-    /// its holes join the loose holes of the same requirement, as the dimensions call them out.
+    /// holes is one, even these four in a row, which the port's dimensions decline as no lattice
+    /// (Python's lint and drafting keep it); a bolt circle of fewer than five holes with nothing
+    /// on its centre is not established (ISSUE-1596-a), so its holes join the loose holes of the
+    /// same requirement, as the dimensions call them out; with a bore on its centre it is a
+    /// pattern (LINT-hole_coverage-bolt_circle_corroboration).
     #[test]
     fn recognised_patterns_are_the_groups() {
         let mut a = part(
@@ -669,6 +677,40 @@ mod tests {
                 .collect::<Vec<_>>(),
             [(ids(0..4), true), (ids(4..9), false)]
         );
+        // Four holes on a ø40 circle about (50, 50) with a ø20 bore on its centre: the circle
+        // is corroborated, and its four holes are one group, the bore another.
+        let mut circle: Vec<Value> = [[70.0, 50.0], [50.0, 70.0], [30.0, 50.0], [50.0, 30.0]]
+            .iter()
+            .map(|c| hole([c[0], c[1], 10.0], true))
+            .collect();
+        let mut bore = hole([50.0, 50.0, 10.0], true);
+        bore["diameter"] = json!(20.0);
+        circle.push(bore);
+        let mut a = part(&circle);
+        let bolt_circle = |members: Vec<String>| {
+            json!({ "id": "f:hole_pattern:1", "arrangement": "bolt_circle", "members": members,
+                    "faces": [], "parameters": { "center": [50.0, 50.0, 10.0], "diameter": 40.0 } })
+        };
+        let recognition = |members: Vec<String>| {
+            serde_json::from_value(json!({
+                "recogniser": "test",
+                "frame": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                "patterns": [bolt_circle(members)],
+            }))
+            .unwrap()
+        };
+        a.recognition = Some(recognition(ids(0..4)));
+        let g = groups(&a);
+        assert_eq!(
+            g.iter()
+                .map(|g| (g.members.clone(), g.pattern))
+                .collect::<Vec<_>>(),
+            [(ids(0..4), true), (ids(4..5), false)]
+        );
+        // Without the bore, the four are loose holes.
+        let mut a = part(&circle[..4]);
+        a.recognition = Some(recognition(ids(0..4)));
+        assert!(!groups(&a)[0].pattern);
     }
 
     /// LINT-hole_coverage-blind_depth, -cbore_diameter_depth, -spotface_diameter_depth and
