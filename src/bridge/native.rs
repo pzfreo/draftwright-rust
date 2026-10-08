@@ -2,9 +2,22 @@
 //! (`quiddity::recognition`), run on the part draftwright has already read, in place of Python
 //! quiddity's JSON ([`super::read`]), family by family ([`READ`]): holes and hole patterns, then
 //! fillets, chamfers, countersinks, bosses and turned steps, then grooves, flats, the steps
-//! (angled, paired-ramp, circular blind, through and oblique through) and blends. Face levels
-//! and risers are evidence Rust quiddity finds (`features::levels`) but its document does not
-//! carry, so they still come through the bridge.
+//! (angled, paired-ramp, circular blind, through and oblique through) and blends, then through
+//! slots and slot patterns, polygonal bosses and stock, double-D bores, plates, and gusset ribs and
+//! their patterns. Face levels and risers are evidence Rust quiddity finds (`features::levels`)
+//! but its document does not carry, so they still come through the bridge.
+//!
+//! The recess families the document carries (pockets, channels, pocket patterns, round-bottom and
+//! rectangular blind slots, section passages, edge-open circular pockets and edge-open prismatic
+//! recesses) are known and not read. draftwright draws and lints none of them as such: it reads
+//! pockets, channels, blind slots and passages as `section_recess` features (Python's published
+//! `SectionRecess`, one section-geometry record into which Python projects its internal pocket,
+//! channel, blind slot and passage readings), and the document has no section recesses, only the
+//! internal records, which no reader here understands. Producing draftwright's section recesses
+//! from them would be Python's projection rebuilt in draftwright; that is quiddity-rust's to
+//! publish (a schema question). The other families draftwright neither draws nor lints (oriented
+//! chamfers, circular face patterns, thin-wall bodies, interior voids, sheet-metal bodies,
+//! repeating radial profiles, freeform surfaces) are known and not read either.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
@@ -34,9 +47,16 @@
 //! enrichment), so the fingerprint sizes Python's bridge takes from them (a boss's
 //! `axial_length` and `height_above_base`, a turned step's `axial_length`) are not in a native
 //! fingerprint. Rust quiddity's families are independent: Python's aggregate rejects a boss
-//! whose faces are a turned step's, a blend whose faces are fillets', and a chamfer on an angled
-//! step's slant; Rust's document carries both, and the reader takes what the document says
-//! (`tests/native.rs` lists each).
+//! whose faces are a turned step's, a blend whose faces are fillets', a chamfer on an angled
+//! step's slant and a slot whose walls are passages', and its orchestration looks for no plates on
+//! a solid with turned steps; Rust's document carries them, and the reader takes what the document
+//! says (`tests/native.rs` lists each). Python's document, for its part, publishes a gusset rib
+//! pattern only as its ribs' links, which the bridge drops; Rust's carries the pattern.
+//!
+//! A slot pattern names its member slots by their feature IDs, in quiddity's order (`slots`), in
+//! place of the member records the document gives, as the bridge does: a member must be exactly
+//! one slot's record, and no slot in two patterns. A gusset rib pattern keeps its member ribs'
+//! records (`ribs`), as the bridge does and `lint/gussets.rs` reads them.
 
 use haecceity::Part;
 use quiddity::recognition::RecognitionDocument;
@@ -112,7 +132,7 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
 ];
 
 /// The families read here.
-pub const READ: [&str; 15] = [
+pub const READ: [&str; 23] = [
     "holes",
     "hole_patterns",
     "fillets",
@@ -128,6 +148,14 @@ pub const READ: [&str; 15] = [
     "through_steps",
     "oblique_through_steps",
     "blends",
+    "slots",
+    "slot_patterns",
+    "polygonal_bosses",
+    "polygonal_stock",
+    "double_d_bores",
+    "plates",
+    "gusset_ribs",
+    "gusset_rib_patterns",
 ];
 
 /// What a field of a record must be.
@@ -148,6 +176,18 @@ pub enum Field {
     Axis,
     /// An axis letter (`x`, `y`, `z`).
     Letter,
+    /// A number, or null.
+    NumberOrNull,
+    /// A whole number, not negative.
+    Count,
+    /// Points of three numbers, any number of them.
+    PointList,
+    /// An axis letter and a coordinate along it (a plane across that axis).
+    Plane,
+    /// This many [`Field::Plane`]s.
+    Planes(usize),
+    /// Records of the named record type, at least one, each checked against its [`FIELDS`].
+    Records(&'static str),
     /// Numbers, or null.
     NumbersOrNull,
     /// An object, or null.
@@ -289,6 +329,101 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("path", Field::BlendPath),
         ],
     ),
+    (
+        "Slot",
+        &[
+            ("long_axis", Field::Letter),
+            ("width_axis", Field::Letter),
+            ("width", Field::Number),
+            ("length", Field::Number),
+            ("lo", Field::Number),
+            ("hi", Field::Number),
+            ("w_center", Field::Number),
+            ("d_lo", Field::Number),
+            ("d_hi", Field::Number),
+            ("end_radius", Field::NumberOrNull),
+        ],
+    ),
+    (
+        "SlotGrid",
+        &[
+            ("slots", Field::Records("Slot")),
+            ("rows", Field::Count),
+            ("cols", Field::Count),
+            ("row_pitch", Field::Number),
+            ("col_pitch", Field::Number),
+            ("angle", Field::Number),
+            ("center", Field::Point),
+        ],
+    ),
+    (
+        "SlotArray",
+        &[
+            ("slots", Field::Records("Slot")),
+            ("pitch", Field::Number),
+            ("direction", Field::Point),
+        ],
+    ),
+    ("PolygonalBoss", POLYGONAL),
+    ("PolygonalStock", POLYGONAL),
+    (
+        "DoubleDBore",
+        &[
+            ("axis", Field::Point),
+            ("location", Field::Point),
+            ("major_diameter", Field::Number),
+            ("across_flats", Field::Number),
+            ("through", Field::Bool),
+            ("flat_direction", Field::Point),
+        ],
+    ),
+    (
+        "Plate",
+        &[
+            ("axis", Field::Letter),
+            ("lo", Field::Number),
+            ("hi", Field::Number),
+            ("u", Field::Number),
+            ("v", Field::Number),
+        ],
+    ),
+    (
+        "GussetRib",
+        &[
+            ("thickness_axis", Field::Letter),
+            ("thickness_bounds", Field::Pair),
+            ("supports", Field::Planes(2)),
+            ("legs", Field::Pair),
+            ("directions", Field::Pair),
+        ],
+    ),
+    (
+        "GussetRibArray",
+        &[
+            ("ribs", Field::Records("GussetRib")),
+            ("pitch", Field::Number),
+        ],
+    ),
+    (
+        "GussetRibMirrorPair",
+        &[
+            ("ribs", Field::Records("GussetRib")),
+            ("mirror_plane", Field::Plane),
+        ],
+    ),
+];
+
+/// A polygonal prism's fields (`PolygonalBoss`, `PolygonalStock`), as `dims/bosses.rs` and
+/// `lint/polygonal.rs` read them; the lint checks the ring's count against `side_count` itself.
+const POLYGONAL: &[(&str, Field)] = &[
+    ("axis", Field::Letter),
+    ("center", Field::Point),
+    ("side_count", Field::Count),
+    ("across_flats", Field::Number),
+    ("base", Field::Number),
+    ("top", Field::Number),
+    ("flat_directions", Field::PointList),
+    ("flat_centres", Field::PointList),
 ];
 
 /// Features read from Rust quiddity.
@@ -448,6 +583,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         };
         others[i].id = format!("f:{}:{n}", others[i].kind);
     }
+    name_slot_members(&mut others)?;
     Ok(Native {
         recogniser: format!(
             "{} {} ({})",
@@ -466,65 +602,12 @@ fn feature(
     qs: &[QHolePattern],
     r: &quiddity::recognition::Record,
 ) -> Result<Feature, String> {
-    let fields = FIELDS
-        .iter()
-        .find(|(t, _)| *t == r.record_type)
-        .ok_or_else(|| format!("{} ({}) has no fields known here", r.id, r.record_type))?
-        .1;
-    for &(name, field) in fields {
-        let v = match name.split_once('.') {
-            Some((outer, inner)) => match r.parameters.get(outer) {
-                Some(Value::Null) => continue,
-                o => o.and_then(|o| o.get(inner)),
-            },
-            None => r.parameters.get(name),
-        };
-        let v = v.ok_or_else(|| {
-            format!(
-                "{} ({}) has no {name}, which draftwright reads; the {} are not read",
-                r.id, r.record_type, r.family
-            )
-        })?;
-        let numbers = |v: &Value, n: usize| {
-            v.as_array()
-                .is_some_and(|a| a.len() == n && a.iter().all(Value::is_number))
-        };
-        let points = |v: &Value, n: usize, d: usize| {
-            v.as_array()
-                .is_some_and(|a| a.len() == n && a.iter().all(|p| numbers(p, d)))
-        };
-        let letter = |v: &Value| ["x", "y", "z"].contains(&v.as_str().unwrap_or(""));
-        let point = |k: &str| v.get(k).is_some_and(|p| numbers(p, 3));
-        let ok = match field {
-            Field::Number => v.is_number(),
-            Field::Bool => v.is_boolean(),
-            Field::Text => v.is_string(),
-            Field::Point => numbers(v, 3),
-            Field::Pair => numbers(v, 2),
-            Field::Section(n) => points(v, n, 2),
-            Field::Points(n) => points(v, n, 3),
-            Field::Axis => numbers(v, 3) || letter(v),
-            Field::Letter => letter(v),
-            Field::NumbersOrNull => {
-                v.is_null() || v.as_array().is_some_and(|a| a.iter().all(Value::is_number))
-            }
-            Field::ObjectOrNull => v.is_null() || v.is_object(),
-            Field::BlendPath => v.as_object().is_some_and(|o| {
-                let straight = o.len() == 2 && point("at") && point("direction");
-                let circular = o.len() == 3
-                    && point("center")
-                    && point("normal")
-                    && o.get("radius").is_some_and(Value::is_number);
-                straight || circular
-            }),
-        };
-        if !ok {
-            return Err(format!(
-                "{} ({})'s {name} is {v}, not {field:?}; the {} are not read",
-                r.id, r.record_type, r.family
-            ));
-        }
-    }
+    check(&r.parameters, &r.record_type).map_err(|e| {
+        format!(
+            "{} ({}){e}; the {} are not read",
+            r.id, r.record_type, r.family
+        )
+    })?;
     let faces = r.faces.clone();
     if !ascending(&faces) {
         return Err(format!("{} has no ascending faces to anchor it", r.id));
@@ -546,6 +629,168 @@ fn feature(
         faces,
         parameters: r.parameters.clone(),
     })
+}
+
+/// Checks *record*, of *record_type*, against its [`FIELDS`]; the error is what is wrong, to
+/// follow the record's name (` has no width, …`, `'s width is …`).
+fn check(record: &Map<String, Value>, record_type: &str) -> Result<(), String> {
+    let fields = FIELDS
+        .iter()
+        .find(|(t, _)| *t == record_type)
+        .ok_or(" has no fields known here")?
+        .1;
+    for &(name, field) in fields {
+        let v = match name.split_once('.') {
+            Some((outer, inner)) => match record.get(outer) {
+                Some(Value::Null) => continue,
+                o => o.and_then(|o| o.get(inner)),
+            },
+            None => record.get(name),
+        };
+        let v = v.ok_or_else(|| format!(" has no {name}, which draftwright reads"))?;
+        let numbers = |v: &Value, n: usize| {
+            v.as_array()
+                .is_some_and(|a| a.len() == n && a.iter().all(Value::is_number))
+        };
+        let points = |v: &Value, n: usize, d: usize| {
+            v.as_array()
+                .is_some_and(|a| a.len() == n && a.iter().all(|p| numbers(p, d)))
+        };
+        let letter = |v: &Value| ["x", "y", "z"].contains(&v.as_str().unwrap_or(""));
+        let plane = |v: &Value| {
+            v.as_array()
+                .is_some_and(|a| a.len() == 2 && letter(&a[0]) && a[1].is_number())
+        };
+        let point = |k: &str| v.get(k).is_some_and(|p| numbers(p, 3));
+        let ok = match field {
+            Field::Number => v.is_number(),
+            Field::Bool => v.is_boolean(),
+            Field::Text => v.is_string(),
+            Field::Point => numbers(v, 3),
+            Field::Pair => numbers(v, 2),
+            Field::Section(n) => points(v, n, 2),
+            Field::Points(n) => points(v, n, 3),
+            Field::Axis => numbers(v, 3) || letter(v),
+            Field::Letter => letter(v),
+            Field::NumberOrNull => v.is_null() || v.is_number(),
+            Field::Count => v.is_u64(),
+            Field::PointList => v
+                .as_array()
+                .is_some_and(|a| a.iter().all(|p| numbers(p, 3))),
+            Field::Plane => plane(v),
+            Field::Planes(n) => v
+                .as_array()
+                .is_some_and(|a| a.len() == n && a.iter().all(plane)),
+            Field::Records(member) => match v.as_array() {
+                Some(a) if !a.is_empty() => {
+                    for (i, m) in a.iter().enumerate() {
+                        let m = m
+                            .as_object()
+                            .ok_or_else(|| format!("'s {name}[{i}] is {m}, not a {member}"))?;
+                        check(m, member).map_err(|e| format!("'s {name}[{i}] ({member}){e}"))?;
+                    }
+                    true
+                }
+                _ => false,
+            },
+            Field::NumbersOrNull => {
+                v.is_null() || v.as_array().is_some_and(|a| a.iter().all(Value::is_number))
+            }
+            Field::ObjectOrNull => v.is_null() || v.is_object(),
+            Field::BlendPath => v.as_object().is_some_and(|o| {
+                let straight = o.len() == 2 && point("at") && point("direction");
+                let circular = o.len() == 3
+                    && point("center")
+                    && point("normal")
+                    && o.get("radius").is_some_and(Value::is_number);
+                straight || circular
+            }),
+        };
+        if !ok {
+            return Err(format!("'s {name} is {v}, not {field:?}"));
+        }
+    }
+    Ok(())
+}
+
+/// Names each slot pattern's member slots by their IDs, in quiddity's order, in place of their
+/// records (`slots`), as the bridge does: a member is the one slot whose record it equals, and a
+/// slot is in at most one pattern; anything else is refused. Each pattern and its members take
+/// the members' count and pitch as their fingerprint's pattern, as the bridge's do.
+fn name_slot_members(features: &mut [Feature]) -> Result<(), String> {
+    let mut used: Vec<usize> = Vec::new();
+    for p in 0..features.len() {
+        if features[p].kind != "slot_pattern" {
+            continue;
+        }
+        let records = match features[p].parameters.get("slots") {
+            Some(Value::Array(a)) => a.clone(),
+            _ => return Err(format!("{} has no member slots", features[p].id)),
+        };
+        let mut members = Vec::new();
+        for m in &records {
+            let found: Vec<usize> = (0..features.len())
+                .filter(|&i| {
+                    features[i].kind == "slot" && Some(&features[i].parameters) == m.as_object()
+                })
+                .collect();
+            match found[..] {
+                [i] if !used.contains(&i) => {
+                    used.push(i);
+                    members.push(i);
+                }
+                [_] => {
+                    return Err(format!(
+                        "quiddity puts one slot in a slot pattern twice ({})",
+                        features[p].id
+                    ));
+                }
+                _ => {
+                    return Err(format!(
+                        "{}'s member matches {} slots, not one",
+                        features[p].id,
+                        found.len()
+                    ));
+                }
+            }
+        }
+        let centres = members
+            .iter()
+            .map(|&i| slot_centre(&features[i].parameters))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| format!("{} has a member with no location", features[p].id))?;
+        let pattern = super::pattern(&centres);
+        let ids: Vec<Value> = members
+            .iter()
+            .map(|&i| features[i].id.clone().into())
+            .collect();
+        for &i in &members {
+            features[i].fingerprint.pattern = Some(pattern.clone());
+        }
+        let f = &mut features[p];
+        f.parameters.insert("slots".into(), ids.into());
+        f.fingerprint.pattern = Some(pattern);
+    }
+    Ok(())
+}
+
+/// A slot's centre (quiddity's `Slot.location`): midway along its long axis, on its width
+/// centre, midway through its depth, as the bridge's slot patterns take it.
+fn slot_centre(r: &Map<String, Value>) -> Option<[f64; 3]> {
+    let letter = |k: &str| {
+        let a = r.get(k)?.as_str()?;
+        ["x", "y", "z"].iter().position(|x| *x == a)
+    };
+    let number = |k: &str| r.get(k).and_then(Value::as_f64);
+    let (long, wide) = (letter("long_axis")?, letter("width_axis")?);
+    if long == wide {
+        return None;
+    }
+    let mut c = [0.0; 3];
+    c[long] = 0.5 * (number("lo")? + number("hi")?);
+    c[wide] = number("w_center")?;
+    c[3 - long - wide] = 0.5 * (number("d_lo")? + number("d_hi")?);
+    Some(c)
 }
 
 /// Whether *faces* are some faces, strictly ascending: a face named twice is not a record's.

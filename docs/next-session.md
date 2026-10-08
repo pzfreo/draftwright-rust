@@ -940,3 +940,30 @@ improvement plan and questions are the current work. Still open from before it:
     rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
     rust_note: "Partly ported: lint credits a requirement only through a structured claim on the feature by ID, so a callout's words cannot claim a feature; a count is read from the callout's leading n× against the holes it claims (no count shortfall is waived, ISSUE-1143-b), and a bolt circle's diameter (after EQ/ON/BC) or any other term cannot confirm a hole's size. Not ported: centre-line overlap by text box (placement's)."
   ```
+
+- From wave 5 (stream d-native-recess-families): `bridge::native` also reads through slots and
+  slot patterns (members named by slot ID, as the bridge does), polygonal bosses and stock,
+  double-D bores, plates, and gusset ribs and their patterns, each against a `FIELDS` table
+  (member records checked too). `tests/native.rs` adds two fixture sets that need no corpus: the
+  slot-pattern plates and quiddity-rust's golden double-D bore, gusset rib and hexagonal stock
+  parts (`recognition/golden/`, Python quiddity 0.4.0.dev0): 43 parts. `known_native.json` grows
+  by 71 entries (887 in all): 53 equivalent (named dimensions; a polygon's ring starting at
+  another flat; a slot array's direction sense and a grid's angle and member order in the other
+  frame), 11 rust-wrong (6 polygonal-boss and 1 boss free-end cap faces, the constituent-faces
+  gap; m1000's slot, which Python's aggregate rejects as superseded by passages, twice; grm03's
+  plate, which Python's orchestration does not look for on a turned solid, twice), 6
+  undetermined (cgb245's slot body keys, OpenCascade against haecceity) and 1 rust-correct (the
+  gusset mirror pair, which Python's document publishes only as its ribs' links, so the bridge
+  drops it). The recess families (pockets, channels, pocket patterns, blind slots, section
+  passages, edge-open pockets and recesses) stay known and not read: draftwright reads them only
+  as `section_recess` features, which the document does not carry.
+  - Questions for the maintainer:
+    - Should quiddity-rust's document publish section recesses (Python's `SectionRecess`: frame,
+      section profile, run interval, ends, classification) in place of, or beside, its internal
+      pocket, channel, blind-slot, passage and edge-open records? Without them no native reader
+      can give draftwright its pockets, channels, blind slots and passages.
+    - The cross-family reconciliation question above now also covers slots superseded by passages
+      (`reconcile_recess_candidates`) and plates on turned solids (`plates._discover`).
+    - A native polygonal boss's fingerprint has no height (the document has no
+      `named_dimensions`), and `demand.rs` counts z boss heights from fingerprint sizes: take it
+      from `top - base`, or have the document carry named dimensions?

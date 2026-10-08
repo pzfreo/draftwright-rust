@@ -8158,5 +8158,715 @@
     "rust": "f:fillet:1 [23] {\"at\":[7.491,1.942,18.206],\"axis\":\"x\",\"radius\":2.747,\"side\":\"convex\",\"turned\":false}",
     "verdict": "rust-wrong",
     "evidence": "Python quiddity's aggregate rejects a fillet whose defining faces are a circular blind step's (_reconcile.py reconcile_circular_step_fillets, blend.fillet_superseded_by_circular_blind_step): the quarter cylinder is the step's wall, not an edge round. quiddity-rust does not port the cross-family reconciliation (features/mod.rs: families are independent), so its document carries both. This fillet's face [23] is native f:circular_blind_step:1's ([23, 24], checked); draftwright would ask for the radius twice (fillet.radius and circular_step_radius.radius). Fix: quiddity-rust ports the reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "slot_patterns",
+    "part": "slot_array",
+    "subject": "f:slot_pattern:1",
+    "field": "parameters.direction",
+    "python": "[-1.0,0.0,0.0]",
+    "rust": "[1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "The array's direction as a line, its sense reversed: Python's in its working frame (x_w along the part's z, z_w along -x) and quiddity-rust's in the part's run the members in opposite senses. dims/slots.rs takes the axis the direction lies along, not its sense, and the pitch is the same."
+  },
+  {
+    "set": "slot_patterns",
+    "part": "slot_array",
+    "subject": "f:slot_pattern:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"center_spacing\":25.0,\"direction\":[-1.0,0.0,0.0]}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the array's pitch (center_spacing 25.0) and direction. The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/slots.rs reads pitch and direction."
+  },
+  {
+    "set": "slot_patterns",
+    "part": "slot_array",
+    "subject": "f:slot_pattern:1",
+    "field": "parameters.slots",
+    "python": "[\"f:slot:3\",\"f:slot:2\",\"f:slot:1\"]",
+    "rust": "[\"f:slot:1\",\"f:slot:2\",\"f:slot:3\"]",
+    "verdict": "equivalent",
+    "evidence": "The same three member slots (native IDs named by their Python pairs), listed in the opposite order: each lists them along its own direction, whose sense differs (see this pattern's direction). dims/slots.rs sorts the members' centres along the direction before checking the pitch, and the array's members share one line, so nothing it states depends on the order."
+  },
+  {
+    "set": "slot_patterns",
+    "part": "slot_grid",
+    "subject": "f:slot_pattern:1",
+    "field": "parameters.angle",
+    "python": "0.0",
+    "rust": "90.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity's grid angle is measured in the plane basis of its own frame (`_plane_uv`: x -> (y, z), z -> (x, y)). Python's slots cut along its working x (the part's z), so angle 0 puts its columns along its working y, the part's y; quiddity-rust's cut along the part's z, so angle 90 puts its columns along the part's y. The same lattice (rows, cols and both pitches agree); dims/slots.rs reads the angle in the record's frame and finds the same column axis."
+  },
+  {
+    "set": "slot_patterns",
+    "part": "slot_grid",
+    "subject": "f:slot_pattern:1",
+    "field": "parameters.slots",
+    "python": "[\"f:slot:3\",\"f:slot:2\",\"f:slot:1\",\"f:slot:6\",\"f:slot:5\",\"f:slot:4\"]",
+    "rust": "[\"f:slot:1\",\"f:slot:4\",\"f:slot:2\",\"f:slot:5\",\"f:slot:3\",\"f:slot:6\"]",
+    "verdict": "equivalent",
+    "evidence": "The same six member slots (native IDs named by their Python pairs), in another order: each lists the lattice in its own frame's order (Python's working frame, quiddity-rust's the part's). dims/slots.rs sorts the members' centres along each axis before checking the pitches; only the slot the pitch dimensions are drawn from (the first member) differs, a placement, not a statement."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_ribs",
+    "subject": "f:boss:1",
+    "field": "faces",
+    "python": "[16, 22]",
+    "rust": "[16]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document carries only the defining ones (its cylinder, face 16, z 8 to 20). Face 22 is the plane z = 20 capping its free end (haecceity's face bounds, checked). The constituent-faces gap, as for the corpus bosses. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_ribs",
+    "subject": "f:boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":12.0,\"height_above_base\":12.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both its height, 12.0 (checked). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). demand.rs finds the boss's height under `height` either way."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_ribs",
+    "subject": "f:gusset_rib:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":6.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the rib's thickness, 6.0: the width of its own thickness_bounds (checked for every rib). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/gussets.rs reads thickness_bounds."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_ribs",
+    "subject": "f:gusset_rib:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":6.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the rib's thickness, 6.0: the width of its own thickness_bounds (checked for every rib). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/gussets.rs reads thickness_bounds."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_ribs",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":8.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 8.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_ribs",
+    "subject": "f:plate:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":8.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 8.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_rib_patterns",
+    "subject": "f:gusset_rib:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":6.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the rib's thickness, 6.0: the width of its own thickness_bounds (checked for every rib). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/gussets.rs reads thickness_bounds."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_rib_patterns",
+    "subject": "f:gusset_rib:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":6.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the rib's thickness, 6.0: the width of its own thickness_bounds (checked for every rib). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/gussets.rs reads thickness_bounds."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_rib_patterns",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":8.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 8.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_rib_patterns",
+    "subject": "f:plate:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":8.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 8.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "golden",
+    "part": "gusset_rib_patterns",
+    "subject": "rust f:gusset_rib_pattern:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:gusset_rib_pattern:1 [7, 8, 9, 10, 11, 12] {\"mirror_plane\":[\"x\",0.0],\"ribs\":[{\"body_key\":[-40.0,-25.0,0.0,40.0,25.0,48.0,61032.0,18096.705273],\"directions\":[-1.0,1.0],\"legs\":[22.0,26.0],\"supports\":[[\"y\",17.0],[\"z\",8.0]],\"thickness_axis\":\"x\",\"thickness_bounds\":[-32.0,-26.0]},{\"body_key\":[-40.0,-25.0,0.0,40.0,25.0,48.0,61032.0,18096.705273],\"directions\":[-1.0,1.0],\"legs\":[22.0,26.0],\"supports\":[[\"y\",17.0],[\"z\",8.0]],\"thickness_axis\":\"x\",\"thickness_bounds\":[26.0,32.0]}]}",
+    "verdict": "rust-correct",
+    "evidence": "The two ribs mirrored about x = 0 (mirror_plane [\"x\", 0.0]). Python's own recognise_gusset_rib_patterns on this part gives the same GussetRibMirrorPair(mirror_plane=('x', 0.0)) over these ribs (quiddity 0.4.0.dev0, run 2026-10-08), but Python's document publishes no pattern record: enrich_edit_document (_edit_document.py) folds it into its ribs' mirror_sibling dependents, which the bridge drops. So the bridged Analysis has no gusset_rib_pattern and lint/gussets.rs judges the ribs as two lone groups, where draftwright (which reads the result's gusset_rib_patterns, model/detect.py _append_gusset_features) makes one mirrored group with its spacing. The native reading is draftwright's."
+  },
+  {
+    "set": "golden",
+    "part": "polygonal_stock",
+    "subject": "f:polygonal_stock:1",
+    "field": "parameters.flat_centres",
+    "python": "[[5.0642,-16.563498,15.0],[16.876411,-3.896452,15.0],[11.812894,12.667777,15.0],[-5.0642,16.563498,15.0],[-16.876411,3.896452,15.0],[-11.812894,-12.667777,15.0]]",
+    "rust": "[[-11.813,-12.667,15.0],[5.064,-16.564,15.0],[16.877,-3.896,15.0],[11.813,12.667,15.0],[-5.064,16.564,15.0],[-16.877,3.896,15.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 5 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "golden",
+    "part": "polygonal_stock",
+    "subject": "f:polygonal_stock:1",
+    "field": "parameters.flat_directions",
+    "python": "[[0.292353,-0.956287,0.0],[0.974351,-0.224934,0.0],[0.681998,0.731354,0.0],[-0.292353,0.956287,0.0],[-0.974351,0.224934,0.0],[-0.681998,-0.731354,0.0]]",
+    "rust": "[[-0.682,-0.731,0.0],[0.292,-0.956,0.0],[0.974,-0.225,0.0],[0.682,0.731,0.0],[-0.292,0.956,0.0],[-0.974,0.225,0.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 5 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "corpus",
+    "part": "cgb245",
+    "subject": "f:slot:1",
+    "field": "parameters.body_key",
+    "python": "[-190.0,-84.17812,-18.612974,190.0,84.178119,18.612973,121083.594931,127539.014087]",
+    "rust": "[-190.0,-84.17812,-18.612973,190.0,84.17812,18.612973,121083.306695,127538.919907]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -18.612974 and 84.178119 against -18.612973 and 84.17812 (bounding-box padding and rounding); its volume (121083.594931 against 121083.306695, 2.4e-6 relative) and area (127539.014087 against 127538.919907, 7.4e-7) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. No draftwright reader uses a slot's body_key (dims/slots.rs and lint/slots.rs read its place and sizes)."
+  },
+  {
+    "set": "corpus",
+    "part": "cgb245",
+    "subject": "f:slot:2",
+    "field": "parameters.body_key",
+    "python": "[-190.0,-84.17812,-18.612974,190.0,84.178119,18.612973,121083.594931,127539.014087]",
+    "rust": "[-190.0,-84.17812,-18.612973,190.0,84.17812,18.612973,121083.306695,127538.919907]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -18.612974 and 84.178119 against -18.612973 and 84.17812 (bounding-box padding and rounding); its volume (121083.594931 against 121083.306695, 2.4e-6 relative) and area (127539.014087 against 127538.919907, 7.4e-7) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. No draftwright reader uses a slot's body_key (dims/slots.rs and lint/slots.rs read its place and sizes)."
+  },
+  {
+    "set": "corpus",
+    "part": "cgb245",
+    "subject": "f:slot:3",
+    "field": "parameters.body_key",
+    "python": "[-190.0,-84.17812,-18.612974,190.0,84.178119,18.612973,121083.594931,127539.014087]",
+    "rust": "[-190.0,-84.17812,-18.612973,190.0,84.17812,18.612973,121083.306695,127538.919907]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -18.612974 and 84.178119 against -18.612973 and 84.17812 (bounding-box padding and rounding); its volume (121083.594931 against 121083.306695, 2.4e-6 relative) and area (127539.014087 against 127538.919907, 7.4e-7) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. No draftwright reader uses a slot's body_key (dims/slots.rs and lint/slots.rs read its place and sizes)."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":50.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 50.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:polygonal_boss:1",
+    "field": "faces",
+    "python": "[61, 62, 63, 64, 65, 66, 67]",
+    "rust": "[61, 62, 63, 64, 65, 66]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 67, is the plane z = 50 capping the hexagonal boss (base 0, top 50 along z) at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.flat_centres",
+    "python": "[[25.000379,-43.301683,25.000471],[50.000379,0.000317,25.000471],[25.000379,43.301317,25.000471],[-24.999621,43.301317,25.000471],[-49.999621,0.000317,25.000471],[-24.999621,-43.301683,25.000471]]",
+    "rust": "[[-50.0,0.0,25.0],[-25.0,-43.301,25.0],[25.0,-43.301,25.0],[50.0,0.0,25.0],[25.0,43.301,25.0],[-25.0,43.301,25.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 4 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.flat_directions",
+    "python": "[[0.5,-0.866,0.0],[1.0,0.0,0.0],[0.5,0.866,0.0],[-0.5,0.866,0.0],[-1.0,0.0,0.0],[-0.5,-0.866,0.0]]",
+    "rust": "[[-1.0,0.0,0.0],[-0.5,-0.866,0.0],[0.5,-0.866,0.0],[1.0,0.0,0.0],[0.5,0.866,0.0],[-0.5,0.866,0.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 4 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":50.0,\"height_above_base\":50.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both top - base (50.0) of its own record (checked for every polygonal boss in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/bosses.rs and lint/polygonal.rs read base and top. This boss runs along z, and demand.rs counts a z boss height only when the fingerprint has a height, length or axial_length size: a native polygonal boss's fingerprint has none, so a switch must take its height from top - base or have the document carry it."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":31.75}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 31.75: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:plate:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":31.75}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 31.75: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "corpus",
+    "part": "grm03",
+    "subject": "rust f:plate:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:plate:1 [0, 7, 11] {\"axis\":\"x\",\"body_key\":[0.0,-5.0,-5.0,23.5,5.0,5.0,345.897729,450.845218],\"hi\":2.5,\"lo\":0.0,\"u\":0.0,\"v\":0.0}",
+    "verdict": "rust-wrong",
+    "evidence": "A 2.5 mm plate along x on the thumbwheel drive screw, a turned part (Python's recognition has 4 turned steps). Python's standalone recognise_plates gives this same Plate (quiddity 0.4.0.dev0, run 2026-10-08), but Python's orchestrated discovery excludes every solid with a turned step (plates.py `_discover`, `excluded_solids=turned_solids`), so its document has no plate; quiddity-rust's document runs the plates without that exclusion. lint/channels.rs reads plates for a channel's lower wall, so a stray plate can change which wall it finds. Fix: quiddity-rust excludes turned solids from plates as Python's orchestration does."
+  },
+  {
+    "set": "corpus",
+    "part": "hanger",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":4.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 4.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "corpus",
+    "part": "m1000",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":4.219}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 4.219: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "corpus",
+    "part": "m1000",
+    "subject": "rust f:slot:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:slot:1 [5, 12, 39, 43] {\"body_key\":[0.0,0.0,0.0,48.413353,12.593335,29.138443,13698.764707,5971.810169],\"corner_radius\":null,\"d_hi\":8.93,\"d_lo\":8.85,\"end_radius\":null,\"hi\":48.41,\"length\":48.41,\"lo\":0.0,\"long_axis\":\"x\",\"w_center\":9.64,\"width\":2.91,\"width_axis\":\"y\"}",
+    "verdict": "rust-wrong",
+    "evidence": "A 2.91 mm wide, 0.08 mm deep (d_lo 8.85, d_hi 8.93) through slot across the whole part, on faces 5, 12, 39 and 43: walls of two of Python's passages (SectionRecess passages on faces 5-12 and 39-46). Python's own recognise_slots on mfcadpp/1000.step gives this same Slot (quiddity 0.4.0.dev0, run 2026-10-08), but its aggregate rejects it as SLOT_SUPERSEDED_BY_PASSAGE (reconcile_recess_candidates, _reconcile.py: a slot whose walls lie in a group of passages); quiddity-rust's document carries it beside its section_passages. Switched as is, draftwright would dimension a slot that is not there. Fix: quiddity-rust ports the recess reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "sheets",
+    "part": "cgb245",
+    "subject": "f:slot:1",
+    "field": "parameters.body_key",
+    "python": "[-190.0,-84.17812,-18.612974,190.0,84.178119,18.612973,121083.594931,127539.014087]",
+    "rust": "[-190.0,-84.17812,-18.612973,190.0,84.17812,18.612973,121083.306695,127538.919907]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -18.612974 and 84.178119 against -18.612973 and 84.17812 (bounding-box padding and rounding); its volume (121083.594931 against 121083.306695, 2.4e-6 relative) and area (127539.014087 against 127538.919907, 7.4e-7) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. No draftwright reader uses a slot's body_key (dims/slots.rs and lint/slots.rs read its place and sizes)."
+  },
+  {
+    "set": "sheets",
+    "part": "cgb245",
+    "subject": "f:slot:2",
+    "field": "parameters.body_key",
+    "python": "[-190.0,-84.17812,-18.612974,190.0,84.178119,18.612973,121083.594931,127539.014087]",
+    "rust": "[-190.0,-84.17812,-18.612973,190.0,84.17812,18.612973,121083.306695,127538.919907]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -18.612974 and 84.178119 against -18.612973 and 84.17812 (bounding-box padding and rounding); its volume (121083.594931 against 121083.306695, 2.4e-6 relative) and area (127539.014087 against 127538.919907, 7.4e-7) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. No draftwright reader uses a slot's body_key (dims/slots.rs and lint/slots.rs read its place and sizes)."
+  },
+  {
+    "set": "sheets",
+    "part": "cgb245",
+    "subject": "f:slot:3",
+    "field": "parameters.body_key",
+    "python": "[-190.0,-84.17812,-18.612974,190.0,84.178119,18.612973,121083.594931,127539.014087]",
+    "rust": "[-190.0,-84.17812,-18.612973,190.0,84.17812,18.612973,121083.306695,127538.919907]",
+    "verdict": "undetermined",
+    "evidence": "The body's identity key: its box agrees but for OpenCascade's -18.612974 and 84.178119 against -18.612973 and 84.17812 (bounding-box padding and rounding); its volume (121083.594931 against 121083.306695, 2.4e-6 relative) and area (127539.014087 against 127538.919907, 7.4e-7) are OpenCascade's and haecceity's integrations, and which is nearer the solid's true values is not established. No draftwright reader uses a slot's body_key (dims/slots.rs and lint/slots.rs read its place and sizes)."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":50.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 50.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:polygonal_boss:1",
+    "field": "faces",
+    "python": "[61, 62, 63, 64, 65, 66, 67]",
+    "rust": "[61, 62, 63, 64, 65, 66]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 67, is the plane z = 50 capping the hexagonal boss (base 0, top 50 along z) at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.flat_centres",
+    "python": "[[25.000379,-43.301683,25.000471],[50.000379,0.000317,25.000471],[25.000379,43.301317,25.000471],[-24.999621,43.301317,25.000471],[-49.999621,0.000317,25.000471],[-24.999621,-43.301683,25.000471]]",
+    "rust": "[[-50.0,0.0,25.0],[-25.0,-43.301,25.0],[25.0,-43.301,25.0],[50.0,0.0,25.0],[25.0,43.301,25.0],[-25.0,43.301,25.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 4 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.flat_directions",
+    "python": "[[0.5,-0.866,0.0],[1.0,0.0,0.0],[0.5,0.866,0.0],[-0.5,0.866,0.0],[-1.0,0.0,0.0],[-0.5,-0.866,0.0]]",
+    "rust": "[[-1.0,0.0,0.0],[-0.5,-0.866,0.0],[0.5,-0.866,0.0],[1.0,0.0,0.0],[0.5,0.866,0.0],[-0.5,0.866,0.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 4 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":50.0,\"height_above_base\":50.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both top - base (50.0) of its own record (checked for every polygonal boss in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/bosses.rs and lint/polygonal.rs read base and top. This boss runs along z, and demand.rs counts a z boss height only when the fingerprint has a height, length or axial_length size: a native polygonal boss's fingerprint has none, so a switch must take its height from top - base or have the document carry it."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":31.75}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 31.75: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:plate:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":31.75}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 31.75: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "sheets",
+    "part": "grm03",
+    "subject": "rust f:plate:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:plate:1 [0, 7, 11] {\"axis\":\"x\",\"body_key\":[0.0,-5.0,-5.0,23.5,5.0,5.0,345.897729,450.845218],\"hi\":2.5,\"lo\":0.0,\"u\":0.0,\"v\":0.0}",
+    "verdict": "rust-wrong",
+    "evidence": "A 2.5 mm plate along x on the thumbwheel drive screw, a turned part (Python's recognition has 4 turned steps). Python's standalone recognise_plates gives this same Plate (quiddity 0.4.0.dev0, run 2026-10-08), but Python's orchestrated discovery excludes every solid with a turned step (plates.py `_discover`, `excluded_solids=turned_solids`), so its document has no plate; quiddity-rust's document runs the plates without that exclusion. lint/channels.rs reads plates for a channel's lower wall, so a stray plate can change which wall it finds. Fix: quiddity-rust excludes turned solids from plates as Python's orchestration does."
+  },
+  {
+    "set": "sheets",
+    "part": "hanger",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":4.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 4.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "sheets",
+    "part": "m1000",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":4.219}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 4.219: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "sheets",
+    "part": "m1000",
+    "subject": "rust f:slot:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:slot:1 [5, 12, 39, 43] {\"body_key\":[0.0,0.0,0.0,48.413353,12.593335,29.138443,13698.764707,5971.810169],\"corner_radius\":null,\"d_hi\":8.93,\"d_lo\":8.85,\"end_radius\":null,\"hi\":48.41,\"length\":48.41,\"lo\":0.0,\"long_axis\":\"x\",\"w_center\":9.64,\"width\":2.91,\"width_axis\":\"y\"}",
+    "verdict": "rust-wrong",
+    "evidence": "A 2.91 mm wide, 0.08 mm deep (d_lo 8.85, d_hi 8.93) through slot across the whole part, on faces 5, 12, 39 and 43: walls of two of Python's passages (SectionRecess passages on faces 5-12 and 39-46). Python's own recognise_slots on mfcadpp/1000.step gives this same Slot (quiddity 0.4.0.dev0, run 2026-10-08), but its aggregate rejects it as SLOT_SUPERSEDED_BY_PASSAGE (reconcile_recess_candidates, _reconcile.py: a slot whose walls lie in a group of passages); quiddity-rust's document carries it beside its section_passages. Switched as is, draftwright would dimension a slot that is not there. Fix: quiddity-rust ports the recess reconciliation, or its document records the disposition."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":9.298}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 9.298: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":9.297}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 9.297: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":9.297}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 9.297: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":5.08}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 5.08: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:5",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":9.297}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 9.297: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:1",
+    "field": "faces",
+    "python": "[235, 236, 257, 258, 259]",
+    "rust": "[235, 257, 258, 259]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 236, is a square plane at y = -123.19 capping the square boss at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.flat_centres",
+    "python": "[[-120.650473,-121.919276,93.958132],[-133.327473,-121.919276,81.280132],[-120.650473,-121.919276,68.602132],[-107.972473,-121.919276,81.280132]]",
+    "rust": "[[-120.65,-121.919,68.602],[-107.972,-121.919,81.28],[-120.65,-121.919,93.958],[-133.328,-121.919,81.28]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 2 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.flat_directions",
+    "python": "[[0.0,0.0,1.0],[-1.0,0.0,0.0],[0.0,0.0,-1.0],[1.0,0.0,0.0]]",
+    "rust": "[[0.0,0.0,-1.0],[1.0,0.0,0.0],[0.0,0.0,1.0],[-1.0,0.0,0.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 2 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":2.54,\"height_above_base\":2.54}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both top - base (2.54) of its own record (checked for every polygonal boss in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/bosses.rs and lint/polygonal.rs read base and top."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:2",
+    "field": "faces",
+    "python": "[237, 238, 239, 260, 261]",
+    "rust": "[237, 239, 260, 261]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 238, is a square plane at y = -123.19 capping the square boss at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:2",
+    "field": "parameters.flat_centres",
+    "python": "[[-120.650473,-121.919276,-68.601868],[-133.327473,-121.919276,-81.279868],[-120.650473,-121.919276,-93.957868],[-107.972473,-121.919276,-81.279868]]",
+    "rust": "[[-120.65,-121.919,-93.958],[-107.972,-121.919,-81.28],[-120.65,-121.919,-68.602],[-133.328,-121.919,-81.28]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 2 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:2",
+    "field": "parameters.flat_directions",
+    "python": "[[0.0,0.0,1.0],[-1.0,0.0,0.0],[0.0,0.0,-1.0],[1.0,0.0,0.0]]",
+    "rust": "[[0.0,0.0,-1.0],[1.0,0.0,0.0],[0.0,0.0,1.0],[-1.0,0.0,0.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 2 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":2.54,\"height_above_base\":2.54}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both top - base (2.54) of its own record (checked for every polygonal boss in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/bosses.rs and lint/polygonal.rs read base and top."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:3",
+    "field": "faces",
+    "python": "[240, 262, 263, 264, 265]",
+    "rust": "[240, 262, 263, 264]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 265, is a square plane at y = -123.19 capping the square boss at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:3",
+    "field": "parameters.flat_centres",
+    "python": "[[120.649527,-121.919276,-68.601868],[107.972527,-121.919276,-81.279868],[120.649527,-121.919276,-93.957868],[133.327527,-121.919276,-81.279868]]",
+    "rust": "[[120.65,-121.919,-93.958],[133.328,-121.919,-81.28],[120.65,-121.919,-68.602],[107.972,-121.919,-81.28]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 2 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:3",
+    "field": "parameters.flat_directions",
+    "python": "[[0.0,0.0,1.0],[-1.0,0.0,0.0],[0.0,0.0,-1.0],[1.0,0.0,0.0]]",
+    "rust": "[[0.0,0.0,-1.0],[1.0,0.0,0.0],[0.0,0.0,1.0],[-1.0,0.0,0.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 2 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":2.54,\"height_above_base\":2.54}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both top - base (2.54) of its own record (checked for every polygonal boss in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/bosses.rs and lint/polygonal.rs read base and top."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:4",
+    "field": "faces",
+    "python": "[241, 242, 254, 255, 256]",
+    "rust": "[241, 254, 255, 256]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 242, is a square plane at y = -123.19 capping the square boss at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:4",
+    "field": "parameters.flat_centres",
+    "python": "[[120.649527,-121.919276,93.958132],[107.972527,-121.919276,81.280132],[120.649527,-121.919276,68.602132],[133.327527,-121.919276,81.280132]]",
+    "rust": "[[120.65,-121.919,68.602],[133.328,-121.919,81.28],[120.65,-121.919,93.958],[107.972,-121.919,81.28]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 2 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:4",
+    "field": "parameters.flat_directions",
+    "python": "[[0.0,0.0,1.0],[-1.0,0.0,0.0],[0.0,0.0,-1.0],[1.0,0.0,0.0]]",
+    "rust": "[[0.0,0.0,-1.0],[1.0,0.0,0.0],[0.0,0.0,1.0],[-1.0,0.0,0.0]]",
+    "verdict": "equivalent",
+    "evidence": "The same flats in the same cyclic order, starting at another flat: the native ring is Python's rotated by 2 (each direction and centre agrees within quiddity's 1e-3 rounding after the rotation, both fields with the same rotation; checked). Where the ring starts follows the frame the record is made in (Python's working frame, quiddity-rust's the part's). lint/polygonal.rs checks that the ring is one regular ring, which does not depend on where it starts; dims/bosses.rs does not read it."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:polygonal_boss:4",
+    "field": "parameters.named_dimensions",
+    "python": "{\"axial_length\":2.54,\"height_above_base\":2.54}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both top - base (2.54) of its own record (checked for every polygonal boss in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/bosses.rs and lint/polygonal.rs read base and top."
+  },
+  {
+    "set": "dims",
+    "part": "m10047",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":8.656}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 8.656: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "m11512",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":7.154}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 7.154: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "steps",
+    "part": "m10060",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":14.315}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 14.315: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "steps",
+    "part": "m1007",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":16.485}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 16.485: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
   }
 ]
