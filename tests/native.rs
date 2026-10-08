@@ -1,15 +1,19 @@
 //! Features from Rust quiddity (`bridge::native`: holes and hole patterns, fillets, chamfers,
 //! countersinks, bosses, turned steps, grooves, flats, the steps, blends, slots and slot patterns,
-//! polygonal bosses and stock, double-D bores, plates, gusset ribs and their patterns) against the
-//! same parts' Python quiddity recognition through the bridge, record by record.
+//! polygonal bosses and stock, double-D bores, plates, gusset ribs and their patterns, oriented
+//! slots and their patterns) against the same parts' Python quiddity recognition through the
+//! bridge, record by record.
 //!
 //! Every part with bridged Python recognition is compared: the fixtures in `tests/fixtures/parts/`
 //! (set `parts`), the slot-pattern plates (`slot_patterns`) and quiddity-rust's golden parts with
-//! a double-D bore, gusset ribs and hexagonal stock (`golden`), which no corpus part has, the
+//! a double-D bore, gusset ribs, hexagonal stock and a pattern of oriented slots (`golden`), which
+//! no corpus part has, the
 //! sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
 //! (`recognition/corpus/`, set `corpus`) and 0.3.9's, the recogniser draftwright drew their sheets
 //! with (`recognition/sheets/`, set `sheets`), and 0.3.9's on corpus parts with features no
-//! sampled sheet has (`recognition/dims/`, set `dims`, and `recognition/steps/`, set `steps`).
+//! sampled sheet has (`recognition/dims/`, set `dims`, and `recognition/steps/`, set `steps`), and
+//! 0.4.0.dev0's on the one corpus part with an oriented slot (`recognition/oriented/`, set
+//! `oriented`).
 //! sheets' ctc04 is not compared: the bridge refused its recognition until its face check took
 //! OpenCascade's default-precision sphere areas for what they are
 //! (`tests/fixtures/known_bridge_faces.json`), and its differences are not listed yet.
@@ -19,7 +23,9 @@
 //! profile's box, a flat's stock span and axis line, and a step's section, where the frame allows
 //! ([`other_to_part`]), and a slot's, prism's, plate's and rib's coordinates along its axes
 //! ([`kind_to_part`]). A slot pattern's members are named by their Python pairs. Holes are paired by axis, location and diameter; patterns by their
-//! members; the other kinds by where they are ([`anchor`]).
+//! members; the other kinds by where they are ([`anchor`]). Oriented slot patterns, which neither
+//! reader makes features, are compared as records: Python's derived ones against the native
+//! document's, paired by their members.
 //! For each pair the IDs, faces and parameters are compared, numbers to 1e-6 relative (absolute
 //! below 1), or within the step quiddity rounds a field to when the two frames round it
 //! differently ([`rounding`]); for each pattern also the arrangement and its members. A pair's
@@ -105,7 +111,8 @@ fn cases() -> Vec<Case> {
     }
     // Fixture parts with a family no corpus part has: the slot-pattern plates
     // (`recognition/slot_patterns/`, quiddity 0.3.9), and quiddity-rust's golden parts with a
-    // double-D bore, gusset ribs and hexagonal stock (`recognition/golden/`, copied from its
+    // double-D bore, gusset ribs, hexagonal stock and oriented slots in a pattern
+    // (`recognition/golden/`, copied from its
     // `tests/fixtures/golden_<name>.step` at the pinned commit, recognised by `tools/recognise.py`
     // with Python quiddity 0.4.0.dev0).
     for (set, part) in [
@@ -115,6 +122,7 @@ fn cases() -> Vec<Case> {
         ("golden", "gusset_ribs"),
         ("golden", "gusset_rib_patterns"),
         ("golden", "polygonal_stock"),
+        ("golden", "oriented_slots"),
     ] {
         out.push(Case {
             set,
@@ -146,7 +154,9 @@ fn cases() -> Vec<Case> {
     }
     // Corpus parts with features no sampled sheet has: `dims` (`tests/dims_slots.rs`'s), and
     // `steps`, parts with paired-ramp, circular blind and oblique through steps, written for this
-    // test by `tools/recognise.py` with draftwright's environment (quiddity 0.3.9).
+    // test by `tools/recognise.py` with draftwright's environment (quiddity 0.3.9); and
+    // `oriented`, the one corpus part with an oriented slot (in either recogniser's reading),
+    // written by `tools/recognise.py` with quiddity 0.4.0.dev0.
     for (set, part, file) in [
         ("dims", "ftc07", "nist/nist_ftc_07_asme1_rd.stp"),
         ("dims", "m10047", "mfcadpp/10047.step"),
@@ -156,6 +166,7 @@ fn cases() -> Vec<Case> {
         ("steps", "m10000", "mfcadpp/10000.step"),
         ("steps", "m10060", "mfcadpp/10060.step"),
         ("steps", "m1007", "mfcadpp/1007.step"),
+        ("oriented", "h467", "mfcadpp_holdout/467.step"),
     ] {
         out.push(Case {
             set,
@@ -216,7 +227,7 @@ fn to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<String, Va
 }
 
 /// The kinds read natively besides holes, as `bridge::native::READ` names their families.
-const KINDS: [&str; 21] = [
+const KINDS: [&str; 22] = [
     "fillet",
     "chamfer",
     "countersink",
@@ -239,6 +250,7 @@ const KINDS: [&str; 21] = [
     "plate",
     "gusset_rib",
     "gusset_rib_pattern",
+    "oriented_slot",
 ];
 
 /// Where a feature of *kind* is, as its record gives it: what pairs a Python feature with a
@@ -260,6 +272,7 @@ fn anchor(kind: &str) -> &'static [&'static str] {
         "plate" => &["axis", "lo", "hi"],
         "gusset_rib" => &["thickness_axis", "thickness_bounds"],
         "gusset_rib_pattern" => &["pitch", "mirror_plane"],
+        "oriented_slot" => &["center"],
         _ => &["at"],
     }
 }
@@ -294,6 +307,9 @@ fn rounding(kind: &str, path: &str) -> f64 {
         ("polygonal_boss" | "polygonal_stock", "center" | "base" | "top") => 1e-4,
         ("polygonal_boss" | "polygonal_stock", "flat_centres" | "flat_directions") => 1e-3,
         ("gusset_rib" | "gusset_rib_pattern", "thickness_bounds" | "supports") => 1e-3,
+        // Sizes and points to 3 decimals, directions to 6 (`OrientedSlot`).
+        ("oriented_slot", "center" | "origin" | "width" | "length") => 1e-3,
+        ("oriented_slot", "width_direction" | "long_direction" | "run" | "u" | "v") => 1e-6,
         _ => 0.0,
     }
 }
@@ -546,6 +562,32 @@ fn kind_to_part(
                 out.insert("v".into(), p[across[1]].into());
             }
         }
+        "oriented_slot" => {
+            for key in ["width_direction", "long_direction"] {
+                if let Some(d) = bridge::holes::point(record.get(key)) {
+                    out.insert(
+                        key.into(),
+                        Value::from(bridge::holes::dir_to_part(frame, d).to_vec()),
+                    );
+                }
+            }
+            // The source passage's frame: its origin a point, its run, u and v directions.
+            if let Some(f) = record.get("source").and_then(|s| s.get("frame"))
+                && let Some(Value::Object(source)) = out.get_mut("source")
+            {
+                let mut mapped = Map::new();
+                for (k, v) in f.as_object().into_iter().flatten() {
+                    let p = bridge::holes::point(Some(v));
+                    let m = match (k.as_str(), p) {
+                        ("origin", Some(p)) => bridge::holes::to_part(frame, p).to_vec().into(),
+                        (_, Some(d)) => bridge::holes::dir_to_part(frame, d).to_vec().into(),
+                        _ => v.clone(),
+                    };
+                    mapped.insert(k.clone(), m);
+                }
+                source.insert("frame".into(), mapped.into());
+            }
+        }
         "gusset_rib" => {
             if let Some(r) = rib_to_part(frame, record, out.clone()) {
                 out = r;
@@ -732,7 +774,11 @@ fn differences(
         .filter(|f| f.kind == "hole")
         .map(|f| (f, to_part(&frame, &f.parameters)))
         .collect();
-    let rs = native::recognise(part).unwrap_or_else(|e| panic!("{}: {e}", case.part));
+    let doc = quiddity::recognition::document(
+        &quiddity::correspondence::recognise(part),
+        part.faces.len(),
+    );
+    let rs = native::read(part, &doc).unwrap_or_else(|e| panic!("{}: {e}", case.part));
     let mut out = BTreeMap::new();
     let mut put = |subject: &str, field: &str, d: Difference| {
         let old = out.insert((subject.to_string(), field.to_string()), d);
@@ -1002,6 +1048,130 @@ fn differences(
             }
         }
     }
+
+    // Oriented slot patterns, which neither reader makes features: Python's derived ones against
+    // the native document's records, paired by their members (each named by its Python feature
+    // ID, a native member by its pair's).
+    let python: Value = serde_json::from_str(&case.json).unwrap();
+    let derived = python["quiddity"]["derived"]["oriented_slot_patterns"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let is_member = |m: &Value, f: &Feature| {
+        f.kind == "oriented_slot"
+            && m.as_object().is_some_and(|m| {
+                m.iter()
+                    .filter(|(k, _)| *k != "dependents")
+                    .all(|(k, v)| f.parameters.get(k) == Some(v))
+            })
+    };
+    let named = |p: &Map<String, Value>, ids: &dyn Fn(&Value) -> String| -> Vec<String> {
+        p.get("slots")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .map(ids)
+            .collect()
+    };
+    let python_id = |m: &Value| {
+        features
+            .iter()
+            .find(|f| is_member(m, f))
+            .map_or("-".to_string(), |f| f.id.clone())
+    };
+    let rust_id = |m: &Value| {
+        rs.features
+            .iter()
+            .find(|f| is_member(m, f))
+            .map_or("-".to_string(), |f| {
+                paired
+                    .get(&f.id)
+                    .cloned()
+                    .unwrap_or(format!("rust {}", f.id))
+            })
+    };
+    let ours: Vec<&quiddity::recognition::Record> = doc
+        .records
+        .iter()
+        .filter(|r| r.family == "oriented_slot_patterns")
+        .collect();
+    let mut taken = vec![false; ours.len()];
+    for (n, p) in derived.iter().enumerate() {
+        let p = p.as_object().unwrap();
+        let subject = format!("oriented_slot_patterns[{n}]");
+        let mine = named(p, &python_id);
+        let sorted = |mut v: Vec<String>| {
+            v.sort();
+            v
+        };
+        let Some(i) = (0..ours.len()).find(|&i| {
+            !taken[i] && sorted(named(&ours[i].parameters, &rust_id)) == sorted(mine.clone())
+        }) else {
+            put(
+                &subject,
+                "presence",
+                Difference {
+                    python: format!("{mine:?}"),
+                    rust: "-".into(),
+                },
+            );
+            continue;
+        };
+        taken[i] = true;
+        let q = ours[i];
+        let subtype = if p.contains_key("rows") {
+            "OrientedSlotGrid"
+        } else {
+            "OrientedSlotArray"
+        };
+        if subtype != q.record_type {
+            put(
+                &subject,
+                "record_type",
+                Difference {
+                    python: subtype.into(),
+                    rust: q.record_type.clone(),
+                },
+            );
+        }
+        let order = named(&q.parameters, &rust_id);
+        if order != mine {
+            put(
+                &subject,
+                "members",
+                Difference {
+                    python: format!("{mine:?}"),
+                    rust: format!("{order:?}"),
+                },
+            );
+        }
+        let (mut a, mut b) = (to_part(&frame, p), q.parameters.clone());
+        a.remove("slots");
+        b.remove("slots");
+        let mut diffs = Vec::new();
+        compare_within(
+            "parameters",
+            Some(&Value::Object(a)),
+            Some(&Value::Object(b)),
+            &|path| if path.ends_with("center") { 1e-3 } else { 0.0 },
+            &mut diffs,
+        );
+        for (field, d) in diffs {
+            put(&subject, &field, d);
+        }
+    }
+    for (i, q) in ours.iter().enumerate() {
+        if !taken[i] {
+            put(
+                &format!("rust {}", q.id),
+                "presence",
+                Difference {
+                    python: "-".into(),
+                    rust: format!("{} {:?}", q.record_type, named(&q.parameters, &rust_id)),
+                },
+            );
+        }
+    }
     out
 }
 
@@ -1172,9 +1342,9 @@ fn native_features_match_the_bridge_or_are_listed() {
         serde_json::to_string_pretty(&needed).unwrap()
     );
     if corpus_found {
-        // 5 fixture parts, 2 slot-pattern and 4 golden fixture parts, 12 corpus parts, the 12
-        // sheets parts the bridge reads, 4 dims parts and 4 steps parts.
-        assert_eq!(compared, 43);
+        // 5 fixture parts, 2 slot-pattern and 5 golden fixture parts, 12 corpus parts, the 12
+        // sheets parts the bridge reads, 4 dims parts, 4 steps parts and 1 oriented part.
+        assert_eq!(compared, 45);
     }
 }
 
@@ -1455,6 +1625,96 @@ fn the_reader_checks_each_familys_fields() {
     d.records[h].faces = vec![f, f];
     let e = native::read(&part, &d).unwrap_err();
     assert!(e.contains("has no ascending faces"), "{e}");
+}
+
+/// quiddity-rust's golden oriented slots: three `oriented_slot` features ranked by faces, and
+/// their pattern checked but not made a feature (the bridge reads none of Python's); a pattern
+/// whose member is no oriented slot, or one that names an oriented slot twice, or that lacks what
+/// draftwright reads of its members, is refused.
+#[test]
+fn oriented_slots_are_read_and_their_pattern_checked() {
+    let (part, doc) = document_at("recognition/golden/oriented_slots.step");
+    let n = native::read(&part, &doc).unwrap();
+    let ids: Vec<&str> = n
+        .features
+        .iter()
+        .filter(|f| f.kind == "oriented_slot")
+        .map(|f| f.id.as_str())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "f:oriented_slot:1",
+            "f:oriented_slot:2",
+            "f:oriented_slot:3"
+        ]
+    );
+    assert!(n.features.iter().all(|f| f.kind != "oriented_slot_pattern"));
+    for f in n.features.iter().filter(|f| f.kind == "oriented_slot") {
+        assert!(f.fingerprint.sizes.contains_key("width"), "{}", f.id);
+        assert!(f.fingerprint.sizes.contains_key("length"), "{}", f.id);
+        assert_eq!(f.fingerprint.pattern, None, "{}", f.id);
+    }
+    let pattern = doc
+        .records
+        .iter()
+        .position(|r| r.family == "oriented_slot_patterns")
+        .unwrap();
+    let refused = |edit: &dyn Fn(&mut quiddity::recognition::RecognitionDocument)| {
+        let mut d = doc.clone();
+        edit(&mut d);
+        native::read(&part, &d).unwrap_err()
+    };
+    let members = |d: &mut quiddity::recognition::RecognitionDocument| -> Vec<Value> {
+        d.records[pattern].parameters["slots"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    let e = refused(&|d| {
+        let mut m = members(d);
+        m[1] = m[0].clone();
+        d.records[pattern]
+            .parameters
+            .insert("slots".into(), m.into());
+    });
+    assert!(
+        e.contains("one oriented slot in an oriented slot pattern twice"),
+        "{e}"
+    );
+    let e = refused(&|d| {
+        let mut m = members(d);
+        m[0]["width"] = Value::from(99.0);
+        d.records[pattern]
+            .parameters
+            .insert("slots".into(), m.into());
+    });
+    assert!(e.contains("matches 0 oriented slots, not one"), "{e}");
+    let e = refused(&|d| {
+        let mut m = members(d);
+        m[0].as_object_mut().unwrap().remove("center");
+        d.records[pattern]
+            .parameters
+            .insert("slots".into(), m.into());
+    });
+    assert!(
+        e.contains("(OrientedSlot) has no center, which draftwright reads"),
+        "{e}"
+    );
+    let slot = doc
+        .records
+        .iter()
+        .position(|r| r.family == "oriented_slots")
+        .unwrap();
+    let e = refused(&|d| {
+        d.records[slot]
+            .parameters
+            .insert("source".into(), Value::Null);
+    });
+    assert!(
+        e.contains("(OrientedSlot)'s source is null, not Object"),
+        "{e}"
+    );
 }
 
 /// The reader's schema is the provider's: its version and every family and record type.

@@ -3,22 +3,24 @@
 //! quiddity's JSON ([`super::read`]), family by family ([`READ`]): holes and hole patterns, then
 //! fillets, chamfers, countersinks, bosses and turned steps, then grooves, flats, the steps
 //! (angled, paired-ramp, circular blind, through and oblique through) and blends, then through
-//! slots and slot patterns, polygonal bosses and stock, double-D bores, plates, and gusset ribs and
-//! their patterns. Face levels and risers are evidence Rust quiddity finds (`features::levels`)
-//! but its document does not carry, so they still come through the bridge.
+//! slots and slot patterns, polygonal bosses and stock, double-D bores, plates, gusset ribs and
+//! their patterns, and oriented slots and their patterns. Face levels and risers are evidence
+//! Rust quiddity finds (`features::levels`) but its document does not carry, so they still come
+//! through the bridge.
 //!
-//! The recess families the document carries (pockets, channels, pocket patterns, round-bottom and
-//! rectangular blind slots, section passages, edge-open circular pockets and edge-open prismatic
-//! recesses) are known and not read. draftwright draws and lints none of them as such: it reads
-//! pockets, channels, blind slots and passages as `section_recess` features (Python's published
-//! `SectionRecess`, one section-geometry record into which Python projects its internal pocket,
-//! channel, blind slot and passage readings), and the document has no section recesses, only the
-//! internal records, which no reader here understands. Producing draftwright's section recesses
-//! from them would be Python's projection rebuilt in draftwright; that is quiddity-rust's to
-//! publish (a schema question). The other families draftwright neither draws nor lints (oriented
-//! chamfers, circular face patterns, thin-wall bodies, interior voids, sheet-metal bodies,
-//! repeating radial profiles, freeform surfaces) are known and not read either, and so, for now,
-//! are the prismatic pockets, oriented slots and oriented slot patterns this pin's schema adds.
+//! The recess families the document carries (pockets, channels, pocket patterns, prismatic
+//! pockets, round-bottom and rectangular blind slots, section passages, edge-open circular
+//! pockets and edge-open prismatic recesses) are known and not read. draftwright draws and lints
+//! none of them as such: it reads pockets, channels, blind slots and passages as `section_recess`
+//! features (Python's published `SectionRecess`, one section-geometry record into which Python
+//! projects its internal pocket, prismatic pocket, channel, blind slot and passage readings;
+//! Python's document has no `prismatic_pockets`), and the document has no section recesses, only
+//! the internal records, which no reader here understands. Producing draftwright's section
+//! recesses from them would be Python's projection rebuilt in draftwright; that is
+//! quiddity-rust's to publish (a schema question). The other families draftwright neither draws
+//! nor lints (oriented chamfers, circular face patterns, thin-wall bodies, interior voids,
+//! sheet-metal bodies, repeating radial profiles, freeform surfaces) are known and not read
+//! either.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
@@ -60,7 +62,11 @@
 //! A slot pattern names its member slots by their feature IDs, in quiddity's order (`slots`), in
 //! place of the member records the document gives, as the bridge does: a member must be exactly
 //! one slot's record, and no slot in two patterns. A gusset rib pattern keeps its member ribs'
-//! records (`ribs`), as the bridge does and `lint/gussets.rs` reads them.
+//! records (`ribs`), as the bridge does and `lint/gussets.rs` reads them. An oriented slot
+//! pattern is checked (its record, each member exactly one oriented slot's record, no oriented
+//! slot in two patterns) and does not become a feature: the bridge reads none of Python's
+//! (`DERIVED_NOT_READ`), and the members are read one by one as oriented slots, with no pattern in
+//! their fingerprints, as the bridge reads them.
 
 use haecceity::Part;
 use quiddity::recognition::RecognitionDocument;
@@ -135,8 +141,9 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// The families read here.
-pub const READ: [&str; 23] = [
+/// The families read here: each record is a feature, except an oriented slot pattern's, which is
+/// checked and not kept (see the module docs).
+pub const READ: [&str; 25] = [
     "holes",
     "hole_patterns",
     "fillets",
@@ -160,6 +167,8 @@ pub const READ: [&str; 23] = [
     "plates",
     "gusset_ribs",
     "gusset_rib_patterns",
+    "oriented_slots",
+    "oriented_slot_patterns",
 ];
 
 /// What a field of a record must be.
@@ -196,6 +205,8 @@ pub enum Field {
     NumbersOrNull,
     /// An object, or null.
     ObjectOrNull,
+    /// An object.
+    Object,
     /// A blend's rolling path: straight (`at` and `direction`, three numbers each) or circular
     /// (`center` and `normal`, three numbers each, and a `radius`).
     BlendPath,
@@ -415,6 +426,41 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("mirror_plane", Field::Plane),
         ],
     ),
+    (
+        "OrientedSlot",
+        &[
+            ("width", Field::Number),
+            ("length", Field::Number),
+            ("center", Field::Point),
+            ("width_direction", Field::Point),
+            ("long_direction", Field::Point),
+            ("source", Field::Object),
+            ("source.frame", Field::Object),
+            ("source.run_interval", Field::Pair),
+            ("source.section", Field::Object),
+            ("source.ends", Field::Object),
+        ],
+    ),
+    (
+        "OrientedSlotGrid",
+        &[
+            ("slots", Field::Records("OrientedSlot")),
+            ("rows", Field::Count),
+            ("cols", Field::Count),
+            ("row_pitch", Field::Number),
+            ("col_pitch", Field::Number),
+            ("angle", Field::Number),
+            ("center", Field::Point),
+        ],
+    ),
+    (
+        "OrientedSlotArray",
+        &[
+            ("slots", Field::Records("OrientedSlot")),
+            ("pitch", Field::Number),
+            ("direction", Field::Point),
+        ],
+    ),
 ];
 
 /// A polygonal prism's fields (`PolygonalBoss`, `PolygonalStock`), as `dims/bosses.rs` and
@@ -477,6 +523,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     let mut holes = Vec::new();
     let mut patterns = Vec::new();
     let mut others = Vec::new();
+    let mut oriented_patterns = Vec::new();
     for r in &doc.records {
         let known = FAMILIES
             .iter()
@@ -511,6 +558,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         match r.family.as_str() {
             "holes" => holes.push(r),
             "hole_patterns" => patterns.push(r),
+            "oriented_slot_patterns" => oriented_patterns.push(r),
             f if READ.contains(&f) => others.push(r),
             _ => {}
         }
@@ -597,6 +645,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         others[i].id = format!("f:{}:{n}", others[i].kind);
     }
     name_slot_members(&mut others)?;
+    check_oriented_slot_patterns(&others, &oriented_patterns)?;
     Ok(Native {
         recogniser: format!(
             "{} {} ({})",
@@ -710,6 +759,7 @@ fn check(record: &Map<String, Value>, record_type: &str) -> Result<(), String> {
                 v.is_null() || v.as_array().is_some_and(|a| a.iter().all(Value::is_number))
             }
             Field::ObjectOrNull => v.is_null() || v.is_object(),
+            Field::Object => v.is_object(),
             Field::BlendPath => v.as_object().is_some_and(|o| {
                 let straight = o.len() == 2 && point("at") && point("direction");
                 let circular = o.len() == 3
@@ -783,6 +833,55 @@ fn name_slot_members(features: &mut [Feature]) -> Result<(), String> {
         let f = &mut features[p];
         f.parameters.insert("slots".into(), ids.into());
         f.fingerprint.pattern = Some(pattern);
+    }
+    Ok(())
+}
+
+/// Checks each oriented slot pattern (*patterns*) as the bridge would need it to name its
+/// members: its record against [`FIELDS`] (its member records too), each member exactly one
+/// oriented slot's record among *features*, and no oriented slot in two patterns; anything else
+/// is refused. The patterns do not become features: the bridge reads none of Python's
+/// (`DERIVED_NOT_READ`, draftwright gives oriented slot arrays no drafting grammar, #1430), and
+/// their members are read one by one, as oriented slots.
+fn check_oriented_slot_patterns(
+    features: &[Feature],
+    patterns: &[&quiddity::recognition::Record],
+) -> Result<(), String> {
+    let mut used: Vec<usize> = Vec::new();
+    for r in patterns {
+        check(&r.parameters, &r.record_type).map_err(|e| {
+            format!(
+                "{} ({}){e}; the {} are not read",
+                r.id, r.record_type, r.family
+            )
+        })?;
+        let Some(Value::Array(members)) = r.parameters.get("slots") else {
+            return Err(format!("{} has no member oriented slots", r.id));
+        };
+        for m in members {
+            let found: Vec<usize> = (0..features.len())
+                .filter(|&i| {
+                    features[i].kind == "oriented_slot"
+                        && Some(&features[i].parameters) == m.as_object()
+                })
+                .collect();
+            match found[..] {
+                [i] if !used.contains(&i) => used.push(i),
+                [_] => {
+                    return Err(format!(
+                        "quiddity puts one oriented slot in an oriented slot pattern twice ({})",
+                        r.id
+                    ));
+                }
+                _ => {
+                    return Err(format!(
+                        "{}'s member matches {} oriented slots, not one",
+                        r.id,
+                        found.len()
+                    ));
+                }
+            }
+        }
     }
     Ok(())
 }
