@@ -1,0 +1,1207 @@
+{
+ "faces": [
+  {
+   "area": 199.99999999999997,
+   "surface": "plane"
+  },
+  {
+   "area": 699.9999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 5260.707993412299,
+   "surface": "plane"
+  },
+  {
+   "area": 699.9999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 5260.707993412299,
+   "surface": "plane"
+  },
+  {
+   "area": 199.99999999999997,
+   "surface": "plane"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  },
+  {
+   "area": 94.2477796077,
+   "surface": "cylinder"
+  }
+ ],
+ "format": "draftwright.recognition/1",
+ "quiddity": {
+  "association": {
+   "face_count": {
+    "associated": 12,
+    "ratio": 0.6666666666666666,
+    "total": 18,
+    "unassociated": 6
+   },
+   "families": [
+    {
+     "face_count": 12,
+     "family": "holes",
+     "surface_area": 1130.9733552924
+    }
+   ],
+   "surface_area": {
+    "associated": 1130.9733552924,
+    "ratio": 0.0840723031819728,
+    "total": 13452.389342117,
+    "unassociated": 12321.415986824599
+   },
+   "unassociated_faces": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ]
+  },
+  "bodies": [
+   {
+    "index": 0,
+    "named_dimensions": {
+     "overall_spans": {
+      "x": 5.0,
+      "y": 40.0,
+      "z": 140.0
+     },
+     "overall_thickness": 5.0,
+     "thickness_axis": "x"
+    }
+   }
+  ],
+  "coordinate_space": "local",
+  "derived": {
+   "hole_pairs": [],
+   "hole_patterns": [
+    {
+     "direction": [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     "holes": [
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        -8.0,
+        50.0
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        -8.0,
+        40.0
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        -8.0,
+        30.0
+       ],
+       "spotface": null
+      }
+     ],
+     "named_dimensions": {
+      "center_spacing": 10.0,
+      "direction": [
+       0.0,
+       0.0,
+       -1.0
+      ]
+     },
+     "pitch": 10.0
+    },
+    {
+     "direction": [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     "holes": [
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        -8.0,
+        -30.0
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        -8.0,
+        -40.0
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        -8.0,
+        -50.0
+       ],
+       "spotface": null
+      }
+     ],
+     "named_dimensions": {
+      "center_spacing": 10.0,
+      "direction": [
+       0.0,
+       0.0,
+       -1.0
+      ]
+     },
+     "pitch": 10.0
+    },
+    {
+     "direction": [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     "holes": [
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        8.0,
+        -30.0
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        8.0,
+        -40.0
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        8.0,
+        -50.0
+       ],
+       "spotface": null
+      }
+     ],
+     "named_dimensions": {
+      "center_spacing": 10.0,
+      "direction": [
+       0.0,
+       0.0,
+       -1.0
+      ]
+     },
+     "pitch": 10.0
+    },
+    {
+     "direction": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "holes": [
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        8.0,
+        30.0
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        8.0,
+        40.0
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 5.0,
+       "diameter": 6.0,
+       "location": [
+        2.5,
+        8.0,
+        50.0
+       ],
+       "spotface": null
+      }
+     ],
+     "named_dimensions": {
+      "center_spacing": 10.0,
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     },
+     "pitch": 10.0
+    }
+   ],
+   "oriented_slot_patterns": [],
+   "section_recess_patterns": [],
+   "slot_patterns": [],
+   "turned_profiles": []
+  },
+  "faces": [
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 0,
+    "index": 0
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 1,
+    "index": 1
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 2,
+    "index": 2
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 3,
+    "index": 3
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 4,
+    "index": 4
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 5,
+    "index": 5
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 6,
+    "index": 6
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 7,
+    "index": 7
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 8,
+    "index": 8
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 9,
+    "index": 9
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 10,
+    "index": 10
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 11,
+    "index": 11
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 12,
+    "index": 12
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 13,
+    "index": 13
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 14,
+    "index": 14
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 15,
+    "index": 15
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 16,
+    "index": 16
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 17,
+    "index": 17
+   }
+  ],
+  "features": [
+   {
+    "constituent_faces": [
+     6
+    ],
+    "defining_faces": [
+     6
+    ],
+    "family": "holes",
+    "index": 0,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        7
+       ],
+       "defining_faces": [
+        7
+       ],
+       "feature_index": 1,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        8
+       ],
+       "defining_faces": [
+        8
+       ],
+       "feature_index": 2,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      -8.0,
+      50.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     7
+    ],
+    "defining_faces": [
+     7
+    ],
+    "family": "holes",
+    "index": 1,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        6
+       ],
+       "defining_faces": [
+        6
+       ],
+       "feature_index": 0,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        8
+       ],
+       "defining_faces": [
+        8
+       ],
+       "feature_index": 2,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      -8.0,
+      40.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     8
+    ],
+    "defining_faces": [
+     8
+    ],
+    "family": "holes",
+    "index": 2,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        6
+       ],
+       "defining_faces": [
+        6
+       ],
+       "feature_index": 0,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        7
+       ],
+       "defining_faces": [
+        7
+       ],
+       "feature_index": 1,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      -8.0,
+      30.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     9
+    ],
+    "defining_faces": [
+     9
+    ],
+    "family": "holes",
+    "index": 3,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        10
+       ],
+       "defining_faces": [
+        10
+       ],
+       "feature_index": 4,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        11
+       ],
+       "defining_faces": [
+        11
+       ],
+       "feature_index": 5,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      -8.0,
+      -30.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     10
+    ],
+    "defining_faces": [
+     10
+    ],
+    "family": "holes",
+    "index": 4,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        9
+       ],
+       "defining_faces": [
+        9
+       ],
+       "feature_index": 3,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        11
+       ],
+       "defining_faces": [
+        11
+       ],
+       "feature_index": 5,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      -8.0,
+      -40.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     11
+    ],
+    "defining_faces": [
+     11
+    ],
+    "family": "holes",
+    "index": 5,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        9
+       ],
+       "defining_faces": [
+        9
+       ],
+       "feature_index": 3,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        10
+       ],
+       "defining_faces": [
+        10
+       ],
+       "feature_index": 4,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      -8.0,
+      -50.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     12
+    ],
+    "defining_faces": [
+     12
+    ],
+    "family": "holes",
+    "index": 6,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        13
+       ],
+       "defining_faces": [
+        13
+       ],
+       "feature_index": 7,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        14
+       ],
+       "defining_faces": [
+        14
+       ],
+       "feature_index": 8,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      8.0,
+      50.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     13
+    ],
+    "defining_faces": [
+     13
+    ],
+    "family": "holes",
+    "index": 7,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        12
+       ],
+       "defining_faces": [
+        12
+       ],
+       "feature_index": 6,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        14
+       ],
+       "defining_faces": [
+        14
+       ],
+       "feature_index": 8,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      8.0,
+      40.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     14
+    ],
+    "defining_faces": [
+     14
+    ],
+    "family": "holes",
+    "index": 8,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        12
+       ],
+       "defining_faces": [
+        12
+       ],
+       "feature_index": 6,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        13
+       ],
+       "defining_faces": [
+        13
+       ],
+       "feature_index": 7,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      8.0,
+      30.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     15
+    ],
+    "defining_faces": [
+     15
+    ],
+    "family": "holes",
+    "index": 9,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        16
+       ],
+       "defining_faces": [
+        16
+       ],
+       "feature_index": 10,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        17
+       ],
+       "defining_faces": [
+        17
+       ],
+       "feature_index": 11,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      8.0,
+      -30.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     16
+    ],
+    "defining_faces": [
+     16
+    ],
+    "family": "holes",
+    "index": 10,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        15
+       ],
+       "defining_faces": [
+        15
+       ],
+       "feature_index": 9,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        17
+       ],
+       "defining_faces": [
+        17
+       ],
+       "feature_index": 11,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      8.0,
+      -40.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     17
+    ],
+    "defining_faces": [
+     17
+    ],
+    "family": "holes",
+    "index": 11,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        15
+       ],
+       "defining_faces": [
+        15
+       ],
+       "feature_index": 9,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        16
+       ],
+       "defining_faces": [
+        16
+       ],
+       "feature_index": 10,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 5.0,
+     "diameter": 6.0,
+     "location": [
+      2.5,
+      8.0,
+      -50.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   }
+  ],
+  "format": "quiddity-recognition",
+  "format_version": 3,
+  "frame": {
+   "gauge": "orthogonal",
+   "origin": [
+    -1.1824606060697184e-12,
+    -2.377161432460762e-16,
+    -1.371780907880529e-17
+   ],
+   "x": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "y": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "z": [
+    -1.0,
+    0.0,
+    0.0
+   ]
+  },
+  "package": {
+   "name": "quiddity",
+   "version": "0.3.9"
+  },
+  "proof": "whole_solid",
+  "rotational": false
+ },
+ "recogniser": "quiddity 0.3.9",
+ "source_sha256": "68d71f706f3bb807889547736e8c20ac38e5f8a3f161282f327260cf014dab8d"
+}

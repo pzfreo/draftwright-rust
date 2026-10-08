@@ -18,7 +18,7 @@
 
 use serde_json::Value;
 
-use crate::bridge::Feature;
+use crate::bridge::holes;
 use crate::layout::{self, DIM_PAD, Pick, Request, Scaled, Strips};
 use crate::model::Analysis;
 
@@ -33,11 +33,12 @@ pub struct Hole {
     pub through: bool,
     pub cbore: bool,
     pub spotface: bool,
-    /// Its machining spec (sizes, bottom, counterbore, spotface, countersink): holes with the same
-    /// spec on one axis are one feature, called out once.
-    pub spec: String,
-    /// The members of the pattern it belongs to and their pitch, if any.
-    pub pattern: Option<(usize, f64)>,
+    /// Its machining requirement ([`holes::Hole::requirement`]: signed direction, sizes,
+    /// bottom, counterbore, spotface, countersink): holes with the same requirement are one
+    /// feature, called out once.
+    pub spec: Vec<i64>,
+    /// The recognised pattern it belongs to (`Analysis.recognition.patterns`), if any.
+    pub pattern: Option<String>,
 }
 
 /// Where section A–A cuts, and why.
@@ -74,12 +75,6 @@ fn to_part(frame: &[[f64; 3]; 4], l: [f64; 3]) -> [f64; 3] {
 /// The part frame's direction for quiddity's local *d*.
 fn dir_to_part(frame: &[[f64; 3]; 4], d: [f64; 3]) -> [f64; 3] {
     [0, 1, 2].map(|k| (0..3).map(|j| d[j] * frame[j + 1][k]).sum::<f64>())
-}
-
-/// The index of the axis *d* lies along (draftwright's axis letters), if any.
-fn axis_of(d: [f64; 3]) -> Option<usize> {
-    let n = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
-    (0..3).find(|&k| n > 0.0 && (d[k] / n).abs() > 0.99)
 }
 
 fn vec3(v: &Value) -> Option<[f64; 3]> {
@@ -136,7 +131,7 @@ pub fn read(analysis: &Analysis) -> Demand {
             l[k] = t;
             to_part(&frame, l)
         };
-        let axis = axis_of(dir_to_part(&frame, axis));
+        let axis = holes::principal(dir_to_part(&frame, axis));
         let zs = [world(lo_t)[2], world(hi_t)[2]];
         match profiles.iter_mut().find(|p| p.0 == key) {
             Some(p) => p.2.extend(zs),
@@ -157,17 +152,25 @@ pub fn read(analysis: &Analysis) -> Demand {
     d.step_zs.sort_by(f64::total_cmp);
     d.step_zs.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
 
+    // The holes that can be read (the dimensions report the others).
+    let pattern_of = |id: &str| {
+        let patterns = analysis.recognition.as_ref().map(|r| r.patterns.as_slice());
+        patterns
+            .unwrap_or_default()
+            .iter()
+            .find(|p| p.members.iter().any(|m| m == id))
+            .map(|p| p.id.clone())
+    };
+    d.holes = holes::read(analysis)
+        .iter()
+        .filter_map(|(f, h)| h.as_ref().ok().map(|h| hole(h, pattern_of(&f.id))))
+        .collect();
     // Polygonal stock's length takes the overall height's slot; other axial heights add one.
     let mut stock = false;
     for f in &analysis.features {
         match f.kind.as_str() {
-            "hole" => {
-                if let Some(h) = hole(f, frame.as_ref()) {
-                    d.holes.push(h);
-                }
-            }
             "boss" | "polygonal_boss" | "polygonal_stock" => {
-                let axis = f.fingerprint.axis.and_then(axis_of);
+                let axis = f.fingerprint.axis.and_then(holes::principal);
                 let tall = ["height", "length", "axial_length"]
                     .iter()
                     .any(|k| f.fingerprint.sizes.contains_key(*k));
@@ -179,7 +182,7 @@ pub fn read(analysis: &Analysis) -> Demand {
                     d.y_radial = true;
                 }
             }
-            "turned_step" if f.fingerprint.axis.and_then(axis_of) == Some(1) => {
+            "turned_step" if f.fingerprint.axis.and_then(holes::principal) == Some(1) => {
                 d.y_radial = true;
             }
             _ => {}
@@ -204,23 +207,17 @@ pub fn read(analysis: &Analysis) -> Demand {
     d
 }
 
-fn hole(f: &Feature, frame: Option<&[[f64; 3]; 4]>) -> Option<Hole> {
-    let p = &f.parameters;
-    let at = p.get("location").and_then(vec3)?;
-    let frame = frame?;
-    let present = |k: &str| p.get(k).is_some_and(|v| !v.is_null());
-    Some(Hole {
-        at: to_part(frame, at),
-        axis: f.fingerprint.axis.and_then(axis_of),
-        diameter: p.get("diameter").and_then(Value::as_f64)?,
-        through: p.get("bottom").and_then(Value::as_str) == Some("through"),
-        cbore: present("cbore"),
-        spotface: present("spotface"),
-        spec: ["diameter", "depth", "bottom", "cbore", "spotface", "csink"]
-            .map(|k| p.get(k).map_or_else(String::new, Value::to_string))
-            .join("|"),
-        pattern: f.fingerprint.pattern.as_ref().map(|q| (q.count, q.pitch)),
-    })
+fn hole(h: &holes::Hole, pattern: Option<String>) -> Hole {
+    Hole {
+        at: h.at,
+        axis: h.principal.map(|(k, _)| k),
+        diameter: h.diameter,
+        through: h.through,
+        cbore: h.counterbore.is_some(),
+        spotface: h.spotface.is_some(),
+        spec: h.requirement(),
+        pattern,
+    }
 }
 
 /// Draftwright's section rule (`plan_sections`): a Z-axis hole with a counterbore, a spotface or
@@ -270,18 +267,14 @@ pub fn turned_views(d: &Demand) -> Option<([&'static str; 2], &'static str, Stri
     ))
 }
 
-/// The holes as draftwright's hole features: a pattern is one feature, and loose holes of one
-/// spec on one axis another (draftwright's machining-spec groups). Returns, per feature, its
-/// axis, its members' locations and whether it is a pattern.
+/// The holes as draftwright's hole features: a recognised pattern is one feature, and loose
+/// holes of one machining requirement another (draftwright's machining-spec groups). Returns,
+/// per feature, its axis, its members' locations and whether it is a pattern.
 fn hole_features(holes: &[Hole]) -> Vec<(Option<usize>, Vec<[f64; 3]>, bool)> {
-    type Key = (Option<usize>, String, Option<(usize, u64)>);
+    type Key = (Option<usize>, Vec<i64>, Option<String>);
     let mut grouped: Vec<(Key, Vec<[f64; 3]>)> = Vec::new();
     for h in holes {
-        let key = (
-            h.axis,
-            h.spec.clone(),
-            h.pattern.map(|(n, pitch)| (n, pitch.to_bits())),
-        );
+        let key = (h.axis, h.spec.clone(), h.pattern.clone());
         match grouped.iter_mut().find(|g| g.0 == key) {
             Some(g) => g.1.push(h.at),
             None => grouped.push((key, vec![h.at])),
@@ -476,7 +469,7 @@ mod tests {
             through: true,
             cbore: false,
             spotface: false,
-            spec: String::new(),
+            spec: Vec::new(),
             pattern: None,
         }
     }

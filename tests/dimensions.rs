@@ -15,12 +15,14 @@
 //! compared: the bridge refuses its recognition (face 367's area, 13.0806 here and 13.1002 in
 //! OpenCascade). Set `DIMS_REPORT=1` to print every difference.
 
+#[path = "common/corpus.rs"]
+mod corpus;
 #[path = "common/facts.rs"]
 mod facts;
 
 use std::collections::BTreeMap;
 use std::io::Read as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use draftwright::dims::{self, PlannedDimension};
 use draftwright::model::{self, Analysis, Spec};
@@ -40,15 +42,6 @@ struct Known {
     /// `rust-correct`, `rust-wrong`, `equivalent`, `undetermined` or `not-applicable`.
     verdict: String,
     reason: String,
-}
-
-fn corpus() -> Option<PathBuf> {
-    let dir = std::env::var_os("DRAFTWRIGHT_CORPUS")
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|h| PathBuf::from(h).join("repos/quiddity/tests/corpus"))
-        })?;
-    dir.is_dir().then_some(dir)
 }
 
 fn recognition(name: &str) -> Option<String> {
@@ -258,7 +251,7 @@ fn compare(name: &str, corpus: &Path) -> Option<(usize, BTreeMap<Diff, usize>, u
 
 #[test]
 fn dimensions_match_draftwright_or_are_known() {
-    let Some(corpus) = corpus() else {
+    let Some(corpus) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };

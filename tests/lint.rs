@@ -18,12 +18,16 @@
 //! taken off the list. The parts are read from the corpus (`DRAFTWRIGHT_CORPUS`, by default
 //! `~/repos/quiddity/tests/corpus`).
 
+#[path = "common/corpus.rs"]
+mod corpus;
 #[path = "common/facts.rs"]
 mod facts;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
+
+use serde_json::{Value, json};
 
 use draftwright::lint::holes::{HoleGroup, groups};
 use draftwright::lint::{self, Mark};
@@ -45,15 +49,6 @@ struct Known {
     /// `rust-correct`, `rust-wrong`, `equivalent`, `undetermined` or `not-applicable`.
     verdict: String,
     reason: String,
-}
-
-fn corpus() -> Option<PathBuf> {
-    let dir = std::env::var_os("DRAFTWRIGHT_CORPUS")
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|h| PathBuf::from(h).join("repos/quiddity/tests/corpus"))
-        })?;
-    dir.is_dir().then_some(dir)
 }
 
 fn fixture(rel: &str) -> PathBuf {
@@ -286,7 +281,7 @@ fn python_subject(analysis: &Analysis, groups: &[HoleGroup], message: &str) -> (
 
 #[test]
 fn hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
-    let Some(corpus) = corpus() else {
+    let Some(corpus) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };
@@ -481,13 +476,52 @@ fn hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
     );
 }
 
-/// The plate's four ø6 holes, which the port does not dimension yet: lint on the review finds
-/// each of their requirements unstated, and says how to state them.
+/// The part *name* (`tests/fixtures/parts/`) with *json* as its recognition, planned under
+/// *spec*, rendered, and linted: each finding's code, first subject and requirement.
+fn reviewed(name: &str, json: &Value, spec: &model::Spec) -> (model::Plan, Vec<String>) {
+    let (part, mut analysis) = model::analyse(&fixture(&format!("parts/{name}.step"))).unwrap();
+    model::recognise(&part, &mut analysis, &json.to_string()).unwrap();
+    let plan = model::plan(&analysis, spec).unwrap();
+    let font = draftwright::text::Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    let drawing = model::render(&part, &analysis, &plan, &font);
+    let found = lint::lint(&analysis, &drawing)
+        .into_iter()
+        .map(|i| {
+            format!(
+                "{} {} {}",
+                i.code, i.subjects[0], i.requirements[0].parameter
+            )
+        })
+        .collect();
+    (plan, found)
+}
+
+fn recognition(name: &str) -> Value {
+    serde_json::from_str(
+        &std::fs::read_to_string(fixture(&format!("recognition/{name}.json"))).unwrap(),
+    )
+    .unwrap()
+}
+
+/// The port's own callout states the plate's four ø6 holes (`4× ⌀6 THRU (2×2)`), so review finds
+/// nothing missing; with that callout omitted from the spec, each of their requirements is
+/// missing again, and the fix says how to state them. Lint reads the drawing's annotations
+/// (their text runs and claims), never the plan or the spec.
 #[test]
-fn review_reports_the_plates_unstated_holes() {
+fn review_finds_the_plates_holes_stated_by_its_own_callout() {
     let step = fixture("parts/plate.step");
     let features = fixture("recognition/plate.json");
     let review = draftwright::api::review(&step, Some(&features), &model::Spec::default()).unwrap();
+    assert!(review.lint.is_empty(), "{:#?}", review.lint);
+
+    let callout = "d:f:hole_pattern:1/bore.diameter@plan";
+    let mut spec = model::Spec::default();
+    spec.dimensions.entry(callout.into()).or_default().omit = true;
+    let review = draftwright::api::review(&step, Some(&features), &spec).unwrap();
     let found: Vec<(&str, &str)> = review
         .lint
         .iter()
@@ -513,6 +547,92 @@ fn review_reports_the_plates_unstated_holes() {
     assert!(bare.lint.is_empty());
 }
 
+/// LINT-hole_coverage-csink_diameter_angle on the port's own drawing: the plate's holes
+/// countersunk (quiddity's record: `major_diameter`, `included_angle`) are called out with their
+/// countersink, which lint reads back as stated; a countersink whose angle quiddity did not give
+/// is called out without it, and lint reports the angle unverifiable rather than guessing.
+#[test]
+fn a_countersunk_hole_is_called_out_and_its_callout_satisfies_lint() {
+    let mut json = recognition("plate");
+    for f in json["quiddity"]["features"].as_array_mut().unwrap() {
+        let r = &mut f["record"];
+        r["csink"] = json!({
+            "axis": r["axis"].clone(), "location": r["location"].clone(),
+            "major_diameter": 12.0, "drill_diameter": 6.0, "included_angle": 90.0, "depth": 3.0,
+        });
+    }
+    let (plan, found) = reviewed("plate", &json, &model::Spec::default());
+    let callout = plan
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "callout")
+        .unwrap();
+    assert_eq!(callout.label, "4× ⌀6 THRU ⌵ ⌀12 × 90° (2×2)");
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "feature_not_dimensioned")
+    );
+    assert_eq!(found, Vec::<String>::new());
+
+    for f in json["quiddity"]["features"].as_array_mut().unwrap() {
+        f["record"]["csink"]
+            .as_object_mut()
+            .unwrap()
+            .remove("included_angle");
+    }
+    let (plan, found) = reviewed("plate", &json, &model::Spec::default());
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.label == "4× ⌀6 THRU ⌵ ⌀12 (2×2)")
+    );
+    assert_eq!(
+        found,
+        ["hole_requirement_unverifiable f:hole:1 countersink.angle"]
+    );
+}
+
+/// Two identical grids of 2×3 ø6 through holes 80 mm apart (`tests/fixtures/parts/two_grids.step`,
+/// made with build123d: a 140×40×5 box less `Cylinder(3, 5)` at x = ±40 + {-10, 0, 10},
+/// y = ±8), which quiddity 0.3.9 recognises as four identical linear patterns of three. Lint
+/// groups the holes by the recognised patterns, as the dimensions call them out, so the port's
+/// four `3× ⌀6 THRU` callouts state every requirement; its old fingerprint heuristic (count,
+/// pitch, sizes, direction, level) could not tell the four apart and demanded `12×`. Python
+/// draftwright on the same part prints the same four `3× ⌀6 THRU` callouts and its lint finds
+/// nothing: the port now agrees (equivalent).
+#[test]
+fn identical_patterns_are_grouped_as_recognised() {
+    let json = recognition("two_grids");
+    let (part, mut analysis) = model::analyse(&fixture("parts/two_grids.step")).unwrap();
+    model::recognise(&part, &mut analysis, &json.to_string()).unwrap();
+    let g = groups(&analysis);
+    assert_eq!(g.len(), 4);
+    for (g, p) in g
+        .iter()
+        .zip(&analysis.recognition.as_ref().unwrap().patterns)
+    {
+        assert!(g.pattern);
+        let mut members = p.members.clone();
+        members.sort_by_key(|m| analysis.features.iter().position(|f| &f.id == m));
+        assert_eq!(g.members, members);
+    }
+    let (plan, found) = reviewed("two_grids", &json, &model::Spec::default());
+    let callouts: Vec<&str> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "callout")
+        .map(|d| d.label.as_str())
+        .collect();
+    assert_eq!(callouts, ["3× ⌀6 THRU"; 4]);
+    assert_eq!(found, Vec::<String>::new());
+    // Without the recognition record, the fingerprints alone cannot tell the patterns apart.
+    analysis.recognition = None;
+    let g = groups(&analysis);
+    assert_eq!((g.len(), g[0].members.len(), g[0].pattern), (1, 12, false));
+}
+
 /// Lint reads a rendered drawing's own annotations: a callout that claims the plate's holes and
 /// prints their sizes satisfies them; one that prints a wrong size, or is not there, does not.
 #[test]
@@ -531,7 +651,9 @@ fn lint_reads_the_drawings_annotations() {
     .unwrap();
     let holes = &groups(&analysis)[0].members;
     let with = |label: &str| {
+        // The drawing without the port's own callout, and one added by hand.
         let mut drawing = model::render(&part, &analysis, &plan, &font);
+        drawing.annotations.clear();
         drawing.text.push(TextRun {
             text: label.into(),
             at: [100.0, 100.0],
@@ -577,7 +699,7 @@ fn lint_reads_the_drawings_annotations() {
 /// sheet, not echoing it.
 #[test]
 fn lint_finds_what_is_taken_off_a_captured_sheet() {
-    let Some(corpus) = corpus() else {
+    let Some(corpus) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };

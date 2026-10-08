@@ -419,6 +419,67 @@ fn a_dimension_renamed_by_an_omitted_view_is_named_in_the_refusal() {
     );
 }
 
+/// A countersunk hole's callout states its countersink as quiddity records it (`major_diameter`,
+/// `included_angle`: `countersinks.py`), in draftwright's grammar `⌵ ⌀D × A°`, and claims both
+/// sizes for every hole.
+#[test]
+fn a_countersunk_hole_states_its_countersink() {
+    let mut json = recognition("plate");
+    for f in json["quiddity"]["features"].as_array_mut().unwrap() {
+        let r = &mut f["record"];
+        r["csink"] = json!({
+            "axis": r["axis"].clone(), "location": r["location"].clone(),
+            "major_diameter": 12.0, "drill_diameter": 6.0, "included_angle": 90.0, "depth": 3.0,
+        });
+    }
+    let plan = planned("plate", &json, &Spec::default());
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "feature_not_dimensioned"),
+        "{:?}",
+        plan.problems
+    );
+    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter@plan");
+    assert_eq!(c.label, "4× ⌀6 THRU ⌵ ⌀12 × 90° (2×2)");
+    for (parameter, value) in [("countersink.diameter", 12.0), ("countersink.angle", 90.0)] {
+        let m: Vec<f64> = c
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == parameter)
+            .map(|m| m.value)
+            .collect();
+        assert_eq!(m, [value; 4], "{parameter}");
+    }
+}
+
+/// ADR4-7: a through hole's depth is not part of its callout, so a through hole whose record
+/// gives none is still called out; a blind hole without a depth cannot be, and says why.
+#[test]
+fn only_a_blind_hole_needs_its_depth() {
+    let mut json = recognition("plate");
+    for f in json["quiddity"]["features"].as_array_mut().unwrap() {
+        f["record"].as_object_mut().unwrap().remove("depth");
+    }
+    let plan = planned("plate", &json, &Spec::default());
+    assert_eq!(labels(&plan, "callout"), ["4× ⌀6 THRU (2×2)"]);
+    json["quiddity"]["features"][0]["record"]["bottom"] = "flat".into();
+    let plan = planned("plate", &json, &Spec::default());
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "feature_not_dimensioned")
+        .unwrap_or_else(|| panic!("reported: {:?}", plan.problems));
+    assert_eq!(p.subjects, ["f:hole:1"]);
+    assert!(
+        p.message.contains("blind and has no depth"),
+        "{}",
+        p.message
+    );
+    assert_eq!(labels(&plan, "callout"), ["3× ⌀6 THRU"]);
+}
+
 /// A hole whose bottom recognition did not establish is called out blind to its depth, as
 /// draftwright does, and says so (accuracy over parity: no silent claim).
 #[test]
