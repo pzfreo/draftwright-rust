@@ -1723,15 +1723,22 @@ fn review_finds_the_plates_holes_stated_by_its_own_callout() {
         .iter()
         .map(|i| (i.code.as_str(), i.requirements[0].parameter.as_str()))
         .collect();
+    // The diameter backstop reports the ø6 uncalled too, as draftwright's lint runs both
+    // (`lint_feature_coverage` and `lint_hole_coverage`, linting/orchestration.py).
     assert_eq!(
         found,
         [
+            ("feature_not_dimensioned", "bore.diameter"),
             ("hole_requirement_missing", "bore.diameter"),
             ("hole_requirement_missing", "bore.through"),
             ("hole_requirement_missing", "grouping.count"),
         ]
     );
-    for issue in &review.lint {
+    for issue in review
+        .lint
+        .iter()
+        .filter(|i| i.code != "feature_not_dimensioned")
+    {
         assert_eq!(issue.subjects.len(), 4, "{issue:?}");
         assert!(
             issue.fix.as_ref().unwrap().contains("\"4× ⌀6 THRU\""),
@@ -1878,9 +1885,13 @@ fn lint_reads_the_drawings_annotations() {
     };
     assert_eq!(with("4× ⌀6 THRU"), []);
     let s = |a: &str, b: &str| (a.to_string(), b.to_string());
+    // The misprinted ⌀6.5 leaves the ø6 uncovered by the diameter backstop as well.
     assert_eq!(
         with("4× ⌀6.5 THRU"),
-        [s("hole_requirement_unverifiable", "bore.diameter")]
+        [
+            s("feature_not_dimensioned", "bore.diameter"),
+            s("hole_requirement_unverifiable", "bore.diameter")
+        ]
     );
     assert_eq!(
         with("⌀6"),
@@ -1905,18 +1916,22 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     let (marks, unjoined) = marks(&analysis, &groups, &f);
     assert_eq!(unjoined, 0);
     // quiddity refused one recess recognition on m10127, which is reported whatever the sheet
-    // says (as Python's lint reports it on this sheet); nothing else is found.
+    // says (as Python's lint reports it on this sheet); nothing else is found. The sheet's
+    // structured hole locations are not joined into claims here (location coverage is compared
+    // on Python's recorded input, tests/lint_coverage.rs), so feature_not_located is left out.
     let refused = "section_recess_recognition_refused";
+    let unjoined = "feature_not_located";
     let found: Vec<String> = lint::check(&analysis, &marks)
         .into_iter()
         .map(|i| i.code)
+        .filter(|c| c != unjoined)
         .collect();
     assert_eq!(found, [refused]);
     // hc_side0 prints "⌀8.1 THRU" for the through hole.
     let codes = |marks: &[Mark]| {
         lint::check(&analysis, marks)
             .into_iter()
-            .filter(|i| i.code != refused)
+            .filter(|i| i.code != refused && i.code != unjoined)
             .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
             .collect::<Vec<_>>()
     };
@@ -1928,6 +1943,7 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     assert_eq!(
         codes(&without),
         [
+            "feature_not_dimensioned bore.diameter",
             "hole_requirement_missing bore.diameter",
             "hole_requirement_missing bore.through"
         ]
@@ -1945,6 +1961,7 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     assert_eq!(
         codes(&misprinted),
         [
+            "feature_not_dimensioned bore.diameter",
             "hole_requirement_unverifiable bore.diameter",
             "hole_requirement_missing bore.through"
         ]

@@ -414,6 +414,8 @@
     issues: [80, 92, 1351, 1450]
     tests: [tests/test_lint_coverage.py, tests/test_diameter_leaders.py, tests/test_issue_1505_diameter_coverage.py]
   status: pending
+  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
+  rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always warning: the Analysis does not say whether the part is several bodies). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too."
   port_note: "Keep as a coarse backstop to the semantic ledgers."
 
 - id: LINT-code-feature_count_mismatch
@@ -425,7 +427,9 @@
     module: "linting/coverage.py"
     issues: [92]
     tests: [tests/test_hole_pattern_callouts.py, tests/test_hole_table.py]
-  status: pending
+  status: ported
+  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
+  rust_note: "src/lint/coverage.rs::count_mismatch (the check) and ::counts (on a drawing's marks: a hole callout provides its printed diameters at its leading n×, its owner the holes it claims). On draftwright's recorded input with the count check on (python.json.gz: ctc04's 30 ø14 / 12 ø6.6 and a stripped cgb245's 6 ø5) the findings are exactly draftwright's. As in draftwright's drawing lint (check_hole_counts=False), lint::check does not run it: counts are hole coverage's grouping.count. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep only if a standalone coarse check is wanted; the hole ledger supersedes it."
 
 - id: LINT-code-feature_no_centermark
@@ -438,6 +442,8 @@
     issues: [218]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_e2e_slice.py]
   status: pending
+  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
+  rust_note: "The check is ported (src/lint/coverage.rs::location and ::judge: a centre mark within 0.6 mm of the hole's centre projected into its end-on view, front or rear for y; one finding counting the holes, naming them) and gives exactly draftwright's findings on its recorded input (python.json.gz: a cgb245 with its 16 centre marks taken off). Not run by lint::check: the port draws no centre marks (the Drawing records none), so on its own drawings it reports every hole (coverage::centre_marks; tests/fixtures/lint_coverage/known.json, rust-wrong, 9 parts, connector109 drawn only with LINT_OWN_ALL=1). Not ported: double-D bores among the holes (lint does not read them yet)."
   port_note: "Keep."
 
 - id: LINT-code-feature_not_located
@@ -450,6 +456,8 @@
     issues: [218, 93]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_interior_label_placement.py]
   status: pending
+  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
+  rust_note: "Partly ported (src/lint/coverage.rs::located, run by lint::check after boss heights). The judgement (::judge: pattern members exempt, an axis needs locating when the hole is more than 1.0 mm off the part box's centre across it, located by structured evidence or a witness within 0.6 mm on that page axis; one finding counting the holes, naming them, each axis not located a requirement) gives exactly draftwright's findings on its recorded input (python.json.gz: cgb245's 2, ctc03's 1, ctc04's 9, ctc05's 3, ftc09's 7, a stripped m10127's 1). On the port's drawings the evidence is structured only: an annotation claiming the hole's location.length.<axis>. Not ported: the geometric witness fallback on the port's own drawings (the Drawing records neither its dimensions' witness points nor the views' projections), location notes (the port has none), double-D bores, and the assembly severity. On cgb245 the port locates the two holes draftwright leaves unlocated in y (known.json, rust-correct)."
   port_note: "Keep."
 
 - id: LINT-code-unrecognised_defining_geometry-principal_profile
