@@ -1,12 +1,13 @@
 //! A part turned whole: its overall diameter and its length along the turning axis, in a view
-//! that shows the profile. No turned step's own diameter or length is planned yet.
+//! that shows the profile. No turned step's own diameter or length is planned yet, so the planner
+//! claims no feature kind and each `turned_step` is reported as not dimensioned.
 
 use super::envelope::{corner, profile_views};
 use super::{AXES, Context, Measurement, P3, Planner, Shape, Want, fmt, point, want_id};
 use crate::bridge::{Feature, holes};
 use crate::model::Analysis;
 
-pub(super) const PLANNER: Planner = Planner { wants };
+pub(super) const PLANNER: Planner = Planner { kinds: &[], wants };
 
 /// A part turned whole: its axis (a world axis), a point on it, and its largest diameter, when
 /// every turned step shares one principal axis and the largest step spans the part's box across

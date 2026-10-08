@@ -4,7 +4,7 @@
 
 use super::{AXES, Context, Measurement, P3, Planner, Problem, Shape, Want, fmt, want_id};
 
-pub(super) const PLANNER: Planner = Planner { wants };
+pub(super) const PLANNER: Planner = Planner { kinds: &[], wants };
 
 /// The overall extents' names, by world axis.
 pub(super) const NAMES: [&str; 3] = ["width", "depth", "height"];

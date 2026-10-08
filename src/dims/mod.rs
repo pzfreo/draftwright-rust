@@ -242,9 +242,12 @@ struct Context<'a> {
     turned: Option<turned::Turned>,
 }
 
-/// A family's dimension planner: what the defaults would dimension for it, with the problems met
-/// on the way.
+/// A family's dimension planner: the feature kinds it dimensions, and what the defaults would
+/// dimension for it, with the problems met on the way.
 struct Planner {
+    /// The `Feature::kind`s whose own sizes it plans. A feature of a kind no planner claims is
+    /// reported (`dimensions_not_ported`).
+    kinds: &'static [&'static str],
     wants: fn(&Context) -> (Vec<Want>, Vec<Problem>),
 }
 
@@ -269,7 +272,52 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
         out.extend(w);
         problems.extend(more);
     }
+    problems.extend(not_ported(analysis));
     (out, problems)
+}
+
+/// quiddity record types (`Fingerprint::subtype`) draftwright gives no dimensions of their own
+/// (`model/detect.py`'s `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`): a countersink rides on
+/// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
+/// #1557, #1247). Leaving them undimensioned is no gap in the port, so they are not reported as
+/// one.
+const UNDRAFTED: [&str; 11] = [
+    "AngledStep",
+    "CircularFacePattern",
+    "CounterSink",
+    "FreeformSurface",
+    "InteriorVoid",
+    "ObliqueThroughStep",
+    "OrientedChamfer",
+    "OrientedSlotArray",
+    "OrientedSlotGrid",
+    "SheetMetalBody",
+    "ThinWallBody",
+];
+
+/// One info problem per recognised feature of a kind no planner claims, in the Analysis's feature
+/// order. This reports a gap in the port, not in the part: draftwright converts these records to
+/// features with dimension parameters (`detect.py`'s `_CONVERTERS`: fillets, chamfers, bosses,
+/// slots, turned steps, …) and plans them, so it never emits such a problem; without it the
+/// port's sheet would leave their sizes unstated with no trace (review M8). A kind not known to
+/// be [`UNDRAFTED`] is reported.
+fn not_ported(analysis: &Analysis) -> Vec<Problem> {
+    analysis
+        .features
+        .iter()
+        .filter(|f| !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str())))
+        .filter(|f| !UNDRAFTED.contains(&f.fingerprint.subtype.as_str()))
+        .map(|f| Problem {
+            id: format!("p:dimensions_not_ported:{}", f.id),
+            code: "dimensions_not_ported".into(),
+            severity: "info".into(),
+            message: format!(
+                "{} is not dimensioned: no dimensions for {} are ported yet.",
+                f.id, f.kind
+            ),
+            subjects: vec![f.id.clone()],
+        })
+        .collect()
 }
 
 fn levenshtein(a: &str, b: &str) -> usize {

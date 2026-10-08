@@ -14,7 +14,10 @@ use super::{
 };
 use crate::bridge::{HolePattern, holes};
 
-pub(super) const PLANNER: Planner = Planner { wants };
+pub(super) const PLANNER: Planner = Planner {
+    kinds: &["hole"],
+    wants,
+};
 
 /// Member sites projected into a view, as integer keys.
 type Sites = Vec<(i64, i64)>;

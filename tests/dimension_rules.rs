@@ -395,6 +395,50 @@ fn a_turned_parts_diameter_follows_its_view() {
     );
 }
 
+/// Review M8, and ARCH0017-1 in part: a recognised feature of a kind no planner dimensions yet is
+/// reported once, as info, in the Analysis's feature order; a record type draftwright itself
+/// leaves undimensioned (here a freeform surface) is no gap in the port and is not reported, and
+/// the holes the port plans are not reported either.
+#[test]
+fn features_with_no_ported_dimensions_are_reported() {
+    let not_ported = |plan: &Plan| -> Vec<String> {
+        plan.problems
+            .iter()
+            .filter(|p| p.code == "dimensions_not_ported")
+            .map(|p| {
+                assert_eq!(p.severity, "info");
+                assert_eq!(p.id, format!("p:dimensions_not_ported:{}", p.subjects[0]));
+                p.subjects.concat()
+            })
+            .collect()
+    };
+    let (_, mut a) = analysed_with("turned", &recognition("turned"));
+    let kinds: Vec<&str> = a.features.iter().map(|f| f.kind.as_str()).collect();
+    assert!(kinds.contains(&"fillet") && kinds.contains(&"turned_step"));
+    assert!(!kinds.contains(&"hole"));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let ids: Vec<String> = a.features.iter().map(|f| f.id.clone()).collect();
+    assert_eq!(not_ported(&plan), ids);
+    let step = plan
+        .problems
+        .iter()
+        .find(|p| p.subjects[0].starts_with("f:turned_step:"))
+        .unwrap();
+    assert!(
+        step.message
+            .ends_with("no dimensions for turned_step are ported yet."),
+        "{}",
+        step.message
+    );
+
+    a.features[0].fingerprint.subtype = "FreeformSurface".into();
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(not_ported(&plan), ids[1..]);
+
+    let plate = planned("plate", &recognition("plate"), &Spec::default());
+    assert!(not_ported(&plate).is_empty(), "{:?}", plate.problems);
+}
+
 /// An ID names the view that carries its dimension, so omitting that view renames it; a spec
 /// still keyed by the old ID is refused, and the refusal names the new ID first.
 #[test]
