@@ -549,9 +549,10 @@ pub fn plan(
 /// formatted here (R1 invariant 2).
 ///
 /// Labels are drawn with the same bundled font placement measured them with ([`FONT`]), so the
-/// label boxes the collision problems describe are the ink drawn. `⌀` is drawn as the font's `ø`,
-/// and its text run is `ø` too: the searchable text is what is printed. `↧`, `⌴` and `⌵` are
-/// strokes with no text run.
+/// label boxes the collision problems describe are the ink drawn. `⌀` is drawn as the font's `ø`
+/// and `↧`, `⌴` and `⌵` as strokes; the label's one text run is its terms as the plan states them,
+/// symbols included, centred on its ink along the baseline, so the text searched and copied from
+/// the PDF and SVG is the callout (`4× ⌀6 ↧ 5`) and lint reads the same.
 ///
 /// Returns one annotation per drawn item, for lint: its ID, view and text runs, and the
 /// measurements it states as its claims (provenance carried on the drawing, so lint reads the
@@ -604,17 +605,15 @@ pub fn render(
                 items.push(Item::Face(wires));
             }
         }
-        for (run, x) in &ink.runs {
-            text.push(TextRun {
-                text: run.clone(),
-                at: f([*x, 0.0]),
-                size: TEXT,
-                rotation: p.rotation,
-                font: FONT.into(),
-                h_align: HAlign::Left,
-                v_align: VAlign::Baseline,
-            });
-        }
+        text.push(TextRun {
+            text: d.terms.join(" "),
+            at: f([0.5 * (ink.min[0] + ink.max[0]), 0.0]),
+            size: TEXT,
+            rotation: p.rotation,
+            font: FONT.into(),
+            h_align: HAlign::Center,
+            v_align: VAlign::Baseline,
+        });
         annotations.push(Annotation {
             name: d.id.clone(),
             view: Some(d.view.clone()),

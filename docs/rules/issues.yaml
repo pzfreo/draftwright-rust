@@ -1715,6 +1715,8 @@
       - "tests/test_issue_1352_searchable_pdf_text.py::test_committed_dimension_pdf_uses_registry_spec_issue_1931"
     corpus_parts: []
   status: pending
+  rust_test: tests/output.rs::callout_symbols_are_searchable_in_the_pdf_and_the_svg
+  rust_note: "Ported in part: every label the port draws (dimensions, hole callouts, section captions and title-block values) is one invisible text run of the plan's own string, in the PDF (render mode invisible, so the ink is unchanged) and in the SVG (a fill-opacity 0 group after the layers); read back through the fonts' ToUnicode maps it is the string drawn, callout symbols included (`4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 (2×2)`), where draftwright's text has `ø` and spaces for the path-only symbols (rust-correct: the copied text states what is drawn). A run is centred on its label's ink, so a callout's selection box approximates its ink, as draftwright's does. Not ported: notes, GD&T and datums (not drawn yet), multiline line pitch, and a reading-order check; the unchanged-pixels check is by construction, not a test."
   port_note: "Keep: PDF renderer emits invisible text from plan strings; font/glyph-recovery tests for raw helpers retire."
 
 - id: ISSUE-1353-a

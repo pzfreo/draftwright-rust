@@ -587,7 +587,7 @@ fn an_unestablished_hole_bottom_is_reported() {
 }
 
 /// R1 invariant 2 (ADR4-4) and ARCH0019-1: the renderer draws the plan's own label text and
-/// composes none; every dimension run it writes comes from a plan item's terms.
+/// composes none; every dimension run it writes is a plan item's terms, joined by spaces.
 #[test]
 fn renderers_draw_only_from_the_plan() {
     let (part, a) = analysed_with("plate", &recognition("plate"));
@@ -606,24 +606,11 @@ fn renderers_draw_only_from_the_plan() {
             .map(|r| r.text.clone())
             .collect()
     };
-    let tokens: Vec<String> = plan
-        .dimensions
-        .iter()
-        .flat_map(|d| d.terms.iter())
-        .flat_map(|t| {
-            let rest = t.trim_start_matches(['⌀', '↧', '⌴', '⌵']).to_string();
-            if t.starts_with('⌀') {
-                vec!["ø".to_string(), rest]
-            } else {
-                vec![rest]
-            }
-        })
-        .filter(|t| !t.is_empty())
-        .collect();
+    let labels: Vec<String> = plan.dimensions.iter().map(|d| d.terms.join(" ")).collect();
     let before = runs(&plan);
     assert!(!before.is_empty());
     for r in &before {
-        assert!(tokens.contains(r), "{r:?} is not in the plan");
+        assert!(labels.contains(r), "{r:?} is not in the plan");
     }
     // Change the plan's text: the drawing follows it, with no number of its own.
     let d = plan
