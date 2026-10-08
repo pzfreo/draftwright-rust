@@ -298,3 +298,18 @@ improvement plan and questions are the current work. Still open from before it:
       That unblocks the switch.
     - Who owns fingerprints, draftwright or quiddity? Until that is decided the native reader
       keeps draftwright's (`draftwright-bridge/2`) and does not adopt quiddity's.
+- Lint families (d-lint-families): grooves, flats, angled, paired-ramp and circular blind
+  steps run in `lint::check`; envelope and turned steps are ledgers only
+  (`lint::envelope::outcomes`, `lint::turned::outcomes`), because Python's lint reports no
+  finding for them (they feed completeness in `quality.py` and `requirements.py`). Compared
+  with Python's own ledgers (`tests/fixtures/lint_ledgers.json`): 73 agree, 2 in
+  `known_lint.json`. Not reached: suppressed, dropped and satisfied-by-note states, and the
+  assembly info severity; envelope's alternative evidence (whole-extent measurements,
+  profile-grouped chains). Review minors: flats' requirement order (first flat in Analysis
+  order, Python sorts by `_FlatRequirementKey`) and envelope's chain deduplication are not
+  documented; circular blind steps skip Python's centreline/section consistency check; the
+  capture script's and the ledger test's comments disagree on the turned-step span frame.
+  - Questions for the maintainer:
+    - Should the port's lint report an unstated overall extent or turned band as a finding,
+      when Python uses them only for completeness?
+    - Should the ledgers feed a completeness report, so that they have a consumer?
