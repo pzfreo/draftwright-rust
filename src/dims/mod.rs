@@ -4,6 +4,7 @@
 //! This first cut covers:
 //! - **the overall extents**: width, depth and height of a prismatic part; the diameter and the
 //!   axial length of a part that is turned whole;
+//! - **whole-part polygonal stock**: its size across flats and its length, in place of the extents;
 //! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
@@ -42,6 +43,7 @@ mod envelope;
 mod holes;
 mod placement;
 mod slots;
+mod stock;
 mod tolerance;
 mod turned;
 
@@ -272,9 +274,10 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 6] = [
+const PLANNERS: [Planner; 7] = [
     turned::PLANNER,
     envelope::PLANNER,
+    stock::PLANNER,
     holes::PLANNER,
     slots::PLANNER,
     bosses::PLANNER,
