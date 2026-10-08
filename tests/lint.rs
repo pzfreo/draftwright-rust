@@ -190,7 +190,140 @@ fn sized(parameter: &str) -> bool {
         .any(|p| parameter.starts_with(p))
 }
 
-/// Python's sheet as marks, and how many of its hole size claims could not be joined.
+/// The feature families lint judges by a feature's own sizes, by Python's kind, with the
+/// parameters it checks.
+const FAMILIES: [(&str, &[&str]); 6] = [
+    ("boss", &["boss_height.length"]),
+    ("chamfer", &["chamfer.length"]),
+    ("fillet", &["fillet.radius"]),
+    ("blend", &["blend.radius"]),
+    (
+        "through_step",
+        &[
+            "through_step_leg.length.x",
+            "through_step_leg.length.y",
+            "through_step_leg.length.z",
+        ],
+    ),
+    (
+        "slot",
+        &[
+            "slot_width.length",
+            "slot_length.length",
+            "slot_end_radius.radius",
+        ],
+    ),
+];
+
+/// Whether lint checks *parameter* of a Python feature of *kind* (outside hole coverage).
+fn checked(kind: &str, parameter: &str) -> bool {
+    FAMILIES
+        .iter()
+        .any(|(k, ps)| *k == kind && ps.contains(&parameter))
+}
+
+/// A feature record's point in quiddity's frame that Python names it by: a fillet's, chamfer's or
+/// through step's `at`, a blend path's `at` or `center`, a boss's `location`, a slot's centre
+/// (quiddity's `Slot.location`: mid-span along its long axis, its centreline across, mid-depth).
+fn local_point(f: &draftwright::bridge::Feature) -> Option<[f64; 3]> {
+    let p = &f.parameters;
+    if f.kind == "slot" {
+        let get = |k: &str| p.get(k).and_then(|v| v.as_f64());
+        let axis = |k: &str| {
+            p.get(k)
+                .and_then(|v| v.as_str())
+                .and_then(|a| ["x", "y", "z"].iter().position(|x| *x == a))
+        };
+        let (long, width) = (axis("long_axis")?, axis("width_axis")?);
+        let mut c = [0.0; 3];
+        c[long] = (get("lo")? + get("hi")?) / 2.0;
+        c[width] = get("w_center")?;
+        c[3 - long - width] = (get("d_lo")? + get("d_hi")?) / 2.0;
+        return Some(c);
+    }
+    let path = p.get("path");
+    [
+        p.get("at"),
+        p.get("location"),
+        path.and_then(|v| v.get("at")),
+        path.and_then(|v| v.get("center")),
+    ]
+    .into_iter()
+    .find_map(|v| draftwright::bridge::holes::point(v))
+}
+
+/// The Analysis feature a Python feature of a [`FAMILIES`] kind names, when exactly one fits: the
+/// same kind; its direction's largest component along Python's axis letter; every size Python's
+/// key gives (`radius=`, `width=`, …) within 1.5e-3 of the record's; and Python's origin at the
+/// record's point (all three coordinates within 2e-3: quiddity rounds to 1e-3). Python places a
+/// boss elsewhere on its axis (its top or its base), so a boss's origin need only be on the
+/// boss's axis line within its height; and a slot's only along its long axis (within 0.01 mm,
+/// quiddity's slot records being rounded to 0.01), Python zeroing some of its other coordinates.
+fn join_feature(analysis: &Analysis, feature: &facts::Feature) -> Option<String> {
+    use draftwright::bridge::holes::{frame, to_part};
+    use draftwright::lint::parameters::direction;
+    let frame = frame(analysis);
+    let axis = ["x", "y", "z"]
+        .iter()
+        .position(|a| Some(*a) == feature.axis.as_deref())?;
+    let origin = feature.origin?;
+    let key = feature.key.as_deref()?;
+    let sizes: Vec<(&str, f64)> = key
+        .rsplit_once('[')
+        .map(|(_, s)| s.trim_end_matches(']'))
+        .unwrap_or("")
+        .split(',')
+        .filter_map(|kv| kv.split_once('='))
+        .map(|(k, v)| Some((k, v.parse().ok()?)))
+        .collect::<Option<_>>()?;
+    let fits: Vec<&draftwright::bridge::Feature> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == feature.kind)
+        .filter(|f| {
+            let p = &f.parameters;
+            let path = p.get("path");
+            let d = direction(&frame, p.get("axis"))
+                .or_else(|| direction(&frame, p.get("long_axis")))
+                .or_else(|| direction(&frame, path.and_then(|v| v.get("direction"))))
+                .or_else(|| direction(&frame, path.and_then(|v| v.get("normal"))));
+            d.is_some_and(|d| {
+                (0..3)
+                    .max_by(|&i, &j| d[i].abs().total_cmp(&d[j].abs()))
+                    .unwrap()
+                    == axis
+            })
+        })
+        .filter(|f| {
+            sizes.iter().all(|(k, v)| {
+                f.parameters
+                    .get(*k)
+                    .and_then(|x| x.as_f64())
+                    .is_some_and(|x| (x - v).abs() <= 1.5e-3)
+            })
+        })
+        .filter(|f| {
+            local_point(f).is_some_and(|l| {
+                let at = to_part(&frame, l);
+                match f.kind.as_str() {
+                    "boss" => {
+                        let d = direction(&frame, f.parameters.get("axis")).unwrap();
+                        let n = dot(d, d).sqrt();
+                        let (across, along) = offsets(origin, at, d.map(|c| c / n));
+                        let height = f.parameters.get("height").and_then(|v| v.as_f64());
+                        across <= 2e-3 && height.is_some_and(|h| along <= h + 2e-3)
+                    }
+                    "slot" => (at[axis] - origin[axis]).abs() <= 1e-2,
+                    _ => (0..3).all(|k| (at[k] - origin[k]).abs() <= 2e-3),
+                }
+            })
+        })
+        .collect();
+    (fits.len() == 1).then(|| fits[0].id.clone())
+}
+
+/// Python's sheet as marks, and how many of its claims that lint checks (hole sizes and the
+/// [`FAMILIES`]' sizes) could not be joined.
 fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Mark>, usize) {
     let mut unjoined = 0;
     let marks = f
@@ -200,6 +333,16 @@ fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Ma
             let mut claims = Vec::new();
             for m in &a.measurements {
                 let Some(feature) = &m.feature else { continue };
+                if checked(&feature.kind, &m.parameter) {
+                    match join_feature(analysis, feature) {
+                        Some(id) => claims.push(Claim {
+                            feature: id,
+                            parameter: m.parameter.clone(),
+                        }),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
                 if !["hole", "pattern"].contains(&feature.kind.as_str()) || !sized(&m.parameter) {
                     continue;
                 }
@@ -279,8 +422,67 @@ fn python_subject(analysis: &Analysis, groups: &[HoleGroup], message: &str) -> (
     (fits[0], parameter)
 }
 
+/// The [`FAMILIES`] kind a finding code belongs to (`fillet_requirement_missing` → `fillet`).
+fn family_of(code: &str) -> Option<&'static str> {
+    if code == "boss_height_missing" {
+        return Some("boss");
+    }
+    FAMILIES
+        .iter()
+        .map(|(k, _)| *k)
+        .find(|k| code.starts_with(&format!("{k}_requirement_")))
+}
+
+/// The requirements a Python finding of a [`FAMILIES`] kind is about: its message names the
+/// record's point in quiddity's frame (`fillet at (x, y, z) …`), which must be exactly one
+/// feature's; the finding covers each of the parameters lint checks for that kind.
+fn python_feature_subject(analysis: &Analysis, code: &str, message: &str) -> Vec<(String, String)> {
+    let kind = family_of(code).unwrap();
+    let at: Vec<f64> = message
+        .split(" at (")
+        .nth(1)
+        .and_then(|rest| rest.split(')').next())
+        .unwrap_or_else(|| panic!("{message}: no point to read"))
+        .split(", ")
+        .map(|c| c.parse().unwrap())
+        .collect();
+    let fits: Vec<&draftwright::bridge::Feature> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == kind)
+        .filter(|f| local_point(f).is_some_and(|l| (0..3).all(|k| (l[k] - at[k]).abs() <= 1.5e-3)))
+        .collect();
+    assert_eq!(fits.len(), 1, "{message}: {} features fit", fits.len());
+    let (_, parameters) = FAMILIES.iter().find(|(k, _)| *k == kind).unwrap();
+    parameters
+        .iter()
+        .map(|p| (fits[0].id.clone(), p.to_string()))
+        .collect()
+}
+
+/// A feature as a known difference describes it: its kind, sizes and centre (the centre of its
+/// faces' box), in the part's frame.
+fn describe_feature(analysis: &Analysis, id: &str) -> String {
+    let f = analysis.features.iter().find(|f| f.id == id).unwrap();
+    let sizes: Vec<String> = f
+        .fingerprint
+        .sizes
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect();
+    let c = f.fingerprint.position;
+    format!(
+        "{} [{}] at ({:.3}, {:.3}, {:.3})",
+        f.kind,
+        sizes.join(", "),
+        c[0],
+        c[1],
+        c[2]
+    )
+}
+
 #[test]
-fn hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
+fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
     let Some(corpus) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
@@ -352,7 +554,10 @@ fn hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
             );
         }
         let mut rust: BTreeMap<(usize, String), String> = BTreeMap::new();
-        for issue in &ours {
+        for issue in ours
+            .iter()
+            .filter(|i| i.code.starts_with("hole_requirement_"))
+        {
             let g = groups
                 .iter()
                 .position(|g| g.members == issue.subjects)
@@ -425,9 +630,84 @@ fn hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
                 );
             }
         }
+
+        // The feature families: each side's findings by (feature, requirement).
+        {
+            use draftwright::lint::{blends, bosses, chamfers, fillets, slots, steps};
+            judged += bosses::wanted(&analysis).len()
+                + chamfers::wanted(&analysis).len()
+                + fillets::wanted(&analysis).len()
+                + blends::wanted(&analysis).len()
+                + steps::wanted(&analysis).len()
+                + slots::wanted(&analysis).len();
+        }
+        let rust: BTreeMap<(String, String), String> = ours
+            .iter()
+            .filter(|i| family_of(&i.code).is_some())
+            .map(|i| {
+                (
+                    (i.subjects[0].clone(), i.requirements[0].parameter.clone()),
+                    i.code.clone(),
+                )
+            })
+            .collect();
+        let mut python: BTreeMap<(String, String), String> = BTreeMap::new();
+        for finding in f.lint.iter().filter(|l| family_of(&l.code).is_some()) {
+            if finding.code == "boss_height_missing" {
+                // Python's one finding counts the bosses (`<n> boss height(s) are not
+                // dimensioned`) without naming them: the port's per-boss findings agree when
+                // there are as many.
+                let n: usize = finding.message.split(' ').next().unwrap().parse().unwrap();
+                let mine: Vec<&(String, String)> = rust
+                    .iter()
+                    .filter(|(_, c)| *c == "boss_height_missing")
+                    .map(|(k, _)| k)
+                    .collect();
+                if mine.len() == n {
+                    for k in mine {
+                        python.insert(k.clone(), finding.code.clone());
+                    }
+                } else {
+                    differ.insert(
+                        (
+                            name.clone(),
+                            "bosses".into(),
+                            "boss_height.length".into(),
+                            Some(format!("{n}× {}", finding.code)),
+                            Some(format!("{}× boss_height_missing", mine.len())),
+                        ),
+                        finding.message.clone(),
+                    );
+                    for k in mine {
+                        python.insert(k.clone(), finding.code.clone());
+                    }
+                }
+                continue;
+            }
+            for key in python_feature_subject(&analysis, &finding.code, &finding.message) {
+                python.insert(key, finding.code.clone());
+            }
+        }
+        for key in python.keys().chain(rust.keys()).collect::<BTreeSet<_>>() {
+            let (theirs, mine) = (python.get(key), rust.get(key));
+            if theirs == mine {
+                agree += 1;
+            } else {
+                differ.insert(
+                    (
+                        name.clone(),
+                        key.0.clone(),
+                        key.1.clone(),
+                        theirs.cloned(),
+                        mine.cloned(),
+                    ),
+                    describe_feature(&analysis, &key.0),
+                );
+            }
+        }
         if std::env::var_os("LINT_REPORT").is_some() {
             eprintln!(
-                "== {name}: {} groups, {} marks claim holes, {unjoined} claims unjoined",
+                "== {name}: {} hole groups, {} marks claim sizes, {unjoined} claims unjoined",
                 groups.len(),
                 marks.iter().filter(|m| !m.claims.is_empty()).count()
             );
@@ -440,7 +720,7 @@ fn hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
             for l in f
                 .lint
                 .iter()
-                .filter(|l| l.code.starts_with("hole_requirement_"))
+                .filter(|l| l.code.starts_with("hole_requirement_") || family_of(&l.code).is_some())
             {
                 eprintln!("   python {} {}", l.code, l.message);
             }
@@ -465,7 +745,7 @@ fn hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
     }
     let stale: Vec<_> = listed.difference(&found).collect();
     eprintln!(
-        "{judged} hole requirements judged: {agree} findings agree, {} differ ({} known), the \
+        "{judged} requirements judged: {agree} findings agree, {} differ ({} known), the \
          rest neither side reports; {joined} claims joined, {unjoined_total} not",
         differ.len(),
         known.len()
@@ -695,8 +975,8 @@ fn lint_reads_the_drawings_annotations() {
     );
 }
 
-/// On a captured sheet, taking a callout away or misprinting it is found: lint is judging the
-/// sheet, not echoing it.
+/// On a captured sheet, taking a callout away or misprinting it is found, in every family: lint is
+/// judging the sheet, not echoing it.
 #[test]
 fn lint_finds_what_is_taken_off_a_captured_sheet() {
     let Some(corpus) = corpus::dir() else {
@@ -744,5 +1024,37 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
             "hole_requirement_unverifiable bore.diameter",
             "hole_requirement_missing bore.through"
         ]
+    );
+    // The other families: the boss's height (m_bossheight_y0, "5.7"), the fillet (m_fillet_y0,
+    // "R4.2") and the through step's x leg (dim_through_step_z0_x, "18.7"), taken away; and the
+    // fillet's radius misprinted.
+    let without: Vec<Mark> = marks
+        .iter()
+        .filter(|m| {
+            !["m_bossheight_y0", "m_fillet_y0", "dim_through_step_z0_x"].contains(&m.name.as_str())
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        codes(&without),
+        [
+            "boss_height_missing boss_height.length",
+            "fillet_requirement_missing fillet.radius",
+            "through_step_requirement_missing through_step_leg.length.x"
+        ]
+    );
+    let misprinted: Vec<Mark> = marks
+        .iter()
+        .cloned()
+        .map(|mut m| {
+            if m.name == "m_fillet_y0" {
+                m.text = m.text.replace("4.2", "4.5");
+            }
+            m
+        })
+        .collect();
+    assert_eq!(
+        codes(&misprinted),
+        ["fillet_requirement_unverifiable fillet.radius"]
     );
 }

@@ -2,8 +2,8 @@
 //! of `src/lint` may name the Plan or the Spec, or reach them through another module. Lint reads
 //! the Analysis and the rendered drawing only, so its denominator never comes from the plan.
 //!
-//! The check reads the module's source with its comments and string literals removed, and
-//! refuses:
+//! The check reads every file of the module (each rule module `mod.rs` declares must be one of
+//! them) with its comments and string literals removed, and refuses:
 //! - the Plan's and Spec's types and operations by name (`Plan`, `Spec`, `PlannedView`, `plan`,
 //!   `spec`, `embedded_spec`, …), which also covers the drawing's embedded spec (`drawing.spec`);
 //! - any `crate::` path other than the Analysis (`crate::model::Analysis`), the bridge's
@@ -148,6 +148,28 @@ fn module_violations() -> Vec<(String, Vec<String>)> {
         .collect();
     files.sort();
     assert!(files.len() >= 2, "src/lint has its files");
+    // Every module `mod.rs` declares is one of the files checked: a rule module kept elsewhere
+    // (a directory module, a `#[path]`) would escape the guard.
+    let declared: Vec<String> = std::fs::read_to_string(dir.join("mod.rs"))
+        .unwrap()
+        .lines()
+        .filter_map(|l| {
+            let l = l.trim().strip_prefix("pub ").unwrap_or(l.trim());
+            l.strip_prefix("mod ")?
+                .strip_suffix(';')
+                .map(str::to_string)
+        })
+        .collect();
+    for m in &declared {
+        assert!(
+            files.contains(&dir.join(format!("{m}.rs"))),
+            "lint's module {m} is not a file the guard reads"
+        );
+    }
+    assert!(
+        declared.len() >= 8,
+        "the guard reads lint's rule modules: {declared:?}"
+    );
     files
         .into_iter()
         .filter(|p| p.file_name().unwrap() != "guard.rs")

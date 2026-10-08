@@ -13,14 +13,24 @@
 //!   facts);
 //! - [`LintIssue`] is a finding, with the catalogue's fields (LINT-issues-lintissue_schema).
 //!
-//! Ported rules: the hole coverage rules ([`holes`]).
+//! Ported rules, in the order Python's lint runs them: boss heights ([`bosses`]); chamfer, fillet
+//! and blend coverage ([`chamfers`], [`fillets`], [`blends`]); through-step and slot coverage
+//! ([`steps`], [`slots`]); and hole coverage ([`holes`]). The families whose requirements are a
+//! feature's own sizes share [`parameters`].
 
 use serde::Serialize;
 
 use crate::model::Analysis;
 use crate::output::{Claim, Drawing};
 
+pub mod blends;
+pub mod bosses;
+pub mod chamfers;
+pub mod fillets;
 pub mod holes;
+pub mod parameters;
+pub mod slots;
+pub mod steps;
 
 #[cfg(test)]
 mod guard;
@@ -130,5 +140,12 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
 
 /// Every ported rule's findings on a drawing whose annotations are *marks*.
 pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
-    holes::coverage(analysis, marks)
+    let mut issues = bosses::coverage(analysis, marks);
+    issues.extend(chamfers::coverage(analysis, marks));
+    issues.extend(fillets::coverage(analysis, marks));
+    issues.extend(blends::coverage(analysis, marks));
+    issues.extend(steps::coverage(analysis, marks));
+    issues.extend(slots::coverage(analysis, marks));
+    issues.extend(holes::coverage(analysis, marks));
+    issues
 }

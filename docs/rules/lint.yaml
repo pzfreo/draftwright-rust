@@ -161,7 +161,7 @@
     issues: [1143]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_issue_1369_hole_completeness_evidence.py]
   status: ported
-  rust_test: hole_coverage_on_pythons_sheets_matches_pythons_lint_or_is_known
+  rust_test: coverage_on_pythons_sheets_matches_pythons_lint_or_is_known
   port_note: "Keep: port as a coverage check run on the rendered plan."
 
 - id: LINT-hole_coverage-blind_depth
@@ -522,6 +522,8 @@
     issues: [632, 1154, 964]
     tests: [tests/test_issue_1154_one_owner_per_measurement.py, tests/test_issue_1511_turned_boss_heights.py]
   status: pending
+  rust_test: a_boss_states_its_height_by_a_dimension
+  rust_note: "Partial (src/lint/bosses.rs): each boss whose record gives a height must have boss_height.length claimed by an annotation that prints it; a boss that shares a face with a groove of its diameter (within 0.15 mm) is the groove's floor and not judged (draftwright's boss_groove_owner). The port reports one boss_height_missing per boss, naming it, where Python reports one finding counting them. Not ported: a height consolidated onto an overall extent (the omission's conveyed_by lives in the plan), bosses absorbed into blends or turned steps by recognition ownership, and the assembly severity."
   port_note: "Keep."
 
 - id: LINT-code-turned_profile_not_spanned
@@ -601,6 +603,8 @@
     issues: [1788]
     tests: [tests/test_boss_ownership.py]
   status: pending
+  rust_test: a_boss_states_its_height_by_a_dimension
+  rust_note: "The height is judged as LINT-code-boss_height_missing (src/lint/bosses.rs). The diameter is not: in Python's lint it belongs to the coarse diameter inventory (feature_not_dimensioned), which is not ported."
   port_note: "Keep."
 
 - id: LINT-plate_coverage-thickness
@@ -673,7 +677,9 @@
     module: "linting/chamfer_coverage.py"
     issues: [1374, 560]
     tests: [tests/test_issue_1374_chamfer_completeness_evidence.py, tests/test_edge_profile_coverage.py]
-  status: pending
+  status: ported
+  rust_test: a_chamfer_states_its_leg_and_its_angle_unless_it_is_c_form
+  rust_note: "src/lint/chamfers.rs: chamfer.length per chamfer feature, judged by the claiming annotation's printed text. The callout form is draftwright's (C<leg> for legs within 0.05 mm at 45° within 0.5°, else <leg> × <angle>°); for the second form the text must print the angle too, which Python's lint, following the measurement identity alone, does not check. On the 12 captured sheets the bridge reads, every chamfer agrees with Python (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). quiddity's OrientedChamfer is not judged, as in Python."
   port_note: "Keep."
 
 - id: LINT-code-chamfer_requirement_state
@@ -685,6 +691,8 @@
     issues: [1374]
     tests: [tests/test_issue_1374_chamfer_completeness_evidence.py]
   status: pending
+  rust_test: a_chamfer_states_its_leg_and_its_angle_unless_it_is_c_form
+  rust_note: "Codes chamfer_requirement_missing and chamfer_requirement_unverifiable (claimed but not printed, or a size the record lacks). chamfer_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-fillet_coverage-radius
@@ -696,7 +704,9 @@
     module: "linting/fillet_coverage.py"
     issues: [1374]
     tests: [tests/test_issue_1374_fillet_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: lint_finds_what_is_taken_off_a_captured_sheet
+  rust_note: "src/lint/fillets.rs: fillet.radius per fillet feature, judged by the claiming annotation's printed text (lint::parameters). On the 12 captured sheets the bridge reads, all 118 fillet claims join and every fillet agrees with Python (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known); taking m10127's R4.2 away or misprinting it is found."
   port_note: "Keep."
 
 - id: LINT-code-fillet_requirement_state
@@ -708,6 +718,8 @@
     issues: [1374]
     tests: [tests/test_edge_profile_coverage.py]
   status: pending
+  rust_test: lint_finds_what_is_taken_off_a_captured_sheet
+  rust_note: "Codes fillet_requirement_missing and fillet_requirement_unverifiable. fillet_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-blend_coverage-radius
@@ -719,7 +731,9 @@
     module: "linting/blend_coverage.py"
     issues: [1433, 1438]
     tests: [tests/test_issue_1433_blend_semantics.py]
-  status: pending
+  status: ported
+  rust_test: a_blend_states_its_radius_whatever_its_path
+  rust_note: "src/lint/blends.rs: blend.radius per blend feature (straight or circular path), judged by the claiming annotation's printed text. A blend whose record gives no radius is unverifiable. On the 12 captured sheets the bridge reads, all 150 blend claims join and every blend agrees with Python. Python's radius-leader target check (lint_blend_leader_targets) is a different rule and is not ported."
   port_note: "Keep."
 
 - id: LINT-code-blend_requirement_state
@@ -731,6 +745,8 @@
     issues: [1433]
     tests: [tests/test_issue_1433_blend_semantics.py]
   status: pending
+  rust_test: a_blend_states_its_radius_whatever_its_path
+  rust_note: "Codes blend_requirement_missing and blend_requirement_unverifiable. blend_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning."
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_mismatch
@@ -1006,6 +1022,8 @@
     issues: [1018]
     tests: [tests/test_slot_completeness.py]
   status: pending
+  rust_test: a_lone_slot_states_its_width_length_and_proven_end_radius
+  rust_note: "Partial (src/lint/slots.rs): slot_width.length, slot_length.length and, when quiddity proved arc ends, slot_end_radius.radius, each stated by an annotation that claims it and prints it. Not ported: the location (location_slot.length), which needs the datum the dimensions locate from, as hole locations do."
   port_note: "Keep."
 
 - id: LINT-slot_coverage-slot_pattern
@@ -1018,6 +1036,8 @@
     issues: [1018]
     tests: [tests/test_slot_pattern.py, tests/test_slot_completeness.py]
   status: pending
+  rust_test: a_slot_patterns_members_are_not_lone_slots
+  rust_note: "Partial: a slot inside a slot_pattern feature's faces is the pattern's, not a lone slot. The pattern's own requirements are not ported: each pattern is reported slot_requirement_unverifiable (parameter ?), not left out. No captured sheet or corpus recognition has a slot pattern."
   port_note: "Keep."
 
 - id: LINT-code-slot_requirement_state
@@ -1029,6 +1049,8 @@
     issues: [1018]
     tests: [tests/test_slot_completeness.py, tests/test_issue_1351_structured_note_coverage.py]
   status: pending
+  rust_test: a_lone_slot_states_its_width_length_and_proven_end_radius
+  rust_note: "Codes slot_requirement_missing and slot_requirement_unverifiable. slot_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec."
   port_note: "Keep."
 
 - id: LINT-oriented_slot_coverage-width_length
@@ -1156,6 +1178,8 @@
     issues: [1382]
     tests: [tests/test_framed_step_family_evidence.py]
   status: pending
+  rust_test: a_through_step_states_both_legs_named_by_the_parts_axes
+  rust_note: "Partial (src/lint/steps.rs): each leg of the section is a requirement through_step_leg.length.<axis>, named by the part's axis it lies along, stated by a dimension that claims it and prints its length; a section that is not two legs, or a leg along no axis of the part, is unverifiable. Not ported: the alternative grammars (a plate thickness, a step level's height or position, or either with an envelope extent, within 0.5 mm), so a leg stated only that way is reported missing."
   port_note: "Keep."
 
 - id: LINT-code-through_step_requirement_state
@@ -1167,6 +1191,8 @@
     issues: [1382]
     tests: [tests/test_framed_step_family_evidence.py, tests/test_issue_1543_schedule_requirements.py]
   status: pending
+  rust_test: a_through_step_states_both_legs_named_by_the_parts_axes
+  rust_note: "Codes through_step_requirement_missing and through_step_requirement_unverifiable. _suppressed and Python's inapplicable (a leg proved by an alternative grammar) are not reached."
   port_note: "Keep."
 
 - id: LINT-gusset_rib_coverage-requirements

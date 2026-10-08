@@ -72,7 +72,8 @@ pub fn size_key(x: f64) -> i64 {
     (x * 1e6).round() as i64
 }
 
-fn point(v: Option<&Value>) -> Option<[f64; 3]> {
+/// A record's point or vector field, if it is three numbers.
+pub fn point(v: Option<&Value>) -> Option<[f64; 3]> {
     let a = v?.as_array()?;
     Some([
         a.first()?.as_f64()?,
@@ -81,13 +82,19 @@ fn point(v: Option<&Value>) -> Option<[f64; 3]> {
     ])
 }
 
+/// quiddity's working frame in the part's: the recognition record's, or the identity when the
+/// Analysis has none.
+pub fn frame(analysis: &Analysis) -> [[f64; 3]; 4] {
+    analysis.recognition.as_ref().map_or(IDENTITY, |r| r.frame)
+}
+
 /// quiddity's local point *l* in the part's frame.
-fn to_part(frame: &[[f64; 3]; 4], l: [f64; 3]) -> [f64; 3] {
+pub fn to_part(frame: &[[f64; 3]; 4], l: [f64; 3]) -> [f64; 3] {
     [0, 1, 2].map(|k| frame[0][k] + (0..3).map(|j| l[j] * frame[j + 1][k]).sum::<f64>())
 }
 
 /// quiddity's local direction *d* in the part's frame.
-fn dir_to_part(frame: &[[f64; 3]; 4], d: [f64; 3]) -> [f64; 3] {
+pub fn dir_to_part(frame: &[[f64; 3]; 4], d: [f64; 3]) -> [f64; 3] {
     [0, 1, 2].map(|k| (0..3).map(|j| d[j] * frame[j + 1][k]).sum::<f64>())
 }
 
@@ -178,7 +185,7 @@ impl<'a> Hole<'a> {
 
 /// The Analysis's hole features, each read in the part's frame, or why it cannot be.
 pub fn read(analysis: &Analysis) -> Vec<(&Feature, Result<Hole<'_>, String>)> {
-    let frame = analysis.recognition.as_ref().map_or(IDENTITY, |r| r.frame);
+    let frame = frame(analysis);
     analysis
         .features
         .iter()
