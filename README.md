@@ -63,7 +63,7 @@ draftwright-mcp                                        # the same operations as 
 ```
 
 The service, the MCP server and the library (`api::analyse(step, None)` and the rest) are not
-switched: there no `features` still means no features, and Python's JSON is passed as
+switched: there, no `features` still means no features, and Python's JSON is passed as
 `features`. `api::analyse_from` and its siblings take `Features::Native` for the command line's
 choice.
 
