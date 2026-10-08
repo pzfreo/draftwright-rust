@@ -128,7 +128,9 @@
       - "tests/test_issue_676_polygonal_boss.py::test_ctc01_drawing_directly_defines_the_hex_boss"
       - "tests/test_issue_676_polygonal_boss.py::test_an_authored_set_controls_each_polygonal_boss_measurement"
     corpus_parts: ["nist_ctc_01_asme1_ap203"]
-  status: pending
+  status: ported
+  rust_test: ctc01_hex_boss_states_its_size_across_flats_and_its_height
+  rust_note: "src/dims/bosses.rs: a polygonal boss is called out in the view down its axis by its size across flats (HEX 100 A/F; N-SIDED otherwise), with a leader to a flat, and its height (base to top) is stated in a view that shows its profile, each an item with its own ID that the spec can omit. On ctc01 both agree with draftwright's sheet (HEX 100 A/F in the plan, 50 in the front). The across-flats value and the axis line are quiddity's (its record's across_flats, base, top and centre), not measured again here. The port counts identical polygonal bosses once (4× 4-SIDED 25.4 A/F on nist_ftc_07), where draftwright calls each out, and locates them as it locates cylindrical bosses (draftwright locates no boss)."
   port_note: "Keep: scenario test CTC-01 -> plan has one A/F 100 and height 50 for the hex boss; each editable by ID."
 
 - id: ISSUE-676-c
@@ -858,6 +860,8 @@
       - "tests/test_issue_1154_one_owner_per_measurement.py::test_an_owner_the_authored_set_omits_is_refused"
     corpus_parts: []
   status: pending
+  rust_test: a_boss_height_between_the_parts_own_faces_is_the_overall_extents
+  rust_note: "Partial (src/dims/bosses.rs, consolidate): a default boss height whose base and top lie on the same two support planes as a kept overall extent (within 0.005 mm, half quiddity's 0.01 mm height rounding) moves to the plan's omitted list with the basis 'conveyed by <the extent's ID>'; plane coincidence, not value equality (a proud boss keeps both, a face 0.5 mm short is another plane); an extent the spec omits takes nothing. Not ported: other features' lengths (draftwright hands any feature-local length with a span to an extent on the same planes, a through slot's length among them; the port consolidates boss heights only); the tolerance clause (the port has no tolerances yet); an authored set that lists both keeps both here, and one that lists only the extent omits the height as not in the set rather than as conveyed."
   port_note: "Keep: plan consolidation keyed by support-plane pairs; omission basis references the carrier ID."
 
 - id: ISSUE-1155-a
@@ -2321,6 +2325,8 @@
       - "tests/test_issue_1511_turned_boss_heights.py::test_an_inactive_overall_contingency_cannot_own_a_boss_height"
     corpus_parts: []
   status: pending
+  rust_test: a_boss_height_between_the_parts_own_faces_is_the_overall_extents
+  rust_note: "Partial: each boss height is its own item with its own claim (boss_height.length) and witness lines on the boss's outline (src/dims/bosses.rs; connector109's end caps agree with draftwright's sheet); a full-height boss yields only to an overall extent that is kept, never to one the spec omits, and never on a part turned whole, whose overall length stands in for the step chain draftwright withholds it for. Not ported: the tolerance clause (no tolerances yet) and lint's exposure of a removed cap height (src/lint/bosses.rs owns boss_height_missing)."
   port_note: "Keep."
 
 - id: ISSUE-1514-a

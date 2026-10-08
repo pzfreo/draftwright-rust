@@ -191,3 +191,40 @@ improvement plan and questions are the current work. Still open from before it:
       Should it?
     - Boss locations go beyond draftwright, which locates no boss (ftc06's 266.7, 38.1, 139.7
       are marked rust-correct). Keep them?
+- From wave 3 (stream d-slots-rest): polygonal bosses (`HEX 100 A/F`, `4-SIDED 25.4 A/F`, with
+  their heights and locations; ctc01's hex boss height now agrees with draftwright's sheet), a
+  `feature_not_dimensioned` warning for a boss with no positive height, ISSUE-1154-a's
+  consolidation of a boss height onto an overall extent between the same two faces (to the
+  plan's `omitted`, basis `conveyed by <extent ID>`; ISSUE-1154-a and ISSUE-1511-a stay pending
+  for the tolerance clause and other families' lengths), and rectangular and round-bottom blind
+  slots, decoded from `section_recess` records as draftwright's `section_recess_fields` does (the
+  other section recesses stay `dimensions_not_ported`). The blind-slot callouts match
+  draftwright's on all ten it prints across eight corpus parts (on a ninth, mfcadpp_holdout 363,
+  draftwright fails to build the sheet, so its open slot has nothing to compare with); three of
+  those parts and
+  nist_ftc_07 have recognition fixtures in `tests/fixtures/recognition/dims/`. Left:
+  - **Slot patterns are blocked on the bridge.** quiddity publishes slot arrays only in its
+    derived `slot_patterns` (`document.py`), which `src/bridge.rs` does not read (it keeps the
+    derived hole patterns only) and whose member slots lose their `pattern_sibling` links
+    (`dependents` is dropped). So no `slot_pattern` reaches the Analysis and an array's members
+    are dimensioned as lone slots, where draftwright prints one `N× SLOT W × L` callout, an
+    obround's `2× R`, and the pitches. The bridge needs to keep `derived.slot_patterns` beside
+    the hole patterns, naming member slots by feature ID; then `dims::slots` can group them. No
+    corpus part has a slot array (checked with Python quiddity over all 94 files), so nothing on
+    the captured sheets differs today.
+  - ARCH0009-6 stays pending (it touches `src/dims/holes.rs`): ctc01's hex boss stands at the
+    centre of its 2×2 hole grid, so its location (400, 225) repeats the grid's, listed rust-wrong
+    in `known_dimensions.json`.
+  - The new items add placement problems for the placement work: on ctc01, 2
+    `annotation_off_sheet` (the HEX callout and the boss's y location) and 5 ink overlaps; on
+    nist_ftc_07, 4 overlaps (the boss heights with a pattern location in the side view); on
+    mfcadpp 11512, the open-slot callout over the iso view and through a hole callout.
+  - Questions for the maintainer:
+    - The port counts identical polygonal bosses once (`4× 4-SIDED 25.4 A/F` on nist_ftc_07),
+      as it and draftwright do cylindrical ones; draftwright calls each polygonal boss out on
+      its own. Keep the count?
+    - A blind slot is not located, as in draftwright (it opens at the part's edge, so its
+      position along the run is fixed, but not across it). Should the port locate it across?
+    - An authored set that lists both a boss height and the overall extent between the same
+      faces keeps both in the port (an explicit listing is kept); draftwright consolidates
+      them. Which?

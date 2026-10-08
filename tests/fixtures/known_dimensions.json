@@ -155,9 +155,9 @@
     "family": "location.y",
     "view": "plan",
     "label": "225",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision; the port's choice is its implementer's judgement. The port dimensions both of a hole's (or pattern's) in-plane coordinates in the view that looks along it, where it is a circle (ADR1-6: a feature's view follows from its axis by one rule); draftwright sends this coordinate to the side view, where the hole is hidden lines. ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly. Same measurement, other view."
+    "count": 2,
+    "verdict": "rust-wrong",
+    "reason": "Two items. The hole grid f:hole_pattern:1's y location: undetermined, pending the maintainer's decision (the port dimensions both of a hole's or pattern's in-plane coordinates in the view that looks along it, where it is a circle, by ADR1-6; draftwright sends this coordinate to the side view, where the hole is hidden lines; ISO 129-1 asks for a feature's dimensions on the view that shows it most clearly). And the hex boss's y location, rust-wrong: The hex boss (f:polygonal_boss:1) stands at the centre of the 2×2 hole grid f:hole_pattern:1, so the port's boss location repeats that pattern's location in the plan view (400 from the left face, 225 from the front): one point located twice. The port locates a boss as it does a hole (src/dims/bosses.rs; draftwright locates no boss, see ftc06's entries), but coincident hole and boss locations are not merged yet (ARCH0009-6: the hole location outranks and the boss's is conveyed by it), which is pending with the hole planner's owner. The entry goes when they are merged. The verdict is the second item's; the first stays undetermined as in its python-side entry."
   },
   {
     "part": "ftc06",
@@ -410,16 +410,6 @@
     "reason": "draftwright states a turned part's length as its step chain (m_steplen*, outside this port's families); the port plans no chain yet and states the overall length, as draftwright itself releases the overall length when its chain is dropped (ISSUE-955-a). Revisit when step chains are ported: the overall length then becomes a contingency."
   },
   {
-    "part": "ctc01",
-    "side": "python",
-    "family": "boss",
-    "view": "front",
-    "label": "50",
-    "count": 1,
-    "verdict": "rust-wrong",
-    "reason": "The hex boss's height (polygonal_boss, boss_height.length 50, with its HEX 100 A/F callout outside these families). The port plans no polygonal boss yet: its plan reports f:polygonal_boss:1 as dimensions_not_ported, so the sheet does not state it. ISSUE-676-b: a hex boss is dimensioned by its across-flats and its height. The entry goes when polygonal bosses are planned."
-  },
-  {
     "part": "ftc06",
     "side": "rust",
     "family": "location.x",
@@ -448,5 +438,15 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The port locates a boss as it does a hole: both coordinates of its axis from the part's box, in the view that looks down it (src/dims/bosses.rs). draftwright locates no boss: its boss ledger requires only the diameter and the height (LINT-boss_coverage-diameter_height), and its ftc06 sheet states neither coordinate of the two ø22.9 y-axis bosses (no hole runs down them, so no hole location stands in): nothing on it fixes where they stand. A feature whose position is not stated cannot be made; ISO 129-1 asks that each feature be fully defined. One dimension serves both, at the same height."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "location.x",
+    "view": "plan",
+    "label": "400",
+    "count": 1,
+    "verdict": "rust-wrong",
+    "reason": "The hex boss (f:polygonal_boss:1) stands at the centre of the 2×2 hole grid f:hole_pattern:1, so the port's boss location repeats that pattern's location in the plan view (400 from the left face, 225 from the front): one point located twice. The port locates a boss as it does a hole (src/dims/bosses.rs; draftwright locates no boss, see ftc06's entries), but coincident hole and boss locations are not merged yet (ARCH0009-6: the hole location outranks and the boss's is conveyed by it), which is pending with the hole planner's owner. The entry goes when they are merged."
   }
 ]
