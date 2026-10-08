@@ -548,8 +548,9 @@ fn no_face_is_both_a_boss_diameter_and_a_fillet_radius() {
 /// separately. No dimension states both a hole's bore and an outside diameter (a boss's, or the
 /// part's overall), and lint's turned-step ledger lets the overall diameter stand for a band's
 /// only when that band is the unique largest of its profile and alone on its axis line with its
-/// diameter. Not ported: the plan does not dimension turned steps' own diameters yet
-/// (src/dims/turned.rs), so a bore equal to a shoulder has no shoulder dimension to keep apart.
+/// diameter. The plan's overall diameter claims the band it is (src/dims/turned.rs), and every
+/// other band has its own diameter; with two adjoining bands of the largest diameter it stands
+/// for neither, in the plan or in the ledger.
 #[test]
 fn equal_diameters_on_different_features_are_stated_apart() {
     for (name, _, plan) in planned() {
@@ -570,16 +571,31 @@ fn equal_diameters_on_different_features_are_stated_apart() {
     let plan = &planned().iter().find(|p| p.0 == "turned").unwrap().2;
     let (analysis, drawing) = drawn("turned", plan);
     let marks = lint::marks(&drawing);
-    let ledger = |a: &Analysis| -> Vec<String> {
-        lint::turned::outcomes(a, &marks)
+    let ledger = |a: &Analysis, marks: &[Mark]| -> Vec<String> {
+        lint::turned::outcomes(a, marks)
             .into_iter()
             .filter(|o| o.parameter == "step.diameter")
             .map(|o| format!("{} {:?}", o.feature, o.state))
             .collect()
     };
     assert_eq!(
-        ledger(&analysis),
-        ["f:turned_step:1 Placed", "f:turned_step:2 Missing"]
+        ledger(&analysis, &marks),
+        ["f:turned_step:1 Placed", "f:turned_step:2 Placed"]
+    );
+    let od = |plan: &Plan| -> Vec<String> {
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:envelope/od.diameter@front")
+            .unwrap();
+        d.measurements
+            .iter()
+            .map(|m| format!("{}/{}", m.feature, m.parameter))
+            .collect()
+    };
+    assert_eq!(
+        od(plan),
+        ["envelope/od.diameter", "f:turned_step:1/step.diameter"]
     );
     // Two bands of the largest diameter: the overall diameter stands for neither.
     let mut twin = analysis.clone();
@@ -593,10 +609,35 @@ fn equal_diameters_on_different_features_are_stated_apart() {
     for f in twin.features.iter_mut().filter(|f| f.kind == "turned_step") {
         f.parameters.insert("diameter".into(), d.clone());
     }
+    let twin_plan = model::plan(&twin, &Spec::default()).unwrap();
+    assert_eq!(od(&twin_plan), ["envelope/od.diameter"]);
+    let od_mark: Vec<Mark> = twin_plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:envelope/od.diameter"))
+        .map(|d| Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.clone(),
+            claims: vec![Claim {
+                feature: "envelope".into(),
+                parameter: "od.diameter".into(),
+            }],
+        })
+        .collect();
     assert_eq!(
-        ledger(&twin),
+        ledger(&twin, &od_mark),
         ["f:turned_step:1 Missing", "f:turned_step:2 Missing"]
     );
+    // The twins' diameters have their own callout instead, one for the two (equal bands along z).
+    let d = twin_plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:turned_step:1/step.diameter@front")
+        .unwrap();
+    assert_eq!(d.label, "2× ø30");
+    let members: Vec<&str> = d.measurements.iter().map(|m| m.feature.as_str()).collect();
+    assert_eq!(members, ["f:turned_step:1", "f:turned_step:2"]);
 }
 
 /// ISSUE-1518-a, in part: a rear view is never added automatically, and one asked for is
@@ -886,7 +927,8 @@ fn each_turned_band_carries_its_diameter_and_length() {
 /// ISSUE-1560-a, in part: the part's extents never leave the drawing silently. On every part,
 /// each non-zero axis of the box has an outcome in lint's envelope ledger (placed on the default
 /// drawing); an extent the spec omits is listed in the plan's `omitted` with why, and stays in
-/// the ledger, missing; an empty authored set leaves all three in the ledger. Not ported: a local
+/// the ledger, missing; an empty authored set leaves all three in the ledger. A turned part's
+/// length may be stated by its step chain alone (src/dims/turned.rs). Not ported: a local
 /// turned profile or overlapping steps standing for an axis (no sampled part has one), and
 /// Python's other carriers of an end-to-end span (`lint::envelope`'s module note).
 #[test]
@@ -941,7 +983,7 @@ fn the_parts_extents_never_leave_the_drawing_silently() {
         let stated: Vec<Mark> = plan
             .dimensions
             .iter()
-            .filter(|d| d.id.starts_with("d:envelope/"))
+            .filter(|d| d.id.starts_with("d:envelope/") || d.id.contains("/step.length@"))
             .map(|d| Mark {
                 name: d.id.clone(),
                 view: Some(d.view.clone()),
@@ -970,11 +1012,11 @@ fn the_parts_extents_never_leave_the_drawing_silently() {
 }
 
 /// ISSUE-1357-b, in part: eccentric parallel cylinders are not one turned profile. The turned
-/// fixture's two bands share one axis line, and the plan states the part's overall diameter and
-/// length; with its smaller band's axis moved 2 mm off that line, the plan no longer reads the
-/// part as turned whole (it states the three extents instead) and reports each band on its own,
-/// none merged or silently chosen. Not ported: turned steps' own dimensions (each is reported
-/// `dimensions_not_ported`) and several bodies in one compound (no fixture has one).
+/// fixture's two bands share one axis line, and the plan states the part's overall diameter (and
+/// its length by the step chain); with its smaller band's axis moved 2 mm off that line, the plan
+/// no longer reads the part as turned whole (it states the three extents instead) and states each
+/// band's diameter and length on its own, none merged or silently chosen. Not ported: several
+/// bodies in one compound (no fixture has one).
 #[test]
 fn eccentric_cylinders_are_not_one_turned_profile() {
     let analysis = &fixtures().iter().find(|p| p.0 == "turned").unwrap().1;
@@ -988,16 +1030,37 @@ fn eccentric_cylinders_are_not_one_turned_profile() {
     let reported = |plan: &Plan| -> BTreeSet<String> {
         plan.problems
             .iter()
-            .filter(|p| p.code == "dimensions_not_ported")
+            .filter(|p| p.code == "dimensions_not_ported" || p.code == "feature_not_dimensioned")
             .flat_map(|p| p.subjects.clone())
             .collect()
     };
-    let steps: BTreeSet<String> = ["f:turned_step:1", "f:turned_step:2"]
-        .map(String::from)
-        .into();
+    // Each band's own items, as (feature, parameter, label).
+    let bands = |plan: &Plan| -> Vec<(String, String, String)> {
+        plan.dimensions
+            .iter()
+            .flat_map(|d| {
+                d.measurements
+                    .iter()
+                    .filter(|m| m.feature.starts_with("f:turned_step:"))
+                    .map(|m| (m.feature.clone(), m.parameter.clone(), d.label.clone()))
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    };
+    let item = |f: &str, p: &str, l: &str| (f.to_string(), p.to_string(), l.to_string());
     let plan = model::plan(analysis, &Spec::default()).unwrap();
-    assert_eq!(envelope(&plan), ["od.diameter", "height.length"]);
-    assert_eq!(reported(&plan), steps);
+    assert_eq!(envelope(&plan), ["od.diameter"]);
+    assert!(reported(&plan).is_empty(), "{:?}", plan.problems);
+    assert_eq!(
+        bands(&plan),
+        [
+            item("f:turned_step:1", "step.diameter", "ø30"),
+            item("f:turned_step:1", "step.length", "40"),
+            item("f:turned_step:2", "step.diameter", "ø16"),
+            item("f:turned_step:2", "step.length", "30"),
+        ]
+    );
 
     let mut eccentric = analysis.clone();
     let step = eccentric
@@ -1011,7 +1074,16 @@ fn eccentric_cylinders_are_not_one_turned_profile() {
         envelope(&plan),
         ["width.length", "depth.length", "height.length"]
     );
-    assert_eq!(reported(&plan), steps);
+    assert!(reported(&plan).is_empty(), "{:?}", plan.problems);
+    assert_eq!(
+        bands(&plan),
+        bands(&model::plan(analysis, &Spec::default()).unwrap())
+    );
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id == "d:f:turned_step:1/step.diameter@front")
+    );
 }
 
 /// The plan of fixture *name* with *spec*.

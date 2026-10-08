@@ -289,8 +289,9 @@ fn no_document_infers_manufacturing_intent() {
     // The callout grammar's words (which face of a turned part a bolt circle is on included),
     // a radius's, a diameter's and an equal-leg chamfer's prefix, a polygonal boss's (`HEX`,
     // `N-SIDED`, `A/F`), a blind slot's words, a groove's (`WIDE`), and a pocket's and a circular
-    // seat's (`MAX DEEP`, `LONG`, `ARC`).
-    const WORDS: [&str; 27] = [
+    // seat's (`MAX DEEP`, `LONG`, `ARC`), and a turned step's outside diameter where a coaxial
+    // bore prints the same size (`OD`).
+    const WORDS: [&str; 28] = [
         "THRU",
         "EQ",
         "SP",
@@ -318,6 +319,7 @@ fn no_document_infers_manufacturing_intent() {
         "WIDE",
         "MAX",
         "ARC",
+        "OD",
     ];
     let mut parts = fixtures();
     parts.extend(sampled());

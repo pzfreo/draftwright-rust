@@ -758,8 +758,8 @@ const UNDRAFTED: [&str; 11] = [
 
 /// ISSUE-1392-a, in part: no recognised feature goes missing from the drawing without a trace.
 /// Every feature of the Analysis is stated by a planned dimension (a pattern's for its member
-/// holes, a groove's for the boss that is its floor) or is the subject of a problem, unless it
-/// is of a kind draftwright itself leaves undimensioned.
+/// holes, a groove's for the boss that is its floor and the turned band it owns) or is the
+/// subject of a problem, unless it is of a kind draftwright itself leaves undimensioned.
 #[test]
 fn every_recognised_feature_is_dimensioned_or_reported() {
     for (name, analysis) in every_part() {
@@ -795,10 +795,23 @@ fn every_recognised_feature_is_dimensioned_or_reported() {
                         && g.faces.iter().any(|i| b.faces.contains(i))
                 })
         };
+        // A turned step a groove owns is the groove's too (`lint::turned::bands` leaves it out).
+        let own_bands: BTreeSet<&str> = lint::turned::bands(&analysis)
+            .map(|b| b.iter().map(|f| f.id.as_str()).collect())
+            .unwrap_or_default();
+        let grooved = |f: &draftwright::bridge::Feature| {
+            f.kind == "turned_step"
+                && !own_bands.is_empty()
+                && !own_bands.contains(f.id.as_str())
+                && analysis
+                    .features
+                    .iter()
+                    .any(|g| g.kind == "groove" && traced.contains(g.id.as_str()))
+        };
         let untraced: Vec<String> = analysis
             .features
             .iter()
-            .filter(|f| !traced.contains(f.id.as_str()) && !in_traced_groove(f))
+            .filter(|f| !traced.contains(f.id.as_str()) && !in_traced_groove(f) && !grooved(f))
             .filter(|f| !UNDRAFTED.contains(&f.fingerprint.subtype.as_str()))
             .map(|f| format!("{} ({})", f.id, f.fingerprint.subtype))
             .collect();
