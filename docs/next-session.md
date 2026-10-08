@@ -1480,6 +1480,36 @@ improvement plan and questions are the current work. Still open from before it:
     - Turned bosses' diameters as linear dimensions below the front (connector109) make every
       leader leaving that side cross their extension lines; draftwright calls them out in its
       left column. Should `dims::bosses` give a turned boss's diameter as a callout?
+
+- Coverage backstop (stream d-lint-coverage; `src/lint/coverage.rs`, `tests/lint_coverage.rs`,
+  `tools/capture_lint_coverage.py`, `tests/fixtures/lint_coverage/`): draftwright's
+  `lint_feature_coverage` and `lint_location_coverage`. `lint::check` now runs
+  `feature_not_dimensioned` (before boss heights) and `feature_not_located` (after them), as
+  draftwright orders them; `feature_count_mismatch` is ported but not run (draftwright's drawing
+  lint passes `check_hole_counts=False`), and `feature_no_centermark` is ported but not run (the
+  port draws no centre marks, so it would report every hole). On draftwright's recorded input (18
+  drawings: the 13 sheet parts, ctc03, ctc05 and ftc09, which a hunt over the corpus found firing,
+  and two drawings with callouts and centre marks taken off) the port's checks give exactly its
+  findings in all four codes. On the port's own drawings neither wired code fires; the
+  differences (centre marks on 9 parts, rust-wrong; cgb245's two holes the port locates in y,
+  rust-correct) are in `tests/fixtures/lint_coverage/known.json`. Outside the stream's files:
+  `tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value` now filters to
+  hole coverage's codes (a misprinted diameter is also `feature_not_dimensioned`, as in
+  draftwright). LINT-code-feature_count_mismatch is ported; the other three stay pending.
+  - Questions for the maintainer:
+    - Should the port draw centre marks (draftwright marks every hole in its end-on view)? Until
+      it does, `feature_no_centermark` stays out of `lint::check`.
+    - draftwright drops a boss diameter that a blend of the same face owns
+      (`boss_blend_owner_pairs`, #1450), comparing quiddity's defining faces. The bridge keeps
+      only constituent faces (`src/bridge.rs`), which differ (grm04_drive_plate: boss [0, 3],
+      blend [0]). Should `bridge::Feature` also carry `defining_faces` (it changes the Analysis
+      schema), so the ownership can be ported in dims and lint alike?
+    - `feature_not_located` reads only claimed locations on the port's drawings; draftwright also
+      accepts any dimension's witness point on the hole's projected coordinate. Should
+      `Drawing::sheet` record each dimension's witness points and each view's projection (the
+      same record label_vs_measured would need), or is the claim the right evidence for the
+      port's own drawings?
+
 - From wave 3 (stream d-spotface): a spotface is stated with ASME Y14.5-2018's spotface symbol
   (maintainer decision 2026-10-08), in the hole callout (`src/dims/holes.rs`, the term
   `dims::holes::SPOTFACE`) and in lint's fix text (`src/lint/holes.rs`): `⌀62 THRU ⌴SF ⌀70 ↧ 10`.
@@ -1510,7 +1540,9 @@ improvement plan and questions are the current work. Still open from before it:
     wholly inside, the label measured wider), and spool132 rendered: the callout's run reads back
     from the PDF's and SVG's text layers, and its `S` and `F` are real glyphs of the embedded subset
     font (not `.notdef`). The PDF/SVG text-layer readers moved from `tests/output.rs` to
-    `tests/common/pdf.rs` so both files share them.
+    `tests/common/pdf.rs` so both files share them. Outside the stream's files:
+    `tests/trust_rules.rs::no_document_infers_manufacturing_intent` lists `SF` among the printed
+    words (the symbol's letters, not an inferred finish or fit).
   - Left: the box (like every callout symbol) is ink, not a font glyph; in the PDF's invisible text
     `⌴` is shown as `.notdef` and found through the ToUnicode map, as `⌀ ↧ ⌵` are. The symbol's
     proportions (box 1.1 × 0.7 text heights, letters at 0.6) are the port's, not measured from the

@@ -17,20 +17,23 @@
 //!   coverage. It reads the drawing alone; [`lint`] stays coverage only, and the review reports
 //!   the structural findings beside it.
 //!
-//! Ported rules, in the order Python's lint runs them: boss heights ([`bosses`]); raised pads
-//! ([`pads`]) and polygonal bosses ([`polygonal`]); section recesses no drafting grammar reads,
-//! and refused recess recognitions ([`section_recesses`], which also reads every recess's
-//! grammar for the families below); hexagonal pockets and circular seats
+//! Ported rules, in the order Python's lint runs them: the diameter backstop
+//! ([`coverage::feature_coverage`]); boss heights ([`bosses`]); the location backstop
+//! ([`coverage::located`]); raised pads ([`pads`]) and polygonal bosses ([`polygonal`]); section
+//! recesses no drafting grammar reads, and refused recess recognitions ([`section_recesses`], which
+//! also reads every recess's grammar for the families below); hexagonal pockets and circular seats
 //! ([`pockets::hex_coverage`], [`channels::circular_coverage`]); angled steps ([`angled_steps`]);
 //! double-D bores ([`profiled_bores`]); flat, groove, chamfer, fillet and blend coverage
 //! ([`flats`], [`grooves`], [`chamfers`], [`fillets`], [`blends`]); paired-ramp steps
 //! ([`paired_ramp_steps`]), gusset ribs ([`gussets`]), circular blind steps
 //! ([`circular_blind_steps`]) and blind slots ([`blind_slots`]); through-step and slot coverage
 //! ([`steps`], [`slots`]); hole coverage ([`holes`]); open channels ([`channels`]); polygonal stock
-//! ([`polygonal`]); and lone pockets ([`pockets`]). The families whose requirements are a
-//! feature's own sizes share [`parameters`]. The envelope's and turned steps' completeness
-//! ([`envelope`], [`turned`]) are ledgers, not findings: Python's lint reports nothing for them,
-//! so `check` does not run them.
+//! ([`polygonal`]); and lone pockets ([`pockets`]). The backstop's count check and centre marks
+//! ([`coverage::counts`], [`coverage::centre_marks`]) are not run: draftwright's drawing lint
+//! leaves counts to hole coverage, and the port draws no centre marks yet. The families whose
+//! requirements are a feature's own sizes share [`parameters`]. The envelope's and turned steps'
+//! completeness ([`envelope`], [`turned`]) are ledgers, not findings: Python's lint reports nothing
+//! for them, so `check` does not run them.
 
 use serde::Serialize;
 
@@ -44,6 +47,7 @@ pub mod bosses;
 pub mod chamfers;
 pub mod channels;
 pub mod circular_blind_steps;
+pub mod coverage;
 pub mod envelope;
 pub mod fillets;
 pub mod flats;
@@ -170,7 +174,9 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
 
 /// Every ported rule's findings on a drawing whose annotations are *marks*.
 pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
-    let mut issues = bosses::coverage(analysis, marks);
+    let mut issues = coverage::feature_coverage(analysis, marks);
+    issues.extend(bosses::coverage(analysis, marks));
+    issues.extend(coverage::located(analysis, marks));
     issues.extend(pads::coverage(analysis, marks));
     issues.extend(polygonal::boss_coverage(analysis, marks));
     issues.extend(section_recesses::coverage(analysis, marks));
