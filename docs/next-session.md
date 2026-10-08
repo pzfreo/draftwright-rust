@@ -164,6 +164,27 @@ quiddity commit that has it.
   5. **The bridge refuses on tiny area differences.** `render` refuses nist_ctc_04 entirely
      ("face 367 has area 13.080630 here and 13.100238 in the recognition JSON", 0.15%). Decide a
      principled tolerance (with evidence that the faces are the same) instead of exact agreement.
+- **Top priority from the maintainer (2026-10-08 evening): make quiddity-rust's CI much
+  faster** ("I'd like to speed it up a lot"). Now 37–57 min per push (run 37791515187 onward):
+  almost all of it is `cargo test --workspace --release`, which runs its 27 test binaries one after
+  another on a 4-core runner (Linux: 52 min of tests after a 4 min compile; recognition.rs 13.1 min,
+  invariance.rs 11.5, correspondence.rs 6.7, section_recess_helpers.rs 4.0, determinism.rs 2.7,
+  passages.rs 2.2, drawings.rs 2.1, corpus.rs 1.9, wiring.rs 1.9; macOS similar). Nothing is cached.
+  Dispatch a quiddity-rust stream `q-ci-fast` (owns .github/workflows/ci.yml and may split the slow
+  test files) with the target **under 10 minutes wall clock on both platforms, with no test dropped
+  or weakened**:
+  1. cache the build (Swatinem/rust-cache, pinned by SHA like the existing actions);
+  2. build the test binaries once per platform (`cargo nextest archive`) and run them sharded
+     across parallel jobs (`cargo nextest run --archive-file … --partition hash:k/N`), N chosen
+     from measured times; keep fmt and clippy as a separate fast job;
+  3. split the slowest tests so they shard: where one test iterates the whole corpus (recognition,
+     invariance, correspondence, section_recess_helpers), make it one test per family or per
+     corpus slice, keeping every assertion and its failure messages;
+  4. keep macOS running the full suite (maintainer decision H1: float pins must hold on both),
+     sharded the same way;
+  5. measure before and after on a pushed branch or a workflow_dispatch run, and record the
+     numbers in the status file. Do the same for draftwright-rust's CI afterwards if it is cheap
+     (now ~20 min, one job).
 - **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`
   branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and
   writer, removal plan, `quiddity parts` / `quiddity pmi read|write`; four stages each integrated
