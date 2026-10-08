@@ -83,6 +83,6 @@ DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`, `cargo fmt --check` and `ca
 --all-targets --release -- -D warnings` (as CI does, `.github/workflows/ci.yml`). With
 `DRAFTWRIGHT_CORPUS_REQUIRED=1` a missing corpus fails every corpus-backed test.
 
-Licensed AGPL-3.0, as draftwright is; haecceity and quiddity-rust are Apache-2.0. The fonts in
-`fonts/` are IBM Plex, vendored from draftwright under the SIL Open Font License 1.1 (the
-`LICENSE-*-OFL.txt` files beside them).
+Licensed AGPL-3.0, as draftwright is; so are haecceity and quiddity-rust (AGPL-3.0-only since
+quiddity-rust 8023ea7). The fonts in `fonts/` are IBM Plex, vendored from draftwright under the
+SIL Open Font License 1.1 (the `LICENSE-*-OFL.txt` files beside them).

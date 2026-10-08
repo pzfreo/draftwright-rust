@@ -40,11 +40,14 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
   against 285 recorded Python calls. Differences from Python's final sheets are listed with
   verdicts in `tests/fixtures/known_views.json` (71 entries).
 - **Bridge:** quiddity's features come in through `src/bridge.rs`, with stable IDs and
-  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 05c5d99
-  (`Cargo.lock`); the bridge reads nist_ftc_07 and nist_ftc_10. nist_ctc_04 is still refused
-  (one face's area differs from OpenCascade's by 0.15 %). Since 05c5d99 haecceity refuses to
-  draw a part whose drawn faces or edges did not resolve on reading; `analyse` and `render`
-  pass that refusal on (`render` as a `failed` error).
+  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 8023ea7
+  (`Cargo.lock`; wave 2, AGPL-3.0-only); the bridge reads nist_ftc_07 and nist_ftc_10.
+  nist_ctc_04 is still refused (one face's area differs from OpenCascade's by 0.15 %). Since
+  05c5d99 haecceity refuses to draw a part whose drawn faces or edges did not resolve on
+  reading, and since 8023ea7 one with a stretch whose visibility no ray can decide (no corpus
+  part has one); `analyse` and `render` pass that refusal on (`render` as a `failed` error).
+  Since 8023ea7 it makes no stretch of no span, so cgb242 no longer reports `edges_not_drawn`
+  and no corpus part has a drawing problem (`output::projected` stays as a guard).
 - **Merged streams** (2026-10-07):
   - **View gaps** (d707219): a turned part drops the view that repeats its profile (ISSUE-1262-a,
     pending: the veto is narrower than Python's); annotation bands reserved from the features
@@ -157,8 +160,8 @@ improvement plan and questions are the current work. Still open from before it:
     the dims basis for a corroborated circle of fewer than five still says "five or more holes is
     self-evident". Switch dims and demand to `established_with(.., &holes::bosses(analysis))`
     and fix the basis text (ISSUE-1596-a stays pending).
-  - Question for haecceity: on cgb242's front view HLR emits a zero-span NURBS stretch (t0 =
-    t1 = 0) at an edge's own end vertex; should it be filtered at source?
+  - Answered (haecceity 8023ea7): HLR now passes over a breakpoint within 1e-9 of the scale
+    of the one before, so cgb242's zero-span NURBS stretch is no longer made.
 - Closed in wave 2 (stream w2/d-model-honesty): `Drawing::problems` reach `review` and `render`;
   the unresolved-geometry refusal is tested (`tests/fixtures/parts/unresolved.step`); the sheet's
   basis names a computed or overflow fallback; an empty iso projection is reported

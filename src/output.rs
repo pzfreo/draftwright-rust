@@ -1297,7 +1297,9 @@ mod tests {
         });
     }
 
-    /// cgb242's front view has a hidden stretch of a clamped cubic from t = 0 to t = 0.
+    /// A hidden stretch of a clamped cubic from t = 0 to t = 0, as cgb242's front view had
+    /// until haecceity stopped making stretches that short (quiddity-rust 56a5c4f): a guard
+    /// now, not drawn, and reported.
     #[test]
     fn a_stretch_of_no_span_is_not_drawn() {
         let poles = vec![
@@ -1329,6 +1331,15 @@ mod tests {
         assert_eq!(
             projected(&piece(None, vec![[1.0, 1.0], [2.0, 1.0]])),
             Some(Curve::Beziers(vec![vec![[1.0, 1.0], [2.0, 1.0]]]))
+        );
+        let reported = undrawn(&BTreeMap::from([("v:front".to_string(), 1)]));
+        assert_eq!(reported.len(), 1);
+        assert_eq!(reported[0].id, "p:edges_not_drawn:v:front");
+        assert_eq!(reported[0].subjects, ["v:front"]);
+        assert!(
+            reported[0]
+                .message
+                .starts_with("1 projected edge piece in v:front")
         );
     }
 

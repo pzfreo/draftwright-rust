@@ -170,9 +170,12 @@ fn codes(problems: &[model::Problem]) -> Vec<&str> {
     problems.iter().map(|p| p.code.as_str()).collect()
 }
 
-/// What could not be drawn as planned (cgb242's front view has a hidden stretch of no span,
-/// `edges_not_drawn`) reaches the problems `review` and `render` answer, and so the command
-/// line, the service and the MCP server, which answer through `api::call`.
+/// The problems `review` and `render` answer, and so the command line, the service and the MCP
+/// server, which answer through `api::call`, are the plan's with the drawing's (what could not be
+/// drawn as planned). cgb242's front view had a hidden stretch of no span (`edges_not_drawn`)
+/// until haecceity stopped making stretches that short (quiddity-rust 56a5c4f); no corpus part
+/// now has a drawing problem, so the drawing's part of this is checked empty here and the
+/// problem itself in `output::tests`.
 #[test]
 fn the_drawings_problems_reach_review_and_render() {
     let Some(dir) = corpus::dir() else {
@@ -187,6 +190,16 @@ fn the_drawings_problems_reach_review_and_render() {
     .unwrap();
     let path = scratch("cgb242.step");
     std::fs::write(&path, step).unwrap();
+    let (part, analysis) = model::analyse(&path).unwrap();
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    let drawing = model::render(&part, &analysis, &plan, &font()).unwrap();
+    let expected: Vec<&str> = plan
+        .problems
+        .iter()
+        .chain(&drawing.problems)
+        .map(|p| p.id.as_str())
+        .collect();
+    assert!(!expected.contains(&"p:edges_not_drawn:v:front"));
     let step = path.display().to_string();
 
     let review = api::call("review", &json!({ "step": step })).unwrap();
@@ -203,7 +216,7 @@ fn the_drawings_problems_reach_review_and_render() {
             .iter()
             .map(|p| p["id"].as_str().unwrap())
             .collect();
-        assert!(ids.contains(&"p:edges_not_drawn:v:front"), "{ids:?}");
+        assert_eq!(ids, expected);
     }
 }
 
