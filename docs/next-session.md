@@ -138,12 +138,6 @@ improvement plan and questions are the current work. Still open from before it:
 - quiddity-rust: the volume module's general `Probe::Prism` has no direct unit test for the
   convex case gussets use. Python's `local_degradation` path is not ported in any family.
 - From wave 1 (review H1–H5, M2 merged):
-  - Small bolt circles: lint now corroborates one of fewer than five holes by a hole or boss on
-    its centre (d-lint-next); dims and demand call `bridge::holes::established`, which counts
-    holes only, so a boss-corroborated circle is a group in lint but loose holes in dims, and
-    the dims basis for a corroborated circle of fewer than five still says "five or more holes is
-    self-evident". Switch dims and demand to `established_with(.., &holes::bosses(analysis))`
-    and fix the basis text (ISSUE-1596-a stays pending).
   - Answered by haecceity (quiddity-rust d6a4703): HLR no longer emits cgb242's zero-span NURBS
     stretch (breakpoints within 1e-9 of the part's size are passed over), so cgb242 draws with
     no `edges_not_drawn`; the port's check stays as a guard, unit-tested in `output`.
@@ -174,9 +168,6 @@ improvement plan and questions are the current work. Still open from before it:
     - A hole with both recesses prints the counterbore first (draftwright's segment order),
       although quiddity's spotface is usually the outer, wider step nearer the opening. Keep
       the segment order, or state them from the opening inward? Tied to the ⌴/SF question.
-  - Unrelated finding: `bridge::kind` turns `sheet_metal_bodies` and `thin_wall_bodies` into
-    the kinds `sheet_metal_bodie` and `thin_wall_bodie` (it strips one `s`). dims matches those
-    records by fingerprint subtype, so it is unaffected.
 - From wave 3 (stream d-dims-slots): `dims::slots` (through slots: width, length, end radius,
   location along the length; equal widths counted) and `dims::bosses` (diameter, height,
   location; groove floors left to the groove). Left: round-bottom and rectangular blind slots
