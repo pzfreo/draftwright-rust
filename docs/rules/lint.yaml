@@ -866,7 +866,9 @@
     module: "linting/polygonal_stock_coverage.py"
     issues: [1082, 1371]
     tests: [tests/test_issue_1371_polygonal_stock_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: polygonal_stock_states_its_size_across_flats_and_length
+  rust_note: "src/lint/polygonal.rs: a polygonal_stock feature that keeps quiddity's PolygonalStock contract (draftwright's _validate_polygonal_stock_source, ported with its quantisation allowances) has polygon_across_flats.length and stock_length.length (top - base); a broken record, or more than one stock, has both unverifiable, as in Python. No captured sheet or corpus recognition has one; the evidence is the unit test."
   port_note: "Keep."
 
 - id: LINT-code-polygonal_stock_requirement_state
@@ -878,6 +880,8 @@
     issues: [1371]
     tests: [tests/test_issue_1082_polygonal_stock.py]
   status: pending
+  rust_test: polygonal_stock_states_its_size_across_flats_and_length
+  rust_note: "Codes polygonal_stock_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-section_recess_coverage-circular_seat
@@ -918,6 +922,8 @@
     issues: [1372, 676]
     tests: [tests/test_polygonal_boss_completeness_evidence.py]
   status: pending
+  rust_test: a_polygonal_boss_states_its_size_across_flats_and_height
+  rust_note: "Partial (src/lint/polygonal.rs): each polygonal_boss feature that keeps quiddity's PolygonalBoss contract (draftwright's _validate_polygonal_boss_source, ported) has polygon_across_flats.length and boss_height.length (top - base), judged by the claiming annotation's printed text; a record that breaks the contract has both unverifiable. On ctc01's captured sheet both are stated, as Python's lint finds, and taking the height away or misprinting the size is found (lint_finds_what_is_taken_off_a_captured_sheet). Not exactly ported: the pad exclusion. Python drops a square boss that duplicates a recognised pad when the boss's defining faces are a proper subset of the pad's; the bridge keeps constituent faces only, so the port asks that the boss's faces be among the pad's, with the same geometric test (1e-6). No corpus part has a raised pad, so the difference is untested."
   port_note: "Keep."
 
 - id: LINT-code-polygonal_boss_requirement_state
@@ -929,6 +935,8 @@
     issues: [1372]
     tests: [tests/test_polygonal_boss_completeness_evidence.py, tests/test_issue_676_polygonal_boss.py]
   status: pending
+  rust_test: a_polygonal_boss_states_its_size_across_flats_and_height
+  rust_note: "Codes polygonal_boss_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-pad_coverage-size_height_location

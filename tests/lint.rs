@@ -10,8 +10,9 @@
 //! Python names a measured feature by its geometry (`hole@(x,y,z)/axis[sizes]`, or
 //! `pattern@(centre)/axis`), so each is joined to the Analysis exactly, and only when exactly one
 //! hole (or one hole group) fits: the same axis, the opening on its axis line within 0.01 mm and
-//! within its length, the same diameter. The other families lint checks (bosses, chamfers,
-//! fillets, blends, through steps, slots: [`FAMILIES`]) are joined the same way, by kind, axis,
+//! within its length, the same diameter. The other families lint checks by their own sizes
+//! (bosses, polygonal bosses and stock, chamfers, fillets, blends, through steps, slots, …:
+//! [`FAMILIES`]) are joined the same way, by kind, axis,
 //! sizes and the record's point ([`join_feature`]). A claim that fits none or several is dropped
 //! and counted (LINT-_coverage_common-exact_correspondence: never guess).
 //!
@@ -195,8 +196,16 @@ fn sized(parameter: &str) -> bool {
 
 /// The feature families lint judges by a feature's own sizes, by Python's kind, with the
 /// parameters it checks.
-const FAMILIES: [(&str, &[&str]); 10] = [
+const FAMILIES: [(&str, &[&str]); 12] = [
     ("boss", &["boss_height.length"]),
+    (
+        "polygonal_boss",
+        &["polygon_across_flats.length", "boss_height.length"],
+    ),
+    (
+        "polygonal_stock",
+        &["polygon_across_flats.length", "stock_length.length"],
+    ),
     ("flat", &["flat.length"]),
     ("groove", &["groove.length", "groove.diameter"]),
     ("chamfer", &["chamfer.length"]),
@@ -242,7 +251,8 @@ fn checked(kind: &str, parameter: &str) -> bool {
 }
 
 /// A feature record's point in quiddity's frame that Python names it by: a fillet's, chamfer's,
-/// through step's, groove's or flat's `at`, a blend path's `at` or `center`, a boss's `location`, a slot's centre
+/// through step's, groove's or flat's `at`, a blend path's `at` or `center`, a boss's `location`,
+/// a polygonal boss's or stock's `center`, a slot's centre
 /// (quiddity's `Slot.location`: mid-span along its long axis, its centreline across, mid-depth).
 fn local_point(f: &draftwright::bridge::Feature) -> Option<[f64; 3]> {
     let p = &f.parameters;
@@ -264,6 +274,7 @@ fn local_point(f: &draftwright::bridge::Feature) -> Option<[f64; 3]> {
     [
         p.get("at"),
         p.get("location"),
+        p.get("center"),
         path.and_then(|v| v.get("at")),
         path.and_then(|v| v.get("center")),
     ]
@@ -722,9 +733,11 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
         {
             use draftwright::lint::{
                 blends, blind_slots, bosses, chamfers, circular_blind_steps, fillets, flats,
-                grooves, paired_ramp_steps, slots, steps,
+                grooves, paired_ramp_steps, polygonal, slots, steps,
             };
             judged += bosses::wanted(&analysis).len()
+                + polygonal::boss_wanted(&analysis).len()
+                + polygonal::stock_wanted(&analysis).len()
                 + flats::wanted(&analysis).len()
                 + grooves::wanted(&analysis).len()
                 + chamfers::wanted(&analysis).len()
@@ -1429,6 +1442,44 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     assert_eq!(
         codes(&misprinted),
         ["fillet_requirement_unverifiable fillet.radius"]
+    );
+
+    // ctc01's hex boss: `HEX 100 A/F` (m_polygonal_boss_z0) and its height `50`
+    // (m_bossheight_z0) state both; the height taken away, or the size misprinted, is found.
+    let f = facts::load("ctc01");
+    let ctc01 = self::analysis(&corpus, "ctc01", &f.binding.file).unwrap();
+    let (marks, unjoined) = self::marks(&ctc01, &self::groups(&ctc01), &f);
+    assert_eq!(unjoined, 0);
+    let polygonal = |marks: &[Mark]| {
+        lint::check(&ctc01, marks)
+            .into_iter()
+            .filter(|i| i.code.starts_with("polygonal_boss_"))
+            .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
+            .collect::<Vec<_>>()
+    };
+    assert!(polygonal(&marks).is_empty());
+    let without: Vec<Mark> = marks
+        .iter()
+        .filter(|m| m.name != "m_bossheight_z0")
+        .cloned()
+        .collect();
+    assert_eq!(
+        polygonal(&without),
+        ["polygonal_boss_requirement_missing boss_height.length"]
+    );
+    let misprinted: Vec<Mark> = marks
+        .iter()
+        .cloned()
+        .map(|mut m| {
+            if m.name == "m_polygonal_boss_z0" {
+                m.text = m.text.replace("100", "110");
+            }
+            m
+        })
+        .collect();
+    assert_eq!(
+        polygonal(&misprinted),
+        ["polygonal_boss_requirement_unverifiable polygon_across_flats.length"]
     );
 }
 
