@@ -27,6 +27,10 @@ each against what the Python implementation produces:
      and the same styles (`tests/output.rs`).
    - The PDFs render to the same ink within a pixel at 200 dpi, and their searchable text is
      identical (`tools/compare_pdf.py`).
+   - Each label is laid as invisible text over its ink, in the PDF and the SVG, and reads back
+     as the label, callout symbols included (`⌀6 ↧ 5`): each character has its own CID in the
+     PDF's ToUnicode map, also those the bundled font lacks (`tests/output.rs`). draftwright's
+     PDF text has `ø` and spaces there, and its SVG has no text.
    - Not yet done: PNG, font subsetting (the PDFs embed whole fonts) and DXF table head
      handles (ezdxf adds them on audit).
 

@@ -60,8 +60,6 @@ pub struct LabelInk {
     pub glyphs: Vec<Vec<Vec<Segment>>>,
     /// The drawn symbols' strokes.
     pub strokes: Vec<[P2; 2]>,
-    /// The text layer's runs: text and where it starts on the baseline.
-    pub runs: Vec<(String, f64)>,
     pub min: P2,
     pub max: P2,
 }
@@ -73,7 +71,6 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
     let mut ink = LabelInk {
         glyphs: Vec::new(),
         strokes: Vec::new(),
-        runs: Vec::new(),
         min: [f64::INFINITY; 2],
         max: [f64::NEG_INFINITY; 2],
     };
@@ -118,7 +115,6 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
                     .map(|c| c.into_iter().map(|s| moved(&s, &shift)).collect())
                     .collect(),
             );
-            ink.runs.push((s.to_string(), at));
         };
         match symbol {
             Some('⌀') => {

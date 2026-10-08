@@ -175,7 +175,8 @@ and all ink against the drawing area. **Not checked yet:** extension, dimension 
 crossing another view's outline or other dimensions' lines (on dense sheets such as ftc06 the
 front view's right-hand lanes run into the side view and callout leaders cross dimension lines,
 unreported). Labels are measured and drawn with one bundled font (`dims::FONT`), so the boxes
-are the ink.
+are the ink. Each label's text run is the plan's string, symbols included, laid invisibly over
+the ink in the PDF and the SVG so it can be searched and copied, and read by lint.
 
 **IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
 view moves the dimension to its next view and renames it (the basis says so); a spec still keyed

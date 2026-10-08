@@ -1,6 +1,8 @@
 //! A drawing written out as draftwright writes it — SVG (build123d's `ExportSVG`), DXF (its
 //! `ExportDXF`, through ezdxf) and PDF (the SVG through svglib and reportlab, with the labels'
-//! text laid invisibly over their glyphs so the PDF can be searched).
+//! text laid invisibly over their glyphs so the PDF can be searched). The port lays the same
+//! invisible text over the SVG's glyphs too, and keeps the callout symbols (`⌀ ↧ ⌴ ⌵`) in both,
+//! where draftwright's PDF text has `ø` and spaces.
 //!
 //! The drawing is layers of curves on a page, in millimetres with y up: each layer's lines are
 //! drawn in its style, and its faces (glyphs, arrowheads) filled where the layer fills.
@@ -116,7 +118,7 @@ pub enum VAlign {
     Middle,
 }
 
-/// A label's text, laid invisibly over its drawn glyphs in the PDF.
+/// A label's text, laid invisibly over its drawn glyphs in the PDF and the SVG.
 #[derive(Clone, Debug)]
 pub struct TextRun {
     pub text: String,
@@ -248,7 +250,8 @@ fn num(x: f64) -> String {
 }
 
 impl Drawing {
-    /// The SVG: a page in millimetres, y up inside a flipping group, one group per layer.
+    /// The SVG: a page in millimetres, y up inside a flipping group, one group per layer, then
+    /// the labels' text, invisible.
     pub fn svg(&self) -> String {
         let [w, h] = self.page;
         let mut s = String::new();
@@ -279,6 +282,44 @@ impl Drawing {
             s += "    </g>\n";
         }
         s += "  </g>\n";
+        // The labels' text, invisible over their drawn glyphs (which are outlines) so the SVG can
+        // be searched, copied and read aloud: in a group with no ID, which is no layer.
+        if !self.text.is_empty() {
+            s += "  <g fill=\"rgb(0,0,0)\" fill-opacity=\"0\" stroke=\"none\" xml:space=\"preserve\">\n";
+            for run in &self.text {
+                let (x, y) = (num(run.at[0]), num(-run.at[1]));
+                let family = if run.font.contains("Mono") {
+                    "monospace"
+                } else {
+                    "sans-serif"
+                };
+                let anchor = match run.h_align {
+                    HAlign::Left => "",
+                    HAlign::Center => " text-anchor=\"middle\"",
+                    HAlign::Right => " text-anchor=\"end\"",
+                };
+                let baseline = match run.v_align {
+                    VAlign::Baseline => "",
+                    VAlign::Middle => " dominant-baseline=\"central\"",
+                };
+                let rotate = if run.rotation == 0.0 {
+                    String::new()
+                } else {
+                    format!(" transform=\"rotate({} {x} {y})\"", num(-run.rotation))
+                };
+                let text = run
+                    .text
+                    .replace('&', "&amp;")
+                    .replace('<', "&lt;")
+                    .replace('>', "&gt;");
+                let _ = writeln!(
+                    s,
+                    "    <text x=\"{x}\" y=\"{y}\" font-family=\"{family}\" font-size=\"{}\"{anchor}{baseline}{rotate}>{text}</text>",
+                    num(run.size)
+                );
+            }
+            s += "  </g>\n";
+        }
         if let Some([x0, y0, x1, y1]) = self.link {
             let _ = write!(
                 s,
@@ -510,8 +551,12 @@ impl Drawing {
         }
         c.restore_state();
 
-        // The labels' text, invisible: each font embedded whole, addressed by glyph id.
-        let mut used: BTreeMap<&str, BTreeMap<u16, char>> = BTreeMap::new();
+        // The labels' text, invisible: each font embedded whole. Each character is shown by its
+        // own CID, which the ToUnicode CMap maps back to it alone so the text extracted is the
+        // text written: its glyph's ID where the font has the glyph and no other character took
+        // it, else a CID after the font's glyphs drawn (invisibly) as that glyph or `.notdef`.
+        // The bundled fonts lack the callout symbols `⌀ ↧ ⌴ ⌵`, which the drawing's ink draws
+        // as the font's `ø` and as strokes; this way they are still searched and copied as such.
         let faces: BTreeMap<&str, Vec<u8>> = self
             .text
             .iter()
@@ -525,6 +570,42 @@ impl Drawing {
             .enumerate()
             .map(|(i, f)| (*f, format!("F{i}")))
             .collect();
+        let mut chars: BTreeMap<&str, BTreeSet<char>> = BTreeMap::new();
+        for run in &self.text {
+            if faces.contains_key(run.font.as_str()) {
+                chars
+                    .entry(run.font.as_str())
+                    .or_default()
+                    .extend(run.text.chars());
+            }
+        }
+        // Per font: each character's CID, and the glyphs of the CIDs after the font's own.
+        let mut cids: BTreeMap<&str, (BTreeMap<char, u16>, Vec<u16>)> = BTreeMap::new();
+        for (file, set) in &chars {
+            let Ok(face) = ttf_parser::Face::parse(&faces[file], 0) else {
+                continue;
+            };
+            let n = face.number_of_glyphs();
+            let (mut of, mut extra, mut taken) = (BTreeMap::new(), Vec::new(), BTreeSet::new());
+            for &ch in set {
+                let g = face.glyph_index(ch).map_or(0, |g| g.0);
+                let cid = if g != 0 && taken.insert(g) {
+                    g
+                } else {
+                    extra.push(g);
+                    n + (extra.len() - 1) as u16
+                };
+                of.insert(ch, cid);
+            }
+            cids.insert(file, (of, extra));
+        }
+        let glyph = |file: &str, cid: u16, n: u16| -> u16 {
+            if cid < n {
+                cid
+            } else {
+                cids[file].1[(cid - n) as usize]
+            }
+        };
         for run in &self.text {
             let Some(data) = faces.get(run.font.as_str()) else {
                 continue;
@@ -532,16 +613,16 @@ impl Drawing {
             let Ok(face) = ttf_parser::Face::parse(data, 0) else {
                 continue;
             };
+            let (of, n) = (&cids[run.font.as_str()].0, face.number_of_glyphs());
             let em = face.units_per_em() as f64;
             let size = run.size * K;
-            let glyphs: Vec<(u16, char)> = run
-                .text
-                .chars()
-                .map(|ch| (face.glyph_index(ch).map_or(0, |g| g.0), ch))
-                .collect();
-            let width: f64 = glyphs
+            let shown: Vec<u16> = run.text.chars().map(|ch| of[&ch]).collect();
+            let width: f64 = shown
                 .iter()
-                .map(|(g, _)| face.glyph_hor_advance(ttf_parser::GlyphId(*g)).unwrap_or(0) as f64)
+                .map(|&cid| {
+                    let g = glyph(run.font.as_str(), cid, n);
+                    face.glyph_hor_advance(ttf_parser::GlyphId(g)).unwrap_or(0) as f64
+                })
                 .sum::<f64>()
                 / em
                 * size;
@@ -564,10 +645,7 @@ impl Drawing {
                 run.at[0] * K + cos * dx - sin * dy,
                 run.at[1] * K + sin * dx + cos * dy,
             ];
-            let bytes: Vec<u8> = glyphs.iter().flat_map(|(g, _)| g.to_be_bytes()).collect();
-            used.entry(run.font.as_str())
-                .or_default()
-                .extend(glyphs.iter().copied());
+            let bytes: Vec<u8> = shown.iter().flat_map(|cid| cid.to_be_bytes()).collect();
             c.begin_text();
             c.set_text_rendering_mode(TextRenderingMode::Invisible);
             c.set_font(Name(names[run.font.as_str()].as_bytes()), size as f32);
@@ -592,9 +670,11 @@ impl Drawing {
         pdf.stream(content_id, &content).filter(Filter::FlateDecode);
 
         let mut font_refs = Vec::new();
-        for (file, glyphs) in &used {
+        for (file, (of, extra)) in &cids {
             let data = &faces[file];
             let face = ttf_parser::Face::parse(data, 0).expect("parsed above");
+            let n = face.number_of_glyphs();
+            let by_cid: BTreeMap<u16, char> = of.iter().map(|(ch, cid)| (*cid, *ch)).collect();
             let em = face.units_per_em() as f64;
             let scale = |v: f64| (v * 1000.0 / em) as f32;
             let base = file.trim_end_matches(".ttf").to_string();
@@ -614,14 +694,20 @@ impl Drawing {
                     ordering: Str(b"Identity"),
                     supplement: 0,
                 })
-                .font_descriptor(descriptor)
-                .cid_to_gid_map_predefined(Name(b"Identity"));
+                .font_descriptor(descriptor);
+            // The CIDs after the font's own need a map; without them, CID and glyph ID agree.
+            let gid_map = (!extra.is_empty()).then(&mut alloc);
+            match gid_map {
+                Some(r) => cid_font.cid_to_gid_map_stream(r),
+                None => cid_font.cid_to_gid_map_predefined(Name(b"Identity")),
+            };
             let mut widths = cid_font.widths();
-            for g in glyphs.keys() {
+            for &cid in by_cid.keys() {
+                let g = glyph(file, cid, n);
                 widths.consecutive(
-                    *g,
+                    cid,
                     [scale(
-                        face.glyph_hor_advance(ttf_parser::GlyphId(*g)).unwrap_or(0) as f64,
+                        face.glyph_hor_advance(ttf_parser::GlyphId(g)).unwrap_or(0) as f64,
                     )],
                 );
             }
@@ -656,12 +742,19 @@ impl Drawing {
                     supplement: 0,
                 },
             );
-            for (g, ch) in glyphs {
-                cmap.pair(*g, *ch);
+            for (cid, ch) in &by_cid {
+                cmap.pair(*cid, *ch);
             }
             let cmap = cmap.finish();
             pdf.cmap(cmap_ref, &deflate(&cmap))
                 .filter(Filter::FlateDecode);
+            if let Some(r) = gid_map {
+                let map: Vec<u8> = (0..n)
+                    .chain(extra.iter().copied())
+                    .flat_map(u16::to_be_bytes)
+                    .collect();
+                pdf.stream(r, &deflate(&map)).filter(Filter::FlateDecode);
+            }
             font_refs.push((names[file].clone(), type0));
         }
 

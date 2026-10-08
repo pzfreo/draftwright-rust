@@ -227,7 +227,8 @@ model, layout, sections, first dimensions, lint for holes).
 4. **Drafting work here,** each step with its rules from `docs/rules/` set to their true status
    and compared with the captured sheet facts: dimensions for the next families (fillets,
    chamfers, slots, bosses, steps), placement and collision rules, notes and tables, shrinking
-   `known_views.json` and `known_dimensions.json` with evidence, searchable ⌀/↧/⌴ text, PNG
+   `known_views.json` and `known_dimensions.json` with evidence, searchable ⌀/↧/⌴ text (done:
+   PDF and SVG, ISSUE-1352-a), PNG
    output, PDF font subsetting.
 5. **Recognition from quiddity-rust directly.** quiddity-rust publishes a versioned recognition
    document (schema version, family, record type, defining faces, parameters); draftwright then
