@@ -528,7 +528,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             ));
         }
     }
-    let demand = crate::demand::read(analysis);
+    let mut demand = crate::demand::read(analysis);
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
     // omits the profile view it keeps (front): the dropped view is then the only profile left.
     let omitted = |name: &str| spec.views.get(name).is_some_and(|v| v.omit);
@@ -543,6 +543,13 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         plan: shown("plan"),
         side: shown("side"),
     };
+    // The bands hold the lanes the dimensions will take in the views shown (review M3).
+    let shown_views: Vec<(&str, [f64; 3], [f64; 3])> = VIEWS
+        .iter()
+        .filter(|(name, ..)| shown(name))
+        .copied()
+        .collect();
+    demand.lanes = crate::dims::lanes(analysis, &shown_views);
     if !(principals.front || principals.plan || principals.side) {
         return Err(invalid(
             "Every principal view is omitted; a sheet needs front, plan or side.",

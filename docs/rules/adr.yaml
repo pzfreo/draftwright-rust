@@ -1184,9 +1184,11 @@
     adr: "archive 0003 'Edit locality'"
     issues: []
     tests: []
-  status: pending
+  status: translated
+  rust_rule: "R4 (accepted 2026-10-07): a small spec edit changes only the affected plan items. Every item the part would have is placed (its lane, and where its label settles) before the spec chooses what is drawn, so omitting a dimension, restoring it, or adding or removing one in an authored set moves no other item, view or the sheet."
+  rust_test: omitting_one_dimension_moves_no_other
   port_note: "Translate: re-planning after a small Spec edit should change only affected Plan entries; add a stability test (Plan diff size) since Python never guarded it."
-  rust_note: "R4 translates it: a small spec edit changes only the affected plan items. Not upheld: lanes are packed in order, so omitting one item moves others. On plate.step with its recognition, omitting d:f:hole_pattern:1/grid_pitch.length.col@plan moves location.length.x and the bore callout; omitting location.length.x moves the callout. Owed in placement (src/dims/placement.rs, another stream's), with a stability test."
+  rust_note: "Checked on the fixture parts and on m10127, hanger and ftc06 (tests/placement.rs): omitting any one default dimension in auto, or leaving it out of an authored set, leaves every other item's ink, the views and the sheet unchanged; only the collision problems naming that item change. The cost: a label may keep clear of a line the spec omits. Not covered, as the spec cannot express them yet: nudges (placement offsets). Edits to the sheet (size, scale) or the view set (omitting a view re-routes its items and re-packs the layout) move other items by design."
 
 - id: ARCH0004-1
   statement: "Page packing follows projection alignment: plan above front sharing X, side beside front sharing Y; isometric and tables go in free rectangles."
