@@ -7,6 +7,13 @@
   "reason": "Ten plan dimensions run past the left border (by 5.6 to 75.6 mm): the row pitch, the y locations of holes 1, 3, 4, 6, 7, 8 and the pattern, slot 3's width and its location across its width. They are the ten items of known_placement.json's cgb245 annotation_off_sheet (rust-wrong): the front's and the plan's bands are draftwright's estimates and the port's fixed lanes stack past them. draftwright's captured sheet reports no annotation_out_of_bounds."
  },
  {
+  "part": "connector109",
+  "code": "annotation_out_of_bounds",
+  "count": 6,
+  "verdict": "rust-wrong",
+  "reason": "Drawn only with LINT_OWN_ALL=1 (checked 2026-10-08). Four front dimensions run off the drawable area, the two groove callouts (d:f:groove:2 and d:f:groove:3, 6 WIDE × ø122) past two sides each, so six findings: the chamfer (4.5 × 42.1°) and fillet (R1) callouts below the bottom border, the groove callouts past the left and bottom. They are the four items of known_placement.json's connector109 annotation_off_sheet (rust-wrong: the front's lower band is draftwright's 20 mm estimate and the port's callout lanes stack past it). draftwright's captured sheet reports no annotation_out_of_bounds and has every one of these labels inside the A2 drawing area."
+ },
+ {
   "part": "ctc01",
   "code": "annotation_out_of_bounds",
   "count": 10,
