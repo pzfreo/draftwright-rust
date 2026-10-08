@@ -164,6 +164,15 @@ quiddity commit that has it.
   5. **The bridge refuses on tiny area differences.** `render` refuses nist_ctc_04 entirely
      ("face 367 has area 13.080630 here and 13.100238 in the recognition JSON", 0.15%). Decide a
      principled tolerance (with evidence that the faces are the same) instead of exact agreement.
+- **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`
+  branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and
+  writer, removal plan, `quiddity parts` / `quiddity pmi read|write`; four stages each integrated
+  green on the branch) is to join `prototype/rust-port`. A new repo, specify-core-rust, depends on
+  it. Dispatch at once a quiddity-rust stream `q-merge-ap242`: from origin/prototype/rust-port,
+  merge `ap242` (resolve conflicts keeping both sides' intent: the branch forked at 7f4b1a9, and
+  both sides changed crates/haecceity/src/lib.rs, step.rs, src/bin/quiddity.rs, README.md and
+  fixtures), run the full checks including the AP242 suites, update README's status for the
+  merged capabilities; then the integrator merges it like any other stream.
 - **Top priority from the maintainer (2026-10-08 evening): callout leaders.** "Something is
   wrong with the leaders, especially diagonals." Callouts are stacked in lanes beyond every linear
   dimension with a fixed 45° leader (`src/dims/placement.rs` `place_callout`, `turned`), so on a
