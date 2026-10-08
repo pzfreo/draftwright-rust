@@ -103,6 +103,12 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
     ("polygonal_bosses", &["PolygonalBoss"]),
     ("polygonal_stock", &["PolygonalStock"]),
     ("section_passages", &["SectionPassage"]),
+    ("prismatic_pockets", &["PrismaticPocket"]),
+    ("oriented_slots", &["OrientedSlot"]),
+    (
+        "oriented_slot_patterns",
+        &["OrientedSlotGrid", "OrientedSlotArray"],
+    ),
 ];
 
 /// The families read here.
