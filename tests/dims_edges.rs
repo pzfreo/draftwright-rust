@@ -1,0 +1,334 @@
+//! Fillet and chamfer callouts (`dims::edges`), as scenarios: a part and its recognition in, a
+//! property of the plan, its problems or the drawing's lint out. Each test names the catalogue
+//! rules it checks (`docs/rules/`).
+
+#[path = "common/corpus.rs"]
+mod corpus;
+#[path = "common/facts.rs"]
+mod facts;
+
+use std::path::{Path, PathBuf};
+
+use draftwright::dims::PlannedDimension;
+use draftwright::lint;
+use draftwright::model::{self, DimensionSpec, Plan, Problem, Spec};
+use serde_json::{Value, json};
+
+fn fixture(path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(path)
+}
+
+fn recognition(name: &str) -> Value {
+    serde_json::from_str(
+        &std::fs::read_to_string(fixture(&format!("recognition/{name}.json"))).unwrap(),
+    )
+    .unwrap()
+}
+
+/// The prismatic block's recognition (four R2 fillets along quiddity's x, the part's z), with each
+/// record (by its index) rewritten by *edit*.
+fn prismatic_with(edit: impl Fn(usize, &mut Value)) -> Value {
+    let mut json = recognition("prismatic");
+    for (i, f) in json["quiddity"]["features"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .enumerate()
+    {
+        edit(i, f);
+    }
+    json
+}
+
+/// The record of a chamfer along quiddity's x at the fillet's point *f*.
+fn chamfer(f: &mut Value, leg1: f64, leg2: f64, angle: f64) {
+    let at = f["record"]["at"].clone();
+    f["family"] = "chamfers".into();
+    f["record_type"] = "Chamfer".into();
+    f["record"] = json!({
+        "angle": angle, "at": at, "axis": "x", "corner": null, "dependents": [],
+        "leg1": leg1, "leg2": leg2, "named_dimensions": {}, "turned": false
+    });
+}
+
+fn planned(name: &str, json: &Value, spec: &Spec) -> Plan {
+    let (part, mut a) = model::analyse(&fixture(&format!("parts/{name}.step"))).unwrap();
+    model::recognise(&part, &mut a, &json.to_string()).unwrap();
+    model::plan(&a, spec).unwrap()
+}
+
+fn callouts(plan: &Plan) -> Vec<&PlannedDimension> {
+    plan.dimensions
+        .iter()
+        .filter(|d| d.measurements.iter().any(|m| m.parameter.contains('.')))
+        .filter(|d| {
+            d.measurements
+                .iter()
+                .all(|m| m.parameter.starts_with("fillet.") || m.parameter.starts_with("chamfer."))
+        })
+        .collect()
+}
+
+fn labels(plan: &Plan) -> Vec<(String, String)> {
+    let mut l: Vec<(String, String)> = callouts(plan)
+        .iter()
+        .map(|d| (d.label.clone(), d.view.clone()))
+        .collect();
+    l.sort();
+    l
+}
+
+fn problems<'a>(plan: &'a Plan, code: &str) -> Vec<&'a Problem> {
+    plan.problems.iter().filter(|p| p.code == code).collect()
+}
+
+/// ISSUE-1374-b and ARCH0015-1 (the fillet's `n× R` grammar): equal fillets share one callout,
+/// in the view that sees their rounded edges as arcs, which keeps every fillet's measurement; it
+/// is a default, drawn, and no fillet is reported unplanned.
+#[test]
+fn equal_fillets_share_one_counted_callout() {
+    let plan = planned("prismatic", &recognition("prismatic"), &Spec::default());
+    let c = callouts(&plan);
+    assert_eq!(c.len(), 1, "{:?}", labels(&plan));
+    let c = c[0];
+    assert_eq!(c.id, "d:f:fillet:1/fillet.radius@plan");
+    assert_eq!((c.kind.as_str(), c.label.as_str()), ("callout", "4× R2"));
+    assert_eq!(c.terms, ["4×", "R2"]);
+    assert_eq!(c.view, "v:plan", "the fillets run along the part's z");
+    assert!(c.default && c.placed.is_some());
+    let mut features: Vec<&str> = c.measurements.iter().map(|m| m.feature.as_str()).collect();
+    features.sort();
+    assert_eq!(
+        features,
+        ["f:fillet:1", "f:fillet:2", "f:fillet:3", "f:fillet:4"]
+    );
+    assert!(
+        c.measurements
+            .iter()
+            .all(|m| m.parameter == "fillet.radius" && m.value == 2.0)
+    );
+    assert!(c.basis.contains("seen as an arc"), "{}", c.basis);
+    assert!(problems(&plan, "dimensions_not_ported").is_empty());
+    assert!(problems(&plan, "feature_not_dimensioned").is_empty());
+}
+
+/// ISSUE-1281-a: turned (toroidal) fillets read in the shaft's profile, one callout with every
+/// measurement; the same records not marked turned are not guessed to be turned, and read
+/// end-on.
+#[test]
+fn a_turned_fillet_reads_in_the_profile_and_is_never_guessed_turned() {
+    let json = recognition("turned");
+    let plan = planned("turned", &json, &Spec::default());
+    let c = callouts(&plan);
+    assert_eq!(c.len(), 1, "{:?}", labels(&plan));
+    assert_eq!(c[0].id, "d:f:fillet:1/fillet.radius@front");
+    assert_eq!(c[0].label, "4× R0.8");
+    assert_eq!(c[0].measurements.len(), 4);
+    assert!(c[0].basis.contains("profile"), "{}", c[0].basis);
+    assert!(c[0].placed.is_some());
+
+    let mut parallel = json.clone();
+    for f in parallel["quiddity"]["features"].as_array_mut().unwrap() {
+        if f["family"] == "fillets" {
+            f["record"]["turned"] = false.into();
+        }
+    }
+    let plan = planned("turned", &parallel, &Spec::default());
+    assert_eq!(
+        labels(&plan),
+        [("4× R0.8".to_string(), "v:plan".to_string())],
+        "the turning axis is the part's z, which the plan looks along"
+    );
+}
+
+/// ARCH0015-1 (the chamfer's grammar) and ISSUE-1254-a: `C<leg>` for equal legs at 45°, otherwise
+/// the first leg and the angle; equal chamfers share one counted callout, but chamfers that only
+/// share their first leg do not.
+#[test]
+fn chamfers_are_called_out_c_or_leg_and_angle() {
+    let json = prismatic_with(|i, f| match i {
+        0 | 1 => chamfer(f, 1.0, 1.0, 45.0),
+        2 => chamfer(f, 1.0, 2.0, 26.57),
+        _ => chamfer(f, 4.47, 4.0, 42.1),
+    });
+    let plan = planned("prismatic", &json, &Spec::default());
+    assert_eq!(
+        labels(&plan),
+        [
+            ("1 × 26.6°".to_string(), "v:plan".to_string()),
+            ("2× C1".into(), "v:plan".into()),
+            ("4.5 × 42.1°".into(), "v:plan".into()),
+        ]
+    );
+    for c in callouts(&plan) {
+        let lengths = c
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "chamfer.length")
+            .count();
+        let angles = c
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "chamfer.angle")
+            .count();
+        assert_eq!(lengths, c.label.strip_prefix("2× ").map_or(1, |_| 2));
+        // The angle is a measurement only when the label prints it.
+        assert_eq!(angles, usize::from(c.label.contains('°')), "{}", c.label);
+        assert!(c.id.ends_with("/chamfer.length@plan"), "{}", c.id);
+        assert!(c.placed.is_some());
+    }
+    assert!(problems(&plan, "dimensions_not_ported").is_empty());
+}
+
+/// An oriented chamfer along a principal edge is called out as a chamfer; one along an oblique
+/// edge has no view that sees it edge-on and no reviewed grammar, so it is reported, never
+/// dropped or guessed. (IDs rank by faces: record 1, on face 2, is `f:oriented_chamfer:1`.)
+#[test]
+fn an_oblique_oriented_chamfer_is_reported_not_drawn() {
+    let json = prismatic_with(|i, f| {
+        chamfer(f, 1.0, 1.0, 45.0);
+        if i < 2 {
+            let at = f["record"]["at"].clone();
+            let run = if i == 0 {
+                json!([1.0, 0.0, 0.0])
+            } else {
+                json!([0.0, 0.5, 0.866025])
+            };
+            f["family"] = "oriented_chamfers".into();
+            f["record_type"] = "OrientedChamfer".into();
+            f["record"] = json!({
+                "angle": 45.0, "at": at, "corner": at, "dependents": [], "leg1": 1.0,
+                "leg2": 1.0, "leg1_direction": [0.0, 1.0, 0.0],
+                "leg2_direction": [0.0, 0.0, 1.0], "length": 10.0, "named_dimensions": {},
+                "run": run
+            });
+        }
+    });
+    let plan = planned("prismatic", &json, &Spec::default());
+    let c = callouts(&plan);
+    assert_eq!(c.len(), 1, "{:?}", labels(&plan));
+    assert_eq!(c[0].label, "3× C1");
+    assert!(
+        c[0].measurements
+            .iter()
+            .any(|m| m.feature == "f:oriented_chamfer:2")
+    );
+    let reported = problems(&plan, "feature_not_dimensioned");
+    assert_eq!(reported.len(), 1, "{reported:?}");
+    let p = reported[0];
+    assert_eq!(p.severity, "warning");
+    assert_eq!(p.subjects, ["f:oriented_chamfer:1"]);
+    assert!(p.message.contains("obliquely"), "{}", p.message);
+    assert!(problems(&plan, "dimensions_not_ported").is_empty());
+}
+
+/// draftwright's grouping: a callout counts every equal member, and its leader points at those of
+/// its most populous axis and view; the basis says how many are counted from elsewhere.
+#[test]
+fn a_callout_counts_members_along_other_axes() {
+    let json = prismatic_with(|i, f| {
+        if i == 3 {
+            f["record"]["axis"] = "y".into();
+        }
+    });
+    let plan = planned("prismatic", &json, &Spec::default());
+    let c = callouts(&plan);
+    assert_eq!(c.len(), 1, "{:?}", labels(&plan));
+    assert_eq!(
+        (c[0].label.as_str(), c[0].view.as_str()),
+        ("4× R2", "v:plan")
+    );
+    assert_eq!(c[0].measurements.len(), 4);
+    assert!(c[0].basis.contains("1 of them"), "{}", c[0].basis);
+}
+
+/// Honest failure: a fillet whose record gives no radius is reported, and the others are still
+/// called out.
+#[test]
+fn an_unreadable_fillet_is_reported() {
+    let json = prismatic_with(|i, f| {
+        if i == 0 {
+            f["record"].as_object_mut().unwrap().remove("radius");
+        }
+    });
+    let plan = planned("prismatic", &json, &Spec::default());
+    assert_eq!(labels(&plan), [("3× R2".to_string(), "v:plan".to_string())]);
+    let reported = problems(&plan, "feature_not_dimensioned");
+    assert_eq!(reported.len(), 1);
+    assert!(
+        reported[0].message.ends_with("its record gives no radius."),
+        "{}",
+        reported[0].message
+    );
+}
+
+/// R1 invariant 3: omitting the only view that sees the fillets as arcs keeps their callout in
+/// the plan, undrawn, and says so.
+#[test]
+fn a_callout_whose_view_is_omitted_is_kept_and_reported() {
+    let mut spec = Spec::default();
+    spec.views.insert("plan".into(), Default::default());
+    spec.views.get_mut("plan").unwrap().omit = true;
+    let plan = planned("prismatic", &recognition("prismatic"), &spec);
+    let c = callouts(&plan);
+    assert_eq!(c.len(), 1);
+    assert!(c[0].placed.is_none());
+    assert!(
+        problems(&plan, "view_plan_incomplete")
+            .iter()
+            .any(|p| p.subjects.contains(&c[0].id))
+    );
+}
+
+/// LINT-fillet_coverage-radius on the port's own drawing: the drawn callout states every fillet's
+/// radius, so lint finds none missing; omitting it in the spec leaves all four missing.
+#[test]
+fn lint_finds_the_fillets_stated() {
+    let json = recognition("prismatic");
+    let (part, mut a) = model::analyse(&fixture("parts/prismatic.step")).unwrap();
+    model::recognise(&part, &mut a, &json.to_string()).unwrap();
+    let font = draftwright::text::Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    let missing = |spec: &Spec| -> usize {
+        let plan = model::plan(&a, spec).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        lint::lint(&a, &drawing)
+            .iter()
+            .filter(|i| i.code.starts_with("fillet_requirement_"))
+            .count()
+    };
+    assert_eq!(missing(&Spec::default()), 0);
+    let mut spec = Spec::default();
+    spec.dimensions.insert(
+        "d:f:fillet:1/fillet.radius@plan".into(),
+        DimensionSpec { omit: true },
+    );
+    assert_eq!(missing(&spec), 4);
+}
+
+/// ISSUE-1254-a's scenario: GRM-03's three turned chamfers are two callouts in the profile view
+/// (`2× C0.3` and `C0.5`) covering all three measurements, as draftwright draws them.
+#[test]
+fn grm03_states_three_chamfers_in_two_callouts() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let f = facts::load("grm03");
+    let (_, a) = corpus::analyse(&dir, &f.binding.file, "grm03");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        labels(&plan),
+        [
+            ("2× C0.3".to_string(), "v:front".to_string()),
+            ("C0.5".into(), "v:front".into()),
+        ]
+    );
+    let n: usize = callouts(&plan).iter().map(|c| c.measurements.len()).sum();
+    assert_eq!(n, 3);
+}

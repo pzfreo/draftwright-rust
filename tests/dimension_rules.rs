@@ -398,7 +398,7 @@ fn a_turned_parts_diameter_follows_its_view() {
 /// Review M8, and ARCH0017-1 in part: a recognised feature of a kind no planner dimensions yet is
 /// reported once, as info, in the Analysis's feature order; a record type draftwright itself
 /// leaves undimensioned (here a freeform surface) is no gap in the port and is not reported, and
-/// the holes the port plans are not reported either.
+/// the holes and fillets the port plans are not reported either.
 #[test]
 fn features_with_no_ported_dimensions_are_reported() {
     let not_ported = |plan: &Plan| -> Vec<String> {
@@ -417,7 +417,14 @@ fn features_with_no_ported_dimensions_are_reported() {
     assert!(kinds.contains(&"fillet") && kinds.contains(&"turned_step"));
     assert!(!kinds.contains(&"hole"));
     let plan = model::plan(&a, &Spec::default()).unwrap();
-    let ids: Vec<String> = a.features.iter().map(|f| f.id.clone()).collect();
+    // The fillets are planned (`dims::edges`); the turned steps are not yet.
+    let ids: Vec<String> = a
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .map(|f| f.id.clone())
+        .collect();
+    assert_eq!(ids.len(), 2);
     assert_eq!(not_ported(&plan), ids);
     let step = plan
         .problems
@@ -431,7 +438,8 @@ fn features_with_no_ported_dimensions_are_reported() {
         step.message
     );
 
-    a.features[0].fingerprint.subtype = "FreeformSurface".into();
+    let first = a.features.iter().position(|f| f.id == ids[0]).unwrap();
+    a.features[first].fingerprint.subtype = "FreeformSurface".into();
     let plan = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(not_ported(&plan), ids[1..]);
 

@@ -7,7 +7,9 @@
 //! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
-//!   pitches that locate a pattern's members.
+//!   pitches that locate a pattern's members;
+//! - **fillet and chamfer callouts** (`4× R3`, `C1`, `4.5 × 42.1°`) where the edge is seen end-on,
+//!   or in the profile of a turned part.
 //!
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>@<view>`, its value,
 //! its printed terms and label, the measurements it states, a default flag and a basis.
@@ -20,10 +22,12 @@
 //! Lines crossing other views' outlines or other dimensions' lines are not checked yet. An item
 //! no shown view can carry is kept in the plan, unplaced, and reported (R1 invariant 3).
 //!
-//! The module is a driver over one planner per family ([`PLANNERS`]): [`envelope`], [`turned`]
-//! and [`holes`] each say what their family wants dimensioned, and [`placement`] places it. A new
-//! family is a new planner module and an entry in the list.
+//! The module is a driver over one planner per family ([`PLANNERS`]): [`envelope`], [`turned`],
+//! [`holes`] and [`edges`] (fillet and chamfer callouts) each say what their family wants
+//! dimensioned, and [`placement`] places it. A new family is a new planner module and an entry in
+//! the list.
 
+mod edges;
 mod envelope;
 mod holes;
 mod placement;
@@ -252,7 +256,12 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 3] = [turned::PLANNER, envelope::PLANNER, holes::PLANNER];
+const PLANNERS: [Planner; 4] = [
+    turned::PLANNER,
+    envelope::PLANNER,
+    holes::PLANNER,
+    edges::PLANNER,
+];
 
 /// Everything the defaults would dimension, with the problems met on the way.
 fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
@@ -280,15 +289,15 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
 /// (`model/detect.py`'s `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`): a countersink rides on
 /// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
 /// #1557, #1247). Leaving them undimensioned is no gap in the port, so they are not reported as
-/// one.
-const UNDRAFTED: [&str; 11] = [
+/// one. (`OrientedChamfer` is one too, but [`edges`] claims it: it calls out one along a principal
+/// edge and reports an oblique one.)
+const UNDRAFTED: [&str; 10] = [
     "AngledStep",
     "CircularFacePattern",
     "CounterSink",
     "FreeformSurface",
     "InteriorVoid",
     "ObliqueThroughStep",
-    "OrientedChamfer",
     "OrientedSlotArray",
     "OrientedSlotGrid",
     "SheetMetalBody",
@@ -632,12 +641,14 @@ pub fn render(
     annotations
 }
 
-/// Where a feature or pattern sits in the part's frame: a hole's point on its axis, a pattern's
-/// centre (its members' mean), for comparing with draftwright's feature keys.
+/// Where a feature or pattern sits in the part's frame: a hole's point on its axis, a fillet's or
+/// chamfer's `at`, a pattern's centre (its members' mean), for comparing with draftwright's
+/// feature keys.
 pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
     let frame = QFrame(analysis.recognition.as_ref()?.frame);
     if let Some(f) = analysis.features.iter().find(|f| f.id == id) {
-        return point(f.parameters.get("location")).map(|l| frame.point(l));
+        let at = f.parameters.get("location").or(f.parameters.get("at"));
+        return point(at).map(|l| frame.point(l));
     }
     let p = analysis
         .recognition
