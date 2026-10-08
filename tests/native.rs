@@ -1,17 +1,20 @@
 //! Features from Rust quiddity (`bridge::native`: holes and hole patterns, fillets, chamfers,
-//! countersinks, bosses and turned steps) against the same parts' Python quiddity recognition
-//! through the bridge, record by record.
+//! countersinks, bosses, turned steps, grooves, flats, the steps and blends) against the same
+//! parts' Python quiddity recognition through the bridge, record by record.
 //!
 //! Every part with bridged Python recognition is compared: the fixtures in `tests/fixtures/parts/`
-//! (set `parts`), and the sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
+//! (set `parts`), the sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
 //! (`recognition/corpus/`, set `corpus`) and 0.3.9's, the recogniser draftwright drew their sheets
-//! with (`recognition/sheets/`, set `sheets`). sheets' ctc04 is not compared: the bridge refuses
-//! its recognition (one face's area differs from OpenCascade's).
+//! with (`recognition/sheets/`, set `sheets`), and 0.3.9's on corpus parts with features no
+//! sampled sheet has (`recognition/dims/`, set `dims`, and `recognition/steps/`, set `steps`).
+//! sheets' ctc04 is not compared: the bridge refuses its recognition (one face's area differs
+//! from OpenCascade's).
 //!
 //! Python's records are in its working frame and are mapped into the part's (the native ones
 //! already are): points, directions, axis letters, a turned step's `lo` and `hi` and its
-//! profile's box where the frame allows ([`other_to_part`]). Holes are paired by axis, location
-//! and diameter; patterns by their members; the other kinds by where they are ([`anchor`]).
+//! profile's box, a flat's stock span and axis line, and a step's section, where the frame allows
+//! ([`other_to_part`]). Holes are paired by axis, location and diameter; patterns by their
+//! members; the other kinds by where they are ([`anchor`]).
 //! For each pair the IDs, faces and parameters are compared, numbers to 1e-6 relative (absolute
 //! below 1), or within the step quiddity rounds a field to when the two frames round it
 //! differently ([`rounding`]); for each pattern also the arrangement and its members. A pair's
@@ -116,6 +119,26 @@ fn cases() -> Vec<Case> {
             });
         }
     }
+    // Corpus parts with features no sampled sheet has: `dims` (`tests/dims_slots.rs`'s), and
+    // `steps`, parts with paired-ramp, circular blind and oblique through steps, written for this
+    // test by `tools/recognise.py` with draftwright's environment (quiddity 0.3.9).
+    for (set, part, file) in [
+        ("dims", "ftc07", "nist/nist_ftc_07_asme1_rd.stp"),
+        ("dims", "m10047", "mfcadpp/10047.step"),
+        ("dims", "m10245", "mfcadpp/10245.step"),
+        ("dims", "m11512", "mfcadpp_regressions/11512.step"),
+        ("steps", "h363", "mfcadpp_holdout/363.step"),
+        ("steps", "m10000", "mfcadpp/10000.step"),
+        ("steps", "m10060", "mfcadpp/10060.step"),
+        ("steps", "m1007", "mfcadpp/1007.step"),
+    ] {
+        out.push(Case {
+            set,
+            part: part.into(),
+            step: dir.join(file),
+            json: gunzip(&fixture(&format!("recognition/{set}/{part}.json.gz"))).unwrap(),
+        });
+    }
     out
 }
 
@@ -168,15 +191,41 @@ fn to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<String, Va
 }
 
 /// The kinds read natively besides holes, as `bridge::native::READ` names their families.
-const KINDS: [&str; 5] = ["fillet", "chamfer", "countersink", "boss", "turned_step"];
+const KINDS: [&str; 13] = [
+    "fillet",
+    "chamfer",
+    "countersink",
+    "boss",
+    "turned_step",
+    "groove",
+    "flat",
+    "angled_step",
+    "paired_ramp_step",
+    "circular_blind_step",
+    "through_step",
+    "oblique_through_step",
+    "blend",
+];
 
 /// Where a feature of *kind* is, as its record gives it: what pairs a Python feature with a
 /// native one.
 fn anchor(kind: &str) -> &'static [&'static str] {
     match kind {
-        "fillet" | "chamfer" => &["at"],
         "countersink" | "boss" => &["location"],
-        _ => &["axis", "lo", "hi"],
+        "turned_step" => &["axis", "lo", "hi"],
+        "circular_blind_step" => &["centreline"],
+        // The rolling ball (its radius and side) and its path's place, not the path's
+        // direction: a line's sense follows the frame. Coaxial blends share a path's place.
+        "blend" => &["radius", "side", "path.at", "path.center", "path.radius"],
+        _ => &["at"],
+    }
+}
+
+/// Field *path* (`a` or `a.b`) of *record*.
+fn field<'a>(record: &'a Map<String, Value>, path: &str) -> Option<&'a Value> {
+    match path.split_once('.') {
+        Some((a, b)) => record.get(a)?.get(b),
+        None => record.get(path),
     }
 }
 
@@ -189,6 +238,14 @@ fn rounding(kind: &str, path: &str) -> f64 {
         ("fillet" | "chamfer", "at" | "corner") => 1e-3,
         ("turned_step", "lo" | "hi") => 1e-3,
         ("countersink", "location") => 1e-4,
+        ("groove" | "paired_ramp_step", "at") => 1e-3,
+        ("flat", "at" | "stock_span" | "axis_line") => 1e-3,
+        ("angled_step", "at" | "corner") => 1e-3,
+        ("through_step", "at" | "section") => 1e-3,
+        ("oblique_through_step", "at") => 1e-3,
+        // Six significant figures (`quantise6`), of coordinates below 100 in either frame.
+        ("circular_blind_step", "centreline" | "section") => 1e-4,
+        ("blend", "at" | "center") => 1e-3,
         _ => 0.0,
     }
 }
@@ -198,6 +255,15 @@ fn rounding(kind: &str, path: &str) -> f64 {
 fn along(frame: &[[f64; 3]; 4], j: usize) -> Option<(usize, f64)> {
     let d = frame[j + 1];
     bridge::holes::principal(d).map(|k| (k, d[k].signum()))
+}
+
+/// Two numbers.
+fn pair(v: Option<&Value>) -> Option<[f64; 2]> {
+    let a = v?.as_array()?;
+    match a.as_slice() {
+        [x, y] => Some([x.as_f64()?, y.as_f64()?]),
+        _ => None,
+    }
 }
 
 fn letter(v: &Value) -> Option<usize> {
@@ -216,11 +282,13 @@ fn box_to_part(frame: &[[f64; 3]; 4], lo: [f64; 3], hi: [f64; 3]) -> Option<([f6
     Some((a, b))
 }
 
-/// Python's record of a fillet, chamfer, countersink, boss or turned step in the part's frame:
-/// points (`at`, `corner`, `location`, `axis_origin`) and directions as [`to_part`] maps them; an
-/// axis letter as the part's axis it lies along (a letter names a line, so no sense), or the
-/// direction when it lies along none; a turned step's `lo` and `hi`, coordinates along its axis,
-/// and its profile's body box and key, where its axis or every axis lies along the part's.
+/// Python's record of a feature of one of [`KINDS`] in the part's frame: points (`at`, `corner`,
+/// `location`, `center`, `axis_origin`, each of a `centreline`) and directions as [`to_part`]
+/// maps them; an axis letter as the part's axis it lies along (a letter names a line, so no
+/// sense), or the direction when it lies along none; a turned step's `lo` and `hi` and a flat's
+/// `stock_span`, coordinates along its axis, a flat's `axis_line` and a step's `section`,
+/// coordinates across it, and a profile's or step's body box and key, where its axis or every
+/// axis lies along the part's.
 fn other_to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<String, Value> {
     let mut out = Map::new();
     for (k, v) in record {
@@ -228,9 +296,22 @@ fn other_to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<Stri
             ("at" | "corner" | "location" | "center" | "axis_origin", Some(p), _) => {
                 Value::from(bridge::holes::to_part(frame, p).to_vec())
             }
-            ("axis" | "direction", Some(d), _) => {
-                Value::from(bridge::holes::dir_to_part(frame, d).to_vec())
-            }
+            (
+                "axis" | "direction" | "normal" | "axis_direction" | "opening_direction" | "run"
+                | "depth_direction" | "across_direction",
+                Some(d),
+                _,
+            ) => Value::from(bridge::holes::dir_to_part(frame, d).to_vec()),
+            ("centreline", _, _) => Value::from(
+                v.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|p| {
+                        let p = bridge::holes::point(Some(p)).unwrap();
+                        Value::from(bridge::holes::to_part(frame, p).to_vec())
+                    })
+                    .collect::<Vec<_>>(),
+            ),
             ("axis", None, Some(j)) => match along(frame, j) {
                 Some((k, _)) => Value::from(["x", "y", "z"][k]),
                 None => Value::from(frame[j + 1].to_vec()),
@@ -279,6 +360,39 @@ fn other_to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<Stri
         let (p, q) = (frame[0][k] + s * lo, frame[0][k] + s * hi);
         out.insert("lo".into(), Value::from(p.min(q)));
         out.insert("hi".into(), Value::from(p.max(q)));
+    }
+    // A flat's stock span, coordinates along its axis, as `lo` and `hi` are.
+    if let (Some((k, s)), Some([lo, hi])) = (axis, pair(record.get("stock_span"))) {
+        let (p, q) = (frame[0][k] + s * lo, frame[0][k] + s * hi);
+        out.insert("stock_span".into(), Value::from(vec![p.min(q), p.max(q)]));
+    }
+    // Points across an axis (a flat's axis line, a step's section): their coordinates along the
+    // two other axes, in `x`, `y`, `z` order, in the part's when every axis lies along one.
+    if let Some(j) = record.get("axis").and_then(letter) {
+        let across = |q: &[f64; 2]| -> Option<Value> {
+            let mut local = [0.0; 3];
+            for (i, l) in (0..3).filter(|&l| l != j).enumerate() {
+                local[l] = q[i];
+            }
+            let (k, _) = along(frame, j)?;
+            (0..3).all(|l| along(frame, l).is_some()).then_some(())?;
+            let p = bridge::holes::to_part(frame, local);
+            Some(Value::from(
+                (0..3).filter(|&l| l != k).map(|l| p[l]).collect::<Vec<_>>(),
+            ))
+        };
+        if let Some(q) = pair(record.get("axis_line"))
+            && let Some(v) = across(&q)
+        {
+            out.insert("axis_line".into(), v);
+        }
+        let section: Option<Vec<[f64; 2]>> = record
+            .get("section")
+            .and_then(Value::as_array)
+            .and_then(|a| a.iter().map(|q| pair(Some(q))).collect());
+        if let Some(v) = section.and_then(|q| q.iter().map(across).collect::<Option<Vec<_>>>()) {
+            out.insert("section".into(), Value::from(v));
+        }
     }
     // A turned profile's `axis_origin` has its axial coordinate zeroed, in the frame it is
     // given in: zeroed again in the part's.
@@ -555,8 +669,7 @@ fn differences(
         }
     }
 
-    // Fillets, chamfers, countersinks, bosses and turned steps, kind by kind, paired by where
-    // they are ([`anchor`]; each native feature at most once); a boss also with the one read
+    // The other kinds, kind by kind, paired by where they are ([`anchor`]; each native feature at most once); a boss also with the one read
     // from its other end ([`other_end`]).
     for kind in KINDS {
         let py: Vec<(&Feature, Map<String, Value>)> = features
@@ -572,7 +685,7 @@ fn differences(
                 !taken[i]
                     && anchor(kind).iter().all(|k| {
                         let mut d = Vec::new();
-                        compare_within(k, p.get(*k), h.parameters.get(*k), &within, &mut d);
+                        compare_within(k, field(p, k), field(&h.parameters, k), &within, &mut d);
                         d.is_empty()
                     })
                     || (kind == "boss" && other_end(p, &h.parameters))
@@ -816,8 +929,9 @@ fn native_features_match_the_bridge_or_are_listed() {
         serde_json::to_string_pretty(&needed).unwrap()
     );
     if corpus_found {
-        // 5 fixture parts, 12 corpus parts and the 12 sheets parts the bridge reads.
-        assert_eq!(compared, 29);
+        // 5 fixture parts, 12 corpus parts, the 12 sheets parts the bridge reads, 4 dims parts
+        // and 4 steps parts.
+        assert_eq!(compared, 37);
     }
 }
 
@@ -904,7 +1018,11 @@ fn turned_part_families_are_read_with_draftwrights_ids() {
     assert_eq!(
         got,
         [
-            ("f:boss:1", "boss", &[0][..]),
+            ("f:blend:1", "blend", &[1][..]),
+            ("f:blend:2", "blend", &[2]),
+            ("f:blend:3", "blend", &[5]),
+            ("f:blend:4", "blend", &[7]),
+            ("f:boss:1", "boss", &[0]),
             ("f:boss:2", "boss", &[6]),
             ("f:fillet:1", "fillet", &[1]),
             ("f:fillet:2", "fillet", &[2]),
@@ -916,11 +1034,12 @@ fn turned_part_families_are_read_with_draftwrights_ids() {
     );
     for f in &n.features {
         assert_eq!(f.fingerprint.version, bridge::FINGERPRINT_VERSION);
-        // An axis letter and a vector both read as the part's z axis.
-        assert_eq!(f.fingerprint.axis, Some([0.0, 0.0, 1.0]), "{}", f.id);
+        // An axis letter and a vector both read as the part's z axis; a blend has no axis.
+        let axis = (f.kind != "blend").then_some([0.0, 0.0, 1.0]);
+        assert_eq!(f.fingerprint.axis, axis, "{}", f.id);
         assert_eq!(f.fingerprint.pattern, None);
     }
-    let step = &n.features[7];
+    let step = &n.features[11];
     assert_eq!(
         (
             step.parameters["lo"].as_f64(),
@@ -972,6 +1091,118 @@ fn the_reader_refuses_a_record_without_what_draftwright_reads() {
     });
     assert!(e.contains("two fillets on faces [2]"), "{e}");
     let e = refused(&|d| d.records[fillet].faces.clear());
+    assert!(e.contains("has no ascending faces"), "{e}");
+}
+
+/// Nested and shaped fields are checked as the readers use them: a turned profile's axis, origin
+/// and body key (when there is a profile), a blend's path, an axis that must be a letter, a
+/// record of a family read here as that family's; a field nothing reads is not required; a
+/// record's faces must be strictly ascending.
+#[test]
+fn the_reader_checks_each_familys_fields() {
+    let (part, doc) = document("turned");
+    let of = |family: &str| doc.records.iter().position(|r| r.family == family).unwrap();
+    let (fillet, blend, step) = (of("fillets"), of("blends"), of("turned_steps"));
+    let read = |edit: &dyn Fn(&mut quiddity::recognition::RecognitionDocument)| {
+        let mut d = doc.clone();
+        edit(&mut d);
+        native::read(&part, &d)
+    };
+    let profile = |d: &mut quiddity::recognition::RecognitionDocument| match d.records[step]
+        .parameters
+        .get_mut("profile")
+    {
+        Some(Value::Object(p)) => p.clone(),
+        p => panic!("{p:?}"),
+    };
+    let e = read(&|d| {
+        let mut p = profile(d);
+        p.remove("axis_origin");
+        d.records[step]
+            .parameters
+            .insert("profile".into(), p.into());
+    })
+    .unwrap_err();
+    assert!(
+        e.contains("(TurnedStep) has no profile.axis_origin, which draftwright reads"),
+        "{e}"
+    );
+    let e = read(&|d| {
+        let mut p = profile(d);
+        p.insert("body_key".into(), "b".into());
+        d.records[step]
+            .parameters
+            .insert("profile".into(), p.into());
+    })
+    .unwrap_err();
+    assert!(
+        e.contains("'s profile.body_key is \"b\", not NumbersOrNull"),
+        "{e}"
+    );
+    let e = read(&|d| {
+        let mut p = profile(d);
+        p.insert("axis".into(), Value::from(vec![0.0, 0.0, 1.0]));
+        d.records[step]
+            .parameters
+            .insert("profile".into(), p.into());
+    })
+    .unwrap_err();
+    assert!(
+        e.contains("'s profile.axis is [0.0,0.0,1.0], not Letter"),
+        "{e}"
+    );
+    // No profile: nothing in it to check.
+    read(&|d| {
+        d.records[step]
+            .parameters
+            .insert("profile".into(), Value::Null);
+    })
+    .unwrap();
+    let e = read(&|d| {
+        if let Some(Value::Object(path)) = d.records[blend].parameters.get_mut("path") {
+            path.remove("radius");
+        }
+    })
+    .unwrap_err();
+    assert!(e.contains("(Blend)'s path is"), "{e}");
+    assert!(e.contains("not BlendPath; the blends are not read"), "{e}");
+    // A fillet's side is read nowhere, so it is not required.
+    read(&|d| {
+        d.records[fillet].parameters.remove("side");
+    })
+    .unwrap();
+    // A record of a family read here is read as that family's: a fillet's record is no groove.
+    let e = read(&|d| {
+        d.records[fillet].family = "grooves".into();
+        d.records[fillet].record_type = "Groove".into();
+    })
+    .unwrap_err();
+    assert!(e.contains("(Groove) has no width"), "{e}");
+    // A groove's axis must be a letter (lint/turned.rs reads it so).
+    let e = read(&|d| {
+        let r = &mut d.records[fillet];
+        r.family = "grooves".into();
+        r.record_type = "Groove".into();
+        for (k, v) in [("width", 2.0), ("diameter", 9.0)] {
+            r.parameters.insert(k.into(), v.into());
+        }
+        r.parameters.insert("profile".into(), Value::Null);
+        r.parameters
+            .insert("axis".into(), Value::from(vec![0.0, 0.0, 1.0]));
+    })
+    .unwrap_err();
+    assert!(
+        e.contains("(Groove)'s axis is [0.0,0.0,1.0], not Letter"),
+        "{e}"
+    );
+    // Faces must be strictly ascending: a face named twice is refused, for every family.
+    let e = read(&|d| d.records[fillet].faces = vec![1, 1]).unwrap_err();
+    assert!(e.contains("has no ascending faces"), "{e}");
+    let (part, mut d) = document("plate");
+    let h = d.records.iter().position(|r| r.family == "holes").unwrap();
+    let f = d.records[h].faces[0];
+    d.records[h].faces = vec![f, f];
+    let e = native::read(&part, &d).unwrap_err();
     assert!(e.contains("has no ascending faces"), "{e}");
 }
 
