@@ -202,3 +202,37 @@ Even before any Rust exists, this is the checklist of what the port owes.
 - `draftwright analyse` → `plan` → `render` on m10127, string_post and nist_ctc_01 produces files. Their views match draftwright's views-only sheets geometrically, as in stage 2.
 - Round trip: edit a view override through `edit`, re-plan, render, and read the spec back out of the rendered file.
 - Rebinding, once feature overrides exist (stage 4): every corpus invariance variant rebinds with all entries carried. Built revision pairs classify as expected.
+
+## Next steps (2026-10-08)
+
+Reviews of both repositories (`docs/review-2026-10-08.md` here and in quiddity-rust) set the
+order. State at review: quiddity-rust at 2fa7207 (28 recogniser entry points, correspondence in
+the library and CLI, CI red on a float-dependent pin); draftwright-rust at 971e17e (document
+model, layout, sections, first dimensions, lint for holes).
+
+1. **Fix what the reviews found first.** In quiddity-rust: face areas on sphere and B-spline
+   faces (and the red CI), volume probes that read a failure as air, NURBS ray seeds dropped
+   silently, broken STEP files accepted, fingerprints missing family sizes, corpus checks
+   skipped on 8 files, test runtime. Here: lint not seeing the port's own callouts, countersink
+   keys, the zero-span NURBS panic, degree ≥ 4 Bézier output, DXF bytes depending on the time
+   zone, corpus tests that skip silently, CI, and stale docs and catalogue statuses.
+2. **Make the next ports cheaper.** quiddity-rust: shared FaceGraph and chain helpers, policy
+   constants out of the kernel, one families table. Here: honest model boundaries (revision
+   mismatch, dropped section, edit and output paths), an info problem for every feature kind
+   without a dimension planner, side-view bands.
+3. **Port the remaining quiddity families** in Python's dependency order: slots, pockets and
+   channels with their patterns; prismatic pockets; passages and section passages, then oriented
+   slots and section recesses; blends; freeform surfaces and sheet metal (on thin walls);
+   repeating radial profiles; rectangular pads, polygonal bosses and stock.
+4. **Drafting work here,** each step with its rules from `docs/rules/` set to their true status
+   and compared with the captured sheet facts: dimensions for the next families (fillets,
+   chamfers, slots, bosses, steps), placement and collision rules, notes and tables, shrinking
+   `known_views.json` and `known_dimensions.json` with evidence, searchable ⌀/↧/⌴ text, PNG
+   output, PDF font subsetting.
+5. **Recognition from quiddity-rust directly.** quiddity-rust publishes a versioned recognition
+   document (schema version, family, record type, defining faces, parameters); draftwright then
+   reads it family by family instead of Python's JSON, and correspondence is exposed through the
+   JSON-lines and MCP surfaces for the rebind (R3) once feature overrides exist.
+
+Decisions these steps need are listed as questions in the two review documents; nothing above
+assumes their answers.
