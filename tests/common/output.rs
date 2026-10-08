@@ -139,6 +139,7 @@ pub fn drawing(content: &Value) -> Drawing {
             .map(|l| [0, 1, 2, 3].map(|i| l[i].as_f64().unwrap())),
         text,
         annotations: Vec::new(),
+        sheet: Default::default(),
         problems: Vec::new(),
         spec: None,
     }

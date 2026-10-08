@@ -23,7 +23,8 @@ use crate::dims::{Omitted, PlannedDimension};
 use crate::layout::{self, Corner, Fallback, MARGIN, Principals, Request, Scaled};
 use crate::notes::{NoteSpec, NotesBlock, PlannedNote};
 use crate::output::{
-    Curve, Drawing, HAlign, Item, Layer, TextRun, VAlign, layer_styles, projected,
+    Curve, Drawing, Drawn, DrawnView, HAlign, Item, Kind, Layer, Sheet, TextRun, VAlign,
+    items_bbox, layer_styles, projected,
 };
 use crate::text::{Font, Laid, Segment};
 use crate::title_block::{self, TitleCell};
@@ -1024,6 +1025,9 @@ pub fn render(
     // Section furniture (hatch, cutting plane), and its text: what, where.
     let mut furniture: Vec<Item> = Vec::new();
     let mut captions: Vec<(String, [f64; 2])> = Vec::new();
+    // What lint's sheet checks read: each view's visible box, and each thing drawn, by name.
+    let mut sheet = Sheet::default();
+    let mut caption_names: Vec<String> = Vec::new();
     let mut layers: Vec<Layer> = layer_styles()
         .into_iter()
         .map(|(name, style)| Layer {
@@ -1048,6 +1052,7 @@ pub fn render(
             Some(plane) => project_section(part, &view, plane),
             None => project(part, &view),
         }?;
+        let visible_from = layers[0].items.len();
         for piece in pieces {
             let mut moved = piece.clone();
             moved.points = piece.points.iter().map(|q| place(*q)).collect();
@@ -1059,8 +1064,33 @@ pub fn render(
                 None => *undrawn.entry(v.id.clone()).or_default() += 1,
             }
         }
+        if let Some(bbox) = items_bbox(&layers[0].items[visible_from..]) {
+            sheet.views.push(DrawnView {
+                name: v.id.clone(),
+                bbox,
+            });
+        }
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
             let f = section_furniture(part, analysis, plan, v, (plane, cut))?;
+            if let Some(ink) = items_bbox(&f.ink) {
+                sheet.items.push(Drawn {
+                    name: "section_ink".into(),
+                    kind: Kind::SectionInk,
+                    ink,
+                    label: None,
+                });
+            }
+            // draftwright's names: the caption, then the cutting plane's letters.
+            let l = cut.label.to_lowercase();
+            caption_names.extend(
+                [
+                    "section_caption".into(),
+                    format!("section_{l}_left"),
+                    format!("section_{l}_right"),
+                ]
+                .into_iter()
+                .take(f.text.len()),
+            );
             furniture.extend(f.ink);
             captions.extend(f.text);
         }
@@ -1075,13 +1105,28 @@ pub fn render(
     };
     let part_layer = &mut layers[0].items;
     part_layer.extend(rect(MARGIN, MARGIN, w - MARGIN, h - MARGIN));
+    sheet.drawable = Some([MARGIN, MARGIN, w - MARGIN, h - MARGIN]);
     // The block is the grid's four rows at the bottom of the box the layout reserves for it.
     let block = plan.sheet.title_block;
     let [tx0, ty0, tx1, _] = block;
     part_layer.extend(rect(tx0, ty0, tx1, title_block::top(block)));
     let mut text = Vec::new();
-    // The dimensions and callouts, drawn from the plan alone.
-    let annotations = crate::dims::render(&plan.dimensions, &mut layers[2].items, &mut text);
+    // The dimensions and callouts, drawn from the plan alone, one at a time so each one's ink
+    // is measured.
+    let mut annotations = Vec::new();
+    for d in &plan.dimensions {
+        let from = layers[2].items.len();
+        let drawn = crate::dims::render(std::slice::from_ref(d), &mut layers[2].items, &mut text);
+        if let (Some(a), Some(ink)) = (drawn.first(), items_bbox(&layers[2].items[from..])) {
+            sheet.items.push(Drawn {
+                name: a.name.clone(),
+                kind: Kind::Dimension,
+                ink,
+                label: d.placed.as_ref().map(|p| p.label_box),
+            });
+        }
+        annotations.extend(drawn);
+    }
     // Glyphs *laid* out drawn moved to *at*, and the *run* (text, font file, size), if any, as
     // invisible text centred there.
     let mut label = |laid: Laid,
@@ -1129,13 +1174,27 @@ pub fn render(
     };
     let dims = &mut layers[2].items;
     dims.extend(furniture);
-    for (s, at) in &captions {
+    // A text-only thing as drawn: the box of its ink *items*, which is also its label.
+    let labelled = |name: &str, kind: Kind, items: &[Item]| {
+        items_bbox(items).map(|b| Drawn {
+            name: name.into(),
+            kind,
+            ink: b,
+            label: Some(b),
+        })
+    };
+    for ((s, at), name) in captions.iter().zip(&caption_names) {
         let size = crate::section::FONT_SIZE;
         let run = (s.as_str(), "IBMPlexMono-Regular.ttf", size);
+        let from = dims.len();
         label(font.text(s, size), *at, dims, Some(run));
+        sheet
+            .items
+            .extend(labelled(name, Kind::Caption, &dims[from..]));
     }
     // Each cell: its dividers, its label at its lower left, and its value (none drawn for a
     // field not supplied) centred in it, whole, and searchable. The ink is the font-safe value.
+    let title_from = dims.len();
     for c in &plan.sheet.title_cells {
         let [x0, y0, x1, y1] = c.cell;
         if x0 > tx0 {
@@ -1161,7 +1220,24 @@ pub fn render(
             );
         }
     }
+    // The block's outline and every cell's ink.
+    let outline = [tx0, ty0, tx1, title_block::top(block)];
+    let ink = items_bbox(&dims[title_from..]).map_or(outline, |b| {
+        [
+            b[0].min(outline[0]),
+            b[1].min(outline[1]),
+            b[2].max(outline[2]),
+            b[3].max(outline[3]),
+        ]
+    });
+    sheet.items.push(Drawn {
+        name: "title_block".into(),
+        kind: Kind::TitleBlock,
+        ink,
+        label: None,
+    });
     // The general notes: the block's rules, and each row centred on its planned ink, searchable.
+    let notes_from = dims.len();
     if let Some(block) = &plan.notes_block {
         for [a, b] in crate::notes::rules(block) {
             dims.push(Item::Edge(Curve::Line(a, b)));
@@ -1172,22 +1248,35 @@ pub fn render(
             label(laid, at, dims, Some(run));
         }
     }
+    if let Some(ink) = items_bbox(&dims[notes_from..]) {
+        sheet.items.push(Drawn {
+            name: "general_notes".into(),
+            kind: Kind::Notes,
+            ink,
+            label: None,
+        });
+    }
     // The scale, outside the block (ISO 7200 §4), above its right end.
     let scale = format!("SCALE {}", plan.sheet.scale);
     let at = title_block::scale_note(block, &scale);
     let run = (scale.as_str(), title_block::FONT, title_block::TEXT);
+    let from = dims.len();
     label(
         title_block::lay(&scale, title_block::TEXT),
         at,
         dims,
         Some(run),
     );
+    sheet
+        .items
+        .extend(labelled("scale_note", Kind::ScaleNote, &dims[from..]));
     Ok(Drawing {
         page: plan.sheet.page,
         layers,
         link: None,
         text,
         annotations,
+        sheet,
         problems: crate::output::undrawn(&undrawn),
         spec: Some(embeddable(&plan.spec)),
     })

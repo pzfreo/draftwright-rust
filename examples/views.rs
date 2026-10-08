@@ -59,6 +59,7 @@ fn main() {
         link: None,
         text: Vec::new(),
         annotations: Vec::new(),
+        sheet: Default::default(),
         problems: undrawn(&dropped),
         spec: None,
     };

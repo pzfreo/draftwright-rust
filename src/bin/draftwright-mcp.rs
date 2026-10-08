@@ -238,7 +238,11 @@ fn answer(message: &Value) -> Option<Value> {
             match api::call(name, &args) {
                 Ok(result) if name == "review" => json!({
                     "content": [
-                        text(&json!({ "problems": result["problems"], "lint": result["lint"] })),
+                        text(&json!({
+                            "problems": result["problems"],
+                            "lint": result["lint"],
+                            "structural": result["structural"],
+                        })),
                         { "type": "text", "text": result["svg"] },
                     ],
                     "isError": false,

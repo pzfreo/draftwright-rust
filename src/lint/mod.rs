@@ -11,7 +11,11 @@
 //! - [`marks`] reads a drawing's annotations as lint sees them, and [`check`] runs the rules on
 //!   marks from any source (the comparison with Python's sheets builds them from the captured
 //!   facts);
-//! - [`LintIssue`] is a finding, with the catalogue's fields (LINT-issues-lintissue_schema).
+//! - [`LintIssue`] is a finding, with the catalogue's fields (LINT-issues-lintissue_schema);
+//! - [`structural`] checks the drawn sheet itself (scale stated, views and annotations on the
+//!   page and apart, derived-view identifiers): draftwright's `lint_drawing`, which runs before
+//!   coverage. It reads the drawing alone; [`lint`] stays coverage only, and the review reports
+//!   the structural findings beside it.
 //!
 //! Ported rules, in the order Python's lint runs them: boss heights ([`bosses`]); raised pads
 //! ([`pads`]) and polygonal bosses ([`polygonal`]); section recesses no drafting grammar reads,
@@ -55,6 +59,7 @@ pub mod profiled_bores;
 pub mod section_recesses;
 pub mod slots;
 pub mod steps;
+pub mod structural;
 pub mod turned;
 
 #[cfg(test)]

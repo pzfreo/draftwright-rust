@@ -76,6 +76,113 @@ impl Curve {
             Curve::Rational(r) => point(*r[r.len() - 1].last().unwrap()),
         }
     }
+
+    /// The curve's box, `[x0, y0, x1, y1]`: exact for a line; for a conic or Bézier piece, each
+    /// coordinate's extremes found by sampling 64 steps and refining each turning point by golden
+    /// section to 1e-12 of the parameter (a piece turns at most a few times).
+    pub fn bbox(&self) -> [f64; 4] {
+        let mut b = [f64::INFINITY, f64::INFINITY, -f64::INFINITY, -f64::INFINITY];
+        let mut grow = |p: P| {
+            b = [
+                b[0].min(p[0]),
+                b[1].min(p[1]),
+                b[2].max(p[0]),
+                b[3].max(p[1]),
+            ];
+        };
+        let mut sweep = |f: &dyn Fn(f64) -> P, t0: f64, t1: f64| {
+            const N: usize = 64;
+            let at = |i: usize| t0 + (t1 - t0) * i as f64 / N as f64;
+            let samples: Vec<P> = (0..=N).map(|i| f(at(i))).collect();
+            for p in &samples {
+                grow(*p);
+            }
+            for k in [0, 1] {
+                for sign in [1.0, -1.0] {
+                    for i in 1..N {
+                        let v = |j: usize| sign * samples[j][k];
+                        if v(i) >= v(i - 1) && v(i) >= v(i + 1) {
+                            let (mut lo, mut hi) = (at(i - 1), at(i + 1));
+                            let g = 0.5 * (5f64.sqrt() - 1.0);
+                            while (hi - lo).abs() > 1e-12 * (t1 - t0).abs().max(1.0) {
+                                let (m1, m2) = (hi - g * (hi - lo), lo + g * (hi - lo));
+                                if sign * f(m1)[k] > sign * f(m2)[k] {
+                                    hi = m2;
+                                } else {
+                                    lo = m1;
+                                }
+                            }
+                            grow(f(0.5 * (lo + hi)));
+                        }
+                    }
+                }
+            }
+        };
+        match self {
+            Curve::Line(a, c) => {
+                grow(*a);
+                grow(*c);
+            }
+            Curve::Conic {
+                centre,
+                radii,
+                x_axis,
+                y_axis,
+                t0,
+                t1,
+            } => sweep(
+                &|t| Curve::conic_at(*centre, *radii, *x_axis, *y_axis, t),
+                *t0,
+                *t1,
+            ),
+            Curve::Beziers(pieces) => {
+                for poles in pieces {
+                    sweep(&|t| de_casteljau(poles, t), 0.0, 1.0);
+                }
+            }
+            Curve::Rational(pieces) => {
+                for poles in pieces {
+                    sweep(&|t| rational_at(poles, t), 0.0, 1.0);
+                }
+            }
+        }
+        b
+    }
+}
+
+/// A Bézier piece's point at *t*, by de Casteljau on its poles.
+fn de_casteljau(poles: &[P], t: f64) -> P {
+    let mut q = poles.to_vec();
+    while q.len() > 1 {
+        q = q
+            .windows(2)
+            .map(|w| [0, 1].map(|k| w[0][k] + (w[1][k] - w[0][k]) * t))
+            .collect();
+    }
+    q[0]
+}
+
+/// The box of *items*' curves (a face by its boundary), or none when there are none.
+pub fn items_bbox<'a>(items: impl IntoIterator<Item = &'a Item>) -> Option<[f64; 4]> {
+    let mut out: Option<[f64; 4]> = None;
+    for item in items {
+        let curves: Vec<&Curve> = match item {
+            Item::Edge(c) => vec![c],
+            Item::Face(wires) => wires.iter().flatten().collect(),
+        };
+        for c in curves {
+            let b = c.bbox();
+            out = Some(out.map_or(b, |o| {
+                [
+                    o[0].min(b[0]),
+                    o[1].min(b[1]),
+                    o[2].max(b[2]),
+                    o[3].max(b[3]),
+                ]
+            }));
+        }
+    }
+    out
 }
 
 /// What a layer holds: a curve stroked, or a face (its outer boundary and holes) filled.
@@ -157,6 +264,53 @@ pub struct Annotation {
     pub claims: Vec<Claim>,
 }
 
+/// What a thing drawn on the sheet is, to lint's sheet checks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    /// A dimension or callout of [`Drawing::annotations`], by the same name.
+    Dimension,
+    TitleBlock,
+    /// The `SCALE` note beside the title block (ISO 7200 §4).
+    ScaleNote,
+    /// The general notes block.
+    Notes,
+    /// A section's caption or a cutting plane's letter.
+    Caption,
+    /// A section's hatch, or its cutting-plane line with its wings and arrowheads.
+    SectionInk,
+}
+
+/// A thing drawn on the sheet: its name, what it is, the box of all its ink, and the box of its
+/// label's text, if it has one (a dimension's is the label's ink box).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Drawn {
+    pub name: String,
+    pub kind: Kind,
+    /// `[x0, y0, x1, y1]`, mm.
+    pub ink: [f64; 4],
+    pub label: Option<[f64; 4]>,
+}
+
+/// A view as drawn: its name (`v:front`) and the box of its visible edges, mm.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DrawnView {
+    pub name: String,
+    pub bbox: [f64; 4],
+}
+
+/// The sheet as lint's sheet checks read it (`crate::lint::structural`): where the drawing may
+/// go, and the views and things drawn, measured from the ink as it was drawn. Written to no file
+/// format.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Sheet {
+    /// The drawable area, inside the border (`[x0, y0, x1, y1]`); none when no border is drawn.
+    pub drawable: Option<[f64; 4]>,
+    /// Each view drawn, in drawing order.
+    pub views: Vec<DrawnView>,
+    /// Every annotation and piece of sheet furniture drawn, in drawing order.
+    pub items: Vec<Drawn>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Drawing {
     /// Page width and height, mm.
@@ -167,6 +321,8 @@ pub struct Drawing {
     pub text: Vec<TextRun>,
     /// The annotations drawn, with what each states. Written to no file format.
     pub annotations: Vec<Annotation>,
+    /// The views and things drawn, for lint's sheet checks. Written to no file format.
+    pub sheet: Sheet,
     /// What could not be drawn as planned ([`undrawn`]). Written to no file format.
     pub problems: Vec<Problem>,
     /// The spec the drawing was made from (JSON), carried in the SVG's metadata, the DXF's
