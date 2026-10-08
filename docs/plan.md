@@ -229,7 +229,7 @@ model, layout, sections, first dimensions, lint for holes).
    chamfers, slots, bosses, steps), placement and collision rules, notes and tables, shrinking
    `known_views.json` and `known_dimensions.json` with evidence, searchable ⌀/↧/⌴ text (done:
    PDF and SVG, ISSUE-1352-a), PNG
-   output, PDF font subsetting.
+   output (done: `src/png.rs`), PDF font subsetting.
 5. **Recognition from quiddity-rust directly.** quiddity-rust publishes a versioned recognition
    document (schema version, family, record type, defining faces, parameters); draftwright then
    reads it family by family instead of Python's JSON, and correspondence is exposed through the

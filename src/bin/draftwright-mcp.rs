@@ -102,7 +102,7 @@ fn tools() -> Value {
         {
             "name": "render",
             "description": "Draw a STEP file under a spec and write the drawing beside the \
-                output stem, one file per format (out.svg, out.dxf, out.pdf). Each file embeds \
+                output stem, one file per format (out.svg, out.dxf, out.pdf, out.png). Each file embeds \
                 the spec. Returns the paths written and the problems (the plan's, and what could not \
                 be drawn as planned).",
             "inputSchema": {
@@ -116,7 +116,11 @@ fn tools() -> Value {
                     "formats": {
                         "type": "array",
                         "items": { "type": "string", "enum": api::FORMATS },
-                        "description": "Which formats to write; all of them if omitted.",
+                        "description": "Which formats to write; svg, dxf and pdf if omitted.",
+                    },
+                    "dpi": {
+                        "type": "number",
+                        "description": "The PNG's resolution, pixels per inch (above 0); 150 if omitted.",
                     },
                 },
                 "required": ["step", "output"],
@@ -142,7 +146,7 @@ fn tools() -> Value {
         },
         {
             "name": "spec",
-            "description": "Read back the spec a drawing (SVG, DXF or PDF) was made from, to \
+            "description": "Read back the spec a drawing (SVG, DXF, PDF or PNG) was made from, to \
                 resume work on it.",
             "inputSchema": {
                 "type": "object",

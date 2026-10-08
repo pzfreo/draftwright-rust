@@ -137,7 +137,27 @@ improvement plan and questions are the current work. Still open from before it:
   identity-collision nulls.
 - The MCP server hasn't been tried in a real client.
 - PDF fonts are embedded whole, not subset.
-- PNG output isn't written yet.
+- PNG output (stream d-png, `src/png.rs`, `tests/png.rs`): `render` writes `png` when it is named
+  in `formats`, at `dpi` (150 by default, `--dpi` on the command line; `dpi <= 0` refused with
+  draftwright's message). It rasterises the layers the PDF draws (tiny-skia, BSD-3-Clause,
+  without SIMD; PNG through the `png` crate, MIT/Apache-2.0) and carries the spec in an iTXt
+  chunk `DraftwrightSpec`, which `spec` reads back. Differences from draftwright, with verdicts:
+  - the pixels are tiny-skia's, not PDFium's (equivalent: the same page at the same size,
+    `ceil(page × dpi)`; no pixel parity is claimed);
+  - the PNG carries the spec, attribution text and a `pHYs` resolution, where Pillow's has none
+    (rust-correct: model.md asks every format to carry the spec, and the size in mm is kept);
+  - 8-bit RGB, as PDFium renders to Pillow (equivalent);
+  - a raster over 2^28 pixels is refused (`invalid`, "choose a lower dpi") where draftwright
+    would try to allocate it (rust-correct: one bad request must not exhaust a long-lived
+    service's memory);
+  - `formats` absent still means svg, dxf and pdf, and the CLI's default too, where draftwright's
+    CLI defaults to pdf alone (not-applicable: the port's default predates PNG; adding PNG to it
+    would be a new default for every caller).
+  Left: ADR5-1's `rust_note` in `docs/rules/adr.yaml` (owned by another stream during wave 3)
+  should add that PNG bytes are also pinned run to run and across time zones (`tests/png.rs`).
+  Cross-platform bytes are not checked: points go to the rasteriser on a 1/256-pixel grid, which
+  absorbs last-bit differences in the platform's sine and cosine except at a grid boundary, and
+  tiny-skia's clipping of a cubic that crosses the page edge calls `acos`/`cos`.
 - quiddity-rust: the volume module's general `Probe::Prism` has no direct unit test for the
   convex case gussets use. Python's `local_degradation` path is not ported in any family.
 - From wave 1 (review H1–H5, M2 merged):
