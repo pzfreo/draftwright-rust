@@ -965,7 +965,9 @@ improvement plan and questions are the current work. Still open from before it:
   - A number cell is printed as JSON writes it (`0.5`, `1e+20` as `1e20`); Python's `str()`
     would differ for some floats. Keep accepting numbers, or require text?
 
-- From stream d-rebase-lint-native-recesses (2026-10-08), for the integrator:
+- From stream d-rebase-lint-native-recesses (2026-10-08), for the integrator (applied at merge
+  in integration run r-draftwright-rust-10: the three entries below, and ISSUE-827-a's and
+  ISSUE-885-b's rust_notes refreshed; all stay pending):
   r/d-lint-holes-slot-patterns (1406131, merged here) proposes these docs/rules/issues.yaml
   changes, not applied because issues.yaml belongs to the issue streams. Copied verbatim from
   that stream's report; apply them to the three entries (only status, rust_test and rust_note

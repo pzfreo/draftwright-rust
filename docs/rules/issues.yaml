@@ -268,7 +268,7 @@
       - "tests/test_issue_827_real_part_canary.py::test_tuner_retains_occurrences_and_measurements_through_export"
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
   status: pending
-  rust_note: "Not ported: tuner_jig_blind_obround_pockets.step is a draftwright test fixture, not in the shared corpus, and pockets are not dimensioned (dimensions_not_ported). The nearest guard is the placed-count floors (tests/trust_rules.rs::placed_counts_do_not_fall_below_their_floors), by count rather than by hand-listed measurements."
+  rust_note: "Not ported: tuner_jig_blind_obround_pockets.step is a draftwright test fixture, not in the shared corpus, so no scenario checks its hand-listed five-pocket measurements. Pockets (obround ones among them) are now dimensioned (src/dims/recesses.rs: W × L × D DEEP and the location in both directions across), but whether the tuner's pockets come out as those five is unchecked. The nearest guard is the placed-count floors (tests/trust_rules.rs::placed_counts_do_not_fall_below_their_floors), by count rather than by hand-listed measurements."
   port_note: "Keep: scenario test tuner STEP -> plan contains the hand-listed five-pocket measurements."
 
 - id: ISSUE-883-a
@@ -331,7 +331,7 @@
       - "tests/test_issue_885_prismatic_coverage.py::test_datum_starting_blind_slot_does_not_retain_the_superseded_pocket_callout"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: pads and pockets are not dimensioned (dimensions_not_ported) and lint has no pad or pocket coverage (LINT-pocket_coverage-size_depth_location). Lint keys coverage by feature ID, never by coincident value (tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims shows it for holes)."
+  rust_note: "Not ported: pads are not dimensioned (dimensions_not_ported). Pockets are (src/dims/recesses.rs), and lint checks pad and pocket coverage, sizes and locations by feature ID (src/lint/pads.rs, src/lint/pockets.rs), but none of the four scenarios (a pad size credited from an aligned sibling, an unrelated endpoint locating a pocket, omitted furniture's coverage gaps and score, a blind slot superseding a pocket callout) has a test. Lint keys coverage by feature ID, never by coincident value (tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims shows it for holes)."
   port_note: "Keep: coverage problems keyed by requirement identity, not by coincident values."
 
 - id: ISSUE-909-a
@@ -691,8 +691,8 @@
       - "tests/test_issue_1142_hole_leader_labels.py::test_centerline_overlap_uses_text_bbox_not_full_leader_footprint"
     corpus_parts: []
   status: pending
-  rust_test: "tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims"
-  rust_note: "Partly ported: lint credits a requirement only through a structured claim on the feature by ID, so a callout's words cannot claim a feature, waive a count (the count is read against the group's size) or cover another feature's diameter. Not ported: any number printed in a claiming callout (a count, a bolt circle's diameter) can confirm a size of the same value (the failing case recorded under ISSUE-1217-a). Centre-line overlap by text box is placement's, not ported."
+  rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+  rust_note: "Partly ported: lint credits a requirement only through a structured claim on the feature by ID, so a callout's words cannot claim a feature; a count is read from the callout's leading n× against the holes it claims (no count shortfall is waived, ISSUE-1143-b), and a bolt circle's diameter (after EQ/ON/BC) or any other term cannot confirm a hole's size. Not ported: centre-line overlap by text box (placement's)."
   port_note: "Keep: never parse rendered text for semantics; plan carries structured claims."
 
 - id: ISSUE-1143-a
@@ -725,7 +725,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims"
-  rust_note: "Partly ported. Checked: a callout claiming every member of one group does not certify another group of the same size, and text with no claim certifies no hole. Rust-wrong, not fixed (src/lint is outside the issue-trust stream): src/lint/holes.rs::coverage credits a group when any claim names any member, so a callout claiming one hole of the three in two_grids.step's group is credited with every member's diameter, THRU and count; draftwright refuses this (test_one_singleton_cannot_claim_an_entire_multi_owner_group: grouping.count stays missing). The fix is to credit a group's requirement only when its claims cover every member. Holes drilled from opposite faces are separate groups (src/lint/holes.rs, holes_drilled_from_opposite_faces_are_separate_groups). The port has no declarations or IR to join, so there is no tool-centre fallback: a claim names its feature by ID. Difference: draftwright credits a callout whose label was rewritten while its IDs survive (test_hole_outcomes_ignore_rendered_names_and_labels_when_semantic_ids_survive); lint also needs the text to state the value (rust-correct: ISSUE-1217-a asks that every claim be verified against the ink)."
+  rust_note: "Partly ported. Checked: a callout claiming every member of one group does not certify another group of the same size; text with no claim certifies no hole; a callout claiming one member of a group certifies its common sizes (one truthful statement, as draftwright's _state) but not its quantity, whatever it prints: grouping.count is reported missing, naming the members no callout counts (draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). src/lint/holes.rs::uncounted: a member is counted by a diameter callout whose leading n× (or one) equals the holes it claims, all of them the group's. Holes drilled from opposite faces are separate groups (holes_drilled_from_opposite_faces_are_separate_groups). The port has no declarations or IR to join, so there is no tool-centre fallback. Not ported: hole locations (LINT-hole_coverage-location). Difference: draftwright credits a callout whose label was rewritten while its IDs survive; lint also needs the text to state the value (rust-correct, ISSUE-1217-a)."
   port_note: "Keep: hole ownership by stable analysis IDs; mismatch -> 'unverifiable' problem."
 
 - id: ISSUE-1143-c
@@ -1322,7 +1322,7 @@
     corpus_parts: ["GRM-03"]
   status: pending
   rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
-  rust_note: "Partly ported: lint credits a claimed size only when a number printed in the claiming callout rounds from the part's value at its printed precision (not a substring, not the raw float), and a claim not borne out is a warning (..._unverifiable), for holes and the families sharing lint::parameters. Not ported: locations and pitches are not verified, and there are no hole tables. Rust-wrong: any number in the claiming callout can confirm a size, so a repeat count confirms a diameter of the same value ('6× ⌀8 THRU' or '4× ⌀8 THRU (6×2)' claiming a ⌀6 bore is credited, checked on plate.step), which draftwright's test_a_repeat_count_cannot_confirm_a_diameter refuses; and one number can confirm two sizes of the same value (src/lint/holes.rs says so). The fix belongs in lint (holes::states)."
+  rust_note: "Partly ported. Hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout): each size is credited only when the term that states it (the number after ⌀, after ↧, in its recess or countersink segment) rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing ('6× ⌀8 THRU' and '4× ⌀8 THRU (6×2)' no longer confirm ⌀6 on plate.step; draftwright's test_a_repeat_count_cannot_confirm_a_diameter). Stricter than draftwright's evidence.py, which strips only the leading count (rust-correct: the rule asks for every number of a compound callout). Not ported: the families sharing lint::parameters still accept any number in the label (holes::states); locations and pitches are not verified against spans; there are no hole tables."
   port_note: "Keep: post-render verifier that maps plan measurement IDs to rendered text."
 
 - id: ISSUE-1217-b
