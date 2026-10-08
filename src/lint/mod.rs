@@ -13,14 +13,20 @@
 //!   facts);
 //! - [`LintIssue`] is a finding, with the catalogue's fields (LINT-issues-lintissue_schema).
 //!
-//! Ported rules, in the order Python's lint runs them: boss heights ([`bosses`]); angled steps
-//! ([`angled_steps`]); flat, groove, chamfer, fillet and blend coverage ([`flats`], [`grooves`],
-//! [`chamfers`], [`fillets`], [`blends`]); paired-ramp and circular blind step coverage
-//! ([`paired_ramp_steps`], [`circular_blind_steps`]); through-step and slot coverage ([`steps`],
-//! [`slots`]); and hole coverage ([`holes`]). The families whose requirements are a feature's
-//! own sizes share [`parameters`]. The envelope's and turned steps' completeness ([`envelope`],
-//! [`turned`]) are ledgers, not findings: Python's lint reports nothing for them, so `check` does
-//! not run them.
+//! Ported rules, in the order Python's lint runs them: boss heights ([`bosses`]); raised pads
+//! ([`pads`]) and polygonal bosses ([`polygonal`]); section recesses no drafting grammar reads,
+//! and refused recess recognitions ([`section_recesses`], which also reads every recess's
+//! grammar for the families below); hexagonal pockets and circular seats
+//! ([`pockets::hex_coverage`], [`channels::circular_coverage`]); angled steps ([`angled_steps`]);
+//! double-D bores ([`profiled_bores`]); flat, groove, chamfer, fillet and blend coverage
+//! ([`flats`], [`grooves`], [`chamfers`], [`fillets`], [`blends`]); paired-ramp steps
+//! ([`paired_ramp_steps`]), gusset ribs ([`gussets`]), circular blind steps
+//! ([`circular_blind_steps`]) and blind slots ([`blind_slots`]); through-step and slot coverage
+//! ([`steps`], [`slots`]); hole coverage ([`holes`]); open channels ([`channels`]); polygonal stock
+//! ([`polygonal`]); and lone pockets ([`pockets`]). The families whose requirements are a
+//! feature's own sizes share [`parameters`]. The envelope's and turned steps' completeness
+//! ([`envelope`], [`turned`]) are ledgers, not findings: Python's lint reports nothing for them,
+//! so `check` does not run them.
 
 use serde::Serialize;
 
@@ -29,16 +35,24 @@ use crate::output::{Claim, Drawing};
 
 pub mod angled_steps;
 pub mod blends;
+pub mod blind_slots;
 pub mod bosses;
 pub mod chamfers;
+pub mod channels;
 pub mod circular_blind_steps;
 pub mod envelope;
 pub mod fillets;
 pub mod flats;
 pub mod grooves;
+pub mod gussets;
 pub mod holes;
+pub mod pads;
 pub mod paired_ramp_steps;
 pub mod parameters;
+pub mod pockets;
+pub mod polygonal;
+pub mod profiled_bores;
+pub mod section_recesses;
 pub mod slots;
 pub mod steps;
 pub mod turned;
@@ -152,16 +166,27 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
 /// Every ported rule's findings on a drawing whose annotations are *marks*.
 pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = bosses::coverage(analysis, marks);
+    issues.extend(pads::coverage(analysis, marks));
+    issues.extend(polygonal::boss_coverage(analysis, marks));
+    issues.extend(section_recesses::coverage(analysis, marks));
+    issues.extend(pockets::hex_coverage(analysis, marks));
+    issues.extend(channels::circular_coverage(analysis, marks));
     issues.extend(angled_steps::coverage(analysis, marks));
+    issues.extend(profiled_bores::coverage(analysis, marks));
     issues.extend(flats::coverage(analysis, marks));
     issues.extend(grooves::coverage(analysis, marks));
     issues.extend(chamfers::coverage(analysis, marks));
     issues.extend(fillets::coverage(analysis, marks));
     issues.extend(blends::coverage(analysis, marks));
     issues.extend(paired_ramp_steps::coverage(analysis, marks));
+    issues.extend(gussets::coverage(analysis, marks));
     issues.extend(circular_blind_steps::coverage(analysis, marks));
+    issues.extend(blind_slots::coverage(analysis, marks));
     issues.extend(steps::coverage(analysis, marks));
     issues.extend(slots::coverage(analysis, marks));
     issues.extend(holes::coverage(analysis, marks));
+    issues.extend(channels::coverage(analysis, marks));
+    issues.extend(polygonal::stock_coverage(analysis, marks));
+    issues.extend(pockets::coverage(analysis, marks));
     issues
 }

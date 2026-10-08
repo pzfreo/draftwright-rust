@@ -10,7 +10,11 @@ were captured) and records each ledger's outcomes:
 
 - ``envelope``: each non-zero axis of the part's box, its parameter, extent and state;
 - ``turned_steps``: each band's axis, axis line and span (quiddity's frame, as Python reads the
-  record), its parameter and state.
+  record), its parameter and state;
+- ``section_recesses``: each section recess of quiddity's framed recognition (the run its
+  recognition document projects, so its ``index`` is the document's), read by draftwright's
+  ``section_recess_fields``: its index, the grammar (``pocket``, ``channel``, …), and its numeric
+  fields, or ``unsupported`` (``invalid`` for a contract error) with the reason.
 
 Writes ``tests/fixtures/lint_ledgers.json``, deterministically (floats rounded to 1e-6, parts in
 the facts' order). The parts are the sheet facts' (``capture_sheet_facts.PARTS``).
@@ -28,8 +32,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from capture_sheet_facts import PARTS  # noqa: E402
 
+from quiddity import import_step_geometry  # noqa: E402
+from quiddity.frames import build_framed_recognition_evidence  # noqa: E402
+
 from draftwright import build_drawing  # noqa: E402
 from draftwright.linting.envelope_coverage import envelope_requirement_outcomes  # noqa: E402
+from draftwright.section_recess_contract import (  # noqa: E402
+    UnsupportedSectionRecess,
+    section_recess_fields,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "tests" / "fixtures" / "lint_ledgers.json"
@@ -63,7 +74,33 @@ def ledgers(corpus: Path, rel: str) -> dict:
         }
         for o in snapshot.outcomes.get("turned_steps", ())
     ]
-    return {"file": rel, "envelope": envelope, "turned_steps": turned}
+    return {
+        "file": rel,
+        "envelope": envelope,
+        "turned_steps": turned,
+        "section_recesses": recesses(corpus / rel),
+    }
+
+
+def recesses(step: Path) -> list:
+    view = build_framed_recognition_evidence(import_step_geometry(step))
+    rows = []
+    for source in view.result.section_recesses:
+        try:
+            kind, fields = section_recess_fields(source)
+        except UnsupportedSectionRecess as e:
+            rows.append({"index": source.index, "grammar": "unsupported", "reason": str(e)})
+            continue
+        except ValueError as e:
+            rows.append({"index": source.index, "grammar": "invalid", "reason": str(e)})
+            continue
+        numbers = {
+            k: _num(v)
+            for k, v in fields.items()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        }
+        rows.append({"index": source.index, "grammar": kind, "fields": numbers})
+    return rows
 
 
 def main() -> None:

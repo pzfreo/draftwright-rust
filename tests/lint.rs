@@ -10,8 +10,9 @@
 //! Python names a measured feature by its geometry (`hole@(x,y,z)/axis[sizes]`, or
 //! `pattern@(centre)/axis`), so each is joined to the Analysis exactly, and only when exactly one
 //! hole (or one hole group) fits: the same axis, the opening on its axis line within 0.01 mm and
-//! within its length, the same diameter. The other families lint checks (bosses, chamfers,
-//! fillets, blends, through steps, slots: [`FAMILIES`]) are joined the same way, by kind, axis,
+//! within its length, the same diameter. The other families lint checks by their own sizes
+//! (bosses, polygonal bosses and stock, chamfers, fillets, blends, through steps, slots, …:
+//! [`FAMILIES`]) are joined the same way, by kind, axis,
 //! sizes and the record's point ([`join_feature`]). A claim that fits none or several is dropped
 //! and counted (LINT-_coverage_common-exact_correspondence: never guess).
 //!
@@ -195,8 +196,16 @@ fn sized(parameter: &str) -> bool {
 
 /// The feature families lint judges by a feature's own sizes, by Python's kind, with the
 /// parameters it checks.
-const FAMILIES: [(&str, &[&str]); 10] = [
+const FAMILIES: [(&str, &[&str]); 13] = [
     ("boss", &["boss_height.length"]),
+    (
+        "polygonal_boss",
+        &["polygon_across_flats.length", "boss_height.length"],
+    ),
+    (
+        "polygonal_stock",
+        &["polygon_across_flats.length", "stock_length.length"],
+    ),
     ("flat", &["flat.length"]),
     ("groove", &["groove.length", "groove.diameter"]),
     ("chamfer", &["chamfer.length"]),
@@ -216,6 +225,20 @@ const FAMILIES: [(&str, &[&str]); 10] = [
         ],
     ),
     (
+        "pocket",
+        &[
+            "pocket_width.length",
+            "pocket_length.length",
+            "pocket_depth.length",
+            "pocket_max_depth.length",
+            "location_pocket.location.x",
+            "location_pocket.location.y",
+            "location_pocket.x",
+            "location_pocket.y",
+            "location_pocket.z",
+        ],
+    ),
+    (
         "slot",
         &[
             "slot_width.length",
@@ -226,6 +249,14 @@ const FAMILIES: [(&str, &[&str]); 10] = [
     ),
 ];
 
+/// The codes of the section recess dispositions, reported whatever the sheet says.
+const DISPOSITIONS: [&str; 4] = [
+    "passage_requirement_unsupported",
+    "prismatic_pocket_requirement_unsupported",
+    "section_recess_requirement_unsupported",
+    "section_recess_recognition_refused",
+];
+
 /// Whether lint checks *parameter* of a Python feature of *kind* (outside hole coverage).
 fn checked(kind: &str, parameter: &str) -> bool {
     FAMILIES
@@ -234,7 +265,8 @@ fn checked(kind: &str, parameter: &str) -> bool {
 }
 
 /// A feature record's point in quiddity's frame that Python names it by: a fillet's, chamfer's,
-/// through step's, groove's or flat's `at`, a blend path's `at` or `center`, a boss's `location`, a slot's centre
+/// through step's, groove's or flat's `at`, a blend path's `at` or `center`, a boss's `location`,
+/// a polygonal boss's or stock's `center`, a slot's centre
 /// (quiddity's `Slot.location`: mid-span along its long axis, its centreline across, mid-depth).
 fn local_point(f: &draftwright::bridge::Feature) -> Option<[f64; 3]> {
     let p = &f.parameters;
@@ -256,6 +288,7 @@ fn local_point(f: &draftwright::bridge::Feature) -> Option<[f64; 3]> {
     [
         p.get("at"),
         p.get("location"),
+        p.get("center"),
         path.and_then(|v| v.get("at")),
         path.and_then(|v| v.get("center")),
     ]
@@ -333,6 +366,151 @@ fn join_feature(analysis: &Analysis, feature: &facts::Feature) -> Option<String>
     (fits.len() == 1).then(|| fits[0].id.clone())
 }
 
+/// The Analysis section recess a Python `pocket` names, when exactly one fits: read as a pocket in
+/// the part's frame ([`lint::pockets::placed`]), cut along Python's axis letter, of Python's
+/// depth, width and length (within 1.5e-3), centred at Python's origin (within 2e-3).
+fn join_pocket(analysis: &Analysis, feature: &facts::Feature) -> Option<String> {
+    let origin = feature.origin?;
+    let key = feature.key.as_deref()?;
+    let size = |k: &str| -> Option<f64> {
+        key.split(&format!("{k}="))
+            .nth(1)?
+            .split([',', ']'])
+            .next()?
+            .parse()
+            .ok()
+    };
+    let (depth, width, length) = (size("depth")?, size("width")?, size("length")?);
+    let fits: Vec<String> = lint::pockets::placed(analysis)
+        .into_iter()
+        .filter_map(|(f, p)| Some((f, p.ok()?)))
+        .filter(|(_, p)| {
+            Some(["x", "y", "z"][p.depth_axis]) == feature.axis.as_deref()
+                && (p.depth - depth).abs() <= 1.5e-3
+                && (p.width - width).abs() <= 1.5e-3
+                && (p.length - length).abs() <= 1.5e-3
+                && (0..3).all(|k| (p.centre[k] - origin[k]).abs() <= 2e-3)
+        })
+        .map(|(f, _)| f.id.clone())
+        .collect();
+    (fits.len() == 1).then(|| fits[0].clone())
+}
+
+/// The Analysis section recess a Python `channel` names, when exactly one fits: read as a channel
+/// in the part's frame ([`lint::channels::placed`]), of Python's width (within 1.5e-3), centred at
+/// Python's origin (within 2e-3).
+fn join_channel(analysis: &Analysis, width: Option<f64>, at: [f64; 3]) -> Option<String> {
+    let fits: Vec<String> = lint::channels::placed(analysis)
+        .into_iter()
+        .filter_map(|(f, c)| Some((f, c.ok()?)))
+        .filter(|(_, c)| {
+            width.is_none_or(|w| (c.width - w).abs() <= 1.5e-3)
+                && (0..3).all(|k| (c.centre[k] - at[k]).abs() <= 2e-3)
+        })
+        .map(|(f, _)| f.id.clone())
+        .collect();
+    (fits.len() == 1).then(|| fits[0].clone())
+}
+
+/// The Analysis section recess a Python `hex_pocket` names, when exactly one fits: read as a
+/// hexagonal pocket along Python's axis letter, of Python's depth (within 1.5e-3), its mouth's
+/// centre across the axis at Python's origin (within 2e-3; Python zeroes the coordinate along).
+fn join_hex(
+    analysis: &Analysis,
+    axis: Option<&str>,
+    depth: Option<f64>,
+    at: [f64; 3],
+) -> Option<String> {
+    let fits: Vec<String> = lint::pockets::hexes(analysis)
+        .into_iter()
+        .filter(|h| {
+            h.placed.as_ref().is_ok_and(|(k, mouth)| {
+                axis.is_none_or(|a| a == ["x", "y", "z"][*k])
+                    && (0..3).all(|i| i == *k || (mouth[i] - at[i]).abs() <= 2e-3)
+            }) && depth.is_none_or(|d| (h.depth - d).abs() <= 1.5e-3)
+        })
+        .map(|h| h.feature.id.clone())
+        .collect();
+    (fits.len() == 1).then(|| fits[0].clone())
+}
+
+/// The Analysis section recess a Python `circular_channel` names, when exactly one fits: read as
+/// a circular seat along Python's axis letter, of Python's radius and length (within 1.5e-3), its
+/// anchor at Python's origin (within 2e-3).
+fn join_seat(
+    analysis: &Analysis,
+    axis: Option<&str>,
+    sizes: Option<(f64, f64)>,
+    at: [f64; 3],
+) -> Option<String> {
+    let fits: Vec<String> = lint::channels::seats(analysis)
+        .into_iter()
+        .filter_map(|(f, s)| Some((f, s.ok()?)))
+        .filter(|(_, s)| {
+            axis.is_none_or(|a| a == ["x", "y", "z"][s.run_axis])
+                && sizes.is_none_or(|(r, l)| {
+                    (s.radius - r).abs() <= 1.5e-3 && (s.length - l).abs() <= 1.5e-3
+                })
+                && (0..3).all(|k| (s.anchor[k] - at[k]).abs() <= 2e-3)
+        })
+        .map(|(f, _)| f.id.clone())
+        .collect();
+    (fits.len() == 1).then(|| fits[0].clone())
+}
+
+/// A size `name=` in a Python feature key.
+fn key_size(feature: &facts::Feature, name: &str) -> Option<f64> {
+    feature
+        .key
+        .as_deref()?
+        .split(&format!("{name}="))
+        .nth(1)?
+        .split([',', ']'])
+        .next()?
+        .parse()
+        .ok()
+}
+
+/// The Analysis plate a Python `plate` thickness names, when exactly one fits: Python's
+/// compiled span (draftwright's `plate_span`: the slab's two faces along its axis, at quiddity's
+/// `u`, `v` across it) is the plate's, carried into the part's frame, end for end (within 2e-3).
+/// (Python's plate key names the part's centre, not the plate's.)
+fn join_plate(analysis: &Analysis, span: [[f64; 3]; 2]) -> Option<String> {
+    use draftwright::bridge::holes::{frame, to_part};
+    let frame = frame(analysis);
+    let near = |a: [f64; 3], b: [f64; 3]| (0..3).all(|k| (a[k] - b[k]).abs() <= 2e-3);
+    let fits: Vec<&draftwright::bridge::Feature> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "plate")
+        .filter(|f| {
+            let p = &f.parameters;
+            let get = |k: &str| p.get(k).and_then(|v| v.as_f64());
+            let Some(a) = ["x", "y", "z"]
+                .iter()
+                .position(|a| p.get("axis").and_then(|v| v.as_str()) == Some(*a))
+            else {
+                return false;
+            };
+            let (Some(lo), Some(hi), Some(u), Some(v)) = (get("lo"), get("hi"), get("u"), get("v"))
+            else {
+                return false;
+            };
+            let others: Vec<usize> = (0..3).filter(|&k| k != a).collect();
+            let end = |t: f64| {
+                let mut c = [0.0; 3];
+                c[a] = t;
+                c[others[0]] = u;
+                c[others[1]] = v;
+                to_part(&frame, c)
+            };
+            let (l, h) = (end(lo), end(hi));
+            (near(l, span[0]) && near(h, span[1])) || (near(l, span[1]) && near(h, span[0]))
+        })
+        .collect();
+    (fits.len() == 1).then(|| fits[0].id.clone())
+}
+
 /// The Analysis turned step a Python `step` names, when exactly one fits: its band along Python's
 /// axis letter, of Python's diameter and length (within 1.5e-3), with its axial midpoint at
 /// Python's origin (within 2e-3).
@@ -403,6 +581,88 @@ fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Ma
                             feature: id,
                             parameter: m.parameter.clone(),
                         }),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
+                if (feature.kind.as_str(), m.parameter.as_str())
+                    == ("channel", "channel_width.length")
+                    || (feature.kind.as_str(), m.parameter.as_str())
+                        == ("plate", "thickness.length")
+                {
+                    let joined = match feature.kind.as_str() {
+                        "channel" => feature.origin.and_then(|at| {
+                            let width = feature.key.as_deref().and_then(|k| {
+                                k.split("width=")
+                                    .nth(1)?
+                                    .split([',', ']'])
+                                    .next()?
+                                    .parse()
+                                    .ok()
+                            });
+                            join_channel(analysis, width, at)
+                        }),
+                        _ => m
+                            .compiled
+                            .as_ref()
+                            .and_then(|c| c.first())
+                            .and_then(|c| {
+                                let span = c.get("span")?.as_array()?;
+                                let point =
+                                    |i: usize| draftwright::bridge::holes::point(span.get(i));
+                                Some([point(0)?, point(1)?])
+                            })
+                            .and_then(|span| join_plate(analysis, span)),
+                    };
+                    match joined {
+                        Some(id) => claims.push(Claim {
+                            feature: id,
+                            parameter: m.parameter.clone(),
+                        }),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
+                if ["hex_pocket", "circular_channel"].contains(&feature.kind.as_str()) {
+                    let joined = feature.origin.and_then(|at| {
+                        if feature.kind == "hex_pocket" {
+                            join_hex(
+                                analysis,
+                                feature.axis.as_deref(),
+                                key_size(feature, "depth"),
+                                at,
+                            )
+                        } else {
+                            let sizes =
+                                key_size(feature, "radius").zip(key_size(feature, "length"));
+                            join_seat(analysis, feature.axis.as_deref(), sizes, at)
+                        }
+                    });
+                    match joined {
+                        Some(id) => claims.push(Claim {
+                            feature: id,
+                            parameter: m.parameter.clone(),
+                        }),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
+                if feature.kind == "pocket" {
+                    // A Z pocket's two locations are one structured fact on Python's sheet,
+                    // claimed by both of its location dimensions; here each is a requirement.
+                    let parameters: Vec<String> = if m.parameter == "location_pocket.location" {
+                        vec![
+                            "location_pocket.location.x".into(),
+                            "location_pocket.location.y".into(),
+                        ]
+                    } else {
+                        vec![m.parameter.clone()]
+                    };
+                    match join_pocket(analysis, feature) {
+                        Some(id) => claims.extend(parameters.into_iter().map(|parameter| Claim {
+                            feature: id.clone(),
+                            parameter,
+                        })),
                         None => unjoined += 1,
                     }
                     continue;
@@ -713,10 +973,13 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
         // The feature families: each side's findings by (feature, requirement).
         {
             use draftwright::lint::{
-                blends, bosses, chamfers, circular_blind_steps, fillets, flats, grooves,
-                paired_ramp_steps, slots, steps,
+                blends, blind_slots, bosses, chamfers, circular_blind_steps, fillets, flats,
+                grooves, paired_ramp_steps, pockets, polygonal, slots, steps,
             };
             judged += bosses::wanted(&analysis).len()
+                + polygonal::boss_wanted(&analysis).len()
+                + polygonal::stock_wanted(&analysis).len()
+                + pockets::wanted(&analysis).len()
                 + flats::wanted(&analysis).len()
                 + grooves::wanted(&analysis).len()
                 + chamfers::wanted(&analysis).len()
@@ -724,6 +987,8 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
                 + blends::wanted(&analysis).len()
                 + paired_ramp_steps::wanted(&analysis).len()
                 + circular_blind_steps::wanted(&analysis).len()
+                + blind_slots::wanted(&analysis, false).len()
+                + blind_slots::wanted(&analysis, true).len()
                 + steps::wanted(&analysis).len()
                 + slots::wanted(&analysis).len();
         }
@@ -747,6 +1012,166 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
                 ),
                 "angled steps".into(),
             );
+        }
+        // Section recesses no grammar reads, and refused recess recognitions, are reported
+        // whatever the sheet says, by Python's message: the two lints agree finding by finding.
+        for code in DISPOSITIONS {
+            let messages = |found: Vec<&String>| {
+                let mut m: Vec<String> = found.into_iter().cloned().collect();
+                m.sort();
+                m
+            };
+            let theirs = messages(
+                f.lint
+                    .iter()
+                    .filter(|l| l.code == code)
+                    .map(|l| &l.message)
+                    .collect(),
+            );
+            let mine = messages(
+                ours.iter()
+                    .filter(|i| i.code == code)
+                    .map(|i| &i.message)
+                    .collect(),
+            );
+            for m in &theirs {
+                if mine.contains(m) {
+                    agree += 1;
+                }
+            }
+            for (side, list, other) in [(0, &theirs, &mine), (1, &mine, &theirs)] {
+                for m in list.iter().filter(|m| !other.contains(m)) {
+                    let (p, r) = if side == 0 {
+                        (Some(m.clone()), None)
+                    } else {
+                        (None, Some(m.clone()))
+                    };
+                    differ.insert(
+                        (name.clone(), "section_recesses".into(), code.into(), p, r),
+                        "section recess disposition".into(),
+                    );
+                }
+            }
+        }
+        // Hexagonal pockets and circular seats: Python names each by its measurement and its
+        // point (the mouth's centre, or the seat's anchor, in the part's frame).
+        for (prefix, noun) in [
+            ("hex_pocket_requirement_", "hex pocket measurement "),
+            (
+                "circular_channel_requirement_",
+                "circular seat measurement ",
+            ),
+        ] {
+            let rust: BTreeMap<(String, String), String> = ours
+                .iter()
+                .filter(|i| i.code.starts_with(prefix))
+                .map(|i| {
+                    (
+                        (i.subjects[0].clone(), i.requirements[0].parameter.clone()),
+                        i.code.clone(),
+                    )
+                })
+                .collect();
+            let mut python: BTreeMap<(String, String), String> = BTreeMap::new();
+            for finding in f.lint.iter().filter(|l| l.code.starts_with(prefix)) {
+                let rest = finding
+                    .message
+                    .strip_prefix(noun)
+                    .unwrap_or_else(|| panic!("{}: not read", finding.message));
+                let (parameter, at) = rest.split_once(" at (").unwrap();
+                let at: Vec<f64> = at
+                    .split(')')
+                    .next()
+                    .unwrap()
+                    .split(", ")
+                    .map(|c| c.parse().unwrap())
+                    .collect();
+                let at = [at[0], at[1], at[2]];
+                let id = if prefix.starts_with("hex") {
+                    join_hex(&analysis, None, None, at)
+                } else {
+                    join_seat(&analysis, None, None, at)
+                }
+                .unwrap_or_else(|| panic!("{}: no one recess fits", finding.message));
+                python.insert((id, parameter.to_string()), finding.code.clone());
+            }
+            for key in python.keys().chain(rust.keys()).collect::<BTreeSet<_>>() {
+                let (theirs, mine) = (python.get(key), rust.get(key));
+                if theirs == mine {
+                    agree += 1;
+                } else {
+                    differ.insert(
+                        (
+                            name.clone(),
+                            key.0.clone(),
+                            key.1.clone(),
+                            theirs.cloned(),
+                            mine.cloned(),
+                        ),
+                        describe_feature(&analysis, &key.0),
+                    );
+                }
+            }
+        }
+        judged += lint::pockets::hex_wanted(&analysis).len()
+            + lint::channels::circular_wanted(&analysis).len();
+        // Open channels: Python names each by its centre (in the part's frame) and the measurement
+        // (`<kind>.<parameter>`); the port's findings by the channel and the requirement.
+        {
+            let rust: BTreeMap<(String, String), String> = ours
+                .iter()
+                .filter(|i| i.code.starts_with("channel_requirement_"))
+                .map(|i| {
+                    (
+                        (i.subjects[0].clone(), i.requirements[0].parameter.clone()),
+                        i.code.clone(),
+                    )
+                })
+                .collect();
+            let mut python: BTreeMap<(String, String), String> = BTreeMap::new();
+            for finding in f
+                .lint
+                .iter()
+                .filter(|l| l.code.starts_with("channel_requirement_"))
+            {
+                let at: Vec<f64> = finding
+                    .message
+                    .split(" at (")
+                    .nth(1)
+                    .and_then(|r| r.split(')').next())
+                    .unwrap()
+                    .split(", ")
+                    .map(|c| c.parse().unwrap())
+                    .collect();
+                let id = join_channel(&analysis, None, [at[0], at[1], at[2]])
+                    .unwrap_or_else(|| panic!("{}: no one channel fits", finding.message));
+                let role = finding
+                    .message
+                    .split(" measurement ")
+                    .nth(1)
+                    .and_then(|r| r.split(' ').next())
+                    .unwrap();
+                let parameter = role.split_once('.').unwrap().1.to_string();
+                python.insert((id, parameter), finding.code.clone());
+            }
+            judged += lint::channels::wanted(&analysis).len();
+            for key in python.keys().chain(rust.keys()).collect::<BTreeSet<_>>() {
+                let (theirs, mine) = (python.get(key), rust.get(key));
+                if theirs == mine {
+                    agree += 1;
+                } else {
+                    differ.insert(
+                        (
+                            name.clone(),
+                            key.0.clone(),
+                            key.1.clone(),
+                            theirs.cloned(),
+                            mine.cloned(),
+                        ),
+                        describe_feature(&analysis, &key.0),
+                    );
+                }
+            }
         }
         let rust: BTreeMap<(String, String), String> = ours
             .iter()
@@ -881,6 +1306,75 @@ struct KnownLedger {
     reason: String,
 }
 
+/// A section recess's grammar as the port reads it, and the sizes and places draftwright's
+/// `section_recess_fields` gives for that grammar (by its names; quiddity's frame), or the
+/// grammar and why when none reads it (`unsupported: …`, `invalid: …`).
+fn recess_reading(f: &draftwright::bridge::Feature) -> (String, BTreeMap<String, f64>) {
+    use draftwright::lint::section_recesses::{Grammar, Refusal, grammar};
+    let fields = |pairs: &[(&str, f64)]| -> BTreeMap<String, f64> {
+        pairs.iter().map(|(k, v)| (k.to_string(), *v)).collect()
+    };
+    match grammar(f) {
+        Ok(Grammar::Pocket(p)) => {
+            let mut m = fields(&[
+                ("width", p.width),
+                ("length", p.length),
+                ("depth", p.depth),
+                ("w_center", p.w_center),
+                ("lo", p.lo),
+                ("hi", p.hi),
+                ("open_sign", p.open_sign),
+            ]);
+            if let Some(r) = p.corner_radius {
+                m.insert("corner_radius".into(), r);
+            }
+            if let Some((_, r, _)) = p.mouth {
+                m.insert("mouth_radius".into(), r);
+            }
+            ("pocket".into(), m)
+        }
+        Ok(Grammar::Channel(c)) => (
+            "channel".into(),
+            fields(&[
+                ("width", c.width),
+                ("w_center", c.w_center),
+                ("lo", c.lo),
+                ("hi", c.hi),
+                ("d_lo", c.d_lo),
+                ("d_hi", c.d_hi),
+                ("open_sign", c.open_sign),
+            ]),
+        ),
+        Ok(Grammar::RectangularBlindSlot(b)) => (
+            "rectangular_blind_slot".into(),
+            fields(&[
+                ("width", b.width),
+                ("length", b.length),
+                ("depth", b.depth),
+                ("open_sign", b.open_sign),
+                ("depth_sign", b.depth_sign),
+            ]),
+        ),
+        Ok(Grammar::RoundBottomBlindSlot(b)) => (
+            "round_bottom_blind_slot".into(),
+            fields(&[
+                ("length", b.length),
+                ("radius", b.depth),
+                ("flat_width", b.width - 2.0 * b.depth),
+                ("open_sign", b.open_sign),
+                ("depth_sign", b.depth_sign),
+            ]),
+        ),
+        Ok(Grammar::HexPocket { depth, .. }) => ("hex_pocket".into(), fields(&[("depth", depth)])),
+        Ok(Grammar::CircularChannel { radius, length, .. }) => (
+            "circular_channel".into(),
+            fields(&[("radius", radius), ("length", length)]),
+        ),
+        Err(Refusal::Unsupported(why)) => (format!("unsupported: {why}"), BTreeMap::new()),
+        Err(Refusal::Invalid(why)) => (format!("invalid: {why}"), BTreeMap::new()),
+    }
+}
+
 fn state(s: turned::State) -> String {
     match s {
         turned::State::Placed => "placed",
@@ -894,9 +1388,10 @@ fn state(s: turned::State) -> String {
 /// [`turned::outcomes`]) on Python's captured sheets, against Python's own ledgers for the same
 /// drawings (`tests/fixtures/lint_ledgers.json`, written by `tools/capture_lint_ledgers.py`:
 /// Python's lint reports no finding for either, so the sheet facts do not carry them). A turned
-/// step is matched to Python's by its band's axis and span in the part's frame (to 1e-3). Every difference is
-/// listed, with a verdict, in `known_lint.json` (`ledgers`), and a listed one that has gone away
-/// must be taken off.
+/// step is matched to Python's by its band's axis and span in the part's frame (to 1e-3). Each
+/// section recess's drafting grammar is checked against draftwright's reading of the same
+/// record ([`recess_reading`]). Every difference is listed, with a verdict, in `known_lint.json`
+/// (`ledgers`), and a listed one that has gone away must be taken off.
 #[test]
 fn ledgers_on_pythons_sheets_match_pythons_or_are_known() {
     let Some(corpus) = corpus::dir() else {
@@ -1046,6 +1541,63 @@ fn ledgers_on_pythons_sheets_match_pythons_or_are_known() {
         for (axis, lo, hi, parameter, p) in steps {
             let at = format!("{axis} {lo:.3}..{hi:.3}");
             compare("turned_steps", at, &parameter, Some(p), None);
+        }
+
+        // Each section recess's drafting grammar, by its index: the port's reading
+        // (`lint::section_recesses::grammar`) against draftwright's `section_recess_fields` on the
+        // same recognition: the grammar, and its sizes and places in quiddity's frame (within
+        // 2e-6), or why none reads it.
+        let mut python_recesses: BTreeMap<u64, (String, BTreeMap<String, f64>)> = BTreeMap::new();
+        for r in theirs["section_recesses"].as_array().unwrap() {
+            let grammar = r["grammar"].as_str().unwrap().to_string();
+            let fields: BTreeMap<String, f64> = r["fields"]
+                .as_object()
+                .map(|o| {
+                    o.iter()
+                        .map(|(k, v)| (k.clone(), v.as_f64().unwrap()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let grammar = match r["reason"].as_str() {
+                Some(why) => format!("{grammar}: {why}"),
+                None => grammar,
+            };
+            python_recesses.insert(r["index"].as_u64().unwrap(), (grammar, fields));
+        }
+        for f in lint::section_recesses::recesses(&analysis) {
+            let index = f.parameters["index"].as_u64().unwrap();
+            let (grammar, fields) = recess_reading(f);
+            let theirs = python_recesses.remove(&index);
+            let same = theirs.as_ref().is_some_and(|(g, p)| {
+                *g == grammar
+                    && fields
+                        .iter()
+                        .all(|(k, v)| p.get(k).is_some_and(|w| (v - w).abs() <= 2e-6))
+            });
+            let show = |g: &str, p: &BTreeMap<String, f64>| {
+                let mut s = g.to_string();
+                for (k, v) in p.iter().filter(|(k, _)| fields.contains_key(*k)) {
+                    s += &format!(" {k}={v}");
+                }
+                s
+            };
+            let mine = show(&grammar, &fields);
+            compare(
+                "section_recesses",
+                index.to_string(),
+                "grammar",
+                theirs.map(|(g, p)| if same { mine.clone() } else { show(&g, &p) }),
+                Some(mine.clone()),
+            );
+        }
+        for (index, (g, _)) in python_recesses {
+            compare(
+                "section_recesses",
+                index.to_string(),
+                "grammar",
+                Some(g),
+                None,
+            );
         }
     }
     let unlisted: Vec<_> = differ.difference(&listed).collect();
@@ -1303,11 +1855,19 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     let groups = groups(&analysis);
     let (marks, unjoined) = marks(&analysis, &groups, &f);
     assert_eq!(unjoined, 0);
-    assert!(lint::check(&analysis, &marks).is_empty());
+    // quiddity refused one recess recognition on m10127, which is reported whatever the sheet
+    // says (as Python's lint reports it on this sheet); nothing else is found.
+    let refused = "section_recess_recognition_refused";
+    let found: Vec<String> = lint::check(&analysis, &marks)
+        .into_iter()
+        .map(|i| i.code)
+        .collect();
+    assert_eq!(found, [refused]);
     // hc_side0 prints "⌀8.1 THRU" for the through hole.
     let codes = |marks: &[Mark]| {
         lint::check(&analysis, marks)
             .into_iter()
+            .filter(|i| i.code != refused)
             .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
             .collect::<Vec<_>>()
     };
@@ -1371,6 +1931,44 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     assert_eq!(
         codes(&misprinted),
         ["fillet_requirement_unverifiable fillet.radius"]
+    );
+
+    // ctc01's hex boss: `HEX 100 A/F` (m_polygonal_boss_z0) and its height `50`
+    // (m_bossheight_z0) state both; the height taken away, or the size misprinted, is found.
+    let f = facts::load("ctc01");
+    let ctc01 = self::analysis(&corpus, "ctc01", &f.binding.file).unwrap();
+    let (marks, unjoined) = self::marks(&ctc01, &self::groups(&ctc01), &f);
+    assert_eq!(unjoined, 0);
+    let polygonal = |marks: &[Mark]| {
+        lint::check(&ctc01, marks)
+            .into_iter()
+            .filter(|i| i.code.starts_with("polygonal_boss_"))
+            .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
+            .collect::<Vec<_>>()
+    };
+    assert!(polygonal(&marks).is_empty());
+    let without: Vec<Mark> = marks
+        .iter()
+        .filter(|m| m.name != "m_bossheight_z0")
+        .cloned()
+        .collect();
+    assert_eq!(
+        polygonal(&without),
+        ["polygonal_boss_requirement_missing boss_height.length"]
+    );
+    let misprinted: Vec<Mark> = marks
+        .iter()
+        .cloned()
+        .map(|mut m| {
+            if m.name == "m_polygonal_boss_z0" {
+                m.text = m.text.replace("100", "110");
+            }
+            m
+        })
+        .collect();
+    assert_eq!(
+        polygonal(&misprinted),
+        ["polygonal_boss_requirement_unverifiable polygon_across_flats.length"]
     );
 }
 
@@ -1481,4 +2079,84 @@ fn lint_on_the_ports_own_drawings_is_known() {
         found, listed,
         "lint's findings on the port's own drawings (left) differ from known_lint.json's own_drawings (right)"
     );
+}
+
+/// Blind slots on the port's own drawings of the corpus parts that have them (Python quiddity
+/// 0.3.9's recognition, `tests/fixtures/recognition/dims/`): the dimensions call each out
+/// (`OPEN SLOT W × L × D DEEP`, `ROUND-BOTTOM OPEN SLOT …`), and lint reads every requirement
+/// back as stated. Python draftwright's lint on its own sheets of the same parts (origin/main
+/// 586628b, `build_drawing(...).lint()`, run 2026-10-08) reports no blind-slot finding either,
+/// and the same section recess dispositions, message for message but one: m10047's prismatic
+/// recess is 7.737 deep in Python's message and 7.736 here (equivalent). quiddity rounds a
+/// recess's run interval to 0.001 mm in the frame it recognised in: draftwright's own
+/// recognition, in the file's frame, gives 16.478..24.215; the recognition document the bridge
+/// reads, in quiddity's working frame, 4.517..12.253.
+#[test]
+fn blind_slots_on_the_ports_own_drawings_are_stated() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let font = draftwright::text::Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    let tail = "is not represented by Draftwright dimensions: profile has no supported drafting \
+                grammar; review and define its manufacturing section outside automatic drawing \
+                approval";
+    let cases = [
+        (
+            "m10047",
+            "mfcadpp/10047.step",
+            ["round_bottom_blind_slot"; 2].as_slice(),
+            vec![format!(
+                "recognised 3-sided blind prismatic recess 7.736 mm deep (1 of 1) {tail}"
+            )],
+        ),
+        (
+            "m10245",
+            "mfcadpp/10245.step",
+            ["rectangular_blind_slot"].as_slice(),
+            vec![format!(
+                "recognised 3-sided blind prismatic recess 7.165 mm deep (1 of 1) {tail}"
+            )],
+        ),
+        (
+            "m11512",
+            "mfcadpp_regressions/11512.step",
+            ["rectangular_blind_slot"].as_slice(),
+            vec![format!(
+                "recognised 6-edge prismatic through-opening (1 of 1) {tail}"
+            )],
+        ),
+    ];
+    for (name, file, slots, python) in cases {
+        let path = fixture(&format!("recognition/dims/{name}.json.gz"));
+        let mut json = String::new();
+        flate2::read::GzDecoder::new(std::fs::File::open(path).unwrap())
+            .read_to_string(&mut json)
+            .unwrap();
+        let (part, mut analysis) = model::analyse(&dir.join(file)).unwrap();
+        model::recognise(&part, &mut analysis, &json).unwrap();
+        let round = slots[0].starts_with("round");
+        let wanted = lint::blind_slots::wanted(&analysis, round);
+        assert_eq!(wanted.len(), 3 * slots.len(), "{name}");
+        assert!(lint::blind_slots::wanted(&analysis, !round).is_empty());
+        let plan = model::plan(&analysis, &model::Spec::default()).unwrap();
+        let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+        let issues = lint::lint(&analysis, &drawing);
+        let blind: Vec<&String> = issues
+            .iter()
+            .map(|i| &i.code)
+            .filter(|c| c.contains("blind_slot"))
+            .collect();
+        assert!(blind.is_empty(), "{name}: {blind:?}");
+        let mine: Vec<&String> = issues
+            .iter()
+            .filter(|i| DISPOSITIONS.contains(&i.code.as_str()))
+            .map(|i| &i.message)
+            .collect();
+        assert_eq!(mine, python.iter().collect::<Vec<_>>(), "{name}");
+    }
 }
