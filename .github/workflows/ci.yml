@@ -66,9 +66,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Four nextest shards of the `ci` profile, and the binaries it leaves out run whole
+        # Five nextest shards of the `ci` profile, and the binaries it leaves out run whole
         # under their own harness (.config/nextest.toml says why).
-        shard: [1/4, 2/4, 3/4, 4/4, harness]
+        shard: [1/5, 2/5, 3/5, 4/5, 5/5]
+        include:
+          - harness: issue_drafting issue_trust
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -88,14 +90,14 @@ jobs:
       # CARGO_TARGET_TMPDIR), which are this job's too: the archive's target/ is extracted over
       # the workspace, and target/tmp, which cargo makes when it builds, is made here.
       - run: tar --zstd -xf nextest-archive.tar.zst && mkdir -p target/tmp
-      - if: matrix.shard != 'harness'
+      - if: matrix.shard
         run: >-
           cargo nextest run --archive-file nextest-archive.tar.zst
           --workspace-remap . --extract-to . --extract-overwrite
           --profile ci --partition hash:${{ matrix.shard }}
-      - if: matrix.shard == 'harness'
+      - if: matrix.harness
         run: |
-          for name in issue_drafting issue_trust placement; do
+          for name in ${{ matrix.harness }}; do
             bin=(target/release/deps/$name-*)
             if [ ${#bin[@]} != 1 ] || [ ! -x "${bin[0]}" ]; then
               echo "::error::the archive does not hold exactly one $name test binary"

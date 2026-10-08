@@ -1,13 +1,12 @@
 # The `ci` profile is what .github/workflows/ci.yml runs, hash-partitioned across shards.
 #
 # nextest runs each test in its own process, so a test binary whose tests share one analysis
-# through a `OnceLock` repeats it in every test: issue_drafting took 1136 s of test time under
-# nextest against 59 s under its own harness, issue_trust 314 s against 92 s and placement 292 s
-# against 94 s (CI run 37848776092 against 37831576098). The workflow runs those binaries whole
-# under their own harness, so the profile leaves them out; the workflow's `harness` job runs
-# them, and fails if one of them is not in the archive.
+# through a `OnceLock` repeats it in every test: issue_drafting's tests took 1136 s in all under
+# nextest (CI run 37848776092) against 57 s for the binary under its own harness (CI run
+# 37851506194), and issue_trust's 314 s against 90 s. The profile leaves those binaries out, and
+# the workflow's `harness` job runs them whole, failing if one of them is not in the archive.
 [profile.ci]
-default-filter = 'not (binary(issue_drafting) | binary(issue_trust) | binary(placement))'
+default-filter = 'not (binary(issue_drafting) | binary(issue_trust))'
 fail-fast = false
 
 # A shard's wall clock is bounded below by its longest test, so the tests that take most of a
