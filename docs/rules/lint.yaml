@@ -347,9 +347,9 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1370_hole_pattern_completeness_evidence.py]
-  status: pending
-  rust_test: recognised_patterns_are_the_groups
-  rust_note: "Partial: a bolt circle of five or more holes is a group; one of fewer falls back to loose holes (ISSUE-1596-a, as the dimensions do). The concentric corroboration that would keep a smaller one, and exact declarations, are not ported."
+  status: ported
+  rust_test: a_small_bolt_circle_needs_something_round_on_its_centre
+  rust_note: "bridge::holes::established_with, shared with the dimensions: a bolt circle of five or more holes is a group; one of fewer is a group only when a hole that is not a member, or a boss, has its axis parallel to the members' and within 0.5 mm of quiddity's fitted centre (draftwright's _BC_CONCENTRIC_TOL); otherwise its holes fall back to loose holes (recognised_patterns_are_the_groups). The port requires the witness's axis to be parallel, where draftwright compares the axes' dominant letters, so an oblique hole whose largest component matches does not corroborate here. Exact declarations do not apply: there are no declared builds (a maintainer decision; ADR R4, ADR4-3). The dimensions call established, which counts holes only, until they call established_with with bridge::holes::bosses."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-second_countersink_unverifiable
