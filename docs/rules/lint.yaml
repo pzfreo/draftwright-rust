@@ -594,6 +594,7 @@
     module: "linting/structural.py"
     tests: [tests/test_prismatic_classification.py]
   status: pending
+  rust_note: "Not ported: draftwright's sheet lint never runs it. Its one lint_drawing call (linting/orchestration.py _lint_structure) passes no part_bbox, so _lint_principal_extents returns at once on every finished drawing, and no captured sheet reports it. The port's envelope coverage (lint::envelope) is the ledger of the same requirement. Whether to port it anyway is a question for the maintainer (docs/next-session.md)."
   port_note: "Keep only as a label-based backstop; prefer envelope_coverage."
 
 - id: LINT-boss_coverage-diameter_height
@@ -1590,9 +1591,9 @@
     module: "linting/structural.py"
     issues: [161, 1321, 1333]
     tests: [tests/test_lint_structural.py, tests/test_issue_1332_overlap_remedy.py]
-  status: pending
+  status: ported
   rust_test: labels_overlap_by_more_than_half_a_millimetre_both_ways
-  rust_note: "Partial (src/lint/structural.rs): each pair of labels in drawing order whose text boxes share more than 0.5 mm both ways, a warning; a thing with no label (title block, notes block) by its whole ink. The port draws no frame or zone grid. Not ported: the remedy that names line-work crossing the same pair (annotation_ink_overlap's measure); a section's hatch, cutting-plane wings and arrowheads (draftwright compares each by its whole box) take no part. Agrees with draftwright's captured sheets over the labelled pairs (ctc04's one finding; structural_checks_on_pythons_sheets_agree_with_pythons_lint); none on the port's own drawings, as the placement problems (known_placement.json) report none."
+  rust_note: "src/lint/structural.rs: each pair of things in drawing order (not a centreline) whose label boxes, or a label-less thing's whole ink (title block, notes block, a table, a section's hatch, arrowheads and wing stubs, each its own item as draftwright places them), share more than 0.5 mm both ways; a warning. Where the pair's line-work also runs through one of the labels (annotation_ink_overlap's measure) the message names it and how far, and the fix says to move what is drawn (overlapping_labels_name_the_line_work_that_also_crosses); draftwright's other remedy is API advice (label_offset_x), left out. The port draws no frame or zone grid. Agrees with what draftwright's lint read on its own sheets (structural_checks_on_what_draftwright_read_agree_with_what_it_found, tests/fixtures/sheet_lint) and with the captured sheets' labelled pairs (ctc04's one finding); none on the port's own drawings, as the placement problems (known_placement.json) report none."
   port_note: "Keep."
 
 - id: LINT-code-annotation_ink_overlap
@@ -1604,7 +1605,9 @@
     module: "linting/ink_overlap.py, linting/structural.py"
     issues: [1321, 1333, 1334]
     tests: [tests/test_lint_ink_overlap.py, tests/test_remaining_ink_overlaps.py]
-  status: pending
+  status: ported
+  rust_test: line_work_through_a_label_is_reported_from_half_a_millimetre
+  rust_note: "src/lint/structural.rs: for each pair whose labels clear each other, each thing's straight line-work (output::Drawn::lines, recorded by model::render: a dimension's extension and dimension lines, a callout's leader and shoulder, the title block's rules) clipped to the other's label box; pieces meeting at an end inside the box are one stroke, the longest stroke reported from 0.5 mm, both directions, worst first. The port draws every label along or across the page, so its box is the text's own (no label polygon or diagonal exclusion is needed). Agrees with what draftwright's lint read on its own sheets (tests/fixtures/sheet_lint, by tools/capture_sheet_lint.py). On the port's own drawings: the placement problems' annotation_ink_overlap pairs (known_structural.json, rust-wrong with known_placement.json)."
   port_note: "Keep: pure segment/box arithmetic, no CAD boolean."
 
 - id: LINT-code-leader_line_through_text
@@ -1615,7 +1618,9 @@
     lint_code: "leader_line_through_text"
     module: "linting/structural.py"
     tests: [tests/test_lint_structural.py]
-  status: pending
+  status: ported
+  rust_test: a_leader_does_not_turn_inside_its_own_label
+  rust_note: "src/lint/structural.rs: a callout's leader elbow (output::Drawn::elbow, the end of its shaft as model::render draws it) inside its own label box, the box's edge included; an error. Agrees with what draftwright's lint read on its own sheets (none); none on the port's own drawings."
   port_note: "Keep."
 
 - id: LINT-code-label_centerline_overlap
@@ -1627,7 +1632,9 @@
     module: "linting/structural.py"
     issues: [1144]
     tests: [tests/test_issue_1142_hole_leader_labels.py]
-  status: pending
+  status: ported
+  rust_test: a_label_clears_a_centreline_by_half_a_millimetre
+  rust_note: "src/lint/structural.rs: a label (a label-less thing by its whole ink) against each centreline's lines, each clipped to the box and measured across its stroke by how deep it runs in and along it by its length; a warning past 0.5 mm both ways, the greatest overlap reported. The port's only centreline is a section's cutting-plane chain line (Kind::Centreline, model::render), so it never fires on its own drawings yet; it draws no centre marks or centre circles. A centreline with no line-work is judged by its whole ink's box, without draftwright's further check of a centre circle's drawn edges (the port draws none). Agrees with what draftwright's lint read on its own sheets (none, over their centre marks and centrelines). The message leaves out draftwright's API advice (label_offset_x)."
   port_note: "Keep; share the predicate with placement."
 
 - id: LINT-code-dim_inside_part
@@ -1692,7 +1699,9 @@
     module: "linting/structural.py"
     issues: [159, 76]
     tests: [tests/test_e2e_standards.py]
-  status: pending
+  status: ported
+  rust_test: a_label_over_a_view_is_judged_by_its_edges
+  rust_note: "src/lint/structural.rs: each label box (a label-less thing's whole ink; not a centreline or hatching) overlapping a view's box, against the view's visible edges (output::DrawnView::edges, model::render): a line clipped exactly, any other curve by points about 1 mm apart (8 to 200), after the edge's box, as draftwright's _edges_intersect_rect; a warning. The port samples a curve by its own parameter (a conic's angle). Agrees with what draftwright's lint read on its own sheets. On the port's own drawings: the placement problems' annotation_over_view labels (known_structural.json, rust-wrong with known_placement.json)."
   port_note: "Keep."
 
 - id: LINT-code-view_annotation_inside_extents
@@ -1704,7 +1713,9 @@
     module: "linting/structural.py"
     issues: [76]
     tests: [tests/test_issue_1204_multiscale_view_issues.py]
-  status: pending
+  status: ported
+  rust_test: a_label_over_a_view_is_judged_by_its_edges
+  rust_note: "src/lint/structural.rs: the same test as view_annotation_overlap with no edge through the label: an info notice, unless it was placed inside on purpose (output::Drawn::interior, draftwright's interior region; the port places nothing there). Agrees with what draftwright's lint read on its own sheets (m10046's four); none on the port's own drawings, which place every label outside its view. Where draftwright also reports interior_label_on_narrow_material it suppresses this notice; the port cannot (that check is not ported), and no captured sheet has one."
   port_note: "Keep."
 
 - id: LINT-code-interior_label_on_narrow_material
@@ -1716,6 +1727,7 @@
     module: "linting/structural.py"
     tests: [tests/test_interior_label_placement.py]
   status: pending
+  rust_note: "Not ported (src/lint/structural.rs leaves it out): it reads each view's filled projected material (draftwright's material field, label_on_narrow_material), which the drawing does not record; the port also places no label inside a view, so it could not fire on its own drawings."
   port_note: "Keep."
 
 - id: LINT-code-leader_crosses_silhouette
@@ -1788,9 +1800,9 @@
     module: "linting/structural.py"
     issues: [1536]
     tests: [tests/test_issue_1536_title_overflow.py]
-  status: pending
-  rust_test: "tests/title_block.rs::all_rendered_fields_and_multiline_heights_are_checked"
-  rust_note: "In part, as a plan problem rather than a lint finding (ISSUE-1536-a's port_note): each title-block value is checked against its cell and reported as a title_field_overflow warning, drawn whole, never shortened or shrunk. The spec now has general notes (`notes`, drawn in the GENERAL NOTES block: src/notes.rs), but the problem still asks only for a concise value and does not point to them."
+  status: ported
+  rust_test: a_title_field_fits_its_cell
+  rust_note: "src/lint/structural.rs: each title-block value's ink as model::render draws it (output::Sheet::fields) against its cell, wider or taller by more than 1e-9 mm; a warning whose message is draftwright's, pointing to a notes block (the spec's notes), on the title block. The plan also reports it as a problem (src/title_block.rs, tests/title_block.rs::all_rendered_fields_and_multiline_heights_are_checked), measured the same way. Agrees with what draftwright's lint read on its own sheets (none)."
 
 - id: LINT-structural-duck_typed_dispatch
   statement: "Structural lint dispatches checks by annotation attributes (elbow, measured length, centreline flag, label box) and memoises per-item boxes and per-view edges."

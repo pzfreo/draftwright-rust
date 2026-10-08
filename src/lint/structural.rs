@@ -1,49 +1,73 @@
-//! Structural checks of the drawn sheet (draftwright's `lint_drawing`, `linting/structural.py`):
-//! what the sheet looks like, not what it says about the part. They read the rendered drawing
-//! alone — its page, its text and what it records of the views and things drawn
-//! ([`Drawing::sheet`]: each view's visible box, each annotation's and each piece of furniture's
-//! ink and label boxes) — and never the part, the Plan or the Spec.
+//! Structural checks of the drawn sheet (draftwright's `lint_drawing`, `linting/structural.py`
+//! and `linting/ink_overlap.py`): what the sheet looks like, not what it says about the part.
+//! They read the rendered drawing alone — its page, its text and what it records of the views
+//! and things drawn ([`Drawing::sheet`]: each view's visible edges and their box, each
+//! annotation's and each piece of furniture's ink and label boxes, line-work and leader elbow,
+//! and the title block's fields) — and never the part, the Plan or the Spec.
 //!
 //! Ported, in Python's order and with its thresholds and severities:
 //! - `derived_view_identifier_reused` (`_lint_derived_view_identifiers`): one section or detail
 //!   letter naming two views, read from the views' names, never their captions. Error.
 //! - `scale_not_stated` (`_lint_scale_stated`): a finished sheet (one with a title block) with no
 //!   scale note. Error.
-//! - `annotation_overlap` (`_lint_annotation_pairs`, its label part): two labels whose text
-//!   boxes overlap by more than 0.5 mm in both directions. A thing with no label (the title
-//!   block, the notes block) takes part by its whole ink, as in Python. Warning.
+//! - `title_field_overflow` (`_lint_title_fields`): a title-block value whose ink is wider or
+//!   taller than its cell. Warning; the message points to the notes block, as draftwright's does.
+//! - `leader_line_through_text` (`_lint_leader`): a callout's leader elbow inside its own label's
+//!   box. Error.
+//! - `annotation_overlap` (`_lint_annotation_pairs`): two labels whose text boxes overlap by more
+//!   than 0.5 mm in both directions; a thing with no label (the title block, the notes block, a
+//!   section's hatch, arrowheads and wings) takes part by its whole ink, a centreline none, as in
+//!   Python. Where the pair's line-work also runs through one of the labels, the message says
+//!   which, by how much, and that separating the text is not enough. Warning.
+//! - `annotation_ink_overlap` (`_lint_annotation_pairs` with `ink_overlap.label_crossings`): one
+//!   thing's straight line-work running at least 0.5 mm through another's label box, measured as
+//!   the longest connected stroke inside it, for each pair whose labels clear each other; both
+//!   directions. Warning.
+//! - `label_centerline_overlap` (`_lint_centerline_dim_overlap`): a label (or a label-less
+//!   thing's ink) overlapping a centreline's line by more than 0.5 mm both ways, a line measured
+//!   across its stroke by how deep it runs into the box. Warning.
 //! - `annotation_out_of_bounds` (`_lint_annotation_bounds`): any ink past the drawable area,
 //!   the title block allowed its border's half stroke. Error, once per side overshot.
+//! - `view_annotation_overlap` and `view_annotation_inside_extents`
+//!   (`_lint_view_annotation_overlap`): a label (or a label-less thing's ink; not a centreline
+//!   or hatching) over a view's box: a warning when one of the view's visible edges passes
+//!   through it, otherwise an info notice that it lies over blank face, unless it was placed
+//!   inside on purpose.
 //! - `view_overlap` and `view_out_of_bounds` (`_lint_view_shapes`, its box part): two views'
 //!   boxes overlapping (warning), a view's box past the drawable area (error, once per side).
 //!
-//! Not ported here: `label_vs_measured` (the drawing does not record a dimension's measured
-//! path or its scale), the ink, leader, centreline and view-annotation checks, and the sheet-level
-//! `nominal_rounded` and `missing_principal_dimension` notes.
+//! Not ported here: `label_vs_measured` and `nominal_rounded` (the drawing does not record a
+//! dimension's measured path or its scale), `interior_label_on_narrow_material` and
+//! `leader_crosses_silhouette` (they read the view's filled material, which the drawing does not
+//! record), and `missing_principal_dimension` (draftwright's sheet lint never runs it: its one
+//! `lint_drawing` call passes no part box).
 //!
 //! Differences from Python, each judged in `tests/lint_structural.rs`:
-//! - `annotation_overlap` gives no ink-crossing remedy (draftwright adds one when the pair's
-//!   line-work also crosses, `annotation_ink_overlap`'s measure, not ported), and leaves out a
-//!   section's hatch and cutting-plane ink, which draftwright compares by each arrowhead's,
-//!   wing's and hatch's whole box (`Kind::SectionInk`); the chain line itself is a centreline,
-//!   left out by Python too.
-//! - `annotation_out_of_bounds` judges a section's hatch and cutting-plane ink as one thing,
-//!   where draftwright judges each arrowhead, wing and the hatch on its own.
+//! - The port draws every label along or across the page, so a label's box is its text's own:
+//!   no label polygon, and no diagonal dimension to leave uncrossable.
+//! - A centreline without line-work (draftwright's centre circle) is judged by its whole ink's
+//!   box; draftwright then checks its drawn edges. The port draws none.
+//! - A curved view edge is sampled at draftwright's spacing by its own parameter (a conic's
+//!   angle, a Bézier's), where build123d samples its edge's parameter.
 //! - The messages name the port's annotations and leave out draftwright's API advice
-//!   (`label_offset_x`, `margin`), which the port's spec does not have.
+//!   (`label_offset_x`, `margin`, `dim_width`) and issue numbers, which the port's spec does not
+//!   have.
 
 use std::collections::BTreeMap;
 
 use super::{LintIssue, Severity};
-use crate::output::{Drawing, Drawn, Kind};
+use crate::output::{Curve, Drawing, Drawn, DrawnView, Kind, P};
 
 /// Below this a box past a bound is rounding (draftwright's `BOUNDS_ROUNDOFF`).
 const BOUNDS_ROUNDOFF: f64 = 1e-9;
 /// Half the title block's border stroke (draftwright's `_TB_LINE_WIDTH / 2`): the border may
 /// straddle the drawable area's edge.
 const TITLE_HALF_STROKE: f64 = 0.075;
-/// Two labels overlap when they share more than this, mm, in both directions.
+/// Two labels overlap when they share more than this, mm, in both directions; so do a label and
+/// a centreline.
 const OVERLAP: f64 = 0.5;
+/// Line-work running this far through a label is reported, mm (draftwright's `MIN_CROSSING_MM`).
+const MIN_CROSSING: f64 = 0.5;
 
 fn issue(id: String, code: &str, severity: Severity, message: String) -> LintIssue {
     LintIssue {
@@ -69,8 +93,10 @@ fn issue(id: String, code: &str, severity: Severity, message: String) -> LintIss
 pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     let mut issues = derived_view_identifiers(drawing);
     issues.extend(scale_stated(drawing));
-    issues.extend(annotation_overlap(drawing));
+    issues.extend(annotation_items(drawing));
+    issues.extend(annotation_pairs(drawing));
     issues.extend(annotation_bounds(drawing));
+    issues.extend(view_annotations(drawing));
     issues.extend(view_boxes(drawing));
     issues
 }
@@ -146,11 +172,10 @@ fn scale_stated(drawing: &Drawing) -> Option<LintIssue> {
     Some(i)
 }
 
-/// What a message calls *d*: a dimension by its label's text, anything else by its name.
+/// What a message calls *d*: by its label's text where the drawing records it (a dimension's),
+/// anything else by its name.
 fn called(drawing: &Drawing, d: &Drawn) -> String {
-    if d.kind == Kind::Dimension
-        && let Some(a) = drawing.annotations.iter().find(|a| a.name == d.name)
-    {
+    if let Some(a) = drawing.annotations.iter().find(|a| a.name == d.name) {
         let text: Vec<&str> = a
             .runs
             .iter()
@@ -164,36 +189,409 @@ fn called(drawing: &Drawing, d: &Drawn) -> String {
     d.name.clone()
 }
 
-/// `annotation_overlap`: each pair of labels, in drawing order, whose text boxes share more than
-/// 0.5 mm both ways. A thing without a label takes part by its whole ink; a section's hatch and
-/// cutting-plane ink take no part (see the module's note).
-fn annotation_overlap(drawing: &Drawing) -> Vec<LintIssue> {
-    let boxes: Vec<(&Drawn, [f64; 4])> = drawing
-        .sheet
-        .items
-        .iter()
-        .filter(|d| d.kind != Kind::SectionInk)
-        .map(|d| (d, d.label.unwrap_or(d.ink)))
-        .collect();
+/// `title_field_overflow` and `leader_line_through_text`, thing by thing in drawing order: each
+/// title-block value's ink against its cell, and each callout's leader elbow against its label.
+fn annotation_items(drawing: &Drawing) -> Vec<LintIssue> {
     let mut issues = Vec::new();
-    for (k, (a, la)) in boxes.iter().enumerate() {
-        for (b, lb) in &boxes[k + 1..] {
+    for d in &drawing.sheet.items {
+        if d.kind == Kind::TitleBlock {
+            for f in &drawing.sheet.fields {
+                let (w, h) = (f.ink[2] - f.ink[0], f.ink[3] - f.ink[1]);
+                let (cw, ch) = (f.cell[2] - f.cell[0], f.cell[3] - f.cell[1]);
+                if w > cw + BOUNDS_ROUNDOFF || h > ch + BOUNDS_ROUNDOFF {
+                    let mut i = issue(
+                        format!("l:title_field_overflow:{}/{}", d.name, f.field),
+                        "title_field_overflow",
+                        Severity::Warning,
+                        format!(
+                            "Title-block field '{}' overflows its cell: text {w:.2} × {h:.2} mm, \
+                             cell {cw:.2} × {ch:.2} mm. Use a concise field value and retain the \
+                             full information in a notes block; text has not been shortened or \
+                             shrunk.",
+                            f.field
+                        ),
+                    );
+                    i.annotation = Some(d.name.clone());
+                    i.fix = Some(
+                        "give the field a concise value and put the full text in the general \
+                         notes (the spec's notes)"
+                            .into(),
+                    );
+                    issues.push(i);
+                }
+            }
+        }
+        if let Some([ex, ey]) = d.elbow {
+            let [x0, y0, x1, y1] = d.label.unwrap_or(d.ink);
+            if x0 <= ex && ex <= x1 && y0 <= ey && ey <= y1 {
+                let mut i = issue(
+                    format!("l:leader_line_through_text:{}", d.name),
+                    "leader_line_through_text",
+                    Severity::Error,
+                    format!(
+                        "Leader '{}': elbow point ({ex:.2}, {ey:.2}) is inside the label bbox — \
+                         leader line passes through the text",
+                        called(drawing, d)
+                    ),
+                );
+                i.at = Some([ex, ey]);
+                i.annotation = Some(d.name.clone());
+                i.fix = Some("turn the leader so it meets the label at its end".into());
+                issues.push(i);
+            }
+        }
+    }
+    issues
+}
+
+/// The part of the segment *p*–*q* inside *b*, by its two ends (draftwright's
+/// `_segment_clip_extent`, Liang–Barsky, a touch counting); none when it misses.
+fn clip(p: P, q: P, b: [f64; 4]) -> Option<[P; 2]> {
+    let (dx, dy) = (q[0] - p[0], q[1] - p[1]);
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    for (pp, qq) in [
+        (-dx, p[0] - b[0]),
+        (dx, b[2] - p[0]),
+        (-dy, p[1] - b[1]),
+        (dy, b[3] - p[1]),
+    ] {
+        if pp.abs() < 1e-12 {
+            if qq < 0.0 {
+                return None;
+            }
+        } else {
+            let r = qq / pp;
+            if pp < 0.0 {
+                if r > t1 {
+                    return None;
+                }
+                t0 = t0.max(r);
+            } else {
+                if r < t0 {
+                    return None;
+                }
+                t1 = t1.min(r);
+            }
+        }
+    }
+    (t0 <= t1).then(|| {
+        [
+            [p[0] + t0 * dx, p[1] + t0 * dy],
+            [p[0] + t1 * dx, p[1] + t1 * dy],
+        ]
+    })
+}
+
+/// The longest connected stroke of *lines* inside the label box *b* (draftwright's
+/// `crossing_length`): pieces meeting at an end inside the box add, separate pieces do not.
+fn crossing(lines: &[[P; 2]], b: [f64; 4]) -> f64 {
+    let lengths: Vec<f64> = lines
+        .iter()
+        .map(|[p, q]| clip(*p, *q, b).map_or(0.0, |[a, c]| (c[0] - a[0]).hypot(c[1] - a[1])))
+        .collect();
+    let active: Vec<usize> = (0..lines.len()).filter(|&k| lengths[k] > 0.0).collect();
+    let mut parent: Vec<usize> = (0..lines.len()).collect();
+    fn find(parent: &mut [usize], mut k: usize) -> usize {
+        while parent[k] != k {
+            parent[k] = parent[parent[k]];
+            k = parent[k];
+        }
+        k
+    }
+    let inside = |p: P| {
+        b[0] - 1e-9 <= p[0] && p[0] <= b[2] + 1e-9 && b[1] - 1e-9 <= p[1] && p[1] <= b[3] + 1e-9
+    };
+    for (n, &l) in active.iter().enumerate() {
+        for &r in &active[n + 1..] {
+            let joint = lines[l].iter().find_map(|a| {
+                lines[r].iter().find_map(|c| {
+                    ((a[0] - c[0]).hypot(a[1] - c[1]) <= 1e-9)
+                        .then(|| [(a[0] + c[0]) / 2.0, (a[1] + c[1]) / 2.0])
+                })
+            });
+            if joint.is_some_and(inside) {
+                let (lr, rr) = (find(&mut parent, l), find(&mut parent, r));
+                if lr != rr {
+                    parent[rr] = lr;
+                }
+            }
+        }
+    }
+    let mut totals: BTreeMap<usize, f64> = BTreeMap::new();
+    for &k in &active {
+        let root = find(&mut parent, k);
+        *totals.entry(root).or_default() += lengths[k];
+    }
+    totals.into_values().fold(0.0, f64::max)
+}
+
+/// A label box line-work can cross: one with area (draftwright's `crossable_region`).
+fn crossable(d: &Drawn) -> Option<[f64; 4]> {
+    d.label.filter(|b| (b[2] - b[0]).min(b[3] - b[1]) > 0.0)
+}
+
+/// Each reportable crossing of the pair, worst first: (crosser, crossed, length).
+fn crossings<'a>(a: &'a Drawn, b: &'a Drawn) -> Vec<(&'a Drawn, &'a Drawn, f64)> {
+    let mut found: Vec<(&Drawn, &Drawn, f64)> = [(a, b), (b, a)]
+        .into_iter()
+        .filter_map(|(x, y)| Some((x, y, crossing(&x.lines, crossable(y)?))))
+        .filter(|c| c.2 >= MIN_CROSSING)
+        .collect();
+    found.sort_by(|p, q| q.2.total_cmp(&p.2));
+    found
+}
+
+/// `label_centerline_overlap` for the label (or label-less thing) *d* and the centreline *cl*
+/// (draftwright's `_label_centerline_overlap`): the greatest overlap of the label box with any
+/// of the centreline's lines, each measured across its stroke by how deep it runs in and along
+/// it by its clipped length; with no lines, its whole ink. None unless both exceed 0.5 mm.
+fn centreline_overlap(d: &Drawn, cl: &Drawn) -> Option<(f64, f64)> {
+    let [lx0, ly0, lx1, ly1] = d.label.unwrap_or(d.ink);
+    let overlap = |[x0, y0, x1, y1]: [f64; 4], segment: bool| {
+        let (w, h) = (x1 - x0, y1 - y0);
+        let across = |lo: f64, hi: f64, c: f64| {
+            if lo < c && c < hi {
+                (c - lo).min(hi - c)
+            } else {
+                0.0
+            }
+        };
+        let ox = if (segment && w < h) || (!segment && w < 0.1) {
+            across(lx0, lx1, (x0 + x1) / 2.0)
+        } else {
+            (lx1.min(x1) - lx0.max(x0)).max(0.0)
+        };
+        let oy = if (segment && h < w) || (!segment && h < 0.1) {
+            across(ly0, ly1, (y0 + y1) / 2.0)
+        } else {
+            (ly1.min(y1) - ly0.max(y0)).max(0.0)
+        };
+        (ox > OVERLAP && oy > OVERLAP).then_some((ox, oy))
+    };
+    if cl.lines.is_empty() {
+        return overlap(cl.ink, false);
+    }
+    cl.lines
+        .iter()
+        .filter_map(|[p, q]| clip(*p, *q, [lx0, ly0, lx1, ly1]))
+        .filter_map(|[a, c]| {
+            overlap(
+                [
+                    a[0].min(c[0]),
+                    a[1].min(c[1]),
+                    a[0].max(c[0]),
+                    a[1].max(c[1]),
+                ],
+                true,
+            )
+        })
+        .max_by(|p, q| {
+            (p.0 * p.1)
+                .total_cmp(&(q.0 * q.1))
+                .then(p.0.total_cmp(&q.0))
+        })
+}
+
+/// The pairwise checks, each pair once in drawing order (draftwright's `_lint_annotation_pairs`):
+/// a centreline against a label by `label_centerline_overlap`; two other things by their label
+/// boxes (a label-less thing by its whole ink), `annotation_overlap` past 0.5 mm both ways (its
+/// message naming any line-work also crossing), and otherwise `annotation_ink_overlap` for each
+/// label the other's line-work runs through.
+fn annotation_pairs(drawing: &Drawing) -> Vec<LintIssue> {
+    let items = &drawing.sheet.items;
+    let mut issues = Vec::new();
+    for (k, a) in items.iter().enumerate() {
+        for b in &items[k + 1..] {
+            let (cl_a, cl_b) = (a.kind == Kind::Centreline, b.kind == Kind::Centreline);
+            if cl_a && cl_b {
+                continue;
+            }
+            if cl_a || cl_b {
+                let (d, cl) = if cl_a { (b, a) } else { (a, b) };
+                if let Some((ox, oy)) = centreline_overlap(d, cl) {
+                    let mut i = issue(
+                        format!("l:label_centerline_overlap:{}+{}", d.name, cl.name),
+                        "label_centerline_overlap",
+                        Severity::Warning,
+                        format!(
+                            "label '{}' overlaps centerline by {ox:.1}×{oy:.1} mm",
+                            called(drawing, d)
+                        ),
+                    );
+                    let [x0, y0, x1, y1] = cl.ink;
+                    i.at = Some([(x0 + x1) / 2.0, (y0 + y1) / 2.0]);
+                    i.annotation = Some(d.name.clone());
+                    i.related = vec![cl.name.clone()];
+                    i.fix = Some("move the label clear of the centreline".into());
+                    issues.push(i);
+                }
+                continue;
+            }
+            let (la, lb) = (a.label.unwrap_or(a.ink), b.label.unwrap_or(b.ink));
             let ox = (la[2].min(lb[2]) - la[0].max(lb[0])).max(0.0);
             let oy = (la[3].min(lb[3]) - la[1].max(lb[1])).max(0.0);
+            let crossed = crossings(a, b);
             if ox > OVERLAP && oy > OVERLAP {
+                let mut message = format!(
+                    "labels '{}' and '{}' overlap by {ox:.1}×{oy:.1} mm",
+                    called(drawing, a),
+                    called(drawing, b)
+                );
+                let mut fix = "move one of the labels clear of the other";
+                if let Some((crosser, over, length)) = crossed.first() {
+                    message += &format!(
+                        " — '{}' also draws {length:.1} mm of line-work through the label '{}', \
+                         so separating the text is not enough",
+                        called(drawing, crosser),
+                        called(drawing, over)
+                    );
+                    fix = "move what is drawn, not just the text";
+                }
                 let mut i = issue(
                     format!("l:annotation_overlap:{}+{}", a.name, b.name),
                     "annotation_overlap",
                     Severity::Warning,
-                    format!(
-                        "labels '{}' and '{}' overlap by {ox:.1}×{oy:.1} mm",
-                        called(drawing, a),
-                        called(drawing, b)
-                    ),
+                    message,
                 );
                 i.annotation = Some(a.name.clone());
                 i.related = vec![b.name.clone()];
-                i.fix = Some("move one of the labels clear of the other".into());
+                i.fix = Some(fix.into());
+                issues.push(i);
+                continue;
+            }
+            for (crosser, over, length) in crossed {
+                let mut i = issue(
+                    format!("l:annotation_ink_overlap:{}+{}", over.name, crosser.name),
+                    "annotation_ink_overlap",
+                    Severity::Warning,
+                    format!(
+                        "'{}' draws {length:.1} mm of line-work through the label '{}' — the \
+                         labels clear each other, so this is a dimension line, an extension line \
+                         or a leader over text; move what is drawn, not just the text",
+                        called(drawing, crosser),
+                        called(drawing, over)
+                    ),
+                );
+                let [x0, y0, x1, y1] = over.label.unwrap_or(over.ink);
+                i.at = Some([(x0 + x1) / 2.0, (y0 + y1) / 2.0]);
+                i.annotation = Some(over.name.clone());
+                i.related = vec![crosser.name.clone()];
+                i.fix = Some("move what is drawn, not just the text".into());
+                issues.push(i);
+            }
+        }
+    }
+    issues
+}
+
+/// Whether two boxes overlap, a touch not counting (draftwright's `_boxes_overlap`).
+fn boxes_overlap(a: [f64; 4], b: [f64; 4]) -> bool {
+    a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
+}
+
+/// A view edge as draftwright's `_edges_intersect_rect` tests it: a line by its ends, any other
+/// curve by points about 1 mm apart (8 to 200 steps), with the box of either.
+enum Edge {
+    Line(P, P, [f64; 4]),
+    Points(Vec<P>, [f64; 4]),
+}
+
+fn edges(view: &DrawnView) -> Vec<Edge> {
+    let bound = |pts: &[P]| {
+        pts.iter().fold(
+            [f64::INFINITY, f64::INFINITY, -f64::INFINITY, -f64::INFINITY],
+            |b, p| {
+                [
+                    b[0].min(p[0]),
+                    b[1].min(p[1]),
+                    b[2].max(p[0]),
+                    b[3].max(p[1]),
+                ]
+            },
+        )
+    };
+    view.edges
+        .iter()
+        .map(|c| match c {
+            Curve::Line(p, q) => Edge::Line(*p, *q, bound(&[*p, *q])),
+            _ => {
+                let fine: Vec<P> = (0..=64).map(|i| c.at(i as f64 / 64.0)).collect();
+                let length: f64 = fine
+                    .windows(2)
+                    .map(|w| (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]))
+                    .sum();
+                let n = (length as usize + 1).clamp(8, 200);
+                let pts: Vec<P> = (0..=n).map(|i| c.at(i as f64 / n as f64)).collect();
+                let b = bound(&pts);
+                Edge::Points(pts, b)
+            }
+        })
+        .collect()
+}
+
+/// Whether any of *edges* passes through the box *r*.
+fn edges_cross(edges: &[Edge], r: [f64; 4]) -> bool {
+    edges.iter().any(|e| match e {
+        Edge::Line(p, q, b) => boxes_overlap(*b, r) && clip(*p, *q, r).is_some(),
+        Edge::Points(pts, b) => {
+            boxes_overlap(*b, r)
+                && pts
+                    .iter()
+                    .any(|p| r[0] <= p[0] && p[0] <= r[2] && r[1] <= p[1] && p[1] <= r[3])
+        }
+    })
+}
+
+/// `view_annotation_overlap` and `view_annotation_inside_extents`, view by view: each thing's
+/// label box (a label-less thing's whole ink; never a centreline's or hatching's) that overlaps
+/// the view's box, a warning when a visible edge passes through it and otherwise an info notice,
+/// unless it was placed inside on purpose.
+fn view_annotations(drawing: &Drawing) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    for v in &drawing.sheet.views {
+        let mut sampled: Option<Vec<Edge>> = None;
+        let [vx0, vy0, vx1, vy1] = v.bbox;
+        for d in &drawing.sheet.items {
+            if matches!(d.kind, Kind::Centreline | Kind::Hatch) {
+                continue;
+            }
+            let ab = d.label.unwrap_or(d.ink);
+            if !boxes_overlap(v.bbox, ab) {
+                continue;
+            }
+            let what = if d.label.is_some() {
+                "label of annotation"
+            } else {
+                "annotation"
+            };
+            let edges = sampled.get_or_insert_with(|| edges(v));
+            let (name, called) = (bare(&v.name), called(drawing, d));
+            if edges_cross(edges, ab) {
+                let mut i = issue(
+                    format!("l:view_annotation_overlap:{}:{}", v.name, d.name),
+                    "view_annotation_overlap",
+                    Severity::Warning,
+                    format!(
+                        "view '{name}' line-work overlaps {what} '{called}' — increase view \
+                         spacing or move the annotation"
+                    ),
+                );
+                i.view = Some(v.name.clone());
+                i.annotation = Some(d.name.clone());
+                issues.push(i);
+            } else if !d.interior {
+                let mut i = issue(
+                    format!("l:view_annotation_inside_extents:{}:{}", v.name, d.name),
+                    "view_annotation_inside_extents",
+                    Severity::Info,
+                    format!(
+                        "{what} '{called}' lies inside view '{name}' extents [x={vx0:.1}–{vx1:.1}, \
+                         y={vy0:.1}–{vy1:.1}] over a blank region — legitimate for callouts on \
+                         large faces"
+                    ),
+                );
+                i.view = Some(v.name.clone());
+                i.annotation = Some(d.name.clone());
                 issues.push(i);
             }
         }
