@@ -565,29 +565,49 @@ fn structural_checks_on_pythons_sheets_agree_with_pythons_lint() {
 
 /// The review reports the structural findings beside coverage (`Review::structural`; draftwright
 /// runs them first in one list). `Review::lint` stays coverage alone, as `tests/lint.rs` pins it:
-/// the plate's own drawing has a y location 0.1 mm past the left border, which the plan reports
-/// too (`annotation_off_sheet`), and coverage finds nothing. On A4 at 10:1 the plate runs off
-/// the sheet.
+/// the plate's own drawing has nothing off the sheet and coverage finds nothing (its y location
+/// ran 0.1 mm past the left border until placement's fall-through, stream d-placement-fit). On
+/// A4 at 5:1 (the crowded plate of `tests/issue_drafting.rs`) every annotation the structural
+/// check finds past the border the plan reports too (`annotation_off_sheet`). On A4 at 10:1 the
+/// plate runs off the sheet.
 #[test]
 fn the_review_reports_structural_findings_beside_coverage() {
     let step = fixture("parts/plate.step");
     let features = fixture("recognition/plate.json");
     let review = draftwright::api::review(&step, Some(&features), &model::Spec::default()).unwrap();
     assert!(review.lint.is_empty());
-    assert_eq!(
-        review
-            .structural
-            .iter()
-            .map(|i| i.id.as_str())
-            .collect::<Vec<_>>(),
-        ["l:annotation_out_of_bounds:d:f:hole_pattern:1/location.length.y@plan:left"]
-    );
+    assert!(review.structural.is_empty(), "{:#?}", review.structural);
     assert!(
         review
             .problems
             .iter()
-            .any(|p| p.id == "p:annotation_off_sheet:d:f:hole_pattern:1/location.length.y@plan")
+            .all(|p| p.code != "annotation_off_sheet")
     );
+    let mut spec = model::Spec::default();
+    spec.sheet.size = Some("A4".into());
+    spec.sheet.scale = Some("5:1".into());
+    let review = draftwright::api::review(&step, Some(&features), &spec).unwrap();
+    let off: Vec<&str> = review
+        .structural
+        .iter()
+        .filter(|i| i.code == "annotation_out_of_bounds")
+        .map(|i| i.id.as_str())
+        .collect();
+    assert!(!off.is_empty(), "{:#?}", review.structural);
+    for id in off {
+        let subject = id
+            .strip_prefix("l:annotation_out_of_bounds:")
+            .and_then(|s| s.rsplit_once(':'))
+            .unwrap()
+            .0;
+        assert!(
+            review
+                .problems
+                .iter()
+                .any(|p| p.id == format!("p:annotation_off_sheet:{subject}")),
+            "{id}: the plan reports no annotation_off_sheet for {subject}"
+        );
+    }
     let mut spec = model::Spec::default();
     spec.sheet.size = Some("A4".into());
     spec.sheet.scale = Some("10:1".into());

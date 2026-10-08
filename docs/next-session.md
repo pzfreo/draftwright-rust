@@ -1125,7 +1125,8 @@ improvement plan and questions are the current work. Still open from before it:
   recorded too (`Kind::Table`, added on merge). Findings go to a separate `api::Review::structural`
   (MCP: `"structural"`), not `Review::lint`. `tests/lint_structural.rs`,
   `tests/fixtures/known_structural.json` (27 annotation_out_of_bounds findings on 4 parts, all
-  rust-wrong: placement's known off-sheet items).
+  rust-wrong: placement's known off-sheet items; 2 on 2 parts since stream d-placement-fit
+  merged, cgb245's and ctc01's plan y locations).
   - Questions for the maintainer:
     - Should structural findings join `Review::lint`, as draftwright orders them? That changes
       tests/lint.rs's plate expectation (its y location sits 0.1 mm past the left border), and

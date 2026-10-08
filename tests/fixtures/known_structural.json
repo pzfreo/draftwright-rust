@@ -2,29 +2,15 @@
  {
   "part": "cgb245",
   "code": "annotation_out_of_bounds",
-  "count": 10,
+  "count": 1,
   "verdict": "rust-wrong",
-  "reason": "Ten plan dimensions run past the left border (by 5.6 to 75.6 mm): the row pitch, the y locations of holes 1, 3, 4, 6, 7, 8 and the pattern, slot 3's width and its location across its width. They are the ten items of known_placement.json's cgb245 annotation_off_sheet (rust-wrong): the front's and the plan's bands are draftwright's estimates and the port's fixed lanes stack past them. draftwright's captured sheet reports no annotation_out_of_bounds."
- },
- {
-  "part": "connector109",
-  "code": "annotation_out_of_bounds",
-  "count": 6,
-  "verdict": "rust-wrong",
-  "reason": "Drawn only with LINT_OWN_ALL=1 (checked 2026-10-08). Four front dimensions run off the drawable area, the two groove callouts (d:f:groove:2 and d:f:groove:3, 6 WIDE × ø122) past two sides each, so six findings: the chamfer (4.5 × 42.1°) and fillet (R1) callouts below the bottom border, the groove callouts past the left and bottom. They are the four items of known_placement.json's connector109 annotation_off_sheet (rust-wrong: the front's lower band is draftwright's 20 mm estimate and the port's callout lanes stack past it). draftwright's captured sheet reports no annotation_out_of_bounds and has every one of these labels inside the A2 drawing area."
+  "reason": "d:f:hole:1/location.length.y@plan (156.4) runs 75.6 mm past the left border: the one item of known_placement.json's cgb245 annotation_off_sheet (rust-wrong: the plan's left band is draftwright's 20 mm estimate, and the strip right of the plan, where its lane would fall through, crosses the isometric). 10 before stream d-placement-fit (the row pitch, the other y locations and slot 3's width and location now fall through or go beside the plan). draftwright's captured sheet reports no annotation_out_of_bounds."
  },
  {
   "part": "ctc01",
   "code": "annotation_out_of_bounds",
-  "count": 10,
-  "verdict": "rust-wrong",
-  "reason": "Nine plan dimensions run off the drawable area, one of them (d:f:hole_pattern:2/bore.diameter@plan, 4× ⌀25 THRU (2×2)) past two sides, so ten findings: the y location, row pitches and a slot width past the left border, the bore, end-radius, fillet and across-flats callouts above the top. They are the nine items of known_placement.json's ctc01 annotation_off_sheet (rust-wrong: the plan's left band is 20 mm and the callout lanes above the plan run past the sheet's top margin). draftwright's captured sheet reports no annotation_out_of_bounds."
- },
- {
-  "part": "ftc06",
-  "code": "annotation_out_of_bounds",
   "count": 1,
   "verdict": "rust-wrong",
-  "reason": "d:f:hole:5/location.length.y@plan (78.7) runs 0.1 mm past the left border: the one item of known_placement.json's ftc06 annotation_off_sheet (rust-wrong). draftwright's captured sheet reports no annotation_out_of_bounds."
+  "reason": "d:f:hole_pattern:1/location.length.y@plan (225) runs 21.1 mm past the left border: the one item of known_placement.json's ctc01 annotation_off_sheet (rust-wrong: the plan's left band is 20 mm, and on the strip right of the plan its lane would cross the isometric). 10 before stream d-placement-fit (the row pitches and slot width now fall through to the right strip; the bore, end-radius, fillet and across-flats callouts go beside the plan). draftwright's captured sheet reports no annotation_out_of_bounds."
  }
 ]
