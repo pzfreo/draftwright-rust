@@ -9,7 +9,7 @@ mod common;
 #[path = "common/corpus.rs"]
 mod corpus;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::Path;
 
@@ -294,6 +294,33 @@ fn tokens(s: &[u8], i: &mut usize, close: Option<u8>) -> Vec<Token> {
     out
 }
 
+/// A ToUnicode CMap's codes and the text each maps to (single `bfchar` pairs only).
+fn to_unicode(cmap: &[u8]) -> BTreeMap<u16, String> {
+    let cmap = String::from_utf8(cmap.to_vec()).unwrap();
+    assert!(!cmap.contains("bfrange"), "{cmap}");
+    let mut map = BTreeMap::new();
+    for line in cmap.lines() {
+        let hex: Vec<&str> = line
+            .split(['<', '>'])
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .collect();
+        if let [code, text] = hex[..]
+            && line.starts_with('<')
+        {
+            let units: Vec<u16> = (0..text.len())
+                .step_by(4)
+                .map(|k| u16::from_str_radix(&text[k..k + 4], 16).unwrap())
+                .collect();
+            map.insert(
+                u16::from_str_radix(code, 16).unwrap(),
+                String::from_utf16(&units).unwrap(),
+            );
+        }
+    }
+    map
+}
+
 /// The text a PDF's page shows, one string per text object, as a reader extracts it: each
 /// two-byte code (Identity-H) through its font's ToUnicode CMap. A code the CMap does not map
 /// fails the test.
@@ -310,29 +337,10 @@ fn pdf_text(pdf: &[u8]) -> Vec<String> {
     for (name, _) in fonts.match_indices("/F") {
         let name = fonts[name + 1..].split_whitespace().next().unwrap();
         let font = &objects[&reference(fonts, &format!("/{name}"))].0;
-        let cmap = String::from_utf8(objects[&reference(font, "/ToUnicode")].1.clone()).unwrap();
-        assert!(!cmap.contains("bfrange"), "{cmap}");
-        let mut map = BTreeMap::new();
-        for line in cmap.lines() {
-            let hex: Vec<&str> = line
-                .split(['<', '>'])
-                .map(str::trim)
-                .filter(|t| !t.is_empty())
-                .collect();
-            if let [code, text] = hex[..]
-                && line.starts_with('<')
-            {
-                let units: Vec<u16> = (0..text.len())
-                    .step_by(4)
-                    .map(|k| u16::from_str_radix(&text[k..k + 4], 16).unwrap())
-                    .collect();
-                map.insert(
-                    u16::from_str_radix(code, 16).unwrap(),
-                    String::from_utf16(&units).unwrap(),
-                );
-            }
-        }
-        cmaps.insert(name.to_string(), map);
+        cmaps.insert(
+            name.to_string(),
+            to_unicode(&objects[&reference(font, "/ToUnicode")].1),
+        );
     }
     let (mut runs, mut font, mut operands) = (Vec::new(), String::new(), Vec::new());
     let mut at = 0;
@@ -449,4 +457,179 @@ fn the_text_layers_are_deterministic() {
         "pdf differs"
     );
     assert!(a.svg() == b.svg(), "svg differs");
+    // And a sheet in both fonts, each subset.
+    let ctc01 = common::load("ctc01");
+    let (a, b) = (common::drawing(&ctc01), common::drawing(&ctc01));
+    assert!(
+        a.pdf(&common::fonts) == b.pdf(&common::fonts),
+        "ctc01's pdf differs"
+    );
+}
+
+/// *glyphs* and the glyphs their composite glyphs are built from, in *face*'s `glyf` table.
+fn with_components(face: &ttf_parser::Face, mut glyphs: BTreeSet<u16>) -> BTreeSet<u16> {
+    let glyf = face
+        .raw_face()
+        .table(ttf_parser::Tag::from_bytes(b"glyf"))
+        .unwrap();
+    let loca = face
+        .raw_face()
+        .table(ttf_parser::Tag::from_bytes(b"loca"))
+        .unwrap();
+    let be = |d: &[u8], k: usize| u16::from_be_bytes([d[k], d[k + 1]]);
+    let offset = |g: usize| match face.tables().head.index_to_location_format {
+        ttf_parser::head::IndexToLocationFormat::Short => be(loca, 2 * g) as usize * 2,
+        ttf_parser::head::IndexToLocationFormat::Long => {
+            u32::from_be_bytes(loca[4 * g..4 * g + 4].try_into().unwrap()) as usize
+        }
+    };
+    let mut todo: Vec<u16> = glyphs.iter().copied().collect();
+    while let Some(g) = todo.pop() {
+        let d = &glyf[offset(g as usize)..offset(g as usize + 1)];
+        if d.len() < 10 || (be(d, 0) as i16) >= 0 {
+            continue;
+        }
+        // Each component: flags, glyph, its offsets (words or bytes), then any scale.
+        let mut k = 10;
+        loop {
+            let (flags, component) = (be(d, k), be(d, k + 2));
+            if glyphs.insert(component) {
+                todo.push(component);
+            }
+            k += 4 + if flags & 0x1 != 0 { 4 } else { 2 };
+            k += match flags {
+                f if f & 0x8 != 0 => 2,
+                f if f & 0x40 != 0 => 4,
+                f if f & 0x80 != 0 => 8,
+                _ => 0,
+            };
+            if flags & 0x20 == 0 {
+                break;
+            }
+        }
+    }
+    glyphs
+}
+
+/// Each font a PDF embeds holds only the glyphs its text shows, `.notdef`, and the glyphs
+/// composite ones are built from (Plex Mono's `:` is two `.`): the font program (`FontFile2`) has
+/// exactly that many glyphs, tagged as a subset (`ABCDEF+name`, the tag from the
+/// glyphs kept). Each code shown still reaches, through `CIDToGIDMap`, the glyph the whole font
+/// has for its character (`.notdef` for the callout symbols the font lacks), with the whole
+/// font's advance, outline box and `/W` width, so the text's selection boxes do not move; and
+/// the text still reads back as written. Each program is under a tenth of the whole font: ctc01's
+/// PDF went from 244,241 bytes (fonts embedded whole) to 146,131, the plate's (counterbored)
+/// from 113,025 to 58,883.
+#[test]
+fn pdf_fonts_hold_only_the_glyphs_shown() {
+    let cbore = |r: &mut Value| r["cbore"] = json!({ "diameter": 11.0, "depth": 6.4 });
+    let csink = |r: &mut Value| {
+        r["csink"] = json!({
+            "axis": r["axis"].clone(), "location": r["location"].clone(),
+            "major_diameter": 12.0, "drill_diameter": 6.0, "included_angle": 90.0, "depth": 3.0,
+        })
+    };
+    let drawings = [
+        ("plate, counterbored", plate(&cbore)),
+        ("plate, countersunk", plate(&csink)),
+        ("ctc01", common::drawing(&common::load("ctc01"))),
+    ];
+    for (name, drawing) in &drawings {
+        let pdf = drawing.pdf(&common::fonts);
+        let objects = pdf_objects(&pdf);
+        let written: Vec<String> = drawing.text.iter().map(|r| r.text.clone()).collect();
+        assert_eq!(pdf_text(&pdf), written, "{name}: the PDF's text");
+        let type0: Vec<&String> = objects
+            .values()
+            .map(|(d, _)| d)
+            .filter(|d| d.contains("/Subtype /Type0"))
+            .collect();
+        let files: BTreeSet<&str> = drawing.text.iter().map(|r| r.font.as_str()).collect();
+        assert_eq!(type0.len(), files.len(), "{name}: one font per file");
+        for font in type0 {
+            let base = font[font.find("/BaseFont /").unwrap() + 11..]
+                .split_whitespace()
+                .next()
+                .unwrap();
+            let (tag, file) = base.split_once('+').expect("a subset tag");
+            assert!(
+                tag.len() == 6 && tag.bytes().all(|b| b.is_ascii_uppercase()),
+                "{name}: {base}"
+            );
+            let file = format!("{file}.ttf");
+            let whole_data = common::fonts(&file).unwrap();
+            let whole = ttf_parser::Face::parse(&whole_data, 0).unwrap();
+            let shown: BTreeSet<u16> = drawing
+                .text
+                .iter()
+                .filter(|r| r.font == file)
+                .flat_map(|r| r.text.chars())
+                .map(|ch| whole.glyph_index(ch).map_or(0, |g| g.0))
+                .chain([0])
+                .collect();
+            let shown = with_components(&whole, shown);
+
+            let descendant = &font[font.find("/DescendantFonts [").unwrap() + 18..];
+            let descendant: u32 = descendant
+                .split_whitespace()
+                .next()
+                .unwrap()
+                .parse()
+                .unwrap();
+            let cid_font = &objects[&descendant].0;
+            assert!(
+                cid_font.contains(&format!("/BaseFont /{base}")),
+                "{cid_font}"
+            );
+            let descriptor = &objects[&reference(cid_font, "/FontDescriptor")].0;
+            assert!(
+                descriptor.contains(&format!("/FontName /{base}")),
+                "{descriptor}"
+            );
+            let (program_dict, program) = &objects[&reference(descriptor, "/FontFile2")];
+            assert!(
+                program_dict.contains(&format!("/Length1 {}", program.len())),
+                "{program_dict}"
+            );
+            let subset = ttf_parser::Face::parse(program, 0).expect("the subset parses");
+            assert_eq!(
+                subset.number_of_glyphs() as usize,
+                shown.len(),
+                "{name} {file}: the glyphs embedded"
+            );
+            assert!(program.len() * 10 < whole_data.len(), "{name} {file}");
+
+            let map: Vec<u16> = objects[&reference(cid_font, "/CIDToGIDMap")]
+                .1
+                .chunks(2)
+                .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                .collect();
+            let w = &cid_font[cid_font.find("/W [").unwrap() + 4..];
+            let w: Vec<f64> = w[..w.rfind(']').unwrap()]
+                .split(['[', ']', ' '])
+                .filter(|t| !t.is_empty())
+                .map(|t| t.parse().unwrap())
+                .collect();
+            let widths: BTreeMap<u16, f64> = w.chunks(2).map(|p| (p[0] as u16, p[1])).collect();
+            let unicode = to_unicode(&objects[&reference(font, "/ToUnicode")].1);
+            // Each CID shown has a width (the ToUnicode map also holds its code space range).
+            for (cid, width) in &widths {
+                let ch = unicode[cid].chars().next().unwrap();
+                let g = ttf_parser::GlyphId(whole.glyph_index(ch).map_or(0, |g| g.0));
+                let s = ttf_parser::GlyphId(map[*cid as usize]);
+                let advance = whole.glyph_hor_advance(g).unwrap();
+                assert_eq!(subset.glyph_hor_advance(s), Some(advance), "{name} {ch:?}");
+                assert_eq!(
+                    subset.glyph_bounding_box(s),
+                    whole.glyph_bounding_box(g),
+                    "{name} {ch:?}"
+                );
+                let em = whole.units_per_em() as f64;
+                assert!(
+                    (width - advance as f64 * 1000.0 / em).abs() < 1e-3,
+                    "{name} {ch:?}: /W"
+                );
+            }
+        }
+    }
 }

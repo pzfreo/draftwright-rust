@@ -551,10 +551,11 @@ impl Drawing {
         }
         c.restore_state();
 
-        // The labels' text, invisible: each font embedded whole. Each character is shown by its
-        // own CID, which the ToUnicode CMap maps back to it alone so the text extracted is the
-        // text written: its glyph's ID where the font has the glyph and no other character took
-        // it, else a CID after the font's glyphs drawn (invisibly) as that glyph or `.notdef`.
+        // The labels' text, invisible: each font subset to the glyphs shown. Each character is
+        // shown by its own CID, which the ToUnicode CMap maps back to it alone so the text
+        // extracted is the text written: its glyph's ID (in the whole font) where the font has
+        // the glyph and no other character took it, else a CID after the font's glyphs drawn
+        // (invisibly) as that glyph or `.notdef`.
         // The bundled fonts lack the callout symbols `⌀ ↧ ⌴ ⌵`, which the drawing's ink draws
         // as the font's `ø` and as strokes; this way they are still searched and copied as such.
         let faces: BTreeMap<&str, Vec<u8>> = self
@@ -670,14 +671,37 @@ impl Drawing {
         pdf.stream(content_id, &content).filter(Filter::FlateDecode);
 
         let mut font_refs = Vec::new();
-        for (file, (of, extra)) in &cids {
+        for (file, (of, _)) in &cids {
             let data = &faces[file];
             let face = ttf_parser::Face::parse(data, 0).expect("parsed above");
             let n = face.number_of_glyphs();
             let by_cid: BTreeMap<u16, char> = of.iter().map(|(ch, cid)| (*cid, *ch)).collect();
             let em = face.units_per_em() as f64;
             let scale = |v: f64| (v * 1000.0 / em) as f32;
-            let base = file.trim_end_matches(".ttf").to_string();
+            // The font program holds only the glyphs shown (and `.notdef`, and the parts of
+            // composite glyphs), renumbered in glyph order; the CIDs stay as above, mapped to
+            // the new glyph IDs, so the content stream and widths are those of the whole font.
+            // Its name is tagged, as a subset's must be, from the glyphs it keeps. A font the
+            // subsetter cannot read (not a bundled one) is embedded whole, untagged.
+            let used: BTreeSet<u16> = by_cid.keys().map(|&cid| glyph(file, cid, n)).collect();
+            let used: Vec<u16> = used.into_iter().collect();
+            let remapper = subsetter::GlyphRemapper::new_from_glyphs_sorted(&used);
+            let subset = subsetter::subset(data, 0, &remapper).ok();
+            let program = subset.as_deref().unwrap_or(data);
+            let new_gid = |g: u16| match subset {
+                Some(_) => remapper.get(g).expect("each glyph shown is kept"),
+                None => g,
+            };
+            let mut base = file.trim_end_matches(".ttf").to_string();
+            if subset.is_some() {
+                use sha2::Digest;
+                let bytes: Vec<u8> = used.iter().flat_map(|g| g.to_be_bytes()).collect();
+                let tag: String = sha2::Sha256::digest(&bytes)[..6]
+                    .iter()
+                    .map(|b| (b'A' + b % 26) as char)
+                    .collect();
+                base = format!("{tag}+{base}");
+            }
             let (type0, cid, descriptor, file_ref, cmap_ref) =
                 (alloc(), alloc(), alloc(), alloc(), alloc());
             pdf.type0_font(type0)
@@ -695,12 +719,8 @@ impl Drawing {
                     supplement: 0,
                 })
                 .font_descriptor(descriptor);
-            // The CIDs after the font's own need a map; without them, CID and glyph ID agree.
-            let gid_map = (!extra.is_empty()).then(&mut alloc);
-            match gid_map {
-                Some(r) => cid_font.cid_to_gid_map_stream(r),
-                None => cid_font.cid_to_gid_map_predefined(Name(b"Identity")),
-            };
+            let gid_map = alloc();
+            cid_font.cid_to_gid_map_stream(gid_map);
             let mut widths = cid_font.widths();
             for &cid in by_cid.keys() {
                 let g = glyph(file, cid, n);
@@ -731,9 +751,9 @@ impl Drawing {
                 ))
                 .stem_v(80.0)
                 .font_file2(file_ref);
-            pdf.stream(file_ref, &deflate(data))
+            pdf.stream(file_ref, &deflate(program))
                 .filter(Filter::FlateDecode)
-                .pair(Name(b"Length1"), data.len() as i32);
+                .pair(Name(b"Length1"), program.len() as i32);
             let mut cmap = UnicodeCmap::new(
                 Name(b"Custom"),
                 SystemInfo {
@@ -748,13 +768,20 @@ impl Drawing {
             let cmap = cmap.finish();
             pdf.cmap(cmap_ref, &deflate(&cmap))
                 .filter(Filter::FlateDecode);
-            if let Some(r) = gid_map {
-                let map: Vec<u8> = (0..n)
-                    .chain(extra.iter().copied())
-                    .flat_map(u16::to_be_bytes)
-                    .collect();
-                pdf.stream(r, &deflate(&map)).filter(Filter::FlateDecode);
-            }
+            // Each CID shown to its glyph's new ID; the CIDs not shown to `.notdef`.
+            let last = by_cid.keys().next_back().copied().unwrap_or(0);
+            let map: Vec<u8> = (0..=last)
+                .map(|cid| {
+                    if by_cid.contains_key(&cid) {
+                        new_gid(glyph(file, cid, n))
+                    } else {
+                        0
+                    }
+                })
+                .flat_map(u16::to_be_bytes)
+                .collect();
+            pdf.stream(gid_map, &deflate(&map))
+                .filter(Filter::FlateDecode);
             font_refs.push((names[file].clone(), type0));
         }
 
