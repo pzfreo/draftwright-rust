@@ -126,8 +126,13 @@ fn listing(dir: &Path) -> Vec<String> {
 fn omitting(omit: &[&str]) -> Spec {
     let mut spec = Spec::default();
     for id in omit {
-        spec.dimensions
-            .insert(id.to_string(), DimensionSpec { omit: true });
+        spec.dimensions.insert(
+            id.to_string(),
+            DimensionSpec {
+                omit: true,
+                ..Default::default()
+            },
+        );
     }
     spec
 }
