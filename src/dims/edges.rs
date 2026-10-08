@@ -14,10 +14,11 @@
 //!   about the turning axis onto the profile its view shows, as draftwright's
 //!   `_turned_profile_site` does about the nearest external shaft (ISSUE-1276-a, in part: the
 //!   port knows only the whole part's axis, so on any other part the physical site is kept).
-//! - **Oriented chamfers** (quiddity's `OrientedChamfer`, a bevel along a free edge) are called out
-//!   as a chamfer when their edge (`run`) lies along a principal axis. One along an oblique edge
-//!   has no view that sees it edge-on and no reviewed grammar (draftwright leaves it
-//!   undimensioned, `detect.py`'s `_UNCONSUMED_RECORDS`, #1365), so it is reported, not drawn.
+//! - **Oriented chamfers** (quiddity's `OrientedChamfer`) are not dimensioned. quiddity records
+//!   one only along an oblique edge (`oriented_chamfers.py` rejects a run within
+//!   `AXIS_ALIGNED_COS` of an axis), which no standard view sees edge-on, and draftwright has no
+//!   reviewed callout for it (`detect.py`'s `_UNCONSUMED_RECORDS`, #1365); the kind stays in
+//!   `dims::UNDRAFTED`.
 //!
 //! A record whose sizes or direction cannot be read is reported (`feature_not_dimensioned`),
 //! never dropped.
@@ -30,10 +31,10 @@ use super::envelope::profile_views;
 use super::turned::Turned;
 use super::{AXES, Context, Measurement, P3, Planner, Problem, Shape, Want, end_on, fmt, key};
 use crate::bridge::Feature;
-use crate::bridge::holes::{dir_to_part, point, principal};
+use crate::bridge::holes::{point, principal};
 
 pub(super) const PLANNER: Planner = Planner {
-    kinds: &["chamfer", "fillet", "oriented_chamfer"],
+    kinds: &["chamfer", "fillet"],
     wants,
 };
 
@@ -93,21 +94,9 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
         .map(|l| frame.point(l))
         .ok_or("its record gives no point on it (at)")?;
     let turned = f.parameters.get("turned").and_then(Value::as_bool) == Some(true);
-    let axis = if f.kind == "oriented_chamfer" {
-        let run =
-            point(f.parameters.get("run")).ok_or("its record gives no edge direction (run)")?;
-        let d = dir_to_part(&frame.0, run);
-        principal(d).ok_or_else(|| {
-            format!(
-                "its edge runs obliquely, along ({}), so no standard view sees the bevel edge-on, and there is no reviewed callout for it (draftwright leaves it undimensioned too, #1365)",
-                d.map(|c| format!("{c:.3}")).join(", ")
-            )
-        })?
-    } else {
-        let letter = f.parameters.get("axis").ok_or("its record gives no axis")?;
-        let d = frame.letter(letter).ok_or("its axis is not x, y or z")?;
-        principal(d).ok_or("its axis is not along x, y or z in the part's frame")?
-    };
+    let letter = f.parameters.get("axis").ok_or("its record gives no axis")?;
+    let d = frame.letter(letter).ok_or("its axis is not x, y or z")?;
+    let axis = principal(d).ok_or("its axis is not along x, y or z in the part's frame")?;
     let m = |parameter: &str, value: f64| Measurement {
         feature: f.id.clone(),
         parameter: parameter.into(),
@@ -154,31 +143,22 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
     })
 }
 
-/// The world axes view *view* shows.
-fn shown(view: &str) -> [usize; 2] {
-    match view {
-        "front" => [0, 2],
-        "side" => [1, 2],
-        _ => [0, 1],
-    }
-}
-
 /// Where the leader points: the record's point *at*, or for a turned treatment about *axis* on a
-/// part turned whole about it (*whole*), that point rotated about the turning axis onto the
-/// profile *view* shows, on the side it already lies.
-fn site(whole: Option<&Turned>, at: P3, axis: usize, turned: bool, view: &str) -> P3 {
+/// part turned whole about it (*whole*), that point turned about the axis onto the profile, on the
+/// side it already lies. The site is set at the treatment's radius from the axis along both
+/// transverse axes, so it projects onto the profile in either profile view, whichever placement
+/// uses (only its projection is used).
+fn site(whole: Option<&Turned>, at: P3, axis: usize, turned: bool) -> P3 {
     let Some(t) = whole.filter(|t| turned && t.axis == axis) else {
         return at;
     };
-    let Some(&j) = shown(view).iter().find(|&&j| j != t.axis) else {
-        return at;
-    };
-    let other = 3 - t.axis - j;
-    let r = (at[j] - t.on[j]).hypot(at[other] - t.on[other]);
-    let sign = if at[j] - t.on[j] < -1e-9 { -1.0 } else { 1.0 };
+    let (j, k) = ((axis + 1) % 3, (axis + 2) % 3);
+    let r = (at[j] - t.on[j]).hypot(at[k] - t.on[k]);
     let mut p = at;
-    p[j] = t.on[j] + sign * r;
-    p[other] = t.on[other];
+    for c in [j, k] {
+        let sign = if at[c] - t.on[c] < -1e-9 { -1.0 } else { 1.0 };
+        p[c] = t.on[c] + sign * r;
+    }
     p
 }
 
@@ -194,7 +174,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut groups: BTreeMap<Key, Vec<Edge>> = BTreeMap::new();
     for f in &analysis.features {
         let family = match f.kind.as_str() {
-            "chamfer" | "oriented_chamfer" => 0,
+            "chamfer" => 0,
             "fillet" => 1,
             _ => continue,
         };
@@ -229,9 +209,16 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .iter()
             .min_by_key(|(k, v)| (std::cmp::Reverse(v.len()), **k))
             .expect("a group has a member");
+        // Its representative, which names the item: the member first by its point, as
+        // draftwright sorts by `frame.origin` (then by feature order, for a tie).
         let first = visible
             .iter()
-            .min_by_key(|e| rank(&e.feature.id))
+            .min_by(|a, b| {
+                (a.at.iter().zip(&b.at).map(|(x, y)| x.total_cmp(y)))
+                    .find(|o| o.is_ne())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| rank(&a.feature.id).cmp(&rank(&b.feature.id)))
+            })
             .expect("a presentation has a member");
         let views = first.views();
         let n = members.len();
@@ -266,12 +253,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
         let sites = visible
             .iter()
-            .map(|e| {
-                (
-                    site(cx.turned.as_ref(), e.at, e.axis, e.turned, views[0]),
-                    0.0,
-                )
-            })
+            .map(|e| (site(cx.turned.as_ref(), e.at, e.axis, e.turned), 0.0))
             .collect();
         out.push(Want {
             id: super::want_id(&first.feature.id, first.parameter, views[0]),
@@ -304,9 +286,10 @@ mod tests {
         assert!(!c_form(31.75, 14.805, 25.0));
     }
 
-    /// ISSUE-1276-a, in part: a turned treatment's leader site turns about the part's turning
-    /// axis onto the profile its view shows, keeping its axial station and its radius; anything
-    /// else keeps its physical point.
+    /// ISSUE-1276-a, in part: a turned treatment's leader site is set at its radius off the
+    /// part's turning axis along both transverse axes, keeping its axial station and side, so it
+    /// projects onto the profile in either profile view (front shows x, side y); anything else
+    /// keeps its physical point.
     #[test]
     fn a_turned_site_turns_onto_the_profile() {
         let t = Turned {
@@ -316,13 +299,12 @@ mod tests {
         };
         // 3-4-5 off the axis, behind the front view's plane.
         let at = [1.0 + 3.0, 2.0 + 4.0, 7.0];
-        assert_eq!(site(Some(&t), at, 2, true, "front"), [6.0, 2.0, 7.0]);
-        assert_eq!(site(Some(&t), at, 2, true, "side"), [1.0, 7.0, 7.0]);
+        assert_eq!(site(Some(&t), at, 2, true), [6.0, 7.0, 7.0]);
         let below = [1.0 - 3.0, 2.0 + 4.0, 7.0];
-        assert_eq!(site(Some(&t), below, 2, true, "front"), [-4.0, 2.0, 7.0]);
+        assert_eq!(site(Some(&t), below, 2, true), [-4.0, 7.0, 7.0]);
         // Not turned, about another axis, or on a part not turned whole: unchanged.
-        assert_eq!(site(Some(&t), at, 2, false, "front"), at);
-        assert_eq!(site(Some(&t), at, 0, true, "front"), at);
-        assert_eq!(site(None, at, 2, true, "front"), at);
+        assert_eq!(site(Some(&t), at, 2, false), at);
+        assert_eq!(site(Some(&t), at, 0, true), at);
+        assert_eq!(site(None, at, 2, true), at);
     }
 }

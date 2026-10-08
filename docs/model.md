@@ -154,8 +154,8 @@ placed}`:
 
 - **Fillets and chamfers** (`src/dims/edges.rs`): `R3` and `C1` or `4.5 × 42.1°` callouts, equal
   ones counted (`4× R3`), where the edge is seen end-on, or in the profile when quiddity marks
-  them turned. An oriented chamfer along a principal edge is called out as a chamfer; one along an
-  oblique edge is reported (`feature_not_dimensioned`), as is a record whose sizes cannot be read.
+  them turned. A record whose sizes or axis cannot be read is reported (`feature_not_dimensioned`).
+  Oriented chamfers (always oblique in quiddity) are left undimensioned, as in draftwright (#1365).
 
 Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `edges`), listed
 in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised feature (blends,

@@ -289,15 +289,15 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
 /// (`model/detect.py`'s `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`): a countersink rides on
 /// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
 /// #1557, #1247). Leaving them undimensioned is no gap in the port, so they are not reported as
-/// one. (`OrientedChamfer` is one too, but [`edges`] claims it: it calls out one along a principal
-/// edge and reports an oblique one.)
-const UNDRAFTED: [&str; 10] = [
+/// one.
+const UNDRAFTED: [&str; 11] = [
     "AngledStep",
     "CircularFacePattern",
     "CounterSink",
     "FreeformSurface",
     "InteriorVoid",
     "ObliqueThroughStep",
+    "OrientedChamfer",
     "OrientedSlotArray",
     "OrientedSlotGrid",
     "SheetMetalBody",

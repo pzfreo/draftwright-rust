@@ -1425,7 +1425,7 @@
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
   status: pending
   rust_test: src/dims/edges.rs::tests::a_turned_site_turns_onto_the_profile
-  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is rotated about the turning axis onto the profile its view shows, at its own axial station (src/dims/edges.rs::site). Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl and groove notes are not planned."
+  rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl and groove notes are not planned."
   port_note: "Keep: plan leader targets reference analysis edges/faces; scenario on GRM-03."
 
 - id: ISSUE-1281-a

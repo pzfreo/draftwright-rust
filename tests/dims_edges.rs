@@ -182,45 +182,36 @@ fn chamfers_are_called_out_c_or_leg_and_angle() {
     assert!(problems(&plan, "dimensions_not_ported").is_empty());
 }
 
-/// An oriented chamfer along a principal edge is called out as a chamfer; one along an oblique
-/// edge has no view that sees it edge-on and no reviewed grammar, so it is reported, never
-/// dropped or guessed. (IDs rank by faces: record 1, on face 2, is `f:oriented_chamfer:1`.)
+/// Oriented chamfers are left undimensioned, as draftwright leaves them (#1365): quiddity records
+/// one only along an oblique edge, which no standard view sees edge-on. They are not claimed by
+/// the edge planner, not folded into a chamfer callout, and not reported as unported (the kind is
+/// in `dims::UNDRAFTED`).
 #[test]
-fn an_oblique_oriented_chamfer_is_reported_not_drawn() {
+fn oriented_chamfers_are_left_undimensioned() {
     let json = prismatic_with(|i, f| {
         chamfer(f, 1.0, 1.0, 45.0);
         if i < 2 {
             let at = f["record"]["at"].clone();
-            let run = if i == 0 {
-                json!([1.0, 0.0, 0.0])
-            } else {
-                json!([0.0, 0.5, 0.866025])
-            };
             f["family"] = "oriented_chamfers".into();
             f["record_type"] = "OrientedChamfer".into();
             f["record"] = json!({
                 "angle": 45.0, "at": at, "corner": at, "dependents": [], "leg1": 1.0,
                 "leg2": 1.0, "leg1_direction": [0.0, 1.0, 0.0],
                 "leg2_direction": [0.0, 0.0, 1.0], "length": 10.0, "named_dimensions": {},
-                "run": run
+                "run": [0.0, 0.5, 0.866025]
             });
         }
     });
     let plan = planned("prismatic", &json, &Spec::default());
     let c = callouts(&plan);
     assert_eq!(c.len(), 1, "{:?}", labels(&plan));
-    assert_eq!(c[0].label, "3× C1");
+    assert_eq!(c[0].label, "2× C1");
     assert!(
         c[0].measurements
             .iter()
-            .any(|m| m.feature == "f:oriented_chamfer:2")
+            .all(|m| !m.feature.starts_with("f:oriented_chamfer:"))
     );
-    let reported = problems(&plan, "feature_not_dimensioned");
-    assert_eq!(reported.len(), 1, "{reported:?}");
-    let p = reported[0];
-    assert_eq!(p.severity, "warning");
-    assert_eq!(p.subjects, ["f:oriented_chamfer:1"]);
-    assert!(p.message.contains("obliquely"), "{}", p.message);
+    assert!(problems(&plan, "feature_not_dimensioned").is_empty());
     assert!(problems(&plan, "dimensions_not_ported").is_empty());
 }
 
@@ -331,4 +322,45 @@ fn grm03_states_three_chamfers_in_two_callouts() {
     );
     let n: usize = callouts(&plan).iter().map(|c| c.measurements.len()).sum();
     assert_eq!(n, 3);
+}
+
+/// ISSUE-1276-a's turned site in a fallback view: with GRM-03's front omitted, its chamfer
+/// callouts move to the other profile view (plan, for its x-axis shaft), and their leaders still
+/// end on the shaft's profile, as far off its centreline as in the front, not on the centreline.
+#[test]
+fn turned_callouts_in_the_fallback_profile_end_on_the_profile() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let f = facts::load("grm03");
+    let (_, a) = corpus::analyse(&dir, &f.binding.file, "grm03");
+    // Each callout's label, view and its leader tip's offset across the view's centre, paper mm.
+    let offsets = |spec: &Spec| -> Vec<(String, String, f64)> {
+        let plan = model::plan(&a, spec).unwrap();
+        callouts(&plan)
+            .iter()
+            .map(|c| {
+                let v = plan.views.iter().find(|v| v.id == c.view).unwrap();
+                let tip = c.placed.as_ref().unwrap().arrows[0][0];
+                (c.label.clone(), c.view.clone(), tip[1] - v.at[1])
+            })
+            .collect()
+    };
+    let front = offsets(&Spec::default());
+    let mut spec = Spec::default();
+    spec.views.insert("front".into(), Default::default());
+    spec.views.get_mut("front").unwrap().omit = true;
+    let fallback = offsets(&spec);
+    assert_eq!(front.len(), 2);
+    assert_eq!(fallback.len(), 2);
+    for (f, b) in front.iter().zip(&fallback) {
+        assert_eq!((f.0.as_str(), f.1.as_str()), (b.0.as_str(), "v:front"));
+        assert_eq!(b.1, "v:plan");
+        assert!(b.2.abs() > 1.0, "{fallback:?}");
+        assert!(
+            (f.2.abs() - b.2.abs()).abs() < 1e-6,
+            "{front:?} {fallback:?}"
+        );
+    }
 }
