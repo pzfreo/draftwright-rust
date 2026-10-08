@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use haecceity::hlr::View;
 
+use super::holes::SPOTFACE;
 use super::{
     ARROW, ARROW_HALF, CAP, FIRST, GAP, LANE, LIFT, OVERSHOOT, P2, P3, Placed, PlannedDimension,
     Shape, TEXT, TOKEN_GAP, Want, font, key,
@@ -79,7 +80,9 @@ pub struct LabelInk {
 }
 
 /// Lays out *terms* as draftwright's callout recipe does: each term's leading symbol in a cell of
-/// one text height (`⌀` as the font's `ø`, the others drawn), each token a gap apart.
+/// one text height (`⌀` as the font's `ø`, the others drawn), each token a gap apart. The
+/// spotface symbol (the term [`SPOTFACE`], ASME Y14.5-2018's counterbore symbol with SF inside)
+/// is the counterbore's strokes widened to hold the font's own `SF`, in a cell of [`SF_CELL`].
 pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
     let h = TEXT;
     let mut ink = LabelInk {
@@ -99,6 +102,7 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
     for t in terms {
         let mut chars = t.chars();
         match chars.next() {
+            _ if t == SPOTFACE => tokens.push((Some('⌴'), "SF".into())),
             Some(c @ ('⌀' | '↧' | '⌴' | '⌵')) => {
                 tokens.push((Some(c), String::new()));
                 let rest: String = chars.collect();
@@ -136,6 +140,33 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
                 glyphs("ø", at, &mut ink);
                 x += h;
             }
+            Some('⌴') if text == "SF" => {
+                let (l, r) = (x + 0.15 * h, x + SF_CELL - 0.15 * h);
+                let strokes = [
+                    [[l, CAP], [l, 0.0]],
+                    [[l, 0.0], [r, 0.0]],
+                    [[r, 0.0], [r, CAP]],
+                ];
+                for s in &strokes {
+                    grow(&mut ink, s[0], s[1]);
+                }
+                ink.strokes.extend(strokes);
+                let at = x + 0.5 * (SF_CELL - font.advance(text, SF_TEXT));
+                let laid = font.baseline(text, SF_TEXT);
+                grow(
+                    &mut ink,
+                    [at + laid.min[0], SF_RAISE + laid.min[1]],
+                    [at + laid.max[0], SF_RAISE + laid.max[1]],
+                );
+                let shift = |p: P2| [p[0] + at, p[1] + SF_RAISE];
+                ink.glyphs.push(
+                    laid.contours
+                        .into_iter()
+                        .map(|c| c.into_iter().map(|s| moved(&s, &shift)).collect())
+                        .collect(),
+                );
+                x += SF_CELL;
+            }
             Some(c) => {
                 let (l, m, r) = (x + 0.15 * h, x + 0.5 * h, x + 0.85 * h);
                 let strokes: Vec<[P2; 2]> = match c {
@@ -169,6 +200,15 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
     }
     ink
 }
+
+/// The spotface symbol's cell: the counterbore's box widened from 0.7 to 1.1 text heights so the
+/// letters fit inside with a margin.
+const SF_CELL: f64 = 1.4 * TEXT;
+/// The height the spotface symbol's `SF` is set at, and its baseline above the box's floor: its
+/// capitals (0.7 of the size in the bundled mono font) stand clear of the floor and below the
+/// box's sides.
+const SF_TEXT: f64 = 0.6 * TEXT;
+const SF_RAISE: f64 = 0.12 * TEXT;
 
 pub(super) fn moved(s: &Segment, f: &dyn Fn(P2) -> P2) -> Segment {
     match *s {

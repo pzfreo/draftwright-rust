@@ -530,7 +530,7 @@ fn a_hole_with_a_counterbore_and_a_spotface_states_both() {
     let (part, analysis) = analysed_with("plate", &json);
     let plan = model::plan(&analysis, &Spec::default()).unwrap();
     let c = find(&plan, "d:f:hole_pattern:1/bore.diameter@plan");
-    assert_eq!(c.label, "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 ⌴ ⌀20 ↧ 1 (2×2)");
+    assert_eq!(c.label, "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1 (2×2)");
     for (parameter, value) in [
         ("counterbore.diameter", 11.0),
         ("counterbore.depth", 6.4),

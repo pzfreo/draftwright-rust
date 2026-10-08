@@ -1509,3 +1509,45 @@ improvement plan and questions are the current work. Still open from before it:
       `Drawing::sheet` record each dimension's witness points and each view's projection (the
       same record label_vs_measured would need), or is the claim the right evidence for the
       port's own drawings?
+
+- From wave 3 (stream d-spotface): a spotface is stated with ASME Y14.5-2018's spotface symbol
+  (maintainer decision 2026-10-08), in the hole callout (`src/dims/holes.rs`, the term
+  `dims::holes::SPOTFACE`) and in lint's fix text (`src/lint/holes.rs`): `⌀62 THRU ⌴SF ⌀70 ↧ 10`.
+  - **Representation, and why:** Unicode has no code point for the symbol, and the bundled fonts
+    (IBM Plex Mono and Sans Condensed) have none of the callout symbols `⌀ ⌴ ↧ ⌵` (checked with
+    fontTools), which the drawing has always drawn as the font's `ø` and as strokes. So the term
+    is the text `⌴SF`: `dims::label_ink` draws it as one symbol, the counterbore's open box
+    widened to 1.1 text heights (`SF_CELL`) around the drawing font's own `S` and `F` outlines (set
+    at 0.6 of the text height, inside the box); placement measures the same ink, so collision and
+    band boxes include the wider symbol. The PDF's and SVG's invisible text runs carry `⌴SF`, so
+    both `⌴SF` and `SF` are searched and copied, and the plan, replies and lint read the same
+    text; no private-use code point reaches the JSON. Rejected: a private-use character with a
+    glyph added to the font (the plan and replies would carry an unreadable character, and adding
+    a glyph means modifying IBM Plex, whose OFL reserves the name "Plex", or synthesising glyphs in
+    the PDF subset, which the `subsetter` crate does not do).
+  - **Verdicts:** spool132's bore callout (`known_dimensions.json`) now prints `⌴SF` where
+    draftwright's grammar prints `⌴` for a spotface: rust-correct by the maintainer's decision (the
+    entry stays undetermined for its other difference, the bore's callout convention). Its
+    `annotation_outside_area` overrun grows 25.5 → 26.7 mm with the wider symbol (count unchanged,
+    reason updated in `known_placement.json`). The two-recess label in
+    `tests/dimension_rules.rs` is now `⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1`, and lint still finds nothing
+    missing on it.
+  - **Lint's reader** takes `⌴SF` (and `⌴ SF`) as one spotface segment, and still takes a bare
+    `SF`, draftwright's `⌴` for a lone spotface, the earlier two-`⌴` form and the captured sheets'
+    symbol-less runs (unit tests in `lint::holes`). `tests/lint.rs` and `known_lint.json` needed no
+    change; LINT-hole_coverage-spotface_diameter_depth was already ported.
+  - **Tests:** `tests/dims_spotface.rs`: the symbol's ink (box strokes, the font's `SF` contours
+    wholly inside, the label measured wider), and spool132 rendered: the callout's run reads back
+    from the PDF's and SVG's text layers, and its `S` and `F` are real glyphs of the embedded subset
+    font (not `.notdef`). The PDF/SVG text-layer readers moved from `tests/output.rs` to
+    `tests/common/pdf.rs` so both files share them. Outside the stream's files:
+    `tests/trust_rules.rs::no_document_infers_manufacturing_intent` lists `SF` among the printed
+    words (the symbol's letters, not an inferred finish or fit).
+  - Left: the box (like every callout symbol) is ink, not a font glyph; in the PDF's invisible text
+    `⌴` is shown as `.notdef` and found through the ToUnicode map, as `⌀ ↧ ⌵` are. The symbol's
+    proportions (box 1.1 × 0.7 text heights, letters at 0.6) are the port's, not measured from the
+    standard's figure.
+  - Questions for the maintainer:
+    - Should the callout symbols (`⌀ ⌴ ↧ ⌵` and the spotface's box) be real glyphs in the embedded
+      font, rather than ink with searchable text? That needs a modified, renamed font (OFL Reserved
+      Font Name "Plex") or glyphs synthesised into the PDF's subset font.

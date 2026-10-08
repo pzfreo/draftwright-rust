@@ -404,10 +404,10 @@
     "side": "rust",
     "family": "callout",
     "view": "plan",
-    "label": "⌀62 THRU ⌴ ⌀70 ↧ 10",
+    "label": "⌀62 THRU ⌴SF ⌀70 ↧ 10",
     "count": 1,
     "verdict": "undetermined",
-    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (↧ 10), which draftwright's two leaders do not."
+    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (↧ 10), which draftwright's two leaders do not, and marks the recess a spotface with ASME Y14.5-2018's spotface symbol (⌴SF, the counterbore symbol with SF inside; maintainer decision 2026-10-08), where draftwright's grammar prints a spotface with the counterbore's ⌴."
   },
   {
     "part": "string_post",
