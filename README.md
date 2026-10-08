@@ -33,14 +33,23 @@ each against what the Python implementation produces:
 ## Using it
 
 A drawing is three JSON documents: the Analysis, the Spec and the Plan. Five stateless
-operations work on them (`docs/model.md`, ADR R1):
+operations work on them (`docs/model.md`, ADR R1).
+
+Features come from Python quiddity for now: recognise the part once with
+`tools/recognise.py`, then pass the result as `--features` (without it the part has no
+features, so no dimensions, sections or hole lint):
 
 ```
-draftwright analyse part.step                          # the Analysis
-draftwright plan part.step --spec part.drawing.json    # the Plan, every choice with its basis
+~/repos/quiddity/.venv/bin/python tools/recognise.py part.step -o part.features.json
+
+draftwright analyse part.step --features part.features.json      # the Analysis
+draftwright plan part.step --features part.features.json --spec part.drawing.json
+                                                       # the Plan, every choice with its basis
 draftwright edit part.drawing.json ops.json            # apply edits to a Spec
-draftwright render part.step --spec part.drawing.json -o out   # out.svg, out.dxf, out.pdf
-draftwright review part.step --spec part.drawing.json  # the drawing as SVG text, with problems
+draftwright render part.step --features part.features.json --spec part.drawing.json -o out
+                                                       # out.svg, out.dxf, out.pdf
+draftwright review part.step --features part.features.json --spec part.drawing.json
+                                                       # the drawing as SVG text, with problems and lint
 draftwright spec out.dxf                               # the Spec a drawing (SVG, DXF, PDF) was made from
 draftwright serve                                      # the same operations as a JSON-lines service
 draftwright-mcp                                        # the same operations as an MCP server (stdio)
@@ -49,12 +58,30 @@ draftwright-mcp                                        # the same operations as 
 To use the MCP server from an MCP client, register the `draftwright-mcp` binary as a stdio
 server (for Claude Code: `claude mcp add draftwright -- /path/to/draftwright-mcp`).
 
-It covers the views, sheet, scale and title block so far; dimensions and annotations come next.
-The plan, the ADRs (`docs/adr/`) and the rules catalogue that tracks what the Python version
-learnt (`docs/rules/`) are in `docs/`.
+What it draws so far (at bbd3dd7):
+
+- **Views, sheet, scale and title block,** with draftwright's layout arithmetic; a turned part
+  leaves out the view that repeats its profile, and room is reserved for the annotation bands
+  its features need.
+- **Section A–A** by draftwright's rule (a z-axis hole that is counterbored, spotfaced or
+  blind), hatched at 45°, with its cutting-plane line and caption.
+- **First dimensions:** the overall envelope, turned steps, and hole callouts with their
+  locations and pattern pitches, each a Plan item with an ID, label and basis.
+- **Lint for holes:** every recognised hole's sizes, THRU or depth, recesses and count must be
+  stated on the drawing; `review` reports what is not. At bbd3dd7 it does not yet see the
+  port's own callouts, so it reports them as missing (`docs/review-2026-10-08.md`, H1).
+
+Other feature kinds (fillets, chamfers, slots, bosses, …), notes and tables are not drawn yet.
+The plan (`docs/plan.md`), the ADRs (`docs/adr/`), the rules catalogue that tracks what the
+Python version learnt (`docs/rules/`) and the latest review (`docs/review-2026-10-08.md`) are in
+`docs/`.
 
 Feature recognition is bridged from Python quiddity's JSON results until the Rust quiddity
 covers the families and the aggregate draftwright needs.
+
+To check a change: `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus
+DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`, `cargo fmt --check` and `cargo clippy
+--all-targets --release -- -D warnings` (as CI does, `.github/workflows/ci.yml`).
 
 Licensed AGPL-3.0, as draftwright is; haecceity and quiddity-rust are Apache-2.0. The fonts in
 `fonts/` are IBM Plex, vendored from draftwright under the SIL Open Font License 1.1 (the
