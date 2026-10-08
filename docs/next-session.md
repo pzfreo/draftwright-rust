@@ -313,6 +313,27 @@ improvement plan and questions are the current work. Still open from before it:
       That unblocks the switch.
     - Who owns fingerprints, draftwright or quiddity? Until that is decided the native reader
       keeps draftwright's (`draftwright-bridge/2`) and does not adopt quiddity's.
+- Native families (d-native-families): `bridge::native` also reads fillets, chamfers,
+  countersinks, bosses and turned steps, each record checked against a `FIELDS` table of
+  required fields and shapes (missing or mis-shaped refuses the read). Over the 29 parts
+  `known_native.json` grows by 182 entries (297 in all). Fillets 148 and chamfers 64 pairs
+  agree in full. Countersinks: only ctc04 has them and the bridge refuses it; its 12 native
+  countersinks match Python 0.3.9's raw records. Bosses: 55 rust-wrong (40 native bosses
+  Python rejects because a turned step has the same faces, quiddity-rust does not port
+  `reconcile_boss_turned_step_candidates`; 10 connector109 ID shifts from those; 15 missing
+  free-end cap faces, the constituent-faces gap; 8 on ftc06 where both ends are open and the
+  free end follows the frame), 29 equivalent. Turned steps: 72 equivalent, 8 undetermined
+  (string_post body key ~1e-5 between OpenCascade and haecceity). Still not switched.
+  sheet_metal_bodies (quiddity-rust dff320c) is known, not read. Review minors, not fixed:
+  `FIELDS` requires `Fillet.side` and `Chamfer.corner` that draftwright does not read, and
+  does not check `TurnedStep.profile.axis_origin`/`body_key` that `dims/turned.rs` and
+  `demand.rs` do; `faces.is_sorted()` accepts duplicates (as for holes).
+  - Questions for the maintainer:
+    - Should quiddity-rust port Python's boss-versus-turned-step reconciliation, or record the
+      disposition in its document? Without it a switched pipeline dimensions those bands twice.
+    - quiddity's boss free-end choice depends on the frame when both ends are open (Python and
+      Rust alike); a quiddity-rust fix is needed. The constituent-faces question above now also
+      covers boss cap faces.
 - Lint families (d-lint-families): grooves, flats, angled, paired-ramp and circular blind
   steps run in `lint::check`; envelope and turned steps are ledgers only
   (`lint::envelope::outcomes`, `lint::turned::outcomes`), because Python's lint reports no
