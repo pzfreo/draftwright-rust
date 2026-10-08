@@ -142,7 +142,7 @@ impl HoleGroup {
             out += &format!(" ⌴ ⌀{} ↧ {}", fmt(r.diameter), f(r.depth));
         }
         if let Some(r) = s.spotface {
-            out += &format!(" SF ⌀{} ↧ {}", fmt(r.diameter), f(r.depth));
+            out += &format!(" ⌴SF ⌀{} ↧ {}", fmt(r.diameter), f(r.depth));
         }
         if let Some(c) = s.countersink {
             out += &format!(" ⌵ ⌀{} × {}°", fmt(c.diameter), f(c.angle));
@@ -324,9 +324,10 @@ fn says_thru(text: &str) -> bool {
         .any(|w| w == "THRU")
 }
 
-/// What opened a segment of a hole callout: the bore, `⌴` (a counterbore, or the port's
-/// spotface), `SF`, `⌵`, or a `⌀` printed after the bore's with no symbol (a captured sheet's
-/// text runs lose the symbols draftwright draws as strokes: `4× ø 12 20 ø 20 20`).
+/// What opened a segment of a hole callout: the bore, `⌴` (a counterbore, or draftwright's
+/// spotface), the spotface symbol `⌴SF` (ASME Y14.5-2018's, as the port prints it) or a bare
+/// `SF`, `⌵`, or a `⌀` printed after the bore's with no symbol (a captured sheet's text runs lose
+/// the symbols draftwright draws as strokes: `4× ø 12 20 ø 20 20`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Opened {
     Bore,
@@ -453,7 +454,13 @@ impl Callout {
                 let word: String = chars[start..i].iter().collect();
                 match word.as_str() {
                     "THRU" => thru = true,
-                    "SF" => out.segments.push(Segment::new(Opened::Spotface)),
+                    // `⌴SF` (or `⌴ SF`): the `⌴` just opened is the spotface symbol's.
+                    "SF" => match out.segments.last_mut() {
+                        Some(s) if *s == Segment::new(Opened::Recess) => {
+                            s.opened = Opened::Spotface
+                        }
+                        _ => out.segments.push(Segment::new(Opened::Spotface)),
+                    },
                     "EQ" | "ON" | "BC" => break,
                     _ => {}
                 }
@@ -1057,6 +1064,10 @@ mod tests {
         // The fix states every size.
         assert_eq!(g[0].callout(), "⌀6.6 ↧ 10 ⌴ ⌀11 ↧ 6.4");
         assert_eq!(g[1].callout(), "⌀6.6 THRU ⌵ ⌀12.4 × 90°");
+        assert_eq!(g[2].callout(), "⌀6.6 THRU ⌴SF ⌀14 ↧ 0.5");
+        let mut symbol = stated.clone();
+        symbol[2].text = g[2].callout();
+        assert_eq!(found(&a, &symbol), Vec::<String>::new());
         // Leaving the countersink's angle off, and misprinting the counterbore's depth.
         let mut short = stated.clone();
         short[0].text = "⌀6.6 ↧ 10 ⌴ ⌀11 ↧ 6.9".into();
@@ -1105,21 +1116,38 @@ mod tests {
                 .term(parameter, counterbore)
                 .map(|(v, _)| v)
         };
-        let port = "4× ⌀10 +0.1 -0.02 ↧ 12 ⌴ ⌀16 ↧ 5 ⌴ ⌀20 ↧ 0.5 (2×2)";
-        assert_eq!(term(port, "bore.diameter", true), Some(10.0));
-        assert_eq!(term(port, "bore.depth", true), Some(12.0));
-        assert_eq!(term(port, "counterbore.diameter", true), Some(16.0));
-        assert_eq!(term(port, "counterbore.depth", true), Some(5.0));
-        assert_eq!(term(port, "spotface.diameter", true), Some(20.0));
-        assert_eq!(term(port, "spotface.depth", true), Some(0.5));
-        // The port's lone spotface prints as `⌴`; a hand-written one as `SF`.
+        // The port's spotface symbol (`⌴SF`), and the earlier form with two `⌴` segments.
+        for port in [
+            "4× ⌀10 +0.1 -0.02 ↧ 12 ⌴ ⌀16 ↧ 5 ⌴SF ⌀20 ↧ 0.5 (2×2)",
+            "4× ⌀10 +0.1 -0.02 ↧ 12 ⌴ ⌀16 ↧ 5 ⌴ ⌀20 ↧ 0.5 (2×2)",
+        ] {
+            assert_eq!(term(port, "bore.diameter", true), Some(10.0));
+            assert_eq!(term(port, "bore.depth", true), Some(12.0));
+            assert_eq!(term(port, "counterbore.diameter", true), Some(16.0));
+            assert_eq!(term(port, "counterbore.depth", true), Some(5.0));
+            assert_eq!(term(port, "spotface.diameter", true), Some(20.0));
+            assert_eq!(term(port, "spotface.depth", true), Some(0.5));
+        }
         assert_eq!(
-            term("⌀6.6 THRU ⌴ ⌀14 ↧ 0.5", "spotface.diameter", false),
-            Some(14.0)
+            Callout::read("⌀6 THRU ⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1")
+                .segments
+                .len(),
+            3
         );
+        // A lone spotface: the port's symbol, draftwright's `⌴`, and a hand-written `SF`.
+        for text in [
+            "⌀6.6 THRU ⌴SF ⌀14 ↧ 0.5",
+            "⌀6.6 THRU ⌴ SF ⌀14 ↧ 0.5",
+            "⌀6.6 THRU ⌴ ⌀14 ↧ 0.5",
+            "⌀6.6 THRU SF ⌀14 ↧ 0.5",
+        ] {
+            assert_eq!(term(text, "spotface.diameter", false), Some(14.0), "{text}");
+            assert_eq!(term(text, "spotface.depth", false), Some(0.5), "{text}");
+        }
+        // The spotface symbol is not a counterbore.
         assert_eq!(
-            term("⌀6.6 THRU SF ⌀14 ↧ 0.5", "spotface.depth", false),
-            Some(0.5)
+            term("⌀6.6 THRU ⌴SF ⌀14 ↧ 0.5", "counterbore.diameter", false),
+            None
         );
         let sunk = "⌀8.1 H7 THRU ⌵ ⌀12.4 × 90°";
         assert_eq!(term(sunk, "bore.diameter", false), Some(8.1));

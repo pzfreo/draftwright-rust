@@ -24,6 +24,12 @@ pub(super) const PLANNER: Planner = Planner {
     wants,
 };
 
+/// The spotface symbol as a callout term: ASME Y14.5-2018's dedicated spotface symbol, the
+/// counterbore symbol with SF inside (maintainer decision, 2026-10-08). Unicode has no code
+/// point for it, so the term is the counterbore symbol and the letters, as the text layer and
+/// lint read it; [`super::label_ink`] draws it as one symbol, the letters inside the box.
+pub(super) const SPOTFACE: &str = "⌴SF";
+
 /// Member sites projected into a view, as integer keys.
 type Sites = Vec<(i64, i64)>;
 
@@ -50,17 +56,17 @@ impl Hole<'_> {
     /// draftwright prints one recess slot, the counterbore shadowing the spotface (`_recess`,
     /// `_shadowed`), so a hole quiddity finds both on (`holes.py`'s `_near_side_steps`: a shallow
     /// step is a spotface, a deep one a counterbore) loses its spotface on the sheet while its
-    /// own lint still requires it (`_physical_requirement_count`). The port prints both, each a
-    /// `⌴` segment as the spotface is printed alone (whether a spotface reads `⌴` or `SF` is a
-    /// maintainer question): rust-correct, since the spotface is a machining requirement the
-    /// callout would otherwise leave unstated.
-    fn recesses(&self) -> impl Iterator<Item = (&'static str, holes::Recess)> {
+    /// own lint still requires it (`_physical_requirement_count`). The port prints both:
+    /// rust-correct, since the spotface is a machining requirement the callout would otherwise
+    /// leave unstated. Each recess opens with its symbol: `⌴` for the counterbore, [`SPOTFACE`]
+    /// for the spotface (draftwright prints a spotface with the counterbore's `⌴`).
+    fn recesses(&self) -> impl Iterator<Item = (&'static str, &'static str, holes::Recess)> {
         [
-            ("counterbore", self.counterbore),
-            ("spotface", self.spotface),
+            ("counterbore", "⌴", self.counterbore),
+            ("spotface", SPOTFACE, self.spotface),
         ]
         .into_iter()
-        .filter_map(|(role, r)| r.map(|r| (role, r)))
+        .filter_map(|(role, symbol, r)| r.map(|r| (role, symbol, r)))
     }
 
     /// The terms after the count: `⌀d`, `THRU` or `↧ depth`, the recesses, the countersink.
@@ -70,8 +76,8 @@ impl Hole<'_> {
             Some(depth) if !self.through => t.extend(["↧".into(), fmt(depth)]),
             _ => t.push("THRU".into()),
         }
-        for (_, r) in self.recesses() {
-            t.extend(["⌴".into(), format!("⌀{}", fmt(r.diameter))]);
+        for (_, symbol, r) in self.recesses() {
+            t.extend([symbol.into(), format!("⌀{}", fmt(r.diameter))]);
             if let Some(depth) = r.depth {
                 t.extend(["↧".into(), fmt(depth)]);
             }
@@ -96,7 +102,7 @@ impl Hole<'_> {
         if let Some(depth) = self.depth.filter(|_| !self.through) {
             out.push(m("bore.depth", depth));
         }
-        for (role, r) in self.recesses() {
+        for (role, _, r) in self.recesses() {
             out.push(m(&format!("{role}.diameter"), r.diameter));
             if let Some(depth) = r.depth {
                 out.push(m(&format!("{role}.depth"), depth));

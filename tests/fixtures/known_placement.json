@@ -123,7 +123,7 @@
   "code": "annotation_outside_area",
   "count": 2,
   "verdict": "rust-wrong",
-  "reason": "Two plan callouts with long labels beside the plan run past its band (draftwright's estimate): the bolt circle's 6× ⌀10 THRU EQ SP ON ø90 BC (19.9 mm) and the bore's ⌀62 THRU ⌴ ⌀70 ↧ 10 (25.5 mm). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 7 before stream d-callout-leaders (four plan callouts and front items in the fixed lanes)."
+  "reason": "Two plan callouts with long labels beside the plan run past its band (draftwright's estimate): the bolt circle's 6× ⌀10 THRU EQ SP ON ø90 BC (19.9 mm) and the bore's ⌀62 THRU ⌴SF ⌀70 ↧ 10 (26.7 mm; 25.5 mm before stream d-spotface widened the spotface symbol to hold its SF). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 7 before stream d-callout-leaders (four plan callouts and front items in the fixed lanes)."
  },
  {
   "part": "string_post",
