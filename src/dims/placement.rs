@@ -355,8 +355,9 @@ fn opposite(side: Side) -> Side {
 /// strip across the view). A strip holds its linear dimensions up to the first lane whose item
 /// does not fit the page ([`Page::fits`]: on the sheet, its label off the views and the title
 /// block, no line through the title block or another view); that item and every one outside it
-/// move, in their order, to the next free lanes of the opposite strip, each that fits there taking
-/// the next lane. One that fits on neither side keeps its own lane, where the collision checks
+/// move to the next free lanes of the opposite strip, an overall extent first (draftwright moves
+/// only the extent), each that fits there taking the next lane; the extent then goes outside the
+/// rest where that still fits. One that fits on neither side keeps its own lane, where the collision checks
 /// report it: nothing is dropped. Callouts keep their strip ([`settle`] moves their leaders). The
 /// strips' lanes come from every item the part would have, and the page from the sheet and the
 /// views, which no omission changes, so where an item falls is edit-local (ARCH0003-2).
@@ -413,14 +414,35 @@ pub(super) fn fall_through(
         if full.contains(&(view, across)) {
             continue;
         }
-        let next = held.entry((view, across)).or_insert(0);
-        for i in list {
-            if fits(i, across, *next) {
-                sides[i] = Some(across);
-                lanes[i] = *next;
-                *next += 1;
+        let first = *held.get(&(view, across)).unwrap_or(&0);
+        // An overall extent has first claim on the free lanes (draftwright falls through only
+        // the extent, ISSUE-1215-e); the others follow in their order.
+        let extent = |i: usize| items[i].id.starts_with("d:envelope/");
+        let (mut order, rest): (Vec<usize>, Vec<usize>) =
+            list.into_iter().partition(|&i| extent(i));
+        order.extend(rest);
+        let mut moved = Vec::new();
+        for i in order {
+            if fits(i, across, first + moved.len()) {
+                moved.push(i);
             }
         }
+        // The extent then stands outside the rest, as it did on its own strip, where that fits.
+        let mut outer: Vec<usize> = moved.iter().copied().filter(|&i| !extent(i)).collect();
+        outer.extend(moved.iter().copied().filter(|&i| extent(i)));
+        if outer != moved
+            && outer
+                .iter()
+                .enumerate()
+                .all(|(k, &i)| fits(i, across, first + k))
+        {
+            moved = outer;
+        }
+        for (k, &i) in moved.iter().enumerate() {
+            sides[i] = Some(across);
+            lanes[i] = first + k;
+        }
+        held.insert((view, across), first + moved.len());
     }
 }
 

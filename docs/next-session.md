@@ -1113,3 +1113,14 @@ improvement plan and questions are the current work. Still open from before it:
     from plate on A3 at 2:1 (where every label now fits) to A4 at 5:1, still asserting labels
     over the isometric and off the sheet; `tests/tolerances.rs` expects the one info problem the
     longer `7× R50 ±0.5` label adds beside ctc01's plan; `docs/model.md` names the new code.
+  - After review (stream d-placement-fit): an overall extent now has first claim on the opposite
+    strip's free lanes (`fall_through`; draftwright falls through only the extent), placed outside
+    the other moved items where that still fits. On cgb245 and m1000 the front's overall height
+    takes the one lane left of the front (before, cgb245's rung h9_876 and m1000's seat z location
+    took it and the height crossed the side view); on ftc06 the front width takes the one lane
+    above the front, off the isometric. Those lower-priority items keep their lanes and stay
+    reported (`known_placement.json`: ftc06 `annotation_over_view` and m1000 `annotation_ink_overlap`
+    off; cgb245's three rungs h21–h25 now have labels over the side view). Falling through every
+    linear item, beyond draftwright, has a verdict (rust-correct, with the split-ladder cost) in
+    ISSUE-1215-e's note, whose rust_test is now
+    `tests/placement.rs::a_starved_overall_extent_has_first_claim_on_the_opposite_strip`.

@@ -546,6 +546,40 @@ fn a_strip_without_room_falls_through_to_the_opposite_strip() {
     assert!(moved >= 5, "{moved} y locations fell through to the right");
 }
 
+/// ISSUE-1215-e: a starved overall extent falls through to the opposite strip. draftwright moves
+/// only the extent; the port moves every linear item past the cut, so the extent has first claim
+/// on the opposite strip's free lanes. On cgb245 and m1000 the front's right strip runs into the
+/// side view past the height ladder's rungs and its left strip has one lane before the sheet's
+/// margin: the overall height takes it (left of the front, its lines clear of the side view and
+/// nothing reported against it), not the innermost rung or location that would reach it first.
+#[test]
+fn a_starved_overall_extent_has_first_claim_on_the_opposite_strip() {
+    let parts = corpus_parts();
+    let mut checked = 0;
+    for (name, analysis) in parts.iter().filter(|(n, _)| n == "cgb245" || n == "m1000") {
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let boxes = view_boxes(&plan, analysis);
+        let front = boxes.iter().find(|(v, _)| v == "v:front").unwrap().1;
+        let id = "d:envelope/height.length@front";
+        let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+        let p = d.placed.as_ref().unwrap();
+        assert!(
+            p.label_box[2] < front[0],
+            "{name}: {id}'s label {:?} left of the front {front:?}",
+            p.label_box
+        );
+        let against: Vec<&str> = plan
+            .problems
+            .iter()
+            .filter(|q| q.subjects.first().is_some_and(|s| s == id))
+            .map(|q| q.code.as_str())
+            .collect();
+        assert!(against.is_empty(), "{name}: {id} reported {against:?}");
+        checked += 1;
+    }
+    assert!(parts.is_empty() || checked == 2, "{checked} parts checked");
+}
+
 /// Leaders stay off other views (CLI trial: on cgb245 the plan's callouts stacked above the
 /// ladder, their 45° leaders running across the sheet towards the isometric). A callout whose
 /// lane does not fit the page goes out to the side of its view as draftwright's plan callouts

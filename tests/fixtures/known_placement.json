@@ -11,21 +11,21 @@
   "code": "annotation_outside_area",
   "count": 24,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only): the plan's y locations that fell through to the strip right of the plan, which no band reserves, x locations above the plan past its band, the plan's callouts moved beside the plan (into the space right of it) and one y location kept off the sheet; and 5 of the height ladder's rungs and the overall height past the front's area, which draftwright withholds at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json). 30 before stream d-placement-fit. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e) and a callout whose lane does not fit the page goes beside its view (dims::placement::settle)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only): the plan's y locations that fell through to the strip right of the plan, which no band reserves, x locations above the plan past its band, the plan's callouts moved beside the plan (into the space right of it) and one y location kept off the sheet; and 6 of the height ladder's rungs past the front's area (the overall height falls through to the lane left of the front, an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e)), which draftwright withholds at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json). 30 before stream d-placement-fit. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e) and a callout whose lane does not fit the page goes beside its view (dims::placement::settle)."
  },
  {
   "part": "cgb245",
   "code": "annotation_over_view",
-  "count": 1,
+  "count": 3,
   "verdict": "rust-wrong",
-  "reason": "The label of d:envelope/height.length@front (37.2) lies over the side view: it stands in the front's right band in the lane beyond the height ladder's rungs (stream d-dims-steps-levels), where draftwright states 1 rung; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The front's right strip falls through to its left (stream d-placement-fit), which holds two rungs before the sheet's margin; the rest keep their lanes."
+  "reason": "The labels of the height ladder's rungs h21_226, h23_226 and h25_226 (d:step_level/step_height.length.*@front) lie over the side view: they stand in the front's right band in lanes past the side view's left edge (stream d-dims-steps-levels), where draftwright states 1 rung; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The front's right strip falls through to its left, where an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e): the overall height d:envelope/height.length@front takes the one lane left of the front before the sheet's margin and is clear of the side view; the rungs keep their lanes. Before the extent's first claim it was the overall height's label over the side view (count 1) and rung h9_876 took that lane; the three rungs' labels now settle about 1 mm lower, onto the side view's box."
  },
  {
   "part": "cgb245",
   "code": "annotation_line_over_view",
   "count": 6,
   "verdict": "rust-wrong",
-  "reason": "Lines across the side view (a check stream d-placement-fit adds; they ran there unreported before): the overall height d:envelope/height.length@front and 5 of the height ladder's rungs (h11_876, h13_226, h21_226, h23_226, h25_226) stand in the front's right strip in lanes past the side view's left edge. The front's right strip falls through to its left (dims::placement::fall_through), which holds two rungs before the sheet's margin, so these keep their lanes. draftwright states 1 rung here and withholds the rest at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' verdicts, undetermined pending the maintainer, are in known_dimensions.json)."
+  "reason": "Lines across the side view (a check stream d-placement-fit adds; they ran there unreported before): 6 of the height ladder's rungs (h11_226, h11_876, h13_226, h21_226, h23_226, h25_226) stand in the front's right strip in lanes past the side view's left edge. The front's right strip falls through to its left, where an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e): the overall height d:envelope/height.length@front takes the one lane before the sheet's margin, so the rungs keep their lanes (before the extent's first claim, rung h9_876 took that lane and the overall height ran across the side view instead). draftwright states 1 rung here and withholds the rest at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' verdicts, undetermined pending the maintainer, are in known_dimensions.json)."
  },
  {
   "part": "connector109",
@@ -65,23 +65,16 @@
  {
   "part": "ftc06",
   "code": "annotation_outside_area",
-  "count": 27,
+  "count": 26,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, callouts' labels running right, the step shoulder d:step_level/step_position.length.y46_99@side, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels). 28 before stream d-placement-fit (d:f:hole:5/location.length.y@plan fell through to the right of the plan)."
- },
- {
-  "part": "ftc06",
-  "code": "annotation_over_view",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "The label of d:envelope/width.length@front (304.8), in the front's outer lane, lies over the isometric, which the layout placed in the space beyond the front's estimated band. Before the channel widths (dims::recesses) it was instead the labels of the plan's callouts d:f:hole_pattern:2/bore.diameter@plan, d:f:hole:5/bore.diameter@plan and d:f:chamfer:2/chamfer.length@plan; with the channel widths' lanes the plan's and front's lanes stack 7 to 14 mm further out, and those three no longer lie over the isometric (checked with and without the recess planner)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, callouts' labels running right, the step shoulder d:step_level/step_position.length.y46_99@side, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels). 28 before stream d-placement-fit (d:f:hole:5/location.length.y@plan fell through to the right of the plan). 27 before the overall extent's first claim on the opposite strip (dims::placement::fall_through): d:f:hole:11/location.length.x@front is now held below the front, inside its band, while the front's width takes the free lane above the front."
  },
  {
   "part": "ftc06",
   "code": "annotation_line_over_view",
   "count": 2,
   "verdict": "rust-wrong",
-  "reason": "Lines across the isometric (a check stream d-placement-fit adds; they ran there unreported before): the front's width d:envelope/width.length@front, outermost below the front, and the boss location d:f:boss:6/location.length.x@front run into the isometric, which the layout placed in the space beyond the front's estimated band (layout::Strips::reserve reserves the port's lanes for the side view only); the strip above the front has no room for them (between the front and the plan), so they keep their lanes. The width's label over the isometric is the annotation_over_view entry."
+  "reason": "Lines across the isometric (a check stream d-placement-fit adds; they ran there unreported before): the front's locations d:f:hole:11/location.length.x@front and d:f:boss:6/location.length.x@front run into the isometric, which the layout placed in the space beyond the front's estimated band (layout::Strips::reserve reserves the port's lanes for the side view only). The strip above the front (between the front and the plan) has room for one lane, which the front's width d:envelope/width.length@front takes (an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e); before it, the width ran across the isometric and its label lay over it), so these keep their lanes."
  },
  {
   "part": "grm03",
@@ -102,21 +95,14 @@
   "code": "annotation_outside_area",
   "count": 6,
   "verdict": "rust-wrong",
-  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.3) in the same way. d:envelope/height.length@front (29.1), in the lane beyond the height ladder's rungs (stream d-dims-steps-levels), runs 10.5 mm past the front's area; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported). The recess callouts' long labels run past the estimated bands (the plan's pocket, the side's hex pocket, its leader now turned left, the front's seat). 7 before stream d-placement-fit, which passed the seat's z location to the front's left strip."
+  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.3) in the same way. The seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1), in a lane beyond the height ladder's rungs (stream d-dims-steps-levels), runs 3.5 mm past the front's area (the overall height, there before the extent's first claim on the opposite strip, now takes the front's left lane); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported). The recess callouts' long labels run past the estimated bands (the plan's pocket, the side's hex pocket, its leader now turned left, the front's seat). 7 before stream d-placement-fit, which passes the overall height to the front's left strip."
  },
  {
   "part": "m1000",
   "code": "annotation_over_view",
   "count": 1,
   "verdict": "rust-wrong",
-  "reason": "The label of d:envelope/height.length@front (29.1) lies over the side view: it stands in the front's right band in the lane beyond the height ladder's rungs (stream d-dims-steps-levels); draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The seat's z location (23.1), also over the side view before stream d-placement-fit, falls through to the front's left strip; the left strip has no room for the height as well."
- },
- {
-  "part": "m1000",
-  "code": "annotation_ink_overlap",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "The label of d:envelope/height.length@front (29.1), pushed into the side view's space by the height ladder's rungs (see annotation_over_view), is crossed by the seat's y location d:f:section_recess:4/seat_location.location.y@side (dims::recesses). Since stream d-placement-fit the hexagonal pocket's callout d:f:section_recess:2/polygon_across_flats.length@side, whose lane leader crossed it, settles with its leader turned left (dims::placement::settle), clear of it, the front's right lanes having changed under the fall-through. For the placement work."
+  "reason": "The label of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1) lies over the side view: it stands in the front's right band in a lane past the height ladder's rungs (stream d-dims-steps-levels), which draftwright withholds at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The front's right strip falls through to its left strip, which has room for one lane; an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e), so the overall height d:envelope/height.length@front takes it (before the extent's first claim the seat's z location did, and the height's label lay over the side view, crossed by the seat's y location: an annotation_ink_overlap now gone)."
  },
  {
   "part": "m1000",
@@ -130,7 +116,7 @@
   "code": "annotation_line_over_view",
   "count": 1,
   "verdict": "rust-wrong",
-  "reason": "A line of d:envelope/height.length@front (29.1) runs across the side view (a check stream d-placement-fit adds): it stands in the front's right band in the lane beyond the height ladder's rungs, past the side view's left edge, and the front's left strip has no room for it; draftwright withholds the rungs at the sheet's scale (its legibility gate, not ported). See annotation_over_view."
+  "reason": "A line of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1) runs across the side view (a check stream d-placement-fit adds): it keeps its lane in the front's right band past the side view's left edge, the front's left strip's one lane going to the overall height (an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e)); draftwright withholds the height ladder's rungs at the sheet's scale (its legibility gate, not ported). See annotation_over_view."
  },
  {
   "part": "m10046",

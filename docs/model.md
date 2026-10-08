@@ -229,7 +229,8 @@ view's bands are reserved from the lanes its dimensions take (`dims::lanes`, `De
 item the part would have is placed before the spec chooses what is drawn, so omitting or adding
 one moves no other (ARCH0003-2). A strip that cannot hold its linear dimensions on the page
 passes the lanes it has no room for to the strip across the view (`dims::placement::fall_through`,
-ISSUE-1215-e); one that fits on neither side keeps its lane. Then labels settle off other items' ink
+ISSUE-1215-e), an overall extent claiming the free lanes first; one that fits on neither side keeps
+its lane. Then labels settle off other items' ink
 (`dims::placement::settle`, a first part of ADR2-10's bounded local solve): a linear label
 slides along its line, or moves to the other end of a span too short for it; a callout's leader
 may turn to the left, its tip moving to the rim's left 45° point so the leader stays radial; a

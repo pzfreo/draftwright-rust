@@ -227,6 +227,9 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
     // shorter ones did on this sheet, except that the fillet callout, beside the plan since
     // placement moves a callout whose lane does not fit the page (stream d-placement-fit), now
     // runs past the plan's reserved area (info), its label 7× R50 ±0.5 longer than 7× R50.
+    // rust-wrong, as ctc01's annotation_outside_area entry in known_placement.json: no band
+    // reserves the space beside the plan (layout::Strips::reserve reserves the port's lanes for
+    // the side view only; the front/plan band question in docs/next-session.md).
     let bare = model::plan(&a, &Spec::default()).unwrap();
     let added = "p:annotation_outside_area:d:f:fillet:6/fillet.radius@plan|v:plan";
     assert_eq!(
