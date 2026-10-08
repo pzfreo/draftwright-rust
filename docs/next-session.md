@@ -40,7 +40,7 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
   against 285 recorded Python calls. Differences from Python's final sheets are listed with
   verdicts in `tests/fixtures/known_views.json` (71 entries).
 - **Bridge:** quiddity's features come in through `src/bridge.rs`, with stable IDs and
-  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust db0779f
+  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust a46b91c
   (`Cargo.lock`; AGPL-3.0-only since 8023ea7); the bridge reads nist_ftc_07 and nist_ftc_10.
   nist_ctc_04 is still refused (one face's area differs from OpenCascade's by 0.15 %). Since
   05c5d99 haecceity refuses to draw a part whose drawn faces or edges did not resolve on
