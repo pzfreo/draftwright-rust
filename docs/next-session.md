@@ -1091,3 +1091,21 @@ improvement plan and questions are the current work. Still open from before it:
   - Question for the maintainer: should `draftwright serve`, the MCP server and the library's
     `None` follow the CLI to native recognition (with Python's JSON as the override), or stay
     as they are until the constituent-faces and reconciliation questions above are settled?
+
+- Structural sheet lint (stream d-lint-structural): `lint::structural::check(&Drawing)` ports
+  five of `linting/structural.py`'s codes (scale_not_stated, view_overlap, view_out_of_bounds,
+  annotation_out_of_bounds, derived_view_identifier_reused); annotation_overlap is partly ported
+  and label_vs_measured not ported (both pending in docs/rules/lint.yaml). They read a new record
+  of drawn geometry, `Drawing::sheet` (drawable area, each view's visible-edge box, each
+  annotation's and furniture's ink and label box), measured by `model::render`; spec tables are
+  recorded too (`Kind::Table`, added on merge). Findings go to a separate `api::Review::structural`
+  (MCP: `"structural"`), not `Review::lint`. `tests/lint_structural.rs`,
+  `tests/fixtures/known_structural.json` (27 annotation_out_of_bounds findings on 4 parts, all
+  rust-wrong: placement's known off-sheet items).
+  - Questions for the maintainer:
+    - Should structural findings join `Review::lint`, as draftwright orders them? That changes
+      tests/lint.rs's plate expectation (its y location sits 0.1 mm past the left border), and
+      probably the MCP and serve expectations of an empty lint.
+    - Is `Drawing::sheet` the intended home for lint's sheet facts, and should it grow to carry
+      each linear dimension's measured path and scale so label_vs_measured and nominal_rounded
+      can be ported?
