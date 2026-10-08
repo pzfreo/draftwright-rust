@@ -78,6 +78,57 @@ fn the_tools_are_the_operations() {
             assert!(t["inputSchema"]["properties"][required.as_str().unwrap()].is_object());
         }
     }
+    // plan, render and review take the analyse tool's Analysis, inline; plan then needs no step.
+    for t in tools {
+        let name = t["name"].as_str().unwrap();
+        let schema = &t["inputSchema"];
+        let takes = ["plan", "render", "review"].contains(&name);
+        assert_eq!(
+            schema["properties"]["analysis"].is_object(),
+            takes,
+            "{name}"
+        );
+        if takes {
+            assert_eq!(schema["properties"]["analysis"]["type"], "object");
+            let required = schema["required"].as_array().unwrap();
+            assert_eq!(required.contains(&json!("step")), name != "plan", "{name}");
+        }
+    }
+}
+
+/// The analyse tool's result, passed back as `analysis`, gives the same plan and review as
+/// analysing the STEP again; one made from another file is a tool error naming both digests.
+#[test]
+fn an_analysis_is_passed_back_in_place_of_analysing() {
+    let step = part("turned.step");
+    let replies = session(&[
+        call(1, "analyse", json!({ "step": step })),
+        call(2, "analyse", json!({ "step": part("prismatic.step") })),
+    ]);
+    let (analysis, other) = (first(&replies[0]), first(&replies[1]));
+    let replies = session(&[
+        call(1, "plan", json!({ "step": step })),
+        call(2, "plan", json!({ "analysis": analysis })),
+        call(3, "review", json!({ "step": step })),
+        call(4, "review", json!({ "step": step, "analysis": analysis })),
+        call(
+            5,
+            "render",
+            json!({ "step": step, "analysis": other,
+            "output": scratch("other").display().to_string() }),
+        ),
+    ]);
+    assert_eq!(replies[0]["result"]["isError"], false);
+    assert_eq!(replies[0]["result"], replies[1]["result"]);
+    assert_eq!(replies[2]["result"]["isError"], false);
+    assert_eq!(replies[2]["result"], replies[3]["result"]);
+    assert_eq!(replies[4]["result"]["isError"], true);
+    let error = &first(&replies[4])["error"];
+    assert_eq!(error["code"], "invalid", "{error}");
+    for digest in [&analysis, &other] {
+        let sha = digest["binding"]["source_sha256"].as_str().unwrap();
+        assert!(error["message"].as_str().unwrap().contains(sha), "{error}");
+    }
 }
 
 #[test]

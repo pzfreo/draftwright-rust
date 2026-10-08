@@ -156,3 +156,59 @@ fn the_service_answers_unresolved_geometry_as_failed() {
     }
     assert_eq!(replies[2]["ok"], true);
 }
+
+/// An Analysis from `analyse`, passed back inline as `analysis`, stands in for analysing the STEP
+/// again: the same replies, and plan needs no `step`. One made from another file is refused.
+#[test]
+fn the_service_takes_an_analysis_in_place_of_analysing() {
+    let step = part("plate.step");
+    let features = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/recognition/plate.json")
+        .display()
+        .to_string();
+    let replies = serve(&[
+        json!({ "id": 1, "op": "analyse", "step": step, "features": features }).to_string(),
+        json!({ "id": 2, "op": "analyse", "step": part("prismatic.step") }).to_string(),
+    ]);
+    let (analysis, other) = (&replies[0]["result"], &replies[1]["result"]);
+    let output = scratch("plate").display().to_string();
+    let replies = serve(&[
+        json!({ "id": 1, "op": "plan", "step": step, "features": features }).to_string(),
+        json!({ "id": 2, "op": "plan", "analysis": analysis }).to_string(),
+        json!({ "id": 3, "op": "review", "step": step, "features": features }).to_string(),
+        json!({ "id": 4, "op": "review", "step": step, "analysis": analysis }).to_string(),
+        json!({ "id": 5, "op": "render", "step": step, "analysis": analysis,
+            "output": output, "formats": ["svg"] })
+        .to_string(),
+        json!({ "id": 6, "op": "review", "step": step, "analysis": other }).to_string(),
+        json!({ "id": 7, "op": "plan", "step": step, "features": features,
+            "analysis": analysis })
+        .to_string(),
+    ]);
+    assert_eq!(replies[0]["ok"], true, "{}", replies[0]);
+    assert_eq!(replies[0]["result"], replies[1]["result"]);
+    assert_eq!(replies[2]["ok"], true, "{}", replies[2]);
+    assert_eq!(replies[2]["result"], replies[3]["result"]);
+    assert_eq!(replies[4]["ok"], true, "{}", replies[4]);
+    assert_eq!(
+        std::fs::read_to_string(replies[4]["result"]["written"][0].as_str().unwrap()).unwrap(),
+        replies[2]["result"]["svg"].as_str().unwrap()
+    );
+    for (reply, says) in [
+        (
+            &replies[5],
+            other["binding"]["source_sha256"].as_str().unwrap(),
+        ),
+        (
+            &replies[5],
+            analysis["binding"]["source_sha256"].as_str().unwrap(),
+        ),
+        (&replies[6], "not both"),
+    ] {
+        assert_eq!(reply["error"]["code"], "invalid", "{reply}");
+        assert!(
+            reply["error"]["message"].as_str().unwrap().contains(says),
+            "{reply}"
+        );
+    }
+}
