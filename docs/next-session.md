@@ -466,3 +466,24 @@ improvement plan and questions are the current work. Still open from before it:
     - A fit on a feature that does not exist is refused (`invalid`, nearest IDs), as a spec
       naming an unknown dimension already is; one on a feature whose callout the plan leaves out
       is a `tolerance_not_shown` warning. Is that the line wanted?
+- From wave 4 (stream d-issue-drafting, 2026-10-08): a first batch of 20 drafting rules of
+  `issues.yaml` examined as scenario tests in `tests/issue_drafting.rs` (19 tests over the five
+  fixtures and the twelve sampled parts): 2 newly ported (ISSUE-1142-a, a hole callout claims
+  every number it prints; ISSUE-1146-c, every view on the page and no principal views
+  overlapping), 16 pending with `rust_test` and a `rust_note` saying what is and is not checked,
+  and ISSUE-1515-a pending as not-applicable (third angle only). Drafting/pending now 87 of 93.
+  Left, where the port breaks a rule (ignored tests; no `src/` change in this stream):
+  - ISSUE-1585-a: `sheet.title` takes any field, but `src/model.rs::render` draws only `title`
+    and `number`, so a supplied `date` (or `material`) is accepted and silently not drawn.
+  - ISSUE-1536-a: no title-block value is checked against the block, so an overlong title runs
+    out of it with no problem or finding (`src/model.rs`, or lint).
+  - Observed, verdict undetermined (layout, `src/layout.rs`): ftc06's section A–A area overlaps
+    the side view's by 10 mm; ctc01's isometric reaches into the plan's right band; string_post
+    is A4 at 2:1 automatically but A4 pinned gives 1:1 (row fit versus packed fit, as the port
+    documents draftwright's `choose_scale`; not compared with a Python run).
+  - Questions for the maintainer:
+    - Two holes on one ordinate share one location dimension (`d:f:hole:5/location.length.y@plan`
+      states hole:5 and hole:6), so neither member's coordinate can be omitted alone, where
+      draftwright addresses each member's axis (ISSUE-883-a). Should the spec address a member's
+      coordinate inside a shared dimension?
+    - Should `edit`/`plan` refuse a `sheet.title` field the port does not draw, until it does?
