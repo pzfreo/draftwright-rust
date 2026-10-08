@@ -1509,3 +1509,54 @@ improvement plan and questions are the current work. Still open from before it:
       `Drawing::sheet` record each dimension's witness points and each view's projection (the
       same record label_vs_measured would need), or is the claim the right evidence for the
       port's own drawings?
+- From stream d-page-escalation (ISSUE-1299-a, page escalation recovery):
+  - **Measured first** (the 13 captured sheets, `tests/fixtures/sheets/*.json.gz`, their
+    `decisions.scale.attempts`, against the port's `model::plan` and its plans pinned at the
+    candidates): draftwright re-planned on two parts, kept its first choice after rejected
+    attempts on five (cgb245, ctc04, ftc06, m10046, hanger), tried nothing on six.
+    - grm03: A4 2:1 → 5:1, `measured_upscale` against the recovery detail its estimate reserved.
+      The port plans no detail views and its 2:1 plan has no hard layout finding: it keeps 2:1
+      (not-applicable).
+    - m10127: A4 1:1 → A3 2:1, `page_escalation_after_hard_layout` on its own
+      `annotation_ink_overlap`. The port's A4 1:1 plan has no hard layout finding: it keeps A4 1:1
+      (undetermined until placement agrees).
+    - Where the port's own first choice has a hard layout finding: cgb245 (A2 1:2, one
+      `annotation_off_sheet`, d:f:hole:1's y location) and ctc01 (A3 1:5, one, the hole pattern's
+      y location). draftwright's ladder there takes the nearest smaller scale first, valid on
+      both: A2 1:5 and A3 1:10. draftwright itself keeps 1:2 and 1:5 (its placement has no label
+      off those sheets). No other part's first plan has a hard layout finding.
+  - **Ported**: `layout::recover` (draftwright's `recover_hard_layout` and
+    `recover_required_no_iso` order: a hard failure tries one scale each way on the sheet, then
+    each larger standard sheet; a required loss tries the next two larger scales, then each larger
+    sheet; a valid, complete plan tries nothing; a named sheet is never left; at most six plans)
+    and `model::recover` (hard layout = `annotation_off_sheet`, `annotation_overlap`,
+    `annotation_ink_overlap`, `title_field_overflow`, `page_fit_uncertain`, `views_do_not_fit`;
+    `annotation_over_view` excluded, as the port judges it by the view's box and draftwright's
+    `view_annotation_overlap` by line-work; never re-plans a named scale; says `layout_replanned`
+    or `layout_recovery_exhausted`, info, and the sheet's basis names the recovery; the spec is
+    kept). The completeness tier reads nothing in the port: nothing is dropped for want of room.
+    Each try is a plan (milliseconds, no projection). `tests/page_escalation.rs` ports
+    draftwright's six tests (the stand-in ones on `layout::recover`; GRM-03, the named sheet and
+    scale, and cgb245/ctc01/m10127/m1000 on corpus parts). ISSUE-1299-a stays pending, with notes.
+  - **Not applied in `model::plan`: a conflict, not wired.** Wired, the suite goes red in files
+    other streams own (measured on this branch): `known_placement.json` (cgb245's
+    off_sheet 1, over_view 3, line_over_view 6 gone; outside_area 18 → 29; new leader_crossing 4
+    and leader_search_capped 1; ctc01's off_sheet 1 gone), `known_leaders.json` (new cgb245
+    crossings), `known_views.json` (cgb245 and ctc01 scale and every view centre/scale), the
+    draftwright-parity tests `notes.rs::the_block_matches_draftwrights_on_corpus_parts` and
+    `tables.rs::tables_match_draftwrights_on_corpus_parts` (no sheet left at draftwright's scale
+    to compare), `tolerances.rs::ctc01_prints_the_authored_bands_as_draftwright_does`, and
+    `placement.rs`'s two cgb245 fall-through tests. Wiring is `let first = <today's plan body>;
+    recover(analysis, spec, first)`, with the body as a private `plan_once` that `recover`
+    re-plans through.
+  - **Question for the maintainer**: should the recovery act on the port's own placement residuals
+    now? Wired, it halves cgb245 to 1:5 and ctc01 to 1:10 to clear one off-sheet label each,
+    moving both off draftwright's sheets (draftwright's rule, applied to the port's findings: the
+    rule is the same, the inputs differ). The alternative is to wire it once placement no longer
+    leaves those labels off the sheet (d-placement-fit's note above: escalation is not what
+    cgb245 needs).
+  - **Main is red before this stream** (local main 9a4af8f, checked with this branch's changes
+    stashed): `tests/lint_structural.rs::structural_findings_on_the_ports_own_drawings_are_known`
+    still lists m10127 `annotation_ink_overlap` ×2 in `tests/fixtures/known_structural.json`,
+    which d-callout-leaders' placement removed (`known_placement.json` no longer has it). The
+    entry should come off; this stream was not permitted to edit that fixture.

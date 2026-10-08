@@ -1085,6 +1085,100 @@ pub fn choose(
     pick(s, p, Arrangement::Columns, Some(Fallback::Overflow))
 }
 
+/// A re-plan the automatic layout recovery tries (ISSUE-1299-a): a standard scale on the sheet
+/// already chosen, or a larger standard sheet at the scale its fixed-sheet rule picks.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Retry {
+    Scale(f64),
+    Sheet(&'static str),
+}
+
+/// What a finished plan's findings say of it, for the recovery: its hard layout failures (ink
+/// off the sheet, labels overlapping, a line through a label, an overflowing title field, views
+/// that do not fit) and the required items it lost for want of room.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Findings {
+    pub hard: usize,
+    pub dropped: usize,
+}
+
+impl Findings {
+    /// Valid (no hard failure) and complete (nothing lost).
+    pub fn clean(&self) -> bool {
+        self.hard == 0 && self.dropped == 0
+    }
+}
+
+/// One re-plan tried: its findings (`None`: it could not be planned) and whether it was taken.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Attempt {
+    pub retry: Retry,
+    pub findings: Option<Findings>,
+    pub taken: bool,
+}
+
+/// The larger scales a required loss tries on the chosen sheet (draftwright's
+/// `_AUTOMATIC_UPSCALE_TRIAL_LIMIT`), and the scales each way a hard layout failure tries
+/// (`_AUTOMATIC_VALIDITY_SCALE_TRIAL_LIMIT`): each try is a whole plan.
+pub const UPSCALE_TRIALS: usize = 2;
+pub const VALIDITY_TRIALS: usize = 1;
+
+/// draftwright's bounded, ordered recovery on a finished drawing (`builder._AutomaticResolution`,
+/// `recover_hard_layout` and `recover_required_no_iso`), for a plan at *scale* on *page* whose
+/// findings are *first*:
+/// - a hard layout failure comes first, whatever was lost: the nearest smaller then the nearest
+///   larger standard scale on the same sheet, then each larger standard sheet;
+/// - else a required loss: the next larger scales on the same sheet, then each larger sheet;
+/// - else nothing: a valid, complete plan never spends a larger sheet.
+///
+/// A sheet the spec names (*page_pinned*) is never left. The first clean try is taken (*plan*
+/// gives each try's findings); the tries are returned in order, the taken one last. None taken:
+/// the first plan stands.
+pub fn recover(
+    scale: f64,
+    page: [f64; 2],
+    page_pinned: bool,
+    first: Findings,
+    plan: &mut dyn FnMut(Retry) -> Option<Findings>,
+) -> Vec<Attempt> {
+    let smaller = SCALES.iter().copied().filter(|s| *s < scale);
+    let mut larger: Vec<f64> = SCALES.iter().copied().filter(|s| *s > scale).collect();
+    larger.reverse();
+    let scales: Vec<f64> = if first.hard > 0 {
+        smaller
+            .take(VALIDITY_TRIALS)
+            .chain(larger.into_iter().take(VALIDITY_TRIALS))
+            .collect()
+    } else if first.dropped > 0 {
+        larger.into_iter().take(UPSCALE_TRIALS).collect()
+    } else {
+        return Vec::new();
+    };
+    let sheets = PAGES
+        .iter()
+        .position(|(_, w, h)| [*w, *h] == page)
+        .filter(|_| !page_pinned)
+        .map_or(&[][..], |i| &PAGES[i + 1..]);
+    let retries = scales
+        .into_iter()
+        .map(Retry::Scale)
+        .chain(sheets.iter().map(|(n, ..)| Retry::Sheet(n)));
+    let mut attempts = Vec::new();
+    for retry in retries {
+        let findings = plan(retry);
+        let taken = findings.is_some_and(|f| f.clean());
+        attempts.push(Attempt {
+            retry,
+            findings,
+            taken,
+        });
+        if taken {
+            break;
+        }
+    }
+    attempts
+}
+
 /// How much the isometric is scaled relative to the sheet to fill its rectangle (draftwright's
 /// `_fit_iso_view` with no annotation obstacles), given the projected iso's box relative to the
 /// view's centre at the sheet scale. One when it is left at sheet scale.
