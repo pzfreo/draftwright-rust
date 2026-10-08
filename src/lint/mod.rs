@@ -163,6 +163,8 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(pads::coverage(analysis, marks));
     issues.extend(polygonal::boss_coverage(analysis, marks));
     issues.extend(section_recesses::coverage(analysis, marks));
+    issues.extend(pockets::hex_coverage(analysis, marks));
+    issues.extend(channels::circular_coverage(analysis, marks));
     issues.extend(angled_steps::coverage(analysis, marks));
     issues.extend(profiled_bores::coverage(analysis, marks));
     issues.extend(flats::coverage(analysis, marks));

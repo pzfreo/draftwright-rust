@@ -27,6 +27,11 @@
 //! membership cannot be read, and every pocket is judged as a lone one (no corpus recognition has
 //! a recess pattern). Not reached: `_suppressed` and `dropped` (lint cannot read the author's
 //! omissions or the placement's drops) and the assembly severity.
+//!
+//! Hexagonal pockets (Python's `lint_hex_pocket_coverage` in `linting/section_recess_coverage.py`,
+//! LINT-section_recess_coverage-hex_pocket): each section recess the grammar reads as a regular
+//! hexagonal blind pocket states its size across flats, `polygon_across_flats.length`, and its
+//! depth, `pocket_depth.length` ([`hex_coverage`]).
 
 use super::parameters::{self, Wanted, fmt, fmt3};
 use super::section_recesses::{Grammar, grammar, recesses};
@@ -232,6 +237,86 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     )
 }
 
+/// A hexagonal pocket: its axis and mouth centre in the part's frame (or why they cannot be
+/// read), its depth and its size across flats.
+pub struct Hex<'a> {
+    pub feature: &'a Feature,
+    pub placed: Result<(usize, [f64; 3]), String>,
+    pub depth: f64,
+    pub across_flats: f64,
+}
+
+/// The Analysis's hexagonal pockets, in quiddity's order.
+pub fn hexes(analysis: &Analysis) -> Vec<Hex<'_>> {
+    let frame = frame(analysis);
+    recesses(analysis)
+        .into_iter()
+        .filter_map(|f| match grammar(f) {
+            Ok(Grammar::HexPocket {
+                axis,
+                depth,
+                across_flats,
+                at,
+            }) => {
+                let mut e = [0.0; 3];
+                e[axis] = 1.0;
+                let placed = principal(dir_to_part(&frame, e))
+                    .map(|k| (k, to_part(&frame, at)))
+                    .ok_or("its axis lies along no axis of the part".to_string());
+                Some(Hex {
+                    feature: f,
+                    placed,
+                    depth,
+                    across_flats,
+                })
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The hexagonal pockets' requirements: the size across flats and the depth of each.
+pub fn hex_wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
+    let mut out = Vec::new();
+    for h in hexes(analysis) {
+        out.push(Wanted {
+            feature: h.feature,
+            parameter: "polygon_across_flats.length".into(),
+            values: Ok(vec![h.across_flats]),
+            callout: format!("HEX {} A/F", fmt(h.across_flats)),
+        });
+        out.push(Wanted {
+            feature: h.feature,
+            parameter: "pocket_depth.length".into(),
+            values: Ok(vec![h.depth]),
+            callout: format!("{} DEEP", fmt(h.depth)),
+        });
+    }
+    out
+}
+
+/// The hexagonal pocket findings, each `hex_pocket_requirement_<state>`.
+pub fn hex_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let read = hexes(analysis);
+    let noun = |f: &Feature| {
+        let mut s = format!("hex pocket {}", f.id);
+        if let Some(h) = read.iter().find(|h| h.feature.id == f.id) {
+            s += &format!(" {} A/F × {} deep", fmt(h.across_flats), fmt(h.depth));
+            if let Ok((k, at)) = &h.placed {
+                s += &format!(" along {}, mouth at {}", AXES[*k], fmt3(*at));
+            }
+        }
+        s
+    };
+    parameters::coverage(
+        "hex_pocket",
+        &hex_wanted(analysis),
+        marks,
+        noun,
+        "the hex pocket's callout (size across flats and depth), in the view along its axis",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::paired_ramp_steps::tests::part;
@@ -319,6 +404,47 @@ mod tests {
             codes(&[callout, x, mark("10.4", &both)]),
             ["pocket_requirement_unverifiable location_pocket.location.y"]
         );
+    }
+
+    /// m10127's hexagonal pocket (Python's sheet: `HEX 4.2 A/F × 10.0 DEEP`, 4.236 across flats,
+    /// 9.959 deep): stated by that callout; its depth left off is missing.
+    #[test]
+    fn a_hex_pocket_states_its_size_across_flats_and_depth() {
+        let r = 4.236456 / 3f64.sqrt();
+        let hex: Vec<([f64; 2], f64)> = (0..6)
+            .map(|i| {
+                let a = std::f64::consts::PI / 3.0 * i as f64 + std::f64::consts::PI / 6.0;
+                ([r * a.cos(), r * a.sin()], 0.0)
+            })
+            .collect();
+        let hex: Vec<([f64; 2], f64)> = hex
+            .into_iter()
+            .map(|(p, b)| (p.map(|c| (c * 1e3).round() / 1e3), b))
+            .collect();
+        let a = part(
+            "section_recess",
+            recess(
+                "pocket",
+                "hexagonal",
+                Z,
+                [0.0, 9.959],
+                [false, true],
+                true,
+                &hex,
+            ),
+        );
+        let both = ["polygon_across_flats.length", "pocket_depth.length"];
+        assert!(hex_coverage(&a, &[mark("HEX 4.2 A/F × 10.0 DEEP", &both)]).is_empty());
+        let codes: Vec<String> = hex_coverage(&a, &[mark("HEX 4.2 A/F", &both[..1])])
+            .into_iter()
+            .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
+            .collect();
+        assert_eq!(
+            codes,
+            ["hex_pocket_requirement_missing pocket_depth.length"]
+        );
+        // A hex pocket is not a lone rectangular pocket.
+        assert!(wanted(&a).is_empty());
     }
 
     /// A pocket cut along y is located along its long and width axes (mfcadpp 10245's 2 × 2

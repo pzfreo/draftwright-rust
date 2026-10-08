@@ -899,7 +899,9 @@
     module: "linting/section_recess_coverage.py"
     issues: [1613]
     tests: [tests/test_issue_1613_circular_channel.py]
-  status: pending
+  status: ported
+  rust_test: a_circular_seat_states_its_diameter_run_arc_and_location
+  rust_note: "src/lint/channels.rs (circular_coverage): each section_recess feature read as a circular channel (circular_channel_fields and circular_channel_geometry, ported), in the part's frame, has seat_diameter.diameter, seat_run.length, seat_sweep.angle and seat_location.location.x/y/z (from the part's box corner to the midpoint of the seat's axis; a direction on the corner within 1e-9 left out as inapplicable). On m1000's captured sheet all six are read as stated, as Python's lint finds. The run may be stated by the overall extent along it when the seat spans the box: Python accepts that only when the plan consolidates the run onto the extent (an omission with conveyed_by); lint cannot see the plan and accepts the printed extent whenever the seat runs end to end."
   port_note: "Keep."
 
 - id: LINT-code-circular_channel_requirement_state
@@ -912,6 +914,8 @@
     issues: [1613]
     tests: [tests/test_issue_1613_circular_channel.py]
   status: pending
+  rust_test: a_circular_seat_states_its_diameter_run_arc_and_location
+  rust_note: "Codes circular_channel_requirement_missing and _unverifiable (a claimed value the text does not print), always warning as in Python. _suppressed and _dropped are not reached: lint cannot read the author's omissions or the placement's drops."
   port_note: "Keep; align severity convention with the other families."
 
 # ---------------------------------------------------------------------------------------
@@ -1031,7 +1035,9 @@
     module: "linting/section_recess_coverage.py"
     issues: [1598]
     tests: [tests/test_issue_1598_hex_pockets.py]
-  status: pending
+  status: ported
+  rust_test: a_hex_pocket_states_its_size_across_flats_and_depth
+  rust_note: "src/lint/pockets.rs (hex_coverage): each section_recess feature that section_recesses::grammar reads as a regular hexagonal pocket (hex_pocket_fields with hex_pocket_geometry's regularity check, ported) has polygon_across_flats.length and pocket_depth.length, judged by the claiming annotation's printed text. On m1000's and m10127's captured sheets both are read as stated, as Python's lint finds."
   port_note: "Keep."
 
 - id: LINT-code-hex_pocket_requirement_state
@@ -1044,6 +1050,8 @@
     issues: [1598]
     tests: [tests/test_issue_1598_hex_pockets.py]
   status: pending
+  rust_test: a_hex_pocket_states_its_size_across_flats_and_depth
+  rust_note: "Codes hex_pocket_requirement_missing and _unverifiable (a claimed size the text does not print), always warning as in Python. _suppressed and _dropped are not reached: lint cannot read the author's omissions or the placement's drops."
   port_note: "Keep."
 
 - id: LINT-slot_coverage-lone_slot

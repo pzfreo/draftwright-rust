@@ -123,18 +123,23 @@ pub struct BlindSlot {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Grammar {
     Pocket(Pocket),
-    /// A regular hexagonal blind pocket: its run axis, depth and across-flats size.
+    /// A regular hexagonal blind pocket: its run axis, depth and across-flats size, and the
+    /// centre of its mouth.
     HexPocket {
         axis: usize,
         depth: f64,
         across_flats: f64,
+        at: P3,
     },
-    /// A part-cylindrical channel: its run axis, radius, length and swept angle (degrees).
+    /// A part-cylindrical channel: its run axis, radius, length and swept angle (degrees), the
+    /// midpoint of its cylinder's axis, and its anchor (the arc's middle, mid-run).
     CircularChannel {
         axis: usize,
         radius: f64,
         length: f64,
         sweep: f64,
+        centre: P3,
+        anchor: P3,
     },
     Channel(Channel),
     RectangularBlindSlot(BlindSlot),
@@ -894,11 +899,17 @@ fn circular_channel(g: &Geometry) -> Result<Grammar, Refusal> {
     {
         return invalid("circular channel requires an ordered nondegenerate open arc");
     }
+    let centre = [0, 1, 2].map(|i| (line[0][i] + line[1][i]) / 2.0);
+    let mut anchor = centre;
+    anchor[across[0]] = section[1][0];
+    anchor[across[1]] = section[1][1];
     Ok(Grammar::CircularChannel {
         axis: run,
         radius,
         length,
         sweep: (left + right).abs().to_degrees(),
+        centre,
+        anchor,
     })
 }
 
@@ -979,10 +990,17 @@ fn hex_pocket(g: &Geometry) -> Result<Grammar, Refusal> {
     if !regular {
         return unsupported("six-sided profile is not regular at the published polygon resolution");
     }
+    // The mouth's centre: the section's centre across, the open end along.
+    let opening = if g.ends[1].open { g.high } else { g.low };
+    let mut at = [0.0; 3];
+    at[run] = g.origin[run] + opening * g.run[run];
+    at[across[0]] = centre[0];
+    at[across[1]] = centre[1];
     Ok(Grammar::HexPocket {
         axis: run,
         depth,
         across_flats,
+        at,
     })
 }
 

@@ -412,6 +412,65 @@ fn join_channel(analysis: &Analysis, width: Option<f64>, at: [f64; 3]) -> Option
     (fits.len() == 1).then(|| fits[0].clone())
 }
 
+/// The Analysis section recess a Python `hex_pocket` names, when exactly one fits: read as a
+/// hexagonal pocket along Python's axis letter, of Python's depth (within 1.5e-3), its mouth's
+/// centre across the axis at Python's origin (within 2e-3; Python zeroes the coordinate along).
+fn join_hex(
+    analysis: &Analysis,
+    axis: Option<&str>,
+    depth: Option<f64>,
+    at: [f64; 3],
+) -> Option<String> {
+    let fits: Vec<String> = lint::pockets::hexes(analysis)
+        .into_iter()
+        .filter(|h| {
+            h.placed.as_ref().is_ok_and(|(k, mouth)| {
+                axis.is_none_or(|a| a == ["x", "y", "z"][*k])
+                    && (0..3).all(|i| i == *k || (mouth[i] - at[i]).abs() <= 2e-3)
+            }) && depth.is_none_or(|d| (h.depth - d).abs() <= 1.5e-3)
+        })
+        .map(|h| h.feature.id.clone())
+        .collect();
+    (fits.len() == 1).then(|| fits[0].clone())
+}
+
+/// The Analysis section recess a Python `circular_channel` names, when exactly one fits: read as
+/// a circular seat along Python's axis letter, of Python's radius and length (within 1.5e-3), its
+/// anchor at Python's origin (within 2e-3).
+fn join_seat(
+    analysis: &Analysis,
+    axis: Option<&str>,
+    sizes: Option<(f64, f64)>,
+    at: [f64; 3],
+) -> Option<String> {
+    let fits: Vec<String> = lint::channels::seats(analysis)
+        .into_iter()
+        .filter_map(|(f, s)| Some((f, s.ok()?)))
+        .filter(|(_, s)| {
+            axis.is_none_or(|a| a == ["x", "y", "z"][s.run_axis])
+                && sizes.is_none_or(|(r, l)| {
+                    (s.radius - r).abs() <= 1.5e-3 && (s.length - l).abs() <= 1.5e-3
+                })
+                && (0..3).all(|k| (s.anchor[k] - at[k]).abs() <= 2e-3)
+        })
+        .map(|(f, _)| f.id.clone())
+        .collect();
+    (fits.len() == 1).then(|| fits[0].clone())
+}
+
+/// A size `name=` in a Python feature key.
+fn key_size(feature: &facts::Feature, name: &str) -> Option<f64> {
+    feature
+        .key
+        .as_deref()?
+        .split(&format!("{name}="))
+        .nth(1)?
+        .split([',', ']'])
+        .next()?
+        .parse()
+        .ok()
+}
+
 /// The Analysis plate a Python `plate` thickness names, when exactly one fits: Python's
 /// compiled span (draftwright's `plate_span`: the slab's two faces along its axis, at quiddity's
 /// `u`, `v` across it) is the plate's, carried into the part's frame, end for end (within 2e-3).
@@ -555,6 +614,30 @@ fn marks(analysis: &Analysis, groups: &[HoleGroup], f: &facts::Facts) -> (Vec<Ma
                             })
                             .and_then(|span| join_plate(analysis, span)),
                     };
+                    match joined {
+                        Some(id) => claims.push(Claim {
+                            feature: id,
+                            parameter: m.parameter.clone(),
+                        }),
+                        None => unjoined += 1,
+                    }
+                    continue;
+                }
+                if ["hex_pocket", "circular_channel"].contains(&feature.kind.as_str()) {
+                    let joined = feature.origin.and_then(|at| {
+                        if feature.kind == "hex_pocket" {
+                            join_hex(
+                                analysis,
+                                feature.axis.as_deref(),
+                                key_size(feature, "depth"),
+                                at,
+                            )
+                        } else {
+                            let sizes =
+                                key_size(feature, "radius").zip(key_size(feature, "length"));
+                            join_seat(analysis, feature.axis.as_deref(), sizes, at)
+                        }
+                    });
                     match joined {
                         Some(id) => claims.push(Claim {
                             feature: id,
@@ -970,6 +1053,68 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
                 }
             }
         }
+        // Hexagonal pockets and circular seats: Python names each by its measurement and its
+        // point (the mouth's centre, or the seat's anchor, in the part's frame).
+        for (prefix, noun) in [
+            ("hex_pocket_requirement_", "hex pocket measurement "),
+            (
+                "circular_channel_requirement_",
+                "circular seat measurement ",
+            ),
+        ] {
+            let rust: BTreeMap<(String, String), String> = ours
+                .iter()
+                .filter(|i| i.code.starts_with(prefix))
+                .map(|i| {
+                    (
+                        (i.subjects[0].clone(), i.requirements[0].parameter.clone()),
+                        i.code.clone(),
+                    )
+                })
+                .collect();
+            let mut python: BTreeMap<(String, String), String> = BTreeMap::new();
+            for finding in f.lint.iter().filter(|l| l.code.starts_with(prefix)) {
+                let rest = finding
+                    .message
+                    .strip_prefix(noun)
+                    .unwrap_or_else(|| panic!("{}: not read", finding.message));
+                let (parameter, at) = rest.split_once(" at (").unwrap();
+                let at: Vec<f64> = at
+                    .split(')')
+                    .next()
+                    .unwrap()
+                    .split(", ")
+                    .map(|c| c.parse().unwrap())
+                    .collect();
+                let at = [at[0], at[1], at[2]];
+                let id = if prefix.starts_with("hex") {
+                    join_hex(&analysis, None, None, at)
+                } else {
+                    join_seat(&analysis, None, None, at)
+                }
+                .unwrap_or_else(|| panic!("{}: no one recess fits", finding.message));
+                python.insert((id, parameter.to_string()), finding.code.clone());
+            }
+            for key in python.keys().chain(rust.keys()).collect::<BTreeSet<_>>() {
+                let (theirs, mine) = (python.get(key), rust.get(key));
+                if theirs == mine {
+                    agree += 1;
+                } else {
+                    differ.insert(
+                        (
+                            name.clone(),
+                            key.0.clone(),
+                            key.1.clone(),
+                            theirs.cloned(),
+                            mine.cloned(),
+                        ),
+                        describe_feature(&analysis, &key.0),
+                    );
+                }
+            }
+        }
+        judged += lint::pockets::hex_wanted(&analysis).len()
+            + lint::channels::circular_wanted(&analysis).len();
         // Open channels: Python names each by its centre (in the part's frame) and the measurement
         // (`<kind>.<parameter>`); the port's findings by the channel and the requirement.
         {

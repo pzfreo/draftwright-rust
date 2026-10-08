@@ -20,9 +20,20 @@
 //! among draftwright's own plate features (its conversion of quiddity's plates); the port among
 //! quiddity's plates in the Analysis. Not reached: `_suppressed` and `dropped` (lint cannot read
 //! the author's omissions or the placement's drops) and the assembly severity.
+//!
+//! Circular seats (Python's `lint_circular_channel_coverage` in
+//! `linting/section_recess_coverage.py`, LINT-section_recess_coverage-circular_seat): each section
+//! recess the grammar reads as a part-cylindrical channel states its diameter
+//! (`seat_diameter.diameter`), its run (`seat_run.length`), its swept angle (`seat_sweep.angle`)
+//! and the location of its cylinder's axis from the part's box along x, y and z
+//! (`seat_location.location.<axis>`, to the midpoint of the axis; a direction in which that point
+//! is on the box's corner, within 1e-9, needs none) ([`circular_coverage`]). The run may instead be
+//! stated by the part's overall extent along it when the seat runs from end to end of the box
+//! (within 1e-6): Python accepts that extent when the plan consolidates the run onto it; lint,
+//! which cannot see the plan, accepts the stated extent whenever the seat spans the box.
 
 use super::envelope::PARAMETERS;
-use super::parameters::{fmt, fmt3};
+use super::parameters::{self, fmt, fmt3};
 use super::section_recesses::{Grammar, grammar, recesses};
 use super::{LintIssue, Mark, Requirement, Severity, holes};
 use crate::bridge::Feature;
@@ -309,6 +320,158 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues
 }
 
+/// A circular seat in the part's frame: its run axis, radius, length and sweep, the midpoint of
+/// its cylinder's axis, and its anchor.
+pub struct Seat<'a> {
+    pub feature: &'a Feature,
+    pub run_axis: usize,
+    pub radius: f64,
+    pub length: f64,
+    pub sweep: f64,
+    pub centre: [f64; 3],
+    pub anchor: [f64; 3],
+}
+
+/// The Analysis's circular seats, each read in the part's frame or why not.
+pub fn seats(analysis: &Analysis) -> Vec<(&Feature, Result<Seat<'_>, String>)> {
+    let frame = frame(analysis);
+    recesses(analysis)
+        .into_iter()
+        .filter_map(|f| match grammar(f) {
+            Ok(Grammar::CircularChannel {
+                axis,
+                radius,
+                length,
+                sweep,
+                centre,
+                anchor,
+            }) => Some((
+                f,
+                world(&frame, axis)
+                    .map(|run_axis| Seat {
+                        feature: f,
+                        run_axis,
+                        radius,
+                        length,
+                        sweep,
+                        centre: to_part(&frame, centre),
+                        anchor: to_part(&frame, anchor),
+                    })
+                    .ok_or("its axis lies along no axis of the part".to_string()),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The circular seats' requirements.
+pub fn circular_wanted(analysis: &Analysis) -> Vec<parameters::Wanted<'_>> {
+    let mut out = Vec::new();
+    for (f, seat) in seats(analysis) {
+        let s = match seat {
+            Ok(s) => s,
+            Err(why) => {
+                out.push(parameters::Wanted {
+                    feature: f,
+                    parameter: "seat.?".into(),
+                    values: Err(why),
+                    callout: "its sizes and location".into(),
+                });
+                continue;
+            }
+        };
+        for (parameter, v, callout) in [
+            (
+                "seat_diameter.diameter",
+                2.0 * s.radius,
+                format!("ø{}", fmt(2.0 * s.radius)),
+            ),
+            (
+                "seat_run.length",
+                s.length,
+                format!("{} LONG", fmt(s.length)),
+            ),
+            (
+                "seat_sweep.angle",
+                s.sweep,
+                format!("{}° ARC", fmt(s.sweep)),
+            ),
+        ] {
+            out.push(parameters::Wanted {
+                feature: f,
+                parameter: parameter.into(),
+                values: Ok(vec![v]),
+                callout,
+            });
+        }
+        for (k, a) in AXES.iter().enumerate() {
+            let v = (s.centre[k] - analysis.envelope[0][k]).abs();
+            if v <= 1e-9 {
+                continue;
+            }
+            out.push(parameters::Wanted {
+                feature: f,
+                parameter: format!("seat_location.location.{a}"),
+                values: Ok(vec![v]),
+                callout: format!("its axis {} along {a} from the part's corner", fmt(v)),
+            });
+        }
+    }
+    out
+}
+
+/// Whether *s*'s run is stated by the part's overall extent along it: the seat runs from end to
+/// end of the box, and a mark claiming that extent prints its length.
+fn run_by_extent(analysis: &Analysis, s: &Seat, marks: &[Mark]) -> bool {
+    let k = s.run_axis;
+    let [lo, hi] = [s.centre[k] - s.length / 2.0, s.centre[k] + s.length / 2.0];
+    (lo - analysis.envelope[0][k]).abs() <= 1e-6
+        && (hi - analysis.envelope[1][k]).abs() <= 1e-6
+        && marks.iter().any(|m| {
+            m.claims
+                .iter()
+                .any(|c| c.feature == "envelope" && c.parameter == PARAMETERS[k])
+                && holes::states(&m.text, s.length)
+        })
+}
+
+/// The circular seat findings, each `circular_channel_requirement_<state>`.
+pub fn circular_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let read = seats(analysis);
+    let wanted: Vec<parameters::Wanted> = circular_wanted(analysis)
+        .into_iter()
+        .filter(|w| {
+            w.parameter != "seat_run.length"
+                || !read.iter().any(|(f, s)| {
+                    f.id == w.feature.id
+                        && s.as_ref().is_ok_and(|s| run_by_extent(analysis, s, marks))
+                })
+        })
+        .collect();
+    let noun = |f: &Feature| {
+        let mut s = format!("circular seat {}", f.id);
+        if let Some((_, Ok(seat))) = read.iter().find(|(g, _)| g.id == f.id) {
+            s += &format!(
+                " R{} × {} long × {}° along {}, at {}",
+                fmt(seat.radius),
+                fmt(seat.length),
+                fmt(seat.sweep),
+                AXES[seat.run_axis],
+                fmt3(seat.anchor)
+            );
+        }
+        s
+    };
+    parameters::coverage(
+        "circular_channel",
+        &wanted,
+        marks,
+        noun,
+        "the seat's callout (diameter, length and arc) in the view along it, and linear \
+         dimensions of its axis from the part's corner",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::paired_ramp_steps::tests::part;
@@ -372,6 +535,98 @@ mod tests {
                 parameter: parameter.into(),
             }],
         }
+    }
+
+    /// m1000's half-round seat, ø2 along y from end to end of the part's box (Python's sheet:
+    /// `ø2 × 12.6 LONG × 180° ARC`, and its axis located 48.4, 6.3 and 23.1 along x, y and z):
+    /// stated by those; its location along z left off is missing; its run may be the overall
+    /// depth instead.
+    #[test]
+    fn a_circular_seat_states_its_diameter_run_arc_and_location() {
+        let arc = [([-1.0, 0.0], -1.0), ([1.0, 0.0], 0.0)];
+        let y_run = [
+            [48.413, 0.0, 23.138],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ];
+        let mut a = part(
+            "section_recess",
+            recess(
+                "channel",
+                "circular",
+                y_run,
+                [0.0, 12.593],
+                [true, true],
+                false,
+                &arc,
+            ),
+        );
+        a.envelope = [[0.0, 0.0, 0.0], [52.0, 12.593, 24.0]];
+        let named: Vec<(String, String)> = circular_wanted(&a)
+            .into_iter()
+            .map(|w| (w.parameter, fmt(w.values.unwrap()[0])))
+            .collect();
+        let want: Vec<(String, String)> = [
+            ("seat_diameter.diameter", "2"),
+            ("seat_run.length", "12.593"),
+            ("seat_sweep.angle", "180"),
+            ("seat_location.location.x", "48.413"),
+            ("seat_location.location.y", "6.296"),
+            ("seat_location.location.z", "23.138"),
+        ]
+        .iter()
+        .map(|(p, v)| (p.to_string(), v.to_string()))
+        .collect();
+        assert_eq!(named, want);
+        let id = "f:section_recess:1";
+        let callout = Mark {
+            name: "m_circular_channel_y0".into(),
+            view: Some("v:front".into()),
+            text: "ø2 × 12.6 LONG × 180° ARC".into(),
+            claims: [
+                "seat_diameter.diameter",
+                "seat_run.length",
+                "seat_sweep.angle",
+            ]
+            .iter()
+            .map(|p| Claim {
+                feature: id.into(),
+                parameter: p.to_string(),
+            })
+            .collect(),
+        };
+        let loc = |text: &str, a: &str| {
+            mark(
+                &format!("m_seatloc_{a}0"),
+                text,
+                id,
+                &format!("seat_location.location.{a}"),
+            )
+        };
+        let all = [
+            callout.clone(),
+            loc("48.4", "x"),
+            loc("6.3", "y"),
+            loc("23.1", "z"),
+        ];
+        assert!(circular_coverage(&a, &all).is_empty());
+        let codes: Vec<String> = circular_coverage(&a, &all[..3])
+            .into_iter()
+            .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
+            .collect();
+        assert_eq!(
+            codes,
+            ["circular_channel_requirement_missing seat_location.location.z"]
+        );
+        let mut by_extent = all.to_vec();
+        by_extent[0]
+            .claims
+            .retain(|c| c.parameter != "seat_run.length");
+        by_extent[0].text = "ø2 × 180° ARC".into();
+        assert_eq!(circular_coverage(&a, &by_extent).len(), 1);
+        by_extent.push(mark("m_env_depth", "12.6", "envelope", "depth.length"));
+        assert!(circular_coverage(&a, &by_extent).is_empty());
     }
 
     /// test_issue_917 (`test_every_independent_channel_chain_measurement_has_actionable_lint`):
