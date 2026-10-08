@@ -215,11 +215,21 @@ reported.
 `placed` is the item's ink on the page (lines, arrowheads, the label's baseline origin, rotation
 and box); renderers draw it and the terms, and nothing else. Placement is simple: lanes outward
 from each view (draftwright's strips: below, and above the plan; right, and left of the plan),
-sizes nearest, locations by distance, overall extents, then callouts with 45° leaders. Whatever
-then collides is a problem on the item's ID (`annotation_overlap`, `annotation_ink_overlap`,
-`annotation_over_view`, `annotation_over_title_block`, `annotation_off_sheet`); an item whose
-view is omitted stays unplaced and is reported (`view_plan_incomplete`, naming every view that
-could carry it and why none does). The solver is later.
+sizes nearest, locations by distance, overall extents, then callouts with 45° leaders. The side
+view's bands are reserved from the lanes its dimensions take (`dims::lanes`, `Demand::lanes`,
+`layout::Strips::reserve`); the front's and the plan's are still draftwright's estimates. Every
+item the part would have is placed before the spec chooses what is drawn, so omitting or adding
+one moves no other (ARCH0003-2). Then labels settle off other items' ink
+(`dims::placement::settle`, a first part of ADR2-10's bounded local solve): a linear label
+slides along its line, or moves to the other end of a span too short for it; a callout's leader
+may turn to the left, its tip moving to the rim's left 45° point so the leader stays radial. A
+moved label stays on the sheet and off the views and the title block. Whatever then collides is
+a problem on the item's ID (`annotation_overlap`, `annotation_ink_overlap`,
+`annotation_over_view`, `annotation_over_title_block`, `annotation_off_sheet`, and the info
+`annotation_outside_area` for ink past its view's area and bands); an item whose view is omitted
+stays unplaced and is reported (`view_plan_incomplete`, naming every view that could carry it and
+why none does). Placement problems on the corpus are a ratchet (`tests/placement.rs`,
+`tests/fixtures/known_placement.json`).
 
 What the collision checks cover, and what they do not: label boxes against label boxes, a
 dimension's lines against other labels' boxes, labels against view outlines and the title block,

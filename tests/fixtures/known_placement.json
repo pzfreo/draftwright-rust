@@ -2,9 +2,9 @@
  {
   "part": "cgb245",
   "code": "annotation_ink_overlap",
-  "count": 1,
+  "count": 2,
   "verdict": "rust-wrong",
-  "reason": "The leader of d:f:slot:1/slot_end_radius.radius@plan (2× R3) runs through the label of d:f:hole:1/bore.diameter@plan (4× ⌀7 THRU) in the plan's callout lanes above it; neither turning the leader nor any slide clears it (dims::placement::settle). Was 6 before settling; 5 are cleared by labels sliding off extension lines and leaders turned."
+  "reason": "The leader of d:f:slot:1/slot_end_radius.radius@plan (2× R3) runs through the label of d:f:hole:1/bore.diameter@plan (4× ⌀7 THRU), and the leader of d:f:hole:8/bore.diameter@plan (2× ⌀5 THRU) through the label of d:f:hole_pattern:1/bore.diameter@plan (4× ⌀5 THRU (2×2)), in the plan's callout lanes above it; no slide clears them, and turning the leader (dims::placement::settle) does not either: a turned leader starts from the rim's left 45° point so that it stays radial, and from there the label is not clear. Was 6 before settling; 4 are cleared by labels sliding off extension lines and a leader turned."
  },
  {
   "part": "cgb245",
@@ -37,16 +37,16 @@
  {
   "part": "ctc01",
   "code": "annotation_off_sheet",
-  "count": 7,
+  "count": 10,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band (20 mm) holds the y location and row pitches, and the callouts above the plan run past the sheet's top margin (two bore and fillet callouts, two row pitches, the y location, a slot width and an end radius). Reserving the port's lanes in every band clears all seven (A2 at 1:5)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: the plan's left band (20 mm) holds the y location and row pitches, and the callouts above the plan run past the sheet's top margin (two bore and fillet callouts, two row pitches, the y location, a slot width and an end radius). Since d-slots-rest the polygonal boss adds its across-flats callout and y location there, and the first pattern's bore callout is pushed one lane further out by them (7 before that merge). Reserving the port's lanes in every band (the question in docs/next-session.md) is what would clear them."
  },
  {
   "part": "ctc01",
   "code": "annotation_outside_area",
-  "count": 18,
+  "count": 22,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 15 plan and 3 front items."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them: 18 plan and 4 front items (the polygonal boss's height in the front and its across flats and x and y locations in the plan since d-slots-rest; 18 before that merge)."
  },
  {
   "part": "ftc06",

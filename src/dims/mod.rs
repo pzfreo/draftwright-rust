@@ -557,11 +557,18 @@ pub fn plan(
                 .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
         })
         .collect();
-    let linear: Vec<bool> = all
+    let rims: Vec<Option<f64>> = all
         .iter()
-        .map(|w| matches!(w.shape, Shape::Linear { .. }))
+        .zip(&chosen)
+        .zip(&sides)
+        .map(|((w, view), side)| match &w.shape {
+            Shape::Callout { sites } => view
+                .zip(*side)
+                .map(|(v, side)| placement::callout_rim(&frames[v], sites, side)),
+            Shape::Linear { .. } => None,
+        })
         .collect();
-    placement::settle(&mut placed, &linear, analysis, sheet, views);
+    placement::settle(&mut placed, &rims, analysis, sheet, views);
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 

@@ -293,7 +293,7 @@ pub(super) fn lanes<'a>(
             }
             Shape::Callout { sites } => {
                 let side = callout_strip(view);
-                let tip = callout_tip(f, sites, side == Side::Above);
+                let (tip, _) = callout_tip(f, sites, side == Side::Above);
                 (side, (3, -key(tip[0])))
             }
         };
@@ -431,11 +431,11 @@ const SLIDE_REACH: f64 = 20.0;
 /// running on to it, up to [`SLIDE_REACH`]. A callout's leader may turn the other way: 45° up or
 /// down to the left, its label left of the shoulder. With no clear place an item stays where it
 /// was, and the collision is reported. *items* are every item the part would have, in plan order,
-/// so where a label settles does not depend on what the spec omits (ARCH0003-2); *linear* says
-/// which are linear dimensions.
+/// so where a label settles does not depend on what the spec omits (ARCH0003-2); *rims* gives
+/// each callout's site radius on the page ([`callout_rim`]) and is none for a linear dimension.
 pub(super) fn settle(
     items: &mut [Option<Placed>],
-    linear: &[bool],
+    rims: &[Option<f64>],
     analysis: &Analysis,
     sheet: &PlannedSheet,
     views: &[PlannedView],
@@ -448,10 +448,10 @@ pub(super) fn settle(
         let Some(p) = items[i].as_ref() else {
             continue;
         };
-        let candidates = if linear[i] {
-            slides(p)
-        } else {
-            vec![turned(p)]
+        let linear = rims[i].is_none();
+        let candidates = match rims[i] {
+            None => slides(p),
+            Some(rim) => vec![turned(p, rim)],
         };
         let others = || {
             items
@@ -466,7 +466,7 @@ pub(super) fn settle(
             let own: Vec<&[P2; 2]> = c
                 .lines
                 .iter()
-                .filter(|l| !linear[i] || !p.lines.contains(l))
+                .filter(|l| !linear || !p.lines.contains(l))
                 .collect();
             others().all(|q| {
                 !q.lines.iter().any(|l| crosses(*l, c.label_box))
@@ -541,11 +541,15 @@ fn slides(p: &Placed) -> Vec<Placed> {
         .collect()
 }
 
-/// A callout with its leader turned the other way about its tip: the elbow mirrored, the
-/// shoulder and label to its left.
-fn turned(p: &Placed) -> Placed {
+/// A callout with its leader turned the other way: mirrored about the vertical through its site's
+/// centre, so the tip moves to the rim's point at 45° to the left and the leader still runs
+/// radially from it (a leader tangent to the rim would not point at the hole); the shoulder and
+/// label to its left. *rim* is the site's radius on the page.
+fn turned(p: &Placed, rim: f64) -> Placed {
     let [tip, elbow] = p.lines[0];
-    let elbow = [2.0 * tip[0] - elbow[0], elbow[1]];
+    let axis = tip[0] - std::f64::consts::FRAC_1_SQRT_2 * rim;
+    let tip = [2.0 * axis - tip[0], tip[1]];
+    let elbow = [2.0 * axis - elbow[0], elbow[1]];
     let end = [elbow[0] - SHOULDER, elbow[1]];
     let b = p.label_box;
     let shift = (end[0] - 1.0) - b[2];
@@ -568,7 +572,7 @@ fn place_callout(
     lane: usize,
 ) -> Placed {
     let up = side == Side::Above;
-    let tip = callout_tip(frame, sites, up);
+    let (tip, _) = callout_tip(frame, sites, up);
     let (y, _) = lane_at(frame.outline, side, lane);
     let elbow = [tip[0] + (y - tip[1]).abs(), y];
     let end = [elbow[0] + SHOULDER, y];
@@ -584,8 +588,8 @@ fn place_callout(
 }
 
 /// The leader's tip: on the rim, at 45° towards the strip and right, of the site nearest the
-/// strip's right-hand end.
-fn callout_tip(frame: &Frame, sites: &[(P3, f64)], up: bool) -> P2 {
+/// strip's right-hand end; and that site's radius on the page.
+fn callout_tip(frame: &Frame, sites: &[(P3, f64)], up: bool) -> (P2, f64) {
     let r = std::f64::consts::FRAC_1_SQRT_2;
     let v = if up { 1.0 } else { -1.0 };
     sites
@@ -593,11 +597,17 @@ fn callout_tip(frame: &Frame, sites: &[(P3, f64)], up: bool) -> P2 {
         .map(|(c, radius)| {
             let p = frame.page(*c);
             let rr = frame.s * radius;
-            ([p[0] + r * rr, p[1] + v * r * rr], p[0] + v * p[1])
+            (([p[0] + r * rr, p[1] + v * r * rr], rr), p[0] + v * p[1])
         })
         .max_by(|a, b| a.1.total_cmp(&b.1))
         .expect("a callout has a site")
         .0
+}
+
+/// The page radius of the site a callout in strip *side* points to (see [`callout_tip`]), which
+/// [`settle`] needs to turn its leader.
+pub(super) fn callout_rim(frame: &Frame, sites: &[(P3, f64)], side: Side) -> f64 {
+    callout_tip(frame, sites, side == Side::Above).1
 }
 /// Every extreme point of a placed item's ink: its lines' ends, its arrowheads' corners (as
 /// `dims::render` draws them) and its label box's corners.
@@ -804,4 +814,45 @@ pub(super) fn collisions(
         }
     }
     problems
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A turned leader still points at the hole: its tip is on the rim and the leader runs
+    /// along the radius through it, never tangent to the rim (review of d-placement).
+    #[test]
+    fn a_turned_leader_stays_radial() {
+        let (centre, rim) = ([50.0, 40.0], 6.0);
+        for up in [1.0, -1.0] {
+            let r = std::f64::consts::FRAC_1_SQRT_2 * rim;
+            let tip = [centre[0] + r, centre[1] + up * r];
+            let elbow = [tip[0] + 12.0, tip[1] + up * 12.0];
+            let end = [elbow[0] + SHOULDER, elbow[1]];
+            let p = Placed {
+                lines: vec![[tip, elbow], [elbow, end]],
+                arrows: vec![arrow(tip, elbow)],
+                label_at: [end[0] + 1.0, elbow[1]],
+                rotation: 0.0,
+                label_box: [end[0] + 1.0, elbow[1] - 1.0, end[0] + 20.0, elbow[1] + 2.0],
+            };
+            let t = turned(&p, rim);
+            let [tip, elbow] = t.lines[0];
+            let radius = [tip[0] - centre[0], tip[1] - centre[1]];
+            assert!(
+                (radius[0].hypot(radius[1]) - rim).abs() < 1e-9,
+                "tip on the rim"
+            );
+            assert!(radius[0] < 0.0, "tip on the left of the rim");
+            let leader = [elbow[0] - tip[0], elbow[1] - tip[1]];
+            let cross = radius[0] * leader[1] - radius[1] * leader[0];
+            let dot = radius[0] * leader[0] + radius[1] * leader[1];
+            assert!(
+                cross.abs() < 1e-9 && dot > 0.0,
+                "leader runs out along the radius"
+            );
+            assert!(t.label_box[2] < elbow[0], "label left of the shoulder");
+        }
+    }
 }
