@@ -135,6 +135,37 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
   rules are still pending.
 - DXF table head handles (ezdxf adds them on audit) are not written.
 
+## Known limitations
+
+Measured with `tools/quality.py` on the 30 parts of `tools/quality_parts.txt`; the figures, the
+per-part comparison with the baseline and the evidence are in `docs/quality-2026-10-09.md`
+("Alpha 1 gate audit"). No annotation lies over a view and no annotation line crosses one; no
+annotation is off the sheet. What remains is reported on the plan, never hidden:
+
+- **Leader crossings, 108** (`annotation_leader_crossing`, warning; ctc04 29, ftc08 24,
+  ctc02 19, others 36). Rust-wrong, inventory-limited: nearly every one is a crossing that every
+  candidate leader of that callout has (71 of 73 measured), so no ordering or cost change removes
+  it. draftwright avoids some by putting callouts inside the view over blank face (needs the
+  view's line-work; not ported, ADR R1) and the plan's Y locations above the side view (an open
+  question).
+- **Ink past a view's area, 155** (`annotation_outside_area`, info). Rust-wrong as to the
+  reservation, harmless on the page: lanes above and left of the plan and below the front run
+  past the bands draftwright's estimate gives them, onto open paper, crossing nothing; reserving
+  those bands moves sheets and scales on other parts (an open question).
+- **Ink overlaps, 20** (`annotation_ink_overlap`, warning: a line through a label). Rust-wrong;
+  how a text contact weighs against a leader crossing is an open question (draftwright gates
+  text first).
+- **Worse than the first quality baseline** on a few parts and codes (ctc03's ink 21 to 24,
+  more leader crossings on cgb245, ctc04 and ftc08, two more ink overlaps on ctc02), each
+  traced to its merge and waiting on an open maintainer question.
+- **Off the sheet on the AP242 fixtures:** two datum feature symbols on NIST CTC 02 (AP242);
+  none on the 30 measured parts.
+- **Hole tables** are drawn only by drop-and-escalate: a hole callout or location whose ink runs
+  off the sheet is dropped and reported, and a plan-view drop escalates to a hole table with
+  balloons. On the 30 parts, ftc08 drops 3 plan-view locations and ftc09 a callout and 13
+  off-axis locations (no table row, as draftwright drops them). Hole tables are not an alpha 1
+  gate.
+
 ## Background: the four hard pieces
 
 As with quiddity, the hard pieces were proved first, each against what the Python implementation

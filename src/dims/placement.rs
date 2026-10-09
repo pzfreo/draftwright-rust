@@ -14,6 +14,9 @@ use crate::layout::{Lanes, MARGIN};
 use crate::model::{Analysis, PlannedSheet, PlannedView, Problem};
 use crate::text::{Font, Segment};
 
+/// A held lane an item may share: its strip, the lane, and the item's extent along it there.
+type Shared = (Side, usize, [f64; 2]);
+
 /// Strip lanes: (rank, sub-rank, item index), per view and strip.
 type Strips<'a> = BTreeMap<(&'a str, Side), Vec<(u8, i64, usize)>>;
 
@@ -519,7 +522,8 @@ fn opposite(side: Side) -> Side {
 /// block, no line through the title block or another view); that item and every one outside it
 /// move to the next free lanes of the opposite strip, an overall extent first (draftwright moves
 /// only the extent), each that fits there taking the next lane; the extent then goes outside the
-/// rest where that still fits. One that fits on neither side keeps its own lane, where the collision checks
+/// rest where that still fits. One that fits on neither side shares a lane already held where it
+/// runs clear of that lane's items, and otherwise keeps its own lane, where the collision checks
 /// report it: nothing is dropped. Callouts take no lanes ([`super::leaders`] places them), and an
 /// item merged away follows its survivor ([`owners`]). The strips' lanes come from every item the
 /// part would have, and the page from the sheet and the views, which no omission changes, so
@@ -569,11 +573,14 @@ pub(super) fn fall_through(
         }
     }
     let full: Vec<(&str, Side)> = overflow.iter().map(|(key, _)| *key).collect();
+    // What fits on neither side, in strip order.
+    let mut stranded: Vec<usize> = Vec::new();
     for ((view, side), list) in overflow {
         let across = opposite(side);
         // An opposite strip that overflows itself has no room: what it could not hold keeps its
         // lanes there.
         if full.contains(&(view, across)) {
+            stranded.extend(list);
             continue;
         }
         let first = *held.get(&(view, across)).unwrap_or(&0);
@@ -584,7 +591,7 @@ pub(super) fn fall_through(
             list.into_iter().partition(|&i| extent(i));
         order.extend(rest);
         let mut moved = Vec::new();
-        for i in order {
+        for &i in &order {
             if fits(i, across, first + moved.len()) {
                 moved.push(i);
             }
@@ -605,8 +612,111 @@ pub(super) fn fall_through(
             lanes[i] = first + k;
         }
         held.insert((view, across), first + moved.len());
+        stranded.extend(order.into_iter().filter(|i| !moved.contains(i)));
     }
+    // One that fits on neither side then shares a lane either strip already holds, where it fits
+    // the page and runs clear of every item in that lane along it (draftwright's lateral tier
+    // reuse, `_adjust_strip_candidate_labels`: a dimension shares an inner tier where its whole
+    // extent is disjoint from every occupant there). A slot's location so chains with the slot's
+    // own length, end to end on one line. No lane is added. The item with the fewest such lanes
+    // takes one first (the longest among as few, then strip order), its own strip's innermost
+    // first, so one lane is not spent where another would have done.
+    share_held(
+        frames, items, views_of, owner, sides, lanes, &held, &stranded, &fits,
+    );
     share_lanes(owner, sides, lanes);
+}
+
+/// The stranded items' shared lanes ([`fall_through`]): each lane a strip holds (*held*) that
+/// *fits* the item on the page and whose items' extents along it are disjoint from the item's
+/// (ends may meet).
+#[allow(clippy::too_many_arguments)]
+fn share_held(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    owner: &[Option<usize>],
+    sides: &mut [Option<Side>],
+    lanes: &mut [usize],
+    held: &BTreeMap<(&str, Side), usize>,
+    stranded: &[usize],
+    fits: &dyn Fn(usize, Side, usize) -> bool,
+) {
+    if stranded.is_empty() {
+        return;
+    }
+    let along = |i: usize, side: Side, lane: usize| {
+        let view = views_of[i].expect("a strip's item has a view");
+        let k = usize::from(matches!(side, Side::Left | Side::Right));
+        place(&frames[view], &items[i], side, lane).map(|p| {
+            ink_points(&p).fold([f64::INFINITY, f64::NEG_INFINITY], |e, q| {
+                [e[0].min(q[k]), e[1].max(q[k])]
+            })
+        })
+    };
+    // Each held lane's items' extents along it.
+    let mut taken: BTreeMap<(&str, Side, usize), Vec<[f64; 2]>> = BTreeMap::new();
+    for j in 0..items.len() {
+        if let (Some(view), Some(side), None, Shape::Linear { .. }) =
+            (views_of[j], sides[j], owner[j], &items[j].shape)
+            && lanes[j] < *held.get(&(view, side)).unwrap_or(&0)
+            && !stranded.contains(&j)
+            && let Some(e) = along(j, side, lanes[j])
+        {
+            taken.entry((view, side, lanes[j])).or_default().push(e);
+        }
+    }
+    // Each stranded item's places: a held lane of its own strip or the opposite one, innermost
+    // first, that it fits, with its extent there.
+    let mut places: Vec<(usize, Vec<Shared>)> = stranded
+        .iter()
+        .map(|&i| {
+            let view = views_of[i].expect("a strip's item has a view");
+            let own = sides[i].expect("a strip's item has a side");
+            let list = [own, opposite(own)]
+                .into_iter()
+                .flat_map(|side| {
+                    (0..*held.get(&(view, side)).unwrap_or(&0)).map(move |lane| (side, lane))
+                })
+                .filter(|&(side, lane)| fits(i, side, lane))
+                .filter_map(|(side, lane)| along(i, side, lane).map(|e| (side, lane, e)))
+                .collect();
+            (i, list)
+        })
+        .collect();
+    let clear = |taken: &BTreeMap<(&str, Side, usize), Vec<[f64; 2]>>,
+                 view: &str,
+                 (side, lane, e): Shared| {
+        taken.get(&(view, side, lane)).is_none_or(|list| {
+            list.iter()
+                .all(|o| e[1] <= o[0] + 1e-6 || o[1] <= e[0] + 1e-6)
+        })
+    };
+    loop {
+        // The item with the fewest clear places, the longest among as few (first fit
+        // decreasing), then first in strip order.
+        let best = places
+            .iter()
+            .enumerate()
+            .filter_map(|(k, (i, list))| {
+                let view = views_of[*i].expect("a strip's item has a view");
+                let mut open = list.iter().filter(|&&p| clear(&taken, view, p));
+                let first = open.next()?;
+                let n = 1 + open.count();
+                Some((n, -key(first.2[1] - first.2[0]), k))
+            })
+            .min();
+        let Some((.., k)) = best else { break };
+        let (i, list) = places.remove(k);
+        let view = views_of[i].expect("a strip's item has a view");
+        let (side, lane, e) = *list
+            .iter()
+            .find(|&&p| clear(&taken, view, p))
+            .expect("a clear place");
+        sides[i] = Some(side);
+        lanes[i] = lane;
+        taken.entry((view, side, lane)).or_default().push(e);
+    }
 }
 
 /// Places *w* in lane *lane* of strip *side* of its view; none for a callout.

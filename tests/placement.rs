@@ -23,6 +23,7 @@ mod facts;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use draftwright::api::{self, Features};
 use draftwright::dims::{self, PlannedDimension};
 use draftwright::model::{self, Analysis, DimensionSource, DimensionSpec, Plan, Spec};
 use draftwright::output::{Curve, Item};
@@ -738,6 +739,52 @@ fn a_callout_that_does_not_fit_its_lane_goes_beside_its_view() {
     for (view, vb) in &boxes {
         if view != "v:plan" {
             assert!(!p.lines.iter().any(|l| crosses(*l, *vb)), "crosses {view}");
+        }
+    }
+}
+
+/// What fits on neither side shares a lane already held (draftwright's lateral tier reuse): on
+/// ftc08 and ftc09 (Rust quiddity's recognition, the command line's default, through the
+/// recovery) the three slot locations that ran off the sheet, past every lane their strips hold
+/// (ftc08's plan left of the plan, ftc09's below the front), now chain with their own slot's
+/// length, end to end on its dimension line, as draftwright's ftc08 sheet stands each slot
+/// position in its slot length's column; nothing is off the sheet.
+#[test]
+fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    for (file, slots) in [
+        ("nist/nist_ftc_08_asme1_rc.stp", &["4@plan"][..]),
+        ("nist/nist_ftc_09_asme1_rd.stp", &["1@front", "3@front"][..]),
+    ] {
+        let plan = api::plan_from(&dir.join(file), Features::Native, &Spec::default()).unwrap();
+        let off: Vec<&str> = plan
+            .problems
+            .iter()
+            .filter(|p| p.code == "annotation_off_sheet")
+            .map(|p| p.subjects[0].as_str())
+            .collect();
+        assert!(off.is_empty(), "{file}: {off:?}");
+        for slot in slots {
+            let (n, view) = slot.split_once('@').unwrap();
+            let line = |param: &str| {
+                let id = format!("d:f:slot:{n}/{param}.length@{view}");
+                let d = plan.dimensions.iter().find(|d| d.id == id);
+                let p = d.and_then(|d| d.placed.as_ref());
+                p.unwrap_or_else(|| panic!("{file}: {id} placed")).lines[2]
+            };
+            let (loc, len) = (line("location_slot"), line("slot_length"));
+            // Along the line: x for a horizontal dimension, y for a vertical one.
+            let k = usize::from(loc[0][0] == loc[1][0]);
+            let span = |l: [[f64; 2]; 2]| (l[0][k].min(l[1][k]), l[0][k].max(l[1][k]));
+            let ((a0, a1), (b0, b1)) = (span(loc), span(len));
+            assert!(
+                (loc[0][1 - k] - len[0][1 - k]).abs() < 1e-9
+                    && ((a1 - b0).abs() < 1e-6 || (b1 - a0).abs() < 1e-6),
+                "{file}: slot {slot}'s location {loc:?} chains with its length {len:?}"
+            );
         }
     }
 }
