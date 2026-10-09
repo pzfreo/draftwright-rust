@@ -323,6 +323,8 @@ quiddity commit that has it.
     caller need not re-analyse;
   - quiddity-rust's CI also runs on macOS, beside Linux.
 
+- **The run ends with alpha 1 (maintainer, 2026-10-09):** once the gates in `docs/alpha1.md`
+  are met, dispatch nothing new (return no streams); let in-flight streams finish and integrate.
 - **Milestone: alpha 1 (maintainer, 2026-10-09). Read `docs/alpha1.md`; it governs dispatch.**
   Until its gates are met, dispatch only alpha 1 work, in this order: the quality streams and PR #1
   (already queued), PMI stage 2b (dimensions from PMI) and stage 3 (coverage lint) and the

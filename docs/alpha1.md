@@ -25,8 +25,14 @@ Until every gate below is met, the rolling run dispatches **only alpha 1 work** 
   - overlapping view pairs and views on the title block: **0**;
   - repeated dimension labels: each one remaining justified with a verdict (identical features
     or quantities draftwright also states separately), none unexplained;
-  - ink problems: **at least 80% fewer** than the baseline's 506, with no annotation over a view
-    and no leader crossing a view; what remains listed with verdicts.
+  - ink problems (gate relaxed by the maintainer on 2026-10-09, from "at least 80% fewer"):
+    **no annotation over a view and no annotation line over a view** (0), **no part worse than
+    the baseline** in any column, and every remaining ink problem (leader crossings and ink
+    overlaps, about 284 at the time, from 506) listed as a known limitation in the README with
+    its verdict. Reducing them further continues after alpha 1.
+- **Hole tables are not an alpha 1 gate** (maintainer, 2026-10-09): drop-and-escalate stays as
+  merged; any remaining hole-table issue is listed as a known limitation in the README, not
+  worked on before the release.
 - **Performance:** the maintainer's PR #1 merged (render cache and straight-piece boxes); `plan`
   back to fast (NIST FTC 06 under 50 ms natively, from about 490 ms), drawings unchanged.
 - **Release hygiene:** CI green; README states what alpha 1 does and does not do; a short
@@ -63,6 +69,10 @@ Done by the main session, in dependency order, once 1-3 are met:
    version `0.1.0-alpha.1` and tag `v0.1.0-alpha.1`.
 3. GitHub releases with notes, drafted for the maintainer to approve before they are published.
 
-## 5. After alpha 1
+## 5. After alpha 1: the run stops
 
-Back to draftwright-rust improvements from the backlog.
+The maintainer's decision (2026-10-09): the rolling run ends with alpha 1. Once the gates in 1-3
+are met, the dispatcher starts no new streams of any kind; streams already in flight finish and
+are integrated as usual, and the run then writes its final report and stops. The releases are
+cut by the main session, which then stops the workflows. draftwright-rust improvements from the
+backlog resume in a later run, when the maintainer starts one.
