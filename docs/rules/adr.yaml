@@ -1267,7 +1267,9 @@
     issues: [560]
     tests: []
   status: pending
+  rust_test: "tests/dims_spotface.rs::spool132s_spotface_is_drawn_and_searchable"
   port_note: "Translate: Analysis/Spec carry roles; the Plan carries display text (see ARCH0019-1); renderers draw symbol glyphs as geometry."
+  rust_note: "In part: the Analysis and Spec carry measurement roles (a dimension claims feature and parameter; the plan carries each label's text, made in src/dims/, never on the recognition records), and the callout symbols the bundled fonts lack (⌀ ↧ ⌴ ⌵, and since d-spotface ASME Y14.5-2018's spotface, the counterbore's box with the font's own S and F inside) are drawn as ink by dims::label_ink, their characters kept in the PDF's and SVG's invisible text so they are searched and copied (tests/output.rs::callout_symbols_are_searchable_in_the_pdf_and_the_svg, tests/dims_spotface.rs). Pending, not translated: whether the symbols should instead be real glyphs in the embedded font is an open maintainer question (docs/next-session.md, d-spotface)."
 
 - id: ARCH0008-2
   statement: "Repeated identical features are counted, not deduplicated: equal definitions are grouped into one callout carrying an n× count."
