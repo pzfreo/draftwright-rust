@@ -488,3 +488,29 @@ fn render_appends_the_formats_extension() {
         assert_eq!(paths, [scratch(written).display().to_string()]);
     }
 }
+
+#[test]
+fn projections_kept_across_edits_draw_what_a_fresh_render_draws() {
+    for name in ["turned.step", "prismatic.step"] {
+        let (part, analysis) = model::analyse(&part(name)).unwrap();
+        let mut projections = model::Projections::default();
+        let mut spec = Spec::default();
+        for edit in [None, Some("omit"), Some("a2")] {
+            if let Some(edit) = edit {
+                let plan = model::plan(&analysis, &spec).unwrap();
+                let op = match edit {
+                    "omit" => json!({ "op": "set", "value": true,
+                        "path": format!("dimensions/{}/omit",
+                            plan.dimensions[0].id.replace('~', "~0").replace('/', "~1")) }),
+                    _ => json!({ "op": "set", "path": "sheet/size", "value": "A2" }),
+                };
+                spec = api::edit(&spec, &json!([op])).unwrap();
+            }
+            let plan = model::plan(&analysis, &spec).unwrap();
+            let fresh = model::render(&part, &analysis, &plan, &font()).unwrap();
+            let kept =
+                model::render_with(&part, &analysis, &plan, &font(), &mut projections).unwrap();
+            assert_eq!(fresh.svg(), kept.svg(), "{name} after {edit:?}");
+        }
+    }
+}

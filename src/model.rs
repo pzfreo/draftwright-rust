@@ -9,12 +9,12 @@
 //! This first cut covers the views (which views, the sheet, the scale and the placement) and a
 //! title block. Features, dimensions and annotations join the same documents as they are ported.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
 use haecceity::Part;
 use haecceity::classify::{Classifier, State};
-use haecceity::hlr::{self, Exact, Plane, Unresolved, View, project, project_section};
+use haecceity::hlr::{self, Exact, Plane, Projected, Unresolved, View, project, project_section};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -1453,6 +1453,73 @@ pub fn render(
     plan: &Plan,
     font: &Font,
 ) -> Result<Drawing, Unresolved> {
+    render_with(part, analysis, plan, font, &mut Projections::default())
+}
+
+/// What renders of one part share: each view's hidden-line projection and each section's cut,
+/// by the view's direction and up and the cutting plane. Neither depends on the scale, the
+/// sheet or the annotation, so an editor that keeps one across a part's edits projects each
+/// view once.
+#[derive(Default)]
+pub struct Projections {
+    views: HashMap<Vec<u64>, Vec<Projected>>,
+    cuts: HashMap<Vec<u64>, Vec<Vec<[f64; 3]>>>,
+}
+
+/// Numbers as a map key, by their bits.
+fn bits(numbers: &[&[f64]]) -> Vec<u64> {
+    numbers
+        .iter()
+        .flat_map(|n| n.iter().map(|x| x.to_bits()))
+        .collect()
+}
+
+impl Projections {
+    fn view(&mut self, part: &Part, v: &PlannedView) -> Result<Vec<Projected>, Unresolved> {
+        let cut = v.cut.as_ref();
+        let key = bits(&[
+            &v.direction,
+            &v.up,
+            cut.map_or(&[], |c| &c.origin[..]),
+            cut.map_or(&[], |c| &c.normal[..]),
+        ]);
+        if let Some(pieces) = self.views.get(&key) {
+            return Ok(pieces.clone());
+        }
+        let view = View::new(v.direction, v.up).expect("a planned view");
+        let pieces = match cut.and_then(|c| Plane::new(c.origin, c.normal)) {
+            Some(plane) => project_section(part, &view, &plane),
+            None => project(part, &view),
+        }?;
+        self.views.insert(key, pieces.clone());
+        Ok(pieces)
+    }
+
+    fn cut(
+        &mut self,
+        part: &Part,
+        cut: &Cut,
+        plane: &Plane,
+    ) -> Result<Vec<Vec<[f64; 3]>>, Unresolved> {
+        let key = bits(&[&cut.origin, &cut.normal]);
+        if let Some(lines) = self.cuts.get(&key) {
+            return Ok(lines.clone());
+        }
+        let lines = hlr::section(part, plane)?;
+        self.cuts.insert(key, lines.clone());
+        Ok(lines)
+    }
+}
+
+/// [`render`], projecting each view through *projections*: one kept across a part's renders
+/// draws the same drawing without projecting a view again.
+pub fn render_with(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+    projections: &mut Projections,
+) -> Result<Drawing, Unresolved> {
     // Section furniture (hatch, cutting plane), and its text: what, where.
     let mut furniture: Vec<Item> = Vec::new();
     let mut captions: Vec<(String, [f64; 2])> = Vec::new();
@@ -1479,10 +1546,7 @@ pub fn render(
             ]
         };
         let plane = v.cut.as_ref().and_then(|c| Plane::new(c.origin, c.normal));
-        let pieces = match &plane {
-            Some(plane) => project_section(part, &view, plane),
-            None => project(part, &view),
-        }?;
+        let pieces = projections.view(part, v)?;
         let visible_from = layers[0].items.len();
         for piece in pieces {
             let mut moved = piece.clone();
@@ -1510,7 +1574,7 @@ pub fn render(
             });
         }
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
-            let f = section_furniture(part, analysis, plan, v, (plane, cut))?;
+            let f = section_furniture(part, analysis, plan, v, (plane, cut), projections)?;
             // draftwright's pieces, each by its ink: the hatch, the chain line by its line, and
             // each end's arrowhead and wing stub (`section::cutting_plane`'s order).
             let mut piece = |name: String, kind: Kind, ink: &[Item], lines: Vec<[[f64; 2]; 2]>| {
@@ -1858,6 +1922,7 @@ fn section_furniture(
     plan: &Plan,
     v: &PlannedView,
     (plane, cut): (&Plane, &Cut),
+    projections: &mut Projections,
 ) -> Result<Furniture, Unresolved> {
     use crate::section::{HATCH_SPACING, OVERRUN, cutting_plane, hatch};
     let mut out = Furniture {
@@ -1868,7 +1933,8 @@ fn section_furniture(
     };
     let view = &View::new(v.direction, v.up).expect("a planned view");
     let (s, centre) = (v.scale, extent(analysis, view).1);
-    let page: Vec<Vec<[f64; 2]>> = hlr::section(part, plane)?
+    let page: Vec<Vec<[f64; 2]>> = projections
+        .cut(part, cut, plane)?
         .iter()
         .map(|l| {
             l.iter()
