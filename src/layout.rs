@@ -1179,6 +1179,33 @@ pub fn recover(
     attempts
 }
 
+/// The least page distance between two located ordinates on one axis (draftwright's
+/// `_MIN_LOC_SEP_MM`: an arrow and a pad), and the least page span of a location.
+pub const MIN_LOC_SEP: f64 = 2.7 + PAD;
+pub const MIN_LOC_SPAN: f64 = 1.0;
+
+/// How many of one view axis's located *ordinates* (distances from the datum) are illegible at
+/// *scale* by draftwright's measure (`_discard_short_refs`, `_legible_locations`): a nonzero
+/// span under [`MIN_LOC_SPAN`] on the page, or one under [`MIN_LOC_SEP`] past the last legible
+/// one. draftwright drops those (`location_ref_dropped`, a required loss); the port keeps every
+/// location (LINT-hole_coverage-location), so for it this counts witness lines too close to read.
+pub fn crowded_locations(ordinates: &[f64], scale: f64) -> usize {
+    let mut at: Vec<f64> = ordinates.iter().map(|o| o.abs()).collect();
+    at.sort_by(f64::total_cmp);
+    let mut crowded = 0;
+    let mut last: Option<f64> = None;
+    for o in at {
+        if (1e-6 < o && o * scale < MIN_LOC_SPAN)
+            || last.is_some_and(|l| (o - l) * scale < MIN_LOC_SEP)
+        {
+            crowded += 1;
+            continue;
+        }
+        last = Some(o);
+    }
+    crowded
+}
+
 /// How much the isometric is scaled relative to the sheet to fill its rectangle (draftwright's
 /// `_fit_iso_view` with no annotation obstacles), given the projected iso's box relative to the
 /// view's centre at the sheet scale. One when it is left at sheet scale.

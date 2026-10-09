@@ -18,8 +18,8 @@
 //!   here; their order and pinning are held on stand-ins and corpus parts instead.
 //!
 //! The corpus tests apply `model::recover` to `model::plan`'s result: `model::plan` does not apply
-//! it yet, as on the captured parts it would act only on the port's placement residuals and move
-//! cgb245 and ctc01 off draftwright's sheets (docs/next-session.md).
+//! it yet, as on the captured parts it would move ctc01 off draftwright's sheet for the port's
+//! own placement residual (docs/next-session.md).
 
 #[path = "common/corpus.rs"]
 mod corpus;
@@ -213,52 +213,97 @@ fn sheet(plan: &Plan) -> (&str, &str) {
     (plan.sheet.size.as_str(), plan.sheet.scale.as_str())
 }
 
-/// On the corpus: cgb245's first choice (A2 at 1:2, draftwright's sheet too) has one label off
-/// the sheet (d:f:hole:1's y location), and ctc01's (A3 at 1:5, draftwright's too) one; the
-/// recovery tries the nearest smaller scale first, which is valid on both: A2 at 1:5 and A3 at
-/// 1:10, each said (`layout_replanned`), the sheet's basis naming the recovery, the spec
-/// unchanged. draftwright keeps 1:2 and 1:5: its placement has no label off the sheet there
-/// (verdict: equivalent rule, differing inputs; the off-sheet labels are the port's placement
-/// residuals, `known_placement.json`).
+/// On the corpus: ctc01's first choice (A3 at 1:5, draftwright's too) has one label off the
+/// sheet; the recovery tries the nearest smaller scale first, A3 at 1:10, which is valid and
+/// complete and is taken, said (`layout_replanned`), the sheet's basis naming the recovery, the
+/// spec unchanged. draftwright tries nothing on ctc01: its drawing has no hard layout finding.
+/// The ladder and its gate are draftwright's (equivalent); the move comes from the port's
+/// off-sheet label, a placement residual it reports (`known_placement.json`).
 #[test]
 fn a_plan_with_ink_off_the_sheet_is_re_planned_at_a_smaller_scale_on_its_sheet() {
-    for (name, first, after) in [
-        ("cgb245", ("A2", "1:2"), ("A2", "1:5")),
-        ("ctc01", ("A3", "1:5"), ("A3", "1:10")),
+    let (first, after) = (("A3", "1:5"), ("A3", "1:10"));
+    let Some(analysis) = corpus_part("ctc01") else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    let plan = recovered(&analysis, &Spec::default());
+    assert_eq!(sheet(&plan), after);
+    let said = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "layout_replanned")
+        .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
+    assert_eq!(said.severity, "info");
+    assert!(
+        said.message
+            .contains(&format!("{} at {}", first.0, first.1))
+            && said.message.contains("annotation_off_sheet"),
+        "{}",
+        said.message
+    );
+    assert!(plan.sheet.default && plan.sheet.basis.contains("layout recovery"));
+    assert!(plan.spec.sheet.size.is_none() && plan.spec.sheet.scale.is_none());
+    assert!(!codes(&plan).contains(&"annotation_off_sheet"));
+
+    // A scale the spec names is never re-planned: the label stays off the sheet, reported.
+    let pinned = recovered(&analysis, &spec(serde_json::json!({ "scale": first.1 })));
+    assert_eq!(sheet(&pinned), first);
+    assert!(codes(&pinned).contains(&"annotation_off_sheet"));
+    assert!(!codes(&pinned).iter().any(|c| c.starts_with("layout_re")));
+
+    // A sheet the spec names is kept; its scale is recovered on it.
+    let named = recovered(&analysis, &spec(serde_json::json!({ "size": first.0 })));
+    assert_eq!(sheet(&named), after);
+}
+
+/// draftwright's own recovery on cgb245, which the port's now matches: the first choice, A2 at
+/// 1:2, is invalid (draftwright: an ink overlap; the port: a label off the sheet), and every try
+/// fails its gate, so 1:2 is kept and the failed recovery said (`layout_recovery_exhausted`).
+/// draftwright's captured sheet (`tests/fixtures/sheets/cgb245.json.gz`) rejects 1:5 for two
+/// `location_ref_dropped` blockers (hole locations closer than 4.7 mm on the page), 1:1 for
+/// `view_out_of_bounds`, A1 and A0 for a required drop. The port keeps every location, so its
+/// gate counts the same spacing as locations too close to read: four at 1:5; two at 1:1 on A2,
+/// A1 and A0, each with hard findings besides (A2: `page_fit_uncertain` and labels off the sheet;
+/// A1: labels off the sheet; A0: an ink overlap). Without that count the port took 1:5, valid by
+/// its placement checks but with location witness lines as close as 0.6 mm.
+#[test]
+fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
+    let Some(analysis) = corpus_part("cgb245") else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    let plan = recovered(&analysis, &Spec::default());
+    assert_eq!(sheet(&plan), ("A2", "1:2"));
+    assert!(codes(&plan).contains(&"annotation_off_sheet"));
+    let said = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "layout_recovery_exhausted")
+        .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
+    assert_eq!(said.severity, "info");
+    for tried in [
+        "A2 at 1:5 (4 hole locations too close to read)",
+        "A2 at 1:1 (",
+        "A1 at 1:1 (",
+        "A0 at 1:1 (",
     ] {
-        let Some(analysis) = corpus_part(name) else {
-            eprintln!("SKIPPED: the corpus is not found");
-            return;
-        };
-        let plan = recovered(&analysis, &Spec::default());
-        assert_eq!(sheet(&plan), after, "{name}");
-        let said = plan
-            .problems
-            .iter()
-            .find(|p| p.code == "layout_replanned")
-            .unwrap_or_else(|| panic!("{name}: {:?}", codes(&plan)));
-        assert_eq!(said.severity, "info");
-        assert!(
-            said.message
-                .contains(&format!("{} at {}", first.0, first.1))
-                && said.message.contains("annotation_off_sheet"),
-            "{name}: {}",
-            said.message
-        );
-        assert!(plan.sheet.default && plan.sheet.basis.contains("layout recovery"));
-        assert!(plan.spec.sheet.size.is_none() && plan.spec.sheet.scale.is_none());
-        assert!(!codes(&plan).contains(&"annotation_off_sheet"), "{name}");
-
-        // A scale the spec names is never re-planned: the label stays off the sheet, reported.
-        let pinned = recovered(&analysis, &spec(serde_json::json!({ "scale": first.1 })));
-        assert_eq!(sheet(&pinned), first, "{name}");
-        assert!(codes(&pinned).contains(&"annotation_off_sheet"));
-        assert!(!codes(&pinned).contains(&"layout_replanned"));
-
-        // A sheet the spec names is kept; its scale is recovered on it.
-        let named = recovered(&analysis, &spec(serde_json::json!({ "size": first.0 })));
-        assert_eq!(sheet(&named), after, "{name}");
+        assert!(said.message.contains(tried), "{tried}: {}", said.message);
     }
+    assert!(!plan.sheet.basis.contains("layout recovery"));
+}
+
+/// draftwright's location legibility (`_legible_locations`, `_discard_short_refs`): an ordinate
+/// under 4.7 mm on the page past the last legible one, or a nonzero span under 1 mm, is too close
+/// to read; the rest are measured from the last one kept.
+#[test]
+fn hole_locations_closer_than_draftwrights_spacing_are_counted() {
+    assert_eq!(layout::MIN_LOC_SEP, 4.7);
+    // At 1:1: 10 and 14 are 4 apart (crowded), 16 is 6 past 10 (kept), 20 is 4 past 16.
+    assert_eq!(layout::crowded_locations(&[20.0, 10.0, 14.0, 16.0], 1.0), 2);
+    // At 5:1 every gap is legible; at 1:5 a 3 mm span is 0.6 mm on the page.
+    assert_eq!(layout::crowded_locations(&[20.0, 10.0, 14.0, 16.0], 5.0), 0);
+    assert_eq!(layout::crowded_locations(&[3.0, 40.0], 0.2), 1);
+    assert_eq!(layout::crowded_locations(&[], 1.0), 0);
 }
 
 /// draftwright's `test_exact_grm03_recovers_all_axial_stations_on_a4_with_pmi_off`, and the
