@@ -1036,7 +1036,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py]
   status: pending
-  rust_note: "Not ported: blocked on the bridge, which drops quiddity's derived section_recess_patterns (the arrays and grids of recesses), so no pocket pattern reaches the Analysis and its members are judged as lone pockets by src/lint/pockets.rs. No corpus recognition has a recess pattern."
+  rust_note: "Not ported: blocked on the Analysis, which carries no pocket pattern. Python's sources are quiddity's derived section_recess_patterns (SectionRecessArray/Grid whose members all read as pockets); the bridge drops them (DERIVED_NOT_READ), and the native path reads neither section recesses nor quiddity-rust's pocket_patterns (PocketGrid/PocketArray), so a pattern's members are judged as lone pockets by src/lint/pockets.rs. Lint may not recognise a pattern itself; porting this needs the bridge and src/bridge/native.rs to read the patterns into the Analysis first (outside lint). No corpus recognition fixture has a recess pattern."
   port_note: "Keep."
 
 - id: LINT-code-pocket_pattern_requirement_state
@@ -1130,6 +1130,8 @@
     issues: [1432]
     tests: [tests/test_issue_1432_oriented_slot_semantics.py]
   status: pending
+  rust_test: an_oriented_slot_states_its_width_and_length
+  rust_note: "Partial (src/lint/oriented_slots.rs): each oriented_slot feature has oriented_slot_width.length and oriented_slot_length.length, its record's width and length, judged by the claiming annotation's printed text (draftwright's callout ORIENTED SLOT 2 WIDE × 4.5 LONG); a record without a positive width or length, or two records the same (Python's two sources with one key), has both unverifiable. On Python's sheet of mfcadpp_holdout/467 both are read as stated, as Python's lint finds (oriented_slots_and_through_steps_match_pythons_lint_or_are_known); the port's own sheet draws no oriented slot, so lint reports both missing (rust-correct, known_lint.json family_rest). Not ported, and blocked on data the Analysis does not carry: Python excludes the members of oriented slot patterns (standalone_oriented_slots; the patterns are an undecided family, #1430), but the bridge reads the members one by one and drops the patterns, so every slot is judged and a pattern's members are reported missing where Python reports nothing (quiddity's golden oriented_slots plate, undetermined in known_lint.json). Question for the maintainer: should the Analysis record oriented slot pattern membership so lint can exclude members as Python does, or should lint keep reporting their unstated sizes until #1430 gives patterns a grammar? Python's contract checks on the record (unit directions, canonical passage frame, serialisation) are the bridge's field checks here."
   port_note: "Keep."
 
 - id: LINT-code-oriented_slot_requirement_state
@@ -1141,6 +1143,8 @@
     issues: [1432]
     tests: [tests/test_issue_1432_oriented_slot_semantics.py, tests/test_issue_1432_boundary_failures.py]
   status: pending
+  rust_test: an_oriented_slot_states_its_width_and_length
+  rust_note: "Codes oriented_slot_requirement_missing and _unverifiable (src/lint/oriented_slots.rs). _suppressed and _dropped are not reached: lint cannot read the author's omissions, which live in the Spec, or placement drops. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep."
 
 - id: LINT-rectangular_blind_slot_coverage-requirements
@@ -1260,9 +1264,9 @@
     module: "linting/through_step_coverage.py"
     issues: [1382]
     tests: [tests/test_framed_step_family_evidence.py]
-  status: pending
-  rust_test: a_through_step_states_both_legs_named_by_the_parts_axes
-  rust_note: "Partial (src/lint/steps.rs): each leg of the section is a requirement through_step_leg.length.<axis>, named by the part's axis it lies along, stated by a dimension that claims it and prints its length; a section that is not two legs, or a leg along no axis of the part, is unverifiable. Not ported, and blocked on data the Analysis does not carry: Python uses the alternative grammars (a plate thickness, a step level's height or position, or either with an envelope extent, within 0.5 mm) only for an x or y through step that draftwright's conversion did not lower to a ThroughStepFeature, and its owners are draftwright's converted plates and its step-level ladder (StepLevelFeature, from quiddity's FaceLevel evidence); the port has neither the conversion's choice nor the ladder, so every through step is judged by its own legs, and a leg stated only by an alternative is reported missing. On the captured sheets (m10127) the through step is lowered and the two lints agree."
+  status: ported
+  rust_test: a_through_step_along_y_may_be_stated_by_the_ladder_or_a_plate
+  rust_note: "src/lint/steps.rs: each leg of the section is a requirement through_step_leg.length.<axis>, named by the part's axis it lies along (a_through_step_states_both_legs_named_by_the_parts_axes), stated by a dimension that claims it and prints its length; a section that is not two legs, or a leg along no axis of the part, is unverifiable. For a step running along x or y, a leg may instead be stated by the legacy grammar (alternatives, _legacy_owner_plans): a step height or step position claimed on step_level, or a plate's thickness, alone when its interval is the leg's, or with the overall extent (envelope width/depth/height) when the leg is the rest of it, every interval within 0.5 mm; each term must be claimed and its value printed. Two steps whose legs have the same alternatives get no credit from them, and a leg their own dimension does not state is unverifiable. Deliberate departures, forced by ADR R4: Python takes the alternatives only for a step its conversion did not lower and judges a lowered one by its own legs, a decision in draftwright's drafting model that lint cannot see, so a leg here is stated by either; the term values are the leg's (Python requires the owner's, whose interval is within 0.5 mm of it); and lint's marks carry no drawn span, so the claim and its printed value stand in for Python's span check. On Python's sheets and the port's own drawings of stepped_block (a step along y left to the ladder and extents) and rectangular_through_step, and m10127's captured sheet, the two lints agree (oriented_slots_and_through_steps_match_pythons_lint_or_are_known, coverage_on_pythons_sheets_matches_pythons_lint_or_is_known); no fixture has a step whose leg a plate states, which the unit test covers."
   port_note: "Keep."
 
 - id: LINT-code-through_step_requirement_state
@@ -1274,8 +1278,8 @@
     issues: [1382]
     tests: [tests/test_framed_step_family_evidence.py, tests/test_issue_1543_schedule_requirements.py]
   status: pending
-  rust_test: a_through_step_states_both_legs_named_by_the_parts_axes
-  rust_note: "Codes through_step_requirement_missing and through_step_requirement_unverifiable. _suppressed and Python's inapplicable (a leg proved by an alternative grammar) are not reached."
+  rust_test: a_through_step_along_y_may_be_stated_by_the_ladder_or_a_plate
+  rust_note: "Codes through_step_requirement_missing and through_step_requirement_unverifiable; a leg stated by the legacy grammar (Python's inapplicable) is not reported. _suppressed and _dropped are not reached: lint cannot read the author's omissions, which live in the Spec, or placement drops. Severity is always warning."
   port_note: "Keep."
 
 - id: LINT-gusset_rib_coverage-requirements
