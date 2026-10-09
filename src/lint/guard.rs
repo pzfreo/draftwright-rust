@@ -7,7 +7,9 @@
 //! - the Plan's and Spec's types and operations by name (`Plan`, `Spec`, `PlannedView`, `plan`,
 //!   `spec`, `embedded_spec`, …), which also covers the drawing's embedded spec (`drawing.spec`);
 //! - any `crate::` path other than the Analysis (`crate::model::Analysis`), the bridge's
-//!   features (`crate::bridge`) and the rendered drawing (`crate::output`).
+//!   features (`crate::bridge`), the Analysis's PMI reading (`crate::pmi`) and its lowering
+//!   (`crate::pmi_lowering`, a function of the Analysis alone), and the rendered drawing
+//!   (`crate::output`).
 
 use std::path::Path;
 
@@ -30,7 +32,13 @@ const FORBIDDEN: [&str; 14] = [
 ];
 
 /// The `crate::` paths lint may use.
-const ALLOWED: [&str; 3] = ["crate::model::Analysis", "crate::bridge", "crate::output"];
+const ALLOWED: [&str; 5] = [
+    "crate::model::Analysis",
+    "crate::bridge",
+    "crate::pmi",
+    "crate::pmi_lowering",
+    "crate::output",
+];
 
 /// *source* with its comments and string and character literals blanked out.
 fn code_of(source: &str) -> String {

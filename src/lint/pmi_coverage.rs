@@ -1,0 +1,358 @@
+//! PMI coverage (Python's `linting/pmi_coverage.py`, `_lint_pmi`): every AP242 PMI source of the
+//! part is on the drawing or reported, and a drawn feature control frame states its source.
+//!
+//! The requirements are the Analysis's PMI reading ([`Reading`]): its records and the sources it
+//! did not read. The evidence is the drawing's marks: a record is drawn when an annotation is
+//! named `pmi:<source>` (a feature control frame or datum feature symbol) or claims a
+//! measurement of feature `pmi:<source>` (a dimension stating a PMI dimension). Which records
+//! lower to a drawing item at all is [`lower`]'s decision, a function of the Analysis alone that
+//! drawing the part also takes; lint asks it only to tell a record not lowered from one lowered
+//! but not drawn, never for what to count. In the order Python reports them:
+//!
+//! - `pmi_not_extracted`: the reading was refused (`AP242 PMI could not be inventoried`), or a
+//!   source was not read or read in part (`partially_extracted`: a record with blockers). An
+//!   error, as Python's `annotate` mode makes it; a source of no draftwright category (a shape
+//!   aspect, property or standard haecceity reports, which draftwright's census does not hold)
+//!   is info, as the plan reports it.
+//! - `pmi_not_lowered`: a record that is not drawn and that [`lower`] does not lower: its
+//!   reading's blockers, its modifiers or its attachment stop it, or (until toleranced and basic
+//!   dimensions are drawn) it is a dimension. Error; a manufacturing requirement of a kind
+//!   draftwright does not support is a warning.
+//! - `pmi_not_rendered`: a record [`lower`] lowers that no annotation draws. Error.
+//! - `pmi_value_mismatch`: a frame whose text runs do not state its source's magnitude (one
+//!   number, within half the display's 13th significant digit, as Python allows), its zone
+//!   (`⌀`, `S⌀` or none) and its datum letters (repeats removed). Error.
+//! - `pmi_source_unknown`: an annotation that claims a source the reading does not hold (a
+//!   fabricated provenance); `pmi_unreconciled`: one that claims a source when the part has no
+//!   PMI reading to check it against (warning).
+//!
+//! Python's `pmi_present_but_ignored` is not-applicable: the port has no switch that ignores a
+//! part's PMI. Python's other codes of the module (manufacturing notes and finishes, title-block
+//! material and general tolerance) wait on the reading of those requirements.
+
+use std::collections::BTreeSet;
+
+use super::{LintIssue, Mark, Severity};
+use crate::model::Analysis;
+use crate::pmi::{Category, Outcome, Reading, Record};
+use crate::pmi_lowering::lower;
+
+/// Python's `_SUPPORTED_MANUFACTURING_REQUIREMENTS`.
+const MANUFACTURING: [&str; 5] = [
+    "external_thread",
+    "internal_thread",
+    "knurl",
+    "edge_condition",
+    "surface_finish",
+];
+
+fn issue(code: &str, subject: &str, severity: Severity, message: String) -> LintIssue {
+    LintIssue {
+        id: format!("l:{code}:{subject}"),
+        code: code.into(),
+        severity,
+        message,
+        at: None,
+        view: None,
+        subjects: Vec::new(),
+        requirements: Vec::new(),
+        measurements: Vec::new(),
+        sources: Vec::new(),
+        stage: None,
+        annotation: None,
+        related: Vec::new(),
+        evidence: None,
+        fix: None,
+    }
+}
+
+/// A source's issue: named by it and implicating it.
+fn sourced(code: &str, source: &str, severity: Severity, message: String) -> LintIssue {
+    LintIssue {
+        sources: vec![source.to_string()],
+        ..issue(code, source, severity, message)
+    }
+}
+
+fn category_name(c: Category) -> &'static str {
+    match c {
+        Category::Dimension => "dimension",
+        Category::GeometricTolerance => "geometric_tolerance",
+        Category::Datum => "datum",
+        Category::ManufacturingRequirement => "manufacturing_requirement",
+        Category::SurfaceLabel => "surface_label",
+        Category::Other => "other",
+    }
+}
+
+/// The PMI sources the marks draw or state: each `pmi:<source>` annotation name and claim.
+fn drawn(marks: &[Mark]) -> BTreeSet<&str> {
+    let mut out = BTreeSet::new();
+    for m in marks {
+        if let Some(s) = m.name.strip_prefix("pmi:") {
+            out.insert(s);
+        }
+        for c in &m.claims {
+            if let Some(s) = c.feature.strip_prefix("pmi:") {
+                out.insert(s);
+            }
+        }
+    }
+    out
+}
+
+/// The PMI coverage findings on a drawing whose annotations are *marks*.
+pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let on_sheet = drawn(marks);
+    let report = match &analysis.pmi {
+        Some(Reading::Read(r)) => r,
+        Some(Reading::Refused(why)) => {
+            let mut out = vec![issue(
+                "pmi_not_extracted",
+                "part",
+                Severity::Error,
+                format!("AP242 PMI could not be inventoried: {why}"),
+            )];
+            out.extend(unreconciled(&on_sheet));
+            return out;
+        }
+        None => return unreconciled(&on_sheet),
+    };
+    let mut out = Vec::new();
+    for s in report.sources.iter().filter(|s| {
+        matches!(
+            s.outcome,
+            Outcome::NotExtracted | Outcome::PartiallyExtracted
+        )
+    }) {
+        let severity = if s.category == Category::Other {
+            Severity::Info
+        } else {
+            Severity::Error
+        };
+        out.push(sourced(
+            "pmi_not_extracted",
+            &s.id,
+            severity,
+            format!(
+                "AP242 {} {} was discovered but not extracted: {}",
+                category_name(s.category),
+                s.id,
+                s.reason
+            ),
+        ));
+    }
+    // Lowering does not depend on which views are drawn, only where an item goes.
+    let (items, why_not) = lower(analysis, &|_| true);
+    let lowered: BTreeSet<&str> = items.iter().map(|l| l.source.as_str()).collect();
+    for r in &report.records {
+        let id = r.source_id.as_str();
+        if on_sheet.contains(id) || lowered.contains(id) {
+            continue;
+        }
+        let reason = why_not
+            .iter()
+            .find(|p| p.subjects.first().is_some_and(|s| s == id))
+            .map_or_else(
+                || {
+                    if r.blockers.is_empty() {
+                        "it is not lowered to a drawing item".to_string()
+                    } else {
+                        r.blockers.join("; ")
+                    }
+                },
+                |p| p.message.clone(),
+            );
+        let severity = if r.category == Category::ManufacturingRequirement
+            && !MANUFACTURING.contains(&r.kind.as_str())
+        {
+            Severity::Warning
+        } else {
+            Severity::Error
+        };
+        out.push(sourced(
+            "pmi_not_lowered",
+            id,
+            severity,
+            format!("AP242 source {id} did not produce a drawing item: {reason}"),
+        ));
+    }
+    for r in &report.records {
+        let id = r.source_id.as_str();
+        if lowered.contains(id) && !on_sheet.contains(id) {
+            out.push(sourced(
+                "pmi_not_rendered",
+                id,
+                Severity::Error,
+                format!(
+                    "AP242 source {id} reached a drawing item (pmi:{id}) but produced no annotation"
+                ),
+            ));
+        }
+    }
+    for m in marks {
+        let Some(id) = m.name.strip_prefix("pmi:") else {
+            continue;
+        };
+        if let Some(r) = report.records.iter().find(|r| {
+            r.source_id == id
+                && r.category == Category::GeometricTolerance
+                && r.value.is_some_and(|v| v > 0.0)
+        }) && let Some(found) = mismatch(r, &m.text)
+        {
+            let mut i = sourced("pmi_value_mismatch", id, Severity::Error, found);
+            i.id = format!("l:pmi_value_mismatch:{}", m.name);
+            i.annotation = Some(m.name.clone());
+            out.push(i);
+        }
+    }
+    let known: BTreeSet<&str> = report
+        .records
+        .iter()
+        .map(|r| r.source_id.as_str())
+        .chain(report.sources.iter().map(|s| s.id.as_str()))
+        .collect();
+    for id in on_sheet.iter().filter(|s| !known.contains(*s)) {
+        out.push(sourced(
+            "pmi_source_unknown",
+            id,
+            Severity::Error,
+            format!(
+                "a declaration claims AP242 source {id}, which the reconciled document does not \
+                 contain — the provenance is fabricated, not merely unmatched"
+            ),
+        ));
+    }
+    out
+}
+
+/// Annotations claiming PMI sources on a part with no PMI reading to check them against.
+fn unreconciled(on_sheet: &BTreeSet<&str>) -> Vec<LintIssue> {
+    if on_sheet.is_empty() {
+        return Vec::new();
+    }
+    vec![LintIssue {
+        sources: on_sheet.iter().map(|s| s.to_string()).collect(),
+        ..issue(
+            "pmi_unreconciled",
+            "part",
+            Severity::Warning,
+            format!(
+                "this drawing declares {} AP242 source reference(s), and no AP242 census was \
+                 available to check them — the claims are unverified, not satisfied",
+                on_sheet.len()
+            ),
+        )
+    }]
+}
+
+/// What a frame's compartments *text* (its runs, joined by spaces: `⌖ ⌀0.05Ⓜ A B`) state
+/// that differs from record *r*, or none when they state its magnitude, zone and datums.
+fn mismatch(r: &Record, text: &str) -> Option<String> {
+    let expected = r.value?;
+    let zone_of = |r: &Record| {
+        ["spherical_diameter_zone", "diameter_zone"]
+            .into_iter()
+            .find(|z| r.gtol_modifiers.iter().any(|m| m == z))
+    };
+    let expected_zone = zone_of(r);
+    let mut datums: Vec<&str> = Vec::new();
+    for d in &r.datum_refs {
+        if !datums.contains(&d.as_str()) {
+            datums.push(d);
+        }
+    }
+    // The compartments after the characteristic's symbol: one states the zone, the magnitude
+    // and the material condition, the rest a datum letter each.
+    let mut values = Vec::new();
+    let mut zones = Vec::new();
+    let mut letters = Vec::new();
+    for cell in text.split_whitespace().skip(1) {
+        let (zone, rest) = if let Some(rest) = cell.strip_prefix("S⌀") {
+            (Some("spherical_diameter_zone"), rest)
+        } else if let Some(rest) = cell.strip_prefix('⌀') {
+            (Some("diameter_zone"), rest)
+        } else {
+            (None, cell)
+        };
+        let number = rest.trim_end_matches(['Ⓜ', 'Ⓛ']);
+        match number.parse::<f64>() {
+            Ok(v) if v.is_finite() => {
+                values.push(v);
+                zones.push(zone);
+            }
+            _ => letters.push(cell),
+        }
+    }
+    // Python's display bound: half a unit of the 13th significant digit of the source value.
+    let bound = 0.5 * 10f64.powi(expected.abs().log10().floor() as i32 - 12);
+    let zone = zones.first().copied().flatten();
+    if values.len() == 1
+        && (values[0] - expected).abs() <= bound
+        && zones.len() == 1
+        && zone == expected_zone
+        && letters == datums
+    {
+        return None;
+    }
+    let stated = if values.is_empty() {
+        "no numeric value".to_string()
+    } else {
+        values
+            .iter()
+            .map(|v| format!("{v}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let list = |v: &[&str]| {
+        if v.is_empty() {
+            "none".to_string()
+        } else {
+            v.join(" ")
+        }
+    };
+    Some(format!(
+        "pmi:{} states {stated} with zone {} and datums {} for AP242 source {}; source tolerance \
+         is {expected} with zone {} and datums {}",
+        r.source_id,
+        zone.unwrap_or("none"),
+        list(&letters),
+        r.source_id,
+        expected_zone.unwrap_or("none"),
+        list(&datums)
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frame(value: f64, modifiers: &[&str], datums: &[&str]) -> Record {
+        let mut r: Record = serde_json::from_value(serde_json::json!({
+            "source_id": "geometric_tolerance:#1", "category": "geometric_tolerance",
+            "kind": "position", "part": 0, "part21_id": 1, "label": "", "dominant_axis": "Z",
+            "datum_refs": [], "gtol_modifiers": [], "basic": false, "faces": [], "face_ids": [],
+            "face_groups": [], "edges": [], "instances": [], "blockers": [],
+        }))
+        .unwrap();
+        r.value = Some(value);
+        r.gtol_modifiers = modifiers.iter().map(|s| s.to_string()).collect();
+        r.datum_refs = datums.iter().map(|s| s.to_string()).collect();
+        r
+    }
+
+    #[test]
+    fn a_frame_states_its_magnitude_zone_and_datums() {
+        let r = frame(0.05, &["diameter_zone"], &["A", "B", "A"]);
+        assert_eq!(mismatch(&r, "⌖ ⌀0.05Ⓜ A B"), None);
+        assert!(mismatch(&r, "⌖ ⌀0.06Ⓜ A B").is_some());
+        assert!(mismatch(&r, "⌖ 0.05Ⓜ A B").is_some());
+        assert!(mismatch(&r, "⌖ S⌀0.05 A B").is_some());
+        assert!(mismatch(&r, "⌖ ⌀0.05 A").is_some());
+        assert!(mismatch(&r, "⌖ ⌀0.05 A B 7").is_some());
+        assert!(mismatch(&r, "⌖ A B").unwrap().contains("no numeric value"));
+        // Within the display's rounding of the 13th significant digit.
+        let r = frame(0.1 + 0.2, &[], &[]);
+        assert_eq!(mismatch(&r, "⏥ 0.3"), None);
+    }
+}
