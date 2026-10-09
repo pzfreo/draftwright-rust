@@ -1458,8 +1458,8 @@
       - "tests/test_issue_1247_angled_step_disposition.py::test_corpus_fixture_pins_angled_step_chamfer_ownership"
     corpus_parts: ["issue_1247_angled_blind_step.step"]
   status: pending
-  rust_test: src/lint/angled_steps.rs::tests::an_angled_step_is_reported_unsupported
-  rust_note: "Partly ported: lint raises angled_step_requirement_unsupported, a warning, for each recognised angled step, as draftwright does (src/lint/angled_steps.rs, LINT-code-angled_step_requirement_unsupported). AngledStep stays in dims::UNDRAFTED, so the plan neither dimensions nor reports one. Not ported: the explicit unsupported completeness outcome (the port has no completeness report). No sampled part has an angled step. Chamfer-versus-step ownership is quiddity's aggregate."
+  rust_test: tests/angled_steps.rs::draftwrights_angled_step_fixture_is_reported_unsupported
+  rust_note: "Partly ported: lint raises angled_step_requirement_unsupported, a warning, for each recognised angled step, as draftwright does (src/lint/angled_steps.rs, LINT-code-angled_step_requirement_unsupported). The plan states nothing of an angled step and reports each as one unsupported warning of the same code, p:angled_step_requirement_unsupported:<feature id> (src/dims/mod.rs unsupported; maintainer decision 2026-10-09, in place of the completeness outcome until there is one), on draftwright's fixture issue_1247_angled_blind_step.step (native recognition) and corpus part m10245 (tests/angled_steps.rs). Not ported: the explicit unsupported completeness outcome (draftwright's lint_summary completeness: unsupported 1, by_family angled_steps; the port has no completeness report). Chamfer-versus-step ownership is quiddity's aggregate: at the pinned quiddity-rust the native document still carries the step's slant as a chamfer too (tests/fixtures/known_native.json, m10245), so the fixture's slant is also dimensioned as a chamfer there."
   port_note: "Keep."
 
 - id: ISSUE-1254-a
@@ -2170,7 +2170,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_trust.rs::every_recognised_feature_is_dimensioned_or_reported"
-  rust_note: "Partly ported: on the fixtures and thirteen sampled parts (ctc04 among them), every recognised feature is stated by a planned dimension (a pattern's for its member holes, a groove's for the boss that is its floor) or is a problem's subject, except kinds draftwright leaves undimensioned by design (dims::UNDRAFTED; the test keeps its own copy, which also excludes AngledStep: the plan does not report one, lint warns for it, see ISSUE-1247-a). A kind not yet ported is reported at info severity (dimensions_not_ported), where draftwright's lint warns (pad_footprint_not_defined). Not ported: framed recognition, which is quiddity's (quiddity-rust's tests/frames.rs and tests/invariance.rs)."
+  rust_note: "Partly ported: on the fixtures and thirteen sampled parts (ctc04 among them), every recognised feature is stated by a planned dimension (a pattern's for its member holes, a groove's for the boss that is its floor) or is a problem's subject, except kinds draftwright leaves undimensioned by design (dims::UNDRAFTED; the test keeps its own copy). An angled step is reported by the plan as unsupported (ISSUE-1247-a). A kind not yet ported is reported at info severity (dimensions_not_ported), where draftwright's lint warns (pad_footprint_not_defined). Not ported: framed recognition, which is quiddity's (quiddity-rust's tests/frames.rs and tests/invariance.rs)."
   port_note: "Keep: every Analysis feature appears in Plan or in problems."
 
 - id: ISSUE-1395-a

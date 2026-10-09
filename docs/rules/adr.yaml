@@ -599,7 +599,7 @@
     tests: ["test_recognition_policy_dispositions.py", "test_issue_1245_passage_disposition.py", "test_issue_1246_prismatic_pocket_disposition.py", "test_issue_1247_angled_step_disposition.py"]
   status: pending
   port_note: "Keep: one capability table in draftwright-rust drives both conversion and the per-occurrence disposition in Analysis."
-  rust_note: "Not ported: no capability table gives each family not drawn a disposition (unsupported, deferred, evidence_only) with a closed reason; the bridge's record-type table (bridge::home) and the planners' kinds (dims::PLANNERS) are two lists. Whether records draftwright leaves undimensioned are reported by the plan or by lint is an open maintainer question (docs/next-session.md, d-dims-split)."
+  rust_note: "Not ported: no capability table gives each family not drawn a disposition (unsupported, deferred, evidence_only) with a closed reason; the bridge's record-type table (bridge::home) and the planners' kinds (dims::PLANNERS) are two lists. Whether records draftwright leaves undimensioned are reported by the plan or by lint is an open maintainer question (docs/next-session.md, d-dims-split); an angled step is reported by both, as unsupported (maintainer decision 2026-10-09, ISSUE-1247-a)."
 
 - id: ADR3-9
   statement: "Recognition is geometry-only; PMI lowering may change which feature owns a record but never what was recognised."

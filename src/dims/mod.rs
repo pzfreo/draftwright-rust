@@ -343,10 +343,9 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
 /// quiddity record types (`Fingerprint::subtype`) draftwright gives no dimensions of their own
 /// (`model/detect.py`'s `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`): a countersink rides on
 /// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
-/// #1557, #1247). Leaving them undimensioned is no gap in the port, so they are not reported as
-/// one.
-const UNDRAFTED: [&str; 11] = [
-    "AngledStep",
+/// #1557). Leaving them undimensioned is no gap in the port, so they are not reported as one. An
+/// angled step (#1247) has no grammar either, but is reported as unsupported ([`unsupported`]).
+const UNDRAFTED: [&str; 10] = [
     "CircularFacePattern",
     "CounterSink",
     "FreeformSurface",
@@ -359,29 +358,57 @@ const UNDRAFTED: [&str; 11] = [
     "ThinWallBody",
 ];
 
-/// One info problem per recognised feature of a kind no planner claims, in the Analysis's feature
+/// One problem per recognised feature of a kind no planner claims, in the Analysis's feature
 /// order. This reports a gap in the port, not in the part: draftwright converts these records to
 /// features with dimension parameters (`detect.py`'s `_CONVERTERS`: fillets, chamfers, bosses,
 /// slots, turned steps, …) and plans them, so it never emits such a problem; without it the
 /// port's sheet would leave their sizes unstated with no trace (review M8). A kind not known to
-/// be [`UNDRAFTED`] is reported.
+/// be [`UNDRAFTED`] is reported, and a kind draftwright reports unsupported gets that warning
+/// instead ([`unsupported`]).
 fn not_ported(analysis: &Analysis) -> Vec<Problem> {
     analysis
         .features
         .iter()
         .filter(|f| !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str())))
         .filter(|f| !UNDRAFTED.contains(&f.fingerprint.subtype.as_str()))
-        .map(|f| Problem {
-            id: format!("p:dimensions_not_ported:{}", f.id),
-            code: "dimensions_not_ported".into(),
-            severity: "info".into(),
-            message: format!(
-                "{} is not dimensioned: no dimensions for {} are ported yet.",
-                f.id, f.kind
-            ),
-            subjects: vec![f.id.clone()],
+        .map(|f| {
+            unsupported(f).unwrap_or_else(|| Problem {
+                id: format!("p:dimensions_not_ported:{}", f.id),
+                code: "dimensions_not_ported".into(),
+                severity: "info".into(),
+                message: format!(
+                    "{} is not dimensioned: no dimensions for {} are ported yet.",
+                    f.id, f.kind
+                ),
+                subjects: vec![f.id.clone()],
+            })
         })
         .collect()
+}
+
+/// The warning for a recognised feature draftwright has decided not to dimension and reports as
+/// unsupported, or `None` for any other. That is an angled step (ISSUE-1247-a; Python counts it as
+/// an `unsupported` completeness outcome in `linting/quality.py`, and lint warns
+/// `angled_step_requirement_unsupported`): its angle, legs and run have no drafting grammar, so it
+/// is no gap in the port, but the sheet must not look complete without it (maintainer decision,
+/// 2026-10-09, until it is dimensioned or the port has a completeness report). The code, severity
+/// and wording are lint's.
+fn unsupported(f: &crate::bridge::Feature) -> Option<Problem> {
+    if f.kind != "angled_step" {
+        return None;
+    }
+    let code = "angled_step_requirement_unsupported";
+    Some(Problem {
+        id: format!("p:{code}:{}", f.id),
+        code: code.into(),
+        severity: "warning".into(),
+        message: format!(
+            "angled step {} is not represented by Draftwright dimensions; review and define its \
+             manufacturing geometry outside automatic drawing approval.",
+            f.id
+        ),
+        subjects: vec![f.id.clone()],
+    })
 }
 
 fn levenshtein(a: &str, b: &str) -> usize {

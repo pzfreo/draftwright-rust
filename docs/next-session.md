@@ -364,7 +364,8 @@ quiddity commit that has it.
     callout or location ref, drop it and escalate to a hole table with balloons, as
     orchestrator.py `_prepare_hole_table_run` does.
   - **ISSUE-1247-a:** report an `unsupported` Problem for each angled step now (remove it from
-    `dims::UNDRAFTED`), until it is dimensioned or a completeness report exists.
+    `dims::UNDRAFTED`), until it is dimensioned or a completeness report exists. Done (stream
+    d-angled-step-unsupported): `p:angled_step_requirement_unsupported:<id>`, a warning.
   - **quiddity-rust macOS CI:** keep the full suite on macOS (decision H1 stands), sharded across
     more parallel jobs to reach about 10 minutes, like Linux.
   - **haecceity's PMI writer (quiddity-rust),** from specify-core-rust's questions Q16, Q20 and Q3
