@@ -33,7 +33,7 @@ edited.
 
 ```json
 {
-  "schema": "draftwright.analysis/5",
+  "schema": "draftwright.analysis/6",
   "binding": { "source_sha256": "…", "part": "10127", "face_count": 27, "loader": "haecceity 0.1" },
   "frame": { "origin": [0, 0, 0], "axes": [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
   "envelope": { "min": [0, 0, 0], "max": [28.8, 32.3, 44.7] },
@@ -62,9 +62,15 @@ edited.
   (absent when the document does not carry the family at all). Empty, and left out, for Python
   quiddity's JSON, which the bridge reads in full; for Rust quiddity's recognition
   (`model::analyse_native`, the command line's default) the families its document has that
-  `bridge::native` does not read yet, and section recesses and raised pads, which it does not
-  carry. `plan` reports them as one `features_not_recognised` warning. `plan` reads older
+  `bridge::native` does not read yet (raised pads among them), and section recesses, which it
+  does not carry. `plan` reports them as one `features_not_recognised` warning. `plan` reads older
   analyses with none; `render` and `review` draw only from this version.
+- **Principal profiles** (`draftwright.analysis/6`, `principal_profiles`): for each solid of a
+  part of several (else the whole part), its box and each principal boundary face (a plane flat
+  across one axis on that box), with its inner loops' edges and its outer loop's arcs: the B-rep
+  scan draftwright's lint makes for undimensionable openings and toothed outlines, made here when
+  the part is analysed because lint never sees the part (`src/lint/profiles.rs`). `plan` reads
+  older analyses with none; `review` judges only this version.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.
@@ -177,9 +183,12 @@ basis, placed}`:
   looks along the hole. Identical holes drilled the same way are grouped and counted; quiddity's
   hole patterns (kept by the bridge in `recognition.patterns` as `f:hole_pattern:<n>`) are called
   out as grids `(r×c)` or bolt circles `EQ SP ON øD BC` (five or more members), or as linear
-  patterns. THRU is the feature's fact (`bottom: through`). A hole with both a counterbore and a
-  spotface states both (`⌴ ⌀11 ↧ 6.4 ⌴ ⌀20 ↧ 1`, counterbore first), where draftwright prints only
-  the counterbore and loses the spotface its own lint requires.
+  patterns. THRU is the feature's fact (`bottom: through`). A spotface is stated with ASME
+  Y14.5-2018's spotface symbol, the counterbore symbol with SF inside (`⌴SF` in the text, drawn as
+  one symbol with the font's `SF` in the box), where draftwright prints the counterbore's `⌴`. A
+  hole with both a counterbore and a spotface states both (`⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1`, counterbore
+  first), where draftwright prints only the counterbore and loses the spotface its own lint
+  requires.
 - **Locations** (`location.length.<axis>`) from the part's box, in the hole's view, one
   dimension per distance; patterns by their centre (or a linear pattern by its first member), with
   their pitches (`grid_pitch.length.row|col`, `pitch.length`). A hole or bolt circle on a turned
@@ -235,13 +244,19 @@ sizes nearest, locations by distance, overall extents, then callouts with 45° l
 view's bands are reserved from the lanes its dimensions take (`dims::lanes`, `Demand::lanes`,
 `layout::Strips::reserve`); the front's and the plan's are still draftwright's estimates. Every
 item the part would have is placed before the spec chooses what is drawn, so omitting or adding
-one moves no other (ARCH0003-2). Then labels settle off other items' ink
+one moves no other (ARCH0003-2). A strip that cannot hold its linear dimensions on the page
+passes the lanes it has no room for to the strip across the view (`dims::placement::fall_through`,
+ISSUE-1215-e), an overall extent claiming the free lanes first; one that fits on neither side keeps
+its lane. Then labels settle off other items' ink
 (`dims::placement::settle`, a first part of ADR2-10's bounded local solve): a linear label
 slides along its line, or moves to the other end of a span too short for it; a callout's leader
-may turn to the left, its tip moving to the rim's left 45° point so the leader stays radial. A
-moved label stays on the sheet and off the views and the title block. Whatever then collides is
+may turn to the left, its tip moving to the rim's left 45° point so the leader stays radial; a
+callout whose lane does not fit the page (off the sheet, or its leader across another view) goes
+out beside its view, as draftwright's plan callouts do. A moved label stays on the sheet and off
+the views and the title block. Whatever then collides is
 a problem on the item's ID (`annotation_overlap`, `annotation_ink_overlap`,
-`annotation_over_view`, `annotation_over_title_block`, `annotation_off_sheet`, and the info
+`annotation_over_view`, `annotation_line_over_view` for a line across a view not its own,
+`annotation_over_title_block`, `annotation_off_sheet`, and the info
 `annotation_outside_area` for ink past its view's area and bands); an item whose view is omitted
 stays unplaced and is reported (`view_plan_incomplete`, naming every view that could carry it and
 why none does). Placement problems on the corpus are a ratchet (`tests/placement.rs`,

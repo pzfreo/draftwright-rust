@@ -7,73 +7,102 @@ its improvement plan and the maintainer questions) and `docs/plan.md`'s "Next st
 
 ## Where things stand
 
-**quiddity-rust** (`~/repos/quiddity-rust`, branch `prototype/rust-port`, at c9ce1cd):
+Updated 2026-10-09 at the end of the resumed autonomous run. The final summary at the top of
+`docs/status-2026-10-08.md` lists what each stream changed, what is verified and the backlog in
+order.
+
+**quiddity-rust** (`~/repos/quiddity-rust`, branch `prototype/rust-port`, at 5798c59, pushed):
 
 - `crates/haecceity` is the kernel. It covers:
   - STEP import, rays, classification, volume probes and coverage;
   - surface recovery;
-  - hidden lines with exact projected curves, and sections without booleans;
-  - prism probes and face sweeps, and face mass.
-- 28 recogniser entry points are ported (the README's table). Each family is checked:
-  - call by call against Python's captured test calls;
-  - over the 100-part corpus, including defining faces;
-  - under rigid motion.
-- Correspondence (`docs/correspondence.md`) is implemented in the library and the CLI
-  (`quiddity part.step` writes records and fingerprints; `quiddity correspond old new`), not yet
-  in a JSON-lines or MCP surface.
-- Its own review (`docs/review-2026-10-08.md` there) found CI red at 2fa7207 on a pinned face
-  count that depends on float round-off.
-- Verify with
-  `QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release`, fmt and clippy. The corpus is at
-  `~/repos/quiddity/tests/corpus`. Set `QUIDDITY_CORPUS` when working from a worktree.
+  - hidden lines with exact projected curves, and sections without booleans (coplanar cut faces
+    traced since 10ce207);
+  - prism probes and face sweeps, and face mass;
+  - AP242 (merged from `ap242`): lossless Part 21, EXPRESS validation, semantic PMI read and
+    write, removal; `quiddity parts` and `quiddity pmi read|write`.
+- 45 recogniser entry points are ported (the README's table), each checked call by call against
+  Python's captured calls, over the 100-part corpus and under rigid motion. Recognition runs in
+  the part's own frame by default and reports in file coordinates (`recognise_placed`,
+  document `quiddity-rust/recognition/2` with a part `frame` and per-record `local` fields).
+- Ported but not yet wired into `recognise()` or the document: the section-recess types,
+  geometry and discovery; the aggregate's reconciliation decisions (261/261 match Python);
+  locally degraded holes and pockets (the retry waits on the panic-versus-refusal question).
+- Verify with `QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release` (401 passed,
+  2 ignored at 5798c59), fmt and clippy. The corpus is at `~/repos/quiddity/tests/corpus`. Set
+  `QUIDDITY_CORPUS` when working from a worktree.
+- CI (nextest shards, Linux and macOS): Linux about 10 min, macOS about 20 min. **Linux failed
+  at 0c76531** (the uv-bounds merge): `tests/recognition.rs::the_default_document_moves_with_the_part`,
+  cgb203 under translation, `circular_face_patterns` fit_error 0.278052 vs 0.386336; macOS
+  passes. Still failing at 5798c59 (run 37880089947). Fixing it is the first backlog item.
 
-**draftwright-rust** (`~/repos/draftwright-rust`, `main`; the state below is at bbd3dd7, with
-the corpus check, CI and these docs from stream d-ci-docs on top):
+**draftwright-rust** (`~/repos/draftwright-rust`, `main`, at 5ca1130 plus the final docs commit,
+pushed):
 
 - **The document model** (ADR R1, `docs/model.md`):
   - Analysis, Spec and Plan;
   - `analyse`, `plan`, `edit`, `render`, `review` and `spec`, through the CLI, the JSON-lines
     service and the MCP server (`src/api.rs`, `src/bin/`);
-  - the spec embedded in SVG, PDF and DXF;
+  - the spec embedded in SVG, PDF, DXF and PNG; general notes (`n:<k>`) and spec tables
+    (`t:<k>`) drawn and in the PDF text;
   - output deterministic to the byte, in every time zone (`tests/timezone.rs`).
-- **Layout:** draftwright's sheet, scale and view layout arithmetic (`src/layout.rs`), exact
-  against 285 recorded Python calls. Differences from Python's final sheets are listed with
-  verdicts in `tests/fixtures/known_views.json` (71 entries).
-- **Bridge:** quiddity's features come in through `src/bridge.rs`, with stable IDs and
-  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 4258e35
-  (`Cargo.lock`; AGPL-3.0-only since 8023ea7); the bridge reads nist_ftc_07 and nist_ftc_10.
-  nist_ctc_04 is still refused (one face's area differs from OpenCascade's by 0.15 %). Since
-  05c5d99 haecceity refuses to draw a part whose drawn faces or edges did not resolve on
-  reading, and since 8023ea7 one with a stretch whose visibility no ray can decide (no corpus
-  part has one); `analyse` and `render` pass that refusal on (`render` as a `failed` error).
-  Since 8023ea7 it makes no stretch of no span, so cgb242 no longer reports `edges_not_drawn`
-  and no corpus part has a drawing problem (`output::projected` stays as a guard).
-- **Merged streams** (2026-10-07):
-  - **View gaps** (d707219): a turned part drops the view that repeats its profile (ISSUE-1262-a,
-    pending: the veto is narrower than Python's); annotation bands reserved from the features
-    (`src/demand.rs`, `known_bands.json`); section A–A planned and hatched at 45°.
-  - **First dimensions** (5b7be0d, now `src/dims/`, one planner module per family): the envelope, turned steps and hole callouts
-    with locations and pattern pitches, as Plan items with IDs, labels, defaults and bases;
-    compared with the captured facts (`tests/dimensions.rs`, `known_dimensions.json`).
-  - **Lint** (54ce4cc, `src/lint/`): a guarded module that never reads the Plan or Spec,
-    `LintIssue`, and hole coverage, compared with Python's lint on the captured sheets
-    (`tests/lint.rs`, `known_lint.json`).
-- **Facts:** Python draftwright's sheets are recorded as facts (`tools/capture_sheet_facts.py`,
-  `tests/fixtures/sheets/`, `docs/facts.md`) for 13 parts.
-- **ADRs R1–R4** are accepted. `docs/rules/` has 515 rules learnt from Python, classed drafting,
-  trust, spec or machinery, with statuses (23 ported after wave 2). **Update a
-  rule's status when you port it;** a partial port stays pending with `rust_test` and
-  `rust_note`.
+- **Recognition:** the CLI takes features from Rust quiddity's recognition by default
+  (`src/bridge/native.rs`, recognition/2, 25 families read; a record with `local` fields is
+  refused); `--features` reads Python quiddity's JSON through `src/bridge.rs`. serve, MCP and the
+  library's `None` still use the bridge (maintainer question). Differences are listed in
+  `known_native.json`. Not read natively: section recesses (not in quiddity-rust's document),
+  prismatic pockets (Python publishes none), pads (known, not read).
+- **haecceity** is pinned at quiddity-rust 5798c59 (`Cargo.lock`; AGPL-3.0-only). The bridge
+  reads nist_ftc_07, nist_ftc_10 and nist_ctc_04 (sphere areas held to 1e-2,
+  `known_bridge_faces.json`). haecceity refuses a part whose drawn faces or edges did not resolve
+  or whose visibility no ray decides; `analyse` and `render` pass that on.
+- **Layout and placement:** draftwright's sheet, scale and view arithmetic (`src/layout.rs`),
+  exact against 285 recorded calls (`known_views.json`, 71 entries). Placement keeps annotations
+  on the sheet with bounded lazy slides and places callout leaders beside the view with a
+  horizontal shoulder; remaining collisions are rust-wrong in `known_placement.json` and
+  `known_leaders.json`. Page escalation (`model::recover`) is written but not called by
+  `model::plan`.
+- **Dimensions** (`src/dims/`, one planner per family): envelope, turned steps (step diameters
+  and lengths), holes and patterns with locations, slots and bosses, grooves and flats, steps and
+  the height ladder, section recesses, hexagonal stock; coincident spans merged; spotface symbol;
+  spec tolerances. Compared with the captured facts (`known_dimensions.json`).
+- **Lint** (`src/lint/`, never reads the Plan or Spec): hole coverage with group credit, family
+  coverage, slot patterns, eleven structural codes, the coverage backstop. Compared with Python's
+  lint (`known_lint.json`, `known_structural.json`).
+- **PMI stage 1:** `src/pmi.rs` reads a part's AP242 semantic PMI into draftwright's records
+  (`tests/pmi.rs`, `known_pmi.json`: 330 differences, 55 rust-wrong). Not lowered or drawn yet.
+- **Facts:** Python draftwright's sheets recorded for 13 parts (`tools/capture_sheet_facts.py`,
+  `tests/fixtures/sheets/`, `docs/facts.md`).
+- **Rules:** ADRs R1–R4 accepted. `docs/rules/` has 515 rules learnt from Python; 89 ported
+  (adr 25, issues 22, lint 42), 44 translated, 8 retired, 382 pending. **Update a rule's status
+  when you port it;** a partial port stays pending with `rust_test` and `rust_note`.
 - `docs/plan.md` is the overall plan.
 - **Verify** with
-  `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`,
-  `cargo fmt --check` and `cargo clippy --all-targets --release -- -D warnings`. Without
+  `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`
+  (45 binaries, 434 passed at 5ca1130), `cargo fmt --check` and
+  `cargo clippy --all-targets --release -- -D warnings`. Without
   `DRAFTWRIGHT_CORPUS_REQUIRED=1`, corpus-backed tests skip (print SKIPPED and pass) when the
   corpus is missing; with it, they fail.
 
+**Open maintainer questions** are recorded with the stream entries below and in quiddity-rust's
+`docs/review-2026-10-08.md`. Two raised at the end of the run are not written elsewhere:
+
+- Hole tables: draftwright adds one (with balloons) only when its hole placers drop a callout or
+  location and escalate (`orchestrator.py` `_prepare_hole_table_run`). The port never drops: it
+  places everything and records collisions as rust-wrong. Adopt drop-and-escalate, make hole
+  tables spec-driven (a `t:<k>` of kind holes), or leave them out?
+- ISSUE-1247-a: draftwright reports an angled step as an explicit unsupported completeness
+  outcome; the port has no completeness report. Carry an `unsupported` Problem for each angled
+  step (removing it from `dims::UNDRAFTED`), or wait for a completeness report?
+
+**Housekeeping:** clean leftover worktrees in quiddity-rust can be removed
+(`.claude/worktrees/agent-a461c0d2e1bd3494a`, `wf_7fc79fa8-4f8-162`, `wf_7ff99f80-ece-23`,
+`wf_7ff99f80-ece-24`, and the scratchpad `wt-ap242`); their branches are merged or superseded.
+
 **Python references (read-only):**
 
-- draftwright at origin/main 586628b. Read it with
+- draftwright: references were taken at origin/main 586628b; origin/main is now 4dfc63f (one
+  commit later, 2026-10-07). Read it with
   `git -C ~/repos/draftwright show origin/main:<path>` (the working tree is on a stale branch).
 - Run it with `~/repos/draftwright/.venv/bin/python` and `PYTHONPATH` pointing at a source
   export (`git -C ~/repos/draftwright archive origin/main src | tar -x -C <dir>`).
@@ -91,7 +120,9 @@ See README.md, "Taking a new haecceity".
 `rust-toolchain.toml`, `cargo fmt --all --check`, clippy with `-D warnings`, and
 `cargo test --release` with `DRAFTWRIGHT_CORPUS` at a sparse checkout of the public
 `pzfreo/quiddity`'s `tests/corpus` (pinned to 6d544e060cd0eeb4442d2196e5df757b5a15ea55) and
-`DRAFTWRIGHT_CORPUS_REQUIRED=1`.
+`DRAFTWRIGHT_CORPUS_REQUIRED=1`. Since d-ci-fast (d3b92f8) the build compiles every test binary
+once into a nextest archive and the tests run in parallel shards (`.config/nextest.toml`); about
+11 min per push, every test still run.
 
 haecceity comes by git from the public `pzfreo/quiddity-rust` (Cargo.toml, pinned in
 `Cargo.lock`), so CI needs no secret.
@@ -137,7 +168,9 @@ quiddity commit that has it.
     file's coordinates, so results don't depend on how the part was placed. This is the default
     for `recognise`, the CLI and the recognition document.
   - **AP242** decisions are in quiddity-rust `docs/step-ap242.md` (ap242 branch).
-- **Priority for the next dispatch (main session, 2026-10-08):** quiddity-rust's GitHub CI (Linux)
+- **Priority for the next dispatch (main session, 2026-10-08)** (done: q-seam-fix merged at
+  e6234b6; Linux CI green from 384992f until the uv-bounds merge, see "Where things stand"):
+  quiddity-rust's GitHub CI (Linux)
   has been red since the first run on one platform-dependent count (cgb202 torus
   `uv_bounds … another turn`, 13 listed, 12 found). The fix is ready on quiddity-rust's local
   branch `q-seam-fix` (commit 1966d3c, "uv: place a loop centred on the seam deterministically",
@@ -145,7 +178,10 @@ quiddity commit that has it.
   stream `q-seam-fix` whose brief is: rebase that commit onto the current branch head, re-run
   the full checks, adjust the known-divergence counts the newer merges change, keep the 1e-9
   seam band and its reasons; then the integrator merges it like any other stream.
-- **Priorities from a CLI trial (main session, 2026-10-08, afternoon):** the maintainer is trying
+- **Priorities from a CLI trial (main session, 2026-10-08, afternoon)** (all five done: views
+  memory by d-coincident-locations, CLI native default by d-cli-native, annotations on the sheet by
+  d-placement-fit, turned steps by d-dims-turned-steps, ctc04 by d-bridge-area-tolerance): the
+  maintainer is trying
   `draftwright render` on corpus parts (at 98deec8). Dispatch these ahead of other backlog work:
   1. **Memory blow-up in `tests/views.rs`.** Since the restart, a guard has killed the `views` test
      binary 15 times at 16–26 GB, always in stream worktrees under the session scratchpad; the
@@ -164,7 +200,89 @@ quiddity commit that has it.
   5. **The bridge refuses on tiny area differences.** `render` refuses nist_ctc_04 entirely
      ("face 367 has area 13.080630 here and 13.100238 in the recognition JSON", 0.15%). Decide a
      principled tolerance (with evidence that the faces are the same) instead of exact agreement.
-- **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`
+- **Top priority from the maintainer (2026-10-08 evening): make quiddity-rust's CI much
+  faster** (done in part by q-ci-fast, ea4eda7: Linux about 10 min, macOS about 20 min; under 10 on
+  macOS needs a decision on runners or kernel speed; draftwright-rust's CI is about 11 min)
+  ("I'd like to speed it up a lot"). Then 37–57 min per push (run 37791515187 onward):
+  almost all of it is `cargo test --workspace --release`, which runs its 27 test binaries one after
+  another on a 4-core runner (Linux: 52 min of tests after a 4 min compile; recognition.rs 13.1 min,
+  invariance.rs 11.5, correspondence.rs 6.7, section_recess_helpers.rs 4.0, determinism.rs 2.7,
+  passages.rs 2.2, drawings.rs 2.1, corpus.rs 1.9, wiring.rs 1.9; macOS similar). Nothing is cached.
+  Dispatch a quiddity-rust stream `q-ci-fast` (owns .github/workflows/ci.yml and may split the slow
+  test files) with the target **under 10 minutes wall clock on both platforms, with no test dropped
+  or weakened**:
+  1. cache the build (Swatinem/rust-cache, pinned by SHA like the existing actions);
+  2. build the test binaries once per platform (`cargo nextest archive`) and run them sharded
+     across parallel jobs (`cargo nextest run --archive-file … --partition hash:k/N`), N chosen
+     from measured times; keep fmt and clippy as a separate fast job;
+  3. split the slowest tests so they shard: where one test iterates the whole corpus (recognition,
+     invariance, correspondence, section_recess_helpers), make it one test per family or per
+     corpus slice, keeping every assertion and its failure messages;
+  4. keep macOS running the full suite (maintainer decision H1: float pins must hold on both),
+     sharded the same way;
+  5. measure before and after on a pushed branch or a workflow_dispatch run, and record the
+     numbers in the status file. Do the same for draftwright-rust's CI afterwards if it is cheap
+     (now ~20 min, one job).
+- **Priority from the maintainer (2026-10-08 evening): draw PMI** (stage 1, reading, done by
+  d-pmi-read; lowering and coverage lint are the next draftwright backlog items). When this was
+  written draftwright-rust read no PMI (only Spec tolerances on dimensions); Python draftwright
+  reads AP242 semantic PMI
+  (pmi.py, _pmi_part21.py, _pmi_schema.py, _pmi_topology.py, _pmi_datum_geometry.py,
+  _pmi_linear_geometry.py, _pmi_support_blockers.py), lowers it to drawing items
+  (model/pmi_lowering.py: feature control frames and datum symbols, annotations/_gdt.py;
+  toleranced dimensions, annotations/_pmi_dimensions.py) and lints coverage
+  (linting/pmi_coverage.py). As soon as `q-merge-ap242` has merged and been pinned here (haecceity's
+  `pmi` model and reader: semantic datums, tolerances and dimensions anchored to faces, checked on
+  NIST CTC/FTC), dispatch draftwright-rust streams to: (1) read the part's PMI through haecceity
+  into the Analysis (fail closed: what the model reports as a finding is a problem, not guessed);
+  (2) port the lowering to Plan items and their rendering: feature control frames, datum feature
+  symbols, toleranced and basic dimensions, in the views draftwright chooses; (3) port the PMI
+  coverage lint; (4) test on NIST CTC/FTC files and specify-core-written files (quiddity-rust
+  tests/fixtures/ap242), each compared with Python draftwright's drawing, every difference given
+  a verdict; update the PMI rules in docs/rules. Split so streams own disjoint files.
+- **Drawing PMI, stage 1 (stream d-pmi-read): the part's PMI is read.** `draftwright::pmi::read`
+  (`src/pmi.rs`) reads a STEP file's semantic PMI through haecceity's reader into draftwright's
+  records (`extract_pmi_report`): dimensions, geometric tolerances and datums, each with its
+  drawing faces (haecceity's indices, as the bridge uses), their box in the file's frame, the
+  instances it was read from and its blockers; and a census in which every haecceity finding,
+  every item this stage does not project and every record whose face does not resolve is a source
+  not read, with its reason. Not yet attached to the Analysis (lowering's job). `tests/pmi.rs`
+  compares record by record with draftwright on the 14 AP242 files copied from quiddity-rust
+  (`tests/fixtures/pmi/`, `tools/capture_pmi.py`) and the corpus's 10 NIST parts (no PMI on
+  either side): of draftwright's 592 records, 358 agree in every compared field (dimensions
+  153/175, tolerances 147/204, datums 58/158); 330 differences listed in
+  `tests/fixtures/known_pmi.json`: 272 rust-correct (OpenCascade misreads draftwright inherits:
+  magnitudes in complex instances read as 0, g6/f7 fits garbled, a radius's nominal taken as its
+  lower limit, datum letters repeated per occurrence, valueless dimensions typed `location`;
+  XCAF occurrences draftwright cannot coalesce; patterns XCAF names one member of; datum faces
+  draftwright cannot find; tolerances XCAF drops silently: all-over profiles, unit-basis
+  flatness and straightness, positions on supplemental geometry), 55 rust-wrong (draftwright's
+  manufacturing requirements, surface labels and common labels, not projected yet: reported as
+  sources not read), 3 undetermined (below). Left for later stages: manufacturing requirements,
+  surface and common labels, material facts; lowering's geometry (`ref_pts`, cylinder and angular
+  supports, datum normals: derived from the faces then); datum targets, composite relations,
+  projected zones and datum modifiers (record blockers). Proposed catalogue changes (issues.yaml
+  and adr.yaml belong to d-issue-drafting-4; statuses stay pending):
+  - LINT-code-pmi_not_extracted: rust_test `tests/pmi.rs::every_item_and_finding_is_accounted_for_and_the_output_is_deterministic`;
+    rust_note "Partly: `pmi::read` inventories every dimension, tolerance and datum and reports
+    every haecceity finding, unprojected item and unresolved face as a source not read with its
+    reason; the lint code on a drawing is the coverage lint's (not ported)".
+  - ISSUE-1116-a, ISSUE-1116-b, ISSUE-1209-a, ISSUE-1296-b, ISSUE-1298-b, ISSUE-1298-c,
+    ISSUE-1325-a, ISSUE-1357-d, ISSUE-1563-a, ARCH0016-7: rust_note "AP242 PMI is read
+    (`src/pmi.rs`, `tests/pmi.rs`: records, faces, census) but not lowered: …" in place of "the
+    port reads no AP242 PMI".
+  - Questions for the maintainer:
+    - A part placed several times (quiddity-rust's assembly fixture: the pin twice): a record
+      lists the drawing's faces of every placement, as the drawing draws them all. Keep, or
+      should a drawing of an assembly choose one placement (or refuse)?
+    - Semantic dimensions on supplemental geometry whose only presentation is invisible
+      (NIST FTC-10's three Ø3, `INVISIBILITY`): read as records with a blocker; draftwright never
+      sees them. Should lowering draw them, report them, or skip them as not meant to be shown?
+    - An ISO 286 class stated without limits (FTC-10's three Ø3.50 G6): the record keeps the
+      class and a blocker; haecceity has no ISO 286 table. Compute the limits (a table to add),
+      or draw the class alone?
+- **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now** (done:
+  q-merge-ap242, 48dbe43). The `ap242`
   branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and
   writer, removal plan, `quiddity parts` / `quiddity pmi read|write`; four stages each integrated
   green on the branch) is to join `prototype/rust-port`. A new repo, specify-core-rust, depends on
@@ -173,7 +291,9 @@ quiddity commit that has it.
   both sides changed crates/haecceity/src/lib.rs, step.rs, src/bin/quiddity.rs, README.md and
   fixtures), run the full checks including the AP242 suites, update README's status for the
   merged capabilities; then the integrator merges it like any other stream.
-- **Top priority from the maintainer (2026-10-08 evening): callout leaders.** "Something is
+- **Top priority from the maintainer (2026-10-08 evening): callout leaders** (done by
+  d-callout-leaders, 9a4af8f; interior label candidates and outline-based checks still open).
+  "Something is
   wrong with the leaders, especially diagonals." Callouts are stacked in lanes beyond every linear
   dimension with a fixed 45° leader (`src/dims/placement.rs` `place_callout`, `turned`), so on a
   part with location ladders the leaders run across the view, the ladders and the sheet. Even
@@ -195,6 +315,32 @@ quiddity commit that has it.
   - `plan`, `render` and `review` accept an Analysis document, as `docs/model.md` says, so a
     caller need not re-analyse;
   - quiddity-rust's CI also runs on macOS, beside Linux.
+
+- **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
+  other backlog work):
+  - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a
+    callout or location ref, drop it and escalate to a hole table with balloons, as
+    orchestrator.py `_prepare_hole_table_run` does.
+  - **ISSUE-1247-a:** report an `unsupported` Problem for each angled step now (remove it from
+    `dims::UNDRAFTED`), until it is dimensioned or a completeness report exists.
+  - **quiddity-rust macOS CI:** keep the full suite on macOS (decision H1 stands), sharded across
+    more parallel jobs to reach about 10 minutes, like Linux.
+  - **haecceity's PMI writer (quiddity-rust),** from specify-core-rust's questions Q16, Q20 and Q3
+    (`~/repos/specify-core-rust/docs/questions.md`, upstream needs U3 and U15):
+    1. **Do not write the `MECHANICAL_DESIGN_AND_DRAUGHTING_RELATIONSHIP` relating datum feature
+       symbols to the part.** OpenCascade 7.9's STEP reader crashes (SIGSEGV) on every file that
+       has it; without it all seven test files load and read correctly in OpenCascade. Record it
+       as a deliberate departure from the full form, to revisit when OpenCascade is fixed.
+    2. **A size or tolerance on a feature of several faces: one `geometric_item_specific_usage`
+       per face** (PMI practice §5.1), not one `item_identified_representation_usage` of a
+       `set_representation_item` (§6.5.1), which OpenCascade drops along with the datums only
+       it cites.
+    3. **Notes and surface finish in standard forms:** surface texture as AP242's
+       `surface_texture_parameter` (with the practice's representation), and other part notes
+       (coating, heat treatment, edge breaks) as standard text notes, so specify-core-rust can
+       write what is now listed as `not_written`. Verify each by read-back and an OpenCascade
+       cross-check, with verdicts.
+    Then specify-core-rust is moved to the new haecceity by its own run.
 
 ## Open leftovers from earlier reviews
 
@@ -1125,7 +1271,8 @@ improvement plan and questions are the current work. Still open from before it:
   recorded too (`Kind::Table`, added on merge). Findings go to a separate `api::Review::structural`
   (MCP: `"structural"`), not `Review::lint`. `tests/lint_structural.rs`,
   `tests/fixtures/known_structural.json` (27 annotation_out_of_bounds findings on 4 parts, all
-  rust-wrong: placement's known off-sheet items).
+  rust-wrong: placement's known off-sheet items; 2 on 2 parts since stream d-placement-fit
+  merged, cgb245's and ctc01's plan y locations).
   - Questions for the maintainer:
     - Should structural findings join `Review::lint`, as draftwright orders them? That changes
       tests/lint.rs's plate expectation (its y location sits 0.1 mm past the left border), and
@@ -1186,3 +1333,466 @@ improvement plan and questions are the current work. Still open from before it:
       reads `OD`, standing in for draftwright's rotational bores (spool132's ø70, which the port
       states as a spotface). Is `OD` wanted beyond z (draftwright limits it to z, where its bore
       leaders share the front view)?
+
+- From stream d-placement-fit (CLI-trial priority 3, 2026-10-08): annotations stay on the sheet
+  where they can (`src/dims/placement.rs`, `tests/placement.rs`).
+  - **Fall-through** (ISSUE-1215-e, now ported): a strip holds its linear dimensions up to the
+    first lane whose item does not fit the page (ink on the sheet, label off the views and the
+    title block, no line through the title block or another view); that item and those outside it
+    take the next free lanes of the strip across the view. One that fits on neither side keeps its
+    lane and is reported, never dropped. Edit-local (the page and every item's lane come from the
+    full set).
+  - **Callouts beside their view**: a callout whose lane does not fit the page (off the sheet, or
+    its leader across another view) turns left or, failing that, goes out beside its view as
+    draftwright's plan callouts do (`holes._leader_anchors`): the elbow past the strip's lanes on
+    a row within the view's height, the leader radial from the nearest site's rim, rows
+    `pad_around_text` apart where they can be.
+  - **New warning `annotation_line_over_view`**: a line (leader, extension or dimension line)
+    across a view not its own; such lines ran unreported before.
+  - **`slides` bounded by the sheet**: its places keep the label on the drawing area along the
+    line, so their count is bounded by the sheet, not the line (a unit test on a 200 km line).
+  - cgb245 before → after: `annotation_off_sheet` 10 → 1 (d:f:hole:1's y location, whose next
+    lane right of the plan would cross the isometric), `annotation_ink_overlap` 2 → 0,
+    `annotation_outside_area` 30 → 24, plan callout leaders across the isometric: none now (the
+    2×2 pattern's, 2× ⌀5's, 4× ⌀7's, the fillet's and one end radius go beside the plan; the
+    three outermost keep their lanes above the plan, their leaders long but clear of the
+    isometric), 6 `annotation_line_over_view` (the front's overall height and 5 ladder rungs
+    through the side view; unreported before). All 12 compared parts: `annotation_off_sheet` 24 →
+    2 (cgb245 1, ctc01 1); ink overlaps 9 → 4; `known_placement.json` updated with verdicts.
+  - **Escalation is not what cgb245 needs**: draftwright's captured sheet
+    (`tests/fixtures/sheets/cgb245.json.gz`) is A2 at 1:2, the port's sheet too; draftwright's
+    scale attempts there (1:5, 1:1, A1, A0) were all rejected and it kept A2 1:2. The difference
+    is where the y locations go (draftwright: the side view, staggered-side arrangement; the port:
+    the plan, by the end-on rule ADR1-6) and the bands: the plan's left band is draftwright's
+    20 mm estimate. ISSUE-1299-a (escalation, in `model::plan`) is unchanged.
+  - Left, with blockers: the front's height ladder still runs into the side view on cgb245 and
+    m1000 (the front's right band is draftwright's estimate and draftwright withholds those rungs
+    by its legibility gate: both open maintainer questions above); the strip right of the plan,
+    where items now fall, is reserved by no band (`layout::Strips::reserve`, in `src/layout.rs`,
+    outside this stream), so those items are `annotation_outside_area` (info); a leader crossing
+    other dimensions' lines is not checked; ftc06's front width and a boss location still cross
+    the isometric (no room above the front either).
+  - Outside the stream's files, minimal: `src/dims/mod.rs` wires `fall_through` and `leaders`;
+    `tests/issue_drafting.rs::a_label_over_the_isometric_is_reported` moves its crowded guard
+    from plate on A3 at 2:1 (where every label now fits) to A4 at 5:1, still asserting labels
+    over the isometric and off the sheet; `tests/tolerances.rs` expects the one info problem the
+    longer `7× R50 ±0.5` label adds beside ctc01's plan; `docs/model.md` names the new code.
+  - After review (stream d-placement-fit): an overall extent now has first claim on the opposite
+    strip's free lanes (`fall_through`; draftwright falls through only the extent), placed outside
+    the other moved items where that still fits. On cgb245 and m1000 the front's overall height
+    takes the one lane left of the front (before, cgb245's rung h9_876 and m1000's seat z location
+    took it and the height crossed the side view); on ftc06 the front width takes the one lane
+    above the front, off the isometric. Those lower-priority items keep their lanes and stay
+    reported (`known_placement.json`: ftc06 `annotation_over_view` and m1000 `annotation_ink_overlap`
+    off; cgb245's three rungs h21–h25 now have labels over the side view). Falling through every
+    linear item, beyond draftwright, has a verdict (rust-correct, with the split-ladder cost) in
+    ISSUE-1215-e's note, whose rust_test is now
+    `tests/placement.rs::a_starved_overall_extent_has_first_claim_on_the_opposite_strip`.
+
+- Structural sheet lint, second part (stream d-lint-structural-2): `lint::structural::check` now
+  also ports title_field_overflow, leader_line_through_text, annotation_ink_overlap (and the
+  line-work remedy annotation_overlap lacked, so annotation_overlap is ported),
+  label_centerline_overlap, view_annotation_overlap and view_annotation_inside_extents; in
+  docs/rules/lint.yaml 7 more entries are ported (pending 131 → 124, ported 34 → 41).
+  `output::Sheet` grew what they read, all measured in `model::render` as the ink is drawn
+  (plan untouched): each thing's straight line-work (`Drawn::lines`: extension, dimension and
+  leader lines, the title block's rules) and a callout's elbow, each view's visible edges
+  (`DrawnView::edges`), each title-block value's ink and cell (`Sheet::fields`), and a
+  section's furniture as draftwright places it (hatch, chain line as a `Kind::Centreline`,
+  each arrowhead and wing stub), where it was one `SectionInk` box. New fixture
+  `tests/fixtures/sheet_lint/` (13 sheets, 410 KB), written by `tools/capture_sheet_lint.py`
+  from draftwright 4dfc63f: what its one `lint_drawing` call read (each item's boxes,
+  line-work, elbow and riders, each view's edges, the title fields) and found; the port's
+  checks on that record give exactly draftwright's 18 findings in these codes (ftc06's ten
+  crossings, cgb245's and ctc04's one, ctc04's overlap, five labels over blank face). On the
+  port's own drawings: 9 annotation_ink_overlap and 4 view_annotation_overlap, all rust-wrong
+  and each one of known_placement.json's annotation_ink_overlap / annotation_over_view items
+  (known_structural.json; the test checks a finding between dimensions is among the plan's).
+  Merged after stream d-placement-fit, those became 3 annotation_ink_overlap (ftc06 1, m10127 2),
+  1 view_annotation_overlap (m1000) and 3 view_annotation_inside_extents (cgb245's rungs
+  h21–h25 over the side view's blank face), all rust-wrong.
+  Still pending: label_vs_measured and nominal_rounded (the measured-path question above),
+  interior_label_on_narrow_material and leader_crosses_silhouette (they read the view's filled
+  material, which the drawing does not record), missing_principal_dimension (below).
+  - Questions for the maintainer:
+    - draftwright's sheet lint never runs missing_principal_dimension: its one `lint_drawing`
+      call passes no `part_bbox`, so `_lint_principal_extents` returns at once on every
+      finished drawing, and no captured sheet reports it. Port it anyway (the drawing would
+      need the part's box and scale), leave it pending, or drop it in favour of
+      `lint::envelope`'s ledger?
+    - title_field_overflow is now reported twice by `api::review`: as a plan problem (asking
+      for a concise value) and as a structural finding (draftwright's message, pointing to a
+      notes block). Keep both, or drop one?
+
+- From stream d-native-pockets-slots: `bridge::native` reads oriented slots (`oriented_slot`
+  features, `FIELDS` as Python draftwright's converter reads them: width, length, centre, width and
+  long directions, the source passage's frame, run interval, section and ends) and checks
+  oriented slot patterns (fields, each member exactly one oriented slot, none in two patterns)
+  without making them features, as the bridge reads none of Python's (`DERIVED_NOT_READ`, #1430);
+  `READ` is 25 families. Over the 100 corpus parts only mfcadpp_holdout/467 has an oriented slot
+  in quiddity-rust's reading (and none has an oriented slot pattern), so `tests/native.rs` adds it
+  (set `oriented`, Python quiddity 0.4.0.dev0) and quiddity-rust's golden oriented slots (`golden`,
+  3 slots in one array): 4 oriented slots and 1 pattern compared field by field, 45 parts in all.
+  21 new `known_native.json` entries, all equivalent: the passage frame's run sense and in-plane
+  basis, the width and long directions' senses, and so the section's vertices and run interval,
+  chosen canonically in each recogniser's frame (the prism checked identical, to the 0.001 each
+  side rounds to; quiddity-rust's known_framed_document.json shows the same mechanism
+  between its own default frame and caller space for 467), and the
+  array's direction sense, member order and named dimensions. Faces, widths, lengths, centres,
+  ends and body keys agree, and so do all 4 fingerprints. Downstream: `plan` on 467 and the golden
+  part now reports each oriented slot as `dimensions_not_ported`, exactly as with `--features`,
+  and no longer names oriented_slots in `features_not_recognised`; their SVGs are byte-identical
+  before and after. Nothing to propose for the catalogue (the port draws and lints no oriented
+  slot).
+  - Not done, and why: prismatic pockets stay known and not read. Python's published document has
+    no `prismatic_pockets` (they are in `_LegacyRecognitionResult` only); Python projects them into
+    `section_recesses` (`result.py` `_prismatic_pocket_recess`), which is what draftwright lints
+    and dimensions, so there is no Python record to compare a native one with, and reading them as
+    `prismatic_pocket` features would give consumers a kind the `--features` path never has (the
+    hexagonal pocket callouts come from section recesses). Quiddity-rust's document has prismatic
+    pockets on 45 corpus parts.
+  - Question for the maintainer: this is the earlier section-recess question again, now for
+    prismatic pockets: should quiddity-rust's document publish Python's `SectionRecess` (into which
+    prismatic pockets, pockets, channels, blind slots and passages are projected), so the native
+    path can give draftwright its pockets?
+- From stream d-callout-leaders (maintainer top priority, "something is wrong with the leaders,
+  especially diagonals"): callout leaders are placed as draftwright places them, in place of the
+  fixed 45° lanes (new `src/dims/leaders.rs`; `src/dims/placement.rs` loses `place_callout`, the
+  turned and sideways leaders; on top of r/d-placement-fit and r/d-dims-turned-steps, merged here).
+  - **What it does.** The linear dimensions are placed and settled first; then every callout
+    (holes, recesses, turned diameters, fillets, chamfers, grooves, flats, bosses, steps) gets a
+    bounded inventory of leaders: columns beside its view (draftwright's plan/side hole callouts and
+    z-turned diameter column), rows above and below (its front hole callouts and x-turned row), and
+    16-direction escapes from each site (its corner and radial candidates), each elbow just past
+    the view's edge or past the dimensions of that strip, plus two text rows further out; the tip on
+    the site's rim, radial to the elbow; a horizontal shoulder and the label beyond it on the side
+    the leader runs to. Each is measured analytically: hard blockers (off the drawing area, in the
+    title block, label or shoulder over any view, leader across another view or back into its own,
+    leader under 6 mm or over 75 mm), then crossings (a line through a dimension's or leader's line,
+    including running along it within 1 mm, or through a label, or a label on a label), then length
+    (µm). The callouts are assigned jointly (groups that could conflict, exact branch and bound
+    within 200 000 nodes from a greedy floor). Nothing is dropped; what a leader still crosses is
+    reported, with a new plan problem `annotation_leader_crossing` (warning) for a leader across or
+    along another item's line. What the collision checks cannot see is reported by the leader
+    placement itself: a leader taken back across its own view (`annotation_line_over_view` on its
+    own view), one over the 75 mm limit (`annotation_leader_long`, warning), and a group whose
+    joint search stopped at its node budget (`annotation_leader_search_capped`, info).
+    `tests/leaders.rs` asserts the first two are reported wherever they occur (neither occurs on
+    the parts checked). The third fires on ftc06, whose 10 plan callouts form one group: listed
+    in known_placement.json as undetermined (a 100× budget gives the same leaders). The search
+    now starts from the greedy assignment improved by descent (single jobs, then conflicting
+    pairs, at most 50 passes); before it, ftc06's bounded search kept an assignment 28 mm longer
+    in total, which the review's question about the budget brought out. The limits (6 mm, 75 mm, 3 mm clearance, 7 mm rows) are calibrated from draftwright's
+    sheets, not its code: draftwright has no hard length cap or angle limit, and its
+    `leader_policy.py` is the region policy only; its side rule (`text_side`) is ported, and the
+    port has no angle limit. Callouts take no lanes now (`fall_through` ignores them).
+  - **Acceptance** (`tests/leaders.rs`): on the 12 captured parts with corpus recognition, and on
+    cgb245 and nist_ctc_04 natively, no callout's leader, shoulder or label crosses a view, the
+    title block, another annotation's line or label, except the 39 listed in
+    `tests/fixtures/known_leaders.json`, all rust-wrong with evidence: 8 on connector109 (the
+    turned bosses' ø118/ø122/ø130.9 are linear dimensions below the front whose extension lines run
+    up the silhouette, where groove, fillet and chamfer leaders leave it; draftwright states those
+    diameters as callouts) and 31 on ctc04 native (the plan's location ladders' extension lines run
+    from interior holes through the view; the ⌀6.6 holes in the centre pockets cannot leave without
+    crossing some; draftwright's own ctc04 sheet has 24 leader-line crossings by the same test).
+    cgb245, both ways, has none (before: three plan callouts' 45° diagonals from the lanes above
+    the plan, and leaders fanning across the plan to its right).
+  - **Leader lengths** (mm, min/median/mean/max; port's from `LEADERS_REPORT=1`, draftwright's
+    measured on its own drawings built from origin/main with the same predicates; draftwright draws
+    more callouts on most parts, its blends and some fillets not being ported):
+    cgb245 6.0/9.6/16.5/49.6 vs 7.0/15.0/19.8/52.9; ctc01 6.0/16.0/17.5/39.3 vs 7.0/7.0/16.2/52.0;
+    ctc04 (native) 6.1/11.5/20.2/57.6 vs 5.6/14.9/19.1/47.0; ftc06 6.1/9.3/13.8/34.1 vs
+    6.4/15.0/18.8/47.0; connector109 6.0/6.7/19.1/73.7 vs 7.0/10.3/18.8/73.5; spool132
+    6.1/10.9/17.6/37.0 vs 7.0/37.7/31.3/62.2; m10127 6.0/8.7/11.5/19.9 vs 7.0/39.6/32.3/60.0;
+    m1000 6.4/8.5/11.4/21.9 vs 7.0/16.7/14.4/17.2; m10046 30.4 vs 18.7 (one callout);
+    grm03 6.1/7.8/8.2/11.4 vs 7.0/11.8/15.3/28.5; grm05 6.0/6.6/6.5/7.0 vs 10.8/13.0/12.9/15.0;
+    string_post 6.0/7.6/7.5/8.9 vs 8.5/11.1/15.1/30.4; hanger 6.0/6.2/6.2/6.4 vs 7.0/7.0/9.0/15.0.
+    On most parts the port's are shorter (both minimise length; the port's floor is its 6 mm
+    minimum, draftwright's its 7 mm reach/lane spacing; and draftwright's longest run to labels
+    in its side columns or inside the views). Four parts have longer ones, each with a verdict
+    (callout by callout, from `LEADERS_REPORT=1` and a candidate dump of the port's inventory):
+    - ctc01 (median 16.0 vs 7.0): the populations differ. Six of draftwright's 15 callouts are
+      blends at 7.0 mm each (R0.8, R4.9, 6× R5, R6.3, 18× R10, 4× R25), which the port does not
+      dimension (not-applicable: blends not ported). Callout by callout the port is shorter on
+      seven of nine (⌀20 16.0 vs 23.0, ⌀35 9.5 vs 22.7, 2× R20 19.4 vs 52.0, R1.6 16.8 vs 44.6,
+      C50 8.0 vs 15.0, 2× C5 6.1 vs 15.0, 7× R50 6.0 vs 15.0) and longer on two: 4× ⌀25 36.5 vs
+      7.0 and HEX 100 A/F 39.3 vs 7.0, where draftwright's labels stand inside the plan over its
+      face (not-applicable: interior labels, below).
+    - m10046 (30.4 vs 18.7, its one callout): equivalent as leader placement, the difference is
+      the layout. Draftwright lays the part out on A3 at 2:1 with nothing right of the front, and
+      its label sits there level with the pocket. The port's A4 at 1:1 puts the y location ladder
+      (13.5, 41.0, 7.7, 1.8) right of the front and the 23.0/27.3 ladder below it. Every shorter
+      candidate in the port's inventory crosses one of their lines (right, down) or puts the
+      40 mm label off the drawing area (left, 21 mm to the sheet's edge), so the 30.4 mm leader
+      up to a row above the view is the shortest that crosses nothing.
+    - ctc04 native (max 57.6 vs 47.0, mean 20.2 vs 19.1): three of the port's four ⌀6.6 callouts
+      run 47.1–47.5 mm against draftwright's 47.0 (equivalent: both leave the centre pockets
+      horizontally for a column beside the plan). Draftwright draws two `3× ⌀6.6 ↧ 25` callouts
+      and the port four (the patterns' grouping, upstream of leaders), and the fourth takes the
+      next row out, 57.6 mm (not-applicable to leader placement). The port's 16× R4 runs 45.1 mm
+      against draftwright's 7.0: draftwright's label stands inside the front over its face
+      (not-applicable: interior labels). No candidate of the port's is free of crossings: the
+      chosen one sets its label against the 60.6 step height's label (listed in
+      known_leaders.json), and the shorter ones, up or down out of the front, cross two or more
+      of the dimension lines in the strips above and below it.
+    - connector109 (mean 19.1 vs 18.8): the chamfer's 73.7 mm against draftwright's 7.0 (rust-wrong,
+      below) accounts for it; the groove leader up the profile, 71.2 mm against draftwright's
+      73.5 for the same groove, is equivalent.
+    Shoulder: 3 mm (the port's `SHOULDER`)
+    against draftwright's 2 mm (`pad_around_text`), equivalent. Median angle from horizontal:
+    10–90° against draftwright's 0–72°, no pattern (both take vertical and horizontal leaders).
+    Where they differ: draftwright puts some labels inside a view over blank face (its interior
+    candidates; most of its leaders over 30 mm, on m10127, spool132 and ctc01, end at such labels
+    or at rows of its side columns) — the port cannot prove blank face without the projected line-work, so it keeps every label outside
+    (not-applicable to the plan as R1 defines it; draftwright's `--leader-region exterior`).
+    connector109's chamfer leader runs 73.7 mm down the profile's edge (rust-wrong: the column left
+    of the front holds the diameters, and shorter routes cross the bosses' extension lines; a
+    leader laid on the part's own silhouette is not seen, the plan having no line-work).
+  - **Visual comparison** (PNGs of both, kept in the scratchpad): cgb245's plan callouts now sit
+    just outside the plan next to their holes with short leaders and shoulders (the one above it,
+    2× ⌀6, just over its edge under the ladder), none crossing the ladder or another view;
+    connector109's step diameters form a column left of the front as draftwright's do, its groove
+    callouts right of it; spool132's and ctc01's plan callouts stand just outside the plan (draftwright's
+    stand partly inside it); ctc04's ring of 14 mm holes is called out from both sides of the plan,
+    the 6.6 mm holes by long horizontal leaders out of the centre pockets.
+  - **Outside the stream's files, minimal**: `src/dims/mod.rs` (`mod leaders`, the call after
+    `settle`, its doc); `tests/tolerances.rs`'s ctc01 test (the fillet's longer label no longer runs
+    past the area: the spec adds no problem now); `tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported`
+    (its guard needed m10127's arrowhead-in-label collision, now gone; the planted case is the unit
+    test `dims::placement::tests::an_arrowhead_and_a_leader_through_other_ink_are_reported`);
+    `tests/lint_structural.rs::the_review_reports_structural_findings_beside_coverage` and
+    `tests/fixtures/known_structural.json` (for the integrator reconciling with
+    d-lint-structural-2): r/d-placement-fit forked before lint::structural landed, so merging it
+    here moves the plate's y location right of the plan (no structural finding or off-sheet
+    problem now), cgb245's and ctc01's annotation_out_of_bounds go 10 → 1 each (the one y location
+    each that fits on neither side), ftc06's 1 → 0 (both from placement-fit's fall-through), and
+    connector109's 6 → 0 (this stream: its callouts no longer stack in lanes off the sheet).
+  - **Catalogue** (`docs/rules`): ISSUE-740-a, ISSUE-740-b, ISSUE-798-a, ARCH0014-3 and ADR2-9
+    ported; ISSUE-1188-a translated; ISSUE-1166-a/b, ISSUE-367-a, ADR2-D6, ADR2-5, ADR2-7, ADR2-8,
+    ARCH0009-7 pending with exact notes. Proposed for files this stream does not own: `docs/model.md`
+    should list `annotation_leader_crossing`, `annotation_leader_long` (a leader over 75 mm, taken
+    only when every shorter place was blocked) and `annotation_leader_search_capped` (info: a
+    group of callouts whose joint search stopped at its node budget) beside the other annotation
+    codes, and its "Not checked
+    yet" note should say leaders' line crossings are now checked (two linear dimensions' still are
+    not); `docs/rules/lint.yaml` LINT-code-leader_crosses_silhouette stays pending (no projected
+    material in the plan).
+  - Questions for the maintainer:
+    - Interior labels: draftwright places a callout's label inside its view over blank face when it
+      can prove the face blank (its default `auto` region); the port keeps every label outside, the
+      plan having no projected line-work. Should the plan see the views' line-work (a planned-view
+      projection at plan time), or is exterior-only the port's rule?
+    - The layout's band estimate still counts lanes for callouts (`dims::lanes`), though callouts no
+      longer take lanes; dropping that would change view positions on most sheets (`known_views`).
+      Keep it as a margin for the callouts beside the views, or reserve their actual footprint?
+    - Turned bosses' diameters as linear dimensions below the front (connector109) make every
+      leader leaving that side cross their extension lines; draftwright calls them out in its
+      left column. Should `dims::bosses` give a turned boss's diameter as a callout?
+
+- Coverage backstop (stream d-lint-coverage; `src/lint/coverage.rs`, `tests/lint_coverage.rs`,
+  `tools/capture_lint_coverage.py`, `tests/fixtures/lint_coverage/`): draftwright's
+  `lint_feature_coverage` and `lint_location_coverage`. `lint::check` now runs
+  `feature_not_dimensioned` (before boss heights) and `feature_not_located` (after them), as
+  draftwright orders them; `feature_count_mismatch` is ported but not run (draftwright's drawing
+  lint passes `check_hole_counts=False`), and `feature_no_centermark` is ported but not run (the
+  port draws no centre marks, so it would report every hole). On draftwright's recorded input (18
+  drawings: the 13 sheet parts, ctc03, ctc05 and ftc09, which a hunt over the corpus found firing,
+  and two drawings with callouts and centre marks taken off) the port's checks give exactly its
+  findings in all four codes. On the port's own drawings neither wired code fires; the
+  differences (centre marks on 9 parts, rust-wrong; cgb245's two holes the port locates in y,
+  rust-correct) are in `tests/fixtures/lint_coverage/known.json`. Outside the stream's files:
+  `tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value` now filters to
+  hole coverage's codes (a misprinted diameter is also `feature_not_dimensioned`, as in
+  draftwright). LINT-code-feature_count_mismatch is ported; the other three stay pending.
+  - Questions for the maintainer:
+    - Should the port draw centre marks (draftwright marks every hole in its end-on view)? Until
+      it does, `feature_no_centermark` stays out of `lint::check`.
+    - draftwright drops a boss diameter that a blend of the same face owns
+      (`boss_blend_owner_pairs`, #1450), comparing quiddity's defining faces. The bridge keeps
+      only constituent faces (`src/bridge.rs`), which differ (grm04_drive_plate: boss [0, 3],
+      blend [0]). Should `bridge::Feature` also carry `defining_faces` (it changes the Analysis
+      schema), so the ownership can be ported in dims and lint alike?
+    - `feature_not_located` reads only claimed locations on the port's drawings; draftwright also
+      accepts any dimension's witness point on the hole's projected coordinate. Should
+      `Drawing::sheet` record each dimension's witness points and each view's projection (the
+      same record label_vs_measured would need), or is the claim the right evidence for the
+      port's own drawings?
+
+- From wave 3 (stream d-spotface): a spotface is stated with ASME Y14.5-2018's spotface symbol
+  (maintainer decision 2026-10-08), in the hole callout (`src/dims/holes.rs`, the term
+  `dims::holes::SPOTFACE`) and in lint's fix text (`src/lint/holes.rs`): `⌀62 THRU ⌴SF ⌀70 ↧ 10`.
+  - **Representation, and why:** Unicode has no code point for the symbol, and the bundled fonts
+    (IBM Plex Mono and Sans Condensed) have none of the callout symbols `⌀ ⌴ ↧ ⌵` (checked with
+    fontTools), which the drawing has always drawn as the font's `ø` and as strokes. So the term
+    is the text `⌴SF`: `dims::label_ink` draws it as one symbol, the counterbore's open box
+    widened to 1.1 text heights (`SF_CELL`) around the drawing font's own `S` and `F` outlines (set
+    at 0.6 of the text height, inside the box); placement measures the same ink, so collision and
+    band boxes include the wider symbol. The PDF's and SVG's invisible text runs carry `⌴SF`, so
+    both `⌴SF` and `SF` are searched and copied, and the plan, replies and lint read the same
+    text; no private-use code point reaches the JSON. Rejected: a private-use character with a
+    glyph added to the font (the plan and replies would carry an unreadable character, and adding
+    a glyph means modifying IBM Plex, whose OFL reserves the name "Plex", or synthesising glyphs in
+    the PDF subset, which the `subsetter` crate does not do).
+  - **Verdicts:** spool132's bore callout (`known_dimensions.json`) now prints `⌴SF` where
+    draftwright's grammar prints `⌴` for a spotface: rust-correct by the maintainer's decision (the
+    entry stays undetermined for its other difference, the bore's callout convention). Its
+    `annotation_outside_area` overrun grows 25.5 → 26.7 mm with the wider symbol (count unchanged,
+    reason updated in `known_placement.json`). The two-recess label in
+    `tests/dimension_rules.rs` is now `⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1`, and lint still finds nothing
+    missing on it.
+  - **Lint's reader** takes `⌴SF` (and `⌴ SF`) as one spotface segment, and still takes a bare
+    `SF`, draftwright's `⌴` for a lone spotface, the earlier two-`⌴` form and the captured sheets'
+    symbol-less runs (unit tests in `lint::holes`). `tests/lint.rs` and `known_lint.json` needed no
+    change; LINT-hole_coverage-spotface_diameter_depth was already ported.
+  - **Tests:** `tests/dims_spotface.rs`: the symbol's ink (box strokes, the font's `SF` contours
+    wholly inside, the label measured wider), and spool132 rendered: the callout's run reads back
+    from the PDF's and SVG's text layers, and its `S` and `F` are real glyphs of the embedded subset
+    font (not `.notdef`). The PDF/SVG text-layer readers moved from `tests/output.rs` to
+    `tests/common/pdf.rs` so both files share them. Outside the stream's files:
+    `tests/trust_rules.rs::no_document_infers_manufacturing_intent` lists `SF` among the printed
+    words (the symbol's letters, not an inferred finish or fit).
+  - Left: the box (like every callout symbol) is ink, not a font glyph; in the PDF's invisible text
+    `⌴` is shown as `.notdef` and found through the ToUnicode map, as `⌀ ↧ ⌵` are. The symbol's
+    proportions (box 1.1 × 0.7 text heights, letters at 0.6) are the port's, not measured from the
+    standard's figure.
+  - Questions for the maintainer:
+    - Should the callout symbols (`⌀ ⌴ ↧ ⌵` and the spotface's box) be real glyphs in the embedded
+      font, rather than ink with searchable text? That needs a modified, renamed font (OFL Reserved
+      Font Name "Plex") or glyphs synthesised into the PDF's subset font.
+
+- From stream d-issue-drafting-4 (catalogue proposals checked; issue regressions, fourth batch;
+  `docs/rules/issues.yaml`, `tests/issue_regressions.rs` (new), `tests/issue_drafting.rs`,
+  `tests/issue_trust.rs`, fixtures in `tests/fixtures/recognition/issues/`, and this entry).
+  issues.yaml before → after: ported 21 → 22, pending 166 → 165, translated 3 → 3; adr.yaml
+  unchanged.
+  - **The recorded proposals, checked against main (9a4af8f).** All were already applied by
+    integrators, and each cited test exists (a script over every `rust_test` of issues.yaml and
+    adr.yaml: none missing) and passes in the full run: d-lint-holes-slot-patterns' ISSUE-1143-b,
+    1217-a and 1142-b, and the ISSUE-827-a and ISSUE-885-b notes (e2bf434's two), in ddfa081;
+    d-spec-tables' ISSUE-1146-c and ARCH0004-4 in 3927b65; d-dims-polygonal-stock's ISSUE-1082-a,
+    1082-b and 1371-b with its own merge; d-dims-recesses' ARCH0015-1 note at its merge (db3a62c);
+    d-placement-fit's ISSUE-1215-e (4061d81); d-dims-turned-steps' notes (a9ade84);
+    d-callout-leaders' catalogue changes (7eae60f, 22f5159). ISSUE-885-b's "pads are not
+    dimensioned" still holds (the whistle frame's three pads are `dimensions_not_ported`).
+    d-cli-native, d-lint-structural, d-native-pockets-slots and d-bridge-area-tolerance proposed
+    nothing for issues.yaml or adr.yaml. Changed here: ISSUE-1332-a, whose note said the port does
+    not uphold it, now cites `tests/lint_structural.rs::overlapping_labels_name_the_line_work_that_also_crosses`
+    (the sheet lint gives one code per pair with a consistent fix since d-lint-structural-2) and
+    stays pending for placement's problems, which still raise both codes. d-bridge-area-tolerance's
+    owed item is done: `tests/issue_drafting.rs` and `tests/issue_trust.rs` now read ctc04 with
+    the other twelve sampled parts, and every test passes on it (the one count, 12 → 13, in
+    `corpus_fixtures_are_bound_to_their_files`; four notes say thirteen). The stale "nist_ctc_04
+    is still refused" line in this file's summary is corrected. Not applied, not this stream's
+    file: d-callout-leaders' `docs/model.md` proposal (list `annotation_leader_crossing`,
+    `annotation_leader_long`, `annotation_leader_search_capped`; the "Not checked yet" note at
+    model.md:258) is still open. No lint.yaml proposal.
+  - **Main was red at 9a4af8f** on `tests/lint_structural.rs::structural_findings_on_the_ports_own_drawings_are_known`
+    (checked with this stream's changes stashed): the d-callout-leaders merge kept main's
+    `tests/fixtures/known_structural.json`, whose m10127 `annotation_ink_overlap` (2) the new
+    leaders removed, as `known_placement.json` already records. That one stale entry is removed
+    here; nothing else in the file changed. (Main's a5174c4 removed the same entry independently,
+    so at the merge this was already done.)
+  - **Fourth batch.** Ported on the parts draftwright's tests build (`make.py` there; recognised by
+    Python quiddity 0.3.9; draftwright's own runs of the same parts compared by hand), and its
+    whistle frame (gzipped STEP, unpacked by the test): ISSUE-916-a **ported** (a pocket's leader
+    tip is a rim side's midpoint on the matching axis, in four orientations and with a curved
+    mouth; nothing crosses). Pending with a test and a note saying what is missing: ISSUE-1485-a
+    (MAX DEEP and five broken records refused; the planar-substitution clause is lint coverage,
+    left to d-lint-coverage), ISSUE-917-a (one channel width; wall thickness not dimensioned),
+    ISSUE-1593-a (no dimension in the title block on draftwright's four cases; one with nowhere
+    to go is kept and reported, not withheld and re-planned), ISSUE-443-a (GRM-03's four step
+    lengths and the isometric on A4; draftwright reaches 5:1 by its legibility gate), ISSUE-1598-a
+    (six hex pockets, one counted callout with twelve distinct claims, irregular sections
+    refused), ISSUE-1613-a (three seats, six requirements each, coaxial locations shared), and
+    ISSUE-1374-c (the plan side is now checked too; its test's doc said turned steps were not
+    dimensioned).
+  - **Found, not fixed (input, not `src/`):** the recognition document rounds records to 0.001 mm
+    in quiddity's working frame, whose origin is off that grid (pocket_square's at -0.5634), so
+    values read back in the part's frame are up to 0.0005 mm off and some labels print a decimal
+    draftwright does not: pocket locations `35.0` (draftwright `35`), a curved pocket's depth
+    `12.0` (`12`: the run interval is rounded, the mouth's axis given to the micrometre), the
+    whistle seats' x location `15.6` (`15.7`; the exact value is 15.65). Recorded rust-wrong in
+    ISSUE-916-a, 1485-a and 1613-a. Also observed: on the curved-mouth parts the plan conveys the
+    cylinder's length by the overall extent (ISSUE-1154-a) while lint's boss coverage reports
+    `boss_height_missing` on the port's own drawing (for d-lint-coverage); on the whistle frame
+    the document has 11 flat records where draftwright's own run has 14, so the port prints
+    `3× 6.50 A/F` against draftwright's `6× 6.50 A/F` (undetermined, not pursued); the stepped box
+    of ISSUE-1593-a fits A3 at 1:1 in the port and A4 at 1:1 in draftwright; a sheet pinned with
+    both size and scale is always `page_fit_uncertain`, even when it is the sheet the port would
+    choose itself.
+  - Questions for the maintainer:
+    - Should quiddity's recognition document (and `tools/recognise.py`) carry coordinates
+      unrounded, or rounded in the caller's frame, so a value on a whole millimetre reads back as
+      one? Today the port prints `35.0` and `12.0` where the part is 35 and 12.
+    - ISSUE-1613-a's and 1598-a's declaration clauses (a declared seat with a wrong radius or arc
+      midpoint refused, declared hex pockets) are not applicable without declared builds; this
+      joins ISSUE-676-c's question (retire such clauses, or keep them pending).
+
+- From stream d-page-escalation (ISSUE-1299-a, page escalation recovery):
+  - **Measured first** (the 13 captured sheets, `tests/fixtures/sheets/*.json.gz`, their
+    `decisions.scale.attempts`, against the port's `model::plan` and its plans pinned at the
+    candidates): draftwright re-planned on two parts, kept its first choice after rejected
+    attempts on five (cgb245, ctc04, ftc06, m10046, hanger), tried nothing on six.
+    - grm03: A4 2:1 → 5:1, `measured_upscale` against the recovery detail its estimate reserved.
+      The port plans no detail views and its 2:1 plan is valid and complete: it keeps 2:1
+      (not-applicable).
+    - m10127: A4 1:1 → A3 2:1, `page_escalation_after_hard_layout` on its own
+      `annotation_ink_overlap`. The port's A4 1:1 plan is valid and complete: it keeps A4 1:1
+      (undetermined until placement agrees).
+    - cgb245: draftwright's 1:2 is `hard_layout_invalid` (an `annotation_ink_overlap`, '297.9'
+      through '15.0'); it tries 1:5 (rejected: 2 `location_ref_dropped` blockers, hole locations
+      closer than 4.7 mm on the page), 1:1 (`view_out_of_bounds`), A1 and A0 at 1:1 (a required
+      drop each), and keeps the invalid 1:2. The port's 1:2 has one `annotation_off_sheet`
+      (d:f:hole:1's y location); its ladder tries the same four, rejects each (1:5: 4 hole
+      locations too close to read; A2 1:1: `page_fit_uncertain` and labels off the sheet; A1:
+      labels off the sheet; A0: an ink overlap; each with 2 locations too close to read besides)
+      and keeps 1:2, saying so (`layout_recovery_exhausted`): equivalent outcome. (The first
+      version of this stream took 1:5 here, valid by the port's placement checks but with
+      location witness lines as close as 0.6 mm: its gate read no completeness at all. The
+      reviewer's evidence; fixed below.)
+    - ctc01: draftwright tries nothing (its A3 1:5 has no hard layout finding). The port's A3 1:5
+      has one `annotation_off_sheet` (the hole pattern's y location, a placement residual it
+      reports in `known_placement.json`); the ladder takes A3 1:10, valid and complete. The
+      ladder and gate are draftwright's (equivalent); the sheet differs because the input does.
+    - No other part's first plan has a hard layout finding or a location too close to read.
+  - **Ported**: `layout::recover` (draftwright's `recover_hard_layout` and
+    `recover_required_no_iso` order: a hard failure tries one scale each way on the sheet, then
+    each larger standard sheet; a required loss tries the next two larger scales, then each larger
+    sheet; a valid, complete plan tries nothing; a named sheet is never left; at most six plans)
+    and `model::recover` (hard layout = `annotation_off_sheet`, `annotation_overlap`,
+    `annotation_ink_overlap`, `title_field_overflow`, `page_fit_uncertain`, `views_do_not_fit`;
+    `annotation_over_view` excluded, as the port judges it by the view's box and draftwright's
+    `view_annotation_overlap` by line-work; never re-plans a named scale; says `layout_replanned`
+    or `layout_recovery_exhausted`, info, and the sheet's basis names the recovery; the spec is
+    kept). The completeness tier reads `layout::crowded_locations`: draftwright's
+    `_legible_locations`/`_discard_short_refs` measure (4.7 mm between successive located
+    ordinates of one view axis, 1 mm least span, a pattern's centre ordinate apart), which
+    draftwright drops as `location_ref_dropped` (a blocker) and the port keeps
+    (LINT-hole_coverage-location), so for the port it counts witness lines too close to read.
+    Nothing else is dropped for want of room in the port. Each try is a plan (milliseconds, no
+    projection). `tests/page_escalation.rs` ports draftwright's six tests (the stand-in ones on
+    `layout::recover`; GRM-03, the named sheet and scale, and cgb245/ctc01/m10127/m1000 on corpus
+    parts). ISSUE-1299-a stays pending, with notes.
+  - **Differences from draftwright's retries, not ported** (stated in `model::recover`):
+    draftwright rebuilds each candidate with the first drawing's settled arrangement and
+    principal views; the port plans each afresh at the named sheet and scale, so the arrangement
+    and view set are chosen again. draftwright's other candidate gates (a retained recovery
+    detail, a recognised-requirement regression, the structural replay) have no input in the
+    port; a principal view too large for the page shows as the try's `views_do_not_fit`.
+  - **Not applied in `model::plan`: a conflict, not wired.** Wired (measured on this branch,
+    rebased on local main b318337), only ctc01 changes sheet (A3 1:5 → 1:10); cgb245 keeps 1:2
+    and gains the info `layout_recovery_exhausted`, which no fixture reads. Six tests go red, all
+    on ctc01, in files other streams own: `known_placement.json` (ctc01 `annotation_off_sheet` 1
+    gone), `known_structural.json` (ctc01 `annotation_out_of_bounds` 1 gone), `known_views.json`
+    (ctc01 scale and every view's scale and centre), `notes.rs::the_block_matches_draftwrights_on_corpus_parts`
+    and `tables.rs::tables_match_draftwrights_on_corpus_parts` (`sheets_compared > 0`: no part
+    left at draftwright's sheet to compare), and
+    `tolerances.rs::ctc01_prints_the_authored_bands_as_draftwright_does`. Wiring is `let first =
+    plan_once(analysis, spec)?; recover(analysis, spec, first)`, with today's body as a private
+    `plan_once` that `recover` re-plans through. Full suite wired: 9:58 wall here, nothing killed.
+  - **Question for the maintainer**: should the recovery act on the port's own placement residuals
+    now? Wired, it halves ctc01 to A3 1:10 to clear one off-sheet label, moving it off
+    draftwright's sheet (draftwright's ladder and gate, applied to the port's findings), while
+    cgb245 stays at 1:2 as in draftwright. The alternative is to wire it once placement no
+    longer leaves ctc01's label off the sheet (d-placement-fit's note above: escalation is not
+    what cgb245 needs, and now does not act there).

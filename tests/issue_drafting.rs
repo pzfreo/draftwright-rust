@@ -57,8 +57,8 @@ fn fixtures() -> &'static [(String, Analysis)] {
 
 /// The sampled sheets' corpus parts (`tests/fixtures/recognition/sheets/`), each with the
 /// features draftwright's own recogniser found for it, checked to be the file the sheet was
-/// captured from; read once for every test here, and none when the corpus is missing. ctc04 is
-/// left out: these tests have not been checked against it since the bridge began reading it.
+/// captured from; read once for every test here, and none when the corpus is missing. All 13,
+/// ctc04 among them since the bridge reads it (d-bridge-area-tolerance).
 fn sampled() -> &'static [(String, Analysis)] {
     static SAMPLED: OnceLock<Vec<(String, Analysis)>> = OnceLock::new();
     SAMPLED.get_or_init(|| {
@@ -70,7 +70,6 @@ fn sampled() -> &'static [(String, Analysis)] {
             .unwrap()
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .filter_map(|f| f.strip_suffix(".json.gz").map(String::from))
-            .filter(|n| n != "ctc04")
             .collect();
         names.sort();
         names
@@ -454,17 +453,19 @@ fn what_the_spec_asks_of_the_views_is_kept_or_reported() {
 }
 
 /// ISSUE-1299-a, in part: a sheet the spec names is never escalated. Pinned alone it takes the
-/// largest standard scale at which the views fit it; pinned with a scale too large for it, both
-/// are kept and the misfit reported. Not ported: draftwright's recovery, which re-plans on its
-/// finished drawing's findings (a larger scale on the same page before a larger sheet); the
-/// port makes the first choice only.
+/// largest standard scale at which the views fit it, and draftwright's recovery
+/// (`model::recover`, which `model::plan` does not apply yet) keeps it, re-planning at most its
+/// scale on that sheet; pinned with a scale too large for it, both are kept, before and after
+/// the recovery, and the misfit reported.
 #[test]
 fn a_sheet_the_spec_names_is_never_escalated() {
     for (name, analysis, _) in planned() {
         for size in ["A4", "A3"] {
-            let pinned =
-                model::plan(analysis, &spec(json!({ "sheet": { "size": size } }))).unwrap();
+            let named = spec(json!({ "sheet": { "size": size } }));
+            let pinned = model::plan(analysis, &named).unwrap();
             assert_eq!(pinned.sheet.size, size, "{name}");
+            let recovered = model::recover(analysis, &named, pinned).unwrap();
+            assert_eq!(recovered.sheet.size, size, "{name}");
             let both = model::plan(
                 analysis,
                 &spec(json!({ "sheet": { "size": size, "scale": "10:1" } })),
@@ -474,6 +475,10 @@ fn a_sheet_the_spec_names_is_never_escalated() {
                 (both.sheet.size.as_str(), both.sheet.scale.as_str()),
                 (size, "10:1")
             );
+            let both_spec = spec(json!({ "sheet": { "size": size, "scale": "10:1" } }));
+            let before = serde_json::to_value(&both).unwrap();
+            let kept = model::recover(analysis, &both_spec, both).unwrap();
+            assert_eq!(serde_json::to_value(&kept).unwrap(), before, "{name}");
         }
     }
 }
@@ -766,9 +771,10 @@ fn a_supplied_date_reaches_the_title_block() {
 
 /// ISSUE-1593-a, in part: nothing is drawn into the title block unreported. On every part, a
 /// placed dimension whose label, lines or arrowheads reach into the title block is the subject
-/// of an `annotation_over_title_block` problem. Not ported: the keep-out itself (the port places
-/// by lanes and reports what collides, as a warning; draftwright relocates the dimension to the
-/// opposite strip, or withholds it as an error and replans onto a sheet that fits).
+/// of an `annotation_over_title_block` problem. The keep-out on draftwright's own cases is
+/// `tests/issue_regressions.rs::the_title_block_keeps_dimensions_out_without_dropping_them`. Not
+/// ported: a dimension with nowhere to go keeps its place, reported as a warning, where
+/// draftwright withholds it as an error and replans onto a sheet that fits.
 #[test]
 fn a_dimension_in_the_title_block_is_reported() {
     for (name, _, plan) in planned() {
@@ -887,13 +893,16 @@ fn fillets_share_a_callout_only_when_their_radii_are_equal() {
 /// ISSUE-1374-c, in part: each turned outside-diameter band carries two requirements, its
 /// diameter and its length, and a band a groove owns is the groove's, not a second step. On every
 /// part, lint's turned-step ledger has exactly those two outcomes for each band it reads, and
-/// none for a groove's band. Not ported: the plan does not dimension turned steps yet
-/// (src/dims/turned.rs), so the grouped length label (exact count, no skipped equal neighbour)
-/// has nothing to check.
+/// none for a groove's band; and the default plan states both for each such band (its own
+/// `step.diameter` and `step.length`, or the overall diameter claiming the band it is,
+/// src/dims/turned.rs), and states neither for a band a groove owns. Not ported: lint's check of
+/// a grouped length label's exact count and that it skips no equal neighbour (lint credits each
+/// band's claim by its printed value).
 #[test]
 fn each_turned_band_carries_its_diameter_and_length() {
     let mut grooved = 0;
-    for (name, analysis, _) in planned() {
+    let mut stated_bands = 0;
+    for (name, analysis, plan) in planned() {
         let Ok(bands) = lint::turned::bands(analysis) else {
             continue;
         };
@@ -914,6 +923,22 @@ fn each_turned_band_carries_its_diameter_and_length() {
                 ["step.length", "step.diameter"],
                 "{name}"
             );
+            if plan.dimensions.iter().any(|d| d.id.contains("/step.")) {
+                for parameter in ["step.diameter", "step.length"] {
+                    assert!(
+                        stated(plan, parameter).contains(b.id.as_str()),
+                        "{name}: {} has no {parameter}",
+                        b.id
+                    );
+                }
+                stated_bands += 1;
+            }
+        }
+        let owned: BTreeSet<&str> = bands.iter().map(|b| b.id.as_str()).collect();
+        for parameter in ["step.diameter", "step.length"] {
+            for f in stated(plan, parameter) {
+                assert!(owned.contains(f), "{name}: {f}'s {parameter} is stated");
+            }
         }
         if bands.len() < steps {
             grooved += 1;
@@ -921,6 +946,7 @@ fn each_turned_band_carries_its_diameter_and_length() {
     }
     if !sampled().is_empty() {
         assert!(grooved > 0, "no sampled part has a band a groove owns");
+        assert!(stated_bands > 0, "no sampled part's plan states a band");
     }
 }
 
@@ -1352,11 +1378,11 @@ fn a_jittered_pattern_claims_no_pitch_tolerance() {
     assert!(e.message.contains(pitch), "{e}");
 }
 
-/// ISSUE-1215-e, in part: an overall extent never leaves the sheet silently. On every part each
+/// ISSUE-1215-e: an overall extent never leaves the sheet silently. On every part each
 /// envelope extent the plan keeps is placed, and one whose ink runs off the drawing area is an
-/// `annotation_off_sheet` error naming it. Not ported: the fall-through to the opposite strip
-/// (the port keeps the extent in its lane and reports it) and draftwright's withholding and its
-/// retraction (the port withholds no extent).
+/// `annotation_off_sheet` error naming it. The fall-through to the opposite strip is checked in
+/// `tests/placement.rs`; draftwright's withholding and its retraction are not-applicable (the
+/// port withholds no extent).
 #[test]
 fn an_overall_extent_is_placed_or_reported() {
     let margin = draftwright::layout::MARGIN;
@@ -1612,11 +1638,12 @@ fn placed_ink_keeps_peer_labels_off_by_the_final_measure() {
 /// and 0.9 mm wide at its tail), that reaches into another item's label box belongs to an item
 /// reported with that label (`annotation_ink_overlap`). It holds because every such arrowhead's
 /// shaft crosses the label too (m10127's side depth); the collision checks themselves test
-/// zero-width centrelines, without the flare or the stroke (see the rule's `rust_note`). The
-/// guard below depends on that one collision, the only arrowhead in a label on any part here
-/// (default plans, and every part pinned to A4 at 1:5, 1:2, 1:1, 2:1 or 5:1, or to A3 at 2:1 or
-/// 5:1): when placement clears it, the guard fails, and the test needs a planted case, which the
-/// public API cannot make.
+/// zero-width centrelines, without the flare or the stroke (see the rule's `rust_note`). Since
+/// callout leaders are placed clear of labels (stream d-callout-leaders, `src/dims/leaders.rs`),
+/// that collision is gone and no part here has an arrowhead in a label (default plans, and the
+/// fixture parts pinned to A4 or A3 at 1:5 to 10:1); the planted case that keeps the check
+/// exercised is `src/dims/placement.rs`'s unit test
+/// `an_arrowhead_and_a_leader_through_other_ink_are_reported`, which the public API cannot make.
 #[test]
 fn an_arrowhead_in_another_label_is_reported() {
     let inside_triangle = |t: [[f64; 2]; 3], b: [f64; 4]| {
@@ -1633,7 +1660,6 @@ fn an_arrowhead_in_another_label_is_reported() {
         })
     };
     let half = draftwright::dims::ARROW / 6.0;
-    let mut seen = 0;
     for (name, _, plan) in planned() {
         for a in &plan.dimensions {
             let Some(pa) = &a.placed else { continue };
@@ -1651,7 +1677,6 @@ fn an_arrowhead_in_another_label_is_reported() {
                         [tail[0] - k * n[0], tail[1] - k * n[1]],
                     ];
                     if inside_triangle(head, pb.label_box) {
-                        seen += 1;
                         assert!(
                             reported_pair(plan, "annotation_ink_overlap", &a.id, &b.id),
                             "{name}: an arrowhead of {} lies in {}'s label unreported",
@@ -1663,21 +1688,17 @@ fn an_arrowhead_in_another_label_is_reported() {
             }
         }
     }
-    if !sampled().is_empty() {
-        assert!(
-            seen > 0,
-            "no arrowhead reaches a label (m10127's side-depth collision is gone?): the check guards nothing"
-        );
-    }
 }
 
 /// ISSUE-1240-a, in part: annotations and the isometric view do not overlap unreported. On every
 /// part with an isometric, each placed label over its drawn box (the projected bounds at its
 /// scale) is an `annotation_over_view` naming `v:iso`. A default plan's label over the isometric
 /// is itself a placement defect (ftc06's, recorded rust-wrong in known_placement.json), so the
-/// check is also run on plate pinned to A3 at 2:1, a scale whose annotations the sheet has no
+/// check is also run on plate pinned to A4 at 5:1, a scale whose annotations the sheet has no
 /// room for (some run off it, reported), where labels crowd onto the isometric and at least one
-/// must: that keeps the check exercised once the defects are fixed. Not ported: clamping a strip
+/// must: that keeps the check exercised once the defects are fixed. (It was A3 at 2:1 until
+/// placement's fall-through to the opposite strip and callouts beside their view, stream
+/// d-placement-fit, found room for every label there.) Not ported: clamping a strip
 /// below an overlapping isometric, and capping the isometric's growth at placed annotations (the
 /// port fits it into the space the views' areas leave, before anything is placed).
 #[test]
@@ -1685,14 +1706,14 @@ fn a_label_over_the_isometric_is_reported() {
     let plate = &fixtures().iter().find(|p| p.0 == "plate").unwrap().1;
     let crowded = model::plan(
         plate,
-        &spec(json!({ "sheet": { "size": "A3", "scale": "2:1" } })),
+        &spec(json!({ "sheet": { "size": "A4", "scale": "5:1" } })),
     )
     .unwrap();
     assert!(codes(&crowded).contains("annotation_off_sheet"));
     let cases = planned()
         .iter()
         .map(|(n, a, p)| (n.as_str(), a, p))
-        .chain([("plate on A3 at 2:1", plate, &crowded)]);
+        .chain([("plate on A4 at 5:1", plate, &crowded)]);
     let mut seen = 0;
     let mut seen_crowded = 0;
     for (name, analysis, plan) in cases {
@@ -1727,7 +1748,7 @@ fn a_label_over_the_isometric_is_reported() {
     );
     assert!(
         seen_crowded > 0,
-        "no label lies over plate's isometric on A3 at 2:1: the check loses its fixed-defect guard"
+        "no label lies over plate's isometric on A4 at 5:1: the check loses its fixed-defect guard"
     );
 }
 
@@ -1930,5 +1951,212 @@ fn a_shoulder_on_the_box_is_reported_not_drawn() {
             "{axis}: {:#?}",
             plan.problems
         );
+    }
+}
+
+/// ISSUE-443-a, in part: on GRM-03's automatic sheet every turned shoulder is located along the
+/// axis, and the isometric is kept. The default plan states draftwright's four step lengths
+/// (0.5, 2, 3 and 18), each placed, keeps the isometric and stays on A4, as draftwright's sheet
+/// does, with no turned step left undimensioned. Not ported: draftwright gets there by re-planning
+/// (its captured sheet is A4 at 5:1, after A4 at 2:1 needed a detail view for the short
+/// shoulders); the port's first fit is A4 at 2:1 and draws the 0.5 shoulder there, 1 mm on the
+/// page, as it has no legibility gate (a maintainer question in docs/next-session.md), so
+/// whether its step lengths are legible at that scale is undetermined.
+#[test]
+fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
+    let Some((_, _, plan)) = planned().iter().find(|p| p.0 == "grm03") else {
+        return;
+    };
+    let facts = facts::load("grm03");
+    let theirs: BTreeSet<&str> = facts
+        .annotations
+        .iter()
+        .filter(|a| a.name.starts_with("m_steplen"))
+        .filter_map(|a| a.label.as_deref())
+        .collect();
+    assert_eq!(theirs, BTreeSet::from(["0.5", "2", "3", "18"]));
+    let ours: BTreeSet<&str> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/step.length@") && d.placed.is_some())
+        .map(|d| d.label.as_str())
+        .collect();
+    assert_eq!(ours, theirs);
+    assert!(facts.views.iter().any(|v| v.name == "iso"));
+    assert!(plan.views.iter().any(|v| v.id == "v:iso"));
+    assert_eq!(
+        (facts.sheet.format.as_str(), facts.sheet.scale.as_str()),
+        ("A4", "5:1")
+    );
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A4", "2:1")
+    );
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| !p.subjects.iter().any(|s| s.starts_with("f:turned_step:"))),
+        "{:#?}",
+        plan.problems
+    );
+}
+
+/// draftwright's hard layout codes as the port reports them: what makes `model::recover`
+/// re-plan (its private `HARD_LAYOUT`, at warning or error).
+const HARD_LAYOUT: [&str; 6] = [
+    "annotation_off_sheet",
+    "annotation_overlap",
+    "annotation_ink_overlap",
+    "title_field_overflow",
+    "page_fit_uncertain",
+    "views_do_not_fit",
+];
+
+/// Every part's default plan with draftwright's recovery applied (`model::recover`, which
+/// `model::plan` does not apply yet: a maintainer question in docs/next-session.md).
+fn recovered() -> &'static [(String, Plan)] {
+    static RECOVERED: OnceLock<Vec<(String, Plan)>> = OnceLock::new();
+    RECOVERED.get_or_init(|| {
+        planned()
+            .iter()
+            .map(|(n, a, p)| {
+                (
+                    n.clone(),
+                    model::recover(a, &Spec::default(), p.clone()).unwrap(),
+                )
+            })
+            .collect()
+    })
+}
+
+/// What the recovery said it tried, from its `layout_replanned` or `layout_recovery_exhausted`
+/// message.
+fn tried(message: &str) -> &str {
+    let from = message
+        .find("Tried ")
+        .or_else(|| message.find(": tried "))
+        .map(|i| i + message[i..].find("ried ").unwrap() + 5)
+        .unwrap_or_else(|| panic!("{message}"));
+    &message[from..]
+}
+
+/// The (feature, parameter) of every hole and turned-step measurement a placed dimension states.
+fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
+    plan.dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .flat_map(|d| &d.measurements)
+        .filter(|m| m.feature.starts_with("f:hole") || m.feature.starts_with("f:turned_step:"))
+        .map(|m| (m.feature.as_str(), m.parameter.as_str()))
+        .collect()
+}
+
+/// ISSUE-1338-a, in part: the sheet is not the first lever. On every part whose first plan the
+/// recovery re-plans or tries to, the first thing tried is another scale on the same sheet, and
+/// a re-planned sheet keeps every hole and turned-shoulder outcome the first plan placed. On the
+/// captured parts that is ctc01 (A3 1:5 → A3 1:10, for a label the port's placement leaves off
+/// the sheet; draftwright tries nothing there) and cgb245 (A2 1:5 tried first, nothing taken, as
+/// in draftwright); GRM-03, the reported part, is kept on A4 at 2:1 with nothing tried, its four
+/// shoulders located (`grm03_locates_every_turned_shoulder_and_keeps_the_isometric`). Not
+/// ported: draftwright reaches 5:1 on A4 for GRM-03 by measuring larger scales against the
+/// recovery detail its estimate reserved, which the port does not plan (not-applicable); the
+/// PMI-mode clause (the port lowers no PMI into the plan, not-applicable); and `model::plan`
+/// does not apply the recovery yet.
+#[test]
+fn the_recovery_tries_the_same_page_first_and_keeps_every_outcome() {
+    let mut moved = BTreeSet::new();
+    for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
+        let Some(said) = after
+            .problems
+            .iter()
+            .find(|p| p.code.starts_with("layout_re"))
+        else {
+            assert_eq!(
+                (&after.sheet.size, &after.sheet.scale),
+                (&first.sheet.size, &first.sheet.scale),
+                "{name}"
+            );
+            continue;
+        };
+        assert!(
+            tried(&said.message).starts_with(&format!("{} at ", first.sheet.size)),
+            "{name}: {}",
+            said.message
+        );
+        if said.code == "layout_replanned" {
+            let kept = hole_and_shoulder_outcomes(after);
+            assert!(
+                hole_and_shoulder_outcomes(first).is_subset(&kept),
+                "{name}: {:?}",
+                hole_and_shoulder_outcomes(first).difference(&kept)
+            );
+        }
+        moved.insert((name.as_str(), said.code.as_str()));
+    }
+    if sampled().is_empty() {
+        return;
+    }
+    assert!(moved.contains(&("ctc01", "layout_replanned")), "{moved:?}");
+    assert!(
+        moved.contains(&("cgb245", "layout_recovery_exhausted")),
+        "{moved:?}"
+    );
+    let grm03 = &recovered().iter().find(|p| p.0 == "grm03").unwrap().1;
+    assert_eq!(
+        (grm03.sheet.size.as_str(), grm03.sheet.scale.as_str()),
+        ("A4", "2:1")
+    );
+}
+
+/// ISSUE-1146-b, in part: the recovery is honest about what it counts. On every part, a plan
+/// with no hard layout finding (at warning or error) is never moved for its other problems
+/// (validation findings, missing ports, an info observation): it is kept, sheet and problems,
+/// unless the recovery says hole locations are too close to read (the one required loss it
+/// counts, `layout::crowded_locations`, from the plan's dimensions whatever their problems'
+/// severity). A plan with one that no try clears keeps its sheet and says so
+/// (`layout_recovery_exhausted`, naming the codes), never silently. Not ported: a scale
+/// policy (strict, permissive) and its vocabulary; the rendering floor (the port's ladder ends
+/// at the largest standard sheet, and says so the same way); an unrelated build error (a plan
+/// that cannot be made is an error before any recovery).
+#[test]
+fn only_layout_findings_move_the_sheet_and_a_failed_recovery_is_said() {
+    for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
+        let hard: BTreeSet<&str> = first
+            .problems
+            .iter()
+            .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+            .map(|p| p.code.as_str())
+            .collect();
+        let said = after
+            .problems
+            .iter()
+            .find(|p| p.code.starts_with("layout_re"));
+        if hard.is_empty() {
+            match said {
+                None => assert_eq!(
+                    serde_json::to_value(after).unwrap(),
+                    serde_json::to_value(first).unwrap(),
+                    "{name}"
+                ),
+                Some(s) => assert!(
+                    s.message.contains("too close to read"),
+                    "{name}: {}",
+                    s.message
+                ),
+            }
+            continue;
+        }
+        let said = said.unwrap_or_else(|| panic!("{name}: {hard:?} and no recovery said"));
+        assert_eq!(said.severity, "info", "{name}");
+        if (&after.sheet.size, &after.sheet.scale) == (&first.sheet.size, &first.sheet.scale) {
+            assert_eq!(said.code, "layout_recovery_exhausted", "{name}");
+            assert!(
+                hard.iter().all(|c| said.message.contains(c)),
+                "{name}: {}",
+                said.message
+            );
+        } else {
+            assert_eq!(said.code, "layout_replanned", "{name}");
+        }
     }
 }

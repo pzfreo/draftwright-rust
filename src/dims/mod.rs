@@ -28,11 +28,14 @@
 //!
 //! **Placement is simple and honest**, not draftwright's solver: linear dimensions stack in lanes
 //! below (horizontal) and right of (vertical) their view, sizes nearest, then locations by
-//! distance, then the overall extent outermost; callouts stack above their view with 45° leaders.
-//! A label another item's ink runs through then moves along its own line (a callout's leader
-//! may turn left) to the nearest clear place, if there is one. Whatever still collides (labels with labels, lines through labels, labels over views, ink off
-//! the sheet, ink past the area its view reserved) is reported as a problem on the dimension's
-//! ID, never silently moved or dropped. Lines crossing other views' outlines or other
+//! distance, then the overall extent outermost. A label another item's ink runs through then
+//! moves along its own line to the nearest clear place, if there is one. Callouts are placed
+//! after, around the dimensions, by draftwright's leader placement ([`leaders`]): a short leader
+//! from the feature's rim to an elbow just outside its view, a horizontal shoulder, assigned
+//! jointly to cross as little as it can. Whatever still collides (labels with labels, lines through labels, labels over views, ink off
+//! the sheet, ink past the area its view reserved, lines across another view) is reported as a
+//! problem on the dimension's ID, never silently moved or dropped. A strip without room on the
+//! page passes its outer lanes to the strip across the view. A dimension's lines crossing other
 //! dimensions' lines are not checked yet. Each item's lane is its place among everything the
 //! defaults would dimension, so omitting one leaves the others where they were (ARCH0003-2), and
 //! the layout reserves the side view's bands for its lanes ([`lanes`]). An item
@@ -49,6 +52,7 @@ mod envelope;
 mod flats;
 mod grooves;
 mod holes;
+mod leaders;
 pub(crate) mod levels;
 mod placement;
 mod recesses;
@@ -567,7 +571,10 @@ pub fn plan(
             w
         })
         .collect();
-    let (sides, lane) = placement::lanes(&frames, all.iter().zip(chosen.iter().copied()));
+    let (mut sides, mut lane) = placement::lanes(&frames, all.iter().zip(chosen.iter().copied()));
+    placement::fall_through(
+        &frames, &all, &chosen, &mut sides, &mut lane, analysis, sheet, views,
+    );
     let mut placed: Vec<Option<Placed>> = all
         .iter()
         .zip(&chosen)
@@ -577,18 +584,9 @@ pub fn plan(
                 .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
         })
         .collect();
-    let rims: Vec<Option<f64>> = all
-        .iter()
-        .zip(&chosen)
-        .zip(&sides)
-        .map(|((w, view), side)| match &w.shape {
-            Shape::Callout { sites } => view
-                .zip(*side)
-                .map(|(v, side)| placement::callout_rim(&frames[v], sites, side)),
-            Shape::Linear { .. } => None,
-        })
-        .collect();
-    placement::settle(&mut placed, &rims, analysis, sheet, views);
+    placement::settle(&mut placed, analysis, sheet, views);
+    let page = placement::Page::new(analysis, sheet, views);
+    let leader_problems = leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page);
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
@@ -671,6 +669,16 @@ pub fn plan(
             ),
             subjects: ids,
         });
+    }
+    // Only what the plan draws: the leaders were placed for every item the part would have.
+    let drawn: BTreeSet<&str> = out.iter().map(|d| d.id.as_str()).collect();
+    for mut p in leader_problems {
+        p.subjects
+            .retain(|s| s.starts_with("v:") || drawn.contains(s.as_str()));
+        if p.subjects.iter().any(|s| !s.starts_with("v:")) {
+            p.id = format!("p:{}:{}", p.code, p.subjects.join("|"));
+            problems.push(p);
+        }
     }
     problems.extend(placement::collisions(analysis, &out, sheet, views));
     Ok((out, omitted, problems))

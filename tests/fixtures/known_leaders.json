@@ -1,0 +1,275 @@
+[
+ {
+  "part": "connector109",
+  "callout": "d:f:chamfer:1/chamfer.length@front",
+  "crossing": "line:d:f:boss:2/boss.diameter@front",
+  "verdict": "rust-wrong",
+  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "connector109",
+  "callout": "d:f:chamfer:1/chamfer.length@front",
+  "crossing": "line:d:f:boss:3/boss.diameter@front",
+  "verdict": "rust-wrong",
+  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "connector109",
+  "callout": "d:f:fillet:1/fillet.radius@front",
+  "crossing": "line:d:f:boss:4/boss.diameter@front",
+  "verdict": "rust-wrong",
+  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "connector109",
+  "callout": "d:f:groove:1/groove.length@front",
+  "crossing": "line:d:f:boss:3/boss.diameter@front",
+  "verdict": "rust-wrong",
+  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "connector109",
+  "callout": "d:f:groove:1/groove.length@front",
+  "crossing": "line:d:f:boss:4/boss.diameter@front",
+  "verdict": "rust-wrong",
+  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "connector109",
+  "callout": "d:f:groove:2/groove.length@front",
+  "crossing": "line:d:f:boss:3/boss.diameter@front",
+  "verdict": "rust-wrong",
+  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "connector109",
+  "callout": "d:f:groove:3/groove.length@front",
+  "crossing": "line:d:f:boss:3/boss.diameter@front",
+  "verdict": "rust-wrong",
+  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "connector109",
+  "callout": "d:f:groove:3/groove.length@front",
+  "crossing": "line:d:f:boss:4/boss.diameter@front",
+  "verdict": "rust-wrong",
+  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:fillet:41/fillet.radius@front",
+  "crossing": "label:d:step_level/step_height.length.h60_604@front",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) this callout's least-blocked leader (every candidate crosses a ladder line or label in the crowded plan or front) runs through, or sets its label against, another dimension's label; reported as annotation_ink_overlap or annotation_overlap. The joint assignment took the fewest crossings its bounded inventory offers."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole:10/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:2/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:10/bore.diameter@plan",
+  "crossing": "label:d:f:slot:3/slot_length.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) this callout's least-blocked leader (every candidate crosses a ladder line or label in the crowded plan or front) runs through, or sets its label against, another dimension's label; reported as annotation_ink_overlap or annotation_overlap. The joint assignment took the fewest crossings its bounded inventory offers."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:10/bore.diameter@plan",
+  "crossing": "line:d:f:hole:11/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:10/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:1/pitch.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:10/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:2/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:10/bore.diameter@plan",
+  "crossing": "line:d:f:slot:2/slot_length.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:10/bore.diameter@plan",
+  "crossing": "line:d:f:slot:6/slot_width.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "label:d:f:slot:3/slot_length.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) this callout's least-blocked leader (every candidate crosses a ladder line or label in the crowded plan or front) runs through, or sets its label against, another dimension's label; reported as annotation_ink_overlap or annotation_overlap. The joint assignment took the fewest crossings its bounded inventory offers."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "line:d:f:hole:11/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:1/pitch.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:10/bore.diameter@plan",
+  "verdict": "rust-wrong",
+  "reason": "Two callout leaders cross on ctc04 (native): both hole patterns' 3× ⌀6.6 sites lie in the plan's centre pockets, among the ladders' extension lines, and the joint assignment found no pair of routes clear of each other and of those lines; it took the fewest crossings. Reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:2/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "line:d:f:slot:1/location_slot_across.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "line:d:f:slot:1/slot_width.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "line:d:f:slot:2/slot_length.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:11/bore.diameter@plan",
+  "crossing": "line:d:f:slot:6/slot_width.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:3/bore.diameter@plan",
+  "crossing": "label:d:f:hole_pattern:2/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) this callout's least-blocked leader (every candidate crosses a ladder line or label in the crowded plan or front) runs through, or sets its label against, another dimension's label; reported as annotation_ink_overlap or annotation_overlap. The joint assignment took the fewest crossings its bounded inventory offers."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:3/bore.diameter@plan",
+  "crossing": "line:d:f:hole:11/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:4/bore.diameter@plan",
+  "crossing": "line:d:f:hole:22/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:4/bore.diameter@plan",
+  "crossing": "line:d:f:hole:23/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:4/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:5/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:4/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:6/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:4/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:6/pitch.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:4/bore.diameter@plan",
+  "crossing": "line:d:f:slot:4/slot_width.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:8/bore.diameter@plan",
+  "crossing": "line:d:f:hole:10/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:8/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:1/pitch.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:8/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:2/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:9/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:5/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:9/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:6/location.length.x@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole_pattern:9/bore.diameter@plan",
+  "crossing": "line:d:f:hole_pattern:6/pitch.length@plan",
+  "verdict": "rust-wrong",
+  "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing."
+ }
+]

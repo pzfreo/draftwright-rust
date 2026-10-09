@@ -366,6 +366,13 @@
       "count": 2,
       "verdict": "rust-correct",
       "reason": "Dimensions not ported yet: the port's own drawing states the envelope (or a turned part's overall diameter and length), hole callouts with locations and pitches, slots, bosses, fillets and chamfers (src/dims/), but not its blends' radii (the port's dimensions have no blend radius callouts yet), and lint reports each requirement missing. Python's sheet of the same part states them, and the port's lint finds nothing missing there (coverage_on_pythons_sheets_matches_pythons_lint_or_is_known). The entry goes when the dimensions state them."
+    },
+    {
+      "part": "m10127",
+      "code": "unrecognised_defining_geometry",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part, message for message (tests/lint_coverage.rs::backstop_on_the_ports_own_drawings_is_known): the opening through m10127's face at y 32.268 is a three-edge loop (a triangle, box x 4.117..12.874, z 19.370..27.307), neither a circle, rectangle, obround or rounded rectangle nor the end of a section recess, so no feature of the drawing vocabulary states it (src/lint/profiles.rs; the loop's verdicts equal draftwright's, pythons_principal_profile_scan_is_reproduced). It is left for definition by hand."
     }
   ],
   "ledgers": [

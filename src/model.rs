@@ -9,7 +9,7 @@
 //! This first cut covers the views (which views, the sheet, the scale and the placement) and a
 //! title block. Features, dimensions and annotations join the same documents as they are ported.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use haecceity::Part;
@@ -23,8 +23,8 @@ use crate::dims::{Omitted, PlannedDimension};
 use crate::layout::{self, Corner, Fallback, MARGIN, Principals, Request, Scaled};
 use crate::notes::{NoteSpec, NotesBlock, PlannedNote};
 use crate::output::{
-    Curve, Drawing, Drawn, DrawnView, HAlign, Item, Kind, Layer, Sheet, TextRun, VAlign,
-    items_bbox, layer_styles, projected,
+    Curve, Drawing, Drawn, DrawnField, DrawnView, HAlign, Item, Kind, Layer, Sheet, TextRun,
+    VAlign, items_bbox, layer_styles, projected,
 };
 use crate::tables::{PlannedTable, TableSpec};
 use crate::text::{Font, Laid, Segment};
@@ -33,14 +33,16 @@ use crate::title_block::{self, TitleCell};
 /// Version 2 added the isometric box (`iso_bounds`) and the recognised features, version 3 the
 /// horizontal face levels (`levels`), version 4 their supports and the step risers
 /// (`level_supports`, `risers`), version 5 the families the recogniser did not give
-/// (`unrecognised`).
-pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/5";
-/// The analyses [`plan`] reads: this version, and versions 2 to 4 (it reads them with none of
+/// (`unrecognised`), version 6 the principal boundary faces' loops lint's profile check reads
+/// (`principal_profiles`).
+pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/6";
+/// The analyses [`plan`] reads: this version, and versions 2 to 5 (it reads them with none of
 /// what they lack).
-pub const ANALYSIS_SCHEMAS: [&str; 4] = [
+pub const ANALYSIS_SCHEMAS: [&str; 5] = [
     "draftwright.analysis/2",
     "draftwright.analysis/3",
     "draftwright.analysis/4",
+    "draftwright.analysis/5",
     ANALYSIS_SCHEMA,
 ];
 pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
@@ -85,6 +87,11 @@ pub struct Analysis {
     /// part's frame): where a prismatic part's steps are located along x and y.
     #[serde(default)]
     pub risers: Vec<Riser>,
+    /// Each solid's principal boundary faces (each solid of a part of several, else the whole
+    /// part), with their loops' edges: what lint's principal profile check judges
+    /// ([`crate::lint::profiles`]), read from the part as draftwright's lint reads it.
+    #[serde(default)]
+    pub principal_profiles: Vec<crate::lint::profiles::Source>,
     /// The families of features the recogniser did not give, so the part may have features of
     /// them that the Analysis lacks: empty for Python quiddity's recognition, which the bridge
     /// reads in full; for Rust quiddity's ([`analyse_native`]), the families its document has
@@ -479,6 +486,7 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
         levels: crate::demand::face_levels(&part),
         level_supports,
         risers,
+        principal_profiles: crate::lint::profiles::evidence(&part),
         unrecognised: Vec::new(),
     };
     let (_, toward, up) = VIEWS[3];
@@ -544,8 +552,8 @@ pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(),
 
 /// The families draftwright reads from Python quiddity that Rust quiddity's recognition document
 /// does not carry: section recesses (pockets, channels, blind slots and circular recesses, as
-/// draftwright reads them) and raised pads.
-pub const NOT_IN_NATIVE_DOCUMENT: [&str; 2] = ["section_recesses", "pads"];
+/// draftwright reads them). Raised pads it carries (`pads`), and they are counted as not read.
+pub const NOT_IN_NATIVE_DOCUMENT: [&str; 1] = ["section_recesses"];
 
 /// Reads the STEP file at *path*, as [`analyse_with`] reads it, with its features from Rust
 /// quiddity's recognition document ([`crate::bridge::native`]) in place of Python quiddity's JSON.
@@ -641,6 +649,208 @@ pub(crate) fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
     )
 }
 
+/// The problems that make a plan's layout invalid for the recovery: draftwright's hard layout
+/// codes (`linting.quality._HARD_LAYOUT_CODES`) as the port reports them (`annotation_off_sheet`
+/// is its `annotation_out_of_bounds`; views that do not fit are its `view_out_of_bounds` and
+/// `view_overlap`). `annotation_over_view` is not one: the port judges it by the view's box,
+/// draftwright's `view_annotation_overlap` by the view's line-work.
+const HARD_LAYOUT: [&str; 6] = [
+    "annotation_off_sheet",
+    "annotation_overlap",
+    "annotation_ink_overlap",
+    "title_field_overflow",
+    "page_fit_uncertain",
+    "views_do_not_fit",
+];
+
+/// A plan's findings for the recovery. The port drops nothing for want of room (an item that
+/// collides is placed and reported; one no shown view carries is kept unplaced, which no sheet
+/// or scale changes), so its completeness tier reads the one required loss draftwright's
+/// blockers have that a scale decides: hole locations too close to dimension legibly
+/// ([`layout::crowded_locations`], draftwright's `location_ref_dropped`), counted per view and
+/// axis, a pattern's centre ordinate apart (draftwright keeps it whatever its spacing).
+fn findings(plan: &Plan) -> layout::Findings {
+    let mut axes: BTreeMap<(&str, &str), Vec<f64>> = BTreeMap::new();
+    for d in &plan.dimensions {
+        let Some(m) = d.measurements.first() else {
+            continue;
+        };
+        let located = matches!(
+            m.parameter.as_str(),
+            "location.length.x" | "location.length.y"
+        );
+        let centre = d
+            .measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:hole_pattern:"));
+        if d.kind == "linear" && located && !centre {
+            axes.entry((d.view.as_str(), m.parameter.as_str()))
+                .or_default()
+                .push(d.value);
+        }
+    }
+    let scale = plan.sheet.scale_factor;
+    layout::Findings {
+        hard: plan
+            .problems
+            .iter()
+            .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+            .count(),
+        dropped: axes
+            .values()
+            .map(|o| layout::crowded_locations(o, scale))
+            .sum(),
+    }
+}
+
+/// What a plan's recovery findings are, in words.
+fn said(f: layout::Findings) -> String {
+    let hard = match f.hard {
+        1 => "1 hard layout finding".to_string(),
+        n => format!("{n} hard layout findings"),
+    };
+    let crowded = match f.dropped {
+        1 => "1 hole location too close to read".to_string(),
+        n => format!("{n} hole locations too close to read"),
+    };
+    match (f.hard, f.dropped) {
+        (0, 0) => "valid and complete".into(),
+        (_, 0) => hard,
+        (0, _) => crowded,
+        _ => format!("{hard}, {crowded}"),
+    }
+}
+
+/// draftwright's bounded layout recovery on a finished plan (ISSUE-1299-a, [`layout::recover`]):
+/// a plan with a hard layout failure is re-planned at the nearest smaller, then the nearest
+/// larger standard scale on its sheet, then on each larger standard sheet; one without, whose
+/// hole locations are too close to read, at the next two larger scales, then each larger sheet;
+/// the first valid and complete one is taken. A scale the spec names is never re-planned
+/// (draftwright resolves an explicit scale apart), a sheet it names is never left, and a valid,
+/// complete plan is kept. The change and what was tried are said (`layout_replanned`), as is a
+/// recovery that found nothing better (`layout_recovery_exhausted`). Each try is a whole
+/// [`plan`] (no projection): six at most.
+///
+/// Unlike draftwright's retries (`try_scales_on_selected_page`, `try_larger_standard_pages`),
+/// which rebuild with the first drawing's settled arrangement and principal views, each try
+/// here is planned afresh at the sheet and scale named, so its arrangement and view set are
+/// chosen again for them. Not ported: draftwright's other candidate gates (a retained recovery
+/// detail, a recognised-requirement regression, the structural replay), whose inputs the port
+/// does not plan; a principal view too large for the page is the try's `views_do_not_fit`.
+///
+/// [`plan`] does not call it yet (an integration decision: docs/next-session.md); applying it
+/// there means re-planning through the unrecovered plan, never through itself.
+pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    if spec.sheet.scale.is_some() {
+        return Ok(first);
+    }
+    let found = findings(&first);
+    let mut tried = Vec::new();
+    let mut last = None;
+    let attempts = layout::recover(
+        first.sheet.scale_factor,
+        first.sheet.page,
+        spec.sheet.size.is_some(),
+        found,
+        &mut |retry| {
+            let mut s = spec.clone();
+            match retry {
+                layout::Retry::Scale(k) => {
+                    s.sheet.size = Some(first.sheet.size.clone());
+                    s.sheet.scale = Some(scale_name(k));
+                }
+                layout::Retry::Sheet(n) => s.sheet.size = Some(n.into()),
+            }
+            let Ok(p) = plan(analysis, &s) else {
+                let at = s.sheet.scale.as_deref().unwrap_or("its scale");
+                tried.push(format!(
+                    "{} at {at} (could not be planned)",
+                    s.sheet.size.as_deref().unwrap_or_default()
+                ));
+                return None;
+            };
+            let f = findings(&p);
+            tried.push(format!(
+                "{} at {} ({})",
+                p.sheet.size,
+                p.sheet.scale,
+                said(f)
+            ));
+            last = Some(p);
+            Some(f)
+        },
+    );
+    if attempts.is_empty() {
+        return Ok(first);
+    }
+    let codes: BTreeSet<&str> = first
+        .problems
+        .iter()
+        .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+        .map(|p| p.code.as_str())
+        .collect();
+    let why = if found.hard > 0 {
+        format!(
+            "{} at {} has {} ({})",
+            first.sheet.size,
+            first.sheet.scale,
+            said(found),
+            codes.into_iter().collect::<Vec<_>>().join(", ")
+        )
+    } else {
+        format!(
+            "{} at {} has {}",
+            first.sheet.size,
+            first.sheet.scale,
+            said(found)
+        )
+    };
+    let scales = if found.hard > 0 {
+        "the nearest smaller, then larger standard scale"
+    } else {
+        "the next two larger standard scales"
+    };
+    let order = if spec.sheet.size.is_some() {
+        format!("{scales} on the sheet the spec names")
+    } else {
+        format!("{scales} on the same sheet, then each larger standard sheet")
+    };
+    let tried = tried.join(", ");
+    match (attempts.last().is_some_and(|a| a.taken), last) {
+        (true, Some(mut p)) => {
+            let to = format!("{} at {}", p.sheet.size, p.sheet.scale);
+            p.sheet.basis = format!(
+                "draftwright's layout recovery: {why}, so {order} was tried, the first valid and complete one taken: {to}"
+            );
+            p.sheet.default = true;
+            p.spec = first.spec;
+            p.problems.push(Problem {
+                id: "p:layout_replanned:sheet".into(),
+                code: "layout_replanned".into(),
+                severity: "info".into(),
+                message: format!(
+                    "The sheet was re-planned: {why}. Tried {tried}; {to} is used. Name a sheet and scale to keep another."
+                ),
+                subjects: vec!["sheet".into()],
+            });
+            Ok(p)
+        }
+        _ => {
+            let mut p = first;
+            p.problems.push(Problem {
+                id: "p:layout_recovery_exhausted:sheet".into(),
+                code: "layout_recovery_exhausted".into(),
+                severity: "info".into(),
+                message: format!(
+                    "{why}; re-planning ({order}) found nothing valid and complete: tried {tried}. The first choice is kept."
+                ),
+                subjects: vec!["sheet".into()],
+            });
+            Ok(p)
+        }
+    }
+}
+
 /// Plans the sheet: which views, where, at what scale and on what sheet, as draftwright's layout
 /// does ([`layout`]): each principal view is a block of its box and the annotation bands reserved
 /// around it, packed third-angle; the isometric takes the largest space left. Each choice the
@@ -649,7 +859,9 @@ pub(crate) fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
 /// The bands, the turned-part view set and section A–A come from the features
 /// ([`crate::demand`]); the height ladder is sized for the steps legible at the scale chosen.
 /// The scale and sheet are draftwright's first choice, before it re-plans on its finished
-/// drawing's findings.
+/// drawing's findings. That recovery is [`recover`], not yet applied here: on the captured parts
+/// it moves only ctc01, for a label the port's placement leaves off the sheet
+/// (docs/next-session.md, ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // A document of a version this build does not know is refused, never read as the nearest
     // one it does (ADR3-4).
@@ -1246,21 +1458,68 @@ pub fn render(
                 None => *undrawn.entry(v.id.clone()).or_default() += 1,
             }
         }
-        if let Some(bbox) = items_bbox(&layers[0].items[visible_from..]) {
+        let visible = &layers[0].items[visible_from..];
+        if let Some(bbox) = items_bbox(visible) {
             sheet.views.push(DrawnView {
                 name: v.id.clone(),
                 bbox,
+                edges: visible
+                    .iter()
+                    .filter_map(|i| match i {
+                        Item::Edge(c) => Some(c.clone()),
+                        Item::Face(_) => None,
+                    })
+                    .collect(),
             });
         }
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
             let f = section_furniture(part, analysis, plan, v, (plane, cut))?;
-            if let Some(ink) = items_bbox(&f.ink) {
-                sheet.items.push(Drawn {
-                    name: "section_ink".into(),
-                    kind: Kind::SectionInk,
-                    ink,
-                    label: None,
-                });
+            // draftwright's pieces, each by its ink: the hatch, the chain line by its line, and
+            // each end's arrowhead and wing stub (`section::cutting_plane`'s order).
+            let mut piece = |name: String, kind: Kind, ink: &[Item], lines: Vec<[[f64; 2]; 2]>| {
+                if let Some(ink) = items_bbox(ink) {
+                    sheet.items.push(Drawn {
+                        name,
+                        kind,
+                        ink,
+                        label: None,
+                        lines,
+                        elbow: None,
+                        interior: false,
+                    });
+                }
+            };
+            piece(
+                "section_hatch".into(),
+                Kind::Hatch,
+                &f.ink[..f.hatch],
+                Vec::new(),
+            );
+            let plane_ink = &f.ink[f.hatch..];
+            if let Some(line) = f.chain {
+                let chain = plane_ink.len() - 4;
+                piece(
+                    "section_line".into(),
+                    Kind::Centreline,
+                    &plane_ink[..chain],
+                    vec![line],
+                );
+                for (k, side) in ["left", "right"].into_iter().enumerate() {
+                    let at = chain + 2 * k;
+                    let (wing, head) = (&plane_ink[at..at + 1], &plane_ink[at + 1..at + 2]);
+                    piece(
+                        format!("section_arrow_{side}"),
+                        Kind::CuttingPlane,
+                        head,
+                        Vec::new(),
+                    );
+                    piece(
+                        format!("section_wing_{side}"),
+                        Kind::CuttingPlane,
+                        wing,
+                        Vec::new(),
+                    );
+                }
             }
             // draftwright's names: the caption, then the cutting plane's letters.
             let l = cut.label.to_lowercase();
@@ -1300,11 +1559,19 @@ pub fn render(
         let from = layers[2].items.len();
         let drawn = crate::dims::render(std::slice::from_ref(d), &mut layers[2].items, &mut text);
         if let (Some(a), Some(ink)) = (drawn.first(), items_bbox(&layers[2].items[from..])) {
+            let placed = d.placed.as_ref();
             sheet.items.push(Drawn {
                 name: a.name.clone(),
                 kind: Kind::Dimension,
                 ink,
-                label: d.placed.as_ref().map(|p| p.label_box),
+                label: placed.map(|p| p.label_box),
+                lines: placed.map(|p| p.lines.clone()).unwrap_or_default(),
+                // A callout's leader runs from its tip to its elbow, then along its shoulder.
+                elbow: placed
+                    .filter(|_| d.kind == "callout")
+                    .and_then(|p| p.lines.first())
+                    .map(|l| l[1]),
+                interior: false,
             });
         }
         annotations.extend(drawn);
@@ -1363,6 +1630,9 @@ pub fn render(
             kind,
             ink: b,
             label: Some(b),
+            lines: Vec::new(),
+            elbow: None,
+            interior: false,
         })
     };
     for ((s, at), name) in captions.iter().zip(&caption_names) {
@@ -1394,12 +1664,20 @@ pub fn render(
         if let Some(v) = &c.value {
             let centre = [0.5 * (x0 + x1), 0.5 * (y0 + y1)];
             let run = (v.as_str(), title_block::FONT, title_block::TEXT);
+            let from = dims.len();
             label(
                 title_block::lay(v, title_block::TEXT),
                 centre,
                 dims,
                 Some(run),
             );
+            if let Some(ink) = items_bbox(&dims[from..]) {
+                sheet.fields.push(DrawnField {
+                    field: c.field.clone(),
+                    cell: c.cell,
+                    ink,
+                });
+            }
         }
     }
     // The block's outline and every cell's ink.
@@ -1412,11 +1690,23 @@ pub fn render(
             b[3].max(outline[3]),
         ]
     });
+    // Its rules: the outline, and each cell's divider.
+    let outline_rules = [[tx0, ty0], [tx1, ty0], [tx1, outline[3]], [tx0, outline[3]]];
+    let mut rules: Vec<[[f64; 2]; 2]> = (0..4)
+        .map(|k| [outline_rules[k], outline_rules[(k + 1) % 4]])
+        .collect();
+    rules.extend(dims[title_from..].iter().filter_map(|i| match i {
+        Item::Edge(Curve::Line(a, b)) => Some([*a, *b]),
+        _ => None,
+    }));
     sheet.items.push(Drawn {
         name: "title_block".into(),
         kind: Kind::TitleBlock,
         ink,
         label: None,
+        lines: rules,
+        elbow: None,
+        interior: false,
     });
     // The general notes: the block's rules, and each row centred on its planned ink, searchable.
     let notes_from = dims.len();
@@ -1436,6 +1726,9 @@ pub fn render(
             kind: Kind::Notes,
             ink,
             label: None,
+            lines: Vec::new(),
+            elbow: None,
+            interior: false,
         });
     }
     // The tables: each one's rules, and each cell centred on its planned ink, searchable.
@@ -1456,6 +1749,9 @@ pub fn render(
                 kind: Kind::Table,
                 ink,
                 label: None,
+                lines: Vec::new(),
+                elbow: None,
+                interior: false,
             });
         }
     }
@@ -1485,9 +1781,14 @@ pub fn render(
     })
 }
 
-/// A section view's furniture: ink, and texts with where each is centred.
+/// A section view's furniture: ink (the hatch's first lines, then the cutting plane's), and
+/// texts with where each is centred.
 struct Furniture {
     ink: Vec<Item>,
+    /// How many of the ink's first items are the hatch.
+    hatch: usize,
+    /// The cutting plane's chain line, end to end, when it is drawn.
+    chain: Option<[[f64; 2]; 2]>,
     text: Vec<(String, [f64; 2])>,
 }
 
@@ -1503,6 +1804,8 @@ fn section_furniture(
     use crate::section::{HATCH_SPACING, OVERRUN, cutting_plane, hatch};
     let mut out = Furniture {
         ink: Vec::new(),
+        hatch: 0,
+        chain: None,
         text: Vec::new(),
     };
     let view = &View::new(v.direction, v.up).expect("a planned view");
@@ -1541,6 +1844,7 @@ fn section_furniture(
     for [a, b] in hatch(&page, HATCH_SPACING, Some(&inside)) {
         out.ink.push(Item::Edge(Curve::Line(a, b)));
     }
+    out.hatch = out.ink.len();
     let half_h = 0.5 * extent(analysis, view).0[1] * v.scale;
     let l = &cut.label;
     out.text.push((
@@ -1565,8 +1869,10 @@ fn section_furniture(
             to_page([hi[0], cut.origin[1], hi[2]]),
         );
         let (x0, x1) = (a[0].min(b[0]) - OVERRUN, a[0].max(b[0]) + OVERRUN);
-        let (ink, letters) = cutting_plane(x0, x1, to_page(cut.origin)[1]);
+        let y = to_page(cut.origin)[1];
+        let (ink, letters) = cutting_plane(x0, x1, y);
         out.ink.extend(ink);
+        out.chain = Some([[x0, y], [x1, y]]);
         out.text.extend(letters.map(|at| (l.clone(), at)));
     }
     Ok(out)

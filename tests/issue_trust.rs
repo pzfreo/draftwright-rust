@@ -51,8 +51,8 @@ const FIXTURES: [&str; 4] = ["plate", "turned", "prismatic", "two_grids"];
 /// The sampled sheets' corpus parts (`tests/fixtures/recognition/sheets/`), each with the
 /// features draftwright's own recogniser found for it and checked to be the very file the
 /// sheet was captured from (ISSUE-1336-a); read once for every test here, and none when the
-/// corpus is missing. ctc04 is left out: these tests have not been checked against it since
-/// the bridge began reading it.
+/// corpus is missing. All 13, ctc04 among them since the bridge reads it
+/// (d-bridge-area-tolerance).
 fn sampled() -> &'static [(String, Analysis)] {
     static SAMPLED: OnceLock<Vec<(String, Analysis)>> = OnceLock::new();
     SAMPLED.get_or_init(|| {
@@ -64,7 +64,6 @@ fn sampled() -> &'static [(String, Analysis)] {
             .unwrap()
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .filter_map(|f| f.strip_suffix(".json.gz").map(String::from))
-            .filter(|n| n != "ctc04")
             .collect();
         names.sort();
         names
@@ -425,12 +424,15 @@ fn a_claim_is_credited_only_when_its_text_states_the_value() {
             .iter()
             .map(|m| (m.as_str(), "bore.diameter"))
             .collect();
+        // Hole coverage's findings: the diameter backstop (`feature_not_dimensioned`) also
+        // reports a misprinted diameter, as draftwright's does.
         lint::check(&analysis, &[mark(text, &claims)])
             .into_iter()
             .filter(|i| {
-                i.requirements
-                    .iter()
-                    .any(|r| r.parameter == "bore.diameter")
+                i.code.starts_with("hole_requirement_")
+                    && i.requirements
+                        .iter()
+                        .any(|r| r.parameter == "bore.diameter")
             })
             .map(|i| i.code)
             .collect()
@@ -829,7 +831,7 @@ fn corpus_fixtures_are_bound_to_their_files() {
         return;
     };
     let parts = sampled();
-    assert_eq!(parts.len(), 12);
+    assert_eq!(parts.len(), 13);
     let (part, mut analysis) =
         model::analyse(&dir.join(facts::load("ftc06").binding.file)).unwrap();
     let e = model::recognise(&part, &mut analysis, &sheet_recognition("ctc01")).unwrap_err();

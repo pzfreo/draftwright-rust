@@ -1,0 +1,98 @@
+[
+ {
+  "part": "cgb245",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "16 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "cgb245",
+  "code": "feature_not_located",
+  "python": "2 hole(s) have no locating dimension",
+  "rust": null,
+  "verdict": "rust-correct",
+  "reason": "draftwright's sheet locates the two ø10 holes at (±182, 72.249) along x (m_locx0, m_locx8) but not along y: no location.y fact names them and no witness lies within 0.6 mm of their projected y (tests/fixtures/lint_coverage/python.json.gz). The port's drawing locates both along y too (d:f:hole:1/location.length.y@plan, 156.4, claims f:hole:1 and f:hole:2), so lint finds every hole located."
+ },
+ {
+  "part": "connector109",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "1 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "ctc01",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "10 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "ftc06",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "12 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "grm03",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "1 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "hanger",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "2 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "m10127",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "2 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "spool132",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "31 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "string_post",
+  "code": "feature_no_centermark",
+  "python": null,
+  "rust": "2 hole(s) have no centre mark",
+  "verdict": "rust-wrong",
+  "reason": "The port draws no centre marks (the Drawing records none; output::Kind has no centre mark), so every hole of its drawing is unmarked, and the finding is true of that drawing; draftwright marks each hole in its end-on view and finds none missing. Wrong in the drawing, not in lint: lint::check does not run this check until centre marks are drawn."
+ },
+ {
+  "part": "m10046",
+  "code": "pocket_not_located",
+  "python": "1 blind pocket(s) have no complete X/Y location scheme",
+  "rust": null,
+  "verdict": "rust-correct",
+  "reason": "draftwright's sheet drops both position dimensions of its pocket0 (the 2 × 2 pocket cut along y at (22.963, 5.279, 7.691): two pocket_dim_dropped, 'position dim not placed (no room beside the front)'), so its lint truthfully finds the pocket unlocated. The port's drawing places them (location_pocket.x and location_pocket.z, tests/dims_recesses.rs::m10046_pocket_is_called_out_and_located_in_the_view_that_looks_into_it), and lint::prismatic finds the pocket located. On draftwright's sheet the port's pocket ledger also finds both locations missing (known_lint.json python_sheets, equivalent)."
+ },
+ {
+  "part": "plates_pads_levels_and_slanted_steps",
+  "code": "pad_footprint_not_defined",
+  "python": null,
+  "rust": "1 rectangular raised pad(s) lack footprint size, attachment-axis height, or in-plane location dimensions",
+  "verdict": "rust-correct",
+  "reason": "Dimensions not ported yet: the port's dimensions have no pad planner (src/dims/ states no pad_width, pad_length, pad_height or location_pad), so its drawing of this part leaves the pad's sizes, height and location unstated and lint::prismatic finds the pad undefined, as lint::pads finds each requirement missing. draftwright's sheet states them and its lint finds nothing. The entry goes when the dimensions state pads."
+ }
+]

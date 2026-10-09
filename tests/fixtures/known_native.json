@@ -8868,5 +8868,215 @@
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment restates the plate's thickness, 16.485: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.long_direction",
+    "python": "[-0.866025,-0.5,0.0]",
+    "rust": "[0.866025,0.5,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source.frame.u",
+    "python": "[0.0,1.0,0.0]",
+    "rust": "[1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source.frame.v",
+    "python": "[-1.0,0.0,0.0]",
+    "rust": "[0.0,1.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source.section.boundary",
+    "python": "[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]",
+    "rust": "[{\"bulge\":0.0,\"point\":[-11.8923,-3.4019]},{\"bulge\":0.0,\"point\":[-8.8923,-8.5981]},{\"bulge\":0.0,\"point\":[11.8923,3.4019]},{\"bulge\":0.0,\"point\":[8.8923,8.5981]}]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). The section's vertices are in (u, v), so they follow the basis: Python's (u, v) is the part's (y, -x), quiddity-rust's (x, y), and Python's (-8.5981, 8.8923) is the part's (-8.8923, -8.5981), one of quiddity-rust's vertices; the walk starts elsewhere. Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.long_direction",
+    "python": "[-0.866025,-0.5,0.0]",
+    "rust": "[0.866025,0.5,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.source.frame.u",
+    "python": "[0.0,1.0,0.0]",
+    "rust": "[1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.source.frame.v",
+    "python": "[-1.0,0.0,0.0]",
+    "rust": "[0.0,1.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.source.section.boundary",
+    "python": "[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]",
+    "rust": "[{\"bulge\":0.0,\"point\":[-11.8923,-3.4019]},{\"bulge\":0.0,\"point\":[-8.8923,-8.5981]},{\"bulge\":0.0,\"point\":[11.8923,3.4019]},{\"bulge\":0.0,\"point\":[8.8923,8.5981]}]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). The section's vertices are in (u, v), so they follow the basis: Python's (u, v) is the part's (y, -x), quiddity-rust's (x, y), and Python's (-8.5981, 8.8923) is the part's (-8.8923, -8.5981), one of quiddity-rust's vertices; the walk starts elsewhere. Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.long_direction",
+    "python": "[-0.866025,-0.5,0.0]",
+    "rust": "[0.866025,0.5,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.source.frame.u",
+    "python": "[0.0,1.0,0.0]",
+    "rust": "[1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.source.frame.v",
+    "python": "[-1.0,0.0,0.0]",
+    "rust": "[0.0,1.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.source.section.boundary",
+    "python": "[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]",
+    "rust": "[{\"bulge\":0.0,\"point\":[-11.8923,-3.4019]},{\"bulge\":0.0,\"point\":[-8.8923,-8.5981]},{\"bulge\":0.0,\"point\":[11.8923,3.4019]},{\"bulge\":0.0,\"point\":[8.8923,8.5981]}]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). The section's vertices are in (u, v), so they follow the basis: Python's (u, v) is the part's (y, -x), quiddity-rust's (x, y), and Python's (-8.5981, 8.8923) is the part's (-8.8923, -8.5981), one of quiddity-rust's vertices; the walk starts elsewhere. Checked for each slot: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates from origin, run, u and v) is the same eight points on both sides, its width, length, centre, ends, faces and body key agree, and its run, width and long directions agree up to sense. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "oriented_slot_patterns[0]",
+    "field": "members",
+    "python": "[\"f:oriented_slot:3\", \"f:oriented_slot:2\", \"f:oriented_slot:1\"]",
+    "rust": "[\"f:oriented_slot:1\", \"f:oriented_slot:2\", \"f:oriented_slot:3\"]",
+    "verdict": "equivalent",
+    "evidence": "The same three oriented slots (native ones named by their Python pairs), listed in the opposite order: each lists them along its own direction, whose sense differs (see this pattern's direction). Neither reader makes the pattern a feature (the bridge's DERIVED_NOT_READ; draftwright gives oriented slot arrays no drafting grammar, #1430), so nothing reads the order."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "oriented_slot_patterns[0]",
+    "field": "parameters.direction",
+    "python": "[-1.0,0.0,0.0]",
+    "rust": "[1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "The array's direction as a line, its sense reversed: Python's [0, 0, 1] in its working frame is the part's -x, and quiddity-rust's in the file's frame runs the members the other way. The pitch (30) agrees, and no pattern is read as a feature by either reader (DERIVED_NOT_READ, #1430)."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "oriented_slot_patterns[0]",
+    "field": "parameters.named_dimensions",
+    "python": "{\"center_spacing\":30.0,\"direction\":[-1.0,0.0,0.0]}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes the record carries: center_spacing is the pitch (30) and direction the direction. The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and the pattern is not a feature on either path, so nothing reads them."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source.frame.origin",
+    "python": "[7.682866,16.987716,4.010762]",
+    "rust": "[0.0,16.987,4.01]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). The origin is a point on the run line: Python's lies at the run's other end (x 7.683) and quiddity-rust's at x 0, and across the run they agree to 0.001 (Python rounds its origin in its working frame, quiddity-rust in the file's). Checked: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates) is the same eight points on both sides to 0.001, the step each side rounds its origin to in its own frame (Python rounds in its working frame, whose origin is (7.683, 16.285, 8.686) and axes (-z, -x, y) in the part's; quiddity-rust in the file's), and its width, length, centre, ends, faces and body key agree. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source.frame.run",
+    "python": "[-1.0,0.0,0.0]",
+    "rust": "[1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates) is the same eight points on both sides to 0.001, the step each side rounds its origin to in its own frame (Python rounds in its working frame, whose origin is (7.683, 16.285, 8.686) and axes (-z, -x, y) in the part's; quiddity-rust in the file's), and its width, length, centre, ends, faces and body key agree. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source.frame.v",
+    "python": "[0.0,0.0,-1.0]",
+    "rust": "[0.0,0.0,1.0]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). v = run x u, so it reverses with the run. Checked: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates) is the same eight points on both sides to 0.001, the step each side rounds its origin to in its own frame (Python rounds in its working frame, whose origin is (7.683, 16.285, 8.686) and axes (-z, -x, y) in the part's; quiddity-rust in the file's), and its width, length, centre, ends, faces and body key agree. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source.run_interval",
+    "python": "[-6.944,7.683]",
+    "rust": "[0.0,14.627]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). The interval is measured along the run from the origin: Python's [-6.944, 7.683] along -x from x 7.683 and quiddity-rust's [0, 14.627] along +x from x 0 are both x in [0, 14.627]. Checked: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates) is the same eight points on both sides to 0.001, the step each side rounds its origin to in its own frame (Python rounds in its working frame, whose origin is (7.683, 16.285, 8.686) and axes (-z, -x, y) in the part's; quiddity-rust in the file's), and its width, length, centre, ends, faces and body key agree. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source.section.boundary",
+    "python": "[{\"bulge\":0.0,\"point\":[-2.4783,0.137]},{\"bulge\":0.0,\"point\":[1.5727,-1.9203]},{\"bulge\":0.0,\"point\":[2.4783,-0.137]},{\"bulge\":0.0,\"point\":[-1.5727,1.9203]}]",
+    "rust": "[{\"bulge\":0.0,\"point\":[-2.4783,-0.137]},{\"bulge\":0.0,\"point\":[-1.5727,-1.9203]},{\"bulge\":0.0,\"point\":[2.4783,0.137]},{\"bulge\":0.0,\"point\":[1.5727,1.9203]}]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). The section's vertices are in (u, v), and v is reversed (see this slot's source.frame.v), so each vertex's second coordinate is negated (to the 0.001 rounding) and the walk runs the other way. Checked: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates) is the same eight points on both sides to 0.001, the step each side rounds its origin to in its own frame (Python rounds in its working frame, whose origin is (7.683, 16.285, 8.686) and axes (-z, -x, y) in the part's; quiddity-rust in the file's), and its width, length, centre, ends, faces and body key agree. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.width_direction",
+    "python": "[0.0,0.452785,-0.89162]",
+    "rust": "[0.0,-0.452785,0.89162]",
+    "verdict": "equivalent",
+    "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates) is the same eight points on both sides to 0.001, the step each side rounds its origin to in its own frame (Python rounds in its working frame, whose origin is (7.683, 16.285, 8.686) and axes (-z, -x, y) in the part's; quiddity-rust in the file's), and its width, length, centre, ends, faces and body key agree. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
   }
 ]

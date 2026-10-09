@@ -17,8 +17,8 @@
       - "tests/test_issue_367_leader_ink.py::test_zero_length_leader_uses_its_local_ink_extent"
     corpus_parts: []
   status: pending
-  rust_test: "tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported"
-  rust_note: "Not ported, checked on the drawings only: the collision checks (src/dims/placement.rs::settle and collisions) test a line's zero-width centreline against a label's box and leave out the arrowhead's flare (2.7 by 0.9 mm as drawn) and the stroke width, so a flare-only contact would go unreported. The test checks that every drawn arrowhead reaching into another label on the fixtures and sampled parts is reported; it holds because each such shaft crosses the label too (m10127's side depth). No part here has a flare-only contact, so the gap is not shown failing. The test's guard that it saw an arrowhead in a label depends on that one m10127 collision, the only one on any part here (default plans, and every part pinned to A4 at 1:5 to 5:1 or A3 at 2:1 and 5:1); when placement clears it, the guard fails and the test needs a planted case, which the public API cannot make."
+  rust_test: "src/dims/placement.rs::tests::an_arrowhead_and_a_leader_through_other_ink_are_reported"
+  rust_note: "Not ported: the collision checks (src/dims/placement.rs::settle and collisions) and the callout leaders' placement (src/dims/leaders.rs) test a line's zero-width centreline against a label's box and leave out the arrowhead's flare (2.7 by 0.9 mm as drawn) and the stroke width, so a flare-only contact would go unreported. tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported checks that every drawn arrowhead reaching into another label on the fixtures and sampled parts is reported; since stream d-callout-leaders no part there has one (m10127's side-depth collision, the only one before, is gone), so the planted unit test above keeps the check exercised: an arrowhead whose shaft runs through another label is reported. No case has a flare-only contact, so the gap is not shown failing."
   port_note: "Keep: unit test on the leader-ink collision primitive (arrow + stroked shaft polygons) used by the layout solver."
 
 - id: ISSUE-367-b
@@ -45,6 +45,8 @@
       - "tests/test_issue_443_grm03_axial_coverage.py::test_grm03_detail_caption_fits_the_selected_a4_sheet"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
   status: pending
+  rust_test: "tests/issue_drafting.rs::grm03_locates_every_turned_shoulder_and_keeps_the_isometric"
+  rust_note: "Partial: on GRM-03 the default plan states and places draftwright's four step lengths (0.5, 2, 3, 18; its captured sheet's), keeps the isometric, stays on A4 and leaves no turned step undimensioned (src/dims/turned.rs). Not ported: draftwright reaches its sheet by re-planning (A4 at 2:1 needed a detail view for the short shoulders, so it took 5:1); the port's first fit is A4 at 2:1, where the 0.5 shoulder is 1 mm on the page, because it has no legibility gate (a maintainer question in docs/next-session.md). Whether its step lengths are legible there is undetermined; the detail caption has nothing to fit (no detail views)."
   port_note: "Keep: scenario test GRM-03 STEP + default spec -> plan locates every shoulder, no axial-coverage problems, iso retained."
 
 - id: ISSUE-443-b
@@ -168,7 +170,9 @@
       - "tests/test_issue_740_leader_assignment.py::test_bounded_solver_matches_exhaustive_lexicographic_oracle"
       - "tests/test_issue_740_leader_assignment.py::test_public_render_is_crossing_free_and_pair_budget_is_legacy_floor"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "src/dims/leaders.rs::tests::the_assignment_matches_an_exhaustive_oracle"
+  rust_note: "src/dims/leaders.rs::assign assigns every callout's leader jointly: fewest hard blockers, then fewest crossings (with the placed dimensions and between the chosen leaders), then least total length, checked against an exhaustive oracle and, as a scenario, on the captured parts and cgb245/ctc04 natively (tests/leaders.rs::callout_leaders_cross_nothing_unlisted). The port never drops a callout for want of a clear route (ISSUE-798-a), so 'maximise the number placed' is every callout, with crossings counted instead of conflicting leaders dropped; all callouts are required (the port has no optional leader jobs)."
   port_note: "Keep: unit test the leader assignment solver against an exhaustive oracle; scenario test for crossing-free result."
 
 - id: ISSUE-740-b
@@ -182,8 +186,9 @@
       - "tests/test_issue_740_leader_assignment.py::test_bounded_legacy_fallback_preserves_drop_diagnostic"
       - "tests/test_issue_740_leader_assignment.py::test_pure_assignment_rejects_malformed_numeric_inputs"
     corpus_parts: []
-  status: pending
-  rust_note: "Not ported: there is no leader-assignment solver or work budget; placement is fixed lanes (src/dims/placement.rs). Plans are deterministic to the byte (tests/model.rs::the_same_documents_give_the_same_bytes), which covers determinism for the present placement only."
+  status: ported
+  rust_test: "src/dims/leaders.rs::tests::a_large_group_is_bounded_and_deterministic"
+  rust_note: "Costs are whole micrometres, so sub-micron noise cannot reorder candidates; ties keep generation and job order; each group of conflicting jobs is searched from its greedy assignment up to NODE_BUDGET nodes and keeps the best found, never worse than the greedy floor; every candidate search is bounded (MAX_STATIONS, DIRECTIONS, MAX_SITES, KEEP). Budget exhaustion drops nothing (every callout is placed), so there is no drop diagnostic to keep; a group whose search stopped at the budget is the structured plan problem annotation_leader_search_capped (info) naming its callouts (src/dims/leaders.rs::place; the test asserts the fired budget is returned)."
   port_note: "Keep: determinism + budget-fallback tests on the solver; budget exhaustion yields a structured problem, never a silent drop."
 
 - id: ISSUE-740-c
@@ -195,7 +200,8 @@
       - "tests/test_issue_740_leader_assignment.py::test_late_joint_assignment_stays_scoped_to_the_post_drain_adapters"
       - "tests/test_issue_740_leader_assignment.py::test_pre_drain_pattern_keeps_legacy_greedy_semantics"
     corpus_parts: []
-  status: pending
+  status: retired
+  why: "R4 (accepted 2026-10-07): There is no drain: a Spec edit is re-planned whole by the one plan (as ADR2-6). Every callout's leader is placed in one stage, after the linear dimensions are settled, and assigned jointly (src/dims/leaders.rs::place, called once from dims::plan), so there is no pre-drain greedy stage to keep apart."
   port_note: "Retire: intent-drain staging; Rust plans all leaders in one solve."
 
 - id: ISSUE-798-a
@@ -210,7 +216,9 @@
       - "tests/test_issue_798_floor_cardinality.py::test_a_clear_route_still_wins_immediately"
       - "tests/test_issue_798_floor_cardinality.py::test_a_job_with_no_acceptable_candidate_at_all_is_dropped"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "tests/leaders.rs::a_leader_has_a_horizontal_shoulder_and_reads_outward"
+  rust_note: "A callout whose every candidate is blocked takes the least blocked (src/dims/leaders.rs: hard blockers, then crossings, then length), and the plan reports what it still crosses (annotation_leader_crossing, annotation_ink_overlap, annotation_over_view, ...). No callout is dropped for routing; only an item no shown view can carry is unplaced (view_plan_incomplete). Material cutting is the leader re-entering its view's box (the plan has no projected material; ADR2-8)."
   port_note: "Keep: leader router unit test; plan records the crossing as a problem rather than dropping the callout."
 
 - id: ISSUE-798-b
@@ -374,7 +382,9 @@
       - "tests/test_issue_916_pocket_leader.py::test_pocket_rim_tip_is_axis_independent"
       - "tests/test_issue_916_pocket_leader.py::test_approved_pocket_sizes_map_to_the_matching_rim_axis"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "tests/issue_regressions.rs::a_pocket_leader_starts_on_its_rim_on_the_matching_axis"
+  rust_note: "On draftwright's blind pocket (square, and 22 × 14 cut along z, x and y) and two pockets with a cylindrical mouth (tests/fixtures/recognition/issues/, quiddity 0.3.9), the callout is in the view that looks into the pocket and its tip is the midpoint of one of the rim's sides, on the matching size's centre line (src/dims/recesses.rs: the leader's sites are the four side walls' midpoints; src/dims/leaders.rs chooses one); both exits occur. Leaving cleanly: no plan problem but annotation_outside_area (info) names the callout, the sheet lint finds nothing, and a leader taken back across its own view would be reported (annotation_line_over_view). Differences: draftwright accepts a tip anywhere along a side, the port takes a side's midpoint (equivalent); draftwright's case that forces the width exit by planting notes in the other corridors has no counterpart (the spec places no notes there). The pockets' location labels print 35.0 where draftwright's print 35: the recognition document rounds the record to 0.001 mm in quiddity's working frame, whose origin is off that grid, so the port reads 34.9996 (rust-wrong in what is printed, from the input; draftwright's own run reads the shape exactly)."
   port_note: "Keep: plan leader tip lies on the pocket rim edge."
 
 - id: ISSUE-917-a
@@ -390,6 +400,8 @@
       - "tests/test_issue_917_open_channel.py::test_wrong_channel_identity_cannot_clear_the_physical_transition_warning"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_regressions.rs::an_open_channel_is_one_feature_with_one_width"
+  rust_note: "Partial: on draftwright's base-and-walls channel (walls 12.5 and 12.5, and 10 and 15, pierced by a counterbored hole and a cross hole) the plan states one channel width, 25, the overall width and depth (50, 50) and draftwright's two hole callouts; a pocket bounded on all sides is a pocket (20 × 30 × 8 DEEP), and a centred rebate is left to the height ladder (shoulders 20 and 40, as draftwright), its recess reported. Not ported: the independent wall thickness (draftwright's 12.5, or 10 with the opposite wall derived) and the base's 12, because plate thickness is not dimensioned (each plate is reported dimensions_not_ported; the plate-thickness scoping in docs/next-session.md); lint reports that gap on the port's own drawing, its one finding being channel_requirement_missing for the wall's plate thickness.length (12.5, or 10), where draftwright states it and its lint finds nothing of the channel."
   port_note: "Keep: scenario test on synthetic channel parts -> plan has one channel chain without redundant wall dimension."
 
 - id: ISSUE-924-a
@@ -632,7 +644,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_trust.rs::asking_for_less_never_buys_silence"
-  rust_note: "Partly ported, for what lint checks: on the four fixture parts, omitting any one dimension never takes a lint finding away, omitting one that states a requirement lint counts adds a finding, and dropping every dimension adds findings of codes the full drawing does not have. Not ported: there is no score or summary (so no 'not a quality verdict' statement), and omitting a dimension lint does not count yet (overall extents, hole and pattern locations, pitches) costs no finding, so silence can still be bought there until those coverage rules are ported."
+  rust_note: "Partly ported, for what lint checks: on the four fixture parts, omitting any one dimension never takes a lint finding away, omitting one that states a requirement lint counts adds a finding, and dropping every dimension adds findings of codes the full drawing does not have. A lone hole's location off the part's centre now counts too (feature_not_located: tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported). Not ported: there is no score or summary (so no 'not a quality verdict' statement), and omitting a dimension lint does not count yet (overall extents, pattern locations and pitches) costs no finding, so silence can still be bought there until those coverage rules are ported."
   port_note: "Keep: property test: removing spec items never reduces plan problems' completeness count."
 
 - id: ISSUE-1130-a
@@ -676,7 +688,7 @@
     corpus_parts: []
   status: ported
   rust_test: "tests/issue_drafting.rs::a_hole_callout_claims_everything_it_prints"
-  rust_note: "Checked on the five fixtures and twelve sampled parts: every number a hole callout prints (bore, depth, recesses, countersink, bolt circle) is the value of a measurement it claims and every claimed measurement is printed, and the drawn annotation carries the plan's claims and prints its label as one run. The port prints every callout on one line and never wraps, so no branch can lose its label (the wrapping clause is not-applicable); a callout without claims cannot be built (src/dims/holes.rs makes the terms and measurements together)."
+  rust_note: "Checked on the five fixtures and thirteen sampled parts (ctc04 among them): every number a hole callout prints (bore, depth, recesses, countersink, bolt circle) is the value of a measurement it claims and every claimed measurement is printed, and the drawn annotation carries the plan's claims and prints its label as one run. The port prints every callout on one line and never wraps, so no branch can lose its label (the wrapping clause is not-applicable); a callout without claims cannot be built (src/dims/holes.rs makes the terms and measurements together)."
   port_note: "Keep: plan callout elements are structured (terms), renderer wraps from structure."
 
 - id: ISSUE-1142-b
@@ -708,7 +720,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them"
-  rust_note: "Ported for hole callouts: lint's requirements come from the Analysis alone (it never reads the Spec), so omitting a callout or every dimension leaves every requirement counted and reported missing, and without recognition there are none. Not ported: hole and pattern location requirements (lint does not check locations yet) and a completeness score."
+  rust_note: "Ported for hole callouts: lint's requirements come from the Analysis alone (it never reads the Spec), so omitting a callout or every dimension leaves every requirement counted and reported missing, and without recognition there are none. Locations, in part: a lone hole off the part's centre whose location is left out is reported by the coverage backstop (feature_not_located, naming each axis's location.length.<axis>), and one whose callout is left out by feature_not_dimensioned besides hole coverage, as draftwright reports them on its single hole (tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported). Not ported: hole coverage's own location requirements (draftwright's ledger also reports hole_requirement_missing location.location.<axis>; src/lint/holes.rs counts no locations), so leaving out a pattern's location or a location shared with a hole on the part's centre line costs no finding (draftwright's _pattern_and_central_bore test); a completeness score."
   port_note: "Keep: completeness problems computed from Analysis, not from Spec; property test on spec deletions."
 
 - id: ISSUE-1143-b
@@ -844,7 +856,8 @@
       - "tests/test_issue_1146_scale_completeness.py::test_policy_vocabulary_and_applicability_fail_before_build"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: no scale-completeness policy (retrying a smaller scale when items are dropped). The port keeps an authored scale and reports what does not fit (tests/trust_rules.rs::an_authored_constraint_is_kept_and_its_infeasibility_reported); a computed scale and an overflow are plan problems (scale_fallback_applied, views_do_not_fit); a scale outside the standard series is refused before planning, with the series."
+  rust_test: "tests/issue_drafting.rs::only_layout_findings_move_the_sheet_and_a_failed_recovery_is_said"
+  rust_note: "Partly ported, for draftwright's layout recovery (model::recover, not yet applied by model::plan): on every part's default plan, problems other than the hard layout codes (validation findings, missing ports, info observations) never move the sheet; the one required loss it counts, hole locations too close to read (layout::crowded_locations), is measured from the plan's dimensions whatever any problem's severity; a hard finding no try clears keeps the first sheet and says so (layout_recovery_exhausted, info, naming the codes: cgb245 and ctc04), never silently. Not ported: a scale-completeness policy (strict, permissive) and its vocabulary; the rendering floor (the ladder ends at the largest standard sheet and says so the same way); an unrelated build error (a plan that cannot be made is an error before any recovery). The port keeps an authored scale and reports what does not fit (tests/trust_rules.rs::an_authored_constraint_is_kept_and_its_infeasibility_reported); a computed scale and an overflow are plan problems (scale_fallback_applied, views_do_not_fit); a scale outside the standard series is refused before planning, with the series."
   port_note: "Keep."
 
 - id: ISSUE-1146-c
@@ -954,6 +967,8 @@
       - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_cross_pass_objective_avoids_the_per_pass_greedy_trap"
     corpus_parts: []
   status: pending
+  rust_test: "tests/leaders.rs::callout_leaders_cross_nothing_unlisted"
+  rust_note: "Partial: every callout's leader is placed from one shared inventory (src/dims/leaders.rs) avoiding the placed dimensions' lines, arrowhead shafts and labels, the views, the title block and the other leaders. Not ported: centre marks, arrowheads' flare and filled datum faces are not in the fixed ink (the plan draws no centre marks; ISSUE-367-a), and there are no optional leaders for a required one to beat."
   port_note: "Keep: single leader solve per view over all obstacles."
 
 - id: ISSUE-1166-b
@@ -969,7 +984,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::a_dimension_in_the_title_block_is_reported"
-  rust_note: "Partial: a settled label keeps off the title block (src/dims/placement.rs::settle keeps a moved label off the views and the title block, and its lines out of it), and any dimension whose ink reaches into the title block is reported (annotation_over_title_block). Not ported: the first placement is not kept out of the title block (ISSUE-1593-a); a turning-axis centreline's tip exemption (no leader is checked against view geometry) and a future section's veto (sections are placed before dimensions)."
+  rust_note: "Partial: a callout's leader treats the title block as a hard obstacle (src/dims/leaders.rs, a hard blocker; tests/leaders.rs lists any leader in it, none on the parts checked), a settled linear label keeps off the views and the title block (src/dims/placement.rs::settle), and any dimension whose ink reaches into the title block is reported (annotation_over_title_block). Not ported: the first placement of a linear dimension is not kept out of the title block (ISSUE-1593-a); a turning-axis centreline's tip exemption (no leader is checked against view geometry, and the plan draws no centrelines) and a future section's veto (sections are placed before dimensions)."
   port_note: "Keep."
 
 - id: ISSUE-1166-c
@@ -996,7 +1011,8 @@
       - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_live_and_deferred_callout_verbs_preserve_the_same_semantic_evidence"
       - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_feature_leader_inventory_has_one_canonical_late_stage"
     corpus_parts: []
-  status: pending
+  status: retired
+  why: "R4 (accepted 2026-10-07): Operations are pure functions over documents; there are no live and deferred callout verbs. Every callout is planned from the Analysis and Spec and reaches the one leader stage (src/dims/leaders.rs::place) with the same claims."
   port_note: "Retire: no live/deferred split in the stateless API."
 
 - id: ISSUE-1176-a
@@ -1086,7 +1102,9 @@
       - "tests/test_issue_1188_per_view_assignment.py::test_a_conflict_spanning_views_fails_closed"
       - "tests/test_issue_1188_per_view_assignment.py::test_a_dense_fixture_reaches_the_exact_solve"
     corpus_parts: []
-  status: pending
+  status: translated
+  rust_test: "src/dims/leaders.rs::tests::the_assignment_matches_an_exhaustive_oracle"
+  rust_rule: "The joint leader assignment splits the callouts into groups whose candidates could conflict (in any views, a superset of draftwright's same-view rule, so no cross-view conflict is lost) and solves each exactly within its node budget (src/dims/leaders.rs::assign); the split is exact because the objective is a sum over jobs and conflicting pairs."
   port_note: "Translate: valid decomposition for the Rust solver; keep the oracle-equality test."
 
 - id: ISSUE-1190-a
@@ -1132,7 +1150,7 @@
     corpus_parts: []
   status: ported
   rust_test: "tests/issue_trust.rs::diagnostics_are_the_same_every_run"
-  rust_note: "Checked on the fixtures and twelve sampled parts: problems and lint findings are the same bytes on a second run, no message carries an address or a debug rendering, and every view a problem names is a planned view. Views are always named (v:front, ...), so no position fallback is needed; an overflow is reported for the sheet (views_do_not_fit), not per view, so no view can be misnamed."
+  rust_note: "Checked on the fixtures and thirteen sampled parts (ctc04 among them): problems and lint findings are the same bytes on a second run, no message carries an address or a debug rendering, and every view a problem names is a planned view. Views are always named (v:front, ...), so no position fallback is needed; an overflow is reported for the sheet (views_do_not_fit), not per view, so no view can be misnamed."
   port_note: "Keep: plan/problem serialisation byte-identical across runs."
 
 - id: ISSUE-1202-a
@@ -1231,7 +1249,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::every_authored_tolerance_reaches_the_label_that_claims_it"
-  rust_note: "Partial: on the five fixtures and twelve sampled parts, every dimension the default plan has or leaves out, each given its own band, prints its band exactly once and no other's (or the plan reports tolerance_withheld); an undrawn one is reported (view_plan_incomplete) and one left out is reported (tolerance_not_shown); on plate each band is drawn in exactly one text run. Not ported: a callout's other terms (counterbore and countersink sizes, a bore's depth) have no dimension ID and cannot be toleranced, where draftwright's kind-keyed sweep tolerances them too; hole tables (the port draws none)."
+  rust_note: "Partial: on the five fixtures and thirteen sampled parts (ctc04 among them), every dimension the default plan has or leaves out, each given its own band, prints its band exactly once and no other's (or the plan reports tolerance_withheld); an undrawn one is reported (view_plan_incomplete) and one left out is reported (tolerance_not_shown); on plate each band is drawn in exactly one text run. Not ported: a callout's other terms (counterbore and countersink sizes, a bore's depth) have no dimension ID and cannot be toleranced, where draftwright's kind-keyed sweep tolerances them too; hole tables (the port draws none)."
   port_note: "Keep: scenario test (spec with tolerance on every parameter -> every plan label contains it); renderers draw only plan text."
 
 - id: ISSUE-1215-d
@@ -1259,9 +1277,9 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_a_doubly_starved_extent_is_still_reported"
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_a_withholding_is_retracted_only_when_every_mark_is_drawn"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/issue_drafting.rs::an_overall_extent_is_placed_or_reported"
-  rust_note: "Partial: on every part each envelope extent the plan keeps is placed, and one whose ink runs off the drawing area is an annotation_off_sheet error naming it (src/dims/placement.rs::collisions). Not ported: the fall-through to the opposite strip (an extent stays in its lane and is reported) and draftwright's withholding of a starved extent and its retraction once every mark is drawn (the port withholds none)."
+  status: ported
+  rust_test: tests/placement.rs::a_starved_overall_extent_has_first_claim_on_the_opposite_strip
+  rust_note: "src/dims/placement.rs::fall_through: a strip holds its linear dimensions (an overall extent among them) up to the first lane whose item does not fit the page (on the sheet, its label off the views and the title block, no line through the title block or another view); that item and those outside it take the next free lanes of the strip across the view, each that fits there, an overall extent first (then moved outside the others where that still fits). On cgb245 and m1000 the front's overall height takes the one lane left of the front, clear of the side view, ahead of the rung or location that would reach it first; on ftc06 the front's width takes the one lane above the front, off the isometric. One that fits on neither side keeps its lane and is reported (annotation_off_sheet, annotation_over_view, annotation_line_over_view), never dropped: draftwright drops it and reports the drop (rust-correct by the port's honest-failure rule; the plan keeps every item, R1 invariant 3). Beyond draftwright, every linear dimension falls through, not only an extent (draftwright's slot dimensions do too, _slots.py): rust-correct, since draftwright leaves such an item in its starved strip, where on cgb245 the plan's left-strip items ran off the sheet (10 annotation_off_sheet errors), while a moved item measures the same span from the same edge and so reads as the same baseline dimension, only from the clear side; its cost is a split ladder (cgb245's plan y locations stand right of the plan apart from the two its left strip holds; tests/placement.rs::a_strip_without_room_falls_through_to_the_opposite_strip). Not-applicable: the withholding and its retraction once every mark is drawn (the port withholds no extent). On cgb245 the plan's left-strip items left the sheet 10 times before; 1 is left (tests/fixtures/known_placement.json). Also checked by tests/placement.rs::what_does_not_fit_the_page_is_reported (what still does not fit is reported, on every part) and tests/issue_drafting.rs::an_overall_extent_is_placed_or_reported."
   port_note: "Keep."
 
 - id: ISSUE-1215-f
@@ -1397,7 +1415,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::a_label_over_the_isometric_is_reported"
-  rust_note: "Partial: on every part with an isometric, a placed label over its drawn box is an annotation_over_view naming v:iso (src/dims/placement.rs::collisions). On a default plan such a label is itself a placement defect (ftc06's, rust-wrong in known_placement.json), so the test also runs on plate pinned to A3 at 2:1, whose annotations the sheet has no room for, and requires a label over the isometric there, so it stays exercised once the defects are fixed. Not ported: clamping a strip below an overlapping isometric and capping the isometric's growth at placed annotations (the port fits the isometric into the space the views' areas leave, before anything is placed, and does not re-fit it)."
+  rust_note: "Partial: on every part with an isometric, a placed label over its drawn box is an annotation_over_view naming v:iso (src/dims/placement.rs::collisions). On a default plan such a label is itself a placement defect (none is left on the corpus parts: ftc06's front width, rust-wrong before, now falls through to the strip above the front), so the test also runs on plate pinned to A4 at 5:1, whose annotations the sheet has no room for (on A3 at 2:1 they now fit, the strips falling through, src/dims/placement.rs::fall_through), and requires a label over the isometric there, so it stays exercised once the defects are fixed. Not ported: clamping a strip below an overlapping isometric and capping the isometric's growth at placed annotations (the port fits the isometric into the space the views' areas leave, before anything is placed, and does not re-fit it)."
   port_note: "Keep: layout unit tests with planted obstacles; single layout solve should make this structural."
 
 - id: ISSUE-1245-a
@@ -1629,8 +1647,8 @@
       - "tests/test_issue_1299_page_escalation.py::test_exact_grm03_recovers_all_axial_stations_on_a4_with_pmi_off"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
-  rust_test: "tests/issue_drafting.rs::a_sheet_the_spec_names_is_never_escalated"
-  rust_note: "Partial: on every part a sheet the spec names (A4, A3) is kept, alone or with a scale too large for it (then reported). Not ported: draftwright's recovery, which re-plans on its finished drawing's findings (a larger scale on the same page before a larger sheet, completeness after hard layout); the port makes its first ladder choice only (src/layout.rs::choose, model::plan). Observed, verdict undetermined: string_post's automatic choice is A4 at 2:1 (judged by the row, auto_fits) but A4 pinned gives 1:1 (judged by packed footprints, fits), as src/layout.rs::choose documents for draftwright's compose.choose_scale; not compared with a Python run."
+  rust_test: "tests/page_escalation.rs::a_hard_failure_tries_a_scale_each_way_on_its_sheet_before_a_larger_sheet"
+  rust_note: "Partial: draftwright's bounded, ordered recovery is ported as src/layout.rs::recover (a hard layout failure: the nearest smaller then larger standard scale on the sheet, then each larger sheet; else a required loss: the next two larger scales, then each larger sheet; else nothing, so a complete drawing never spends a larger sheet; a named sheet is never left) and src/model.rs::recover (hard = the plan's hard layout problems; loss = hole locations too close to read, layout::crowded_locations, draftwright's location_ref_dropped measure, which the port keeps and counts rather than drops; a try is taken only valid and complete; never re-plans a named scale; says what it did: layout_replanned, layout_recovery_exhausted), held by tests/page_escalation.rs (draftwright's six tests: the stand-in ones on layout::recover, GRM-03 and the pinning on corpus parts) and tests/issue_drafting.rs::a_sheet_the_spec_names_is_never_escalated. On cgb245 it rejects every try and keeps A2 1:2 as draftwright does (equivalent). Each try is planned afresh at its sheet and scale, where draftwright reuses the settled arrangement and principal views; draftwright's recovery-detail, requirement-regression and structural-replay gates have no input in the port. Not done: model::plan does not apply it yet: on the captured parts it would move only ctc01 (A3 1:5 to 1:10, for one label off the sheet the port's placement leaves; draftwright tries nothing there), a maintainer question in docs/next-session.md. GRM-03 stays A4 2:1 (draftwright 5:1 through its recovery detail, which the port does not plan: not-applicable); m10127 stays A4 1:1 (draftwright A3 2:1 on its own ink overlap: undetermined)."
   port_note: "Keep: page/scale default with basis; scenario GRM-03."
 
 - id: ISSUE-1308-a
@@ -1698,7 +1716,8 @@
       - "tests/test_issue_1332_overlap_remedy.py::test_the_suggestion_never_contradicts_the_message"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported, and the port does not uphold it: placement reports annotation_overlap and annotation_ink_overlap independently (src/dims/placement.rs::collisions), so one pair of labels can raise both, and problems carry no suggested fix yet. Since d-placement's settle no captured part has a label overlap, so no pair raises both today (m10127's side depth with d:f:hole:2/bore.diameter@front now raises only annotation_ink_overlap). Owed by placement."
+  rust_test: "tests/lint_structural.rs::overlapping_labels_name_the_line_work_that_also_crosses"
+  rust_note: "Partial: the sheet lint upholds it (src/lint/structural.rs::annotation_pairs, since d-lint-structural-2): a pair of overlapping labels whose line-work also crosses one of them gives one annotation_overlap, no annotation_ink_overlap, its message says separating the text is not enough and its fix is to move what is drawn; an ordinary overlap keeps the move-the-label fix. Not ported: placement's own problems (src/dims/placement.rs::collisions) still raise annotation_overlap and annotation_ink_overlap independently for one pair and carry no fix; no captured part has such a pair since d-placement's settle."
   port_note: "Keep if remedies are ported: problem remedy consistent with problem kind."
 
 - id: ISSUE-1333-a
@@ -1761,7 +1780,9 @@
       - "tests/test_issue_1338_scale_before_page_escalation.py::test_side_hole_label_clears_neighbour_view_text_issue_2177"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
+  rust_test: "tests/issue_drafting.rs::the_recovery_tries_the_same_page_first_and_keeps_every_outcome"
   port_note: "Keep: scenario GRM-03 -> A4 at upscaled ratio, complete."
+  rust_note: "Partial: draftwright's recovery is ported as model::recover (ISSUE-1299-a), but model::plan does not apply it yet (a maintainer question in docs/next-session.md). Applied to every part's default plan (5 fixtures, 13 sampled corpus parts), the first thing it tries is always another scale on the same sheet, and a re-planned sheet keeps every hole and turned-shoulder outcome the first plan placed: ctc01 A3 1:5 → A3 1:10 (draftwright tries nothing there; the move is for a label the port's placement leaves off the sheet); cgb245 (A2 1:5 tried first) and ctc04 (A1 1:10 tried first) are kept with layout_recovery_exhausted, as draftwright keeps both. GRM-03, the reported part, stays A4 at 2:1 with nothing tried and its four shoulders located; draftwright reaches 5:1 on A4 by measuring larger scales against the recovery detail its estimate reserved, which the port does not plan (not-applicable). The PMI-mode clause is not-applicable: no PMI is lowered into the plan."
 
 - id: ISSUE-1349-a
   statement: "Requested precision is display policy on a semantic dimension: it reaches every rendered form (dimension, compound callout terms, turned chains, ladders, locations) and its width reservation, without altering tolerance or numeric provenance; defaults are unchanged without a policy."
@@ -1820,7 +1841,8 @@
       - "tests/test_issue_1351_structured_note_coverage.py::test_duplicate_notes_do_not_multiply_one_requirement_identity_into_physical_count"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: the spec has general notes (n:<k>, src/notes.rs), which carry no claims and are not read by lint, but no per-feature note and no structured satisfies claim."
+  rust_test: "tests/issue_regressions.rs::prose_and_descriptive_tables_cannot_silence_coverage"
+  rust_note: "Partly ported: prose cannot silence coverage. On draftwright's counterbored block with the callout left out, a general note in draftwright's prose (PROFILED BORE: diameter 14 x 8 DEEP), or even in the callout's own words, changes no finding: lint reads only the drawing's annotations, and general notes (n:<k>, src/notes.rs) are not annotations and carry no claims, so the counterbore's diameter and depth stay missing and ø14 stays feature_not_dimensioned, as in draftwright's test. Not ported: a per-feature structured note with an explicit satisfies claim on a placed feature, and so its other clauses (an unplaced note grants nothing, one note does not cover an identical sibling, duplicates do not multiply). Difference: draftwright calls the omitted requirements suppressed; the port's lint never reads the spec, so they are missing."
   port_note: "Keep: Spec note with explicit satisfies=[measurement IDs]; coverage reads that, never note text."
 
 - id: ISSUE-1352-a
@@ -2101,7 +2123,7 @@
     corpus_parts: ["turned-step-axis-x.step", "turned-step-axis-z.step", "turned-step-compound.step", "turned-step-repeated-lengths.step", "turned-step-through-bore.step", "turned-step-translated-blind-bore.step", "groove-lone-y.step"]
   status: pending
   rust_test: "tests/issue_drafting.rs::each_turned_band_carries_its_diameter_and_length"
-  rust_note: "Partial: on every part lint's turned-step ledger has exactly step.length and step.diameter for each band it reads, and none for a band a groove owns (checked to occur on a sampled part with grooves). The plan states both for each band a groove does not own, and a grouped length `N× L` claims every band it stands for (src/dims/turned.rs; tests/dims_turned.rs::repeated_lengths_and_twin_flanges_are_stated_once). Not ported: lint's check of a grouped label's exact count and that it skips no equal neighbour (lint credits each band's claim by its printed value)."
+  rust_note: "Partial: on every part lint's turned-step ledger has exactly step.length and step.diameter for each band it reads, and none for a band a groove owns (checked to occur on a sampled part with grooves); the default plan states both for each such band and neither for a groove's band, the overall diameter claiming the band it is (the same test, on every part whose plan has turned steps), and a grouped length N× L claims every band it stands for (src/dims/turned.rs; tests/dims_turned.rs::repeated_lengths_and_twin_flanges_are_stated_once). Not ported: lint's check of a grouped label's exact count and that it skips no equal neighbour (lint credits each band's claim by its printed value)."
   port_note: "Keep: scenario tests per corpus part."
 
 - id: ISSUE-1374-d
@@ -2147,7 +2169,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_trust.rs::every_recognised_feature_is_dimensioned_or_reported"
-  rust_note: "Partly ported: on the fixtures and twelve sampled parts, every recognised feature is stated by a planned dimension (a pattern's for its member holes, a groove's for the boss that is its floor) or is a problem's subject, except kinds draftwright leaves undimensioned by design (dims::UNDRAFTED; the test keeps its own copy, which also excludes AngledStep: the plan does not report one, lint warns for it, see ISSUE-1247-a). A kind not yet ported is reported at info severity (dimensions_not_ported), where draftwright's lint warns (pad_footprint_not_defined). Not ported: framed recognition, which is quiddity's (quiddity-rust's tests/frames.rs and tests/invariance.rs)."
+  rust_note: "Partly ported: on the fixtures and thirteen sampled parts (ctc04 among them), every recognised feature is stated by a planned dimension (a pattern's for its member holes, a groove's for the boss that is its floor) or is a problem's subject, except kinds draftwright leaves undimensioned by design (dims::UNDRAFTED; the test keeps its own copy, which also excludes AngledStep: the plan does not report one, lint warns for it, see ISSUE-1247-a). A kind not yet ported is reported at info severity (dimensions_not_ported), where draftwright's lint warns (pad_footprint_not_defined). Not ported: framed recognition, which is quiddity's (quiddity-rust's tests/frames.rs and tests/invariance.rs)."
   port_note: "Keep: every Analysis feature appears in Plan or in problems."
 
 - id: ISSUE-1395-a
@@ -2416,6 +2438,8 @@
       - "tests/test_issue_1485_curved_pockets.py::test_repeated_curved_pockets_keep_one_group_and_every_original_occurrence"
     corpus_parts: []
   status: pending
+  rust_test: "tests/issue_regressions.rs::a_cylindrical_mouth_states_its_greatest_depth"
+  rust_note: "Partial: on draftwright's pocket cut into a cylinder (centred, offset, turned over, moved and turned to stand along z), the callout claims pocket_max_depth.length, never pocket_depth.length, prints MAX DEEP and states draftwright's depth (12, or √364 − 8) to 0.001 mm (src/dims/recesses.rs, through lint::section_recesses::grammar); five broken records (a floor through the mouth, a mouth off its centroid intersection, an unknown end surface, two cylindrical ends, a mouth opening towards its floor) are refused with draftwright's reasons and not dimensioned, the recess reported (dimensions_not_ported, whose message is out of date). A planar reading cannot certify it: a drawn callout claiming a uniform pocket_depth.length (DEEP in place of MAX DEEP) leaves pocket_max_depth.length reported by lint::pockets and credits nothing (tests/issue_regressions.rs::a_planar_reading_cannot_certify_a_curved_pocket; draftwright substitutes a planar declared feature and finds the five requirements unverifiable, the port having no declared features: equivalent in what it guards). Not ported: repeated curved pockets as one N× group (quiddity's section_recess_patterns are not read). Difference: the centred depth prints 12.0 where draftwright prints 12, because the document rounds the floor's run interval to 0.001 mm and gives the mouth's axis to the micrometre (12.000483; rust-wrong in what is printed, from the input)."
   port_note: "Keep."
 
 - id: ISSUE-1485-b
@@ -2716,7 +2740,8 @@
       - "tests/test_issue_1543_schedule_requirements.py::test_removing_schedule_retains_v5_intent_and_the_requirement_denominator"
     corpus_parts: ["part.step", "bolt-circle.step", "profile.step", "triangle.step"]
   status: pending
-  rust_note: "Not ported: there are no feature schedules."
+  rust_test: "tests/issue_regressions.rs::prose_and_descriptive_tables_cannot_silence_coverage"
+  rust_note: "Partly ported: a descriptive table cannot credit what it prints. A spec table (t:<k>, src/tables.rs) printing a hole's whole callout, drawn and searchable, changes no lint finding on draftwright's counterbored block with the callout left out: tables are not annotations and carry no claims, so lint credits no cell. Not ported: feature schedules and their verified cells (spec tables are descriptive only), so the clauses about verified schedule-cell ink and a bolt-circle cell have nothing to judge."
   port_note: "Keep."
 
 - id: ISSUE-1544-a
@@ -2811,8 +2836,8 @@
       - "tests/test_issue_1593_title_block_keepout.py::test_the_recorded_attempt_names_the_symptom_that_opened_the_ladder"
     corpus_parts: []
   status: pending
-  rust_test: "tests/issue_drafting.rs::a_dimension_in_the_title_block_is_reported"
-  rust_note: "Partial: on every part a placed dimension whose label, lines or arrowheads reach into the title block is the subject of annotation_over_title_block. Not ported: the keep-out (src/dims/placement.rs places by lanes and reports a collision as a warning, where draftwright relocates the dimension to the opposite strip, or withholds it as an error and replans onto a sheet that fits)."
+  rust_test: "tests/issue_regressions.rs::the_title_block_keeps_dimensions_out_without_dropping_them"
+  rust_note: "Partial: on draftwright's four cases (two boxes, the stepped box, a bored plate), on the automatic sheet and on the sheet its defect was seen on, no placed dimension reaches into the title block and the overall depth is drawn with draftwright's label, no problem an error (src/dims/placement.rs: a strip's lane that would put a label or line in the title block falls through to the strip across the view, ISSUE-1215-e; leaders treat the block as a hard blocker); on every part one that does reach into it is reported annotation_over_title_block (tests/issue_drafting.rs::a_dimension_in_the_title_block_is_reported). Not ported: a dimension with nowhere to go (the tall box pinned to A4 at 2:1) keeps its place and is reported (annotation_over_title_block, annotation_off_sheet), where draftwright withholds it as an error naming the block and re-plans onto a sheet that fits (its recovery ladder, ISSUE-1299-a). Difference, undetermined: the stepped box's first fit is A3 at 1:1, draftwright's sheet A4 at 1:1."
   port_note: "Keep: scenario Box(40,30,12) and stepped Box(80,60,30)."
 
 - id: ISSUE-1596-a
@@ -2847,6 +2872,8 @@
       - "tests/test_issue_1598_hex_pockets.py::test_counted_hexes_preserve_distinct_claims_and_rank_above_incidental_flats"
     corpus_parts: ["issue_1595_whistle_key_frame.step", "whistle_frame_reference.step"]
   status: pending
+  rust_test: "tests/issue_regressions.rs::a_hex_pocket_needs_a_regular_hexagon_and_keeps_each_claim"
+  rust_note: "Partial: on draftwright's whistle frame (tests/fixtures/recognition/issues/, quiddity 0.3.9) six section recesses read as hexagonal pockets along z, 4.3 across flats, 1.9 deep, mouths on the bottom face (lint::section_recesses::grammar, lint::pockets::hexes), and the plan states them in one callout, 6× HEX 4.3 A/F × 1.9 DEEP (draftwright's label), claiming each pocket's own across-flats size and depth (twelve claims). A record whose six vertices are not a regular hexagon (one moved 0.05 mm, one at the centre, one repeated, two swapped), with five vertices or with no depth is not read as one, with draftwright's reasons, and not dimensioned. Not ported: a label stating only the approved one of its two sizes (the spec approves or omits a callout whole); hex callouts ranked above incidental flats in leader placement; declared hex pockets (not applicable: no declarations, R4 decision 3)."
   port_note: "Keep: scenario on whistle frame STEPs -> six hex pockets."
 
 - id: ISSUE-1604-a
@@ -2889,6 +2916,8 @@
       - "tests/test_issue_1613_circular_channel.py::test_axis_locations_share_coaxial_ink_and_keep_each_physical_owner"
     corpus_parts: ["issue_1595_whistle_key_frame.step", "whistle_frame_reference.step"]
   status: pending
+  rust_test: "tests/issue_regressions.rs::a_circular_seat_keeps_its_arc_and_six_requirements"
+  rust_note: "Partial: on draftwright's whistle frame three section recesses read as circular seats along y (⌀14.3 to 0.0003 mm, 6 long, a 62.89° arc), and the plan states six requirements for each and nothing twice: one callout 3× ø14.3 × 6 LONG × 62.9° ARC (draftwright's label) claiming each seat's diameter, run and sweep, and five locations carrying nine claims (one x and one z, 11.1, shared by the coaxial seats, and a y each), as draftwright's sheet (src/dims/recesses.rs). Not ported: declared seats and the refusal of a declared wrong radius or arc midpoint (not applicable: no declarations, R4 decision 3; the same question as ISSUE-676-c); the seats' axis marks. Difference: the shared x location prints 15.6, draftwright's 15.7: the axis lies 15.65 from the box, which the document's 0.001 mm rounding in quiddity's working frame gives as 15.6495 (rust-wrong in what is printed, from the input)."
   port_note: "Keep."
 
 - id: ISSUE-1613-b
