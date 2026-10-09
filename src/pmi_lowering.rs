@@ -206,7 +206,28 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                     }),
                 }
             }
-            _ => {}
+            // Manufacturing requirements and surface labels are read, not drawn yet (draftwright
+            // draws them: a requirements table, thread and knurl callouts, labels): said with
+            // draftwright's code for a record that produced no feature, never dropped. A face's
+            // requirement is a warning; a part's note or general tolerance is information.
+            _ => {
+                let face = r.kind.ends_with("_thread")
+                    || r.kind == "knurl"
+                    || !r.faces.is_empty()
+                    || !r.edges.is_empty();
+                problems.push(Problem {
+                    id: format!("p:pmi_not_lowered:{}", r.source_id),
+                    code: "pmi_not_lowered".into(),
+                    severity: if face { "warning" } else { "info" }.into(),
+                    message: format!(
+                        "PMI {} {} ({}) is read but not drawn: drawing it is not ported yet.",
+                        r.kind.replace('_', " "),
+                        r.source_id,
+                        r.label
+                    ),
+                    subjects: vec![r.source_id.clone()],
+                });
+            }
         }
     }
     (items, problems)

@@ -9,9 +9,10 @@
 //! from each part and reports every instance it did not read as a finding. The report keeps
 //! draftwright's shape:
 //!
-//! - [`Record`] is `PmiRecord`, for the three categories this stage projects: `dimension`,
-//!   `geometric_tolerance` and `datum`. `kind`, `type_code` (XCAF's type number for the same
-//!   kind), `value` (mm, or degrees for an angle), the deviations, the limits, `label` (as
+//! - [`Record`] is `PmiRecord`, for the categories the port projects: `dimension` (with common
+//!   labels), `geometric_tolerance`, `datum`, `manufacturing_requirement` and `surface_label`
+//!   (below). `kind`, `type_code` (XCAF's type number for the same kind), `value` (mm, or
+//!   degrees for an angle), the deviations, the limits, `label` (as
 //!   `_pmi_schema._make_label` and `pmi._geometric_tolerance_record` write it), `datum_refs`,
 //!   `gtol_modifiers` (draftwright's names), `basic` and `part21_id` keep draftwright's
 //!   meaning, with two differences of convention: a deviation is signed (`lower_tol` -0.2, not
@@ -21,6 +22,15 @@
 //!   `lowering_blockers`: what the record does not carry (a dimension's qualifier, a tolerance's
 //!   projected zone, a datum's targets, …) and every haecceity finding on an instance the record
 //!   was read from.
+//! - Manufacturing requirements, surface labels and common labels are read from Part 21 alone,
+//!   as draftwright reads them (`_pmi_part21.py`), from what haecceity reads of them: a
+//!   requirement in words (haecceity's note) is a record labelled with its text and kinded by its
+//!   name, taking the faces and `fields` of its structured statement (a 'pmi-assist' attribute
+//!   set, or the part's general tolerance class) where the pairing is unambiguous on the part
+//!   (`PartReader::requirements`); a structured statement left unpaired is a record of its own;
+//!   text on a shape aspect is a surface label (a 'NOTE' aspect) or a common label (XCAF's
+//!   `CommonLabel`, a `dimension` of kind `common_label`) (`PartReader::labels`). Their `value`
+//!   is `None` (draftwright's placeholder 0).
 //! - The faces a record applies to replace draftwright's XCAF shapes: `faces`, the drawing's face
 //!   indices (haecceity's, the file's own order, as [`crate::bridge`] uses), `face_ids` their
 //!   `ADVANCED_FACE` instances, and `face_groups`, a location's two sides or a size's one
@@ -33,28 +43,28 @@
 //! - [`Source`] is `PmiSourceEntity`: what was not read, and why, as a `not_extracted` source;
 //!   every read record is a source too (`extracted`, or `partially_extracted` with its
 //!   blockers). Not read: every haecceity finding not on a record's instances; every item
-//!   haecceity reads that this stage does not project (general tolerances, threads, knurls,
-//!   notes, attribute sets, material, standards, datum targets, tolerance relations: draftwright's
-//!   `manufacturing_requirement` and `surface_label` categories, its common labels and material
-//!   facts, are not ported yet); and every record whose face or edge does not resolve to the
-//!   drawing's part, which is never guessed. Presentation is counted ([`Accounting`]), as
-//!   draftwright's `presentation_only` dimensions are, not read.
+//!   haecceity reads that the port does not project (attribute sets that are no label or
+//!   structured requirement, general tolerance tables, AP242 `thread` and `turned_knurl`
+//!   features and ISO 1302 surface textures, which draftwright does not read, material,
+//!   standards, datum targets, tolerance relations); and every record whose face or edge does
+//!   not resolve to the drawing's part, which is never guessed. Presentation is counted
+//!   ([`Accounting`]), as draftwright's `presentation_only` dimensions are, not read.
 //!
 //! The census is per Part 21 instance, not per XCAF label, so its sources do not pair one for one
 //! with draftwright's; records are compared one for one (`tests/pmi.rs`). Output order is the
-//! category (dimensions, tolerances, datums, as draftwright's report), then the part, then the
-//! reader's order.
+//! category (dimensions, tolerances, datums, requirements, surface labels), then the part, then
+//! the reader's order.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use haecceity::Part;
 use haecceity::geom::{Bounds, Surface};
-use haecceity::p21::{Document, RawEntity};
+use haecceity::p21::{self, Attribute, Document, RawEntity};
 use haecceity::pmi::{
-    self, Anchor, AngleUnit, AuxiliaryClassification, DatumId, DimTolerance, Dimension,
-    DimensionId, DimensionKind, Feature, FeatureId, GeometricTolerance, GroupKind, LengthUnit,
-    LocationKind, PartPmi, PartProvenance, Quantity, SizeKind, ToleranceKind, ToleranceModifier,
-    ToleranceTarget, Value,
+    self, Anchor, AngleUnit, AttributeValue, AuxiliaryClassification, DatumId, DimTolerance,
+    Dimension, DimensionId, DimensionKind, EdgeIndex, FaceIndex, Feature, FeatureId,
+    GeneralTolerance, GeometricTolerance, GroupKind, LengthUnit, LocationKind, NoteOwner, PartPmi,
+    PartProvenance, Quantity, SizeKind, ToleranceKind, ToleranceModifier, ToleranceTarget, Value,
 };
 use haecceity::step::{PartDefinition, read_part_definitions};
 use serde::{Deserialize, Serialize};
@@ -152,11 +162,23 @@ pub struct Record {
     /// Every instance the record was read from, ascending.
     pub instances: Vec<u64>,
     pub blockers: Vec<String>,
+    /// A structured requirement's named fields (draftwright's `structured_fields`): a thread's
+    /// designation, fit class and pitch, a knurl's pattern and pitch, a general tolerance's class.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<(String, Field)>,
     /// Where a geometric tolerance or datum attaches, derived from its faces for lowering
     /// (draftwright's `ref_pts`, `reference_axis`, `reference_surface_kind` and
     /// `reference_normal`); absent on a dimension.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geometry: Option<Geometry>,
+}
+
+/// A structured requirement's field value, as draftwright holds it: text, or a length in mm.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Field {
+    Text(String),
+    Length(f64),
 }
 
 /// How the file's semantic-PMI instances were accounted for (haecceity's accounting).
@@ -446,6 +468,34 @@ struct Support {
     unresolved: Vec<String>,
 }
 
+/// The items of a part the port has read into records (or reported itself), by index.
+struct Used {
+    notes: Vec<bool>,
+    general: Vec<bool>,
+    attributes: Vec<bool>,
+}
+
+/// A structured requirement: a user defined attribute set described 'pmi-assist'.
+struct Structured {
+    attr: usize,
+    pdef: u64,
+    kind: String,
+    feature: Option<FeatureId>,
+    /// The Part 21 items its shape aspect is used on (draftwright's `reference_item_ids`).
+    items: BTreeSet<u64>,
+    fields: Vec<(String, Field)>,
+    blockers: Vec<String>,
+}
+
+/// What a requirement in words is presented on (draftwright's `read_manufacturing_requirements`):
+/// the shape aspects of the part's draughting callouts named like it, and their items.
+struct Presentation {
+    items: BTreeSet<u64>,
+    /// A thread's callouts have several supports: draftwright keeps none of them.
+    ambiguous: bool,
+    reasons: Vec<String>,
+}
+
 struct PartReader<'a> {
     doc: &'a Document,
     p: usize,
@@ -466,7 +516,19 @@ impl PartReader<'_> {
         for d in 0..self.pmi.datums.len() {
             self.keep(self.datum(DatumId(d)), records, sources);
         }
-        self.not_projected(sources);
+        let mut used = Used {
+            notes: vec![false; self.pmi.notes.len()],
+            general: vec![false; self.pmi.general.len()],
+            attributes: vec![false; self.pmi.attributes.len()],
+        };
+        // Structured requirements first: their attribute sets are not labels.
+        for r in self.requirements(sources, &mut used) {
+            self.keep(r, records, sources);
+        }
+        for r in self.labels(sources, &mut used) {
+            self.keep(r, records, sources);
+        }
+        self.not_projected(sources, &used);
     }
 
     /// Keeps a read record, or reports the one whose support does not resolve.
@@ -485,57 +547,81 @@ impl PartReader<'_> {
         }
     }
 
-    /// Items haecceity reads that this stage does not project, each a source not read.
-    fn not_projected(&self, sources: &mut Vec<Source>) {
+    /// Items haecceity reads that the port does not project and did not *use* in a record, each
+    /// a source not read.
+    fn not_projected(&self, sources: &mut Vec<Source>, used: &Used) {
         let pmi = self.pmi;
         let prov = self.prov;
-        let groups: [(&str, Category, usize, &[Vec<u64>]); 8] = [
+        let none: Vec<bool> = Vec::new();
+        // (item, category, count, provenance, used for a record)
+        type Group<'g> = (&'g str, Category, usize, &'g [Vec<u64>], &'g [bool]);
+        let groups: [Group; 9] = [
             (
                 "standard",
                 Category::Other,
                 pmi.standards.len(),
                 &prov.standards,
+                &none,
             ),
             (
                 "general_tolerance",
                 Category::ManufacturingRequirement,
                 pmi.general.len(),
                 &prov.general,
+                &used.general,
             ),
             (
                 "thread",
                 Category::ManufacturingRequirement,
                 pmi.threads.len(),
                 &prov.threads,
+                &none,
             ),
             (
                 "knurl",
                 Category::ManufacturingRequirement,
                 pmi.knurls.len(),
                 &prov.knurls,
+                &none,
             ),
-            ("note", Category::Other, pmi.notes.len(), &prov.notes),
+            (
+                "surface_texture",
+                Category::ManufacturingRequirement,
+                pmi.surface_textures.len(),
+                &prov.surface_textures,
+                &none,
+            ),
+            (
+                "note",
+                Category::ManufacturingRequirement,
+                pmi.notes.len(),
+                &prov.notes,
+                &used.notes,
+            ),
             (
                 "attribute_set",
                 Category::Other,
                 pmi.attributes.len(),
                 &prov.attributes,
+                &used.attributes,
             ),
             (
                 "datum_target",
                 Category::Datum,
                 pmi.datum_targets.len(),
                 &prov.datum_targets,
+                &none,
             ),
             (
                 "tolerance_relation",
                 Category::GeometricTolerance,
                 pmi.tolerance_relations.len(),
                 &prov.tolerance_relations,
+                &none,
             ),
         ];
-        for (item, category, n, ids) in groups {
-            for i in 0..n {
+        for (item, category, n, ids, used) in groups {
+            for i in (0..n).filter(|&i| !used.get(i).copied().unwrap_or(false)) {
                 let instances = ids.get(i).cloned().unwrap_or_default();
                 sources.push(Source {
                     id: format!("{item}:{}:{i}", self.p),
@@ -703,6 +789,7 @@ impl PartReader<'_> {
             edges: edges.into_iter().collect(),
             instances: instances.into_iter().collect(),
             blockers,
+            fields: Vec::new(),
             geometry: None,
         }
     }
@@ -1044,14 +1131,819 @@ impl PartReader<'_> {
         r.label = d.label().to_string();
         r
     }
+
+    /// The instance among *ids* that is a `property_definition`.
+    fn property(&self, ids: &[u64]) -> Option<u64> {
+        self.subject(ids, &|n| n == "PROPERTY_DEFINITION")
+    }
+
+    /// The structured requirement attribute set *i* states, when it is one: a property described
+    /// 'pmi-assist' (draftwright's `read_structured_manufacturing_requirements`, less 'default
+    /// tolerances', which haecceity reads as general tolerances), its fields text or lengths.
+    fn structured(&self, i: usize) -> Option<Structured> {
+        let a = &self.pmi.attributes[i];
+        let pdef = self.property(self.prov.attributes.get(i)?)?;
+        if text_of(self.doc, pdef, "PROPERTY_DEFINITION", 1) != "pmi-assist" {
+            return None;
+        }
+        let kind = a.name.to_lowercase().replace(' ', "_");
+        let mut blockers = Vec::new();
+        if !STRUCTURED_KINDS.contains(&kind.as_str()) {
+            blockers.push("structured manufacturing property kind is unsupported".into());
+        }
+        if !user_defined(self.doc, pdef) {
+            blockers.push(
+                "structured manufacturing property has no valid user-defined attribute association"
+                    .into(),
+            );
+        }
+        let feature = match a.on {
+            Some(NoteOwner::Feature(f)) => Some(f),
+            _ => {
+                blockers.push("structured manufacturing property has no shape aspect".into());
+                None
+            }
+        };
+        let doc = self.doc;
+        let items = ref_of(doc, pdef, "PROPERTY_DEFINITION", 2)
+            .filter(|&t| attributes(doc, t, "SHAPE_ASPECT").is_some())
+            .map(|t| aspect_items(doc, t))
+            .unwrap_or_default();
+        // draftwright's `_structured_manufacturing_fields`: one representation, its items text
+        // or measures.
+        let reps = representations(doc, pdef);
+        match reps.iter().collect::<Vec<_>>()[..] {
+            [&r] => match attributes(doc, r, "REPRESENTATION") {
+                Some(a) if a.len() >= 2 => {
+                    for item in refs_of(doc, r, "REPRESENTATION", 1) {
+                        if attributes(doc, item, "DESCRIPTIVE_REPRESENTATION_ITEM").is_none()
+                            && attributes(doc, item, "MEASURE_REPRESENTATION_ITEM").is_none()
+                        {
+                            blockers.push(format!(
+                                "structured representation item #{item} is unsupported"
+                            ));
+                        }
+                    }
+                }
+                _ => blockers.push("structured manufacturing representation is malformed".into()),
+            },
+            _ => blockers.push(format!(
+                "structured manufacturing property has {} representations",
+                reps.len()
+            )),
+        }
+        let mut fields = Vec::new();
+        for (name, v) in &a.items {
+            let name = name.to_lowercase();
+            match v {
+                AttributeValue::Text(t) => fields.push((name, Field::Text(t.clone()))),
+                AttributeValue::Measure(Value {
+                    quantity: Quantity::Length(l),
+                    ..
+                }) if l.mm().is_finite() && l.mm() > 0.0 => {
+                    fields.push((name, Field::Length(l.mm())));
+                }
+                _ => blockers.push(format!(
+                    "structured field {name:?} is neither text nor a positive length"
+                )),
+            }
+        }
+        let mut names = BTreeSet::new();
+        if !fields
+            .iter()
+            .all(|(n, _)| !n.is_empty() && names.insert(n.clone()))
+        {
+            blockers.push("structured manufacturing fields have duplicate or empty names".into());
+        }
+        Some(Structured {
+            attr: i,
+            pdef,
+            kind,
+            feature,
+            items,
+            fields,
+            blockers,
+        })
+    }
+
+    /// The faces of a structured requirement's shape aspect.
+    fn structured_support(&self, st: &Structured, blockers: &mut Vec<String>) -> Support {
+        let Some(f) = st.feature else {
+            return Support::default();
+        };
+        let s = self.support(&[f]);
+        if s.faces.is_empty() && s.edges.is_empty() && s.geometry.is_empty() {
+            blockers.push("structured manufacturing shape aspect has no geometry items".into());
+        }
+        s
+    }
+
+    /// Where requirement in words *pdef* is presented (draftwright's
+    /// `read_manufacturing_requirements`): the callouts among *named* whose name is its
+    /// representation's (ignoring case), else whose name's words include its kind's
+    /// ([`name_tokens`]); their shape aspects on this part; and the items those are used on. A
+    /// thread whose callouts have several items keeps none of them.
+    fn presentation(&self, pdef: u64, named: &[(u64, String)]) -> Presentation {
+        let doc = self.doc;
+        let semantic = text_of(doc, pdef, "PROPERTY_DEFINITION", 1)
+            .trim()
+            .to_lowercase();
+        let reps = representations(doc, pdef);
+        let rep = match reps.iter().collect::<Vec<_>>()[..] {
+            [&r] => text_of(doc, r, "REPRESENTATION", 0).trim().to_lowercase(),
+            _ => String::new(),
+        };
+        let mut matched: Vec<u64> = named
+            .iter()
+            .filter(|(_, n)| !rep.is_empty() && n.to_lowercase() == rep)
+            .map(|&(c, _)| c)
+            .collect();
+        if matched.is_empty() {
+            let words = name_tokens(&semantic);
+            matched = named
+                .iter()
+                .filter(|(_, n)| !words.is_empty() && words.is_subset(&name_tokens(n)))
+                .map(|&(c, _)| c)
+                .collect();
+        }
+        let mut reasons = Vec::new();
+        let mut aspects: Vec<u64> = Vec::new();
+        let mut bare = Vec::new();
+        for &c in &matched {
+            let of = callout_aspects(doc, c);
+            if of.is_empty() {
+                bare.push(format!("#{c}"));
+            }
+            for a in of {
+                // Another part's aspect is that part's presentation.
+                if ref_of(doc, a, "SHAPE_ASPECT", 2) == Some(self.def.shape)
+                    && !aspects.contains(&a)
+                {
+                    aspects.push(a);
+                }
+            }
+        }
+        let mut items: BTreeSet<u64> = aspects.iter().flat_map(|&a| aspect_items(doc, a)).collect();
+        let ambiguous =
+            matches!(semantic.as_str(), "internal thread" | "external thread") && items.len() > 1;
+        if ambiguous {
+            reasons.push(AMBIGUOUS_CALLOUTS.to_string());
+            aspects.clear();
+            items.clear();
+        }
+        if !bare.is_empty() {
+            reasons.push(format!(
+                "matched semantic callout(s) have no shape-aspect association: {}",
+                bare.join(", ")
+            ));
+        }
+        let empty: Vec<String> = aspects
+            .iter()
+            .filter(|&&a| aspect_items(doc, a).is_empty())
+            .map(|a| format!("#{a}"))
+            .collect();
+        if !empty.is_empty() {
+            reasons.push(format!(
+                "associated shape aspect(s) have no representation items: {}",
+                empty.join(", ")
+            ));
+        }
+        Presentation {
+            items,
+            ambiguous,
+            reasons,
+        }
+    }
+
+    /// The faces and edges of the part among Part 21 *items*; another item is not resolved.
+    fn item_support(&self, items: &BTreeSet<u64>) -> Support {
+        let mut s = Support::default();
+        for &i in items {
+            if let Some(f) = self.def.face_index(i) {
+                self.anchor(Anchor::Face(FaceIndex(f)), &mut s);
+            } else if let Some(e) = self.def.edge_index(i) {
+                self.anchor(Anchor::Edge(EdgeIndex(e)), &mut s);
+            } else {
+                s.unresolved.push(format!(
+                    "{UNRESOLVED}: presented item #{i} is neither a face nor an edge of part {}",
+                    self.p
+                ));
+            }
+        }
+        s
+    }
+
+    /// The part's manufacturing requirements (draftwright's
+    /// `_manufacturing_requirement_projection`). Each requirement in words (a 'manufacturing
+    /// requirement' property: haecceity's notes) is a record on the faces of the part's
+    /// draughting callouts named like it ([`Self::presentation`]). A thread or knurl takes the
+    /// faces and fields of the structured statement of its kind used on exactly those faces, or,
+    /// its callouts ambiguous, the one whose thread designation is its own; a general tolerance
+    /// takes the general tolerance class when it is the only one left. A structured statement
+    /// left unpaired is a record of its own, labelled as draftwright labels it (its kind, or its
+    /// tolerance class). draftwright matches callouts across the file, the port within the part.
+    fn requirements(&self, sources: &mut Vec<Source>, used: &mut Used) -> Vec<Record> {
+        let pmi = self.pmi;
+        let doc = self.doc;
+        let structured: Vec<Structured> = (0..pmi.attributes.len())
+            .filter_map(|i| self.structured(i))
+            .collect();
+        for st in &structured {
+            used.attributes[st.attr] = true;
+        }
+        let mut paired = vec![false; structured.len()];
+        let classes: Vec<usize> = (0..pmi.general.len())
+            .filter(|&g| matches!(pmi.general[g], GeneralTolerance::Class { .. }))
+            .collect();
+        let named: Vec<(u64, String)> = doc
+            .ids()
+            .filter(|&c| attributes(doc, c, "DRAUGHTING_CALLOUT").is_some())
+            .map(|c| {
+                (
+                    c,
+                    text_of(doc, c, "DRAUGHTING_CALLOUT", 0).trim().to_string(),
+                )
+            })
+            .collect();
+        let pdefs: Vec<Option<u64>> = (0..pmi.notes.len())
+            .map(|n| {
+                let ids = self.prov.notes.get(n).map_or(&[][..], Vec::as_slice);
+                self.property(ids)
+            })
+            .collect();
+        let shown: Vec<Option<Presentation>> = pdefs
+            .iter()
+            .map(|p| p.map(|p| self.presentation(p, &named)))
+            .collect();
+        let ambiguous: Vec<Option<Designation>> = pmi
+            .notes
+            .iter()
+            .zip(&shown)
+            .filter(|(_, s)| s.as_ref().is_some_and(|s| s.ambiguous))
+            .map(|(n, _)| prose_designation(&n.text))
+            .collect();
+        let attribute_ids = |i: usize| self.prov.attributes.get(i).into_iter().flatten();
+        let mut out = Vec::new();
+        for (n, note) in pmi.notes.iter().enumerate() {
+            let ids = self.prov.notes.get(n).map_or(&[][..], Vec::as_slice);
+            used.notes[n] = true;
+            let (Some(pdef), Some(shown)) = (pdefs[n], &shown[n]) else {
+                sources.push(Source {
+                    id: format!("note:{}:{n}", self.p),
+                    category: Category::ManufacturingRequirement,
+                    entity: String::new(),
+                    instances: ids.to_vec(),
+                    outcome: Outcome::NotExtracted,
+                    reason: "manufacturing requirement has no property definition among its \
+                             instances"
+                        .into(),
+                });
+                continue;
+            };
+            if note.text.is_empty() {
+                sources.push(Source {
+                    id: format!("manufacturing_requirement:#{pdef}"),
+                    category: Category::ManufacturingRequirement,
+                    entity: entity_name(doc, pdef),
+                    instances: ids.to_vec(),
+                    outcome: Outcome::NotExtracted,
+                    reason: "manufacturing requirement has no authoritative text".into(),
+                });
+                continue;
+            }
+            let words = note.kind.to_lowercase();
+            let words: Vec<&str> = words.split_whitespace().collect();
+            let kind = if words.is_empty() {
+                "manufacturing_requirement".to_string()
+            } else {
+                words.join("_")
+            };
+            let mut own = ids.to_vec();
+            let mut fields = Vec::new();
+            let mut pair = None;
+            if kind == "general_tolerances" {
+                let free: Vec<usize> = classes
+                    .iter()
+                    .copied()
+                    .filter(|&g| !used.general[g])
+                    .collect();
+                if let [g] = free[..]
+                    && let GeneralTolerance::Class { text, .. } = &pmi.general[g]
+                {
+                    used.general[g] = true;
+                    own.extend(self.prov.general.get(g).into_iter().flatten());
+                    fields.push(("tolerance class".into(), Field::Text(text.clone())));
+                }
+            } else {
+                let mut free: Vec<usize> = (0..structured.len())
+                    .filter(|&j| {
+                        !paired[j]
+                            && structured[j].kind == kind
+                            && !shown.items.is_empty()
+                            && shown.items == structured[j].items
+                    })
+                    .collect();
+                if free.is_empty() && shown.items.is_empty() && shown.ambiguous {
+                    // A designation unique among the ambiguous threads pairs it; its face is
+                    // still checked when it is lowered.
+                    let d = prose_designation(&note.text);
+                    if d.is_some() && ambiguous.iter().filter(|x| **x == d).count() == 1 {
+                        free = (0..structured.len())
+                            .filter(|&j| {
+                                !paired[j]
+                                    && structured[j].kind == kind
+                                    && structured[j].items.len() == 1
+                                    && structured_designation(&structured[j].fields) == d
+                            })
+                            .collect();
+                    }
+                }
+                if let [j] = free[..] {
+                    paired[j] = true;
+                    pair = Some(j);
+                }
+            }
+            let mut blockers: Vec<String> = shown
+                .reasons
+                .iter()
+                .filter(|r| pair.is_none() || r.as_str() != AMBIGUOUS_CALLOUTS)
+                .cloned()
+                .collect();
+            let mut support = self.item_support(&shown.items);
+            if let Some(j) = pair {
+                let st = &structured[j];
+                own.extend(attribute_ids(st.attr));
+                if shown.items.is_empty() {
+                    support = self.structured_support(st, &mut blockers);
+                }
+                blockers.extend(st.blockers.iter().cloned());
+                fields = st.fields.clone();
+            }
+            let mut r = self.record(
+                Category::ManufacturingRequirement,
+                pdef,
+                &own,
+                support,
+                blockers,
+            );
+            r.kind = kind;
+            r.label = note.text.clone();
+            r.fields = fields;
+            out.push(r);
+        }
+        for (j, st) in structured.iter().enumerate() {
+            if paired[j] {
+                continue;
+            }
+            let mut blockers = Vec::new();
+            let support = self.structured_support(st, &mut blockers);
+            blockers.extend(st.blockers.iter().cloned());
+            let own: Vec<u64> = attribute_ids(st.attr).copied().collect();
+            let mut r = self.record(
+                Category::ManufacturingRequirement,
+                st.pdef,
+                &own,
+                support,
+                blockers,
+            );
+            r.kind = st.kind.clone();
+            r.label = st.kind.replace('_', " ");
+            r.fields = st.fields.clone();
+            out.push(r);
+        }
+        for &g in &classes {
+            let GeneralTolerance::Class { text, .. } = &pmi.general[g] else {
+                continue;
+            };
+            if used.general[g] {
+                continue;
+            }
+            used.general[g] = true;
+            let ids = self.prov.general.get(g).map_or(&[][..], Vec::as_slice);
+            let Some(pdef) = self.property(ids) else {
+                sources.push(Source {
+                    id: format!("general_tolerance:{}:{g}", self.p),
+                    category: Category::ManufacturingRequirement,
+                    entity: String::new(),
+                    instances: ids.to_vec(),
+                    outcome: Outcome::NotExtracted,
+                    reason: "general tolerance has no property definition among its instances"
+                        .into(),
+                });
+                continue;
+            };
+            let mut r = self.record(
+                Category::ManufacturingRequirement,
+                pdef,
+                ids,
+                Support::default(),
+                Vec::new(),
+            );
+            r.kind = "general_tolerances".into();
+            r.label = text.clone();
+            r.fields = vec![("tolerance class".into(), Field::Text(text.clone()))];
+            out.push(r);
+        }
+        out
+    }
+
+    /// The part's surface labels and common labels (draftwright's `read_surface_labels` and
+    /// `read_common_labels`): text on a shape aspect, which haecceity reads as an attribute set.
+    /// A property of a shape aspect described 'NOTE' is a surface label; a 'semantic text'
+    /// property of another shape aspect, datum feature or composite group is a common label,
+    /// which draftwright reads only where XCAF imports it as a `CommonLabel` dimension matched by
+    /// its presentation name: so one descriptive item, named, with a presentation callout, its
+    /// name unique on the part. A candidate that is not read is a source not read, with why.
+    fn labels(&self, sources: &mut Vec<Source>, used: &mut Used) -> Vec<Record> {
+        let doc = self.doc;
+        struct Candidate {
+            attr: usize,
+            pdef: u64,
+            surface: bool,
+            name: String,
+            text: String,
+            callouts: usize,
+            reasons: Vec<String>,
+            support: Support,
+        }
+        let mut candidates = Vec::new();
+        for (i, a) in self.pmi.attributes.iter().enumerate() {
+            if used.attributes[i] {
+                continue;
+            }
+            let Some(pdef) = self
+                .prov
+                .attributes
+                .get(i)
+                .and_then(|ids| self.property(ids))
+            else {
+                continue;
+            };
+            let Some(aspect) = ref_of(doc, pdef, "PROPERTY_DEFINITION", 2) else {
+                continue;
+            };
+            let surface = attributes(doc, aspect, "SHAPE_ASPECT").is_some()
+                && text_of(doc, aspect, "SHAPE_ASPECT", 1) == "NOTE";
+            let common = !surface
+                && a.name.to_lowercase() == "semantic text"
+                && COMMON_LABEL_ASPECTS
+                    .iter()
+                    .any(|e| attributes(doc, aspect, e).is_some());
+            if !surface && !common {
+                continue;
+            }
+            used.attributes[i] = true;
+            let noun = if surface {
+                "surface label"
+            } else {
+                "common label"
+            };
+            let mut reasons = Vec::new();
+            let reps = representations(doc, pdef).len();
+            if reps != 1 {
+                reasons.push(format!("{noun} has {reps} linked representations"));
+            }
+            let texts: Vec<(&str, &str)> = a
+                .items
+                .iter()
+                .filter_map(|(k, v)| match v {
+                    AttributeValue::Text(t) => Some((k.as_str(), t.as_str())),
+                    _ => None,
+                })
+                .collect();
+            let (mut name, mut text) = ("", "");
+            if reps == 1 {
+                match texts[..] {
+                    [(k, t)] => {
+                        (name, text) = (k, t);
+                        if !surface && name.is_empty() {
+                            reasons.push("common label has no presentation name".into());
+                        }
+                        if text.is_empty() {
+                            reasons.push(format!("{noun} has no authoritative text"));
+                        }
+                    }
+                    _ => reasons.push(format!(
+                        "linked representation has {} descriptive items",
+                        texts.len()
+                    )),
+                }
+            }
+            let shared = callouts(doc, pdef)
+                .intersection(&callouts(doc, aspect))
+                .count();
+            if surface && shared == 0 {
+                reasons.push("surface label has no shared semantic/presentation callout".into());
+            } else if !surface && shared != 1 {
+                reasons.push(format!(
+                    "common label has {shared} shared semantic/presentation callouts"
+                ));
+            }
+            let support = match a.on {
+                Some(NoteOwner::Feature(f)) => self.support(&[f]),
+                _ => Support::default(),
+            };
+            if support.faces.is_empty() && support.edges.is_empty() && support.geometry.is_empty() {
+                reasons.push(if surface {
+                    "surface label shape aspect has no representation items".into()
+                } else {
+                    "common-label shape aspect has no representation items".into()
+                });
+            }
+            candidates.push(Candidate {
+                attr: i,
+                pdef,
+                surface,
+                name: name.to_string(),
+                text: text.to_string(),
+                callouts: shared,
+                reasons,
+                support,
+            });
+        }
+        let mut named: BTreeMap<String, usize> = BTreeMap::new();
+        for c in candidates
+            .iter()
+            .filter(|c| !c.surface && !c.name.is_empty())
+        {
+            *named.entry(c.name.clone()).or_default() += 1;
+        }
+        let mut out = Vec::new();
+        for c in candidates {
+            let ids = self
+                .prov
+                .attributes
+                .get(c.attr)
+                .map_or(&[][..], Vec::as_slice);
+            let refused = if c.surface {
+                c.text.is_empty().then(|| c.reasons.join("; "))
+            } else if c.name.is_empty() || c.callouts == 0 {
+                Some(format!(
+                    "not a common label draftwright reads (no named presentation of it): {}",
+                    c.reasons.join("; ")
+                ))
+            } else if named[&c.name] > 1 {
+                Some(format!(
+                    "common-label correspondence is ambiguous for {:?}",
+                    c.name
+                ))
+            } else {
+                None
+            };
+            if let Some(reason) = refused {
+                sources.push(Source {
+                    id: format!("attribute_set:{}:{}", self.p, c.attr),
+                    category: if c.surface {
+                        Category::SurfaceLabel
+                    } else {
+                        Category::Other
+                    },
+                    entity: entity_name(doc, c.pdef),
+                    instances: ids.to_vec(),
+                    outcome: Outcome::NotExtracted,
+                    reason,
+                });
+                continue;
+            }
+            let category = if c.surface {
+                Category::SurfaceLabel
+            } else {
+                Category::Dimension
+            };
+            let mut r = self.record(category, c.pdef, ids, c.support, c.reasons);
+            if c.surface {
+                r.kind = "surface_label".into();
+            } else {
+                r.kind = "common_label".into();
+                // XCAF's `CommonLabel` dimension type.
+                r.type_code = Some(30);
+            }
+            r.label = c.text;
+            out.push(r);
+        }
+        out
+    }
 }
 
 /// The reason prefix of a record whose face, edge or reference does not resolve: not read.
 const UNRESOLVED: &str = "unresolved";
 
-/// The reason of an item read but not projected by this stage.
-const NOT_PROJECTED: &str = "read by haecceity; not projected to a draftwright record yet (PMI \
-                             reading stage 1 projects dimensions, geometric tolerances and datums)";
+/// The reason of an item read but not projected.
+const NOT_PROJECTED: &str = "read by haecceity; not projected to a draftwright record (the port \
+                             projects dimensions, geometric tolerances, datums, manufacturing \
+                             requirements, surface labels and common labels)";
+
+/// draftwright's `_AMBIGUOUS_MANUFACTURING_CALLOUTS`.
+const AMBIGUOUS_CALLOUTS: &str = "thread presentation callouts have multiple distinct supports";
+
+/// The structured requirements draftwright reads (`read_structured_manufacturing_requirements`).
+const STRUCTURED_KINDS: [&str; 3] = ["internal_thread", "external_thread", "knurl"];
+
+/// The shape aspects a common label is attached to (`_COMMON_LABEL_ASPECT_ENTITIES`).
+const COMMON_LABEL_ASPECTS: [&str; 3] = [
+    "SHAPE_ASPECT",
+    "DATUM_FEATURE",
+    "COMPOSITE_GROUP_SHAPE_ASPECT",
+];
+
+/// The attributes of instance *id*'s *entity* (its leaf, in a complex instance).
+fn attributes<'d>(doc: &'d Document, id: u64, entity: &str) -> Option<&'d [Attribute]> {
+    match doc.get(id)? {
+        RawEntity::Simple {
+            name, attributes, ..
+        } => (name == entity).then_some(attributes.as_slice()),
+        RawEntity::Complex { parts, .. } => parts
+            .iter()
+            .find(|p| p.name == entity)
+            .map(|p| p.attributes.as_slice()),
+    }
+}
+
+/// Attribute *k* of instance *id*'s *entity* as decoded text ("" when it is none).
+fn text_of(doc: &Document, id: u64, entity: &str, k: usize) -> String {
+    match attributes(doc, id, entity).and_then(|a| a.get(k)) {
+        Some(Attribute::String(s)) => p21::decode(s).unwrap_or_else(|_| s.clone()),
+        _ => String::new(),
+    }
+}
+
+/// Attribute *k* of instance *id*'s *entity* as a reference.
+fn ref_of(doc: &Document, id: u64, entity: &str, k: usize) -> Option<u64> {
+    match attributes(doc, id, entity)?.get(k)? {
+        Attribute::EntityRef(r) => Some(*r),
+        _ => None,
+    }
+}
+
+/// The instances referenced by attribute *k* of *id*'s *entity* (one, or a list's).
+fn refs_of(doc: &Document, id: u64, entity: &str, k: usize) -> Vec<u64> {
+    match attributes(doc, id, entity).and_then(|a| a.get(k)) {
+        Some(Attribute::EntityRef(r)) => vec![*r],
+        Some(Attribute::List(items)) => items
+            .iter()
+            .filter_map(|a| match a {
+                Attribute::EntityRef(r) => Some(*r),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The draughting callouts a `draughting_model_item_association` relates to *subject*
+/// (draftwright's `association_callouts`).
+fn callouts(doc: &Document, subject: u64) -> BTreeSet<u64> {
+    const DMIA: &str = "DRAUGHTING_MODEL_ITEM_ASSOCIATION";
+    doc.referrers(subject)
+        .iter()
+        .filter(|&&a| ref_of(doc, a, DMIA, 2) == Some(subject))
+        .flat_map(|&a| refs_of(doc, a, DMIA, 4))
+        .filter(|&c| attributes(doc, c, "DRAUGHTING_CALLOUT").is_some())
+        .collect()
+}
+
+/// The shape aspects a `draughting_model_item_association` relates draughting callout *c* to.
+fn callout_aspects(doc: &Document, c: u64) -> Vec<u64> {
+    const DMIA: &str = "DRAUGHTING_MODEL_ITEM_ASSOCIATION";
+    let mut out = Vec::new();
+    for &a in doc.referrers(c) {
+        if refs_of(doc, a, DMIA, 4).contains(&c)
+            && let Some(s) = ref_of(doc, a, DMIA, 2)
+            && attributes(doc, s, "SHAPE_ASPECT").is_some()
+            && !out.contains(&s)
+        {
+            out.push(s);
+        }
+    }
+    out
+}
+
+/// The items a `geometric_item_specific_usage` uses shape aspect *aspect* on.
+fn aspect_items(doc: &Document, aspect: u64) -> BTreeSet<u64> {
+    const GISU: &str = "GEOMETRIC_ITEM_SPECIFIC_USAGE";
+    doc.referrers(aspect)
+        .iter()
+        .filter(|&&g| ref_of(doc, g, GISU, 2) == Some(aspect))
+        .flat_map(|&g| refs_of(doc, g, GISU, 4))
+        .collect()
+}
+
+/// A callout's or kind's name as words, for matching one with the other (draftwright's
+/// `_name_tokens`): lower case, alphanumeric, a plural 's' dropped, 'requirement' left out.
+fn name_tokens(name: &str) -> BTreeSet<String> {
+    name.to_lowercase()
+        .replace(['_', '-'], " ")
+        .split_whitespace()
+        .filter_map(|raw| {
+            let mut w: String = raw.chars().filter(|c| c.is_alphanumeric()).collect();
+            if w.chars().count() > 3 && w.ends_with('s') && !w.ends_with("ss") {
+                w.pop();
+            }
+            (!w.is_empty() && w != "requirement").then_some(w)
+        })
+        .collect()
+}
+
+/// The representations a property definition is represented by.
+fn representations(doc: &Document, pdef: u64) -> BTreeSet<u64> {
+    const PDR: &str = "PROPERTY_DEFINITION_REPRESENTATION";
+    doc.referrers(pdef)
+        .iter()
+        .filter(|&&r| ref_of(doc, r, PDR, 0) == Some(pdef))
+        .filter_map(|&r| ref_of(doc, r, PDR, 1))
+        .collect()
+}
+
+/// Whether a property definition is associated with the 'user defined attribute' general
+/// property (draftwright's `uda_properties`).
+fn user_defined(doc: &Document, pdef: u64) -> bool {
+    const GPA: &str = "GENERAL_PROPERTY_ASSOCIATION";
+    doc.referrers(pdef).iter().any(|&a| {
+        ref_of(doc, a, GPA, 3) == Some(pdef)
+            && ref_of(doc, a, GPA, 2).is_some_and(|g| {
+                text_of(doc, g, "GENERAL_PROPERTY", 1).to_lowercase() == "user defined attribute"
+            })
+    })
+}
+
+/// A metric thread's designation as draftwright compares a prose requirement's with a
+/// structured one's (`_prose_thread_designation`, `_structured_thread_designation`): nominal,
+/// pitch, fit class (upper case) and hand.
+#[derive(PartialEq)]
+struct Designation(f64, f64, String, &'static str);
+
+/// `M<nominal> x <pitch>` at the start of *s* (case-insensitive, spaces optional around `x`),
+/// and the rest.
+fn metric(s: &str) -> Option<(f64, f64, &str)> {
+    let s = s.strip_prefix(['M', 'm'])?;
+    let (nominal, rest) = number(s)?;
+    let rest = rest.trim_start().strip_prefix(['x', 'X'])?.trim_start();
+    let (pitch, rest) = number(rest)?;
+    Some((nominal, pitch, rest))
+}
+
+/// `\d+(\.\d+)?` at the start of *s*, and the rest.
+fn number(s: &str) -> Option<(f64, &str)> {
+    let int = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+    if int == 0 {
+        return None;
+    }
+    let frac = s[int..]
+        .strip_prefix('.')
+        .map(|f| f.find(|c: char| !c.is_ascii_digit()).unwrap_or(f.len()))
+        .filter(|&n| n > 0)
+        .map_or(0, |n| n + 1);
+    let (n, rest) = s.split_at(int + frac);
+    Some((n.parse().ok()?, rest))
+}
+
+fn prose_designation(text: &str) -> Option<Designation> {
+    let (nominal, pitch, rest) = metric(text.trim())?;
+    let rest = rest.strip_prefix('-')?;
+    let end = rest
+        .find(|c: char| !c.is_ascii_alphanumeric())
+        .unwrap_or(rest.len());
+    let (fit, after) = rest.split_at(end);
+    let rest = after.trim_start();
+    if fit.is_empty() || rest.len() == after.len() {
+        return None;
+    }
+    let hand = rest.get(..2)?.to_ascii_uppercase();
+    let bounded = rest[2..]
+        .chars()
+        .next()
+        .is_none_or(|c| !(c.is_alphanumeric() || c == '_'));
+    let hand = match hand.as_str() {
+        "RH" if bounded => "RH",
+        "LH" if bounded => "LH",
+        _ => return None,
+    };
+    Some(Designation(nominal, pitch, fit.to_uppercase(), hand))
+}
+
+fn structured_designation(fields: &[(String, Field)]) -> Option<Designation> {
+    let get = |k: &str| {
+        fields.iter().find_map(|(n, v)| match v {
+            Field::Text(t) if n == k => Some(t.as_str()),
+            _ => None,
+        })
+    };
+    let (nominal, pitch, rest) = metric(get("designation")?)?;
+    if !rest.is_empty() {
+        return None;
+    }
+    let hand = match get("hand")?.to_lowercase().as_str() {
+        "rh" | "right" => "RH",
+        "lh" | "left" => "LH",
+        _ => return None,
+    };
+    Some(Designation(
+        nominal,
+        pitch,
+        get("fit class")?.to_uppercase(),
+        hand,
+    ))
+}
 
 fn category_name(c: Category) -> &'static str {
     match c {

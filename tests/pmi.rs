@@ -9,10 +9,12 @@
 //! it (`key`, the port's `part21_id`), else by the same category and the same `ADVANCED_FACE`
 //! instances (a datum's: its XCAF faces and its Part 21 `reference_item_ids`), else, for a datum,
 //! by its letter. A paired record's `kind`, `type_code`, `value` (within 1e-9, relative),
-//! deviations, limits, `label`, `datum_refs`, `gtol_modifiers`, `basic` and faces are compared;
-//! the port's lower deviation is compared negated, draftwright's being an unsigned magnitude
-//! below nominal. A record either side has no pair for is a difference of field `record`, as is
-//! every draftwright record in a category stage 1 does not project.
+//! deviations, limits, `label`, `datum_refs`, `gtol_modifiers`, `basic`, structured fields and
+//! faces are compared; the port's lower deviation is compared negated, draftwright's being an
+//! unsigned magnitude below nominal. A manufacturing requirement's, surface label's and common
+//! label's faces are its Part 21 `reference_item_ids` (XCAF has no shapes for them), compared
+//! with the port's faces and edges; their `value` is draftwright's placeholder 0, not compared.
+//! A record either side has no pair for is a difference of field `record`.
 //!
 //! Every difference must be listed, with a verdict and evidence, in
 //! `tests/fixtures/known_pmi.json`; a listed difference that has gone away must be taken off.
@@ -88,9 +90,10 @@ fn python(name: &str) -> Value {
     serde_json::from_slice(&gunzip(&raw)).unwrap()
 }
 
-fn read(bytes: &[u8]) -> Report {
+fn read(bytes: &[u8]) -> (haecceity::Part, Report) {
     let part = haecceity::read_step(bytes).unwrap();
-    pmi::read(bytes, &part).unwrap()
+    let report = pmi::read(bytes, &part).unwrap();
+    (part, report)
 }
 
 fn sha256(bytes: &[u8]) -> String {
@@ -132,6 +135,8 @@ fn category(c: &str) -> Option<Category> {
         "dimension" => Category::Dimension,
         "geometric_tolerance" => Category::GeometricTolerance,
         "datum" => Category::Datum,
+        "manufacturing_requirement" => Category::ManufacturingRequirement,
+        "surface_label" => Category::SurfaceLabel,
         _ => return None,
     })
 }
@@ -141,7 +146,16 @@ fn number(s: &str) -> Option<u64> {
     s.strip_prefix('#')?.parse().ok()
 }
 
-/// draftwright's faces for *rec*: XCAF's, and for a datum its Part 21 support too.
+/// Whether *rec* is read from Part 21 alone, with no XCAF shapes: a manufacturing requirement,
+/// a surface label or a common label. Its value is a placeholder.
+fn part21_only(rec: &Value) -> bool {
+    rec["kind"] == "common_label"
+        || ["manufacturing_requirement", "surface_label"]
+            .contains(&rec["source_category"].as_str().unwrap())
+}
+
+/// draftwright's faces for *rec*: XCAF's, and for a datum or a Part 21 record its Part 21
+/// support too.
 fn python_faces(rec: &Value) -> BTreeSet<u64> {
     let mut out: BTreeSet<u64> = rec["faces"]
         .as_array()
@@ -149,7 +163,7 @@ fn python_faces(rec: &Value) -> BTreeSet<u64> {
         .iter()
         .map(|v| v.as_u64().unwrap())
         .collect();
-    if rec["source_category"] == "datum" {
+    if rec["source_category"] == "datum" || part21_only(rec) {
         out.extend(
             rec["reference_item_ids"]
                 .as_array()
@@ -177,16 +191,28 @@ fn close(a: Option<f64>, b: Option<f64>) -> bool {
     }
 }
 
-/// The differences between draftwright's report *py* and the port's *rust* of file *file*.
-fn compare(file: &str, py: &Value, rust: &Report) -> (Vec<Diff>, usize) {
+/// The port's faces for *r*, as `python_faces` takes draftwright's: its `ADVANCED_FACE`
+/// instances, and for a Part 21 record (*part21*) its edges' instances too.
+fn rust_faces(part: &haecceity::Part, r: &Record, part21: bool) -> BTreeSet<u64> {
+    let mut out: BTreeSet<u64> = r.face_ids.iter().copied().collect();
+    if part21 {
+        out.extend(
+            r.edges
+                .iter()
+                .filter_map(|&e| part.edge_source(e).map(|s| s.entity)),
+        );
+    }
+    out
+}
+
+/// The differences between draftwright's report *py* and the port's *rust* of file *file*,
+/// whose drawing's part is *part*.
+fn compare(file: &str, py: &Value, part: &haecceity::Part, rust: &Report) -> (Vec<Diff>, usize) {
     let mut diffs = Vec::new();
     let mut paired: Vec<Option<usize>> = Vec::new();
     let mut taken = vec![false; rust.records.len()];
     let records = py["records"].as_array().unwrap();
-    let projected = |rec: &Value| {
-        category(rec["source_category"].as_str().unwrap()).is_some()
-            && rec["kind"] != "common_label"
-    };
+    let projected = |rec: &Value| category(rec["source_category"].as_str().unwrap()).is_some();
     paired.resize(records.len(), None);
     // By the instance draftwright names.
     for (i, rec) in records.iter().enumerate() {
@@ -219,9 +245,7 @@ fn compare(file: &str, py: &Value, rust: &Report) -> (Vec<Diff>, usize) {
         let candidates: Vec<usize> = (0..rust.records.len())
             .filter(|&j| {
                 let r = &rust.records[j];
-                !taken[j]
-                    && r.category == c
-                    && r.face_ids.iter().copied().collect::<BTreeSet<_>>() == faces
+                !taken[j] && r.category == c && rust_faces(part, r, part21_only(rec)) == faces
             })
             .collect();
         let best = candidates
@@ -254,7 +278,7 @@ fn compare(file: &str, py: &Value, rust: &Report) -> (Vec<Diff>, usize) {
                 && r.category == c
                 && r.kind == rec["kind"].as_str().unwrap()
                 && close(r.value, rec["value"].as_f64())
-                && faces.iter().all(|f| r.face_ids.contains(f))
+                && faces.is_subset(&rust_faces(part, r, part21_only(rec)))
         }) {
             taken[j] = true;
             paired[i] = Some(j);
@@ -321,8 +345,8 @@ fn compare(file: &str, py: &Value, rust: &Report) -> (Vec<Diff>, usize) {
             ("upper_bound", f(&rec["upper_bound"]), r.upper_bound),
         ];
         for (field, p, q) in fields {
-            // A datum has no value: draftwright's is a placeholder 0.
-            if field == "value" && r.category == Category::Datum {
+            // A datum, a requirement and a label have no value: draftwright's is a placeholder 0.
+            if field == "value" && (r.category == Category::Datum || part21_only(rec)) {
                 continue;
             }
             check(field, json!(p), json!(q), close(p, q));
@@ -351,8 +375,15 @@ fn compare(file: &str, py: &Value, rust: &Report) -> (Vec<Diff>, usize) {
             json!(r.basic),
             rec["basic"] == r.basic,
         );
+        let fields = rec.get("structured_fields").cloned().unwrap_or(json!([]));
+        check(
+            "fields",
+            fields.clone(),
+            json!(r.fields),
+            fields == json!(r.fields),
+        );
         let faces = python_faces(rec);
-        let ours: BTreeSet<u64> = r.face_ids.iter().copied().collect();
+        let ours = rust_faces(part, r, part21_only(rec));
         check("faces", json!(faces), json!(ours), faces == ours);
         if same {
             agree += 1;
@@ -412,8 +443,8 @@ fn pmi_records_match_draftwright_or_are_known() {
             "{name}: draftwright failed: {}",
             py["error"]
         );
-        let rust = read(&bytes);
-        let (d, a) = compare(&name, &py, &rust);
+        let (part, rust) = read(&bytes);
+        let (d, a) = compare(&name, &py, &part, &rust);
         agree += a;
         paired_total += py["records"].as_array().unwrap().len();
         eprintln!(
@@ -614,9 +645,37 @@ fn haecceity_findings_are_sources_or_record_blockers() {
 }
 
 #[test]
-fn items_not_projected_are_sources_not_read() {
+fn requirements_are_records_and_what_is_not_projected_is_a_source() {
     let (doc, defs, part, read) = reading("spool_fits.step.gz");
     let r = pmi::report(&doc, &defs, &part, &read).unwrap();
+    let requirements: Vec<(&str, &str)> = r
+        .records
+        .iter()
+        .filter(|x| x.category == Category::ManufacturingRequirement)
+        .map(|x| (x.kind.as_str(), x.label.as_str()))
+        .collect();
+    assert_eq!(
+        requirements,
+        [
+            ("surface_texture", "Ra 3.2 µm unless otherwise specified"),
+            ("edge_condition", "Break sharp edges 0.2 max"),
+            ("general_tolerances", "ISO 2768-m"),
+        ]
+    );
+    // The general tolerance class is the requirement's structured statement, read with it.
+    let general = &r.records[r.records.len() - 1];
+    assert_eq!(
+        general.fields,
+        [(
+            "tolerance class".to_string(),
+            pmi::Field::Text("ISO 2768-m".into())
+        )]
+    );
+    assert!(
+        read.provenance.parts[0].general[0]
+            .iter()
+            .all(|id| general.instances.contains(id))
+    );
     let not_read: BTreeMap<&str, usize> = r
         .sources
         .iter()
@@ -625,17 +684,120 @@ fn items_not_projected_are_sources_not_read() {
             *m.entry(s.id.split(':').next().unwrap()).or_default() += 1;
             m
         });
-    let p = &read.parts[0];
-    assert_eq!(not_read.get("note").copied().unwrap_or(0), p.notes.len());
-    assert_eq!(
-        not_read.get("general_tolerance").copied().unwrap_or(0),
-        p.general.len()
-    );
+    assert_eq!(not_read.get("note"), None);
+    assert_eq!(not_read.get("general_tolerance"), None);
     assert_eq!(
         not_read.get("material").copied().unwrap_or(0),
-        usize::from(p.material.is_some())
+        usize::from(read.parts[0].material.is_some())
     );
-    assert!(p.notes.len() + p.general.len() > 0);
+}
+
+const BOLT: &str = "bolt_thread_knurl.step.gz";
+
+#[test]
+fn a_thread_pairs_with_the_structured_statement_on_its_callouts_faces() {
+    let (doc, defs, part, read) = reading(BOLT);
+    let r = pmi::report(&doc, &defs, &part, &read).unwrap();
+    let thread = r
+        .records
+        .iter()
+        .find(|x| x.kind == "external_thread")
+        .unwrap();
+    assert_eq!(thread.part21_id, 444);
+    assert_eq!(
+        thread.label,
+        "M10 x 1.5-6g RH, full available length on nominal DIA 10 region"
+    );
+    assert_eq!(thread.face_ids, [17]);
+    assert!(thread.blockers.is_empty(), "{:?}", thread.blockers);
+    assert!(thread.instances.contains(&468), "the structured property");
+    assert_eq!(
+        thread.fields[..2],
+        [
+            (
+                "thread side".to_string(),
+                pmi::Field::Text("external".into())
+            ),
+            (
+                "designation".to_string(),
+                pmi::Field::Text("M10x1.5".into())
+            )
+        ]
+    );
+    assert!(
+        thread
+            .fields
+            .contains(&("pitch".to_string(), pmi::Field::Length(1.5)))
+    );
+    // Its callout renamed, the requirement in words is presented on nothing: it has no faces
+    // and does not pair, and its structured statement is a record of its own (draftwright's
+    // `paired_structured` pairs by the callouts' faces only).
+    let bytes = gunzip(&std::fs::read(fixtures().join("step").join(BOLT)).unwrap());
+    let text = String::from_utf8(bytes).unwrap();
+    let renamed = text.replace("'External thread requirement'", "'Callout one'");
+    assert_ne!(renamed, text);
+    let bytes = renamed.into_bytes();
+    let part = haecceity::read_step(&bytes).unwrap();
+    let defs = step::read_part_definitions(&bytes).unwrap();
+    let doc = p21::Document::parse(bytes).unwrap();
+    let read = hpmi::read(&doc, &defs).unwrap();
+    let r = pmi::report(&doc, &defs, &part, &read).unwrap();
+    let threads: Vec<&Record> = r
+        .records
+        .iter()
+        .filter(|x| x.kind == "external_thread")
+        .collect();
+    assert_eq!(threads.len(), 2);
+    assert_eq!(threads[0].part21_id, 444);
+    assert!(threads[0].faces.is_empty() && threads[0].fields.is_empty());
+    assert_eq!(threads[1].part21_id, 468);
+    assert_eq!(threads[1].label, "external thread");
+    assert_eq!(threads[1].face_ids, [17]);
+}
+
+#[test]
+fn a_requirement_or_label_record_is_reported_not_lowered() {
+    for (name, severities) in [
+        (
+            BOLT,
+            [
+                ("external_thread", "warning"),
+                ("general_tolerances", "info"),
+            ],
+        ),
+        (
+            CTC01,
+            [("surface_label", "warning"), ("surface_label", "warning")],
+        ),
+    ] {
+        let bytes = gunzip(&std::fs::read(fixtures().join("step").join(name)).unwrap());
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pmi_not_lowered");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name.strip_suffix(".gz").unwrap());
+        std::fs::write(&path, &bytes).unwrap();
+        let (_, a) = draftwright::model::analyse(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        let Some(pmi::Reading::Read(report)) = &a.pmi else {
+            panic!("{name}: its PMI is read");
+        };
+        let (_, problems) = draftwright::pmi_lowering::lower(&a, &|_| true);
+        for r in report.records.iter().filter(|r| {
+            matches!(
+                r.category,
+                Category::ManufacturingRequirement | Category::SurfaceLabel
+            )
+        }) {
+            let said: Vec<_> = problems
+                .iter()
+                .filter(|p| p.subjects == [r.source_id.clone()])
+                .collect();
+            assert_eq!(said.len(), 1, "{name}: {} is said once", r.source_id);
+            assert_eq!(said[0].code, "pmi_not_lowered");
+            if let Some((_, s)) = severities.iter().find(|(k, _)| *k == r.kind) {
+                assert_eq!(said[0].severity, *s, "{name}: {}", r.source_id);
+            }
+        }
+    }
 }
 
 #[test]
@@ -667,7 +829,37 @@ fn every_item_and_finding_is_accounted_for_and_the_output_is_deterministic() {
                         .any(|p| s.id.starts_with(p))
             })
             .count();
-        assert_eq!(r.records.len() + unread_records, items, "{name}");
+        let item_records = r
+            .records
+            .iter()
+            .filter(|x| {
+                matches!(
+                    x.category,
+                    Category::Dimension | Category::GeometricTolerance | Category::Datum
+                ) && x.kind != "common_label"
+            })
+            .count();
+        assert_eq!(item_records + unread_records, items, "{name}");
+        // Every requirement in words, general tolerance and attribute set is read into a record
+        // or is a source not read.
+        for (p, prov) in read.provenance.parts.iter().enumerate() {
+            for (item, all) in [
+                ("note", &prov.notes),
+                ("general_tolerance", &prov.general),
+                ("attribute_set", &prov.attributes),
+            ] {
+                for (i, ids) in all.iter().enumerate() {
+                    let in_record = r.records.iter().any(|x| {
+                        x.part == p && ids.iter().all(|id| x.instances.binary_search(id).is_ok())
+                    });
+                    let source = r.sources.iter().any(|s| {
+                        s.outcome == Outcome::NotExtracted
+                            && (s.id == format!("{item}:{p}:{i}") || s.instances == *ids)
+                    });
+                    assert!(in_record || source, "{name}: {item} {p}:{i} lost");
+                }
+            }
+        }
         // Every finding is a blocker on a record or a source of its own.
         for f in &read.findings {
             let blocker = format!("haecceity {} on #{}", f.kind.as_str(), f.ids[0]);
@@ -697,7 +889,7 @@ fn every_item_and_finding_is_accounted_for_and_the_output_is_deterministic() {
             r.records.len(),
             "{name}: a record id twice"
         );
-        let again = self::read(&bytes);
+        let (_, again) = self::read(&bytes);
         assert_eq!(
             serde_json::to_string(&r).unwrap(),
             serde_json::to_string(&again).unwrap(),

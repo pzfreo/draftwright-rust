@@ -173,20 +173,6 @@
   },
   {
     "file": "assembly_plate_pin.step.gz",
-    "record": "manufacturing_requirement:#1526",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "internal_thread",
-      "label": "M5 x 0.8-6H RH, full thread through; DIA 4.2 tapping drill through"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (internal_thread, 'M5 x 0.8-6H RH, full thread through; DIA 4.2 tapping drill through', Part 21 #1526) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:0."
-  },
-  {
-    "file": "assembly_plate_pin.step.gz",
     "record": "manufacturing_requirement:#1551",
     "port": null,
     "field": "record",
@@ -196,50 +182,8 @@
       "label": "internal thread"
     },
     "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (internal_thread, 'internal thread', Part 21 #1551, shape aspects #1541) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:0."
-  },
-  {
-    "file": "assembly_plate_pin.step.gz",
-    "record": "manufacturing_requirement:#1558",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "surface_texture",
-      "label": "Ra 3.2 µm unless otherwise specified"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (surface_texture, 'Ra 3.2 µm unless otherwise specified', Part 21 #1558) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:1."
-  },
-  {
-    "file": "assembly_plate_pin.step.gz",
-    "record": "manufacturing_requirement:#1562",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "edge_condition",
-      "label": "Break sharp edges 0.2 max"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (edge_condition, 'Break sharp edges 0.2 max', Part 21 #1562) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:2."
-  },
-  {
-    "file": "assembly_plate_pin.step.gz",
-    "record": "manufacturing_requirement:#1566",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "general_tolerances",
-      "label": "ISO 2768-m"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-m', Part 21 #1566) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:3."
+    "verdict": "rust-correct",
+    "evidence": "Python's record is the part 0 thread's structured statement (pmi-assist #1551, aspect #1541, face #905) left unpaired. draftwright matches a part-owned requirement in words to the faces of presentation callouts named like it across the whole file: both parts of the assembly have a callout 'Internal thread requirement' (#1534 of part 0, aspect #1528, face #905; #1629 of part 1, aspect #1623, face #1138), so each requirement matches both, is refused as ambiguous ('thread presentation callouts have multiple distinct supports'), and its designation 'M5 x 0.8-6H RH' is stated by both, so draftwright's designation fallback cannot pair it either. The port applies draftwright's rule within the part: it keeps only callouts whose shape aspect is of part 0's own product definition shape, so requirement #1526 matches callout #1534 alone (aspect #1528, face #905), which is not ambiguous, and its face set equals structured statement #1551's (aspect #1541, face #905), so the two pair as draftwright pairs them in a single-part file. No requirement is lost: #1551's instances are in manufacturing_requirement:#1526."
   },
   {
     "file": "assembly_plate_pin.step.gz",
@@ -252,22 +196,8 @@
       "label": "ISO 2768-m"
     },
     "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-m', Part 21 #1571) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: general_tolerance:0:0."
-  },
-  {
-    "file": "assembly_plate_pin.step.gz",
-    "record": "manufacturing_requirement:#1621",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "internal_thread",
-      "label": "M5 x 0.8-6H RH, 5.5 mm minimum full thread; DIA 4.2 tapping drill x 8 mm full-diameter depth"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (internal_thread, 'M5 x 0.8-6H RH, 5.5 mm minimum full thread; DIA 4.2 tapping drill x 8 mm full-diameter depth', Part 21 #1621) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:1:0."
+    "verdict": "rust-correct",
+    "evidence": "Python's record is part 0's 'default tolerances' (#1571, ISO 2768-m) left unpaired with its requirement in words because draftwright pairs a general tolerance only when the file has exactly one unpaired 'default tolerances' (the assembly has two, #1571 and #1667, one per part), and it blocks both as 'not owned by the single shaped source product definition'. The port reads each part on its own: part 0's requirement in words #1566 ('ISO 2768-m') and its general tolerance class #1571 ('ISO 2768-m') are one record, manufacturing_requirement:#1566, with #1571's 'tolerance class' field."
   },
   {
     "file": "assembly_plate_pin.step.gz",
@@ -280,50 +210,8 @@
       "label": "internal thread"
     },
     "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (internal_thread, 'internal thread', Part 21 #1647, shape aspects #1636) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:1:0."
-  },
-  {
-    "file": "assembly_plate_pin.step.gz",
-    "record": "manufacturing_requirement:#1654",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "surface_texture",
-      "label": "Ra 3.2 µm unless otherwise specified"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (surface_texture, 'Ra 3.2 µm unless otherwise specified', Part 21 #1654) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:1:1."
-  },
-  {
-    "file": "assembly_plate_pin.step.gz",
-    "record": "manufacturing_requirement:#1658",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "edge_condition",
-      "label": "Break sharp edges 0.2 max"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (edge_condition, 'Break sharp edges 0.2 max', Part 21 #1658) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:1:2."
-  },
-  {
-    "file": "assembly_plate_pin.step.gz",
-    "record": "manufacturing_requirement:#1662",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "general_tolerances",
-      "label": "ISO 2768-f"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-f', Part 21 #1662) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:1:3."
+    "verdict": "rust-correct",
+    "evidence": "Python's record is the part 1 thread's structured statement (pmi-assist #1647, aspect #1636, face #1138) left unpaired. draftwright matches a part-owned requirement in words to the faces of presentation callouts named like it across the whole file: both parts of the assembly have a callout 'Internal thread requirement' (#1534 of part 0, aspect #1528, face #905; #1629 of part 1, aspect #1623, face #1138), so each requirement matches both, is refused as ambiguous ('thread presentation callouts have multiple distinct supports'), and its designation 'M5 x 0.8-6H RH' is stated by both, so draftwright's designation fallback cannot pair it either. The port applies draftwright's rule within the part: it keeps only callouts whose shape aspect is of part 1's own product definition shape, so requirement #1621 matches callout #1629 alone (aspect #1623, face #1138), which is not ambiguous, and its face set equals structured statement #1647's (aspect #1636, face #1138), so the two pair as draftwright pairs them in a single-part file. No requirement is lost: #1647's instances are in manufacturing_requirement:#1621."
   },
   {
     "file": "assembly_plate_pin.step.gz",
@@ -336,120 +224,152 @@
       "label": "ISO 2768-f"
     },
     "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-f', Part 21 #1667) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: general_tolerance:1:0."
+    "verdict": "rust-correct",
+    "evidence": "Python's record is part 1's 'default tolerances' (#1667, ISO 2768-f) left unpaired: as for #1571, draftwright pairs a general tolerance only when the file has exactly one. The port reads part 1's requirement in words #1662 ('ISO 2768-f') and its class #1667 ('ISO 2768-f') as one record, manufacturing_requirement:#1662, with #1667's 'tolerance class' field."
   },
   {
-    "file": "bolt_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#444",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "external_thread",
-      "label": "M10 x 1.5-6g RH, full available length on nominal DIA 10 region"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (external_thread, 'M10 x 1.5-6g RH, full available length on nominal DIA 10 region', Part 21 #444, shape aspects #446 #459) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:0."
+    "file": "assembly_plate_pin.step.gz",
+    "record": "manufacturing_requirement:#1526",
+    "port": "manufacturing_requirement:#1526",
+    "field": "fields",
+    "python": [],
+    "rust": [
+      [
+        "thread side",
+        "internal"
+      ],
+      [
+        "designation",
+        "M5x0.8"
+      ],
+      [
+        "nominal size",
+        "M5"
+      ],
+      [
+        "pitch",
+        0.8
+      ],
+      [
+        "fit class",
+        "6H"
+      ],
+      [
+        "hand",
+        "right"
+      ],
+      [
+        "tapping drill diameter",
+        4.2
+      ],
+      [
+        "through",
+        "true"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "The port pairs the requirement in words #1526 with part 0's structured statement #1551 and carries its fields; draftwright leaves it unpaired. draftwright matches a part-owned requirement in words to the faces of presentation callouts named like it across the whole file: both parts of the assembly have a callout 'Internal thread requirement' (#1534 of part 0, aspect #1528, face #905; #1629 of part 1, aspect #1623, face #1138), so each requirement matches both, is refused as ambiguous ('thread presentation callouts have multiple distinct supports'), and its designation 'M5 x 0.8-6H RH' is stated by both, so draftwright's designation fallback cannot pair it either. The port applies draftwright's rule within the part: it keeps only callouts whose shape aspect is of part 0's own product definition shape, so requirement #1526 matches callout #1534 alone (aspect #1528, face #905), which is not ambiguous, and its face set equals structured statement #1551's (aspect #1541, face #905), so the two pair as draftwright pairs them in a single-part file."
   },
   {
-    "file": "bolt_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#475",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "knurl",
-      "label": "Straight knurl, 1 mm pitch, DIA 6.25 mm maximum after knurling; cut or formed process permitted"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (knurl, 'Straight knurl, 1 mm pitch, DIA 6.25 mm maximum after knurling; cut or formed process permitted', Part 21 #475, shape aspects #477 #490) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:1."
+    "file": "assembly_plate_pin.step.gz",
+    "record": "manufacturing_requirement:#1526",
+    "port": "manufacturing_requirement:#1526",
+    "field": "faces",
+    "python": [],
+    "rust": [
+      905
+    ],
+    "verdict": "rust-correct",
+    "evidence": "Face #905 is the face of part 0's own callout for this requirement (#1534 → aspect #1528 → #905) and of its structured statement #1551 (aspect #1541 → #905); draftwright has no faces because its callout matching is file-global. draftwright matches a part-owned requirement in words to the faces of presentation callouts named like it across the whole file: both parts of the assembly have a callout 'Internal thread requirement' (#1534 of part 0, aspect #1528, face #905; #1629 of part 1, aspect #1623, face #1138), so each requirement matches both, is refused as ambiguous ('thread presentation callouts have multiple distinct supports'), and its designation 'M5 x 0.8-6H RH' is stated by both, so draftwright's designation fallback cannot pair it either. The port applies draftwright's rule within the part: it keeps only callouts whose shape aspect is of part 0's own product definition shape, so requirement #1526 matches callout #1534 alone (aspect #1528, face #905), which is not ambiguous, and its face set equals structured statement #1551's (aspect #1541, face #905), so the two pair as draftwright pairs them in a single-part file."
   },
   {
-    "file": "bolt_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#502",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "surface_texture",
-      "label": "Ra 3.2 µm unless otherwise specified"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (surface_texture, 'Ra 3.2 µm unless otherwise specified', Part 21 #502) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:2."
+    "file": "assembly_plate_pin.step.gz",
+    "record": "manufacturing_requirement:#1566",
+    "port": "manufacturing_requirement:#1566",
+    "field": "fields",
+    "python": [],
+    "rust": [
+      [
+        "tolerance class",
+        "ISO 2768-m"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "The port reads part 0's general tolerance class #1571 ('ISO 2768-m') as the structured statement of its requirement in words #1566 ('ISO 2768-m'); draftwright cannot pair them because the file has two 'default tolerances' (one per part) and it pairs only a file's single one (see manufacturing_requirement:#1571's entry)."
   },
   {
-    "file": "bolt_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#506",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "edge_condition",
-      "label": "Break sharp edges 0.2 max"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (edge_condition, 'Break sharp edges 0.2 max', Part 21 #506) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:3."
+    "file": "assembly_plate_pin.step.gz",
+    "record": "manufacturing_requirement:#1621",
+    "port": "manufacturing_requirement:#1621",
+    "field": "fields",
+    "python": [],
+    "rust": [
+      [
+        "thread side",
+        "internal"
+      ],
+      [
+        "designation",
+        "M5x0.8"
+      ],
+      [
+        "nominal size",
+        "M5"
+      ],
+      [
+        "pitch",
+        0.8
+      ],
+      [
+        "fit class",
+        "6H"
+      ],
+      [
+        "hand",
+        "right"
+      ],
+      [
+        "tapping drill diameter",
+        4.2
+      ],
+      [
+        "tapping drill depth",
+        8.0
+      ],
+      [
+        "minimum full thread",
+        5.5
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "The port pairs the requirement in words #1621 with part 1's structured statement #1647 and carries its fields; draftwright leaves it unpaired. draftwright matches a part-owned requirement in words to the faces of presentation callouts named like it across the whole file: both parts of the assembly have a callout 'Internal thread requirement' (#1534 of part 0, aspect #1528, face #905; #1629 of part 1, aspect #1623, face #1138), so each requirement matches both, is refused as ambiguous ('thread presentation callouts have multiple distinct supports'), and its designation 'M5 x 0.8-6H RH' is stated by both, so draftwright's designation fallback cannot pair it either. The port applies draftwright's rule within the part: it keeps only callouts whose shape aspect is of part 1's own product definition shape, so requirement #1621 matches callout #1629 alone (aspect #1623, face #1138), which is not ambiguous, and its face set equals structured statement #1647's (aspect #1636, face #1138), so the two pair as draftwright pairs them in a single-part file."
   },
   {
-    "file": "bolt_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#510",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "general_tolerances",
-      "label": "ISO 2768-m"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-m', Part 21 #510) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:4."
+    "file": "assembly_plate_pin.step.gz",
+    "record": "manufacturing_requirement:#1621",
+    "port": "manufacturing_requirement:#1621",
+    "field": "faces",
+    "python": [],
+    "rust": [
+      1138
+    ],
+    "verdict": "rust-correct",
+    "evidence": "Face #1138 is the face of part 1's own callout for this requirement (#1629 → aspect #1623 → #1138) and of its structured statement #1647 (aspect #1636 → #1138); draftwright has no faces because its callout matching is file-global. draftwright matches a part-owned requirement in words to the faces of presentation callouts named like it across the whole file: both parts of the assembly have a callout 'Internal thread requirement' (#1534 of part 0, aspect #1528, face #905; #1629 of part 1, aspect #1623, face #1138), so each requirement matches both, is refused as ambiguous ('thread presentation callouts have multiple distinct supports'), and its designation 'M5 x 0.8-6H RH' is stated by both, so draftwright's designation fallback cannot pair it either. The port applies draftwright's rule within the part: it keeps only callouts whose shape aspect is of part 1's own product definition shape, so requirement #1621 matches callout #1629 alone (aspect #1623, face #1138), which is not ambiguous, and its face set equals structured statement #1647's (aspect #1636, face #1138), so the two pair as draftwright pairs them in a single-part file."
   },
   {
-    "file": "bracket_positions.step.gz",
-    "record": "manufacturing_requirement:#31516",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "surface_texture",
-      "label": "Ra 3.2 µm unless otherwise specified"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (surface_texture, 'Ra 3.2 µm unless otherwise specified', Part 21 #31516) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:0."
-  },
-  {
-    "file": "bracket_positions.step.gz",
-    "record": "manufacturing_requirement:#31520",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "edge_condition",
-      "label": "Break sharp edges 0.2 max"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (edge_condition, 'Break sharp edges 0.2 max', Part 21 #31520) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:1."
-  },
-  {
-    "file": "bracket_positions.step.gz",
-    "record": "manufacturing_requirement:#31524",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "general_tolerances",
-      "label": "ISO 2768-m"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-m', Part 21 #31524) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:2."
+    "file": "assembly_plate_pin.step.gz",
+    "record": "manufacturing_requirement:#1662",
+    "port": "manufacturing_requirement:#1662",
+    "field": "fields",
+    "python": [],
+    "rust": [
+      [
+        "tolerance class",
+        "ISO 2768-f"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "The port reads part 1's general tolerance class #1667 ('ISO 2768-f') as the structured statement of its requirement in words #1662 ('ISO 2768-f'); draftwright cannot pair them because the file has two 'default tolerances' (see manufacturing_requirement:#1667's entry)."
   },
   {
     "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
@@ -612,34 +532,6 @@
     "evidence": "dimension:#24: the file states no value for this linear dimension (no dimensional_characteristic_representation; haecceity's nonconformance finding says so). XCAF reads it as type 0 (Location_None) with value 0 and draftwright labels it '0'; the port keeps the kind the file states, no value and no label, with the blocker."
   },
   {
-    "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
-    "record": "surface_label:#4340",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "surface_label",
-      "kind": "surface_label",
-      "label": "B"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this surface label (surface_label, 'B', Part 21 #4340, shape aspects #316) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:0."
-  },
-  {
-    "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
-    "record": "surface_label:#4341",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "surface_label",
-      "kind": "surface_label",
-      "label": "A"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this surface label (surface_label, 'A', Part 21 #4341, shape aspects #317) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:1."
-  },
-  {
     "file": "nist_ctc_01_merge.step.gz",
     "record": "dimension:0:1:4:10",
     "port": "dimension:#25",
@@ -798,76 +690,6 @@
     "rust": null,
     "verdict": "rust-correct",
     "evidence": "dimension:#24: the file states no value for this linear dimension (no dimensional_characteristic_representation; haecceity's nonconformance finding says so). XCAF reads it as type 0 (Location_None) with value 0 and draftwright labels it '0'; the port keeps the kind the file states, no value and no label, with the blocker."
-  },
-  {
-    "file": "nist_ctc_01_merge.step.gz",
-    "record": "manufacturing_requirement:#4412",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "surface_texture",
-      "label": "Ra 3.2 µm unless otherwise specified"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (surface_texture, 'Ra 3.2 µm unless otherwise specified', Part 21 #4412) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:0."
-  },
-  {
-    "file": "nist_ctc_01_merge.step.gz",
-    "record": "manufacturing_requirement:#4416",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "edge_condition",
-      "label": "Break sharp edges 0.2 max"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (edge_condition, 'Break sharp edges 0.2 max', Part 21 #4416) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:1."
-  },
-  {
-    "file": "nist_ctc_01_merge.step.gz",
-    "record": "manufacturing_requirement:#4420",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "general_tolerances",
-      "label": "ISO 2768-m"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-m', Part 21 #4420) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:2."
-  },
-  {
-    "file": "nist_ctc_01_merge.step.gz",
-    "record": "surface_label:#4340",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "surface_label",
-      "kind": "surface_label",
-      "label": "B"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this surface label (surface_label, 'B', Part 21 #4340, shape aspects #316) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:0."
-  },
-  {
-    "file": "nist_ctc_01_merge.step.gz",
-    "record": "surface_label:#4341",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "surface_label",
-      "kind": "surface_label",
-      "label": "A"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this surface label (surface_label, 'A', Part 21 #4341, shape aspects #317) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:1."
   },
   {
     "file": "nist_ctc_02_asme1_ap242-e2.stp.gz",
@@ -1843,16 +1665,12 @@
   {
     "file": "nist_ctc_02_asme1_ap242-e2.stp.gz",
     "record": "surface_label:#22163",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "surface_label",
-      "kind": "surface_label",
-      "label": "NOTES (UNLESS OTHERWISE SPECIFIED):\\X\\0A\\X\\0A1.   OBTAIN DIMENSIONS FOR ALL \\X\\0A      UNDIMENSIONED FEATURES FROM THE \\X\\0A      MODEL. ALL DIMENSIONS OBTAINED \\X\\0A      FROM THE MODEL ARE BASIC UNLESS \\X\\0A      OTHERWISE SPECIFIED.\\X\\0A\\X\\0A2.   ASME Y14.41-2003 APPLIES TO \\X\\0A      DATASET.\\X\\0A\\X\\0A3.   ASME Y14.5M-1994 APPLIES TO \\X\\0A      DIMENSIONING AND TOLERANCING.\\X\\0A"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this surface label (surface_label, 'NOTES (UNLESS OTHERWISE SPECIFIED):\\\\X\\\\0A\\\\X\\\\0A1.   OBTAIN DIMENSIONS FOR ALL \\\\X\\\\0A      UNDIMENSIONED FEATURES FROM THE \\\\X\\\\0A      MODEL. ALL DIMENSIONS OBTAINED \\\\X\\\\0A      FROM THE MODEL ARE BASIC UNLESS \\\\X\\\\0A      OTHERWISE SPECIFIED.\\\\X\\\\0A\\\\X\\\\0A2.   ASME Y14.41-2003 APPLIES TO \\\\X\\\\0A      DATASET.\\\\X\\\\0A\\\\X\\\\0A3.   ASME Y14.5M-1994 APPLIES TO \\\\X\\\\0A      DIMENSIONING AND TOLERANCING.\\\\X\\\\0A', Part 21 #22163, shape aspects #1554) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:1, finding:#1554, finding:#22163."
+    "port": "surface_label:#22163",
+    "field": "label",
+    "python": "NOTES (UNLESS OTHERWISE SPECIFIED):\\X\\0A\\X\\0A1.   OBTAIN DIMENSIONS FOR ALL \\X\\0A      UNDIMENSIONED FEATURES FROM THE \\X\\0A      MODEL. ALL DIMENSIONS OBTAINED \\X\\0A      FROM THE MODEL ARE BASIC UNLESS \\X\\0A      OTHERWISE SPECIFIED.\\X\\0A\\X\\0A2.   ASME Y14.41-2003 APPLIES TO \\X\\0A      DATASET.\\X\\0A\\X\\0A3.   ASME Y14.5M-1994 APPLIES TO \\X\\0A      DIMENSIONING AND TOLERANCING.\\X\\0A",
+    "rust": "NOTES (UNLESS OTHERWISE SPECIFIED):\n\n1.   OBTAIN DIMENSIONS FOR ALL \n      UNDIMENSIONED FEATURES FROM THE \n      MODEL. ALL DIMENSIONS OBTAINED \n      FROM THE MODEL ARE BASIC UNLESS \n      OTHERWISE SPECIFIED.\n\n2.   ASME Y14.41-2003 APPLIES TO \n      DATASET.\n\n3.   ASME Y14.5M-1994 APPLIES TO \n      DIMENSIONING AND TOLERANCING.\n",
+    "verdict": "rust-correct",
+    "evidence": "The note's text in the file is 'NOTES (UNLESS OTHERWISE SPECIFIED):\\\\X\\\\0A\\\\X\\\\0A1. …' (descriptive_representation_item of #22163's representation): \\\\X\\\\0A is ISO 10303-21's 8-bit escape for U+000A, a line feed. haecceity decodes it to a line break; draftwright's Part 21 reader (steputils) decodes \\\\X2\\\\ escapes but leaves \\\\X\\\\hh as written, so its label carries the escape text. Otherwise byte for byte the same."
   },
   {
     "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
@@ -1883,62 +1701,6 @@
     "rust": 0.4318,
     "verdict": "rust-correct",
     "evidence": "#16188 radius: nominal 0.017 in, lower limit 0.012 in, upper limit 0.022 in (#16184-#16186; NIST's expected PMI '32X R.012-.022'). XCAF takes the nominal as the lower limit and the mid-range as the value; the port reads them as stated (0.4318, 0.3048-0.5588 mm)."
-  },
-  {
-    "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:103",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "F1.2"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, 'F1.2', Part 21 #16280, shape aspects #13683) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:19."
-  },
-  {
-    "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:104",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "F1.1"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, 'F1.1', Part 21 #16308, shape aspects #13687) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:20."
-  },
-  {
-    "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:108",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": ""
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '\\uf055', Part 21 #16423, shape aspects #14355) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:23."
-  },
-  {
-    "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:110",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "⌴"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '⌴', Part 21 #16482, shape aspects #15827) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:28."
   },
   {
     "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
@@ -1994,7 +1756,7 @@
       "label": "ø3"
     },
     "verdict": "undetermined",
-    "evidence": "#20632, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision."
+    "evidence": "#20632, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md."
   },
   {
     "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
@@ -2008,7 +1770,7 @@
       "label": "ø3"
     },
     "verdict": "undetermined",
-    "evidence": "#20659, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision."
+    "evidence": "#20659, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md."
   },
   {
     "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
@@ -2022,119 +1784,7 @@
       "label": "ø3"
     },
     "verdict": "undetermined",
-    "evidence": "#20686, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision."
-  },
-  {
-    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:137",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "4"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20787, shape aspects #18716) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:21."
-  },
-  {
-    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:138",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "4X R0.15 MAX"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '4X R0.15 MAX', Part 21 #20824, shape aspects #20805) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:32."
-  },
-  {
-    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:139",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "F65"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, 'F65', Part 21 #20844, shape aspects #19975) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:23."
-  },
-  {
-    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:143",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "4"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20960, shape aspects #18192) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:18."
-  },
-  {
-    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:144",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "4"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20980, shape aspects #18219) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:19."
-  },
-  {
-    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:145",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "4"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #21000, shape aspects #18246) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:20."
-  },
-  {
-    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:146",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "4"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #21020, shape aspects #19331) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:22."
-  },
-  {
-    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
-    "record": "dimension:0:1:4:148",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "F81"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, 'F81', Part 21 #21060, shape aspects #20561) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:30."
+    "evidence": "#20686, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md."
   },
   {
     "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
@@ -2629,34 +2279,6 @@
     ],
     "verdict": "rust-correct",
     "evidence": "dimension:#10311 applies to a pattern: haecceity reads its feature as a group of 4 members (8 faces); draftwright's XCAF and Part 21 support name one member ([3878, 3902]). NIST's expected PMI states the pattern count (e.g. '3X ⌀.250 +.003 -.000', '2X ⌀.221', '4X ⌀.250 ± .008')."
-  },
-  {
-    "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
-    "record": "dimension:0:1:4:113",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "4X R"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '4X R', Part 21 #10483, shape aspects #9707) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:18."
-  },
-  {
-    "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
-    "record": "dimension:0:1:4:114",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "dimension",
-      "kind": "common_label",
-      "label": "2X R"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this common label (common_label, '2X R', Part 21 #10504, shape aspects #10136) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: attribute_set:0:19."
   },
   {
     "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
@@ -4008,104 +3630,6 @@
     "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 70.0 with deviations -0.03/-0.06 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
   },
   {
-    "file": "spool_fits.step.gz",
-    "record": "manufacturing_requirement:#6467",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "surface_texture",
-      "label": "Ra 3.2 µm unless otherwise specified"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (surface_texture, 'Ra 3.2 µm unless otherwise specified', Part 21 #6467) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:0."
-  },
-  {
-    "file": "spool_fits.step.gz",
-    "record": "manufacturing_requirement:#6471",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "edge_condition",
-      "label": "Break sharp edges 0.2 max"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (edge_condition, 'Break sharp edges 0.2 max', Part 21 #6471) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:1."
-  },
-  {
-    "file": "spool_fits.step.gz",
-    "record": "manufacturing_requirement:#6475",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "general_tolerances",
-      "label": "ISO 2768-m"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-m', Part 21 #6475) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:2."
-  },
-  {
-    "file": "string_post_tapped.step.gz",
-    "record": "manufacturing_requirement:#3157",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "internal_thread",
-      "label": "M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (internal_thread, 'M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth', Part 21 #3157, shape aspects #3159 #3172) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:0."
-  },
-  {
-    "file": "string_post_tapped.step.gz",
-    "record": "manufacturing_requirement:#3190",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "surface_texture",
-      "label": "Ra 3.2 µm unless otherwise specified"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (surface_texture, 'Ra 3.2 µm unless otherwise specified', Part 21 #3190) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:1."
-  },
-  {
-    "file": "string_post_tapped.step.gz",
-    "record": "manufacturing_requirement:#3194",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "edge_condition",
-      "label": "Break sharp edges 0.2 max"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (edge_condition, 'Break sharp edges 0.2 max', Part 21 #3194) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:2."
-  },
-  {
-    "file": "string_post_tapped.step.gz",
-    "record": "manufacturing_requirement:#3198",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "general_tolerances",
-      "label": "ISO 2768-f"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-f', Part 21 #3198) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:3."
-  },
-  {
     "file": "thumbwheel_thread_knurl.step.gz",
     "record": "dimension:0:1:4:1",
     "port": "dimension:#651",
@@ -4164,89 +3688,5 @@
     "rust": 10.0,
     "verdict": "rust-correct",
     "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
-  },
-  {
-    "file": "thumbwheel_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#689",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "internal_thread",
-      "label": "M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 3.8 mm full-diameter depth"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (internal_thread, 'M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 3.8 mm full-diameter depth', Part 21 #689, shape aspects #691 #704) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:0."
-  },
-  {
-    "file": "thumbwheel_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#722",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "knurl",
-      "label": "Diamond knurl, 1 mm pitch, DIA 6 mm maximum after knurling; cut or formed process permitted"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (knurl, 'Diamond knurl, 1 mm pitch, DIA 6 mm maximum after knurling; cut or formed process permitted', Part 21 #722, shape aspects #724 #737) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:1."
-  },
-  {
-    "file": "thumbwheel_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#749",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "external_thread",
-      "label": "M5 x 0.8-6g RH, full available length on nominal DIA 5 region"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (external_thread, 'M5 x 0.8-6g RH, full available length on nominal DIA 5 region', Part 21 #749, shape aspects #751 #764) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:2."
-  },
-  {
-    "file": "thumbwheel_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#780",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "surface_texture",
-      "label": "Ra 3.2 µm unless otherwise specified"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (surface_texture, 'Ra 3.2 µm unless otherwise specified', Part 21 #780) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:3."
-  },
-  {
-    "file": "thumbwheel_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#784",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "edge_condition",
-      "label": "Break sharp edges 0.2 max"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (edge_condition, 'Break sharp edges 0.2 max', Part 21 #784) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:4."
-  },
-  {
-    "file": "thumbwheel_thread_knurl.step.gz",
-    "record": "manufacturing_requirement:#788",
-    "port": null,
-    "field": "record",
-    "python": {
-      "category": "manufacturing_requirement",
-      "kind": "general_tolerances",
-      "label": "ISO 2768-f"
-    },
-    "rust": null,
-    "verdict": "rust-wrong",
-    "evidence": "Not projected by stage 1: draftwright reads this manufacturing requirement (general_tolerances, 'ISO 2768-f', Part 21 #788) from its Part 21 readers; the port reads dimensions, geometric tolerances and datums only. What haecceity read of it is reported as a source not read: note:0:5."
   }
 ]
