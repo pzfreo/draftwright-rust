@@ -3,9 +3,9 @@
 The files `tests/pmi.rs` reads AP242 semantic PMI from, and draftwright's reading of each.
 
 - `step/*.stp.gz`, `step/*.step.gz`: byte-for-byte copies of quiddity-rust's AP242 fixtures at
-  commit f7a1141 (the haecceity this repository pins), `tests/fixtures/ap242/nist/*.stp.gz` (7
-  NIST MBE PMI test models, AP242 editions 1 to 4, mm and inch) and
-  `tests/fixtures/ap242/specify/*.step.gz` (7 files specify-core wrote on corpus parts: fits,
+  commit f7a1141 (unchanged at 4cd5494, where this repository pins haecceity),
+  `tests/fixtures/ap242/nist/*.stp.gz` (7 NIST MBE PMI test models, AP242 editions 1 to 4, mm
+  and inch) and `tests/fixtures/ap242/specify/*.step.gz` (7 files specify-core wrote on corpus parts: fits,
   threads, knurls, datums, positions, a two-part assembly, and a merge into NIST CTC-01). Their
   provenance (NIST release and sha256, specify-core commit and answers) is quiddity-rust's
   `tests/fixtures/ap242/README.md`. Copied, not referenced, so the test needs neither a

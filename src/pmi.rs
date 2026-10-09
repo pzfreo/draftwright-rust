@@ -28,7 +28,7 @@
 //!   which is draftwright's frame-less extraction (`frame=None`). draftwright's other
 //!   coordinates (`ref_pts`, cylinder and angular supports, datum normals) are lowering's to
 //!   derive from the faces.
-//! - [`Source`] is `PmiSourceEntity`: what was not read, and why, as an `not_extracted` source;
+//! - [`Source`] is `PmiSourceEntity`: what was not read, and why, as a `not_extracted` source;
 //!   every read record is a source too (`extracted`, or `partially_extracted` with its
 //!   blockers). Not read: every haecceity finding not on a record's instances; every item
 //!   haecceity reads that this stage does not project (general tolerances, threads, knurls,
