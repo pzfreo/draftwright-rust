@@ -1880,7 +1880,7 @@
   status: pending
   rust_test: "tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported"
   port_note: "Keep if PMI is ported."
-  rust_note: "Partly: the plan reports each geometric tolerance or datum it does not lower as `pmi_not_lowered` (error) with its reasons (reading blockers, unsupported modifiers, an attachment the faces do not prove, faces in several placements), and each PMI dimension as `pmi_dimensions_not_ported` (info: the next stage); the lint code on a drawing is the coverage lint's (not ported)."
+  rust_note: "Partly: the plan reports each geometric tolerance or datum it does not lower as `pmi_not_lowered` (error) with its reasons (reading blockers, unsupported modifiers, an attachment the faces do not prove, faces in several placements), and each PMI dimension it cannot draw as `pmi_not_lowered` (reading blockers, faces that prove no witness: draftwright's reasons) or `pmi_dimensions_not_ported` (a kind not drawn yet: angles, oblique lengths, a bolt circle's split), `tests/pmi_dimensions.rs`; the lint code on a drawing is the coverage lint's (not ported)."
 
 - id: LINT-code-pmi_not_rendered
   statement: "Every typed PMI requirement produces an annotation on the drawing unless a specific drop or omission reason is already reported."
@@ -1892,9 +1892,9 @@
     issues: [623, 1190]
     tests: [tests/test_issue_1296_cylindrical_diameter_pmi.py]
   status: pending
-  rust_test: "tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported"
+  rust_test: "tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both"
   port_note: "Keep if PMI is ported."
-  rust_note: "Partly: every lowered frame and symbol is placed (kept and logged when it collides) or reported `pmi_not_drawn` when its view is not on the sheet; the lint code on a drawing is the coverage lint's (not ported)."
+  rust_note: "Partly: on the plan path every PMI record is drawn or reported: a dimension is stated by a planned dimension (its own or a model dimension's, claiming `pmi:<source>`) or reported (`pmi_not_lowered`, `pmi_dimensions_not_ported`, `pmi_not_drawn`), never both (`tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both`); every source not read is a `pmi_not_extracted` problem and a file whose PMI cannot be read is `pmi_not_read`; reconciling a drawing's claimed source IDs is the PMI coverage lint's, not ported."
 
 - id: LINT-code-pmi_value_mismatch
   statement: "A placed geometric tolerance frame states the same tolerance value and zone as its AP242 source, in both text layer and visible ink."

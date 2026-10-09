@@ -1,0 +1,1217 @@
+[
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "dimension:0:1:4:14",
+  "port": "dimension:#1422",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "45",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 1 required annotation outcome(s) (pmi_dropped); pmi_dropped: PMI '45' not placed (no room beside the plan)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "bolt_thread_knurl.step",
+  "record": "dimension:0:1:4:1",
+  "port": "dimension:#418",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "pmi_not_rendered"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "⌀6 +0.0 -0.008",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (pmi_not_rendered: AP242 source dimension:0:1:4:1 reached typed drafting IR but produced no annotation). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀6 +0.0 -0.008'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "bracket_positions.step",
+  "record": "file",
+  "port": null,
+  "field": "drawing",
+  "python": "ValueError: project_to_viewport returned empty geometry for view 'plan' (camera (-0.20598045072850368, 1.2878802308874988, 245.83221857376392)) — check the camera position and look_at.",
+  "rust": "9 dimensions drawn",
+  "verdict": "rust-correct",
+  "evidence": "draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it and lowers its PMI dimensions."
+ },
+ {
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "record": "dimension:0:1:4:17",
+  "port": "dimension:#33",
+  "field": "outcome",
+  "python": {
+   "detail": "60 ±0.5",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": [
+    "pmi_dimensions_not_ported"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-wrong",
+  "evidence": "Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet."
+ },
+ {
+  "file": "nist_ctc_01_merge.step",
+  "record": "dimension:0:1:4:17",
+  "port": "dimension:#33",
+  "field": "outcome",
+  "python": {
+   "detail": "60 ±0.5",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": [
+    "pmi_dimensions_not_ported"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-wrong",
+  "evidence": "Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:110",
+  "port": "dimension:#403",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀100 ±0.15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright draws it ('⌀100 ±0.15'); the port's reading carries a haecceity finding, so it is not lowered: PMI dimension dimension:#403 (ø100 ±0.15) is not drawn: haecceity nonconformance on #479 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_shape_aspect); read as that group."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:111",
+  "port": "dimension:#404",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀52 ±0.15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright draws it ('⌀52 ±0.15'); the port's reading carries a haecceity finding, so it is not lowered: PMI dimension dimension:#404 (ø52 ±0.15) is not drawn: haecceity nonconformance on #480 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_shape_aspect); read as that group."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:112",
+  "port": "dimension:#405",
+  "field": "outcome",
+  "python": {
+   "detail": "2× ⌀12 ±0.05 ↧ 25",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gives it to '2× ⌀12 ±0.05 ↧ 25'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#405 (ø12 ±0.05) is not drawn: haecceity nonconformance on #483 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_shape_aspect); read as that group.. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:113",
+  "port": "dimension:#406",
+  "field": "outcome",
+  "python": {
+   "detail": "2× ⌀12 ±0.05 ↧ 25",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gives it to '2× ⌀12 ±0.05 ↧ 25'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#406 (ø12 ±0.05) is not drawn: haecceity nonconformance on #484 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_shape_aspect); read as that group.. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:114",
+  "port": "dimension:#407",
+  "field": "outcome",
+  "python": {
+   "detail": "2× ⌀22 ±0.1 ↧ 86.0",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gives it to '2× ⌀22 ±0.1 ↧ 86.0'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#407 (ø22 ±0.1) is not drawn: haecceity nonconformance on #485 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_shape_aspect); read as that group.. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:115",
+  "port": "dimension:#408",
+  "field": "outcome",
+  "python": {
+   "detail": "2× ⌀22 ±0.1 ↧ 86.0",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gives it to '2× ⌀22 ±0.1 ↧ 86.0'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#408 (ø22 ±0.1) is not drawn: haecceity nonconformance on #486 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_shape_aspect); read as that group.. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:116",
+  "port": "dimension:#409",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀40 ±0.15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright draws it ('⌀40 ±0.15'); the port's reading carries a haecceity finding, so it is not lowered: PMI dimension dimension:#409 (ø40 ±0.15) is not drawn: haecceity nonconformance on #496 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_shape_aspect); read as that group."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:100",
+  "port": "dimension:#16004",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀15.1 +0.3048 -0.0508 THRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:101",
+  "port": "dimension:#16188",
+  "field": "outcome",
+  "python": {
+   "detail": "R0.4318 - R0.5588",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the radius from the centroid of the referenced faces' boxes along their box's longest extent (_bore_info's ref_bbox fallback), which for a group of fillet faces on different axes is no point of the arc; the port refuses: PMI dimension dimension:#16188 (R0.3048 - R0.5588) is not drawn: one radius reference face is not cylindrical; radius references do not share one cylinder axis direction."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:103",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "F1.2"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, 'F1.2', Part 21 #16280, shape aspects #13683) from its Part 21 readers; the port reads dimensions, geometric tolerances and), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:104",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "F1.1"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, 'F1.1', Part 21 #16308, shape aspects #13687) from its Part 21 readers; the port reads dimensions, geometric tolerances and), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:108",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": ""
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '\\uf055', Part 21 #16423, shape aspects #14355) from its Part 21 readers; the port reads dimensions, geometric tolerances a), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:110",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "⌴"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '⌴', Part 21 #16482, shape aspects #15827) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:85",
+  "port": "dimension:#15130",
+  "field": "label",
+  "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
+  "rust": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6 (2×2)",
+  "verdict": "equivalent",
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:87",
+  "port": "dimension:#15238",
+  "field": "label",
+  "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
+  "rust": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6 (2×2)",
+  "verdict": "equivalent",
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:89",
+  "port": "dimension:#15344",
+  "field": "label",
+  "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
+  "rust": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6 (2×2)",
+  "verdict": "equivalent",
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:94",
+  "port": "dimension:#15653",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "3× ⌀22.2 ±0.254 THRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.875 ±0.01 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '3× ⌀22.2 ±0.254 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:96",
+  "port": "dimension:#15745",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀15.1 +0.3048 -0.0508 THRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:97",
+  "port": "dimension:#15791",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀7.1 +0.1524 -0.0254 THRU ⌴ ⌀11.1 ↧ 7.6 (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 +0.006/-0.001 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 +0.1524 -0.0254 THRU ⌴ ⌀11.1 ↧ 7.6 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:99",
+  "port": "dimension:#15939",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "0.30 ±0.02 INCH",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 23 required annotation outcome(s) (hole_pattern_dim_dropped, location_ref_dropped, plate_thickness_dropped, pmi_dropped); pmi_dropped: PMI '0.30 ±0.02 INCH' not placed (no room beside the side)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:#20632",
+  "port": "dimension:#20632",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "The port's record has no draftwright counterpart (draftwright's reading has no dimension on these faces). It applies to supplemental geometry and is refused as an open maintainer question: PMI dimension dimension:#20632 (ø3) is not drawn: applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges (an open question for the maintainer: it stays undrawn until it is decided)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:#20659",
+  "port": "dimension:#20659",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "The port's record has no draftwright counterpart (draftwright's reading has no dimension on these faces). It applies to supplemental geometry and is refused as an open maintainer question: PMI dimension dimension:#20659 (ø3) is not drawn: applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges (an open question for the maintainer: it stays undrawn until it is decided)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:#20686",
+  "port": "dimension:#20686",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "The port's record has no draftwright counterpart (draftwright's reading has no dimension on these faces). It applies to supplemental geometry and is refused as an open maintainer question: PMI dimension dimension:#20686 (ø3) is not drawn: applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges (an open question for the maintainer: it stays undrawn until it is decided)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:113",
+  "port": "dimension:#19787",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀6 ±0.15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:114",
+  "port": "dimension:#19817",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀6 ±0.15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:115",
+  "port": "dimension:#19847",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø6 ±0.15' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:117",
+  "port": "dimension:#19899",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "5 ±0.2",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 31 required annotation outcome(s) (hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '5 ±0.2' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:118",
+  "port": "dimension:#19923",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "15 ±0.2",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 31 required annotation outcome(s) (hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '15 ±0.2' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:123",
+  "port": "dimension:#20119",
+  "field": "outcome",
+  "python": {
+   "detail": "3× ⌀3.5 THRU",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (ISO 286 class without limits): draftwright states the plain size and drops the class G6; the port refuses rather than drop or compute it: PMI dimension dimension:#20119 (ø3.5) is not drawn: the ISO 286 class G6 is stated without limits; they are not computed; haecceity nonconformance on #20121 (limits_and_fits): limits_and_fits form_variance \"G6\" holds the grade and grade is '' (§5.2.5: form_variance is the deviation, grade the grade)"
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:124",
+  "port": "dimension:#20148",
+  "field": "outcome",
+  "python": {
+   "detail": "3× ⌀3.5 THRU",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (ISO 286 class without limits): draftwright states the plain size and drops the class G6; the port refuses rather than drop or compute it: PMI dimension dimension:#20148 (ø3.5) is not drawn: the ISO 286 class G6 is stated without limits; they are not computed; haecceity nonconformance on #20150 (limits_and_fits): limits_and_fits form_variance \"G6\" holds the grade and grade is '' (§5.2.5: form_variance is the deviation, grade the grade)"
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:125",
+  "port": "dimension:#20177",
+  "field": "outcome",
+  "python": {
+   "detail": "3× ⌀3.5 THRU",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (ISO 286 class without limits): draftwright states the plain size and drops the class G6; the port refuses rather than drop or compute it: PMI dimension dimension:#20177 (ø3.5) is not drawn: the ISO 286 class G6 is stated without limits; they are not computed; haecceity nonconformance on #20179 (limits_and_fits): limits_and_fits form_variance \"G6\" holds the grade and grade is '' (§5.2.5: form_variance is the deviation, grade the grade)"
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:135",
+  "port": "dimension:#20713",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø7 ±0.25' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:137",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "4"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20787, shape aspects #18716) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:138",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "4X R0.15 MAX"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4X R0.15 MAX', Part 21 #20824, shape aspects #20805) from its Part 21 readers; the port reads dimensions, geometric tolera), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:139",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "F65"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, 'F65', Part 21 #20844, shape aspects #19975) from its Part 21 readers; the port reads dimensions, geometric tolerances and ), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:143",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "4"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20960, shape aspects #18192) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:144",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "4"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20980, shape aspects #18219) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:145",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "4"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #21000, shape aspects #18246) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:146",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "4"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #21020, shape aspects #19331) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:148",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "F81"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, 'F81', Part 21 #21060, shape aspects #20561) from its Part 21 readers; the port reads dimensions, geometric tolerances and ), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:10",
+  "port": "dimension:#9195",
+  "field": "outcome",
+  "python": {
+   "detail": "R12.7 ±0.508",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright draws it; the port's reading carries a modifier it does not carry, so it is not lowered: PMI dimension dimension:#9195 (R12.7 ±0.508) is not drawn: the dimension modifier ControlledRadius is not carried; haecceity nonconformance on #9192 (compound_representation_item): type 2 dimension modifiers in a compound item named \"dimensional note\" (§5.3: 'modifiers'); read as the modifiers."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:12",
+  "port": "dimension:#9432",
+  "field": "outcome",
+  "python": {
+   "detail": "R3.2 ±0.508",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the radius from the centroid of the referenced faces' boxes along their box's longest extent (_bore_info's ref_bbox fallback), which for a group of fillet faces on different axes is no point of the arc; the port refuses: PMI dimension dimension:#9432 (R3.2 ±0.508) is not drawn: one radius reference face is not cylindrical; radius references do not share one cylinder axis direction."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:15",
+  "port": "dimension:#9670",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "12.00 ±0.01 INCH",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 19 required annotation outcome(s) (hole_pattern_dim_dropped, location_ref_dropped, off_axis_location_dropped, plate_thickness_dropped, pmi_dropped); pmi_dropped: PMI '12.00 ±0.01 INCH' not placed (no room beside the side)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#8744",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "2× ⌀6.3 ±0.2032 ↧ 12.7",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.250 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:3 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀6.3 ±0.2032 ↧ 12.7'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:7",
+  "port": "dimension:#8982",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀10.5 ±0.2032 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.415 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:7 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀10.5 ±0.2032 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:9",
+  "port": "dimension:#9112",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "2× ⌀14.3 ±0.2032 THRU ⌴ ⌀20.6 ↧ 14.3",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.562 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀14.3 ±0.2032 THRU ⌴ ⌀20.6 ↧ 14.3'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:93",
+  "port": "dimension:#11272",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀7.1 ±0.2032 THRU ⌴ ⌀10.2 ↧ 7.9",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 ±0.2032 THRU ⌴ ⌀10.2 ↧ 7.9'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:100",
+  "port": "dimension:#10087",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "0.375 ±0.008 INCH",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '0.375 ±0.008 INCH' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:104",
+  "port": "dimension:#10191",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10191 (ø0.156 ±0.008 INCH) is not drawn: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:105",
+  "port": "dimension:#10215",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀8.0 ±0.2032 THRU",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gives it to '⌀8.0 ±0.2032 THRU'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#10215 (ø0.315 ±0.008 INCH) is not drawn: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature.. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:106",
+  "port": "dimension:#10239",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀7.1 ±0.2032 THRU",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gives it to '⌀7.1 ±0.2032 THRU'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#10239 (ø0.281 ±0.008 INCH) is not drawn: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:108",
+  "port": "dimension:#10287",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø5.6 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10287 (ø0.221 ±0.008 INCH) is not drawn: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature.); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:109",
+  "port": "dimension:#10311",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10311 (ø0.156 ±0.008 INCH) is not drawn: haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:110",
+  "port": "dimension:#10343",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "0.25 ±0.01 INCH",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '0.25 ±0.01 INCH' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:113",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "4X R"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4X R', Part 21 #10483, shape aspects #9707) from its Part 21 readers; the port reads dimensions, geometric tolerances and ), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:114",
+  "port": null,
+  "field": "record",
+  "python": {
+   "kind": "common_label",
+   "label": "2X R"
+  },
+  "rust": null,
+  "verdict": "rust-wrong",
+  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '2X R', Part 21 #10504, shape aspects #10136) from its Part 21 readers; the port reads dimensions, geometric tolerances and), so the port has no record to draw or report here."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:92",
+  "port": "dimension:#9797",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "4× ⌀5.9 ±0.2032 THRU (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:93",
+  "port": "dimension:#9820",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "4× ⌀5.9 ±0.2032 THRU (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:94",
+  "port": "dimension:#9843",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "4× ⌀5.9 ±0.2032 THRU (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:95",
+  "port": "dimension:#9866",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#9866 (ø0.250 +0.003/0 INCH) is not drawn: haecceity not-modelled on #8626 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haeccei); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:96",
+  "port": "dimension:#9889",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀6.3 +0.0762 -0.0 THRU",
+   "outcome": "absorbed"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gives it to '⌀6.3 +0.0762 -0.0 THRU'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#9889 (ø0.250 +0.003/0 INCH) is not drawn: haecceity not-modelled on #8378 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haeccei. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:99",
+  "port": "dimension:#10063",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10063 (ø0.250 ±0.008 INCH) is not drawn: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:89",
+  "port": "dimension:#295",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8 (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø6 ±0.15' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:91",
+  "port": "dimension:#297",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀6 ±0.15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8 (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8 (2×2)'."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:92",
+  "port": "dimension:#298",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀6 ±0.15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8 (2×2)",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8 (2×2)'."
+ },
+ {
+  "file": "spool_fits.step",
+  "record": "dimension:0:1:4:1",
+  "port": "dimension:#6333",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀62 +0.03/0",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "⌀62 +0.03 -0.0 THRU ⌴SF ⌀70 ↧ 10",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no owner and drew it standalone ('⌀62 +0.03/0') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '⌀62 +0.03 -0.0 THRU ⌴SF ⌀70 ↧ 10'."
+ },
+ {
+  "file": "spool_fits.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#6370",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "2× ⌀130 -0.014 -0.039",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø130 - ø0.039' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:3 was discovered but not extracted: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀130 -0.014 -0.039'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "spool_fits.step",
+  "record": "dimension:0:1:4:4",
+  "port": "dimension:#6380",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "2× ⌀130 -0.014 -0.039",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø130 - ø0.039' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:4 was discovered but not extracted: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀130 -0.014 -0.039'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "spool_fits.step",
+  "record": "dimension:0:1:4:5",
+  "port": "dimension:#6390",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "⌀70 -0.03 -0.06 OD",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø70 - ø0.06' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 70 mm differ from nominal 35.03 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:5 was discovered but not extracted: cylindrical reference diameter(s) 70 mm differ from nominal 35.03 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀70 -0.03 -0.06 OD'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "thumbwheel_thread_knurl.step",
+  "record": "dimension:0:1:4:1",
+  "port": "dimension:#651",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "⌀10 -0.013 -0.028",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ }
+]

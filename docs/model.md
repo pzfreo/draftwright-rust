@@ -435,12 +435,37 @@ placed}`.
   attachment, or whose faces lie in several placements of its part (`pmi_not_lowered`, error); a
   source not read (`pmi_not_extracted`: error for a requirement, info for a shape aspect or
   property); a file whose PMI cannot be read (`pmi_not_read`); presentation
-  (`pmi_presentation_not_read`, info); every PMI dimension (`pmi_dimensions_not_ported`, info:
-  the next stage); an item whose view is not drawn (`pmi_not_drawn`). draftwright draws PMI only
+  (`pmi_presentation_not_read`, info); an item whose view is not drawn (`pmi_not_drawn`). PMI
+  dimensions are the next section's. draftwright draws PMI only
   with `pmi="annotate"`; the port draws it whenever the part has some.
 
 Compared item by item with draftwright on 14 AP242 files (`tests/pmi_lowering.rs`,
 `tests/fixtures/known_pmi_lowering.json`).
+
+### Toleranced and basic dimensions (PMI)
+
+`src/dims/pmi_dimensions.rs` lowers each AP242 dimension record as draftwright's
+`lower_ap242_*_tolerances`/`_nominal_*` and `render_pmi` do, from where its faces put it (the
+Analysis's `geometry` on a dimension: a linear or thickness dimension's two proven `stations` and
+their axis, its one witness `view`; a diameter's or radius's exact `cylinders`, a radius's site on
+its arc; `src/pmi_lowering.rs`'s `dimension_geometry`, draftwright's `_proved_planar_linear` and
+`_cylindrical_references`). **The rule** (draftwright's): a requirement on a quantity a recognised
+feature's dimension already states annotates that dimension, which states it once: a bore whose
+cylinders are a hole callout's holes (axis lines, axis, diameter) gives the callout its band
+(`6× ⌀10 +0.09 -0.0 THRU`; symmetric limits as `±`, asymmetric ones as limits, a band wholly above
+or below the nominal with its signs), and a callout whose holes carry different requirements is
+split by requirement (a bolt circle is not: reported); an external cylinder gives its band to the
+turned step, boss or turned part whose diameter it is; a plain diameter or step length is stated
+by its owner. Otherwise it **stands beside** them, an ordinary planned dimension `d:pmi:<source>/
+<kind>[.basic]@<view>` (a length along x, y or z in draftwright's view; a diameter or radius by a
+leader where it is seen end-on), its label the record's, a basic one boxed (its label box widened
+to take the frame). Every item that states a PMI dimension claims it (a measurement of feature
+`pmi:<source>`); a spec's own tolerance or fit on that size wins (`pmi_not_lowered`), and an
+omitted item's PMI is `pmi_not_drawn`. Not drawn, with the reason: reading blockers, faces in
+several placements, faces that prove no witness (`pmi_not_lowered`); angles, oblique lengths,
+non-principal cylinders (`pmi_dimensions_not_ported`). The open questions (supplemental geometry,
+an ISO 286 class without limits) stay refused. Compared record by record on the 14 AP242 files
+(`tests/pmi_dimensions.rs`, `tests/fixtures/known_pmi_dimensions.json`).
 
 **IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
 view moves the dimension to its next view and renames it (the basis says so); a spec still keyed

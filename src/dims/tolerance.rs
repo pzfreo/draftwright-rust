@@ -404,6 +404,56 @@ pub(super) fn apply(
     Ok(from_spec)
 }
 
+/// A band from two signed deviations, the upper and the lower, as draftwright prints an
+/// imported requirement on a recognised feature's size (`_fmt_tolerance`): `±T` when they are
+/// opposite, else `+U -L`, each with its authored digits and at least the drawn precision. A band
+/// wholly above or below the nominal keeps its signs (`-0.014 -0.039`, ISO 129-1), which
+/// draftwright's unsigned deviations cannot state.
+pub(super) fn band(upper: f64, lower: f64) -> String {
+    let m = |v: f64| printed(&format!("{}", v.abs()));
+    if upper > 0.0 && upper == -lower {
+        format!("±{}", m(upper))
+    } else {
+        let up = if upper < 0.0 { '-' } else { '+' };
+        let down = if lower > 0.0 { '+' } else { '-' };
+        format!("{up}{} {down}{}", m(upper), m(lower))
+    }
+}
+
+/// Puts *text* after the term of *w*'s label that states its value, as a spec's tolerance is put
+/// ([`apply`]); false when the label states no value for it to follow.
+pub(super) fn insert(w: &mut super::Want, text: &str) -> bool {
+    match value_term(&w.terms) {
+        Some(i) => {
+            w.terms.insert(i + 1, text.to_string());
+            true
+        }
+        None => false,
+    }
+}
+
+/// Puts a limit pair in place of the term of *w*'s label that states its value, keeping that
+/// term's symbol (`⌀35` → `⌀34.8 - ⌀35.1`), as draftwright states an imported limit pair that is
+/// not symmetric (`bore_callout_value`); false when the label states no value.
+pub(super) fn limits(w: &mut super::Want, lower: f64, upper: f64) -> bool {
+    let Some(i) = value_term(&w.terms) else {
+        return false;
+    };
+    let prefix: String = w.terms[i]
+        .chars()
+        .take_while(|c| !c.is_ascii_digit())
+        .collect();
+    w.terms.splice(
+        i..=i,
+        [
+            format!("{prefix}{lower}"),
+            "-".into(),
+            format!("{prefix}{upper}"),
+        ],
+    );
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -434,6 +484,17 @@ mod tests {
         ] {
             assert!(read(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn imported_bands_print_as_draftwright_prints_them() {
+        assert_eq!(band(0.2, -0.2), "±0.2");
+        assert_eq!(band(0.09, 0.0), "+0.09 -0.0");
+        assert_eq!(band(0.0, -0.2), "+0.0 -0.2");
+        assert_eq!(band(0.0762, -0.0254), "+0.0762 -0.0254");
+        assert_eq!(band(1.0, -1.0), "±1.0");
+        assert_eq!(band(-0.014, -0.039), "-0.014 -0.039");
+        assert_eq!(band(0.039, 0.014), "+0.039 +0.014");
     }
 
     #[test]

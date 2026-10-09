@@ -580,11 +580,27 @@ fn every_record_and_source_is_drawn_or_reported() {
         for r in &report.records {
             let drawn = plan.gdt.iter().any(|g| g.source == r.source_id);
             match r.category {
-                Category::Dimension => assert!(
-                    named("pmi_dimensions_not_ported", &r.source_id) && !drawn,
-                    "{file}: {} is said not drawn yet",
-                    r.source_id
-                ),
+                // A dimension is stated by a planned dimension or said not drawn, never both
+                // (stage 2b, `tests/pmi_dimensions.rs`); never a frame or symbol.
+                Category::Dimension => {
+                    let feature = format!("pmi:{}", r.source_id);
+                    let stated = plan
+                        .dimensions
+                        .iter()
+                        .any(|d| d.measurements.iter().any(|m| m.feature == feature));
+                    let reported = [
+                        "pmi_not_lowered",
+                        "pmi_dimensions_not_ported",
+                        "pmi_not_drawn",
+                    ]
+                    .iter()
+                    .any(|c| named(c, &r.source_id));
+                    assert!(
+                        stated != reported && !drawn,
+                        "{file}: {} is stated ({stated}) or reported ({reported})",
+                        r.source_id
+                    );
+                }
                 Category::GeometricTolerance | Category::Datum => {
                     let reported = named("pmi_not_lowered", &r.source_id);
                     assert!(
