@@ -1,0 +1,66 @@
+[
+ {
+  "part": "ctc01",
+  "subject": "solid 0",
+  "python": "[-590.0, -325.0, -100.0, 580.0, 325.0, 50.0]",
+  "rust": "[-400.0, -225.0, -100.0, 400.0, 225.0, 50.0]",
+  "verdict": "rust-correct",
+  "reason": "draftwright scans the part as build123d imports it: a compound of the solid and the file's PMI presentation geometry, so its box (and the scan's tolerance) takes in the annotation curves; build123d gives the solid alone x -400..400, y -225..225, z -100..50 (part.solids()[0].bounding_box(), checked 2026-10-09). haecceity reads the solid's faces, and the port's box is the solid's. A principal boundary face lies on the solid's box, not on the drawing's annotations, so the port's is the box the rule means."
+ },
+ {
+  "part": "ctc01",
+  "subject": "wire 0 x@400.000 [-115.000, -36.250, -85.345, -13.115]",
+  "python": null,
+  "rust": "recess=true double_d=false vocabulary=false supported=true",
+  "verdict": "rust-correct",
+  "reason": "The face at x 400 is a principal boundary face of the solid; draftwright's box, inflated by the file's PMI presentation geometry to x 580 (see this part's solid 0), does not reach it, so draftwright never scans its two openings. The port does, and each is the open end of one of ctc01's blind pockets (a section recess record), so it is supported and no finding changes: neither side reports an unsupported profile on ctc01."
+ },
+ {
+  "part": "ctc01",
+  "subject": "wire 0 x@400.000 [-82.328, -36.250, -29.699, -13.750]",
+  "python": null,
+  "rust": "recess=true double_d=false vocabulary=false supported=true",
+  "verdict": "rust-correct",
+  "reason": "The face at x 400 is a principal boundary face of the solid; draftwright's box, inflated by the file's PMI presentation geometry to x 580 (see this part's solid 0), does not reach it, so draftwright never scans its two openings. The port does, and each is the open end of one of ctc01's blind pockets (a section recess record), so it is supported and no finding changes: neither side reports an unsupported profile on ctc01."
+ },
+ {
+  "part": "ctc03",
+  "subject": "solid 0",
+  "python": "[-330.2, -45.72, 0.0, 88.9, 504.4948, 162.68015]",
+  "rust": "[-249.561, 0.0, 0.0, 53.402, 485.445, 162.68]",
+  "verdict": "rust-correct",
+  "reason": "draftwright scans the part as build123d imports it: a compound of the solid and the file's PMI presentation geometry, so its box (and the scan's tolerance) takes in the annotation curves; build123d gives the solid alone x -249.561..53.402, y 0..485.445, z 0..162.680 (part.solids()[0].bounding_box(), checked 2026-10-09). haecceity reads the solid's faces, and the port's box is the solid's. A principal boundary face lies on the solid's box, not on the drawing's annotations, so the port's is the box the rule means. No opening is found on the faces only the port scans."
+ },
+ {
+  "part": "ftc06",
+  "subject": "solid 0",
+  "python": "[-152.4, 0.0, -247.65, 152.4, 106.68, 0.0]",
+  "rust": "[-152.4, 0.0, -247.65, 152.4, 97.79, 0.0]",
+  "verdict": "rust-correct",
+  "reason": "draftwright scans the part as build123d imports it: a compound of the solid and the file's PMI presentation geometry, so its box (and the scan's tolerance) takes in the annotation curves; build123d gives the solid alone y 0..97.79 (part.solids()[0].bounding_box(), checked 2026-10-09). haecceity reads the solid's faces, and the port's box is the solid's. A principal boundary face lies on the solid's box, not on the drawing's annotations, so the port's is the box the rule means."
+ },
+ {
+  "part": "ftc06",
+  "subject": "wire 0 y@97.790 [-12.700, -28.575, 12.700, -3.175]",
+  "python": null,
+  "rust": "recess=false double_d=false vocabulary=true supported=true",
+  "verdict": "rust-correct",
+  "reason": "The face at y 97.79 is a principal boundary face of the solid; draftwright's box, inflated by the file's PMI presentation geometry to y 106.68 (see this part's solid 0), does not reach it. The port scans its opening, a 25.4 × 25.4 axis-aligned rectangle, which the vocabulary supports, so no finding changes."
+ },
+ {
+  "part": "ctc02",
+  "subject": "solid 0",
+  "python": "[-340.0, -40.0, -360.0, 340.0, 820.0, 40.0]",
+  "rust": "[-340.0, -40.0, -360.0, 340.0, 820.0, 40.002]",
+  "verdict": "equivalent",
+  "reason": "haecceity's box reaches z 40.002 through ten cylinder faces (217, 219, 317, 319, 354, 356, 361, 363, 395, 397) whose boundary edges, as the file gives them, rise 0.0021 above the plane at z 40 that OpenCascade's face box keeps to: an edge sitting off its surface within the file's tolerance. It is below the scan's tolerance on this part (1e-5 of its 860 mm extent, 0.0086 mm), so the same faces are principal on both sides and every loop's verdicts, and the finding, agree."
+ },
+ {
+  "part": "cgb241",
+  "subject": "solid 0",
+  "python": "[-370.790141, -266.566004, -106.322118, 374.530663, 264.889134, 114.836142]",
+  "rust": "[-370.79, -266.566, -106.322, 92.912, 264.889, 114.836]",
+  "verdict": "rust-correct",
+  "reason": "OpenCascade's optimal box of cgb241's B-spline faces bounds each surface over the face's whole parameter rectangle (BRepTools::UVBounds), past its trim: build123d gives x up to 374.531. Sampling each B-spline face on a 200 × 200 grid of its parameter rectangle and keeping the points BRepClass_FaceClassifier puts in or on the face gives at most x 92.902 (face 22; run 2026-10-09), and the faces' vertices lie at x 85.128 or less. haecceity bounds the trimmed faces (92.912), the solid's true extent. The part has no principal face with an opening on either side."
+ }
+]

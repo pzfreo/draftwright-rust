@@ -37,15 +37,16 @@
 //! Python reports one location finding per code for the sheet, with the number of holes; the
 //! port does too, with Python's message, naming the holes as its subjects (and, for a location,
 //! each axis not located as a requirement). The severity is a warning: Python's is info on a
-//! part of several solids, which the Analysis does not record. Not ported: double-D bores in
-//! the location checks (lint does not read them yet), structured-note and hole-table authority
-//! (the port has neither), and the exclusion of a boss whose face a blend of the same circle
-//! owns (draftwright's `boss_blend_owner_pairs`; see LINT-code-feature_not_dimensioned's note).
+//! part of several solids, which the Analysis does not record. Double-D bores are located and
+//! centre-marked as holes are (Python's `profiled_bores`, [`sites`]). Not ported: structured-note
+//! and hole-table authority (the port has neither), and the exclusion of a boss whose face a
+//! blend of the same circle owns (draftwright's `boss_blend_owner_pairs`; see
+//! LINT-code-feature_not_dimensioned's note).
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::holes::groups;
-use super::{LintIssue, Mark, Requirement, Severity};
+use super::{LintIssue, Mark, Requirement, Severity, profiled_bores};
 use crate::bridge::holes::{self, Hole};
 use crate::model::Analysis;
 
@@ -534,16 +535,47 @@ pub fn location(
     issues
 }
 
-/// The Analysis's readable holes as sites, in the part's frame: a member of an established
-/// pattern ([`groups`]) is patterned; an annotation claiming its `location.length.<axis>` locates
-/// it along that axis. The drawing records no centre marks, witness points or view projections,
-/// so the sites have no projections.
+/// The Analysis's readable holes, then its readable double-D bores (Python's `profiled_bores`,
+/// located and centre-marked as holes are), as sites in the part's frame: a member of an
+/// established hole pattern ([`groups`]) is patterned, a double-D bore never; an annotation
+/// claiming the feature's `location.length.<axis>` locates it along that axis. A double-D bore
+/// is at its record's `location`, along the part's axis its record's runs nearest; one whose
+/// record cannot be read is left to [`super::profiled_bores`], which reports it. The drawing
+/// records no centre marks, witness points or view projections, so the sites have no
+/// projections.
 pub fn sites(analysis: &Analysis, marks: &[Mark]) -> Vec<Site> {
     let patterned: BTreeSet<String> = groups(analysis)
         .into_iter()
         .filter(|g| g.pattern)
         .flat_map(|g| g.members)
         .collect();
+    let claimed = |id: &str| {
+        [0, 1, 2].map(|k| {
+            let parameter = format!("location.length.{}", AXES[k]);
+            marks.iter().any(|m| {
+                m.claims
+                    .iter()
+                    .any(|c| c.feature == id && c.parameter == parameter)
+            })
+        })
+    };
+    let frame = holes::frame(analysis);
+    let bores = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "double_d_bore")
+        .filter_map(|f| {
+            let (key, ..) = profiled_bores::key(analysis, f).ok()?;
+            let at = holes::to_part(&frame, holes::point(f.parameters.get("location"))?);
+            Some(Site {
+                subject: f.id.clone(),
+                axis: key.axis,
+                at,
+                patterned: false,
+                projections: Vec::new(),
+                claimed: claimed(&f.id),
+            })
+        });
     holes::read(analysis)
         .into_iter()
         .filter_map(|(f, h)| Some((f, h.ok()?)))
@@ -552,23 +584,16 @@ pub fn sites(analysis: &Analysis, marks: &[Mark]) -> Vec<Site> {
             let axis = (0..3)
                 .max_by(|&a, &b| d[a].abs().total_cmp(&d[b].abs()).then(b.cmp(&a)))
                 .unwrap_or(2);
-            let claimed = [0, 1, 2].map(|k| {
-                let parameter = format!("location.length.{}", AXES[k]);
-                marks.iter().any(|m| {
-                    m.claims
-                        .iter()
-                        .any(|c| c.feature == f.id && c.parameter == parameter)
-                })
-            });
             Site {
                 subject: f.id.clone(),
                 axis,
                 at: h.at,
                 patterned: patterned.contains(&f.id),
                 projections: Vec::new(),
-                claimed,
+                claimed: claimed(&f.id),
             }
         })
+        .chain(bores)
         .collect()
 }
 
@@ -731,6 +756,34 @@ mod tests {
     /// A hole is marked by a centre mark within 0.6 mm of its projection; located along each axis
     /// across it where it is more than 1 mm off the part's centre, by a claim or a witness within
     /// 0.6 mm on that axis; a pattern member needs no location.
+    /// A double-D bore is located as a hole is (Python's `profiled_bores` among the location
+    /// checks' holes): along x at y 30 on a part centred at y 50, it needs locating along y (not
+    /// z, where it is centred); an annotation claiming its `location.length.y` locates it.
+    #[test]
+    fn a_double_d_bore_is_located_as_a_hole_is() {
+        use crate::output::Claim;
+        let a = super::super::paired_ramp_steps::tests::part(
+            "double_d_bore",
+            serde_json::json!({ "axis": [1.0, 0.0, 0.0], "location": [100.0, 30.0, 5.0],
+                                "depth": 100.0, "major_diameter": 10.0, "across_flats": 7.2,
+                                "through": true, "flat_direction": [0.0, 1.0, 0.0] }),
+        );
+        let found = located(&a, &[]);
+        assert_eq!(codes(&found), ["feature_not_located"]);
+        assert_eq!(found[0].subjects, ["f:double_d_bore:1"]);
+        assert_eq!(found[0].requirements[0].parameter, "location.length.y");
+        let mark = Mark {
+            name: "m".into(),
+            view: Some("v:side".into()),
+            text: "30".into(),
+            claims: vec![Claim {
+                feature: "f:double_d_bore:1".into(),
+                parameter: "location.length.y".into(),
+            }],
+        };
+        assert!(located(&a, &[mark]).is_empty());
+    }
+
     #[test]
     fn holes_need_a_mark_and_a_location() {
         let centre = [0.0, 0.0, 0.0];
