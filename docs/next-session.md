@@ -377,6 +377,11 @@ quiddity commit that has it.
     them), not drawn off the sheet. Keep draftwright's rule that off-axis drops never tabulate, or
     give the front view its own table?
   - Quality 4 (d-quality-ink): ink 486 to 458; three questions (ctc03 21 to 24 via the recovery taking A2; draftwright's text gate; a post-assignment leader repair) in `docs/quality-2026-10-09.md`, "After Quality 4".
+  - Integration r-draftwright-rust-10 (all four merged): off the sheet 33 to 3, view overlaps 30 to
+    0, title block 5 to 0, ink 448 to 382; only ctc03 worse (ink 21 to 24). Question for the
+    maintainer: ftc07 now goes to A0 at 1:1 through the recovery (draftwright A2 at 1:2); weigh
+    sheet size or ink in the recovery, or accept? (`docs/quality-2026-10-09.md`,
+    "Integration r-draftwright-rust-10").
 - **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
   other backlog work):
   - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a

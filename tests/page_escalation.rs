@@ -394,10 +394,13 @@ fn every_planning_entry_point_applies_the_recovery() {
 /// than the first plan is not taken. ftc07 with Rust quiddity's recognition (the command line's
 /// default) has two hole locations too close to read at A3 1:5, a loss, so the larger scales and
 /// sheets are tried; A1 at 1:1 is valid and complete but lays one more item over a view than the
-/// first plan, so it is passed over and A3 at 1:5 is kept, said (`layout_recovery_exhausted`).
-/// draftwright's first choice is A2 at 1:2, which the port tries and rejects for two hard layout
-/// findings (rust-wrong sheet, a placement residual). Until the layout kept the isometric off the
-/// views' bands (drawing quality 3) ctc01 held this gate and ftc07 moved to A1 at 1:1.
+/// first plan, so it is passed over; A0 at 1:1, valid and complete with no more items over a
+/// view, is taken, said (`layout_replanned`). draftwright's first choice is A2 at 1:2, which the
+/// port tries and rejects for two hard layout findings (rust-wrong sheet, a placement residual;
+/// a maintainer question in docs/quality-2026-10-09.md: the recovery spends a much larger sheet).
+/// Until the layout kept the isometric off the views' bands (drawing quality 3) ctc01 held this
+/// gate and ftc07 moved to A1 at 1:1; with quality 3 alone A3 at 1:5 was kept, A0 at 1:1 having
+/// hard findings until the callouts cleared existing ink (drawing quality 4).
 #[test]
 fn a_try_with_more_ink_over_the_views_is_not_taken() {
     let Some(dir) = corpus::dir() else {
@@ -406,21 +409,23 @@ fn a_try_with_more_ink_over_the_views_is_not_taken() {
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A3", "1:5"));
+    assert_eq!(sheet(&plan), ("A0", "1:1"));
     let said = plan
         .problems
         .iter()
-        .find(|p| p.code == "layout_recovery_exhausted")
+        .find(|p| p.code == "layout_replanned")
         .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
     assert!(
         said.message
-            .starts_with("A3 at 1:5 has 2 hole locations too close to read")
+            .contains("A3 at 1:5 has 2 hole locations too close to read")
             && said
                 .message
                 .contains("A1 at 1:1 (valid and complete; 1 more item over a view than the first)")
-            && said.message.contains("The first choice is kept"),
+            && said
+                .message
+                .contains("A0 at 1:1 (valid and complete); A0 at 1:1 is used"),
         "{}",
         said.message
     );
-    assert!(!plan.sheet.basis.contains("layout recovery"));
+    assert!(plan.sheet.basis.contains("layout recovery"));
 }
