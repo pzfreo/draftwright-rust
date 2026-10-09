@@ -95,7 +95,9 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
     // Three through slots in the plan: two obrounds (6 × 15.0, ends R3) and one straight slot
     // (7.0 × 16.9, corner radius 2: no end radius), each located from the box along x, and across
     // in y by its centre line: one at 38.9; two share 50.4, which is a hole's y location in the
-    // same view, so that states it (ARCH0009-6).
+    // same view, so that states it (ARCH0009-6). The two obrounds' widths lie across the same
+    // span in y, so one counted width states both (draftwright's shared slot width, `2× 6`); their
+    // lengths lie on different spans and stay two.
     assert_eq!(
         items(&plan, "slot_"),
         strs(&[
@@ -104,11 +106,12 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
             ("slot_length.length", "plan", "15.0"),
             ("slot_length.length", "plan", "15.0"),
             ("slot_length.length", "plan", "16.9"),
-            ("slot_width.length", "plan", "6"),
-            ("slot_width.length", "plan", "6"),
+            ("slot_width.length", "plan", "2× 6"),
             ("slot_width.length", "plan", "7.0"),
         ])
     );
+    let width = plan.dimensions.iter().find(|d| d.label == "2× 6").unwrap();
+    assert_eq!(width.measurements.len(), 2, "{width:?}");
     assert_eq!(
         items(&plan, "location_slot"),
         strs(&[
@@ -183,16 +186,21 @@ fn ftc06_bosses_are_counted_called_out_and_their_heights_stated() {
             ("boss.diameter", "front", "2× ø22.9"),
             ("boss.diameter", "front", "2× ø31.8"),
             ("boss.diameter", "plan", "4× ø44.5"),
-            ("boss_height.length", "front", "38.1"),
-            ("boss_height.length", "front", "38.1"),
-            ("boss_height.length", "front", "38.1"),
-            ("boss_height.length", "front", "38.1"),
-            ("boss_height.length", "side", "12.1"),
-            ("boss_height.length", "side", "12.1"),
-            ("boss_height.length", "side", "16.3"),
-            ("boss_height.length", "side", "16.3"),
+            // Each set of bosses stands to one height across one span: one counted dimension
+            // claiming every boss (src/dims/mod.rs::share), where draftwright's sheet repeats
+            // the same span four (and twice two) times.
+            ("boss_height.length", "front", "4× 38.1"),
+            ("boss_height.length", "side", "2× 12.1"),
+            ("boss_height.length", "side", "2× 16.3"),
         ])
     );
+    let heights: usize = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/boss_height.length@"))
+        .map(|d| d.measurements.len())
+        .sum();
+    assert_eq!(heights, 8);
     let bosses = of_kind(&a, "boss");
     for d in plan.dimensions.iter().filter(|d| {
         d.measurements
@@ -398,14 +406,17 @@ fn ftc07_square_bosses_are_counted_across_flats_with_their_heights() {
     let a = analysed_file(&corpus, "ftc07", "nist/nist_ftc_07_asme1_rd.stp");
     let plan = model::plan(&a, &Spec::default()).unwrap();
     // draftwright's sheet (captured 2026-10-08 at origin/main 586628b) prints `4-SIDED 25.4 A/F`
-    // four times in the front and `2.5` four times in the side; the port counts the four
-    // identical bosses once, as it does cylindrical ones.
-    let mut want = vec![(
-        "polygon_across_flats.length",
-        "front",
-        "4× 4-SIDED 25.4 A/F",
-    )];
-    want.extend([("boss_height.length", "side", "2.5"); 4]);
+    // four times in the front and `2.5` four times in the side, on one span; the port counts the
+    // four identical bosses once, as it does cylindrical ones, and states their one height once,
+    // counted (src/dims/mod.rs::share).
+    let want = vec![
+        (
+            "polygon_across_flats.length",
+            "front",
+            "4× 4-SIDED 25.4 A/F",
+        ),
+        ("boss_height.length", "side", "4× 2.5"),
+    ];
     let got: Vec<_> = stating(&plan, &a, "polygonal_boss")
         .into_iter()
         .filter(|(p, ..)| !p.starts_with("location"))
@@ -420,6 +431,12 @@ fn ftc07_square_bosses_are_counted_across_flats_with_their_heights() {
         .unwrap();
     assert_eq!(across.measurements.len(), 4);
     assert!(across.placed.is_some());
+    let height = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id.contains("/boss_height.length@"))
+        .unwrap();
+    assert_eq!(height.measurements.len(), 4);
 }
 
 #[test]
@@ -781,12 +798,18 @@ fn a_slot_pattern_that_does_not_hold_together_is_reported_and_its_slots_dimensio
             .iter()
             .all(|d| !d.id.contains("slot_pattern"))
     );
-    assert_eq!(
-        plan.dimensions
-            .iter()
-            .filter(|d| d.id.contains("/slot_length.length@plan"))
-            .count(),
-        3
+    // Each slot's own length is stated: the three lie across one span, so one counted
+    // dimension claims all three (src/dims/mod.rs::share), never the pattern.
+    let lengths: Vec<&str> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/slot_length.length@plan"))
+        .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
+        .collect();
+    assert_eq!(lengths.len(), 3, "{lengths:?}");
+    assert!(
+        lengths.iter().all(|f| f.starts_with("f:slot:")),
+        "{lengths:?}"
     );
 }
 

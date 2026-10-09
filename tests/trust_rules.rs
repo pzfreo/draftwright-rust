@@ -567,14 +567,29 @@ fn every_planned_dimension_can_be_addressed() {
                 .filter(|i| !promoted.contains(i))
                 .collect();
             assert_eq!(kept, expected, "{name}: omitting {id}");
-            assert_eq!(
-                ids(&without).len(),
-                expected.len() + promoted.len(),
+            // What it conveyed comes back: each item drawn again, or conveyed by one that is
+            // (a size it shared among three or more is shared again by the rest, src/dims/mod.rs
+            // ::share).
+            let back: Vec<&str> = ids(&without)
+                .into_iter()
+                .filter(|i| promoted.contains(i))
+                .collect();
+            for p in promoted.iter().filter(|p| !back.contains(p)) {
+                assert!(
+                    without.omitted.iter().any(|o| o.id == *p
+                        && back
+                            .iter()
+                            .any(|b| o.basis.starts_with(&format!("conveyed by {b}: ")))),
+                    "{name}: omitting {id} brings back {p}, or one that conveys it"
+                );
+            }
+            assert!(
+                promoted.is_empty() || !back.is_empty(),
                 "{name}: omitting {id} brings back what it conveyed"
             );
             assert_eq!(
                 without.omitted.len(),
-                1 + plan.omitted.len() - promoted.len(),
+                1 + plan.omitted.len() - back.len(),
                 "{name}: {id}"
             );
 
@@ -644,7 +659,17 @@ fn annotations_carry_their_plan_items_provenance() {
             }
         }
         let (feature, its) = by_feature.iter().max_by_key(|(_, v)| v.len()).unwrap();
-        let dropped = model::plan(analysis, &omitting(its)).unwrap();
+        // Its own items another item conveys (one span, one dimension: ARCH0009-6) are its too:
+        // omitting the item that states them would promote them.
+        let mut its = its.clone();
+        let own = format!("d:{feature}/");
+        its.extend(
+            plan.omitted
+                .iter()
+                .filter(|o| o.id.starts_with(&own) && o.basis.starts_with("conveyed by "))
+                .map(|o| o.id.as_str()),
+        );
+        let dropped = model::plan(analysis, &omitting(&its)).unwrap();
         let after = model::render(part, analysis, &dropped, &font).unwrap();
         let names = |d: &draftwright::output::Drawing| -> BTreeSet<String> {
             d.annotations.iter().map(|a| a.name.clone()).collect()
@@ -660,11 +685,15 @@ fn annotations_carry_their_plan_items_provenance() {
             .map(|a| a.name.clone())
             .collect();
         assert_eq!(removed, claiming, "{name}: dropping {feature}");
+        let still: Vec<&str> = after
+            .annotations
+            .iter()
+            .filter(|a| a.claims.iter().any(|c| c.feature == *feature))
+            .map(|a| a.name.as_str())
+            .collect();
         assert!(
-            after
-                .annotations
-                .iter()
-                .all(|a| a.claims.iter().all(|c| c.feature != *feature))
+            still.is_empty(),
+            "{name}: dropping {feature} ({its:?}) leaves {still:?}"
         );
     }
 }
@@ -778,7 +807,8 @@ fn labels_are_measured_with_the_font_they_are_drawn_with() {
 /// place more (raise the floor then); one that places fewer fails here, and lowering a floor is
 /// a decision to record. The floors are the port's own counts (at 7a966a9), not draftwright's:
 /// families it does not dimension yet would fail draftwright's. An item counts as placed when it
-/// has ink on the page, whether or not a problem is reported against it.
+/// has ink on the page, whether or not a problem is reported against it, or when a placed item
+/// conveys it (one span, one dimension: ARCH0009-6), since that item states it.
 #[test]
 fn placed_counts_do_not_fall_below_their_floors() {
     const FLOORS: [(&str, usize); 16] = [
@@ -809,11 +839,22 @@ fn placed_counts_do_not_fall_below_their_floors() {
             .unwrap_or_else(|| panic!("{name} has no floor"))
             .1;
         let plan = model::plan(analysis, &Spec::default()).unwrap();
-        let placed = plan
+        let inked: Vec<&str> = plan
             .dimensions
             .iter()
             .filter(|d| d.placed.is_some())
+            .map(|d| d.id.as_str())
+            .collect();
+        let conveyed = plan
+            .omitted
+            .iter()
+            .filter(|o| {
+                inked
+                    .iter()
+                    .any(|i| o.basis.starts_with(&format!("conveyed by {i}: ")))
+            })
             .count();
+        let placed = inked.len() + conveyed;
         if placed < floor {
             below.push(format!("{name}: {placed} placed, floor {floor}"));
         }

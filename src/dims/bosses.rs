@@ -26,7 +26,10 @@
 //!   hole's location states it).
 //!
 //! A boss that is a groove's floor is the groove's, as in draftwright and lint
-//! ([`crate::lint::bosses::groove_floor`]); it gets no dimensions of its own here.
+//! ([`crate::lint::bosses::groove_floor`]); it gets no dimensions of its own here. Nor does a
+//! boss that is a band of a turned profile, recorded on the same faces as a turned step
+//! ([`crate::lint::bosses::turned_band`], draftwright's `boss_turned_step_owner`): the step's
+//! diameter and length state it ([`super::turned`]), and its own would state them twice.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -39,7 +42,7 @@ use super::{
 };
 use crate::bridge::Feature;
 use crate::bridge::holes::{self, principal};
-use crate::lint::bosses::groove_floor;
+use crate::lint::bosses::{groove_floor, turned_band};
 use crate::model::Analysis;
 
 pub(super) const PLANNER: Planner = Planner {
@@ -223,7 +226,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut bosses = Vec::new();
     for f in &analysis.features {
         let read = match f.kind.as_str() {
-            "boss" if groove_floor(analysis, f) => continue,
+            "boss" if groove_floor(analysis, f) || turned_band(analysis, f) => continue,
             "boss" => read(f, &cx.frame),
             "polygonal_boss" => read_polygon(f, &cx.frame),
             _ => continue,

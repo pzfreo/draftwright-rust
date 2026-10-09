@@ -17,8 +17,15 @@
 //! height that is claimed but misprinted is not stated either, so it is reported under the same
 //! code, with the annotation and why. Not ported: a height consolidated onto an overall extent
 //! (Python follows the authored omission's `conveyed_by`, which lint cannot see without the
-//! plan), and bosses absorbed into blends or turned steps by recognition ownership.
+//! plan), and bosses absorbed into blends by recognition ownership.
 //! The boss's diameter is the coarse diameter inventory's (`feature_not_dimensioned`), not ported.
+//!
+//! A boss that is a band of a turned profile is the turned step's, not a boss (draftwright's
+//! `boss_turned_step_owner` in `model/detect.py`'s `_append_turned_and_boss_features`): quiddity
+//! reports each band of a turned part both as a turned step and as a boss, and draftwright emits
+//! no boss feature for one whose record names the same defining faces as a turned step's
+//! (`_records_share_defining_target`), so the step's diameter and length state it. Here that is a
+//! boss whose faces are a `turned_step` feature's, exactly ([`turned_band`]).
 
 use super::parameters::{self, Wanted, fmt, fmt3};
 use super::{LintIssue, Mark};
@@ -42,12 +49,22 @@ pub fn groove_floor(analysis: &Analysis, b: &Feature) -> bool {
         })
 }
 
+/// Whether boss *b* is a band of a turned profile: a `turned_step` feature has exactly its faces
+/// (draftwright's same-run evidence test, which an empty face set never passes).
+pub fn turned_band(analysis: &Analysis, b: &Feature) -> bool {
+    !b.faces.is_empty()
+        && analysis
+            .features
+            .iter()
+            .any(|s| s.kind == "turned_step" && s.faces == b.faces)
+}
+
 /// The bosses' height requirements.
 pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     analysis
         .features
         .iter()
-        .filter(|f| f.kind == "boss" && !groove_floor(analysis, f))
+        .filter(|f| f.kind == "boss" && !groove_floor(analysis, f) && !turned_band(analysis, f))
         .filter_map(|f| {
             let h = parameters::size(f, "height").ok()?;
             Some(Wanted {

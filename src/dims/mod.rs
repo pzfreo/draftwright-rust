@@ -25,6 +25,9 @@
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>@<view>`, its value,
 //! its printed terms and label, the measurements it states, a default flag and a basis. A
 //! tolerance or fit the spec gives reaches the label verbatim ([`tolerance`]), before placement.
+//! Each quantity is then stated once (ARCH0009-6): coincident locations merge
+//! ([`holes::consolidate`]), and so do the same size of several features across one span
+//! ([`share`]: parallel hole rows' pitch, and a slot width, slot length or boss height, counted).
 //!
 //! **Placement is simple and honest**, not draftwright's solver: linear dimensions stack in lanes
 //! below (horizontal) and right of (vertical) their view, sizes nearest, then locations by
@@ -553,6 +556,7 @@ pub fn plan(
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    share(&mut kept, &mut given, &mut omitted);
 
     // Then everything the part would have is placed: each item's lane, and where its label
     // settles, come from the full set, so omitting or restoring one leaves the others where they
@@ -684,6 +688,113 @@ pub fn plan(
     problems.extend(placement::collisions(analysis, &out, sheet, views));
     Ok((out, omitted, problems))
 }
+/// The sizes that one dimension states for every feature it spans ([`share`]), and whether its
+/// label then counts them (`n×`).
+const SHARED: [(&str, bool); 4] = [
+    // draftwright's `_coalesce_aligned_linear_pitch_dims`: parallel rows with the same stations
+    // show one pitch, its label unchanged, claiming every row's.
+    ("pitch.length", false),
+    // draftwright's shared slot width (`_slot_shared_width_key`): `2× 6`.
+    ("slot_width.length", true),
+    // The same rule for the other sizes a span can share (beyond draftwright, which repeats
+    // them: ftc06's four 38.1 boss heights on one span).
+    ("slot_length.length", true),
+    ("boss_height.length", true),
+];
+
+/// One span, one dimension, for sizes (ARCH0009-6, which the location merge in
+/// [`holes::consolidate`] applies to locations): kept items stating the same [`SHARED`] size of
+/// different features across the same span (the same view and axis, raw ends within 1e-6 mm,
+/// and the same label, tolerance included, so different stated sizes or bands never collapse)
+/// are drawn once. The survivor is one the spec lists over a default, then the smaller ID; it
+/// claims every member's measurement and, for a counted size, prints their number (`2× 6`).
+/// Each other moves to *omitted*, `conveyed by` the survivor. *given* stays aligned with *kept*.
+fn share(
+    kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<Omitted>,
+) {
+    const SAME_SPAN: f64 = 1e-6;
+    type Span = (String, &'static str, usize, f64, f64, String);
+    let span = |(w, _, view, _): &(Want, bool, Option<&'static str>, Vec<&'static str>)| {
+        let parameter = &w.measurements.first()?.parameter;
+        SHARED.iter().find(|(p, _)| p == parameter)?;
+        match w.shape {
+            Shape::Linear { a, b, axis, .. } => Some((
+                parameter.clone(),
+                view.unwrap_or(w.views[0]),
+                axis,
+                a[axis].min(b[axis]),
+                a[axis].max(b[axis]),
+                w.terms.join(" "),
+            )),
+            Shape::Callout { .. } => None,
+        }
+    };
+    let same = |s: &Span, t: &Span| {
+        s.0 == t.0
+            && s.1 == t.1
+            && s.2 == t.2
+            && (s.3 - t.3).abs() <= SAME_SPAN
+            && (s.4 - t.4).abs() <= SAME_SPAN
+            && s.5 == t.5
+    };
+    let mut groups: Vec<(Span, Vec<usize>)> = Vec::new();
+    for (i, k) in kept.iter().enumerate() {
+        let Some(s) = span(k) else { continue };
+        match groups.iter_mut().find(|(t, _)| same(&s, t)) {
+            Some((_, members)) => members.push(i),
+            None => groups.push((s, vec![i])),
+        }
+    }
+    let mut gone = BTreeSet::new();
+    for (s, mut members) in groups.into_iter().filter(|(_, m)| m.len() > 1) {
+        members.sort_by(|&x, &y| {
+            kept[x]
+                .1
+                .cmp(&kept[y].1)
+                .then_with(|| kept[x].0.id.cmp(&kept[y].0.id))
+        });
+        let (winner, losers) = members.split_first().expect("a group of two or more");
+        let owner = kept[*winner].0.id.clone();
+        let mut claims = Vec::new();
+        for &i in losers {
+            let w = &kept[i].0;
+            omitted.push(Omitted {
+                id: w.id.clone(),
+                basis: format!(
+                    "conveyed by {owner}: it states the same {} ({}) across the same span in {}, in the same view (one span, one dimension: ARCH0009-6)",
+                    s.0, s.5, AXES[s.2]
+                ),
+            });
+            claims.extend(w.measurements.iter().cloned());
+            gone.insert(i);
+        }
+        let w = &mut kept[*winner].0;
+        w.measurements.extend(claims);
+        let features: BTreeSet<&str> = w.measurements.iter().map(|m| m.feature.as_str()).collect();
+        let n = features.len();
+        let counted = SHARED.iter().any(|(p, c)| *p == s.0 && *c);
+        w.basis += &format!(
+            "; one span, one dimension: it states the same size of all {n} features it spans (ARCH0009-6){}",
+            if counted { ", counted" } else { "" }
+        );
+        if counted {
+            w.terms.insert(0, format!("{n}×"));
+        }
+    }
+    let mut i = 0;
+    kept.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
+    let mut i = 0;
+    given.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
+}
+
 /// Draws the planned dimensions: lines, arrowheads and labels into *items* (the dims layer), and
 /// each label's text runs into *text*. Everything comes from the plan; nothing is measured or
 /// formatted here (R1 invariant 2).
@@ -800,4 +911,127 @@ pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
             .iter()
             .fold([0.0; 3], |s, m| add(s, scale3(*m, 1.0 / n)))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
+
+    /// A default size of *feature* in the plan, along x from *lo* to *hi*, labelled *label*.
+    fn size(feature: &str, parameter: &str, lo: f64, hi: f64, label: &[&str]) -> Kept {
+        let want = Want {
+            id: want_id(feature, parameter, "plan"),
+            views: vec!["plan"],
+            value: hi - lo,
+            terms: label.iter().map(|t| t.to_string()).collect(),
+            measurements: vec![Measurement {
+                feature: feature.into(),
+                parameter: parameter.into(),
+                value: hi - lo,
+            }],
+            basis: String::new(),
+            shape: Shape::Linear {
+                a: [lo, 5.0, 0.0],
+                b: [hi, 5.0, 0.0],
+                axis: 0,
+                a_edge: false,
+                b_edge: false,
+                order: 0,
+            },
+            turning: None,
+        };
+        (want, true, Some("plan"), vec![])
+    }
+
+    /// The kept items as (ID, label, claims), and the omitted IDs with their owners.
+    type Shared = (Vec<(String, String, usize)>, Vec<(String, String)>);
+
+    fn shared(mut kept: Vec<Kept>) -> Shared {
+        let mut given = vec![Vec::new(); kept.len()];
+        let mut omitted = Vec::new();
+        share(&mut kept, &mut given, &mut omitted);
+        assert_eq!(given.len(), kept.len());
+        (
+            kept.iter()
+                .map(|(w, ..)| (w.id.clone(), w.terms.join(" "), w.measurements.len()))
+                .collect(),
+            omitted
+                .iter()
+                .map(|o| {
+                    let owner = o.basis["conveyed by ".len()..o.basis.find(": ").unwrap()].into();
+                    (o.id.clone(), owner)
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn one_span_one_size_counted_and_claiming_every_feature() {
+        let (kept, omitted) = shared(vec![
+            size("f:slot:2", "slot_width.length", 10.0, 16.0, &["6"]),
+            size("f:slot:1", "slot_width.length", 10.0, 16.0, &["6"]),
+            size("f:slot:3", "slot_width.length", 20.0, 26.0, &["6"]),
+        ]);
+        assert_eq!(
+            kept,
+            [
+                ("d:f:slot:1/slot_width.length@plan".into(), "2× 6".into(), 2),
+                ("d:f:slot:3/slot_width.length@plan".into(), "6".into(), 1),
+            ]
+        );
+        assert_eq!(
+            omitted,
+            [(
+                "d:f:slot:2/slot_width.length@plan".into(),
+                "d:f:slot:1/slot_width.length@plan".into()
+            )]
+        );
+    }
+
+    #[test]
+    fn a_pitch_keeps_its_label_and_other_bands_or_parameters_never_merge() {
+        let (kept, _) = shared(vec![
+            size("f:hole_pattern:1", "pitch.length", 0.0, 75.0, &["2× 75"]),
+            size("f:hole_pattern:2", "pitch.length", 0.0, 75.0, &["2× 75"]),
+        ]);
+        assert_eq!(
+            kept,
+            [(
+                "d:f:hole_pattern:1/pitch.length@plan".into(),
+                "2× 75".into(),
+                2
+            )]
+        );
+        // A different band, a different parameter, or a size draftwright never shares.
+        let (kept, omitted) = shared(vec![
+            size("f:boss:1", "boss_height.length", 0.0, 5.0, &["5"]),
+            size("f:boss:2", "boss_height.length", 0.0, 5.0, &["5", "±0.1"]),
+            size("f:slot:1", "slot_length.length", 0.0, 5.0, &["5"]),
+            size("f:step:1", "step.length", 0.0, 5.0, &["5"]),
+            size("f:step:2", "step.length", 0.0, 5.0, &["5"]),
+        ]);
+        assert_eq!(kept.len(), 5, "{kept:?}");
+        assert!(omitted.is_empty());
+    }
+
+    #[test]
+    fn the_spec_listed_one_survives() {
+        let mut listed = size("f:boss:2", "boss_height.length", 0.0, 5.0, &["5"]);
+        listed.1 = false;
+        let (kept, omitted) = shared(vec![
+            size("f:boss:1", "boss_height.length", 0.0, 5.0, &["5"]),
+            listed,
+        ]);
+        assert_eq!(
+            kept,
+            [(
+                "d:f:boss:2/boss_height.length@plan".into(),
+                "2× 5".into(),
+                2
+            )]
+        );
+        assert_eq!(omitted[0].0, "d:f:boss:1/boss_height.length@plan");
+    }
 }
