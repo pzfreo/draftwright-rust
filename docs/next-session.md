@@ -360,9 +360,11 @@ quiddity commit that has it.
   hole-table and angled-step decisions below are part of this work where they remove problems.
   - Quality 3 (r/d-quality-view-overlap): the layout reserves every view's bands (isometric clear
     of the full blocks, section gap, exact abutment, row lifted off the title block or not fitting):
-    overlapping view pairs 34 to 0, views on the title block 1 to 0, no sheet or scale changed
-    (`docs/quality-2026-10-09.md`, "After Quality 3"; cgb245 trades an off-sheet dimension for a
-    leader crossing, rust-wrong, for the ink stream).
+    overlapping view pairs 33 to 0, views on the title block 1 to 0, off the sheet 33 to 27
+    (`docs/quality-2026-10-09.md`, "After Quality 3"). Question for the maintainer: cgb245 trades
+    its off-sheet location for one leader crossing (ink 27 to 28, rust-wrong in placement:
+    draftwright carries the plan's Y locations in the side view); accept the trade until the ink
+    stream moves that ladder, or hold Quality 3 until it does?
 - **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
   other backlog work):
   - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a

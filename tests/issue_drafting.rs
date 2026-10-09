@@ -2052,17 +2052,17 @@ fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
 }
 
 /// ISSUE-1338-a, in part: the sheet is not the first lever. On every part whose first plan the
-/// recovery re-plans or tries to, the first thing tried is another scale on the same sheet, and
-/// a re-planned sheet keeps every hole and turned-shoulder outcome the first plan placed. On the
-/// captured parts that is cgb245 (A2 1:5 tried first, nothing taken, as in draftwright); ctc01 is
-/// kept on A3 at 1:5 with nothing tried, as in draftwright (until the layout kept the isometric
-/// off the plan's bands, a label the isometric displaced ran off the sheet and the recovery
-/// re-planned it at 1:10); GRM-03, the reported part, is kept on A4 at 2:1 with nothing tried, its four
-/// shoulders located (`grm03_locates_every_turned_shoulder_and_keeps_the_isometric`). Not
-/// ported: draftwright reaches 5:1 on A4 for GRM-03 by measuring larger scales against the
-/// recovery detail its estimate reserved, which the port does not plan (not-applicable); the
-/// PMI-mode clause (the port lowers no PMI into the plan, not-applicable); and `model::plan`
-/// does not apply the recovery yet.
+/// recovery re-plans or tries to, the first thing tried is another scale on the same sheet, and a
+/// re-planned sheet keeps every hole and turned-shoulder outcome the first plan placed. On the
+/// captured parts that is cgb245 (A2 1:1 tried first, nothing taken, as in draftwright) and ctc04
+/// (A1 tried first, nothing taken, as in draftwright); ctc01 is kept on A3 at 1:5 with nothing
+/// tried, as in draftwright (until the layout kept the isometric off the plan's bands, a label the
+/// isometric displaced ran off the sheet and the recovery re-planned it at 1:10); GRM-03, the
+/// reported part, is kept on A4 at 2:1 with nothing tried, its four shoulders located
+/// (`grm03_locates_every_turned_shoulder_and_keeps_the_isometric`). Not ported: draftwright reaches
+/// 5:1 on A4 for GRM-03 by measuring larger scales against the recovery detail its estimate
+/// reserved, which the port does not plan (not-applicable); and the PMI-mode clause (the port
+/// lowers no PMI into the plan, not-applicable).
 #[test]
 fn the_recovery_tries_the_same_page_first_and_keeps_every_outcome() {
     let mut moved = BTreeSet::new();

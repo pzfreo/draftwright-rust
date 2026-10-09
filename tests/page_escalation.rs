@@ -215,59 +215,46 @@ fn sheet(plan: &Plan) -> (&str, &str) {
     (plan.sheet.size.as_str(), plan.sheet.scale.as_str())
 }
 
-/// On the corpus: ctc01's first choice (A3 at 1:5, draftwright's too) has one label off the
-/// sheet; the recovery tries the nearest smaller scale first, A3 at 1:10, which is valid and
-/// complete and is taken, said (`layout_replanned`), the sheet's basis naming the recovery, the
-/// spec unchanged. draftwright tries nothing on ctc01: its drawing has no hard layout finding.
-/// The ladder and its gate are draftwright's (equivalent); the move comes from the port's
-/// off-sheet label, a placement residual it reports (`known_placement.json`).
+/// On the corpus: ctc01's first choice (A3 at 1:5, draftwright's too) has no hard layout finding
+/// and loses nothing, so the recovery tries nothing and says nothing, as draftwright's. Until the
+/// layout kept the isometric off the plan's bands (drawing quality 3), one label the isometric
+/// displaced ran off the sheet and the recovery re-planned ctc01 at A3 1:10; no captured part is
+/// re-planned now, so the re-plan itself is held by the stand-ins above and by
+/// `tests/issue_drafting.rs::the_recovery_tries_the_same_page_first_and_keeps_every_outcome`'s
+/// rule over every part. A scale or sheet the spec names leaves it as it is.
 #[test]
-fn a_plan_with_ink_off_the_sheet_is_re_planned_at_a_smaller_scale_on_its_sheet() {
-    let (first, after) = (("A3", "1:5"), ("A3", "1:10"));
+fn a_plan_without_ink_off_the_sheet_keeps_its_first_choice_on_ctc01() {
+    let first = ("A3", "1:5");
     let Some(analysis) = corpus_part("ctc01") else {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let plan = recovered(&analysis, &Spec::default());
-    assert_eq!(sheet(&plan), after);
-    let said = plan
-        .problems
-        .iter()
-        .find(|p| p.code == "layout_replanned")
-        .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
-    assert_eq!(said.severity, "info");
-    assert!(
-        said.message
-            .contains(&format!("{} at {}", first.0, first.1))
-            && said.message.contains("annotation_off_sheet"),
-        "{}",
-        said.message
-    );
-    assert!(plan.sheet.default && plan.sheet.basis.contains("layout recovery"));
-    assert!(plan.spec.sheet.size.is_none() && plan.spec.sheet.scale.is_none());
-    assert!(!codes(&plan).contains(&"annotation_off_sheet"));
-
-    // A scale the spec names is never re-planned: the label stays off the sheet, reported.
-    let pinned = recovered(&analysis, &spec(serde_json::json!({ "scale": first.1 })));
-    assert_eq!(sheet(&pinned), first);
-    assert!(codes(&pinned).contains(&"annotation_off_sheet"));
-    assert!(!codes(&pinned).iter().any(|c| c.starts_with("layout_re")));
-
-    // A sheet the spec names is kept; its scale is recovered on it.
-    let named = recovered(&analysis, &spec(serde_json::json!({ "size": first.0 })));
-    assert_eq!(sheet(&named), after);
+    for spec in [
+        Spec::default(),
+        spec(serde_json::json!({ "scale": first.1 })),
+        spec(serde_json::json!({ "size": first.0 })),
+    ] {
+        let plan = recovered(&analysis, &spec);
+        assert_eq!(sheet(&plan), first);
+        assert!(!codes(&plan).contains(&"annotation_off_sheet"));
+        assert!(!codes(&plan).iter().any(|c| c.starts_with("layout_re")));
+        assert!(!plan.sheet.basis.contains("layout recovery"));
+    }
 }
 
-/// draftwright's own recovery on cgb245, which the port's now matches: the first choice, A2 at
-/// 1:2, is invalid (draftwright: an ink overlap; the port: a label off the sheet), and every try
-/// fails its gate, so 1:2 is kept and the failed recovery said (`layout_recovery_exhausted`).
-/// draftwright's captured sheet (`tests/fixtures/sheets/cgb245.json.gz`) rejects 1:5 for two
+/// draftwright's own recovery on cgb245, whose outcome the port's matches (equivalent): A2 at 1:2
+/// is kept and the failed recovery said (`layout_recovery_exhausted`). draftwright's first choice
+/// is invalid (an ink overlap), so it tries 1:5 first and rejects it for two
 /// `location_ref_dropped` blockers (hole locations closer than 4.7 mm on the page), 1:1 for
-/// `view_out_of_bounds`, A1 and A0 for a required drop. The port keeps every location, so its
-/// gate counts the same spacing as locations too close to read: four at 1:5; two at 1:1 on A2,
-/// A1 and A0, each with hard findings besides (A2: `page_fit_uncertain` and labels off the sheet;
-/// A1: labels off the sheet; A0: an ink overlap). Without that count the port took 1:5, valid by
-/// its placement checks but with location witness lines as close as 0.6 mm.
+/// `view_out_of_bounds`, A1 and A0 for a required drop (`tests/fixtures/sheets/cgb245.json.gz`).
+/// The port keeps every location, so its gate counts the same spacing as locations too close to
+/// read. Its first choice has no hard layout finding (since the layout kept the isometric off the
+/// plan's bands, drawing quality 3, the label that ran off the sheet stands right of the plan)
+/// but two locations too close to read, a loss, so it tries the next two larger scales and then
+/// each larger sheet: A2 at 1:1 and 2:1, A1 and A0 at 1:1, each with hard findings, and each but
+/// 2:1 still with two locations too close to read; none is taken. Before the gate counted them,
+/// the port took 1:5, valid by its placement checks but with location witness lines as close as
+/// 0.6 mm.
 #[test]
 fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
     let Some(analysis) = corpus_part("cgb245") else {
@@ -276,16 +263,22 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
     };
     let plan = recovered(&analysis, &Spec::default());
     assert_eq!(sheet(&plan), ("A2", "1:2"));
-    assert!(codes(&plan).contains(&"annotation_off_sheet"));
+    assert!(!codes(&plan).contains(&"annotation_off_sheet"));
     let said = plan
         .problems
         .iter()
         .find(|p| p.code == "layout_recovery_exhausted")
         .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
     assert_eq!(said.severity, "info");
+    assert!(
+        said.message
+            .starts_with("A2 at 1:2 has 2 hole locations too close to read"),
+        "{}",
+        said.message
+    );
     for tried in [
-        "A2 at 1:5 (4 hole locations too close to read)",
-        "A2 at 1:1 (",
+        "A2 at 1:1 (6 hard layout findings, 2 hole locations too close to read)",
+        "A2 at 2:1 (",
         "A1 at 1:1 (",
         "A0 at 1:1 (",
     ] {
@@ -354,15 +347,16 @@ fn an_info_or_view_box_finding_is_not_a_hard_failure() {
 }
 
 /// The maintainer's directive of 2026-10-09 (nothing off the sheet: escalate scale or sheet as
-/// draftwright does, never clip): every planning entry point applies the recovery. ctc01's plan
+/// draftwright does, never clip): every planning entry point applies the recovery. cgb245's plan
 /// from the library (`api::plan_analysed`) and from the JSON operation the service and MCP answer
-/// (`api::call("plan")`) is the recovered plan, the same each time: A3 at 1:10, said
-/// (`layout_replanned`), nothing off the sheet. The drawing's reply (`review`) says it too. A
-/// sheet and scale the spec names are kept, the label off the sheet reported; a sheet it names
-/// alone is kept.
+/// (`api::call("plan")`) is the recovered plan, the same each time: A2 at 1:2, its failed
+/// recovery said (`layout_recovery_exhausted`, which only `model::recover` says). The drawing's
+/// reply (`review`) says it too. A sheet and scale the spec names are kept and nothing is tried;
+/// a sheet it names alone is kept. (ctc01 held this until the layout kept the isometric off the
+/// plan's bands, drawing quality 3: its label off the sheet is gone, and with it the re-plan.)
 #[test]
 fn every_planning_entry_point_applies_the_recovery() {
-    let Some(analysis) = corpus_part("ctc01") else {
+    let Some(analysis) = corpus_part("cgb245") else {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
@@ -372,9 +366,8 @@ fn every_planning_entry_point_applies_the_recovery() {
         as_json,
         serde_json::to_value(recovered(&analysis, &Spec::default())).unwrap()
     );
-    assert_eq!(sheet(&plan), ("A3", "1:10"));
-    assert!(codes(&plan).contains(&"layout_replanned"));
-    assert!(!codes(&plan).contains(&"annotation_off_sheet"));
+    assert_eq!(sheet(&plan), ("A2", "1:2"));
+    assert!(codes(&plan).contains(&"layout_recovery_exhausted"));
     let again = api::plan_analysed(&analysis, &Spec::default()).unwrap();
     assert_eq!(serde_json::to_value(&again).unwrap(), as_json);
     let reply = api::call("plan", &json!({ "analysis": analysis })).unwrap();
@@ -382,56 +375,50 @@ fn every_planning_entry_point_applies_the_recovery() {
 
     let step = corpus::dir()
         .unwrap()
-        .join(facts::load("ctc01").binding.file);
+        .join(facts::load("cgb245").binding.file);
     let review = api::review_analysed(&step, &analysis, &Spec::default()).unwrap();
     let said: Vec<&str> = review.problems.iter().map(|p| p.code.as_str()).collect();
-    assert!(said.contains(&"layout_replanned"), "{said:?}");
-    assert!(!said.contains(&"annotation_off_sheet"), "{said:?}");
+    assert!(said.contains(&"layout_recovery_exhausted"), "{said:?}");
 
-    let pinned = api::plan_analysed(&analysis, &spec(json!({ "size": "A3", "scale": "1:5" })));
+    let pinned = api::plan_analysed(&analysis, &spec(json!({ "size": "A2", "scale": "1:2" })));
     let pinned = pinned.unwrap();
-    assert_eq!(sheet(&pinned), ("A3", "1:5"));
-    assert!(codes(&pinned).contains(&"annotation_off_sheet"));
+    assert_eq!(sheet(&pinned), ("A2", "1:2"));
     assert!(!codes(&pinned).iter().any(|c| c.starts_with("layout_re")));
-    let named = api::plan_analysed(&analysis, &spec(json!({ "size": "A3" }))).unwrap();
-    assert_eq!(named.sheet.size, "A3");
+    let named = api::plan_analysed(&analysis, &spec(json!({ "size": "A2" }))).unwrap();
+    assert_eq!(named.sheet.size, "A2");
 }
 
 /// The port's own gate (`model::recover`): a try with more annotations over a view not their own
-/// than the first plan is not taken. ctc01 with Rust quiddity's recognition (the command line's
-/// default) has one hole location off the sheet at A3 1:5; A3 at 1:10 clears it but lays three
-/// items over the side view (the front's height lanes run into it), so it is passed over, and A2
-/// at 1:5 is taken, with nothing off the sheet or over a view. draftwright keeps A3 at 1:5,
-/// where its placement carries that location in the side view (rust-wrong in placement, the
-/// escalation itself equivalent).
+/// than the first plan is not taken. ftc07 with Rust quiddity's recognition (the command line's
+/// default) has two hole locations too close to read at A3 1:5, a loss, so the larger scales and
+/// sheets are tried; A1 at 1:1 is valid and complete but lays one more item over a view than the
+/// first plan, so it is passed over and A3 at 1:5 is kept, said (`layout_recovery_exhausted`).
+/// draftwright's first choice is A2 at 1:2, which the port tries and rejects for two hard layout
+/// findings (rust-wrong sheet, a placement residual). Until the layout kept the isometric off the
+/// views' bands (drawing quality 3) ctc01 held this gate and ftc07 moved to A1 at 1:1.
 #[test]
 fn a_try_with_more_ink_over_the_views_is_not_taken() {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let step = dir.join(facts::load("ctc01").binding.file);
+    let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A2", "1:5"));
+    assert_eq!(sheet(&plan), ("A3", "1:5"));
     let said = plan
         .problems
         .iter()
-        .find(|p| p.code == "layout_replanned")
+        .find(|p| p.code == "layout_recovery_exhausted")
         .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
     assert!(
         said.message
-            .contains("A3 at 1:5 has 1 hard layout finding (annotation_off_sheet)")
-            && said.message.contains(
-                "A3 at 1:10 (valid and complete; 3 more items over a view than the first)"
-            ),
+            .starts_with("A3 at 1:5 has 2 hole locations too close to read")
+            && said
+                .message
+                .contains("A1 at 1:1 (valid and complete; 1 more item over a view than the first)")
+            && said.message.contains("The first choice is kept"),
         "{}",
         said.message
     );
-    for code in [
-        "annotation_off_sheet",
-        "annotation_over_view",
-        "annotation_line_over_view",
-    ] {
-        assert!(!codes(&plan).contains(&code), "{code}: {:?}", codes(&plan));
-    }
+    assert!(!plan.sheet.basis.contains("layout recovery"));
 }

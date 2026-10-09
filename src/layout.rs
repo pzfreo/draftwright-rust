@@ -815,8 +815,9 @@ fn geometry_with(
             section_block.footprint(x, section_y)[0]
         });
     }
+    // draftwright's stride between sections (`2 hw + DIM_PAD`): the plan draws only the first.
     let section_at = |i: usize, x: f64, y: f64| {
-        section_block.footprint(x + i as f64 * (SECTION_GAP + 2.0 * section_hw + DIM_PAD), y)
+        section_block.footprint(x + i as f64 * (2.0 * section_hw + DIM_PAD), y)
     };
     // No view's bands may lie on the title block (draftwright's packed verdict, `fits`, keeps
     // them off it; its row verdict assumes a DIM_PAD band below the views, which a deeper band
@@ -843,6 +844,7 @@ fn geometry_with(
     let on_tb = |boxes: &[Rect]| boxes.iter().any(|b| overlaps(b, &tb_rect));
     let boxes = placed_boxes(fv_y, pv_y, sv_y, section_y);
     let mut tb_clear = !on_tb(&boxes);
+    let mut lifted_by = 0.0;
     if !tb_clear {
         let mut lift = boxes
             .iter()
@@ -863,6 +865,7 @@ fn geometry_with(
             pv_y += lift;
             sv_y += lift;
             section_y += lift;
+            lifted_by = lift;
             tb_clear = true;
         }
     }
@@ -994,7 +997,9 @@ fn geometry_with(
         .iter()
         .map(|b| b[3])
         .fold(f64::NEG_INFINITY, f64::max);
-    let clears_tb = cy0 >= tb_bottom + TB_H;
+    // Judged on the row as draftwright packs it: the lift above only keeps bands off the title
+    // block, and never lets a row past the block's left edge that draftwright would refuse.
+    let clears_tb = cy0 - lifted_by >= tb_bottom + TB_H;
     let right_limit = if clears_tb {
         page_w - right
     } else {
