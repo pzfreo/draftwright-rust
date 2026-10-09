@@ -41,8 +41,9 @@ the corpus check, CI and these docs from stream d-ci-docs on top):
   verdicts in `tests/fixtures/known_views.json` (71 entries).
 - **Bridge:** quiddity's features come in through `src/bridge.rs`, with stable IDs and
   fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 4258e35
-  (`Cargo.lock`; AGPL-3.0-only since 8023ea7); the bridge reads nist_ftc_07 and nist_ftc_10.
-  nist_ctc_04 is still refused (one face's area differs from OpenCascade's by 0.15 %). Since
+  (`Cargo.lock`; AGPL-3.0-only since 8023ea7); the bridge reads nist_ftc_07 and nist_ftc_10,
+  and since stream d-bridge-area-tolerance nist_ctc_04 too (sphere areas held to 1e-2, with the
+  evidence in `tests/fixtures/known_bridge_faces.json`). Since
   05c5d99 haecceity refuses to draw a part whose drawn faces or edges did not resolve on
   reading, and since 8023ea7 one with a stretch whose visibility no ray can decide (no corpus
   part has one); `analyse` and `render` pass that refusal on (`render` as a `failed` error).
@@ -1551,3 +1552,71 @@ improvement plan and questions are the current work. Still open from before it:
     - Should the callout symbols (`⌀ ⌴ ↧ ⌵` and the spotface's box) be real glyphs in the embedded
       font, rather than ink with searchable text? That needs a modified, renamed font (OFL Reserved
       Font Name "Plex") or glyphs synthesised into the PDF's subset font.
+
+- From stream d-issue-drafting-4 (catalogue proposals checked; issue regressions, fourth batch;
+  `docs/rules/issues.yaml`, `tests/issue_regressions.rs` (new), `tests/issue_drafting.rs`,
+  `tests/issue_trust.rs`, fixtures in `tests/fixtures/recognition/issues/`, and this entry).
+  issues.yaml before → after: ported 21 → 22, pending 166 → 165, translated 3 → 3; adr.yaml
+  unchanged.
+  - **The recorded proposals, checked against main (9a4af8f).** All were already applied by
+    integrators, and each cited test exists (a script over every `rust_test` of issues.yaml and
+    adr.yaml: none missing) and passes in the full run: d-lint-holes-slot-patterns' ISSUE-1143-b,
+    1217-a and 1142-b, and the ISSUE-827-a and ISSUE-885-b notes (e2bf434's two), in ddfa081;
+    d-spec-tables' ISSUE-1146-c and ARCH0004-4 in 3927b65; d-dims-polygonal-stock's ISSUE-1082-a,
+    1082-b and 1371-b with its own merge; d-dims-recesses' ARCH0015-1 note at its merge (db3a62c);
+    d-placement-fit's ISSUE-1215-e (4061d81); d-dims-turned-steps' notes (a9ade84);
+    d-callout-leaders' catalogue changes (7eae60f, 22f5159). ISSUE-885-b's "pads are not
+    dimensioned" still holds (the whistle frame's three pads are `dimensions_not_ported`).
+    d-cli-native, d-lint-structural, d-native-pockets-slots and d-bridge-area-tolerance proposed
+    nothing for issues.yaml or adr.yaml. Changed here: ISSUE-1332-a, whose note said the port does
+    not uphold it, now cites `tests/lint_structural.rs::overlapping_labels_name_the_line_work_that_also_crosses`
+    (the sheet lint gives one code per pair with a consistent fix since d-lint-structural-2) and
+    stays pending for placement's problems, which still raise both codes. d-bridge-area-tolerance's
+    owed item is done: `tests/issue_drafting.rs` and `tests/issue_trust.rs` now read ctc04 with
+    the other twelve sampled parts, and every test passes on it (the one count, 12 → 13, in
+    `corpus_fixtures_are_bound_to_their_files`; four notes say thirteen). The stale "nist_ctc_04
+    is still refused" line in this file's summary is corrected. Not applied, not this stream's
+    file: d-callout-leaders' `docs/model.md` proposal (list `annotation_leader_crossing`,
+    `annotation_leader_long`, `annotation_leader_search_capped`; the "Not checked yet" note at
+    model.md:258) is still open. No lint.yaml proposal.
+  - **Main was red at 9a4af8f** on `tests/lint_structural.rs::structural_findings_on_the_ports_own_drawings_are_known`
+    (checked with this stream's changes stashed): the d-callout-leaders merge kept main's
+    `tests/fixtures/known_structural.json`, whose m10127 `annotation_ink_overlap` (2) the new
+    leaders removed, as `known_placement.json` already records. That one stale entry is removed
+    here; nothing else in the file changed. (Main's a5174c4 removed the same entry independently,
+    so at the merge this was already done.)
+  - **Fourth batch.** Ported on the parts draftwright's tests build (`make.py` there; recognised by
+    Python quiddity 0.3.9; draftwright's own runs of the same parts compared by hand), and its
+    whistle frame (gzipped STEP, unpacked by the test): ISSUE-916-a **ported** (a pocket's leader
+    tip is a rim side's midpoint on the matching axis, in four orientations and with a curved
+    mouth; nothing crosses). Pending with a test and a note saying what is missing: ISSUE-1485-a
+    (MAX DEEP and five broken records refused; the planar-substitution clause is lint coverage,
+    left to d-lint-coverage), ISSUE-917-a (one channel width; wall thickness not dimensioned),
+    ISSUE-1593-a (no dimension in the title block on draftwright's four cases; one with nowhere
+    to go is kept and reported, not withheld and re-planned), ISSUE-443-a (GRM-03's four step
+    lengths and the isometric on A4; draftwright reaches 5:1 by its legibility gate), ISSUE-1598-a
+    (six hex pockets, one counted callout with twelve distinct claims, irregular sections
+    refused), ISSUE-1613-a (three seats, six requirements each, coaxial locations shared), and
+    ISSUE-1374-c (the plan side is now checked too; its test's doc said turned steps were not
+    dimensioned).
+  - **Found, not fixed (input, not `src/`):** the recognition document rounds records to 0.001 mm
+    in quiddity's working frame, whose origin is off that grid (pocket_square's at -0.5634), so
+    values read back in the part's frame are up to 0.0005 mm off and some labels print a decimal
+    draftwright does not: pocket locations `35.0` (draftwright `35`), a curved pocket's depth
+    `12.0` (`12`: the run interval is rounded, the mouth's axis given to the micrometre), the
+    whistle seats' x location `15.6` (`15.7`; the exact value is 15.65). Recorded rust-wrong in
+    ISSUE-916-a, 1485-a and 1613-a. Also observed: on the curved-mouth parts the plan conveys the
+    cylinder's length by the overall extent (ISSUE-1154-a) while lint's boss coverage reports
+    `boss_height_missing` on the port's own drawing (for d-lint-coverage); on the whistle frame
+    the document has 11 flat records where draftwright's own run has 14, so the port prints
+    `3× 6.50 A/F` against draftwright's `6× 6.50 A/F` (undetermined, not pursued); the stepped box
+    of ISSUE-1593-a fits A3 at 1:1 in the port and A4 at 1:1 in draftwright; a sheet pinned with
+    both size and scale is always `page_fit_uncertain`, even when it is the sheet the port would
+    choose itself.
+  - Questions for the maintainer:
+    - Should quiddity's recognition document (and `tools/recognise.py`) carry coordinates
+      unrounded, or rounded in the caller's frame, so a value on a whole millimetre reads back as
+      one? Today the port prints `35.0` and `12.0` where the part is 35 and 12.
+    - ISSUE-1613-a's and 1598-a's declaration clauses (a declared seat with a wrong radius or arc
+      midpoint refused, declared hex pockets) are not applicable without declared builds; this
+      joins ISSUE-676-c's question (retire such clauses, or keep them pending).

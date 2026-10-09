@@ -57,8 +57,8 @@ fn fixtures() -> &'static [(String, Analysis)] {
 
 /// The sampled sheets' corpus parts (`tests/fixtures/recognition/sheets/`), each with the
 /// features draftwright's own recogniser found for it, checked to be the file the sheet was
-/// captured from; read once for every test here, and none when the corpus is missing. ctc04 is
-/// left out: these tests have not been checked against it since the bridge began reading it.
+/// captured from; read once for every test here, and none when the corpus is missing. All 13,
+/// ctc04 among them since the bridge reads it (d-bridge-area-tolerance).
 fn sampled() -> &'static [(String, Analysis)] {
     static SAMPLED: OnceLock<Vec<(String, Analysis)>> = OnceLock::new();
     SAMPLED.get_or_init(|| {
@@ -70,7 +70,6 @@ fn sampled() -> &'static [(String, Analysis)] {
             .unwrap()
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .filter_map(|f| f.strip_suffix(".json.gz").map(String::from))
-            .filter(|n| n != "ctc04")
             .collect();
         names.sort();
         names
@@ -766,9 +765,10 @@ fn a_supplied_date_reaches_the_title_block() {
 
 /// ISSUE-1593-a, in part: nothing is drawn into the title block unreported. On every part, a
 /// placed dimension whose label, lines or arrowheads reach into the title block is the subject
-/// of an `annotation_over_title_block` problem. Not ported: the keep-out itself (the port places
-/// by lanes and reports what collides, as a warning; draftwright relocates the dimension to the
-/// opposite strip, or withholds it as an error and replans onto a sheet that fits).
+/// of an `annotation_over_title_block` problem. The keep-out on draftwright's own cases is
+/// `tests/issue_regressions.rs::the_title_block_keeps_dimensions_out_without_dropping_them`. Not
+/// ported: a dimension with nowhere to go keeps its place, reported as a warning, where
+/// draftwright withholds it as an error and replans onto a sheet that fits.
 #[test]
 fn a_dimension_in_the_title_block_is_reported() {
     for (name, _, plan) in planned() {
@@ -887,13 +887,16 @@ fn fillets_share_a_callout_only_when_their_radii_are_equal() {
 /// ISSUE-1374-c, in part: each turned outside-diameter band carries two requirements, its
 /// diameter and its length, and a band a groove owns is the groove's, not a second step. On every
 /// part, lint's turned-step ledger has exactly those two outcomes for each band it reads, and
-/// none for a groove's band. Not ported: the plan does not dimension turned steps yet
-/// (src/dims/turned.rs), so the grouped length label (exact count, no skipped equal neighbour)
-/// has nothing to check.
+/// none for a groove's band; and the default plan states both for each such band (its own
+/// `step.diameter` and `step.length`, or the overall diameter claiming the band it is,
+/// src/dims/turned.rs), and states neither for a band a groove owns. Not ported: lint's check of
+/// a grouped length label's exact count and that it skips no equal neighbour (lint credits each
+/// band's claim by its printed value).
 #[test]
 fn each_turned_band_carries_its_diameter_and_length() {
     let mut grooved = 0;
-    for (name, analysis, _) in planned() {
+    let mut stated_bands = 0;
+    for (name, analysis, plan) in planned() {
         let Ok(bands) = lint::turned::bands(analysis) else {
             continue;
         };
@@ -914,6 +917,22 @@ fn each_turned_band_carries_its_diameter_and_length() {
                 ["step.length", "step.diameter"],
                 "{name}"
             );
+            if plan.dimensions.iter().any(|d| d.id.contains("/step.")) {
+                for parameter in ["step.diameter", "step.length"] {
+                    assert!(
+                        stated(plan, parameter).contains(b.id.as_str()),
+                        "{name}: {} has no {parameter}",
+                        b.id
+                    );
+                }
+                stated_bands += 1;
+            }
+        }
+        let owned: BTreeSet<&str> = bands.iter().map(|b| b.id.as_str()).collect();
+        for parameter in ["step.diameter", "step.length"] {
+            for f in stated(plan, parameter) {
+                assert!(owned.contains(f), "{name}: {f}'s {parameter} is stated");
+            }
         }
         if bands.len() < steps {
             grooved += 1;
@@ -921,6 +940,7 @@ fn each_turned_band_carries_its_diameter_and_length() {
     }
     if !sampled().is_empty() {
         assert!(grooved > 0, "no sampled part has a band a groove owns");
+        assert!(stated_bands > 0, "no sampled part's plan states a band");
     }
 }
 
@@ -1926,4 +1946,51 @@ fn a_shoulder_on_the_box_is_reported_not_drawn() {
             plan.problems
         );
     }
+}
+
+/// ISSUE-443-a, in part: on GRM-03's automatic sheet every turned shoulder is located along the
+/// axis, and the isometric is kept. The default plan states draftwright's four step lengths
+/// (0.5, 2, 3 and 18), each placed, keeps the isometric and stays on A4, as draftwright's sheet
+/// does, with no turned step left undimensioned. Not ported: draftwright gets there by re-planning
+/// (its captured sheet is A4 at 5:1, after A4 at 2:1 needed a detail view for the short
+/// shoulders); the port's first fit is A4 at 2:1 and draws the 0.5 shoulder there, 1 mm on the
+/// page, as it has no legibility gate (a maintainer question in docs/next-session.md), so
+/// whether its step lengths are legible at that scale is undetermined.
+#[test]
+fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
+    let Some((_, _, plan)) = planned().iter().find(|p| p.0 == "grm03") else {
+        return;
+    };
+    let facts = facts::load("grm03");
+    let theirs: BTreeSet<&str> = facts
+        .annotations
+        .iter()
+        .filter(|a| a.name.starts_with("m_steplen"))
+        .filter_map(|a| a.label.as_deref())
+        .collect();
+    assert_eq!(theirs, BTreeSet::from(["0.5", "2", "3", "18"]));
+    let ours: BTreeSet<&str> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/step.length@") && d.placed.is_some())
+        .map(|d| d.label.as_str())
+        .collect();
+    assert_eq!(ours, theirs);
+    assert!(facts.views.iter().any(|v| v.name == "iso"));
+    assert!(plan.views.iter().any(|v| v.id == "v:iso"));
+    assert_eq!(
+        (facts.sheet.format.as_str(), facts.sheet.scale.as_str()),
+        ("A4", "5:1")
+    );
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A4", "2:1")
+    );
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| !p.subjects.iter().any(|s| s.starts_with("f:turned_step:"))),
+        "{:#?}",
+        plan.problems
+    );
 }
