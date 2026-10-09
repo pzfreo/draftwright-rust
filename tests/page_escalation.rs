@@ -253,8 +253,9 @@ fn a_plan_without_ink_off_the_sheet_keeps_its_first_choice_on_ctc01() {
 /// plan's bands, drawing quality 3, the label that ran off the sheet stands right of the plan)
 /// but two locations too close to read, a loss, so it tries the next two larger scales and then
 /// each larger sheet: A2 at 1:1 and 2:1, A1 and A0 at 1:1, each with hard findings, and each but
-/// 2:1 still with two locations too close to read (their hole items placed off the sheet dropped,
-/// `src/hole_table.rs`, so A2 at 1:1 has 3 hard findings and 3 drops); none is taken. Before the
+/// 2:1 still with two locations too close to read; none is taken. (A2 at 1:1 dropped 3 hole items
+/// placed off the sheet, `src/hole_table.rs`, until the layout reserved the band right of the
+/// front and the plan for the front's lanes, stream d-quality-lanes: they now find room.) Before the
 /// gate counted them, the port took 1:5, valid by its placement checks but with location witness lines as close as
 /// 0.6 mm.
 #[test]
@@ -279,7 +280,7 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         said.message
     );
     for tried in [
-        "A2 at 1:1 (3 hard layout findings, 2 hole locations too close to read, 3 hole items dropped for want of room)",
+        "A2 at 1:1 (3 hard layout findings, 2 hole locations too close to read)",
         "A2 at 2:1 (",
         "A1 at 1:1 (",
         "A0 at 1:1 (",
@@ -329,8 +330,10 @@ fn a_plan_without_a_hard_failure_keeps_its_first_choice() {
 /// The non-veto case of `test_recovery_does_not_trade_a_required_drop_for_unreadable_ink`: an
 /// info observation is no hard failure, and nor is the port's `annotation_over_view` (judged by
 /// the view's box; draftwright's `view_annotation_overlap` by its line-work). m1000's first
-/// choice, A4 at 1:1 (draftwright's too), has a label over a view's box and ink past its areas
-/// (info) and is kept.
+/// choice, A4 at 1:1 (draftwright's too), has ink past its areas (info) and is kept. Until the
+/// layout reserved the front's right band for its lanes (stream d-quality-lanes) it also had a
+/// label over the side view's box (the seat's z location); no captured part has one now, so the
+/// same first plan is given that warning and must still be kept.
 #[test]
 fn an_info_or_view_box_finding_is_not_a_hard_failure() {
     let Some(analysis) = corpus_part("m1000") else {
@@ -340,8 +343,25 @@ fn an_info_or_view_box_finding_is_not_a_hard_failure() {
     let plan = recovered(&analysis, &Spec::default());
     assert_eq!(sheet(&plan), ("A4", "1:1"));
     let found = codes(&plan);
-    assert!(found.contains(&"annotation_over_view"), "{found:?}");
     assert!(found.contains(&"annotation_outside_area"), "{found:?}");
+    assert!(
+        !found.iter().any(|c| c.starts_with("layout_re")),
+        "{found:?}"
+    );
+
+    let id = "d:f:section_recess:4/seat_location.location.z@front";
+    let mut first = model::plan_escalated(&analysis, &Spec::default()).unwrap();
+    first.problems.push(model::Problem {
+        id: format!("p:annotation_over_view:{id}:v:side"),
+        code: "annotation_over_view".into(),
+        severity: "warning".into(),
+        message: format!("{id} lies over the v:side view."),
+        subjects: vec![id.into(), "v:side".into()],
+    });
+    let kept = model::recover(&analysis, &Spec::default(), first).unwrap();
+    assert_eq!(sheet(&kept), ("A4", "1:1"));
+    let found = codes(&kept);
+    assert!(found.contains(&"annotation_over_view"), "{found:?}");
     assert!(
         !found.iter().any(|c| c.starts_with("layout_re")),
         "{found:?}"
@@ -390,26 +410,35 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// The port's own gate (`model::recover`): a try with more annotations over a view not their own
-/// than the first plan is not taken. ftc07 with Rust quiddity's recognition (the command line's
-/// default) has two hole locations too close to read at A3 1:5, a loss, so the larger scales and
-/// sheets are tried; A1 at 1:1 is valid and complete but lays one more item over a view than the
-/// first plan, so it is passed over; A0 at 1:1, valid and complete with no more items over a
-/// view, is taken, said (`layout_replanned`). draftwright's first choice is A2 at 1:2, which the
-/// port tries and rejects for two hard layout findings (rust-wrong sheet, a placement residual;
-/// a maintainer question in docs/quality-2026-10-09.md: the recovery spends a much larger sheet).
-/// Until the layout kept the isometric off the views' bands (drawing quality 3) ctc01 held this
-/// gate and ftc07 moved to A1 at 1:1; with quality 3 alone A3 at 1:5 was kept, A0 at 1:1 having
-/// hard findings until the callouts cleared existing ink (drawing quality 4).
+/// ftc07 with Rust quiddity's recognition (the command line's default) takes draftwright's first
+/// choice, A2 at 1:2, directly, now that the layout reserves the band right of the front and the
+/// plan for the front's height ladder (stream d-quality-lanes; the ladder ran across the side view
+/// and A2 at 1:2 failed on it). From the A3 at 1:5 it took before, two hole locations too close
+/// to read (a loss), the recovery tries the larger scales (A3 at 1:1 lays 14 more items over a
+/// view than the first) and takes A2 at 1:2, valid and complete. This test held the port's own
+/// gate (`model::recover`: a try with more annotations over a view not their own than the first
+/// plan is not taken), which A1 at 1:1 met from A3 at 1:5; no default or pinned first choice of the
+/// 30 quality parts meets it now (each part from 24 pinned sheets and scales, every valid and
+/// complete try lays no more over a view than its first), so it has no corpus case.
 #[test]
-fn a_try_with_more_ink_over_the_views_is_not_taken() {
+fn ftc07_takes_draftwrights_first_choice() {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A0", "1:1"));
+    assert_eq!(sheet(&plan), ("A2", "1:2"));
+    assert!(
+        !codes(&plan).iter().any(|c| c.starts_with("layout_re")),
+        "{:?}",
+        codes(&plan)
+    );
+
+    let analysis = api::analyse_from(&step, Features::Native).unwrap();
+    let first = model::plan_escalated(&analysis, &spec(json!({ "size": "A3", "scale": "1:5" })));
+    let plan = model::recover(&analysis, &Spec::default(), first.unwrap()).unwrap();
+    assert_eq!(sheet(&plan), ("A2", "1:2"));
     let said = plan
         .problems
         .iter()
@@ -420,12 +449,11 @@ fn a_try_with_more_ink_over_the_views_is_not_taken() {
             .contains("A3 at 1:5 has 2 hole locations too close to read")
             && said
                 .message
-                .contains("A1 at 1:1 (valid and complete; 1 more item over a view than the first)")
+                .contains("14 more items over a view than the first")
             && said
                 .message
-                .contains("A0 at 1:1 (valid and complete); A0 at 1:1 is used"),
+                .contains("A2 at 1:2 (valid and complete); A2 at 1:2 is used"),
         "{}",
         said.message
     );
-    assert!(plan.sheet.basis.contains("layout recovery"));
 }
