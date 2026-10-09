@@ -1635,7 +1635,7 @@
     tests: []
   status: pending
   port_note: "Keep: Plan basis distinguishes 'derived from geometry' vs 'source-authored value'; PMI correlation recorded in Analysis."
-  rust_note: "Not ported: no PMI is read, so every value is derived from the geometry; the plan has no basis for a source-authored value and the Analysis no PMI correlation."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`): each frame and symbol is a Plan item whose basis says it is source-authored (`source-authored: the AP242 … tolerance #N`), distinct from the dimensions measured from the geometry; PMI dimensions are not lowered yet (each a `pmi_dimensions_not_ported` info), so no imported value is consumed as a parameter's aspect."
 
 - id: ARCH0016-8
   statement: "Once a semantic owner is designated for a fact, parallel inference paths are deleted, not redirected."

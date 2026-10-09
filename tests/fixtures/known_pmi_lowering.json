@@ -1,0 +1,3224 @@
+[
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "geometric_tolerance:0:1:4:26",
+  "port": "geometric_tolerance:#1494",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "The pin is placed twice in the assembly; draftwright annotates XCAF's one shape, the port refuses rather than choose (pmi_not_lowered: its 1 faces are drawn in 2 placements of the part; which placement to annotate is an open question.). Which placement a drawing should annotate is an open maintainer question (next-session.md)."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "geometric_tolerance:0:1:4:29",
+  "port": "geometric_tolerance:#1506",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "The pin is placed twice in the assembly; draftwright annotates XCAF's one shape, the port refuses rather than choose (pmi_not_lowered: its 1 faces are drawn in 2 placements of the part; which placement to annotate is an open question.). Which placement a drawing should annotate is an open maintainer question (next-session.md)."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:18",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:19",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:20",
+  "port": "datum:#1280",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"Part21 representation item #43 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:22",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:23",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:27",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:28",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:30",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum:0:1:4:31",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum_definition:#1274",
+  "port": "datum:#1272",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"Part21 representation item #239 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "datum_definition:#1278",
+  "port": "datum:#1276",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"Part21 representation item #163 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "bracket_positions.step",
+  "record": "file",
+  "port": null,
+  "field": "drawing",
+  "python": "ValueError: project_to_viewport returned empty geometry for view 'plan' (camera (-0.20598045072850368, 1.2878802308874988, 245.83221857376392)) — check the camera position and look_at.",
+  "rust": "8 items drawn",
+  "verdict": "not-applicable",
+  "evidence": "draftwright cannot draw this part at all (its projection of the plan view raises), so nothing of its PMI reaches its sheet; the port draws the part and places every frame and symbol it lowers. Its lowering (build_pmi_features) is still compared item by item."
+ },
+ {
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "record": "datum:0:1:4:2",
+  "port": "datum:#34",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "record": "datum:0:1:4:3",
+  "port": "datum:#35",
+  "field": "site",
+  "python": [
+   -342.5,
+   -175.0,
+   -40.0
+  ],
+  "rust": [
+   -307.5,
+   -175.0,
+   -40.0
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ctc_01_merge.step",
+  "record": "datum:0:1:4:2",
+  "port": "datum:#34",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ctc_01_merge.step",
+  "record": "datum:0:1:4:3",
+  "port": "datum:#35",
+  "field": "site",
+  "python": [
+   -342.5,
+   -175.0,
+   -40.0
+  ],
+  "rust": [
+   -307.5,
+   -175.0,
+   -40.0
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:1",
+  "port": "geometric_tolerance:#53",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #499 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:3",
+  "port": "geometric_tolerance:#56",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the profile without its unequally disposed zone (Ⓤ value), a different requirement; the port reports it (pmi_not_lowered: the unequally disposed zone value is not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:12",
+  "port": "geometric_tolerance:#57",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the profile without its unequally disposed zone (Ⓤ value), a different requirement; the port reports it (pmi_not_lowered: the unequally disposed zone value is not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:21",
+  "port": "geometric_tolerance:#58",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the profile without its unequally disposed zone (Ⓤ value), a different requirement; the port reports it (pmi_not_lowered: the unequally disposed zone value is not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:30",
+  "port": "geometric_tolerance:#59",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:34",
+  "port": "geometric_tolerance:#60",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:42",
+  "port": "geometric_tolerance:#62",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:46",
+  "port": "geometric_tolerance:#63",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:54",
+  "port": "geometric_tolerance:#65",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:67",
+  "port": "geometric_tolerance:#67",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:71",
+  "port": "geometric_tolerance:#68",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #491 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:73",
+  "port": "geometric_tolerance:#69",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #489 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:76",
+  "port": "geometric_tolerance:#81",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #487 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:78",
+  "port": "geometric_tolerance:#82",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #497 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:89",
+  "port": "geometric_tolerance:#183",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #481 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:98",
+  "port": "geometric_tolerance:#184",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #482 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:107",
+  "port": "geometric_tolerance:#185",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #493 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:4",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:5",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:6",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:7",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:8",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:9",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:10",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:11",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:13",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:14",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:15",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:16",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:17",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:18",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:19",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:20",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:22",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:23",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:24",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:25",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:26",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:27",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:28",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:29",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:31",
+  "port": "datum:#80",
+  "field": "site",
+  "python": [
+   -299.6154,
+   200.0,
+   40.0
+  ],
+  "rust": [
+   240.7692,
+   632.0,
+   40.0
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:32",
+  "port": "datum:#77",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:43",
+  "port": "datum:#79",
+  "field": "lowered",
+  "python": "datum_ref",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:44",
+  "port": "datum:#75",
+  "field": "site",
+  "python": [
+   -156.0,
+   755.0,
+   -6.25
+  ],
+  "rust": [
+   -144.0,
+   755.0,
+   -6.25
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:44",
+  "port": "datum:#75",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:45",
+  "port": "datum:#76",
+  "field": "site",
+  "python": [
+   210.0,
+   25.0,
+   -6.25
+  ],
+  "rust": [
+   222.0,
+   25.0,
+   -6.25
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:59",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:60",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:61",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:62",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:63",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:64",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:65",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:66",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:79",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:81",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:82",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:83",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:84",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:85",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:86",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:87",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:88",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:90",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:91",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:92",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:93",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:94",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:95",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:96",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:97",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:99",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:100",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:101",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:102",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:103",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:104",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:105",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:106",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:1",
+  "port": "geometric_tolerance:#13947",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:11",
+  "port": "geometric_tolerance:#14121",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:15",
+  "port": "geometric_tolerance:#14130",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:31",
+  "port": "geometric_tolerance:#14472",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:35",
+  "port": "geometric_tolerance:#14483",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:45",
+  "port": "geometric_tolerance:#14614",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:49",
+  "port": "geometric_tolerance:#14623",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:51",
+  "port": "geometric_tolerance:#14709",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:55",
+  "port": "geometric_tolerance:#14720",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:67",
+  "port": "geometric_tolerance:#14854",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:71",
+  "port": "geometric_tolerance:#15026",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:75",
+  "port": "geometric_tolerance:#15036",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:79",
+  "port": "geometric_tolerance:#15076",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:83",
+  "port": "geometric_tolerance:#15085",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:3",
+  "port": "datum:#13681",
+  "field": "site",
+  "python": [
+   -143.8181,
+   12.7,
+   -85.6561
+  ],
+  "rust": [
+   -2.8137,
+   12.7,
+   -99.9044
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:6",
+  "port": "datum:#13726",
+  "field": "site",
+  "python": [
+   -142.875,
+   8.89,
+   101.6
+  ],
+  "rust": [
+   -142.875,
+   8.89,
+   95.25
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:6",
+  "port": "datum:#13726",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:10",
+  "port": "datum:#13767",
+  "field": "site",
+  "python": [
+   142.875,
+   8.89,
+   101.6
+  ],
+  "rust": [
+   142.875,
+   8.89,
+   95.25
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:10",
+  "port": "datum:#13767",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:18",
+  "port": "datum:#13808",
+  "field": "site",
+  "python": [
+   118.1568,
+   -104.14,
+   86.8884
+  ],
+  "rust": [
+   -118.1568,
+   -104.14,
+   86.8884
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:18",
+  "port": "datum:#13808",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:52",
+  "port": "datum:#13858",
+  "field": "site",
+  "python": [
+   -120.65,
+   -123.19,
+   -85.1741
+  ],
+  "rust": [
+   -120.65,
+   -123.19,
+   85.1741
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:#13917",
+  "port": "geometric_tolerance:#13917",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "lowered": "pmi:geometric_tolerance:#13917",
+   "text": "profile_surface 1.524 A B C"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright has no record for this tolerance: XCAF drops an all-over surface profile silently (known_pmi.json lists the record as rust-correct); the port reads it and draws its frame."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:11",
+  "port": "geometric_tolerance:#18701",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:25",
+  "port": "geometric_tolerance:#18873",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:28",
+  "port": "geometric_tolerance:#18907",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:32",
+  "port": "geometric_tolerance:#18938",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:42",
+  "port": "geometric_tolerance:#19042",
+  "field": "site",
+  "python": [
+   40.5741,
+   26.4286,
+   0.0
+  ],
+  "rust": [
+   40.5778,
+   26.4286,
+   0.0
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:42",
+  "port": "geometric_tolerance:#19042",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:46",
+  "port": "geometric_tolerance:#19077",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:50",
+  "port": "geometric_tolerance:#19079",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:64",
+  "port": "geometric_tolerance:#19182",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:68",
+  "port": "geometric_tolerance:#19201",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:70",
+  "port": "geometric_tolerance:#19248",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: a compartment of 3 datums (common datum) is carried as separate letters; datum reference modifiers are not carried.)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:79",
+  "port": "geometric_tolerance:#19372",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #19369 must be finite and positive)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:84",
+  "port": "geometric_tolerance:#19418",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:88",
+  "port": "geometric_tolerance:#19420",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:102",
+  "port": "geometric_tolerance:#19674",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:106",
+  "port": "geometric_tolerance:#19676",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:108",
+  "port": "geometric_tolerance:#19741",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #19740 must be finite and positive)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:3",
+  "port": "datum:#18090",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:27",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:53",
+  "port": "datum:#18161",
+  "field": "site",
+  "python": [
+   33.5,
+   27.0,
+   -27.3077
+  ],
+  "rust": [
+   55.5,
+   27.0,
+   -27.3077
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:72",
+  "port": "datum:#18192",
+  "field": "site",
+  "python": [
+   33.5,
+   22.0606,
+   -26.75
+  ],
+  "rust": [
+   33.5,
+   22.0607,
+   -23.25
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:72",
+  "port": "datum:#18192",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:73",
+  "port": "datum:#18219",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:74",
+  "port": "datum:#18246",
+  "field": "site",
+  "python": [
+   55.5,
+   22.0606,
+   -26.75
+  ],
+  "rust": [
+   55.5,
+   22.0607,
+   -23.25
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:74",
+  "port": "datum:#18246",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:81",
+  "port": "datum:#18320",
+  "field": "lowered",
+  "python": "datum_ref",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The datum is established by datum targets, which draftwright drops, drawing a datum feature symbol on the face instead; the port reports it (pmi_not_lowered: established by 2 datum target(s), which are not carried.), as the brief asks for datum targets."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:82",
+  "port": "datum:#18347",
+  "field": "lowered",
+  "python": "datum_ref",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The datum is established by datum targets, which draftwright drops, drawing a datum feature symbol on the face instead; the port reports it (pmi_not_lowered: established by 2 datum target(s), which are not carried.), as the brief asks for datum targets."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:#18511",
+  "port": "geometric_tolerance:#18511",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "lowered": "pmi:geometric_tolerance:#18511",
+   "text": "profile_surface 1.5 A B C"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright has no record for this tolerance: XCAF drops an all-over surface profile silently (known_pmi.json lists the record as rust-correct); the port reads it and draws its frame."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:16",
+  "port": "geometric_tolerance:#9761",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:20",
+  "port": "geometric_tolerance:#9773",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:22",
+  "port": "geometric_tolerance:#9853",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:26",
+  "port": "geometric_tolerance:#9862",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:36",
+  "port": "geometric_tolerance:#10068",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:40",
+  "port": "geometric_tolerance:#10128",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:42",
+  "port": "geometric_tolerance:#10246",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:47",
+  "port": "geometric_tolerance:#10369",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:48",
+  "port": "geometric_tolerance:#10426",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:52",
+  "port": "geometric_tolerance:#10498",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:56",
+  "port": "geometric_tolerance:#10507",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:58",
+  "port": "geometric_tolerance:#10580",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:62",
+  "port": "geometric_tolerance:#10652",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:66",
+  "port": "geometric_tolerance:#10661",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:68",
+  "port": "geometric_tolerance:#10736",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:72",
+  "port": "geometric_tolerance:#10803",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "geometric_tolerance:0:1:4:90",
+  "port": "geometric_tolerance:#11135",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:17",
+  "port": "datum:#8180",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:18",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:24",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:30",
+  "port": "datum:#8249",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:31",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:35",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:38",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:46",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:50",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:54",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:60",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:64",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:69",
+  "port": "datum:#8453",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:71",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:74",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:78",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:81",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:84",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:88",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum:0:1:4:91",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:11",
+  "port": "geometric_tolerance:#9123",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:15",
+  "port": "geometric_tolerance:#9140",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:19",
+  "port": "geometric_tolerance:#9230",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:26",
+  "port": "geometric_tolerance:#9284",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:30",
+  "port": "geometric_tolerance:#9304",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:36",
+  "port": "geometric_tolerance:#9355",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:40",
+  "port": "geometric_tolerance:#9373",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:42",
+  "port": "geometric_tolerance:#9398",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:46",
+  "port": "geometric_tolerance:#9439",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried; haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature )."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:50",
+  "port": "geometric_tolerance:#9459",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:54",
+  "port": "geometric_tolerance:#9493",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:74",
+  "port": "geometric_tolerance:#9652",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:78",
+  "port": "geometric_tolerance:#9670",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:82",
+  "port": "geometric_tolerance:#9688",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:84",
+  "port": "geometric_tolerance:#9742",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:88",
+  "port": "geometric_tolerance:#9775",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "datum:0:1:4:6",
+  "port": "datum:#8457",
+  "field": "site",
+  "python": [
+   -82.55,
+   1.1379,
+   110.9218
+  ],
+  "rust": [
+   -82.55,
+   1.1379,
+   104.9782
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "datum:0:1:4:10",
+  "port": "datum:#8442",
+  "field": "site",
+  "python": [
+   -82.55,
+   1.1379,
+   -104.9782
+  ],
+  "rust": [
+   -82.55,
+   1.1379,
+   -110.9218
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "datum:0:1:4:39",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "datum:0:1:4:44",
+  "port": "datum:#8779",
+  "field": "site",
+  "python": [
+   -31.75,
+   1.5189,
+   100.965
+  ],
+  "rust": [
+   -31.75,
+   1.5189,
+   81.915
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on the same datum (or tolerance) surface: draftwright takes the first XCAF shape of a datum made of several faces (a split cylinder's halves, coplanar faces) and the port the first face by index, or the two silhouettes or boxes differ within the face (a tolerance's site is its faces' box centre: OpenCascade's Bnd_Box against haecceity's exact face bounds). The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "datum:0:1:4:91",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:1",
+  "port": "geometric_tolerance:#83",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #468 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:2",
+  "port": "geometric_tolerance:#84",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #481 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:3",
+  "port": "geometric_tolerance:#91",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #444 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:6",
+  "port": "geometric_tolerance:#97",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #441 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:10",
+  "port": "geometric_tolerance:#98",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #465 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:14",
+  "port": "geometric_tolerance:#99",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #482 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:20",
+  "port": "geometric_tolerance:#107",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #427 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:24",
+  "port": "geometric_tolerance:#109",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #448 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:26",
+  "port": "geometric_tolerance:#110",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #458 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:28",
+  "port": "geometric_tolerance:#111",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #466 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:30",
+  "port": "geometric_tolerance:#112",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #467 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:32",
+  "port": "geometric_tolerance:#122",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #424 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:33",
+  "port": "geometric_tolerance:#163",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #422 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:37",
+  "port": "geometric_tolerance:#164",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #426 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:41",
+  "port": "geometric_tolerance:#165",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #428 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:49",
+  "port": "geometric_tolerance:#167",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #436 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:53",
+  "port": "geometric_tolerance:#168",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #447 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:57",
+  "port": "geometric_tolerance:#169",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #451 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:61",
+  "port": "geometric_tolerance:#170",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #456 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:65",
+  "port": "geometric_tolerance:#171",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #459 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:69",
+  "port": "geometric_tolerance:#172",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #460 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:73",
+  "port": "geometric_tolerance:#173",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #464 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:114",
+  "port": "geometric_tolerance:#483",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #419 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:118",
+  "port": "geometric_tolerance:#484",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #437 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "geometric_tolerance:0:1:4:122",
+  "port": "geometric_tolerance:#485",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "control_frame",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because OpenCascade reads its magnitude as zero or not a length (\"tolerance magnitude is unavailable (tolerance magnitude #443 is not a length measure)\"; known_pmi.json's rust-correct magnitude misreads); the port reads the magnitude from Part 21 and draws the frame."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:4",
+  "port": "datum:#113",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #113 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:8",
+  "port": "datum:#115",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #115 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:9",
+  "port": "datum:#114",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #114 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:11",
+  "port": "datum:#116",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #116 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:12",
+  "port": "datum:#119",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #119 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:13",
+  "port": "datum:#118",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #118 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:23",
+  "port": "datum:#121",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #121 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:46",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:47",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:48",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright's extraction keeps one datum record per XCAF occurrence (the letter repeated, known_pmi.json's rust-correct 'record' differences); the port reads one record per datum, paired with another occurrence. draftwright lowers this repeat to nothing (raw), so neither side draws it twice."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:79",
+  "port": "datum:#120",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #120 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+ },
+ {
+  "file": "string_post_tapped.step",
+  "record": "datum:0:1:4:5",
+  "port": "datum:#3086",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ }
+]

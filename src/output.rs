@@ -314,6 +314,9 @@ pub enum Kind {
     Centreline,
     /// A cutting plane's arrowhead or wing stub.
     CuttingPlane,
+    /// A feature control frame or datum feature symbol of [`Drawing::annotations`], by the same
+    /// name (`crate::dims::gdt`).
+    Gdt,
 }
 
 /// A thing drawn on the sheet: its name, what it is, the box of all its ink, and the box of its

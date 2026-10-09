@@ -50,6 +50,7 @@ mod bosses;
 mod edges;
 mod envelope;
 mod flats;
+pub mod gdt;
 mod grooves;
 mod holes;
 mod leaders;

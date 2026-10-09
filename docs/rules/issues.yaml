@@ -611,7 +611,7 @@
       - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_ctc01_consumes_all_hole_tolerances_once_and_emits_provenance"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: pending
-  rust_note: "Not-applicable until AP242 PMI is read: the port reads no PMI (as ISSUE-1116-b and ISSUE-1296-b note), so no imported tolerance can enrich a hole dimension; a spec-authored band on a hole callout prints once (ISSUE-1215-c's test)."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI dimensions are not lowered yet: each is a `pmi_dimensions_not_ported` info, so no imported hole tolerance enriches a hole callout yet (the next stage); a spec-authored band on a hole callout prints once (ISSUE-1215-c's test)."
   port_note: "Keep: scenario CTC-01 AP242 -> each hole tolerance appears once in the plan label with source provenance."
 
 - id: ISSUE-1116-b
@@ -627,7 +627,7 @@
       - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_editable_callout_refuses_a_mixed_member_tolerance_pattern"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: pending
-  rust_note: "Not ported: the port reads no AP242 PMI (no source records, census or lowering)."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI dimensions are not lowered yet (each a `pmi_dimensions_not_ported` info): no hole group is split by member tolerances yet. What is not lowered is reported with its reason (`pmi_not_lowered`), as this rule asks."
   port_note: "Keep: PMI lowering problems with reasons; grouping respects per-member tolerances."
 
 - id: ISSUE-1126-a
@@ -1200,7 +1200,7 @@
       - "tests/test_issue_1209_linear_pmi_witnesses.py::test_oblique_linear_support_renders_its_exact_projected_span"
     corpus_parts: ["nist_ctc_03_asme1_ap242", "nist_ctc_04_asme1_ap242"]
   status: pending
-  rust_note: "Not ported: the port reads no AP242 PMI (no source records, census or lowering)."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI dimensions, linear ones included, are not lowered or drawn yet: each is a `pmi_dimensions_not_ported` info, never drawn from guessed stations."
   port_note: "Keep: scenario CTC-04 AP242 -> two untruthful records as problems; witness spans equal PMI value."
 
 - id: ISSUE-1215-a
@@ -1585,7 +1585,7 @@
       - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_nominal_lowering_reports_skips_ambiguity_merges_and_conflicts"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: the port reads no AP242 PMI (no source records, census or lowering)."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI diameters are not lowered yet: each is a `pmi_dimensions_not_ported` info, so none falls back to a centroid."
   port_note: "Keep."
 
 - id: ISSUE-1298-a
@@ -1614,7 +1614,7 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_document_note_table_drop_is_a_source_complete_annotate_error"
     corpus_parts: ["GRM-03"]
   status: pending
-  rust_note: "Not-applicable until AP242 PMI is read: the port reads no PMI (as ISSUE-1116-a and ISSUE-1296-b note) and draws no datum symbols, so there is no document-level requirement to lower and no source datum note to omit or restore. The notes it can carry are the spec's general notes (src/notes.rs): typed only as authored text, drawn in one GENERAL NOTES block, and a block with no place is a notes_not_placed error on every note, never a silent drop (tests/notes.rs)."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`). Document-level PMI (general tolerances, default surface finish, datum explanation notes) is read by haecceity but not projected: each is a `pmi_not_extracted` source in the plan, not a note; so no source datum note is omitted or restored."
   port_note: "Keep."
 
 - id: ISSUE-1298-c
@@ -1630,7 +1630,7 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_known_unsupported_manufacturing_intent_is_explicit_without_error_lint"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: the port reads no AP242 PMI (no source records, census or lowering)."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`). Manufacturing PMI (threads, knurls, general tolerances) is not projected yet: each is reported as a `pmi_not_extracted` source with its reason, never guessed; nothing is re-synthesised from it."
   port_note: "Keep."
 
 - id: ISSUE-1299-a
@@ -1702,7 +1702,7 @@
       - "tests/test_issue_1325_nominal_agreement.py::test_mismatch_survives_generated_sheet_without_crashing_or_changing_source"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: the port reads no AP242 PMI (no source records, census or lowering)."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI dimensions are not lowered yet (each a `pmi_dimensions_not_ported` info), so no nominal ownership is produced to disagree with the planner."
   port_note: "Keep: PMI-vs-geometry nominal disagreement is a problem, not a planner crash."
 
 - id: ISSUE-1332-a
@@ -1947,7 +1947,8 @@
       - "tests/test_issue_1357_pmi_frame.py::test_default_public_api_remains_caller_space_compatible"
     corpus_parts: ["nist_ctc_01_asme1_ap242", "nist_ctc_03_asme1_ap242", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
-  rust_note: "Not ported: the port reads no AP242 PMI (no source records, census or lowering)."
+  rust_test: "tests/pmi_lowering.rs::pmi_lowering_matches_draftwright_or_is_known"
+  rust_note: "Partly: the PMI geometry (records' boxes, datum sites, outward normals, cylinder axes) is in the file's frame, the frame the drawing and the Analysis's features are drawn in, and lowering's sites agree with draftwright's frame-less extraction (`tests/pmi_lowering.rs`); the port has no requested frame to express it in."
   port_note: "Keep: PMI and Analysis share one coordinate frame."
 
 - id: ISSUE-1360-a
@@ -2804,7 +2805,8 @@
       - "tests/test_issue_1563_sheet_pmi_reconciliation.py::test_a_drawing_with_no_ap242_claims_stays_quiet"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
-  rust_note: "Not ported: the port reads no AP242 PMI (no source records, census or lowering)."
+  rust_test: "tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported"
+  rust_note: "Partly: on the plan path every PMI record is drawn or reported (`pmi_not_lowered`, `pmi_dimensions_not_ported`), every source not read is a `pmi_not_extracted` problem and a file whose PMI cannot be read is `pmi_not_read`; reconciling a drawing's claimed source IDs (fabricated IDs, content with no census) is the PMI coverage lint's, not ported."
   port_note: "Keep: Plan problems from PMI census vs Spec; Spec references PMI by source id."
 
 - id: ISSUE-1585-a
