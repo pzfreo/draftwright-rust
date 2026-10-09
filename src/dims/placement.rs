@@ -351,10 +351,11 @@ pub(super) fn owners(
             .strip_prefix("conveyed by ")
             .and_then(|rest| rest.split_once(": "))
             .and_then(|(id, _)| index.get(id));
-        let (Some(&i), Some(&s)) = (index.get(o.id.as_str()), survivor) else {
-            unreachable!("a merge names its survivor: {}", o.basis);
-        };
-        owner[i] = Some(s);
+        // A basis worded otherwise names no survivor: that item keeps a lane of its own, as
+        // every item did before merged items shared lanes.
+        if let (Some(&i), Some(&s)) = (index.get(o.id.as_str()), survivor) {
+            owner[i] = Some(s);
+        }
     }
     // A survivor merged away in turn passes on its own survivor.
     for i in 0..owner.len() {
@@ -431,6 +432,47 @@ fn share_lanes(owner: &[Option<usize>], sides: &mut [Option<Side>], lanes: &mut 
             lanes[i] = lanes[s];
         }
     }
+}
+
+/// Gives an item merged away under the defaults' labels ([`owners`]) that the plan draws beside
+/// the one whose lane it shares (the spec's labels broke the merge: a tolerance on one of them,
+/// say) the next free lane of its strip, outside every lane the strip holds, so two drawn items
+/// never share a lane; every other item keeps its lane (ARCH0003-2). Items with lanes of their
+/// own claim theirs first, then merged items in order. True for each item moved.
+pub(super) fn separate(
+    owner: &[Option<usize>],
+    drawn: &[bool],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    lanes: &mut [usize],
+) -> Vec<bool> {
+    let strip = |i: usize| views_of[i].zip(sides[i]);
+    let mut next: BTreeMap<(&str, Side), usize> = BTreeMap::new();
+    for (i, lane) in lanes.iter().enumerate() {
+        if let Some(key) = strip(i) {
+            let n = next.entry(key).or_default();
+            *n = (*n).max(lane + 1);
+        }
+    }
+    let mut claimed = std::collections::BTreeSet::new();
+    for (i, lane) in lanes.iter().enumerate() {
+        if let (Some(key), None, true) = (strip(i), owner[i], drawn[i]) {
+            claimed.insert((key, *lane));
+        }
+    }
+    let mut moved = vec![false; lanes.len()];
+    for i in 0..lanes.len() {
+        let (Some(key), Some(_), true) = (strip(i), owner[i], drawn[i]) else {
+            continue;
+        };
+        if !claimed.insert((key, lanes[i])) {
+            let n = next.get_mut(&key).expect("every strip has its next lane");
+            lanes[i] = *n;
+            *n += 1;
+            moved[i] = true;
+        }
+    }
+    moved
 }
 
 /// The lanes each strip holds (one more than its outermost item's lane), from each item's view,
@@ -670,14 +712,17 @@ pub(super) fn settle(
 
 /// Places each item merged away ([`owners`]) in its survivor's lane, once everything else is
 /// placed (callouts included), and moves its label as [`settle`] would, clear of every other
-/// item but its survivor and the items merged with it: their ink is the one span drawn once. The
-/// others never see it, so it moves nothing (it is drawn only when the spec omits its survivor).
+/// item but its survivor and the items merged with it: their ink is the one span drawn once. One
+/// [`separate`] moved to a lane of its own (*alone*) keeps clear of every other item. The others
+/// never see it, so it moves nothing (it is drawn only when the spec omits its survivor or breaks
+/// the merge).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_merged(
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
     views_of: &[Option<&'static str>],
     owner: &[Option<usize>],
+    alone: &[bool],
     sides: &[Option<Side>],
     lanes: &[usize],
     placed: &mut [Option<Placed>],
@@ -694,7 +739,7 @@ pub(super) fn place_merged(
         placed,
         page,
         |i| owner[i].is_some(),
-        |i, j| owner[j].is_none() && Some(j) != owner[i],
+        |i, j| j != i && (alone[i] || (owner[j].is_none() && Some(j) != owner[i])),
     );
 }
 

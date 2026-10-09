@@ -632,6 +632,11 @@ pub fn plan(
     placement::fall_through(
         &frames, &all, &chosen, &owner, &mut sides, &mut lane, analysis, sheet, views,
     );
+    let drawn: Vec<bool> = all
+        .iter()
+        .map(|w| labels.contains_key(w.id.as_str()))
+        .collect();
+    let alone = placement::separate(&owner, &drawn, &chosen, &sides, &mut lane);
     let mut placed: Vec<Option<Placed>> = all
         .iter()
         .zip(&chosen)
@@ -651,6 +656,7 @@ pub fn plan(
         &all,
         &chosen,
         &owner,
+        &alone,
         &sides,
         &lane,
         &mut placed,
