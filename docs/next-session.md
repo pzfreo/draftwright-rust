@@ -75,7 +75,7 @@ pushed):
 - **PMI stage 2b (dimensions):** `src/dims/pmi_dimensions.rs` gives each AP242 dimension to the model dimension that states it (hole callouts split by requirement, turned and boss diameters) or draws it beside them (basic ones boxed), else reports why (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`); left: angles, oblique lengths, bolt-circle splits, a radius on several faces.
 - **PMI stage 3 (streams d-pmi-coverage-lint, d-pmi-coverage-complete):** the coverage lint
   (`src/lint/pmi_coverage.rs`, `tests/pmi_coverage.rs`, `known_pmi_coverage.json`: 1401
-  differences, 1185 rust-correct, 62 equivalent, 84 undetermined, 70 rust-wrong, all the drawing's
+  differences, 1187 rust-correct, 64 equivalent, 82 undetermined, 68 rust-wrong, all the drawing's
   or the reader's: manufacturing requirements, surface labels, common labels and angles not drawn,
   two frames left in an omitted side view (`dims::gdt`), the title block's material not filled from
   the file, haecceity's unmodelled hole occurrences). nist_stc_10 is compared now it renders.

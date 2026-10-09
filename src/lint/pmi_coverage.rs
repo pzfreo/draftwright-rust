@@ -308,6 +308,15 @@ fn materials(report: &Report) -> Vec<LintIssue> {
                 report.parts.len()
             ),
         )],
+        [m] if m.designation.is_empty() => vec![sourced(
+            "step_material_unavailable",
+            &m.source_id,
+            Severity::Warning,
+            format!(
+                "STEP material {} is unusable: material designation is empty",
+                m.source_id
+            ),
+        )],
         [_] => Vec::new(),
         several => vec![LintIssue {
             sources: several.iter().map(|m| m.source_id.clone()).collect(),
@@ -476,6 +485,13 @@ mod tests {
         }))
         .unwrap();
         assert!(materials(&report).is_empty());
+        // A material stating no designation is reported, not taken as no material.
+        let mut unnamed = report.clone();
+        unnamed.materials[0].designation.clear();
+        let found = materials(&unnamed);
+        assert_eq!(found.len(), 1, "{found:#?}");
+        assert_eq!(found[0].code, "step_material_unavailable");
+        assert!(found[0].message.contains("designation is empty"));
         // One part's material, of two parts drawn: not the drawing's.
         report.parts.push("pin".into());
         let found = materials(&report);

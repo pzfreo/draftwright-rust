@@ -216,7 +216,8 @@ pub struct Material {
     pub source_id: String,
     /// The part (`Record::part`'s index).
     pub part: usize,
-    /// The material's designation (the descriptive item's name: draftwright's `designation`).
+    /// The material's designation (the descriptive item's name: draftwright's `designation`);
+    /// empty when the file states none, which makes the material unusable.
     pub designation: String,
     /// Its common name (the item's description), when stated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -408,14 +409,17 @@ pub fn report(
         .zip(&read.provenance.parts)
         .enumerate()
         .filter_map(|(p, (pmi, prov))| {
-            let m = pmi.material.as_ref().filter(|m| !m.id.is_empty())?;
+            // Kept even when unusable (an empty designation), so the lint reports it rather than
+            // the file seeming to state no material; named as the census names it when the
+            // reading carries no `PROPERTY_DEFINITION` instance.
+            let m = pmi.material.as_ref()?;
+            let source_id = prov
+                .material
+                .iter()
+                .find(|&&id| entity_name(doc, id) == "property_definition")
+                .map_or_else(|| format!("material:{p}:0"), |id| format!("material:#{id}"));
             Some(Material {
-                source_id: format!(
-                    "material:#{}",
-                    prov.material
-                        .iter()
-                        .find(|&&id| entity_name(doc, id) == "property_definition")?
-                ),
+                source_id,
                 part: p,
                 designation: m.id.clone(),
                 name: m.name.clone(),

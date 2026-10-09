@@ -212,8 +212,8 @@
   "python": null,
   "rust": "info",
   "source": "material:0:0",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
+  "verdict": "equivalent",
+  "evidence": "The file states two materials, each on its own part (material properties #1509 on product definition #35 and #1513 on #972). draftwright selects no material, so its title block states none, and reports step_material_ambiguous over material:#1509 and material:#1513 (its capture); the port's lint reports the same step_material_ambiguous over the same two sources and its title states no material either. The port's reading also lists each material as a source not projected to a record (info), which is true and claims nothing draftwright contradicts: no title-block gap here. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
  },
  {
   "code": "pmi_not_extracted",
@@ -221,8 +221,8 @@
   "python": null,
   "rust": "info",
   "source": "material:1:0",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
+  "verdict": "equivalent",
+  "evidence": "The file states two materials, each on its own part (material properties #1509 on product definition #35 and #1513 on #972). draftwright selects no material, so its title block states none, and reports step_material_ambiguous over material:#1509 and material:#1513 (its capture); the port's lint reports the same step_material_ambiguous over the same two sources and its title states no material either. The port's reading also lists each material as a source not projected to a record (info), which is true and claims nothing draftwright contradicts: no title-block gap here. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
  },
  {
   "code": "pmi_not_lowered",
@@ -558,7 +558,7 @@
   "rust": "info",
   "source": "material:0:0",
   "verdict": "rust-wrong",
-  "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
+  "evidence": "draftwright cannot draw this part (its projection raises: \"project_to_viewport returned empty geometry for view 'plan'\"), so its lint has nothing; the file states one usable material (material property #31503 on the only product definition #5), which on the parts it draws draftwright states in the title block (builder._resolve_title_document_defaults). The port draws the part but does not fill the title's material from the file, so its reading reports the material as a source not projected to a record (info). A drawing gap, not the lint's; filling the title waits on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
  },
  {
   "code": "pmi_not_lowered",

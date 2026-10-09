@@ -2010,7 +2010,7 @@
   status: pending
   rust_test: "src/lint/pmi_coverage.rs::tests::one_material_of_the_drawing_is_its_title_blocks"
   port_note: "Keep."
-  rust_note: "Partly: the coverage lint reports one stated material that is one part's of several drawn (draftwright's 'not owned by the single shaped source product definition'), warning. A material property haecceity cannot read (several names, no descriptive item) is a reader finding, reported as `pmi_not_extracted` (info), not as this code: the reading carries no material for it to be unusable."
+  rust_note: "Partly: the coverage lint reports one stated material that is one part's of several drawn (draftwright's 'not owned by the single shaped source product definition', judged by the drawing's parts, not by draftwright's count of the file's product definitions, so a single shaped part under an assembly product definition is not caught) and one whose designation is empty, warning. A material property haecceity cannot read (several names, no descriptive item) is a reader finding, reported as `pmi_not_extracted` (info), not as this code: the reading carries no material for it to be unusable."
 
 - id: LINT-code-step_material_ambiguous
   statement: "When the STEP carries several material properties no material is selected and the ambiguity is reported."
