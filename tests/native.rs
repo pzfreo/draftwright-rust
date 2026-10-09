@@ -1,13 +1,14 @@
 //! Features from Rust quiddity (`bridge::native`: holes and hole patterns, fillets, chamfers,
 //! countersinks, bosses, turned steps, grooves, flats, the steps, blends, slots and slot patterns,
 //! polygonal bosses and stock, double-D bores, plates, gusset ribs and their patterns, oriented
-//! slots and their patterns) against the same parts' Python quiddity recognition through the
+//! slots and their patterns, raised pads) against the same parts' Python quiddity recognition through the
 //! bridge, record by record.
 //!
 //! Every part with bridged Python recognition is compared: the fixtures in `tests/fixtures/parts/`
 //! (set `parts`), the slot-pattern plates (`slot_patterns`) and quiddity-rust's golden parts with
 //! a double-D bore, gusset ribs, hexagonal stock and a pattern of oriented slots (`golden`), which
-//! no corpus part has, the sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
+//! no corpus part has, the two fixture parts with raised pads Python quiddity 0.3.9 finds
+//! (`pads`), the sampled corpus parts with Python quiddity 0.4.0.dev0's recognition
 //! (`recognition/corpus/`, set `corpus`) and 0.3.9's, the recogniser draftwright drew their sheets
 //! with (`recognition/sheets/`, set `sheets`), and 0.3.9's on corpus parts with features no
 //! sampled sheet has (`recognition/dims/`, set `dims`, and `recognition/steps/`, set `steps`), and
@@ -97,6 +98,30 @@ fn gunzip(path: &Path) -> Option<String> {
     Some(text)
 }
 
+/// The STEP file of fixture *name*: `<name>.step`, or `<name>.step.gz` unpacked once into the
+/// test's scratch directory.
+fn plain_step(name: &str) -> PathBuf {
+    let plain = fixture(&format!("{name}.step"));
+    if plain.exists() {
+        return plain;
+    }
+    let file = Path::new(name).file_name().unwrap().to_string_lossy();
+    let out = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("native_{file}.step"));
+    if !out.exists() {
+        let mut bytes = Vec::new();
+        flate2::read::GzDecoder::new(
+            std::fs::File::open(fixture(&format!("{name}.step.gz"))).unwrap(),
+        )
+        .read_to_end(&mut bytes)
+        .unwrap();
+        // Written whole then renamed, so another test binary never reads half a file.
+        let partial = out.with_extension(format!("step.{}", std::process::id()));
+        std::fs::write(&partial, bytes).unwrap();
+        std::fs::rename(&partial, &out).unwrap();
+    }
+    out
+}
+
 /// Every part with bridged Python recognition; the corpus sets only when the corpus is found.
 fn cases() -> Vec<Case> {
     let mut out = Vec::new();
@@ -127,6 +152,20 @@ fn cases() -> Vec<Case> {
             part: part.into(),
             step: fixture(&format!("recognition/{set}/{part}.step")),
             json: gunzip(&fixture(&format!("recognition/{set}/{part}.json.gz"))).unwrap(),
+        });
+    }
+    // The fixture parts whose Python recognition (quiddity 0.3.9) has raised pads, which no
+    // compared corpus recognition has: quiddity's golden plates, pads, levels and slanted steps
+    // (`recognition/steps/`) and the whistle frame (`recognition/issues/`, its STEP file gzipped).
+    for (dir, part) in [
+        ("steps", "plates_pads_levels_and_slanted_steps"),
+        ("issues", "whistle_frame_reference"),
+    ] {
+        out.push(Case {
+            set: "pads",
+            part: part.into(),
+            step: plain_step(&format!("recognition/{dir}/{part}")),
+            json: gunzip(&fixture(&format!("recognition/{dir}/{part}.json.gz"))).unwrap(),
         });
     }
     let Some(dir) = corpus::dir() else {
@@ -225,7 +264,7 @@ fn to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<String, Va
 }
 
 /// The kinds read natively besides holes, as `bridge::native::READ` names their families.
-const KINDS: [&str; 22] = [
+const KINDS: [&str; 23] = [
     "fillet",
     "chamfer",
     "countersink",
@@ -249,6 +288,7 @@ const KINDS: [&str; 22] = [
     "gusset_rib",
     "gusset_rib_pattern",
     "oriented_slot",
+    "pad",
 ];
 
 /// Where a feature of *kind* is, as its record gives it: what pairs a Python feature with a
@@ -271,6 +311,7 @@ fn anchor(kind: &str) -> &'static [&'static str] {
         "gusset_rib" => &["thickness_axis", "thickness_bounds"],
         "gusset_rib_pattern" => &["pitch", "mirror_plane"],
         "oriented_slot" => &["center"],
+        "pad" => &["axis", "x0", "x1", "y0", "y1", "z0", "z1"],
         _ => &["at"],
     }
 }
@@ -308,6 +349,8 @@ fn rounding(kind: &str, path: &str) -> f64 {
         // Sizes and points to 3 decimals, directions to 6 (`OrientedSlot`).
         ("oriented_slot", "center" | "origin" | "width" | "length") => 1e-3,
         ("oriented_slot", "width_direction" | "long_direction" | "run" | "u" | "v") => 1e-6,
+        // The box to 3 decimals (`RaisedPad`).
+        ("pad", "x0" | "x1" | "y0" | "y1" | "z0" | "z1") => 1e-3,
         _ => 0.0,
     }
 }
@@ -475,7 +518,7 @@ fn other_to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<Stri
 /// direction; a plate's `u` and `v` (the centre on its other two axes, in axis order); a rib's
 /// thickness axis and bounds, and its supports (axis letter and plane) with their legs and
 /// directions, ordered by the part's axis as `lint/gussets.rs` orders them, here and in a
-/// pattern's `ribs`; a mirrored pair's plane.
+/// pattern's `ribs`; a mirrored pair's plane; a pad's box and the sense it rises in.
 fn kind_to_part(
     kind: &str,
     frame: &[[f64; 3]; 4],
@@ -584,6 +627,29 @@ fn kind_to_part(
                     mapped.insert(k.clone(), m);
                 }
                 source.insert("frame".into(), mapped.into());
+            }
+        }
+        "pad" => {
+            let corner = |end: usize| -> Option<[f64; 3]> {
+                let mut c = [0.0; 3];
+                for (j, a) in ["x", "y", "z"].iter().enumerate() {
+                    c[j] = number(&format!("{a}{end}"))?;
+                }
+                Some(c)
+            };
+            if let (Some(lo), Some(hi)) = (corner(0), corner(1))
+                && let Some((a, b)) = box_to_part(frame, lo, hi)
+            {
+                for (k, l) in ["x", "y", "z"].iter().enumerate() {
+                    out.insert(format!("{l}0"), a[k].into());
+                    out.insert(format!("{l}1"), b[k].into());
+                }
+            }
+            if let (Some((_, s)), Some(d)) = (
+                axis(record.get("axis")),
+                record.get("direction").and_then(Value::as_f64),
+            ) {
+                out.insert("direction".into(), Value::from((s * d) as i64));
             }
         }
         "gusset_rib" => {
@@ -1326,7 +1392,8 @@ fn native_features_match_the_bridge_or_are_listed() {
         .keys()
         .filter(|k| {
             !seen.contains(*k)
-                && (corpus_found || ["parts", "slot_patterns", "golden"].contains(&k.0.as_str()))
+                && (corpus_found
+                    || ["parts", "slot_patterns", "golden", "pads"].contains(&k.0.as_str()))
         })
         .collect();
     eprintln!("compared {compared} parts; differences by verdict: {tally:?}");
@@ -1340,9 +1407,9 @@ fn native_features_match_the_bridge_or_are_listed() {
         serde_json::to_string_pretty(&needed).unwrap()
     );
     if corpus_found {
-        // 5 fixture parts, 2 slot-pattern and 5 golden fixture parts, 12 corpus parts, the 12
-        // sheets parts the bridge reads, 4 dims parts, 4 steps parts and 1 oriented part.
-        assert_eq!(compared, 45);
+        // 5 fixture parts, 2 slot-pattern, 5 golden and 2 pad fixture parts, 12 corpus parts,
+        // the 12 sheets parts the bridge reads, 4 dims parts, 4 steps parts and 1 oriented part.
+        assert_eq!(compared, 47);
     }
 }
 
@@ -1979,4 +2046,172 @@ fn bore_rib_plate_and_stock_fields_are_checked() {
         e.contains("(GussetRibMirrorPair)'s ribs[1] (GussetRib) has no legs"),
         "{e}"
     );
+}
+
+/// A raised pad's record is checked against what lint and dims read of it (its axis letter and
+/// box): a missing or mis-shaped field refuses the read; its `direction`, which nothing reads, is
+/// not required.
+#[test]
+fn pad_fields_are_checked() {
+    let path = "recognition/steps/plates_pads_levels_and_slanted_steps.step";
+    let (part, doc) = document_at(path);
+    let r = doc.records.iter().position(|r| r.family == "pads").unwrap();
+    let n = native::read(&part, &doc).unwrap();
+    let pads: Vec<_> = n.features.iter().filter(|f| f.kind == "pad").collect();
+    assert_eq!(pads.len(), 1);
+    assert_eq!(pads[0].id, "f:pad:1");
+    assert_eq!(pads[0].faces, doc.records[r].faces);
+    let edited = |edit: &dyn Fn(&mut Map<String, Value>)| {
+        let mut d = doc.clone();
+        edit(&mut d.records[r].parameters);
+        native::read(&part, &d)
+    };
+    let e = edited(&|p| {
+        p.remove("z1");
+    })
+    .unwrap_err();
+    assert!(
+        e.contains("(RaisedPad) has no z1, which draftwright reads"),
+        "{e}"
+    );
+    let e = edited(&|p| {
+        p.insert("axis".into(), serde_json::json!([1.0, 0.0, 0.0]));
+    })
+    .unwrap_err();
+    assert!(
+        e.contains("(RaisedPad)'s axis is [1.0,0.0,0.0], not Letter"),
+        "{e}"
+    );
+    let e = edited(&|p| {
+        p.insert("x0".into(), Value::from("5.623"));
+    })
+    .unwrap_err();
+    assert!(
+        e.contains("(RaisedPad)'s x0 is \"5.623\", not Number"),
+        "{e}"
+    );
+    edited(&|p| {
+        p.remove("direction");
+    })
+    .unwrap();
+}
+
+/// The pad lint asks the same of a natively read pad as of the bridge's (Python quiddity 0.3.9's
+/// record, in its working frame): the same parameters, and values within the 1e-3 quiddity rounds
+/// a pad's box to (Python rounds it in its working frame, so the golden part's x location is
+/// 90.000068 through the bridge and 90 natively), on the two fixture parts with pads.
+#[test]
+fn native_pads_lint_as_the_bridges_do() {
+    let wanted = |a: &model::Analysis| -> Vec<(String, String, Vec<f64>)> {
+        draftwright::lint::pads::wanted(a)
+            .into_iter()
+            .map(|w| (w.feature.id.clone(), w.parameter, w.values.unwrap()))
+            .collect()
+    };
+    for (dir, name, pads) in [
+        ("steps", "plates_pads_levels_and_slanted_steps", 1),
+        ("issues", "whistle_frame_reference", 3),
+    ] {
+        let step = plain_step(&format!("recognition/{dir}/{name}"));
+        let json = gunzip(&fixture(&format!("recognition/{dir}/{name}.json.gz"))).unwrap();
+        let (part, mut native) = model::analyse(&step).unwrap();
+        let mut bridged = native.clone();
+        model::recognise_native(&part, &mut native).unwrap();
+        model::recognise(&part, &mut bridged, &json).unwrap();
+        assert!(
+            native.unrecognised.iter().all(|u| u.family != "pads"),
+            "{name}"
+        );
+        let (ours, theirs) = (wanted(&native), wanted(&bridged));
+        assert_eq!(ours.len(), 5 * pads, "{name}: {ours:?}");
+        assert_eq!(ours.len(), theirs.len(), "{name}: {ours:?} {theirs:?}");
+        for (a, b) in ours.iter().zip(&theirs) {
+            let near = a.2.len() == b.2.len()
+                && a.2
+                    .iter()
+                    .zip(&b.2)
+                    .all(|(x, y)| (x - y).abs() <= 1e-3 + 1e-9);
+            assert!(a.0 == b.0 && a.1 == b.1 && near, "{name}: {a:?} {b:?}");
+        }
+    }
+}
+
+/// The corpus parts on which Rust quiddity finds raised pads (every corpus part read natively,
+/// 2026-10-09: these four), each as Python quiddity 0.4.0.dev0's document gives it (its defining
+/// faces' file indices, and its record mapped from the working frame into the file's): the same
+/// faces, axis, sense and box. No compared recognition has these parts.
+#[test]
+fn corpus_pads_are_pythons() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    type Pad = (&'static [usize], &'static str, i64, [f64; 6]);
+    let cases: [(&str, &[Pad]); 4] = [
+        (
+            "mfcadpp_holdout/205.step",
+            &[(
+                &[1, 3, 7, 8, 9],
+                "y",
+                1,
+                [43.259, 48.938, 24.485, 41.262, 7.769, 16.518],
+            )],
+        ),
+        (
+            "mfcadpp_holdout/238.step",
+            &[(
+                &[3, 5, 7, 8, 9],
+                "z",
+                -1,
+                [21.588, 24.449, 0.0, 3.633, 0.0, 13.808],
+            )],
+        ),
+        (
+            "mfcadpp/10092.step",
+            &[
+                (
+                    &[0, 3, 7, 9, 12],
+                    "y",
+                    1,
+                    [0.0, 4.274, 10.285, 16.681, 36.317, 39.721],
+                ),
+                (
+                    &[3, 14, 15, 16, 25],
+                    "y",
+                    1,
+                    [0.0, 2.828, 12.327, 16.681, 0.0, 20.258],
+                ),
+            ],
+        ),
+        (
+            "mfcadpp/10255.step",
+            &[(
+                &[0, 1, 2, 3, 20],
+                "y",
+                -1,
+                [0.0, 3.592, 0.0, 4.785, 7.951, 12.438],
+            )],
+        ),
+    ];
+    for (file, expected) in cases {
+        let (part, _) = model::analyse(&dir.join(file)).unwrap();
+        let n = native::recognise(&part).unwrap();
+        let pads: Vec<&Feature> = n.features.iter().filter(|f| f.kind == "pad").collect();
+        assert_eq!(pads.len(), expected.len(), "{file}");
+        for (f, (faces, axis, direction, b)) in pads.iter().zip(expected) {
+            let p = &f.parameters;
+            assert_eq!(f.faces, *faces, "{file}");
+            assert_eq!(p["axis"], *axis, "{file} {}", f.id);
+            assert_eq!(p["direction"].as_i64(), Some(*direction), "{file} {}", f.id);
+            for (k, v) in ["x0", "x1", "y0", "y1", "z0", "z1"].iter().zip(b) {
+                // Python rounds the box in its working frame, Rust in the file's.
+                let got = p[*k].as_f64().unwrap();
+                assert!(
+                    (got - v).abs() <= 1e-3 + 1e-9,
+                    "{file} {} {k}: {got} {v}",
+                    f.id
+                );
+            }
+        }
+    }
 }

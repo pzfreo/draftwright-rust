@@ -71,8 +71,8 @@ Native recognition, current limitations (details and verdicts in `docs/next-sess
 d-native-holes, d-native-families and d-native-more-families entries):
 
 - **Not every family.** Rust quiddity's document does not carry section recesses (pockets,
-  channels, blind slots, circular recesses) or raised pads, and the reader does not yet take
-  every family the document has (slots, oriented chamfers, …). The Analysis lists what it
+  channels, blind slots, circular recesses), and the reader does not take every family the
+  document has (oriented chamfers, …). The Analysis lists what it
   lacks (`unrecognised`, with each family's record count on the part) and the plan reports it as
   a `features_not_recognised` warning: features of those families are not dimensioned,
   sectioned or linted. Use `--features` for them.

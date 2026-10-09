@@ -9078,5 +9078,255 @@
     "rust": "[0.0,-0.452785,0.89162]",
     "verdict": "equivalent",
     "evidence": "An OrientedSlot's source passage frame (run sense, u and v) is chosen canonically by the run's dominant component, and its width and long directions by their largest component, in the frame it is recognised in: Python's working frame, mapped here into the part's, and quiddity-rust's caller space, the file's. So the same slot is expressed with other senses and another in-plane basis (quiddity-rust's tests/fixtures/known_framed_document.json (mfcadpp_holdout/467.step, oriented_slots, caller_space, equivalent) shows the same mechanism between quiddity-rust's own default frame and caller space, for the one corpus part with an oriented slot). Checked: the slot's prism (its section's four vertices at both ends of its run interval, in the part's coordinates) is the same eight points on both sides to 0.001, the step each side rounds its origin to in its own frame (Python rounds in its working frame, whose origin is (7.683, 16.285, 8.686) and axes (-z, -x, y) in the part's; quiddity-rust in the file's), and its width, length, centre, ends, faces and body key agree. draftwright reads none of these fields (the port draws and lints no oriented slot; its fingerprint takes width and length, which agree)."
+  },
+  {
+    "set": "pads",
+    "part": "plates_pads_levels_and_slanted_steps",
+    "subject": "f:pad:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"height_above_base\":16.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the pad's height: height_above_base 16.0 is its box's extent along its axis (x: x1 - x0 = 21.623 - 5.623; the native pad has the same box, faces [16, 17, 18, 19, 20], axis and direction, all compared). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); lint/pads.rs, dims/levels.rs and lint/polygonal.rs read the pad's box and axis, not the named size. Python quiddity 0.4.0.dev0 (~/repos/quiddity/.venv, run 2026-10-09) gives the same pads on the same faces, and quiddity-rust's known_divergences.json lists no pads divergence."
+  },
+  {
+    "set": "pads",
+    "part": "plates_pads_levels_and_slanted_steps",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":8.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 8.0: hi - lo of its own record, within its 1e-3 rounding; the native plate's lo and hi agree (compared). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs and dims/levels.rs read the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "pads",
+    "part": "plates_pads_levels_and_slanted_steps",
+    "subject": "f:plate:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":10.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 10.0: hi - lo of its own record, within its 1e-3 rounding; the native plate's lo and hi agree (compared). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs and dims/levels.rs read the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:1",
+    "field": "id",
+    "python": "f:flat:1",
+    "rust": "f:flat:2",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:10",
+    "field": "id",
+    "python": "f:flat:10",
+    "rust": "f:flat:13",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:11",
+    "field": "id",
+    "python": "f:flat:11",
+    "rust": "f:flat:14",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:2",
+    "field": "id",
+    "python": "f:flat:2",
+    "rust": "f:flat:3",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:3",
+    "field": "id",
+    "python": "f:flat:3",
+    "rust": "f:flat:5",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:4",
+    "field": "id",
+    "python": "f:flat:4",
+    "rust": "f:flat:7",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:5",
+    "field": "id",
+    "python": "f:flat:5",
+    "rust": "f:flat:8",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:6",
+    "field": "id",
+    "python": "f:flat:6",
+    "rust": "f:flat:9",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:7",
+    "field": "id",
+    "python": "f:flat:7",
+    "rust": "f:flat:10",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:8",
+    "field": "id",
+    "python": "f:flat:8",
+    "rust": "f:flat:11",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:flat:9",
+    "field": "id",
+    "python": "f:flat:9",
+    "rust": "f:flat:12",
+    "verdict": "rust-correct",
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:hole:13",
+    "field": "faces",
+    "python": "[204, 207]",
+    "rust": "[204]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/2) carries only the defining ones. The other face, 207, is a plane of area 4.524 (pi x 1.2^2): the flat floor of this D2.4, 1.5 deep blind hole (bottom flat on both sides). quiddity-rust finds it as the hole occurrence's context (holes::discover), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for the other parts' holes."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:hole:14",
+    "field": "faces",
+    "python": "[205, 208]",
+    "rust": "[205]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/2) carries only the defining ones. The other face, 208, is a plane of area 4.524 (pi x 1.2^2): the flat floor of this D2.4, 1.5 deep blind hole (bottom flat on both sides). quiddity-rust finds it as the hole occurrence's context (holes::discover), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for the other parts' holes."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:hole:15",
+    "field": "faces",
+    "python": "[206, 209]",
+    "rust": "[206]",
+    "verdict": "rust-wrong",
+    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/2) carries only the defining ones. The other face, 209, is a plane of area 4.524 (pi x 1.2^2): the flat floor of this D2.4, 1.5 deep blind hole (bottom flat on both sides). quiddity-rust finds it as the hole occurrence's context (holes::discover), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for the other parts' holes."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:hole_pattern:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"adjacent_center_spacing\":24.3,\"bolt_circle_diameter\":34.42,\"direction\":\"circumferential\"}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter (34.42, the diagonal of the members' 24.3 x 24.375 rectangle) and adjacent_center_spacing the nearer neighbours' spacing, 24.3, and direction that the spacing is circumferential, as for boss_circle's pattern. The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:pad:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"height_above_base\":0.3}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the pad's height: height_above_base 0.3 is its box's extent along its axis (Python's working y, -3.211 - -3.511; the part's x, -7.4 - -7.7 in the native record; the native pad has the same five faces, box, axis and direction, all compared). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); lint/pads.rs, dims/levels.rs and lint/polygonal.rs read the pad's box and axis, not the named size. Python quiddity 0.4.0.dev0 (~/repos/quiddity/.venv, run 2026-10-09) gives the same pads on the same faces, and quiddity-rust's known_divergences.json lists no pads divergence."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:pad:2",
+    "field": "parameters.named_dimensions",
+    "python": "{\"height_above_base\":0.3}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the pad's height: height_above_base 0.3 is its box's extent along its axis (Python's working y, -3.211 - -3.511; the part's x, -7.4 - -7.7 in the native record; the native pad has the same five faces, box, axis and direction, all compared). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); lint/pads.rs, dims/levels.rs and lint/polygonal.rs read the pad's box and axis, not the named size. Python quiddity 0.4.0.dev0 (~/repos/quiddity/.venv, run 2026-10-09) gives the same pads on the same faces, and quiddity-rust's known_divergences.json lists no pads divergence."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:pad:3",
+    "field": "parameters.named_dimensions",
+    "python": "{\"height_above_base\":0.3}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the pad's height: height_above_base 0.3 is its box's extent along its axis (Python's working y, -3.211 - -3.511; the part's x, -7.4 - -7.7 in the native record; the native pad has the same five faces, box, axis and direction, all compared). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open); lint/pads.rs, dims/levels.rs and lint/polygonal.rs read the pad's box and axis, not the named size. Python quiddity 0.4.0.dev0 (~/repos/quiddity/.venv, run 2026-10-09) gives the same pads on the same faces, and quiddity-rust's known_divergences.json lists no pads divergence."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":7.0}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "Python's document enrichment restates the plate's thickness, 7.0 (hi - lo = -3.511 - -10.511 in Python's record): hi - lo of its own record, within its 1e-3 rounding; the native plate's lo and hi agree (compared). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs and dims/levels.rs read the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "rust f:flat:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:flat:1 [0] {\"across\":6.5,\"at\":[-14.326,-3.0,1.75],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_line\":[-12.15,0.0],\"stock_span\":[0.0,3.5]}",
+    "verdict": "rust-correct",
+    "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "rust f:flat:4",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:flat:4 [7] {\"across\":6.5,\"at\":[0.0,-3.0,2.186],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_line\":[-12.15,0.0],\"stock_span\":[0.0,3.5]}",
+    "verdict": "rust-correct",
+    "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "rust f:flat:6",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:flat:6 [11] {\"across\":6.5,\"at\":[14.301,-3.0,1.75],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_line\":[12.15,0.0],\"stock_span\":[0.0,3.5]}",
+    "verdict": "rust-correct",
+    "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops."
   }
 ]
