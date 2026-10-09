@@ -2,7 +2,7 @@
 //! boxes, pockets and channels of draftwright's `tests/test_issue_<n>_*.py`, made by
 //! `tests/fixtures/recognition/issues/make.py` and recognised by Python quiddity 0.3.9. Each test
 //! names the rule it checks and what draftwright's own run of the same part gives where the port
-//! is compared with it. None needs the corpus.
+//! is compared with it. None needs the corpus but ISSUE-1187-a's, on nist_ctc_04 as draftwright's.
 
 use std::collections::BTreeSet;
 use std::io::Read as _;
@@ -1003,5 +1003,73 @@ fn a_planar_reading_cannot_certify_a_curved_pocket() {
     assert!(
         found.iter().all(|f| !f.ends_with(" pocket_depth.length")),
         "{found:?}"
+    );
+}
+
+#[path = "common/corpus.rs"]
+mod corpus;
+
+/// ISSUE-1187-a (draftwright's `test_the_retained_crossings_have_no_clear_alternative`, on
+/// nist_ctc_04, the one corpus part here): a callout keeps a leader that crosses other ink or is
+/// blocked (Policy B) only when no route is clear of the views, the sheet's furniture and every
+/// committed annotation. Measured, not asserted: for each callout the plan reports crossing,
+/// laid over, or blocked, the clear-route sweep (`dims::clear_routes`, draftwright's
+/// `_clear_routes`: elbows around the leader's sites in 64 directions at ten reaches, far more
+/// freedom than the candidate producers give) finds no clear route. Its features are the port's
+/// own (`model::analyse_native`), as the command line reads the part; needs the corpus.
+#[test]
+fn issue_1187_a_retained_leader_crossings_have_no_clear_route() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let (_, analysis) = model::analyse_native(&dir.join("nist/nist_ctc_04_asme1_rd.stp")).unwrap();
+    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let callouts: BTreeSet<&str> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "callout")
+        .map(|d| d.id.as_str())
+        .collect();
+    let retained: BTreeSet<&str> = plan
+        .problems
+        .iter()
+        .filter(|p| {
+            [
+                "annotation_leader_crossing",
+                "annotation_ink_overlap",
+                "annotation_overlap",
+                "annotation_over_view",
+                "annotation_line_over_view",
+                "annotation_leader_long",
+            ]
+            .contains(&p.code.as_str())
+        })
+        .flat_map(|p| p.subjects.iter().map(String::as_str))
+        .filter(|s| callouts.contains(s))
+        .collect();
+    // The part keeps crossings (its strips are full), so the check is not vacuous.
+    assert!(
+        !retained.is_empty(),
+        "ctc04 no longer keeps a crossing leader"
+    );
+    let free: Vec<(&str, usize)> = retained
+        .iter()
+        .map(|id| {
+            let n = draftwright::dims::clear_routes(
+                &analysis,
+                &plan.sheet,
+                &plan.views,
+                &plan.dimensions,
+                id,
+            )
+            .unwrap_or_else(|| panic!("{id} is a placed callout"));
+            (*id, n)
+        })
+        .filter(|(_, n)| *n > 0)
+        .collect();
+    assert!(
+        free.is_empty(),
+        "callouts keep a crossing though clear routes exist: {free:?}"
     );
 }

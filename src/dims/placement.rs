@@ -799,6 +799,8 @@ fn outlines<'a>(analysis: &Analysis, views: &'a [PlannedView]) -> Vec<(&'a str, 
 pub(super) struct Page<'a> {
     drawable: [f64; 4],
     views: Vec<(&'a str, [f64; 4])>,
+    /// Each view's reserved area (its box and its annotation bands), by its ID.
+    areas: Vec<(&'a str, [f64; 4])>,
     title_block: [f64; 4],
 }
 
@@ -811,8 +813,17 @@ impl<'a> Page<'a> {
         Page {
             drawable: drawable(sheet),
             views: outlines(analysis, views),
+            areas: views.iter().map(|v| (v.id.as_str(), v.area)).collect(),
             title_block: sheet.title_block,
         }
+    }
+
+    /// The reserved area of the view named *view* (`plan`), when the sheet has it.
+    pub(super) fn area(&self, view: &str) -> Option<[f64; 4]> {
+        self.areas
+            .iter()
+            .find(|(id, _)| id.strip_prefix("v:") == Some(view))
+            .map(|(_, a)| *a)
     }
 
     pub(super) fn drawable(&self) -> [f64; 4] {

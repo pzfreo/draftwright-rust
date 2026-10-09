@@ -218,7 +218,7 @@
     corpus_parts: []
   status: ported
   rust_test: "tests/leaders.rs::a_leader_has_a_horizontal_shoulder_and_reads_outward"
-  rust_note: "A callout whose every candidate is blocked takes the least blocked (src/dims/leaders.rs: hard blockers, then crossings, then length), and the plan reports what it still crosses (annotation_leader_crossing, annotation_ink_overlap, annotation_over_view, ...). No callout is dropped for routing; only an item no shown view can carry is unplaced (view_plan_incomplete). Material cutting is the leader re-entering its view's box (the plan has no projected material; ADR2-8)."
+  rust_note: "A callout whose every candidate is blocked takes the least blocked (src/dims/leaders.rs: hard blockers, then crossings, then text touched, then ink out of its view's area, then length), and the plan reports what it still crosses (annotation_leader_crossing, annotation_ink_overlap, annotation_over_view, ...). No callout is dropped for routing; only an item no shown view can carry is unplaced (view_plan_incomplete). Material cutting is the leader re-entering its view's box (the plan has no projected material; ADR2-8)."
   port_note: "Keep: leader router unit test; plan records the crossing as a problem rather than dropping the callout."
 
 - id: ISSUE-798-b
@@ -1088,7 +1088,9 @@
       - "tests/test_issue_1187_unroutable_leaders.py::test_policy_b_retention_is_a_fast_release_gate"
       - "tests/test_issue_1187_unroutable_leaders.py::test_the_retained_crossings_have_no_clear_alternative"
     corpus_parts: ["nist_ctc_04_asme1_ap203"]
-  status: pending
+  status: ported
+  rust_test: "tests/issue_regressions.rs::issue_1187_a_retained_leader_crossings_have_no_clear_route"
+  rust_note: "On ctc04 (native recognition, the default plan), every callout the plan reports crossing, laid over or blocked (annotation_leader_crossing, annotation_ink_overlap, annotation_overlap, annotation_over_view, annotation_line_over_view, annotation_leader_long) has no route of the clear-route sweep clear of the views, the sheet's furniture and every other planned annotation (dims::clear_routes). The plan makes this so by construction (src/dims/leaders.rs::repair): after the joint assignment, a callout still blocked or crossing takes the best sweep route better than its own that meets no other leader, until none moves. Differences, with verdicts: the sweep's leaders leave the callout's sites radially (8 sites nearest the tip, 64 directions, elbows 6 to 75 mm from the rim) where draftwright's sweeps the elbow about the fixed tip (64 directions, 0.6 to 2.2 times the leader's length) — rust-correct, as a leader to a circle is radial (and the fixed-tip sweep would offer non-radial leaders the plan may not draw); the body is the view's box (ADR R1: the plan has no projected material; ADR2-8), and the check covers ink crossings too (draftwright's test is about the material) — equivalent for the rule, which names both. Not ported: draftwright's release gate on its built flange (test_policy_b_retention_is_a_fast_release_gate: one retained silhouette crossing, no callout dropped), whose part is made in build123d; the port drops no callout for routing (ISSUE-798-a)."
   port_note: "Keep: scenario CTC-04 -> every reported leader crossing has no clear alternative candidate."
 
 - id: ISSUE-1188-a

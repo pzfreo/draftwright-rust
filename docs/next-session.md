@@ -335,6 +335,14 @@ quiddity commit that has it.
   before and after on all 30 parts (no part may get worse) and compares its worst parts' PDFs
   visually with Python's. Re-run the tool and update the baseline doc at each integration. The
   hole-table and angled-step decisions below are part of this work where they remove problems.
+  - Quality 4 (stream d-quality-ink): ink 486 to 449 on the 30 parts (text overlaps 30 to 16,
+    callouts past their areas −28; ISSUE-1187-a ported: a leader keeps a crossing only when the
+    clear-route sweep has no clear route); see `docs/quality-2026-10-09.md`, "After Quality 4".
+    Question for the maintainer: draftwright rejects a callout place whose text meets ink
+    (`annotation_text_ink_clear`) and accepts shaft crossings instead; the port counts a text
+    contact as one crossing per pair and prefers the shaft crossing only between equal counts,
+    because the literal gate measured worse on the tool (ftc08: 11 fewer text contacts for 26 more
+    leader crossings). Keep the port's weighting, or gate text as draftwright does?
 - **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
   other backlog work):
   - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a

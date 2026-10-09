@@ -72,6 +72,7 @@ use serde_json::Value;
 use crate::model::{Analysis, DimensionSource, Invalid, PlannedSheet, PlannedView, Problem, Spec};
 use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
+pub use leaders::clear_routes;
 use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
 pub(crate) use tolerance::check as check_tolerances;
