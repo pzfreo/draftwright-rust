@@ -27,3 +27,11 @@ Regenerate with
   build123d's XCAF import crashes on NIST CTC-02 (draftwright #20). Written by `tools/capture_pmi_lowering.py` from
   draftwright `origin/main` 4dfc63f. Regenerate with
   `~/repos/draftwright/.venv/bin/python tools/capture_pmi_lowering.py <draftwright>/src`.
+- `dimensions/<stem>.json.gz`: how draftwright lowers and draws each AP242 file's dimensions
+  (`tests/pmi_dimensions.rs`): each dimension record of `extract_pmi_report` (its kind, value,
+  label, basic flag, stations, cylinders and blockers), the placed terms of
+  `build_drawing(..., pmi="annotate")` that cite it (`Drawing.dimension_sources`: its own
+  standalone dimension, or a recognised feature's callout that took its tolerance), and the lint
+  issues naming it; or why draftwright could not draw the part. Written by
+  `tools/capture_pmi_dimensions.py` from draftwright `origin/main`. Regenerate with
+  `~/repos/draftwright/.venv/bin/python tools/capture_pmi_dimensions.py <draftwright>/src`.

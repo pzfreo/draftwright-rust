@@ -59,6 +59,7 @@ mod holes;
 mod leaders;
 pub(crate) mod levels;
 mod placement;
+mod pmi_dimensions;
 mod recesses;
 mod slots;
 mod steps;
@@ -309,8 +310,15 @@ const PLANNERS: [Planner; 12] = [
     recesses::PLANNER,
 ];
 
-/// Everything the defaults would dimension, with the problems met on the way.
-fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
+/// Everything the defaults would dimension, with the problems met on the way, and what the part's
+/// PMI dimensions put on the model's items ([`pmi_dimensions`]).
+fn wants(
+    analysis: &Analysis,
+) -> (
+    Vec<Want>,
+    Vec<Problem>,
+    BTreeMap<String, pmi_dimensions::Note>,
+) {
     let frame = QFrame(analysis.recognition.as_ref().map_or(
         [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         |r| r.frame,
@@ -338,7 +346,11 @@ fn wants(analysis: &Analysis) -> (Vec<Want>, Vec<Problem>) {
             .into_iter()
             .filter(|p| !p.subjects.iter().any(|s| stated.contains(s))),
     );
-    (out, problems)
+    // The part's PMI dimensions: on the model's items that state them, or their own.
+    let (own, more, notes) = pmi_dimensions::lower(&cx, &mut out);
+    out.extend(own);
+    problems.extend(more);
+    (out, problems, notes)
 }
 
 /// quiddity record types (`Fingerprint::subtype`) draftwright gives no dimensions of their own
@@ -487,7 +499,7 @@ fn route(
 /// ([`crate::layout::Strips::reserve`]). Every item the part would have counts, whatever the
 /// spec omits, as [`plan`] gives each its lane in that full set (edit locality, ARCH0003-2).
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
-    let (mut wants, _) = wants(analysis);
+    let (mut wants, ..) = wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter(|(name, ..)| NAMES.contains(name))
@@ -512,7 +524,7 @@ pub fn plan(
     sheet: &PlannedSheet,
     views: &[PlannedView],
 ) -> Result<Planned, Invalid> {
-    let (mut wants, mut problems) = wants(analysis);
+    let (mut wants, mut problems, notes) = wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter_map(|v| {
@@ -582,9 +594,11 @@ pub fn plan(
         }
     }
     bosses::consolidate(analysis, &mut kept, &mut omitted);
+    pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     share(&mut kept, &mut given, &mut omitted);
+    problems.extend(pmi_dimensions::omitted(&all, &kept, &omitted));
 
     // Then everything the part would have is placed: each item's lane, and where its label
     // settles, come from the full set, so omitting or restoring one leaves the others where they
@@ -713,6 +727,7 @@ pub fn plan(
             problems.push(p);
         }
     }
+    pmi_dimensions::finish(&mut out);
     problems.extend(placement::collisions(analysis, &out, sheet, views));
     Ok((out, omitted, problems))
 }
@@ -882,6 +897,18 @@ pub fn render(
                 .collect();
             if !wires.is_empty() {
                 items.push(Item::Face(wires));
+            }
+        }
+        // A basic dimension's box: its label box, which the plan widened to take it in.
+        if pmi_dimensions::basic(&d.measurements) {
+            let [x0, y0, x1, y1] = p.label_box;
+            for (a, b) in [
+                ([x0, y0], [x1, y0]),
+                ([x1, y0], [x1, y1]),
+                ([x1, y1], [x0, y1]),
+                ([x0, y1], [x0, y0]),
+            ] {
+                items.push(Item::Edge(Curve::Line(a, b)));
             }
         }
         text.push(TextRun {

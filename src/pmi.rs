@@ -28,8 +28,8 @@
 //!   the frame the drawing uses, the file's own: the port draws a part where the file puts it,
 //!   which is draftwright's frame-less extraction (`frame=None`). A geometric tolerance's and a
 //!   datum's `geometry` (draftwright's `ref_pts`, `reference_axis`, `reference_surface_kind` and
-//!   `reference_normal`) is derived from the faces for lowering; a dimension's (its cylinder,
-//!   linear and angular supports) is the next stage's.
+//!   `reference_normal`) is derived from the faces for lowering, and so is a dimension's (its
+//!   proven stations, or its cylinders: [`crate::pmi_lowering::dimension_geometry`]).
 //! - [`Source`] is `PmiSourceEntity`: what was not read, and why, as a `not_extracted` source;
 //!   every read record is a source too (`extracted`, or `partially_extracted` with its
 //!   blockers). Not read: every haecceity finding not on a record's instances; every item
@@ -139,6 +139,10 @@ pub struct Record {
     pub face_ids: Vec<u64>,
     /// A dimension's sides: a location's from and to, a size's feature (drawing faces).
     pub face_groups: Vec<Vec<usize>>,
+    /// A dimension's sides' edges, group by group as `face_groups` (draftwright's reference
+    /// groups take edges as well as faces).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge_groups: Vec<Vec<usize>>,
     /// The drawing's edges the record applies to, ascending.
     pub edges: Vec<usize>,
     /// The box of `faces` in the drawing's frame, `[xmin, ymin, zmin, xmax, ymax, zmax]`.
@@ -178,11 +182,12 @@ pub struct Report {
 
 /// Where a geometric tolerance or datum attaches to the part, in the drawing's frame (the
 /// file's), as draftwright measures it from the record's faces (`_datum_geometry_from_shapes`,
-/// `_datum_reference_normal` and `_common_principal_cylinder_axis`).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// `_datum_reference_normal` and `_common_principal_cylinder_axis`), and where a dimension does.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
     /// A datum's attachment site on each face, face by face (`ref_pts`): a point inside a plane,
-    /// or on a cylinder's projected silhouette (`_datum_face_site`). Empty for a tolerance.
+    /// or on a cylinder's projected silhouette (`_datum_face_site`); a radius's proven point on
+    /// its arc. Empty for a tolerance.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sites: Vec<[f64; 3]>,
     /// Other proven sites on a datum's first face, ranked as draftwright ranks its choice and
@@ -191,7 +196,8 @@ pub struct Geometry {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub alternatives: Vec<[f64; 3]>,
     /// `X`, `Y` or `Z` (`reference_axis`): a datum's common plane normal or cylinder axis; a
-    /// tolerance's common principal cylinder axis, when every face is a cylinder on one.
+    /// tolerance's common principal cylinder axis, when every face is a cylinder on one; a
+    /// dimension's measured direction or cylinder axis (below).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub axis: Option<String>,
     /// A datum's surface: `plane` or `cylinder` (`reference_surface_kind`).
@@ -200,6 +206,19 @@ pub struct Geometry {
     /// A planar datum's outward unit normal (`reference_normal`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub normal: Option<[f64; 3]>,
+    /// A linear or thickness dimension's two proven reference stations (draftwright's
+    /// `ref_pts` for them), from and to; its `axis` is then the direction they are measured
+    /// along, when it is x, y or z ([`crate::pmi_lowering::dimension_geometry`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stations: Vec<[f64; 3]>,
+    /// A diameter's or radius's exact cylinders (draftwright's `cylindrical_refs`), identical
+    /// ones once; its `axis` is then their common axis, when it is x, y or z.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cylinders: Vec<crate::pmi_lowering::Cylinder>,
+    /// The one view a linear dimension's faces prove a witness in (`plan` or `side`), when only
+    /// one does (draftwright's `support_view`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view: Option<String>,
     /// Why the attachment is not proven: the record is then not lowered.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasons: Vec<String>,
@@ -319,6 +338,7 @@ pub fn report(
         r.geometry = match r.category {
             Category::GeometricTolerance => Some(tolerance_geometry(part, r)),
             Category::Datum => Some(datum_geometry(part, r)),
+            Category::Dimension => Some(crate::pmi_lowering::dimension_geometry(part, r)),
             _ => None,
         };
     }
@@ -679,6 +699,7 @@ impl PartReader<'_> {
             faces,
             face_ids: face_ids.into_iter().collect(),
             face_groups: Vec::new(),
+            edge_groups: Vec::new(),
             edges: edges.into_iter().collect(),
             instances: instances.into_iter().collect(),
             blockers,
@@ -790,11 +811,18 @@ impl PartReader<'_> {
             .iter()
             .map(|g| self.support(&[*g]).faces.into_iter().collect())
             .collect();
+        let edge_groups: Vec<Vec<usize>> = groups
+            .iter()
+            .map(|g| self.support(&[*g]).edges.into_iter().collect())
+            .collect();
         let support = self.support(&groups);
         let mut r = self.record(Category::Dimension, part21_id, own, support, blockers);
         r.kind = kind.into();
         r.type_code = code;
         r.face_groups = face_groups;
+        if edge_groups.iter().any(|g| !g.is_empty()) {
+            r.edge_groups = edge_groups;
+        }
         r.value = d.nominal.as_ref().map(measure);
         if d.nominal.is_none() {
             r.blockers
@@ -1153,7 +1181,7 @@ fn tolerance_kind(k: ToleranceKind) -> (&'static str, u32) {
 
 /// Why a record's faces give no single attachment: they lie in several placements of their
 /// part (an assembly placing it more than once), so which one to annotate is not known.
-fn placements_reason(r: &Record) -> Option<String> {
+pub(crate) fn placements_reason(r: &Record) -> Option<String> {
     (r.faces.len() > r.face_ids.len()).then(|| {
         format!(
             "its {} faces are drawn in {} placements of the part; which placement to annotate is \
@@ -1207,6 +1235,7 @@ fn tolerance_geometry(part: &Part, r: &Record) -> Geometry {
         surface: None,
         normal: None,
         reasons,
+        ..Geometry::default()
     }
 }
 
@@ -1309,6 +1338,7 @@ fn datum_geometry(part: &Part, r: &Record) -> Geometry {
         surface,
         normal,
         reasons,
+        ..Geometry::default()
     }
 }
 

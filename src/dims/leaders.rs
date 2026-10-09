@@ -905,7 +905,7 @@ pub fn clear_routes(
     let d = dims.iter().find(|d| d.id == id && d.kind == "callout")?;
     let p = d.placed.as_ref()?;
     let view = d.view.strip_prefix("v:")?;
-    let (mut wants, _) = super::wants(analysis);
+    let (mut wants, ..) = super::wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter_map(|v| {

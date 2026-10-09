@@ -611,7 +611,8 @@
       - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_ctc01_consumes_all_hole_tolerances_once_and_emits_provenance"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: pending
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI dimensions are not lowered yet: each is a `pmi_dimensions_not_ported` info, so no imported hole tolerance enriches a hole callout yet (the next stage); a spec-authored band on a hole callout prints once (ISSUE-1215-c's test)."
+  rust_test: "tests/pmi_dimensions.rs::a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins"
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: a toleranced bore whose cylinders are a hole callout's holes gives that callout its band once, with the source claimed on the item (a measurement of `pmi:<source>`) and named in its basis; symmetric limits print as ±, asymmetric limits keep limit form (`⌀34.8 - ⌀35.1`), inch values are already mm (ctc01, ftc07, stc09 callouts). A spec's own tolerance, or a fit on its holes or boss, wins and the PMI one is reported (with the label stating neither when the spec's is withheld). Not yet: the coverage lint's provenance check."
   port_note: "Keep: scenario CTC-01 AP242 -> each hole tolerance appears once in the plan label with source provenance."
 
 - id: ISSUE-1116-b
@@ -627,7 +628,8 @@
       - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_editable_callout_refuses_a_mixed_member_tolerance_pattern"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: pending
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI dimensions are not lowered yet (each a `pmi_dimensions_not_ported` info): no hole group is split by member tolerances yet. What is not lowered is reported with its reason (`pmi_not_lowered`), as this rule asks."
+  rust_test: "tests/pmi_dimensions.rs::holes_of_different_requirements_are_called_out_apart"
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: holes of one callout with different AP242 requirements are called out apart (a count group or a grid or line of holes split by requirement: ctc01's ⌀20 and ⌀35 holes); equal requirements from several sources state once with every source; conflicting requirements on one hole, and a bolt circle whose holes differ, are reported (`pmi_not_lowered`, `pmi_dimensions_not_ported`) rather than drawn; an unmatched requirement stands beside the callouts as its own dimension, or is reported with its reason."
   port_note: "Keep: PMI lowering problems with reasons; grouping respects per-member tolerances."
 
 - id: ISSUE-1126-a
@@ -1207,7 +1209,8 @@
       - "tests/test_issue_1209_linear_pmi_witnesses.py::test_oblique_linear_support_renders_its_exact_projected_span"
     corpus_parts: ["nist_ctc_03_asme1_ap242", "nist_ctc_04_asme1_ap242"]
   status: pending
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI dimensions, linear ones included, are not lowered or drawn yet: each is a `pmi_dimensions_not_ported` info, never drawn from guessed stations."
+  rust_test: "tests/pmi_dimensions.rs::what_the_faces_do_not_prove_is_reported_not_guessed"
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: a linear or thickness dimension is drawn only from its two proven stations (the faces' group centres, parallel planes' normal and witness view, a plane-to-bore witness), between them along x, y or z; coincident stations, a span off the nominal, a relationship outside a principal plane and a missing group are `pmi_not_lowered` with draftwright's reasons; an oblique span in a principal plane is `pmi_dimensions_not_ported` (no aligned dimension yet)."
   port_note: "Keep: scenario CTC-04 AP242 -> two untruthful records as problems; witness spans equal PMI value."
 
 - id: ISSUE-1215-a
@@ -1592,7 +1595,8 @@
       - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_nominal_lowering_reports_skips_ambiguity_merges_and_conflicts"
     corpus_parts: []
   status: pending
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI diameters are not lowered yet: each is a `pmi_dimensions_not_ported` info, so none falls back to a centroid."
+  rust_test: "tests/pmi_dimensions.rs::pmi_dimensions_match_draftwright_or_are_known"
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: a standalone diameter is led to its one cylinder axis line where it is seen end-on; one naming several distinct axis lines is refused (`standalone diameter fallback references multiple distinct cylinder axis lines`), never drawn at a centroid; a non-principal cylinder is `pmi_dimensions_not_ported`."
   port_note: "Keep."
 
 - id: ISSUE-1298-a
@@ -1709,7 +1713,8 @@
       - "tests/test_issue_1325_nominal_agreement.py::test_mismatch_survives_generated_sheet_without_crashing_or_changing_source"
     corpus_parts: []
   status: pending
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`), but PMI dimensions are not lowered yet (each a `pmi_dimensions_not_ported` info), so no nominal ownership is produced to disagree with the planner."
+  rust_test: "tests/pmi_dimensions.rs::an_external_diameter_annotates_the_turned_size_with_its_signs"
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: a plain AP242 diameter is stated by the hole callout, turned step or boss whose cylinder it names, and its source claimed there; a plain step length by the turned step whose shoulders its stations are; correlation is by geometry (axis lines, diameter, extent), the nominal only checked, so a disagreeing nominal finds no owner and stands beside the planner's dimension."
   port_note: "Keep: PMI-vs-geometry nominal disagreement is a problem, not a planner crash."
 
 - id: ISSUE-1332-a

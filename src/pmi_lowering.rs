@@ -24,16 +24,22 @@
 //! form and the material condition are drawn, as in draftwright), or an attachment its faces do
 //! not prove (`pmi_not_lowered`); a source the reading did not read (`pmi_not_extracted`); a file
 //! whose PMI could not be read (`pmi_not_read`); presentation, which is counted, not read
-//! (`pmi_presentation_not_read`). Toleranced and basic dimensions are the next stage: each is
-//! reported as not drawn yet (`pmi_dimensions_not_ported`), as `dimensions_not_ported` reports a
-//! feature whose dimensions are not ported.
+//! (`pmi_presentation_not_read`). Toleranced and basic dimensions are lowered with the other
+//! dimensions ([`crate::dims`]' PMI dimensions, stage 2b), from where their faces put them
+//! ([`dimension_geometry`], here).
 //!
 //! draftwright draws its PMI only when asked (`pmi="annotate"`; its default is off). The port has
 //! no such option: a part's PMI is drawn whenever it has some (a question for the maintainer in
 //! the stream's report).
 
+use std::collections::BTreeSet;
+
+use haecceity::Part;
+use haecceity::geom::Surface;
+use serde::{Deserialize, Serialize};
+
 use crate::model::{Analysis, Problem};
-use crate::pmi::{Category, Outcome, Reading, Record};
+use crate::pmi::{Category, Geometry, Outcome, Reading, Record};
 
 /// A record lowered to a drawing item, before placement.
 #[derive(Clone, Debug, PartialEq)]
@@ -159,17 +165,6 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
     };
     for r in &report.records {
         match r.category {
-            Category::Dimension => problems.push(Problem {
-                id: format!("p:pmi_dimensions_not_ported:{}", r.source_id),
-                code: "pmi_dimensions_not_ported".into(),
-                severity: "info".into(),
-                message: format!(
-                    "PMI dimension {} ({}) is not drawn: drawing AP242 dimensions is not ported yet.",
-                    r.source_id,
-                    if r.label.is_empty() { &r.kind } else { &r.label }
-                ),
-                subjects: vec![r.source_id.clone()],
-            }),
             Category::GeometricTolerance | Category::Datum => {
                 let lowered = if r.category == Category::Datum {
                     datum(r, centre)
@@ -187,7 +182,11 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                             && !shown("side")
                             && shown("plan")
                         {
-                            item.side = if item.side == "left" { "below" } else { "above" };
+                            item.side = if item.side == "left" {
+                                "below"
+                            } else {
+                                "above"
+                            };
                             item.view = "plan";
                             item.basis += "; the side view is not drawn, so the plan carries it";
                         }
@@ -395,4 +394,598 @@ fn dedup(mut v: Vec<String>) -> Vec<String> {
     let mut seen = std::collections::BTreeSet::new();
     v.retain(|s| seen.insert(s.clone()));
     v
+}
+
+/// One exact finite cylinder a diameter or radius refers to (draftwright's
+/// `CylindricalReference.canonical`): its axis as the foot of the perpendicular from the origin
+/// and a unit direction whose largest component is positive, its radius, its extent along that
+/// direction from the foot, and whether the material is outside it (`internal`: a bore).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Cylinder {
+    pub origin: [f64; 3],
+    pub direction: [f64; 3],
+    pub radius: f64,
+    pub interval: [f64; 2],
+    pub internal: bool,
+}
+
+impl Cylinder {
+    /// The point of its axis halfway along it.
+    pub fn midpoint(&self) -> [f64; 3] {
+        let t = 0.5 * (self.interval[0] + self.interval[1]);
+        [0, 1, 2].map(|i| self.origin[i] + t * self.direction[i])
+    }
+
+    /// The world axis (0, 1, 2) it lies along, when it is principal (draftwright's
+    /// `principal_axis`, to 1e-6).
+    pub fn principal(&self) -> Option<usize> {
+        let d = self.direction;
+        let k = (0..3).fold(0, |k, i| if d[i].abs() > d[k].abs() { i } else { k });
+        ((d[k] - 1.0).abs() <= 1e-6 && (0..3).all(|i| i == k || d[i].abs() <= 1e-6)).then_some(k)
+    }
+}
+
+const XYZ: [&str; 3] = ["X", "Y", "Z"];
+
+/// Whether *p* lies on face *f*, its boundary included (to 1e-6 mm), as `face_sites` tests it.
+fn on_face(part: &Part, f: usize, p: [f64; 3]) -> bool {
+    let surface = &part.faces[f].surface;
+    let (Some(domain), Some((u, v))) = (part.domain(f), surface.parameters(p, None)) else {
+        return false;
+    };
+    let q = surface.value(u, v);
+    let d = ((q[0] - p[0]).powi(2) + (q[1] - p[1]).powi(2) + (q[2] - p[2]).powi(2)).sqrt();
+    let e = 1e-9;
+    d <= 1e-6
+        && [(0.0, 0.0), (e, 0.0), (-e, 0.0), (0.0, e), (0.0, -e)]
+            .iter()
+            .any(|(du, dv)| domain.contains(u + du, v + dv))
+}
+
+/// A face's box as `[xmin, ymin, zmin, xmax, ymax, zmax]`.
+fn face_box(part: &Part, f: usize) -> [f64; 6] {
+    let b = part.face_bounds(f);
+    [b.min[0], b.min[1], b.min[2], b.max[0], b.max[1], b.max[2]]
+}
+
+/// An edge's box, from the points that stand in for its curve.
+fn edge_box(part: &Part, e: usize) -> Option<[f64; 6]> {
+    let edge = part.edges.get(e)?;
+    let mut b: Option<[f64; 6]> = None;
+    for p in edge.samples.iter().chain([&edge.start, &edge.end]) {
+        let o = b.get_or_insert([p[0], p[1], p[2], p[0], p[1], p[2]]);
+        for i in 0..3 {
+            o[i] = o[i].min(p[i]);
+            o[i + 3] = o[i + 3].max(p[i]);
+        }
+    }
+    b
+}
+
+/// The axis (0, 1, 2) a unit direction lies along exactly (to 1e-6), as draftwright's planar
+/// tests read a plane's normal.
+fn exact_axis(d: [f64; 3]) -> Option<usize> {
+    let k = (0..3).fold(0, |k, i| if d[i].abs() > d[k].abs() { i } else { k });
+    ((d[k].abs() - 1.0).abs() <= 1e-6 && (0..3).all(|i| i == k || d[i].abs() <= 1e-6)).then_some(k)
+}
+
+/// The face's cylinder, canonical, or why it is none.
+fn cylinder(part: &Part, f: usize) -> Result<Cylinder, &'static str> {
+    let face = &part.faces[f];
+    let Surface::Cylinder { frame, radius } = &face.surface else {
+        return Err("one diameter reference face is not cylindrical");
+    };
+    let (u0, u1, v0, v1) = part
+        .uv_bounds(f)
+        .ok_or("one cylindrical reference could not be measured (no parameter range)")?;
+    let raw = frame.z;
+    let n = (raw[0] * raw[0] + raw[1] * raw[1] + raw[2] * raw[2]).sqrt();
+    if n <= 1e-12 || v1 <= v0 || v1.is_nan() || v0.is_nan() {
+        return Err("one cylindrical reference could not be measured (degenerate axis or span)");
+    }
+    let unit = raw.map(|c| c / n);
+    let k = (0..3).fold(0, |k, i| if unit[i].abs() > unit[k].abs() { i } else { k });
+    let sign = if unit[k] < 0.0 { -1.0 } else { 1.0 };
+    let direction = unit.map(|c| {
+        let c = sign * c;
+        if c.abs() < 1e-12 { 0.0 } else { c }
+    });
+    let p = frame.origin;
+    let along = p[0] * direction[0] + p[1] * direction[1] + p[2] * direction[2];
+    let origin = [0, 1, 2].map(|i| {
+        let c = p[i] - along * direction[i];
+        if c.abs() < 1e-12 { 0.0 } else { c }
+    });
+    let stations = [along + sign * v0, along + sign * v1];
+    // The material side: the face's normal at its parameter centre against the radial direction
+    // (draftwright reads OpenCascade's face orientation, the same fact for a cylinder whose
+    // surface normal points away from its axis).
+    let (u, v) = (0.5 * (u0 + u1), 0.5 * (v0 + v1));
+    let q = face.surface.value(u, v);
+    let foot = [0, 1, 2].map(|i| p[i] + v * unit[i]);
+    let radial = [0, 1, 2].map(|i| q[i] - foot[i]);
+    let normal = part
+        .face_normal(f, u, v)
+        .ok_or("one cylindrical reference could not be measured (no normal)")?;
+    let out = normal[0] * radial[0] + normal[1] * radial[1] + normal[2] * radial[2];
+    Ok(Cylinder {
+        origin,
+        direction,
+        radius: *radius,
+        interval: [stations[0].min(stations[1]), stations[0].max(stations[1])],
+        internal: out < 0.0,
+    })
+}
+
+/// Where a dimension attaches, from its faces (draftwright's `_proved_planar_linear` with
+/// `_linear_reference_stations` for a linear or thickness dimension, `_cylindrical_references`
+/// with `_diameter_reference_blockers` for a diameter): what [`crate::dims`] draws it from, and
+/// the reasons it cannot be drawn when its faces prove no witness. A radius is read as a
+/// diameter's cylinders are, with a proven site on its arc; an angle and the curved kinds keep
+/// no geometry (not drawn: see `pmi_dimensions`).
+pub fn dimension_geometry(part: &Part, r: &Record) -> Geometry {
+    let mut g = Geometry::default();
+    g.reasons.extend(crate::pmi::placements_reason(r));
+    let value = r.value.unwrap_or(0.0);
+    match r.kind.as_str() {
+        "linear" | "thickness" => linear_geometry(part, r, value, &mut g),
+        "diameter" | "radius" => cylinder_geometry(part, r, value, &mut g),
+        _ => {}
+    }
+    g.reasons = dedup(std::mem::take(&mut g.reasons));
+    g
+}
+
+fn linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
+    let word = |s: &str| {
+        if r.kind == "thickness" {
+            s.replace("linear dimension", "thickness dimension")
+                .replace("linear reference", "thickness reference")
+        } else {
+            s.to_string()
+        }
+    };
+    let groups = &r.face_groups;
+    let edges = |i: usize| r.edge_groups.get(i).map_or(&[][..], Vec::as_slice);
+    if groups.len() != 2 || (0..2).any(|i| groups[i].is_empty() && edges(i).is_empty()) {
+        g.reasons.push(word(
+            "linear dimension needs two measurable authored reference groups",
+        ));
+        return;
+    }
+    // Each group's items' boxes, its faces' then its edges' (an edge's from its samples).
+    let all_boxes: Vec<Vec<[f64; 6]>> = (0..2)
+        .map(|i| {
+            let mut bs: Vec<[f64; 6]> = groups[i].iter().map(|&f| face_box(part, f)).collect();
+            bs.extend(edges(i).iter().filter_map(|&e| edge_box(part, e)));
+            bs
+        })
+        .collect();
+    let faces_only = (0..2).all(|i| edges(i).is_empty() && !groups[i].is_empty());
+    let boxes = &all_boxes;
+    let centre = |bs: &[[f64; 6]]| {
+        let mut m = bs[0];
+        for b in &bs[1..] {
+            for i in 0..3 {
+                m[i] = m[i].min(b[i]);
+                m[i + 3] = m[i + 3].max(b[i + 3]);
+            }
+        }
+        [0, 1, 2].map(|i| 0.5 * (m[i] + m[i + 3]))
+    };
+    if boxes.iter().any(Vec::is_empty) {
+        g.reasons.push(word(
+            "linear dimension needs two measurable authored reference groups",
+        ));
+        return;
+    }
+    let mut stations = [centre(&boxes[0]), centre(&boxes[1])];
+    let mut plane_axis = None;
+    let proof = if faces_only {
+        planar(part, groups, boxes)
+    } else {
+        Planar::Not
+    };
+    match proof {
+        Planar::Not => {
+            if r.kind == "linear"
+                && faces_only
+                && let Some(bore) = plane_to_bore(part, groups, boxes)
+            {
+                stations = bore.0;
+                plane_axis = Some(bore.1);
+                g.view = Some("plan".into());
+            } else if r.kind == "linear" && faces_only && mixed(part, groups) {
+                g.reasons.extend(
+                    stations_proof(stations, value, None)
+                        .2
+                        .into_iter()
+                        .map(|s| word(&s)),
+                );
+                g.reasons.push(
+                    "plane-to-bore location has no proven face-supported axis witness".into(),
+                );
+                g.stations = stations.to_vec();
+                return;
+            }
+        }
+        Planar::Unwitnessed => {
+            g.stations = stations.to_vec();
+            g.reasons
+                .push("parallel planar source faces have no proven shared witness".into());
+            return;
+        }
+        Planar::Axis(k, view, witness) => {
+            plane_axis = k;
+            g.view = view.map(String::from);
+            for (i, c) in witness {
+                for s in &mut stations {
+                    s[i] = c;
+                }
+            }
+        }
+    }
+    let (points, axis, reasons) = stations_proof(stations, value, plane_axis);
+    g.stations = points.to_vec();
+    g.axis = axis.map(|k| XYZ[k].to_string());
+    g.reasons.extend(reasons.into_iter().map(|s| word(&s)));
+}
+
+/// What two groups of faces prove as parallel planes (draftwright's
+/// `_parallel_planar_reference_witness`).
+enum Planar {
+    /// Not every face is a principal plane, thin along its normal, one station per group, one
+    /// normal for both.
+    Not,
+    /// Parallel planes along x with no witness both share.
+    Unwitnessed,
+    /// Parallel planes: their normal, when a view's witness proves it; the one view that does,
+    /// when only one does; the witness coordinates the stations take.
+    Axis(Option<usize>, Option<&'static str>, Vec<(usize, f64)>),
+}
+
+fn planar(part: &Part, groups: &[Vec<usize>], boxes: &[Vec<[f64; 6]>]) -> Planar {
+    let mut axes = Vec::new();
+    for (faces, bs) in groups.iter().zip(boxes) {
+        let mut axis: Option<(usize, f64)> = None;
+        for (&f, b) in faces.iter().zip(bs) {
+            let Surface::Plane { frame } = &part.faces[f].surface else {
+                return Planar::Not;
+            };
+            let Some(k) = exact_axis(frame.z) else {
+                return Planar::Not;
+            };
+            if b[k + 3] - b[k] > 1e-5 {
+                return Planar::Not;
+            }
+            let station = 0.5 * (b[k] + b[k + 3]);
+            match axis {
+                Some((a, s)) if a != k || (s - station).abs() > 1e-5 => return Planar::Not,
+                _ => axis = Some((k, station)),
+            }
+        }
+        axes.push(axis.expect("a group has a face").0);
+    }
+    if axes[0] != axes[1] {
+        return Planar::Not;
+    }
+    let k = axes[0];
+    let midpoint = |i: usize| {
+        let all: Vec<&[f64; 6]> = boxes.iter().flatten().collect();
+        let lo = all.iter().map(|b| b[i]).fold(f64::INFINITY, f64::min);
+        let hi = all
+            .iter()
+            .map(|b| b[i + 3])
+            .fold(f64::NEG_INFINITY, f64::max);
+        let m = 0.5 * (lo + hi);
+        boxes
+            .iter()
+            .all(|bs| bs.iter().any(|b| b[i] - 1e-6 <= m && m <= b[i + 3] + 1e-6))
+    };
+    match k {
+        0 if midpoint(2) => Planar::Axis(Some(0), None, Vec::new()),
+        0 => match common_x_witness(part, groups, boxes) {
+            Some((y, z)) => Planar::Axis(Some(0), Some("plan"), vec![(1, y), (2, z)]),
+            None => Planar::Unwitnessed,
+        },
+        2 => Planar::Axis(midpoint(0).then_some(2), None, Vec::new()),
+        _ => match (midpoint(2), midpoint(0)) {
+            (true, true) => Planar::Axis(Some(1), None, Vec::new()),
+            (true, false) => Planar::Axis(Some(1), Some("side"), Vec::new()),
+            (false, true) => Planar::Axis(Some(1), Some("plan"), Vec::new()),
+            (false, false) => Planar::Axis(None, None, Vec::new()),
+        },
+    }
+}
+
+/// A point inside both trimmed x faces (draftwright's `_common_x_face_witness`): the largest
+/// overlap of their boxes first, its centre then a 9 × 9 grid over it.
+fn common_x_witness(
+    part: &Part,
+    groups: &[Vec<usize>],
+    boxes: &[Vec<[f64; 6]>],
+) -> Option<(f64, f64)> {
+    let mut candidates = Vec::new();
+    for (i, a) in boxes[0].iter().enumerate() {
+        for (j, b) in boxes[1].iter().enumerate() {
+            let (y0, z0, y1, z1) = (
+                a[1].max(b[1]),
+                a[2].max(b[2]),
+                a[4].min(b[4]),
+                a[5].min(b[5]),
+            );
+            if y1 >= y0 && z1 >= z0 {
+                candidates.push(((y1 - y0) * (z1 - z0), y0, z0, y1, z1, i, j));
+            }
+        }
+    }
+    candidates.sort_by(|p, q| {
+        q.0.total_cmp(&p.0)
+            .then(p.1.total_cmp(&q.1))
+            .then(p.2.total_cmp(&q.2))
+    });
+    let fractions = std::iter::once((0.5, 0.5)).chain(
+        (1..10).flat_map(|i| (1..10).map(move |j| (f64::from(i) / 10.0, f64::from(j) / 10.0))),
+    );
+    let fractions: Vec<(f64, f64)> = fractions.collect();
+    for (_, y0, z0, y1, z1, i, j) in candidates {
+        for &(fy, fz) in &fractions {
+            let (y, z) = (y0 + (y1 - y0) * fy, z0 + (z1 - z0) * fz);
+            let inside = [(groups[0][i], boxes[0][i]), (groups[1][j], boxes[1][j])]
+                .iter()
+                .all(|(f, b)| on_face(part, *f, [0.5 * (b[0] + b[3]), y, z]));
+            if inside {
+                return Some((y, z));
+            }
+        }
+    }
+    None
+}
+
+/// Whether the two groups are one plane and one cylinder (draftwright's `_is_mixed_planar_bore`).
+fn mixed(part: &Part, groups: &[Vec<usize>]) -> bool {
+    if groups.iter().any(|g| g.len() != 1) {
+        return false;
+    }
+    let kinds: Vec<u8> = groups
+        .iter()
+        .map(|g| match part.faces[g[0]].surface {
+            Surface::Plane { .. } => 1,
+            Surface::Cylinder { .. } => 2,
+            _ => 0,
+        })
+        .collect();
+    kinds == [1, 2] || kinds == [2, 1]
+}
+
+/// A location from a principal x or y plane to a z bore's axis (draftwright's
+/// `_planar_bore_axis_witness`): the stations, at the plane and at the axis, on one point of the
+/// plane's face beside the axis halfway up their common height; and the plane's normal.
+fn plane_to_bore(
+    part: &Part,
+    groups: &[Vec<usize>],
+    boxes: &[Vec<[f64; 6]>],
+) -> Option<([[f64; 3]; 2], usize)> {
+    if !mixed(part, groups) {
+        return None;
+    }
+    let plane_i = usize::from(!matches!(
+        part.faces[groups[0][0]].surface,
+        Surface::Plane { .. }
+    ));
+    let bore_i = 1 - plane_i;
+    let Surface::Plane { frame: plane } = &part.faces[groups[plane_i][0]].surface else {
+        return None;
+    };
+    let Surface::Cylinder { frame: bore, .. } = &part.faces[groups[bore_i][0]].surface else {
+        return None;
+    };
+    let axis = exact_axis(plane.z).filter(|&k| k < 2)?;
+    if exact_axis(bore.z) != Some(2) {
+        return None;
+    }
+    let (pb, bb) = (boxes[plane_i][0], boxes[bore_i][0]);
+    let (z0, z1) = (pb[2].max(bb[2]), pb[5].min(bb[5]));
+    if z1 - z0 <= 1e-6 || pb[axis + 3] - pb[axis] > 1e-5 {
+        return None;
+    }
+    let centre = bore.origin;
+    let mut witness = centre;
+    witness[axis] = 0.5 * (pb[axis] + pb[axis + 3]);
+    witness[2] = 0.5 * (z0 + z1);
+    if !on_face(part, groups[plane_i][0], witness) {
+        return None;
+    }
+    let mut points = [witness, witness];
+    points[bore_i][axis] = centre[axis];
+    Some((points, axis))
+}
+
+/// draftwright's `_linear_reference_stations`: the axis two stations are measured along (their
+/// largest difference, or the planes' normal), refused when they coincide, when they are
+/// oblique outside a principal view's plane (an oblique one inside it keeps no axis), or when
+/// the span they prove is not the nominal value.
+fn stations_proof(
+    s: [[f64; 3]; 2],
+    nominal: f64,
+    plane_axis: Option<usize>,
+) -> ([[f64; 3]; 2], Option<usize>, Vec<String>) {
+    let delta = [0, 1, 2].map(|i| s[1][i] - s[0][i]);
+    let m = delta.map(f64::abs);
+    let k = plane_axis.unwrap_or_else(|| (0..3).fold(0, |k, i| if m[i] > m[k] { i } else { k }));
+    let primary = m[k];
+    if primary <= 1e-9 {
+        return (
+            s,
+            None,
+            vec!["linear reference groups occupy the same station".into()],
+        );
+    }
+    let transverse = (0..3).filter(|&i| i != k).map(|i| m[i]).fold(0.0, f64::max);
+    let oblique = plane_axis.is_none() && transverse > 0.005f64.max(primary * 1e-3);
+    if oblique && projection_view(delta).is_none() {
+        return (
+            s,
+            None,
+            vec![format!(
+                "linear reference relationship does not lie in a principal projection plane (delta=({}, {}, {}) mm)",
+                g6(delta[0]),
+                g6(delta[1]),
+                g6(delta[2])
+            )],
+        );
+    }
+    let span = if oblique {
+        (delta[0].powi(2) + delta[1].powi(2) + delta[2].powi(2)).sqrt()
+    } else {
+        primary
+    };
+    let tolerance = (if oblique { 0.05 } else { 0.01f64 }).max(nominal.abs() * 5e-4);
+    let axis = (!oblique).then_some(k);
+    if (span - nominal).abs() > tolerance {
+        return (
+            s,
+            axis,
+            vec![format!(
+                "linear reference-station span {} mm differs from nominal {} mm",
+                g6(span),
+                g6(nominal)
+            )],
+        );
+    }
+    (s, axis, Vec::new())
+}
+
+/// The principal view whose plane holds a span (draftwright's `_linear_projection_view`): the
+/// one axis its difference has none of.
+fn projection_view(delta: [f64; 3]) -> Option<&'static str> {
+    let primary = delta.iter().map(|d| d.abs()).fold(0.0, f64::max);
+    if (delta[0].powi(2) + delta[1].powi(2) + delta[2].powi(2)).sqrt() <= 1e-9 {
+        return None;
+    }
+    let tolerance = 0.005f64.max(primary * 1e-3);
+    let zeros: Vec<usize> = (0..3).filter(|&i| delta[i].abs() <= tolerance).collect();
+    match zeros[..] {
+        [i] => Some(["side", "front", "plan"][i]),
+        _ => None,
+    }
+}
+
+fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
+    let radius = r.kind == "radius";
+    let noun = if radius { "radius" } else { "diameter" };
+    if !r.edges.is_empty() {
+        g.reasons
+            .push(format!("one {noun} reference is not a face"));
+    }
+    for &f in &r.faces {
+        match cylinder(part, f) {
+            Ok(c) => {
+                if !g.cylinders.iter().any(|d| same_cylinder(d, &c)) {
+                    g.cylinders.push(c);
+                }
+            }
+            Err(why) => g.reasons.push(why.replace("diameter", noun)),
+        }
+    }
+    if g.cylinders.is_empty() {
+        if g.reasons.is_empty() {
+            g.reasons.push(format!(
+                "{noun} dimension needs a measurable cylindrical-face reference"
+            ));
+        }
+        return;
+    }
+    let first = g.cylinders[0].direction;
+    let directions_agree = g
+        .cylinders
+        .iter()
+        .all(|c| (0..3).all(|i| (c.direction[i] - first[i]).abs() <= 1e-9));
+    if !directions_agree {
+        g.reasons.push(format!(
+            "{noun} references do not share one cylinder axis direction"
+        ));
+    } else if first.iter().all(|c| c.abs() > 1e-6) {
+        g.reasons.push(format!(
+            "{noun} cylinder axis does not lie in a principal projection plane"
+        ));
+    }
+    if g.cylinders
+        .iter()
+        .any(|c| c.internal != g.cylinders[0].internal)
+    {
+        g.reasons.push(format!(
+            "{noun} references mix internal and external cylindrical faces"
+        ));
+    }
+    let size = |c: &Cylinder| if radius { c.radius } else { 2.0 * c.radius };
+    let off: Vec<String> = g
+        .cylinders
+        .iter()
+        .filter(|c| (size(c) - value).abs() > 0.01f64.max(value.abs() * 5e-4))
+        .map(|c| g6(size(c)))
+        .collect();
+    if !off.is_empty() {
+        g.reasons.push(format!(
+            "cylindrical reference {noun}(s) {} mm differ from nominal {} mm",
+            off.join(", "),
+            g6(value)
+        ));
+    }
+    let axes: BTreeSet<Option<usize>> = g.cylinders.iter().map(Cylinder::principal).collect();
+    if axes.len() == 1
+        && let Some(Some(k)) = axes.first()
+    {
+        g.axis = Some(XYZ[*k].to_string());
+    }
+    if radius {
+        // A radius is drawn to its arc: a proven point of its first face, at its parameter
+        // centre.
+        let f = r.faces[0];
+        if let Some((u0, u1, v0, v1)) = part.uv_bounds(f) {
+            let p = part.faces[f]
+                .surface
+                .value(0.5 * (u0 + u1), 0.5 * (v0 + v1));
+            if on_face(part, f, p) {
+                g.sites.push(p);
+            }
+        }
+        if g.sites.is_empty() {
+            g.reasons
+                .push("the radius's face has no proven point at its parameter centre".into());
+        }
+    }
+}
+
+/// Geometrically identical cylinders (one face XCAF repeats in a group): draftwright coalesces
+/// them.
+fn same_cylinder(a: &Cylinder, b: &Cylinder) -> bool {
+    let near = |x: &[f64], y: &[f64]| x.iter().zip(y).all(|(p, q)| (p - q).abs() <= 1e-9);
+    near(&a.origin, &b.origin)
+        && near(&a.direction, &b.direction)
+        && (a.radius - b.radius).abs() <= 1e-9
+        && near(&a.interval, &b.interval)
+        && a.internal == b.internal
+}
+
+/// `%.6g`, as draftwright writes a measurement in a reason (`f"{value:.6g}"`).
+fn g6(v: f64) -> String {
+    if v == 0.0 {
+        return "0".into();
+    }
+    let sci = format!("{v:.5e}");
+    let (mantissa, exp) = sci.split_once('e').expect("exponent");
+    let exp: i32 = exp.parse().expect("exponent");
+    if !(-4..6).contains(&exp) {
+        let m = mantissa.trim_end_matches('0').trim_end_matches('.');
+        let sign = if exp < 0 { '-' } else { '+' };
+        return format!("{m}e{sign}{:02}", exp.abs());
+    }
+    let places = usize::try_from(5 - exp).unwrap_or(0);
+    let s = format!("{v:.places$}");
+    if s.contains('.') {
+        s.trim_end_matches('0').trim_end_matches('.').into()
+    } else {
+        s
+    }
 }
