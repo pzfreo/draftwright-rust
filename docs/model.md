@@ -460,8 +460,9 @@ by its owner. Otherwise it **stands beside** them, an ordinary planned dimension
 <kind>[.basic]@<view>` (a length along x, y or z in draftwright's view; a diameter or radius by a
 leader where it is seen end-on), its label the record's, a basic one boxed (its label box widened
 to take the frame). Every item that states a PMI dimension claims it (a measurement of feature
-`pmi:<source>`); a spec's own tolerance or fit on that size wins (`pmi_not_lowered`), and an
-omitted item's PMI is `pmi_not_drawn`. Not drawn, with the reason: reading blockers, faces in
+`pmi:<source>`); a spec's own tolerance or fit on that size (a hole's or a boss's) wins
+(`pmi_not_lowered`; when the spec's is withheld, the label states neither and the report says
+so), and an omitted item's PMI is `pmi_not_drawn`. Not drawn, with the reason: reading blockers, faces in
 several placements, faces that prove no witness (`pmi_not_lowered`); angles, oblique lengths,
 non-principal cylinders (`pmi_dimensions_not_ported`). The open questions (supplemental geometry,
 an ISO 286 class without limits) stay refused. Compared record by record on the 14 AP242 files

@@ -20,8 +20,9 @@
 //! - **or is not drawn, and says why**: a record whose reading left blockers, whose faces lie in
 //!   several placements of the part, or whose faces prove no witness (`pmi_not_lowered`, with
 //!   draftwright's reasons); a kind the port does not draw yet: an angle, a length oblique to
-//!   the views' axes, a diameter or radius not along x, y or z, a callout whose holes carry
-//!   different requirements (draftwright splits it) (`pmi_dimensions_not_ported`).
+//!   the views' axes, a diameter or radius not along x, y or z, a bolt circle whose holes carry
+//!   different requirements (draftwright splits it; the port splits count groups, grids and
+//!   lines), a counted turned diameter a record names only one of (`pmi_dimensions_not_ported`).
 //!
 //! Two open questions for the maintainer stay refused, as the reading refuses them: a dimension
 //! on supplemental (invisible) geometry, and an ISO 286 class stated without its limits.
@@ -46,6 +47,8 @@ pub(super) struct Note {
     pub before: Vec<String>,
     /// The sources whose tolerance it is.
     pub banded: Vec<String>,
+    /// The clause the band added to the item's basis.
+    pub clause: String,
 }
 
 /// A record's tolerance: its signed upper and lower deviations, and its limits when it states
@@ -85,6 +88,7 @@ impl Req {
             band,
             before,
             banded: Vec::new(),
+            clause: String::new(),
         })
     }
 }
@@ -483,11 +487,12 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
                     .collect();
                 if let Some(mut printed) = q.print(&mut w) {
                     printed.banded = with.iter().map(|&j| records[j].source_id.clone()).collect();
-                    w.basis += &format!(
+                    printed.clause = format!(
                         "; its tolerance {} is the part's AP242 PMI ({}): draftwright gives a toleranced bore diameter to the hole callout whose holes it names (lower_ap242_hole_tolerances)",
                         printed.band,
                         printed.banded.join(", ")
                     );
+                    w.basis += &printed.clause;
                     note = Some(printed);
                 } else {
                     for j in with {
@@ -582,11 +587,12 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
             continue;
         };
         let sources: Vec<String> = js.iter().map(|&j| records[j].source_id.clone()).collect();
-        w.basis += &format!(
+        printed.clause = format!(
             "; its tolerance {} is the part's AP242 PMI ({}): draftwright gives a toleranced external diameter to the turned step or boss whose cylinder it names (lower_ap242_external_diameter_tolerances)",
             printed.band,
             sources.join(", ")
         );
+        w.basis += &printed.clause;
         for &j in &js {
             w.measurements.push(claim(records[j], w.value));
         }
@@ -885,7 +891,10 @@ fn leader(r: &Record, k: usize, value: f64, what: &str, sites: Vec<(P3, f64)>, h
 
 /// A spec's own tolerance or fit on a size wins over an imported one (draftwright's
 /// `_hole_ownership_conflict`: "existing authored ownership wins"): the PMI band comes off the
-/// kept item's label, its claims with it, and each source it came from is reported not drawn.
+/// kept item's label, its claims and its basis clause with it, and each source it came from is
+/// reported not drawn. The spec's requirement is the one [`tolerance::apply`] then prints, or,
+/// when it withholds it (a band of nothing, a fit the members do not share), the label states
+/// neither, and the report says so.
 pub(super) fn yield_to_spec(
     spec: &Spec,
     notes: &BTreeMap<String, Note>,
@@ -896,33 +905,29 @@ pub(super) fn yield_to_spec(
         let Some(note) = notes.get(stem(&w.id)) else {
             continue;
         };
-        let band = &note.band;
-        let tolerance = spec
-            .dimensions
-            .get(&w.id)
-            .is_some_and(|e| e.tolerance.is_some());
-        let fit = w.measurements.iter().any(|m| {
-            m.parameter == "bore.diameter"
-                && spec
-                    .features
-                    .get(&m.feature)
-                    .is_some_and(|e| e.fit.is_some())
-        });
-        if !tolerance && !fit {
+        let Some((what, printed)) = tolerance::authored(spec, w) else {
             continue;
-        }
+        };
+        let band = &note.band;
         w.terms = note.before.clone();
+        w.basis = w.basis.replacen(&note.clause, "", 1);
         let gone: Vec<String> = note.banded.iter().map(|s| feature(s)).collect();
         w.measurements.retain(|m| !gone.contains(&m.feature));
+        let label = if printed {
+            String::new()
+        } else {
+            format!(
+                "; the spec's {what} is withheld (tolerance_withheld), so the label states no tolerance"
+            )
+        };
         for s in &note.banded {
             problems.push(Problem {
                 id: format!("p:pmi_not_lowered:{s}"),
                 code: "pmi_not_lowered".into(),
                 severity: "error".into(),
                 message: format!(
-                    "PMI dimension {s} ({band} on {}) is not drawn: the spec gives that size its own {}, and a requirement already authored on a size wins over an imported one (draftwright's lower_ap242_hole_tolerances).",
-                    w.id,
-                    if tolerance { "tolerance" } else { "fit" }
+                    "PMI dimension {s} ({band} on {}) is not drawn: the spec gives that size its own {what}, and a requirement already authored on a size wins over an imported one (draftwright's lower_ap242_hole_tolerances){label}.",
+                    w.id
                 ),
                 subjects: vec![s.clone(), w.id.clone()],
             });

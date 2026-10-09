@@ -565,9 +565,53 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
             .iter()
             .all(|m| !m.feature.starts_with("pmi:"))
     );
+    assert!(
+        !c.basis.contains("lower_ap242_hole_tolerances"),
+        "{}",
+        c.basis
+    );
     assert!(edited.problems.iter().any(|p| p.code == "pmi_not_lowered"
         && p.subjects.contains(&source)
         && p.message.contains("wins over an imported one")));
+
+    // A fit on every hole wins the same way, and only the fit is printed.
+    let holes: Vec<String> = callout
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "bore.diameter")
+        .map(|m| m.feature.clone())
+        .collect();
+    assert_eq!(holes.len(), 6, "{holes:?}");
+    let fitted = |on: &[String]| {
+        let mut spec = Spec::default();
+        for h in on {
+            spec.features.insert(
+                h.clone(),
+                serde_json::from_value(json!({"fit": "H7"})).unwrap(),
+            );
+        }
+        let edited = model::plan(&a, &spec).unwrap();
+        let c = edited
+            .dimensions
+            .iter()
+            .find(|d| d.id == callout.id)
+            .unwrap()
+            .clone();
+        (c, edited.problems)
+    };
+    let (c, problems) = fitted(&holes);
+    assert_eq!(c.label, "6× ⌀10 H7 THRU EQ SP ON ø90 BC");
+    assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
+        && p.subjects.contains(&source)
+        && p.message.contains("its own fit")
+        && !p.message.contains("withheld")));
+    // A fit on some of them is withheld: the label states neither, and the report says so.
+    let (c, problems) = fitted(&holes[..1]);
+    assert_eq!(c.label, "6× ⌀10 THRU EQ SP ON ø90 BC");
+    assert!(problems.iter().any(|p| p.code == "tolerance_withheld"));
+    assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
+        && p.subjects.contains(&source)
+        && p.message.contains("withheld")));
 }
 
 #[test]

@@ -404,6 +404,37 @@ pub(super) fn apply(
     Ok(from_spec)
 }
 
+/// What the spec gives a kept item's size, as [`apply`] decides it: its `tolerance` or its
+/// members' `fit`, and whether that is printed (a band of nothing, or a fit the members do not
+/// all share, is withheld). None when the spec gives it neither.
+pub(super) fn authored(spec: &Spec, w: &Want) -> Option<(&'static str, bool)> {
+    if let Some(t) = spec
+        .dimensions
+        .get(&w.id)
+        .and_then(|e| e.tolerance.as_deref())
+    {
+        return Some(("tolerance", tolerance(t).is_ok_and(|(_, nothing)| !nothing)));
+    }
+    let lead = parameter(&w.id);
+    if !FITTED.iter().any(|(_, p)| *p == lead) {
+        return None;
+    }
+    let mut members: Vec<&str> = Vec::new();
+    for m in &w.measurements {
+        if m.parameter == lead && !members.contains(&m.feature.as_str()) {
+            members.push(&m.feature);
+        }
+    }
+    let fits: Vec<Option<&str>> = members
+        .iter()
+        .map(|m| spec.features.get(*m).and_then(|e| e.fit.as_deref()))
+        .collect();
+    if fits.iter().all(Option::is_none) {
+        return None;
+    }
+    Some(("fit", fits.iter().all(|f| *f == fits[0])))
+}
+
 /// A band from two signed deviations, the upper and the lower, as draftwright prints an
 /// imported requirement on a recognised feature's size (`_fmt_tolerance`): `±T` when they are
 /// opposite, else `+U -L`, each with its authored digits and at least the drawn precision. A band
@@ -504,6 +535,57 @@ mod tests {
         for bad in ["H4", "H12", "K7", "N7", "x6", "7", "H", "H 7", "Hh7"] {
             assert!(fit(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn what_the_spec_gives_a_size_includes_a_bosss_fit() {
+        let want = |id: &str, parameter: &str, members: &[&str]| Want {
+            id: id.into(),
+            views: vec!["front"],
+            value: 20.0,
+            terms: vec!["ø20".into()],
+            measurements: members
+                .iter()
+                .map(|f| super::super::Measurement {
+                    feature: f.to_string(),
+                    parameter: parameter.into(),
+                    value: 20.0,
+                })
+                .collect(),
+            basis: String::new(),
+            shape: super::super::Shape::Callout { sites: Vec::new() },
+            turning: None,
+        };
+        let mut spec = Spec::default();
+        for f in ["f:boss:1", "f:hole:1"] {
+            spec.features.insert(
+                f.into(),
+                serde_json::from_value(serde_json::json!({"fit": "H7"})).unwrap(),
+            );
+        }
+        let boss = want(
+            "d:f:boss:1/boss.diameter@front",
+            "boss.diameter",
+            &["f:boss:1"],
+        );
+        assert_eq!(authored(&spec, &boss), Some(("fit", true)));
+        let mixed = want(
+            "d:f:hole:1/bore.diameter@plan",
+            "bore.diameter",
+            &["f:hole:1", "f:hole:2"],
+        );
+        assert_eq!(authored(&spec, &mixed), Some(("fit", false)));
+        let step = want(
+            "d:f:turned_step:1/step.diameter@front",
+            "step.diameter",
+            &["f:boss:1"],
+        );
+        assert_eq!(authored(&spec, &step), None);
+        spec.dimensions.insert(
+            step.id.clone(),
+            serde_json::from_value(serde_json::json!({"tolerance": "±0"})).unwrap(),
+        );
+        assert_eq!(authored(&spec, &step), Some(("tolerance", false)));
     }
 
     #[test]
