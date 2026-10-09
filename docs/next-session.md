@@ -52,7 +52,7 @@ pushed):
   library's `None` still use the bridge (maintainer question). Differences are listed in
   `known_native.json`. Not read natively: section recesses (not in quiddity-rust's document),
   prismatic pockets (Python publishes none). Pads are read (d-native-pads).
-- **haecceity** is pinned at quiddity-rust 5798c59 (`Cargo.lock`; AGPL-3.0-only). The bridge
+- **haecceity** is pinned at quiddity-rust 10884b8 (`Cargo.lock`; AGPL-3.0-only). The bridge
   reads nist_ftc_07, nist_ftc_10 and nist_ctc_04 (sphere areas held to 1e-2,
   `known_bridge_faces.json`). haecceity refuses a part whose drawn faces or edges did not resolve
   or whose visibility no ray decides; `analyse` and `render` pass that on.
