@@ -1863,10 +1863,10 @@
     module: "linting/pmi_coverage.py"
     issues: [623]
     tests: [tests/test_pmi.py]
-  status: pending
+  status: ported
   rust_test: "tests/pmi_coverage.rs::pmi_coverage_matches_draftwright_or_is_known"
   port_note: "Keep if PMI is ported."
-  rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reports a refused reading ('AP242 PMI could not be inventoried') and every source `pmi::read` did not read or read in part, with Python's annotate-mode message and severity (error), except a source of no draftwright category (an attribute set, note, material, standard or reader finding haecceity reports; draftwright's census holds none of them), which is info as the plan reports it. Compared on the 14 AP242 fixtures (`known_pmi_coverage.json`): the differences come from the reading (draftwright's OpenCascade misreads, rust-correct; categories stage 1 does not project, rust-wrong: general tolerances, notes that carry threads and knurls, materials, manufacturing requirements, surface labels). Pending until the reading projects those (a note carrying a requirement is reported only as info)."
+  rust_note: "The coverage lint (`src/lint/pmi_coverage.rs`) reports a refused reading ('AP242 PMI could not be inventoried') and every source `pmi::read` did not read or read in part, with Python's annotate-mode message and severity (error); a source of no draftwright category (an attribute set, property, standard or reader finding haecceity reports, which draftwright's census does not hold) is info, as the plan reports it. Compared on the 14 AP242 fixtures (`known_pmi_coverage.json`): the differences are the readings' (draftwright's OpenCascade misreads and XCAF occurrences, rust-correct; draftwright's face checks made at extraction, which the port makes when lowering, equivalent; haecceity's unmodelled hole occurrences, rust-wrong; the open questions, undetermined)."
 
 - id: LINT-code-pmi_not_lowered
   statement: "Every extracted PMI requirement reaches a typed drawing feature rather than remaining a raw fallback."
@@ -1877,10 +1877,10 @@
     module: "linting/pmi_coverage.py"
     issues: [623]
     tests: [tests/test_pmi.py, tests/test_pmi_manufacturing_finish.py]
-  status: pending
+  status: ported
   rust_test: "tests/pmi_coverage.rs::pmi_coverage_matches_draftwright_or_is_known"
   port_note: "Keep if PMI is ported."
-  rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reports each record of the reading that no annotation draws and that `pmi_lowering::lower` (a function of the Analysis alone) does not lower, with lowering's reason (error; warning for an unsupported manufacturing requirement, though the reading projects none yet); the message names a drawing item, not Python's typed IR. Until stream d-pmi-dimensions merges, every PMI dimension not drawn is reported here (rust-wrong in `known_pmi_coverage.json`, to be re-verdicted after the merge); manufacturing requirements are not read."
+  rust_note: "The coverage lint (`src/lint/pmi_coverage.rs`) reports each record of the reading that no annotation draws and that does not lower: a tolerance or datum `pmi_lowering::lower` (a function of the Analysis alone) refuses, with its reason; a manufacturing requirement or surface label (read, not drawn yet); a dimension its reading or faces block, a common label, an angle or an oblique quantity (the kinds stage 2b does not draw). Error; warning for a manufacturing requirement of a kind draftwright does not support. The message names a drawing item, not Python's typed IR. On the fixtures (`known_pmi_coverage.json`) the rust-wrong differences are the drawing's: manufacturing requirements, surface labels, common labels and angles the port does not draw yet. The plan reports the same records with its own reasons (`pmi_not_lowered`, `pmi_dimensions_not_ported`; `tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported`)."
 
 - id: LINT-code-pmi_not_rendered
   statement: "Every typed PMI requirement produces an annotation on the drawing unless a specific drop or omission reason is already reported."
@@ -1894,7 +1894,7 @@
   status: pending
   rust_test: "tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported"
   port_note: "Keep if PMI is ported."
-  rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reports each record `pmi_lowering::lower` lowers that no annotation names (`pmi:<source>`) or claims (a measurement of feature `pmi:<source>`, as a PMI dimension claims it), error. It does not skip sources the build already explained (draftwright's `*_dropped` and omission codes): lint reads no Plan, so a frame whose view is not drawn is reported both by the plan (`pmi_not_drawn`) and here. On the fixtures every frame and symbol lowered is drawn; draftwright's own not-rendered dimensions and manufacturing requirements are rust-wrong differences (not drawn by the port yet)."
+  rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reports each record that lowers (a frame or symbol `pmi_lowering::lower` lowers, a dimension of a kind stage 2b draws on proven faces) that no annotation names (`pmi:<source>`) or states (a measurement of feature `pmi:<source>`, as a hole callout or turned size that takes a PMI dimension claims it), error. It does not skip sources the build already explained (draftwright's `*_dropped` and `_EXPLAINED_OMISSION_CODES`): lint reads no Plan (R1), so a frame in an omitted view or a dimension the plan refuses is reported by the plan and again here (undetermined in `known_pmi_coverage.json`; a recorded maintainer question in docs/next-session.md). On the plan path every PMI dimension is drawn or reported, never both (`tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both`). Pending on that decision."
 
 - id: LINT-code-pmi_value_mismatch
   statement: "A placed geometric tolerance frame states the same tolerance value and zone as its AP242 source, in both text layer and visible ink."
@@ -1920,7 +1920,7 @@
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: pending
   port_note: "Keep if PMI is ported."
-  rust_note: "Not ported: the port reads no manufacturing requirements (edge conditions, surface finish) and draws no finish marks or source-scoped notes yet."
+  rust_note: "Not ported: the check reads a source-scoped general note (an edge condition) or a face-finish symbol and compares its ink with the requirement. The reading now holds edge conditions and surface finishes (`pmi::read`, manufacturing requirements), but the port draws neither (pmi_lowering reports them 'read but not drawn'), so the drawing has no carrier to check and no naming for one yet."
 
 - id: LINT-code-pmi_source_site_mismatch
   statement: "A source-scoped annotation is anchored at the face or edge its AP242 source references, and a STEP entity claim carries a resolvable source id."
@@ -1932,7 +1932,7 @@
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: pending
   port_note: "Keep if PMI is ported."
-  rust_note: "Not ported: the port reads no manufacturing requirements and draws no finish marks or source-scoped notes yet."
+  rust_note: "Not ported: the check reads where a face-finish symbol is anchored and which source a general note claims. The reading now holds the requirements and their faces, but the port draws no finish symbols or source-scoped notes, so there is no carrier to check."
 
 - id: LINT-code-pmi_unreconciled
   statement: "Content claiming an AP242 origin with no source census available is reported as unverified, never as satisfied."
@@ -1973,6 +1973,7 @@
     tests: [tests/test_issue_1298_manufacturing_requirements.py]
   status: pending
   port_note: "Keep if manufacturing requirement tables are ported."
+  rust_note: "Not ported: the check reads a thread or knurl leader's 'SEE MFG n' tag against the manufacturing requirements table. The reading now holds thread and knurl requirements with their fields, but the port draws neither the tagged leaders nor the table (pmi_lowering reports them 'read but not drawn')."
 
 - id: LINT-code-step_material_mismatch
   statement: "When the STEP supplies the material, the title block states that material."
@@ -1984,6 +1985,7 @@
     tests: [tests/test_title_block_units_format.py]
   status: pending
   port_note: "Keep."
+  rust_note: "Not ported: the reading carries each part's material (`pmi::Report::materials`) and the title block's material cell is on the drawing, but which code applies, and whether an empty cell is a finding, turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port also does not fill the title block from the file yet (draftwright's `_resolve_title_document_defaults`)."
 
 - id: LINT-code-step_material_disagreement
   statement: "A caller-overridden title-block material that differs from the STEP material is reported."
@@ -1995,6 +1997,7 @@
     tests: [tests/test_title_block_units_format.py]
   status: pending
   port_note: "Keep."
+  rust_note: "Not ported: as step_material_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port also does not fill the title block from the file yet (draftwright's `_resolve_title_document_defaults`)."
 
 - id: LINT-code-step_material_unavailable
   statement: "An unreadable or unusable STEP material is reported."
@@ -2005,7 +2008,9 @@
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
   status: pending
+  rust_test: "src/lint/pmi_coverage.rs::tests::one_material_of_the_drawing_is_its_title_blocks"
   port_note: "Keep."
+  rust_note: "Partly: the coverage lint reports one stated material that is one part's of several drawn (draftwright's 'not owned by the single shaped source product definition'), warning. A material property haecceity cannot read (several names, no descriptive item) is a reader finding, reported as `pmi_not_extracted` (info), not as this code: the reading carries no material for it to be unusable."
 
 - id: LINT-code-step_material_ambiguous
   statement: "When the STEP carries several material properties no material is selected and the ambiguity is reported."
@@ -2015,8 +2020,10 @@
     lint_code: "step_material_ambiguous"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
-  status: pending
+  status: ported
+  rust_test: "src/lint/pmi_coverage.rs::tests::one_material_of_the_drawing_is_its_title_blocks"
   port_note: "Keep."
+  rust_note: "The coverage lint (`src/lint/pmi_coverage.rs`) reports the parts' materials (`pmi::Report::materials`, haecceity's reading of CAx-IF's 'material name' property, named `material:#<property_definition>` as draftwright names them) when more than one is stated, as one warning listing them, with Python's message. Compared on the fixtures: assembly_plate_pin's two materials, as draftwright."
 
 - id: LINT-code-step_general_tolerance_mismatch
   statement: "When the general tolerance is taken from the STEP, the title block states that general tolerance."
@@ -2028,6 +2035,7 @@
     tests: [tests/test_title_block_units_format.py]
   status: pending
   port_note: "Keep."
+  rust_note: "Not ported: the reading holds the general tolerance (a manufacturing requirement of kind general_tolerances, its class in `fields`), but the code applies only when the build took the title's general tolerance from the file, and its sibling when the caller supplied one: whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port also does not fill the title block from the file yet (draftwright's `_resolve_title_document_defaults`)."
 
 - id: LINT-code-step_general_tolerance_disagreement
   statement: "A caller-supplied general tolerance that differs from the STEP general tolerance is reported."
@@ -2039,6 +2047,7 @@
     tests: [tests/test_title_block_units_format.py]
   status: pending
   port_note: "Keep."
+  rust_note: "Not ported: as step_general_tolerance_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port also does not fill the title block from the file yet (draftwright's `_resolve_title_document_defaults`)."
 
 - id: LINT-pmi_coverage-stage_summary
   statement: "PMI coverage reports per-source stage inventories (discovered, extracted, lowered, rendered) as counts, not as an additive funnel."

@@ -475,15 +475,22 @@ an ISO 286 class without limits) stay refused. Compared record by record on the 
 **PMI coverage lint** (`src/lint/pmi_coverage.rs`, draftwright's `linting/pmi_coverage.py`):
 lint checks the finished drawing against the Analysis's PMI, never the Plan. A record is drawn
 when an annotation is named `pmi:<source>` (a frame or symbol) or claims a measurement of feature
-`pmi:<source>` (a dimension stating a PMI dimension); otherwise it is `pmi_not_lowered` (when
-`pmi_lowering::lower`, a function of the Analysis alone, does not lower it, with its reason) or
-`pmi_not_rendered` (lowered, not drawn). A source not read, or read in part, is
-`pmi_not_extracted` (error; info for a source of no draftwright category); a refused reading is
-`pmi_not_extracted` on the part. A drawn frame whose text runs do not state its source's
-magnitude, zone and datum letters is `pmi_value_mismatch`; an annotation claiming a source the
-reading does not hold is `pmi_source_unknown`, and one claiming a source on a part with no
-reading `pmi_unreconciled` (warning). Compared with draftwright's lint on the 14 AP242 files
-(`tests/pmi_coverage.rs`, `tests/fixtures/known_pmi_coverage.json`).
+`pmi:<source>` (a dimension, hole callout or turned size stating a PMI dimension); otherwise it is
+`pmi_not_lowered` or `pmi_not_rendered`. A record lowers when `pmi_lowering::lower` (a function of
+the Analysis alone) lowers it, a frame or symbol, or when it is a dimension of a kind stage 2b
+draws (a length along x, y or z, a diameter or radius seen end-on) whose reading and faces prove
+it; a manufacturing requirement, surface label, common label or angle does not yet. Not lowered,
+it is `pmi_not_lowered` with the reason; lowered and not drawn, `pmi_not_rendered` (reported even
+when the plan already says why, as lint cannot read it: an open question). A source not read, or
+read in part, is `pmi_not_extracted` (error; info for a source of no draftwright category); a
+refused reading is `pmi_not_extracted` on the part. A drawn frame whose text runs do not state
+its source's magnitude, zone and datum letters is `pmi_value_mismatch`; an annotation claiming a
+source the reading does not hold is `pmi_source_unknown`, and one claiming a source on a part
+with no reading `pmi_unreconciled` (warning). The parts' materials (`pmi::Report::materials`)
+give `step_material_ambiguous` (several) and `step_material_unavailable` (one part's of several).
+Compared with draftwright's lint on the 14 AP242 files, each drawn as the command line draws it
+(Rust quiddity's features, the default spec) (`tests/pmi_coverage.rs`,
+`tests/fixtures/known_pmi_coverage.json`).
 
 **IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
 view moves the dimension to its next view and renames it (the basis says so); a spec still keyed

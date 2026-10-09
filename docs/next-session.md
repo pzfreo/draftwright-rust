@@ -73,13 +73,19 @@ pushed):
 - **PMI stage 1:** `src/pmi.rs` reads a part's AP242 semantic PMI into draftwright's records
   (`tests/pmi.rs`, `known_pmi.json`: 330 differences, 55 rust-wrong). Not lowered or drawn yet.
 - **PMI stage 2b (dimensions):** `src/dims/pmi_dimensions.rs` gives each AP242 dimension to the model dimension that states it (hole callouts split by requirement, turned and boss diameters) or draws it beside them (basic ones boxed), else reports why (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`); left: angles, oblique lengths, bolt-circle splits, a radius on several faces.
-- **PMI stage 3 (stream d-pmi-coverage-lint):** the coverage lint (`src/lint/pmi_coverage.rs`,
-  `tests/pmi_coverage.rs`, `known_pmi_coverage.json`: 1241 differences, 920 rust-correct, 261
-  rust-wrong, 60 undetermined). **Integrator:** after both d-pmi-coverage-lint and
-  d-pmi-dimensions merge, re-run `tests/pmi_coverage.rs` and re-verdict every entry whose
-  evidence starts "drawn by d-pmi-dimensions, in flight". The port's render panics on
-  nist_stc_10 (`src/output.rs` `bezier_pieces`, slice out of range; recorded there as a `drawing`
-  difference), so its coverage is not compared.
+- **PMI stage 3 (streams d-pmi-coverage-lint, d-pmi-coverage-complete):** the coverage lint
+  (`src/lint/pmi_coverage.rs`, `tests/pmi_coverage.rs`, `known_pmi_coverage.json`: 1401
+  differences, 1185 rust-correct, 62 equivalent, 84 undetermined, 70 rust-wrong, all the drawing's
+  or the reader's: manufacturing requirements, surface labels, common labels and angles not drawn,
+  two frames left in an omitted side view (`dims::gdt`), the title block's material not filled from
+  the file, haecceity's unmodelled hole occurrences). nist_stc_10 is compared now it renders.
+  Questions for the maintainer: (1) draftwright's lint skips a source its build already explained
+  (`*_dropped`, `_EXPLAINED_OMISSION_CODES`); the port's lint cannot read the plan's problems (R1),
+  so an omitted frame or a refused dimension is reported by the plan and by lint
+  (`pmi_not_rendered`, `pmi_not_lowered`): record the explanation on the drawing, accept the
+  double report, or drop the plan's? (2) `step_material_mismatch`/`_disagreement` and
+  `step_general_tolerance_*` turn on whether the caller authored the title field, which lint cannot
+  read (the Spec): record a field's origin on the drawing, or leave them unported?
 - **Facts:** Python draftwright's sheets recorded for 13 parts (`tools/capture_sheet_facts.py`,
   `tests/fixtures/sheets/`, `docs/facts.md`).
 - **Rules:** ADRs R1–R4 accepted. `docs/rules/` has 515 rules learnt from Python; 89 ported

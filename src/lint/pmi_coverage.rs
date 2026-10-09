@@ -15,10 +15,12 @@
 //!   aspect, property or standard haecceity reports, which draftwright's census does not hold)
 //!   is info, as the plan reports it.
 //! - `pmi_not_lowered`: a record that is not drawn and that [`lower`] does not lower: its
-//!   reading's blockers, its modifiers or its attachment stop it, or (until toleranced and basic
-//!   dimensions are drawn) it is a dimension. Error; a manufacturing requirement of a kind
-//!   draftwright does not support is a warning.
-//! - `pmi_not_rendered`: a record [`lower`] lowers that no annotation draws. Error.
+//!   reading's blockers, its modifiers or its attachment stop it, or it is a manufacturing
+//!   requirement or surface label (read, not drawn yet); a dimension that does not lower
+//!   ([`dimension`]). Error; a manufacturing requirement of a kind draftwright does not support
+//!   is a warning.
+//! - `pmi_not_rendered`: a record [`lower`] lowers, or a dimension that lowers, that no
+//!   annotation draws or states. Error.
 //! - `pmi_value_mismatch`: a frame whose text runs do not state its source's magnitude (one
 //!   number, within half the display's 13th significant digit, as Python allows), its zone
 //!   (`⌀`, `S⌀` or none) and its datum letters (repeats removed). Error.
@@ -26,15 +28,24 @@
 //!   fabricated provenance); `pmi_unreconciled`: one that claims a source when the part has no
 //!   PMI reading to check it against (warning).
 //!
+//! - `step_material_ambiguous`: the parts state more than one material, so none can be the
+//!   title block's; `step_material_unavailable`: the one material stated is one part's of
+//!   several (draftwright's 'not owned by the single shaped source product definition').
+//!   Warnings.
+//!
 //! Python's `pmi_present_but_ignored` is not-applicable: the port has no switch that ignores a
-//! part's PMI. Python's other codes of the module (manufacturing notes and finishes, title-block
-//! material and general tolerance) wait on the reading of those requirements.
+//! part's PMI. Its other codes wait on the drawing or on a decision: the manufacturing notes,
+//! finish symbols and requirement table that `pmi_source_text_mismatch`,
+//! `pmi_source_site_mismatch` and `manufacturing_reference_unresolved` check are not drawn by the
+//! port; and the title block's material and general tolerance against the file
+//! (`step_material_mismatch` and `_disagreement`, `step_general_tolerance_*`) turn on whether the
+//! caller authored the field, which only the Spec says.
 
 use std::collections::BTreeSet;
 
 use super::{LintIssue, Mark, Severity};
 use crate::model::Analysis;
-use crate::pmi::{Category, Outcome, Reading, Record};
+use crate::pmi::{Category, Outcome, Reading, Record, Report};
 use crate::pmi_lowering::lower;
 
 /// Python's `_SUPPORTED_MANUFACTURING_REQUIREMENTS`.
@@ -144,25 +155,35 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     }
     // Lowering does not depend on which views are drawn, only where an item goes.
     let (items, why_not) = lower(analysis, &|_| true);
-    let lowered: BTreeSet<&str> = items.iter().map(|l| l.source.as_str()).collect();
+    let mut lowered: BTreeSet<&str> = items.iter().map(|l| l.source.as_str()).collect();
+    lowered.extend(
+        report
+            .records
+            .iter()
+            .filter(|r| r.category == Category::Dimension && dimension(r).is_ok())
+            .map(|r| r.source_id.as_str()),
+    );
     for r in &report.records {
         let id = r.source_id.as_str();
         if on_sheet.contains(id) || lowered.contains(id) {
             continue;
         }
-        let reason = why_not
-            .iter()
-            .find(|p| p.subjects.first().is_some_and(|s| s == id))
-            .map_or_else(
-                || {
-                    if r.blockers.is_empty() {
-                        "it is not lowered to a drawing item".to_string()
-                    } else {
-                        r.blockers.join("; ")
-                    }
-                },
-                |p| p.message.clone(),
-            );
+        let reason = match dimension(r) {
+            Err(why) if r.category == Category::Dimension => why,
+            _ => why_not
+                .iter()
+                .find(|p| p.subjects.first().is_some_and(|s| s == id))
+                .map_or_else(
+                    || {
+                        if r.blockers.is_empty() {
+                            "it is not lowered to a drawing item".to_string()
+                        } else {
+                            r.blockers.join("; ")
+                        }
+                    },
+                    |p| p.message.clone(),
+                ),
+        };
         let severity = if r.category == Category::ManufacturingRequirement
             && !MANUFACTURING.contains(&r.kind.as_str())
         {
@@ -206,6 +227,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             out.push(i);
         }
     }
+    out.extend(materials(report));
     let known: BTreeSet<&str> = report
         .records
         .iter()
@@ -224,6 +246,79 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         ));
     }
     out
+}
+
+/// Whether dimension record *r* lowers to a drawing item (draftwright's typed dimension), or why
+/// not: a function of the record alone. The kinds stage 2b (`dims::pmi_dimensions`) draws, a
+/// length along x, y or z between two proven stations or a diameter or radius seen end-on, lower;
+/// a record its reading or its faces block, a common label, an angle and an oblique or curved
+/// quantity do not (draftwright checks the faces when it extracts, so it says
+/// `pmi_not_extracted` where the port's reading holds the record and lowering refuses it). Where
+/// a lowered dimension then goes, a model dimension that states it or its own, is the drawing's;
+/// one the drawing does not state is `pmi_not_rendered`.
+fn dimension(r: &Record) -> Result<(), String> {
+    if !r.blockers.is_empty() {
+        return Err(r.blockers.join("; "));
+    }
+    if r.kind == "common_label" {
+        return Err("it is a common label, text on its faces, and the port draws no labels".into());
+    }
+    let Some(g) = &r.geometry else {
+        return Err("its attachment was not derived".into());
+    };
+    if !g.reasons.is_empty() {
+        return Err(g.reasons.join("; "));
+    }
+    if r.value.is_none() {
+        return Err("the file states no nominal value".into());
+    }
+    match (r.kind.as_str(), &g.axis) {
+        ("linear" | "thickness" | "diameter" | "radius", Some(_)) => Ok(()),
+        ("linear" | "thickness", None) => Err(
+            "its stations are oblique to the views' axes; the port draws a length along x, y or z"
+                .into(),
+        ),
+        ("diameter" | "radius", None) => Err(
+            "its axis is not along x, y or z; the port draws a diameter or radius seen end-on"
+                .into(),
+        ),
+        ("angular", _) => Err("it is an angle, and the port draws no angular dimensions".into()),
+        (kind, _) => Err(format!(
+            "the port draws no {} dimension",
+            kind.replace('_', " ")
+        )),
+    }
+}
+
+/// Python's `lint_step_title_defaults`, as far as the reading decides it: whether the file
+/// states one material a title block may take. Several are ambiguous; one stated by one part of
+/// several is not the drawing's.
+fn materials(report: &Report) -> Vec<LintIssue> {
+    match report.materials.as_slice() {
+        [] => Vec::new(),
+        [m] if report.parts.len() > 1 => vec![sourced(
+            "step_material_unavailable",
+            &m.source_id,
+            Severity::Warning,
+            format!(
+                "STEP material {} is unusable: material is not owned by the single shaped source \
+                 product definition (it is part {}'s, of {} parts)",
+                m.source_id,
+                m.part,
+                report.parts.len()
+            ),
+        )],
+        [_] => Vec::new(),
+        several => vec![LintIssue {
+            sources: several.iter().map(|m| m.source_id.clone()).collect(),
+            ..issue(
+                "step_material_ambiguous",
+                "part",
+                Severity::Warning,
+                "STEP contains multiple material properties; no material was selected".into(),
+            )
+        }],
+    }
 }
 
 /// Annotations claiming PMI sources on a part with no PMI reading to check them against.
@@ -339,6 +434,66 @@ mod tests {
         r.gtol_modifiers = modifiers.iter().map(|s| s.to_string()).collect();
         r.datum_refs = datums.iter().map(|s| s.to_string()).collect();
         r
+    }
+
+    #[test]
+    fn a_dimension_lowers_when_its_kind_and_faces_are_drawn() {
+        let mut r = frame(30.0, &[], &[]);
+        r.category = Category::Dimension;
+        r.kind = "linear".into();
+        r.geometry = Some(crate::pmi::Geometry {
+            axis: Some("X".into()),
+            ..Default::default()
+        });
+        assert_eq!(dimension(&r), Ok(()));
+        let mut oblique = r.clone();
+        oblique.geometry.as_mut().unwrap().axis = None;
+        assert!(dimension(&oblique).unwrap_err().contains("oblique"));
+        let mut unproven = r.clone();
+        unproven.geometry.as_mut().unwrap().reasons =
+            vec!["linear reference groups occupy the same station".into()];
+        assert_eq!(
+            dimension(&unproven),
+            Err("linear reference groups occupy the same station".into())
+        );
+        let mut blocked = r.clone();
+        blocked.blockers = vec!["the dimension modifier Reference is not carried".into()];
+        assert!(dimension(&blocked).unwrap_err().contains("Reference"));
+        for (kind, why) in [("angular", "angle"), ("common_label", "common label")] {
+            let mut other = r.clone();
+            other.kind = kind.into();
+            assert!(dimension(&other).unwrap_err().contains(why), "{kind}");
+        }
+    }
+
+    #[test]
+    fn one_material_of_the_drawing_is_its_title_blocks() {
+        let mut report: Report = serde_json::from_value(serde_json::json!({
+            "schema": "draftwright.pmi/1", "parts": ["plate"], "sources": [], "records": [],
+            "accounting": {"semantic": 0, "consumed": 0, "reported": 0, "presentation": 0,
+                "validation": 0},
+            "materials": [{"source_id": "material:#9", "part": 0, "designation": "AlMg3"}],
+        }))
+        .unwrap();
+        assert!(materials(&report).is_empty());
+        // One part's material, of two parts drawn: not the drawing's.
+        report.parts.push("pin".into());
+        let found = materials(&report);
+        assert_eq!(found.len(), 1, "{found:#?}");
+        assert_eq!(
+            (found[0].code.as_str(), found[0].severity),
+            ("step_material_unavailable", Severity::Warning)
+        );
+        assert_eq!(found[0].sources, ["material:#9"]);
+        // Each part's own: none can be the title block's.
+        let mut steel = report.materials[0].clone();
+        steel.source_id = "material:#12".into();
+        steel.part = 1;
+        report.materials.push(steel);
+        let found = materials(&report);
+        assert_eq!(found.len(), 1, "{found:#?}");
+        assert_eq!(found[0].code, "step_material_ambiguous");
+        assert_eq!(found[0].sources, ["material:#9", "material:#12"]);
     }
 
     #[test]

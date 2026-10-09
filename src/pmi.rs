@@ -50,6 +50,9 @@
 //!   not resolve to the drawing's part, which is never guessed. Presentation is counted
 //!   ([`Accounting`]), as draftwright's `presentation_only` dimensions are, not read.
 //!
+//! - [`Material`] is draftwright's `MaterialFact`: each part's stated material, for the coverage
+//!   lint's title-block check; it stays a source not projected too, as no record holds it.
+//!
 //! The census is per Part 21 instance, not per XCAF label, so its sources do not pair one for one
 //! with draftwright's; records are compared one for one (`tests/pmi.rs`). Output order is the
 //! category (dimensions, tolerances, datums, requirements, surface labels), then the part, then
@@ -200,6 +203,24 @@ pub struct Report {
     pub sources: Vec<Source>,
     pub records: Vec<Record>,
     pub accounting: Accounting,
+    /// The material each part states (draftwright's `material_facts`), in part order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub materials: Vec<Material>,
+}
+
+/// A part's material as the file states it (CAx-IF's 'material name' property: draftwright's
+/// `MaterialFact`, read by haecceity).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Material {
+    /// `material:#<instance>`, the property's `PROPERTY_DEFINITION`, as draftwright names it.
+    pub source_id: String,
+    /// The part (`Record::part`'s index).
+    pub part: usize,
+    /// The material's designation (the descriptive item's name: draftwright's `designation`).
+    pub designation: String,
+    /// Its common name (the item's description), when stated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// Where a geometric tolerance or datum attaches to the part, in the drawing's frame (the
@@ -381,6 +402,26 @@ pub fn report(
         })
         .collect();
     record_sources.append(&mut sources);
+    let materials = read
+        .parts
+        .iter()
+        .zip(&read.provenance.parts)
+        .enumerate()
+        .filter_map(|(p, (pmi, prov))| {
+            let m = pmi.material.as_ref().filter(|m| !m.id.is_empty())?;
+            Some(Material {
+                source_id: format!(
+                    "material:#{}",
+                    prov.material
+                        .iter()
+                        .find(|&&id| entity_name(doc, id) == "property_definition")?
+                ),
+                part: p,
+                designation: m.id.clone(),
+                name: m.name.clone(),
+            })
+        })
+        .collect();
     let a = &read.accounting;
     Ok(Report {
         schema: PMI_SCHEMA.into(),
@@ -394,6 +435,7 @@ pub fn report(
             presentation: a.presentation,
             validation: a.validation,
         },
+        materials,
     })
 }
 

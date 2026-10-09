@@ -4,8 +4,10 @@
 //! draftwright's findings are in `tests/fixtures/pmi_coverage/<stem>.json.gz`
 //! (`tools/capture_pmi_coverage.py`): every finding of a code `pmi_coverage.py` emits on its
 //! `pmi="annotate"` drawing of each AP242 file of `tests/fixtures/pmi/step/`. The port's are
-//! [`lint::lint`]'s findings of the same codes on its own drawing of the file (the default spec,
-//! `model::plan_recovered`, as `api` draws). A finding is keyed by its code and its source: a
+//! [`lint::lint`]'s findings of the same codes on its own drawing of the file (its features from
+//! Rust quiddity, `model::analyse_native`, and the default spec, `model::plan_recovered`, as the
+//! command line draws it: draftwright draws with its features too, and a PMI dimension a hole
+//! callout or turned size states is stated there). A finding is keyed by its code and its source: a
 //! draftwright source that is a record of draftwright's reading
 //! (`tests/fixtures/pmi/<stem>.json.gz`) is named by the port's record it pairs with, as
 //! `tests/pmi.rs` pairs them (by the Part 21 instance draftwright names, else by the faces, else a
@@ -20,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
+use draftwright::haecceity::Part;
 use draftwright::lint::{self, LintIssue};
 use draftwright::model::{self, Analysis, Spec};
 use draftwright::output::Drawing;
@@ -96,7 +99,7 @@ fn inputs() -> Vec<(String, String, Vec<u8>)> {
 
 /// The part's Analysis and the port's drawing of it, from *bytes* (written to a scratch file of
 /// its own, as `analyse` reads a path and the tests run in parallel).
-fn drawn(file: &str, bytes: &[u8]) -> (Analysis, Drawing) {
+fn drawn(file: &str, bytes: &[u8]) -> (Part, Analysis, Drawing) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
@@ -105,13 +108,13 @@ fn drawn(file: &str, bytes: &[u8]) -> (Analysis, Drawing) {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
     std::fs::write(&path, bytes).unwrap();
-    let (part, a) = model::analyse(&path).unwrap();
+    let (part, a) = model::analyse_native(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
     let font =
         draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
     let drawing = model::render(&part, &a, &plan, &font).unwrap();
-    (a, drawing)
+    (part, a, drawing)
 }
 
 fn records(a: &Analysis) -> &[Record] {
@@ -134,8 +137,18 @@ fn category(c: &str) -> Option<Category> {
         "dimension" => Category::Dimension,
         "geometric_tolerance" => Category::GeometricTolerance,
         "datum" => Category::Datum,
+        "manufacturing_requirement" => Category::ManufacturingRequirement,
+        "surface_label" => Category::SurfaceLabel,
         _ => return None,
     })
+}
+
+/// Whether *rec* is read from Part 21 alone, with no XCAF shapes: a manufacturing requirement,
+/// a surface label or a common label.
+fn part21_only(rec: &Value) -> bool {
+    rec["kind"] == "common_label"
+        || ["manufacturing_requirement", "surface_label"]
+            .contains(&rec["source_category"].as_str().unwrap())
 }
 
 /// The instance number of `#N`.
@@ -143,7 +156,8 @@ fn number(s: &str) -> Option<u64> {
     s.strip_prefix('#')?.parse().ok()
 }
 
-/// draftwright's faces for *rec*: XCAF's, and for a datum its Part 21 support too.
+/// draftwright's faces for *rec*: XCAF's, and for a datum or a Part 21 record its Part 21
+/// support too.
 fn python_faces(rec: &Value) -> BTreeSet<u64> {
     let mut out: BTreeSet<u64> = rec["faces"]
         .as_array()
@@ -151,7 +165,7 @@ fn python_faces(rec: &Value) -> BTreeSet<u64> {
         .iter()
         .map(|v| v.as_u64().unwrap())
         .collect();
-    if rec["source_category"] == "datum" {
+    if rec["source_category"] == "datum" || part21_only(rec) {
         out.extend(
             rec["reference_item_ids"]
                 .as_array()
@@ -171,17 +185,28 @@ fn close(a: Option<f64>, b: Option<f64>) -> bool {
     }
 }
 
-/// draftwright's records of *py* (its reading) paired with the port's *rust* records, as
-/// `tests/pmi.rs` pairs them: draftwright's `source_id` to the port's.
-fn pairs(py: &Value, rust: &[Record]) -> BTreeMap<String, String> {
+/// The port's faces for *r*, as `python_faces` takes draftwright's: its `ADVANCED_FACE`
+/// instances, and for a Part 21 record (*part21*) its edges' instances too.
+fn rust_faces(part: &Part, r: &Record, part21: bool) -> BTreeSet<u64> {
+    let mut out: BTreeSet<u64> = r.face_ids.iter().copied().collect();
+    if part21 {
+        out.extend(
+            r.edges
+                .iter()
+                .filter_map(|&e| part.edge_source(e).map(|s| s.entity)),
+        );
+    }
+    out
+}
+
+/// draftwright's records of *py* (its reading) paired with the port's *rust* records on the
+/// drawing's *part*, as `tests/pmi.rs` pairs them: draftwright's `source_id` to the port's.
+fn pairs(py: &Value, part: &Part, rust: &[Record]) -> BTreeMap<String, String> {
     let records: Vec<&Value> = py["records"]
         .as_array()
         .unwrap()
         .iter()
-        .filter(|r| {
-            category(r["source_category"].as_str().unwrap()).is_some()
-                && r["kind"] != "common_label"
-        })
+        .filter(|r| category(r["source_category"].as_str().unwrap()).is_some())
         .collect();
     let mut taken = vec![false; rust.len()];
     let mut out = BTreeMap::new();
@@ -205,7 +230,7 @@ fn pairs(py: &Value, rust: &[Record]) -> BTreeMap<String, String> {
             .filter(|&j| {
                 !taken[j]
                     && rust[j].category == cat(rec)
-                    && rust[j].face_ids.iter().copied().collect::<BTreeSet<_>>() == faces
+                    && rust_faces(part, &rust[j], part21_only(rec)) == faces
             })
             .collect();
         let best = candidates
@@ -231,7 +256,7 @@ fn pairs(py: &Value, rust: &[Record]) -> BTreeMap<String, String> {
                 && rust[j].category == cat(rec)
                 && rust[j].kind == rec["kind"].as_str().unwrap()
                 && close(rust[j].value, rec["value"].as_f64())
-                && faces.iter().all(|f| rust[j].face_ids.contains(f))
+                && faces.is_subset(&rust_faces(part, &rust[j], part21_only(rec)))
         }) {
             taken[j] = true;
             out.insert(id(rec), j);
@@ -370,7 +395,7 @@ fn pmi_coverage_matches_draftwright_or_is_known() {
         );
         // A part the port cannot draw is one difference, of code `drawing`: lint has no drawing
         // to judge.
-        let Ok((a, drawing)) = std::panic::catch_unwind(|| drawn(&file, &bytes)) else {
+        let Ok((part, a, drawing)) = std::panic::catch_unwind(|| drawn(&file, &bytes)) else {
             diffs.push(Diff {
                 file: file.clone(),
                 code: "drawing".into(),
@@ -391,7 +416,7 @@ fn pmi_coverage_matches_draftwright_or_is_known() {
         let python = match py.get("issues") {
             None => Keyed::new(),
             Some(issues) => {
-                let paired = pairs(&reading, records(&a));
+                let paired = pairs(&reading, &part, records(&a));
                 let named = |s: &str| paired.get(s).cloned().unwrap_or_else(|| s.to_string());
                 keyed(issues.as_array().unwrap().iter().map(|i| {
                     (
@@ -481,8 +506,8 @@ fn fixture(stem: &str) -> (String, Vec<u8>) {
 #[test]
 fn the_same_drawing_gives_the_same_findings() {
     let (file, bytes) = fixture("nist_ctc_01_asme1_ap242-e1");
-    let (a, one) = drawn(&file, &bytes);
-    let (b, two) = drawn(&file, &bytes);
+    let (_, a, one) = drawn(&file, &bytes);
+    let (_, b, two) = drawn(&file, &bytes);
     let first = coverage(&a, &one);
     assert!(!first.is_empty());
     assert_eq!(
@@ -496,7 +521,7 @@ fn the_same_drawing_gives_the_same_findings() {
 #[test]
 fn a_frame_that_misstates_its_source_is_reported() {
     let (file, bytes) = fixture("nist_ftc_07_asme1_ap242-e2");
-    let (a, drawing) = drawn(&file, &bytes);
+    let (_, a, drawing) = drawn(&file, &bytes);
     let codes = |found: &[LintIssue], code: &str| -> Vec<Vec<String>> {
         found
             .iter()
@@ -506,7 +531,26 @@ fn a_frame_that_misstates_its_source_is_reported() {
     };
     let clean = coverage(&a, &drawing);
     assert!(codes(&clean, "pmi_value_mismatch").is_empty());
-    assert!(codes(&clean, "pmi_not_rendered").is_empty());
+    // Every frame and symbol lowered is drawn; what the drawing leaves unstated is dimensions
+    // (a standalone diameter the plan refuses, `known_pmi_coverage.json`).
+    let unstated = codes(&clean, "pmi_not_rendered");
+    assert!(
+        unstated
+            .iter()
+            .flatten()
+            .all(|s| s.starts_with("dimension:")),
+        "{unstated:?}"
+    );
+    let with = |source: &str| {
+        let mut out = unstated.clone();
+        out.push(vec![source.to_string()]);
+        out.sort();
+        out
+    };
+    let sorted = |mut v: Vec<Vec<String>>| {
+        v.sort();
+        v
+    };
     let k = drawing
         .annotations
         .iter()
@@ -543,8 +587,8 @@ fn a_frame_that_misstates_its_source_is_reported() {
     let mut gone = drawing.clone();
     gone.annotations.remove(k);
     assert_eq!(
-        codes(&coverage(&a, &gone), "pmi_not_rendered"),
-        [[source.clone()]]
+        sorted(codes(&coverage(&a, &gone), "pmi_not_rendered")),
+        with(&source)
     );
     // The frame claiming a source the reading does not hold: fabricated, and its own source
     // undrawn.
@@ -555,7 +599,7 @@ fn a_frame_that_misstates_its_source_is_reported() {
         codes(&found, "pmi_source_unknown"),
         [["geometric_tolerance:#999999999".to_string()]]
     );
-    assert_eq!(codes(&found, "pmi_not_rendered"), [[source.clone()]]);
+    assert_eq!(sorted(codes(&found, "pmi_not_rendered")), with(&source));
     // No PMI reading to check the drawing's claims against: unverified, not satisfied.
     let mut none = a.clone();
     none.pmi = None;
