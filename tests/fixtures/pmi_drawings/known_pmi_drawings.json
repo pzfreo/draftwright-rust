@@ -27,31 +27,6 @@
  },
  {
   "file": "assembly_plate_pin.step",
-  "record": "geometric_tolerance:0:1:4:25",
-  "port": "geometric_tolerance:#1487",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "control_frame",
-     "rides_on": null,
-     "text": "⏥ 0.02",
-     "view": "side"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_drawn"
-   ],
-   "outcome": "dropped"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '⏥ 0.02' (control frame, side view); the port's: not drawn, dropped (pmi_not_drawn). Both lower the flatness to the side view (known_pmi_lowering.json has no view difference for it), but the port's plan leaves the side view out by its turned-part reduction (crate::demand::turned_views, applied in model::plan), so the frame stays in the plan undrawn and is reported pmi_not_drawn ('Restore the view'). draftwright proposes the same reduction (_automatic_turned_principals) but vetoes it when a GD&T, datum or note aspect targets the dropped view (build_once.py: 'annotation_view_required'), so it keeps the side view and draws the frame. Not a planner defect in src/dims/gdt.rs: the veto belongs to the view reduction, src/model.rs (owned by in-flight d-plan-recover-speed) and src/demand.rs."
- },
- {
-  "file": "assembly_plate_pin.step",
   "record": "geometric_tolerance:0:1:4:26",
   "port": "geometric_tolerance:#1494",
   "field": "drawing",
@@ -355,62 +330,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "B",
-     "view": "plan"
+     "view": "side"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port's: 'B' (datum ref, plan view). As known_pmi_lowering.json (lowered, rust-correct): draftwright leaves it raw because it cannot find the datum's faces (\"Part21 representation item #163 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
- },
- {
-  "file": "assembly_plate_pin.step",
-  "record": "manufacturing_requirement:#1562",
-  "port": "manufacturing_requirement:#1562",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "document_note",
-     "rides_on": null,
-     "text": "Break sharp edges 0.2 max",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Break sharp edges 0.2 max' (document note, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the general notes block (draftwright render_document_notes). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "assembly_plate_pin.step",
-  "record": "manufacturing_requirement:#1658",
-  "port": "manufacturing_requirement:#1658",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "document_note",
-     "rides_on": null,
-     "text": "Break sharp edges 0.2 max",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Break sharp edges 0.2 max' (document note, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the general notes block (draftwright render_document_notes). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
+  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port's: 'B' (datum ref, side view). As known_pmi_lowering.json (lowered, rust-correct): draftwright leaves it raw because it cannot find the datum's faces (\"Part21 representation item #163 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol, edge-on in the side view its lowering targets (the turned-part reduction now keeps the side view, draftwright's annotation_view_required veto, as the flatness frame and this datum are drawn there; before the veto the side view was left out and the symbol moved to the plan, draftwright's _datum_alternate_view)."
  },
  {
   "file": "assembly_plate_pin.step",
@@ -528,89 +453,14 @@
   "evidence": "draftwright's drawing: not drawn, refused (pmi_not_rendered); the port's: '⌀6 +0.0 -0.008' (dimension, front view, on step.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (pmi_not_rendered: AP242 source dimension:0:1:4:1 reached typed drafting IR but produced no annotation). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀6 +0.0 -0.008'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
  },
  {
-  "file": "bolt_thread_knurl.step",
-  "record": "manufacturing_requirement:#502",
-  "port": "manufacturing_requirement:#502",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "default_surface_finish",
-     "rides_on": null,
-     "text": "Ra 3.2",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Ra 3.2' (default surface finish, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the default surface finish beside the title block (draftwright _add_default_surface_finish). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "bolt_thread_knurl.step",
-  "record": "manufacturing_requirement:#506",
-  "port": "manufacturing_requirement:#506",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "document_note",
-     "rides_on": null,
-     "text": "Break sharp edges 0.2 max",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Break sharp edges 0.2 max' (document note, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the general notes block (draftwright render_document_notes). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "bolt_thread_knurl.step",
-  "record": "manufacturing_requirement:#510",
-  "port": "manufacturing_requirement:#510",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "general_tolerance",
-     "rides_on": null,
-     "text": "ISO 2768-m",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'ISO 2768-m' (general tolerance, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the title block's general tolerance (draftwright _resolve_title_document_defaults). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
   "file": "bracket_positions.step",
   "record": "file",
   "port": null,
   "field": "drawing",
   "python": "ValueError: project_to_viewport returned empty geometry for view 'plan' (camera (-0.20598045072850368, 1.2878802308874988, 245.83221857376392)) — check the camera position and look_at.",
-  "rust": "17 records drawn",
+  "rust": "20 records drawn",
   "verdict": "rust-correct",
-  "evidence": "known_pmi_dimensions.json (drawing, rust-correct): draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it and lowers its PMI dimensions."
+  "evidence": "known_pmi_dimensions.json (drawing, rust-correct): draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it, lowers its PMI dimensions, and carries its drawing-wide requirements (general tolerance ISO 2768-m in the title block, the Ra 3.2 default finish beside it, the edge-condition note), so 20 records are drawn."
  },
  {
   "file": "nist_ctc_01_asme1_ap242-e1.stp",
@@ -664,56 +514,6 @@
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'A' (datum ref, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
  },
  {
-  "file": "nist_ctc_01_asme1_ap242-e1.stp",
-  "record": "surface_label:#4340",
-  "port": "surface_label:#4340",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "B",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'B' (note, front view); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in a leadered text label in the view (draftwright render_gdt, kind note). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "nist_ctc_01_asme1_ap242-e1.stp",
-  "record": "surface_label:#4341",
-  "port": "surface_label:#4341",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "A",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'A' (note, front view); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in a leadered text label in the view (draftwright render_gdt, kind note). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
   "file": "nist_ctc_01_merge.step",
   "record": "dimension:0:1:4:17",
   "port": "dimension:#33",
@@ -763,131 +563,6 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'A' (datum ref, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
- },
- {
-  "file": "nist_ctc_01_merge.step",
-  "record": "manufacturing_requirement:#4412",
-  "port": "manufacturing_requirement:#4412",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "default_surface_finish",
-     "rides_on": null,
-     "text": "Ra 3.2",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Ra 3.2' (default surface finish, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the default surface finish beside the title block (draftwright _add_default_surface_finish). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "nist_ctc_01_merge.step",
-  "record": "manufacturing_requirement:#4416",
-  "port": "manufacturing_requirement:#4416",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "document_note",
-     "rides_on": null,
-     "text": "Break sharp edges 0.2 max",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Break sharp edges 0.2 max' (document note, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the general notes block (draftwright render_document_notes). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "nist_ctc_01_merge.step",
-  "record": "manufacturing_requirement:#4420",
-  "port": "manufacturing_requirement:#4420",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "general_tolerance",
-     "rides_on": null,
-     "text": "ISO 2768-m",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'ISO 2768-m' (general tolerance, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the title block's general tolerance (draftwright _resolve_title_document_defaults). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "nist_ctc_01_merge.step",
-  "record": "surface_label:#4340",
-  "port": "surface_label:#4340",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "B",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'B' (note, front view); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in a leadered text label in the view (draftwright render_gdt, kind note). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "nist_ctc_01_merge.step",
-  "record": "surface_label:#4341",
-  "port": "surface_label:#4341",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "A",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'A' (note, front view); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in a leadered text label in the view (draftwright render_gdt, kind note). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
@@ -3104,106 +2779,6 @@
  },
  {
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:103",
-  "port": "dimension:#16280",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "F1.2",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'F1.2' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:104",
-  "port": "dimension:#16308",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "F1.1",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'F1.1' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:108",
-  "port": "dimension:#16423",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:110",
-  "port": "dimension:#16482",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "⌴",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '⌴' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
   "record": "geometric_tolerance:0:1:4:1",
   "port": "geometric_tolerance:#13947",
   "field": "drawing",
@@ -3921,181 +3496,6 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved); the port's: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10' (dimension, plan view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø7 ±0.25' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:137",
-  "port": "dimension:#20787",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "4",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '4' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:139",
-  "port": "dimension:#20844",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "F65",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'F65' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:143",
-  "port": "dimension:#20960",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "4",
-     "view": "side"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '4' (note, side view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:144",
-  "port": "dimension:#20980",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "4",
-     "view": "side"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '4' (note, side view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:145",
-  "port": "dimension:#21000",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "4",
-     "view": "side"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '4' (note, side view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:146",
-  "port": "dimension:#21020",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "4",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '4' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:148",
-  "port": "dimension:#21060",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "note",
-     "rides_on": null,
-     "text": "F81",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'F81' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -6248,38 +5648,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: not drawn, refused (pmi_dimensions_not_ported). As known_pmi_dimensions.json (outcome, rust-wrong): A common label ('4X R'), read since stage 1b. draftwright draws common labels as label annotations; here it found no room and dropped it (pmi_dropped: m_gdt0 not placed (no legible room in any front strip or sheet fallback); plan_incomplete). The port draws no labels yet and says so: PMI dimension dimension:#10483 (4X R) is not drawn: it is a common label, text on its faces, and the port draws no labels yet. Neither draws it; the port's gap is the unported label drawing, reported, not dropped."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "dimension:0:1:4:114",
-  "port": "dimension:#10504",
-  "field": "drawing",
-  "python": {
    "drawn": [
     {
      "boxed": false,
      "kind": "note",
      "rides_on": null,
-     "text": "2X R",
+     "text": "4X R",
      "view": "front"
     }
    ]
   },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '2X R' (note, front view); the port's: not drawn, refused (pmi_dimensions_not_ported). A common label (text on its faces, read as a dimension record since stage 1b): draftwright draws it as a leadered text label (render_gdt, kind note); the port draws no labels yet and says so ('it is a common label, text on its faces, and the port draws no labels yet', crate::dims::pmi_dimensions), as known_pmi_dimensions.json records for the dropped one. Drawing it needs a new label glyph in lowering and GD&T placement (src/pmi_lowering.rs, src/dims/gdt.rs), a larger change than this check's fixes; left rust-wrong."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped: m_gdt0 not placed, no legible room in any front strip or sheet fallback); the port's: '4X R' (note, front view). A common label: both lower it to the front view (its faces' longest extent is x or z, which tie at 25.4 mm; both map to the front); draftwright then finds no room and drops it, the port places it with its leader as it places frames (crate::dims::gdt, Policy B: what it meets is reported, never dropped). Drawing it is rust-correct by the maintainer's directive of 2026-10-09 (escalate, never lose a requirement)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -7856,106 +7236,6 @@
   "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved, pmi_not_extracted); the port's: '⌀70 -0.03 -0.06 OD' (dimension, front view, on step.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø70 - ø0.06' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 70 mm differ from nominal 35.03 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:5 was discovered but not extracted: cylindrical reference diameter(s) 70 mm differ from nominal 35.03 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀70 -0.03 -0.06 OD'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
  },
  {
-  "file": "spool_fits.step",
-  "record": "geometric_tolerance:0:1:4:15",
-  "port": "geometric_tolerance:#6441",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "control_frame",
-     "rides_on": null,
-     "text": "⏥ 0.02",
-     "view": "side"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_drawn"
-   ],
-   "outcome": "dropped"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '⏥ 0.02' (control frame, side view); the port's: not drawn, dropped (pmi_not_drawn). Both lower the flatness to the side view (known_pmi_lowering.json has no view difference for it), but the port's plan leaves the side view out by its turned-part reduction (crate::demand::turned_views, applied in model::plan), so the frame stays in the plan undrawn and is reported pmi_not_drawn ('Restore the view'). draftwright proposes the same reduction (_automatic_turned_principals) but vetoes it when a GD&T, datum or note aspect targets the dropped view (build_once.py: 'annotation_view_required'), so it keeps the side view and draws the frame. Not a planner defect in src/dims/gdt.rs: the veto belongs to the view reduction, src/model.rs (owned by in-flight d-plan-recover-speed) and src/demand.rs."
- },
- {
-  "file": "spool_fits.step",
-  "record": "manufacturing_requirement:#6467",
-  "port": "manufacturing_requirement:#6467",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "default_surface_finish",
-     "rides_on": null,
-     "text": "Ra 3.2",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Ra 3.2' (default surface finish, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the default surface finish beside the title block (draftwright _add_default_surface_finish). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "spool_fits.step",
-  "record": "manufacturing_requirement:#6471",
-  "port": "manufacturing_requirement:#6471",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "document_note",
-     "rides_on": null,
-     "text": "Break sharp edges 0.2 max",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Break sharp edges 0.2 max' (document note, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the general notes block (draftwright render_document_notes). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "spool_fits.step",
-  "record": "manufacturing_requirement:#6475",
-  "port": "manufacturing_requirement:#6475",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "general_tolerance",
-     "rides_on": null,
-     "text": "ISO 2768-m",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'ISO 2768-m' (general tolerance, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the title block's general tolerance (draftwright _resolve_title_document_defaults). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
   "file": "string_post_tapped.step",
   "record": "datum:0:1:4:5",
   "port": "datum:#3086",
@@ -7982,81 +7262,6 @@
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'A' (datum ref, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
  },
  {
-  "file": "string_post_tapped.step",
-  "record": "manufacturing_requirement:#3190",
-  "port": "manufacturing_requirement:#3190",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "default_surface_finish",
-     "rides_on": null,
-     "text": "Ra 3.2",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Ra 3.2' (default surface finish, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the default surface finish beside the title block (draftwright _add_default_surface_finish). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "string_post_tapped.step",
-  "record": "manufacturing_requirement:#3194",
-  "port": "manufacturing_requirement:#3194",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "document_note",
-     "rides_on": null,
-     "text": "Break sharp edges 0.2 max",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Break sharp edges 0.2 max' (document note, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the general notes block (draftwright render_document_notes). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "string_post_tapped.step",
-  "record": "manufacturing_requirement:#3198",
-  "port": "manufacturing_requirement:#3198",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "general_tolerance",
-     "rides_on": null,
-     "text": "ISO 2768-f",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'ISO 2768-f' (general tolerance, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the title block's general tolerance (draftwright _resolve_title_document_defaults). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
   "file": "thumbwheel_thread_knurl.step",
   "record": "dimension:0:1:4:1",
   "port": "dimension:#651",
@@ -8081,80 +7286,5 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved, pmi_not_extracted); the port's: '⌀10 -0.013 -0.028' (dimension, front view, on od.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
- },
- {
-  "file": "thumbwheel_thread_knurl.step",
-  "record": "manufacturing_requirement:#780",
-  "port": "manufacturing_requirement:#780",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "default_surface_finish",
-     "rides_on": null,
-     "text": "Ra 3.2",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Ra 3.2' (default surface finish, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the default surface finish beside the title block (draftwright _add_default_surface_finish). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "thumbwheel_thread_knurl.step",
-  "record": "manufacturing_requirement:#784",
-  "port": "manufacturing_requirement:#784",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "document_note",
-     "rides_on": null,
-     "text": "Break sharp edges 0.2 max",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'Break sharp edges 0.2 max' (document note, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the general notes block (draftwright render_document_notes). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
- },
- {
-  "file": "thumbwheel_thread_knurl.step",
-  "record": "manufacturing_requirement:#788",
-  "port": "manufacturing_requirement:#788",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "general_tolerance",
-     "rides_on": null,
-     "text": "ISO 2768-f",
-     "view": null
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: 'ISO 2768-f' (general tolerance, sheet); the port's: not drawn, refused (pmi_not_lowered). The port reads the record since stage 1b (d-pmi-manufacturing) but draws no manufacturing requirement or surface label yet, and says so ('read but not drawn: drawing it is not ported yet', crate::pmi_lowering); draftwright states it in the title block's general tolerance (draftwright _resolve_title_document_defaults). Reported, not dropped, but the requirement is not on the drawing. Owner: src/pmi_lowering.rs (lowering), with the carrier it needs (src/notes.rs, src/title_block.rs or a label glyph); not the PMI dimension or GD&T planners."
  }
 ]

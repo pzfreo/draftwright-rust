@@ -386,7 +386,9 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
     let records: Vec<&Record> = report
         .records
         .iter()
-        .filter(|r| r.category == Category::Dimension)
+        // A common label (text on its faces, read as a dimension) is drawn as a label by
+        // `pmi_lowering`, not here.
+        .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
         .collect();
     let mut outcomes: Vec<Outcome> = records
         .iter()
@@ -648,13 +650,6 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
 fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
     if !r.blockers.is_empty() {
         return Outcome::Refused(not_lowered(r.blockers.join("; ")));
-    }
-    // A common label (stage 1b) is text on its faces, not a measurement: draftwright draws it as
-    // a label, which is not ported yet.
-    if r.kind == "common_label" {
-        return Outcome::Refused(not_ported(
-            "it is a common label, text on its faces, and the port draws no labels yet",
-        ));
     }
     let Some(g) = &r.geometry else {
         return Outcome::Refused(not_lowered(

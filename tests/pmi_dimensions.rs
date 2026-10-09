@@ -11,7 +11,8 @@
 //! `tests/pmi.rs` pairs them (by the Part 21 instance draftwright names, else by the faces), from
 //! draftwright's reading in `tests/fixtures/pmi/<stem>.json.gz`. The outcome, the view and the
 //! label (draftwright's `ø` read as the port's `⌀`) are compared; a record either side has no
-//! pair for is a difference of field `record`.
+//! pair for is a difference of field `record`. A common label, read as a dimension, is drawn as a
+//! label and compared by `tests/pmi_drawings.rs`.
 //!
 //! Every difference must be listed, with a verdict and evidence, in
 //! `tests/fixtures/known_pmi_dimensions.json`; a listed difference that has gone away must be
@@ -282,7 +283,14 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
         });
     }
     let mut seen = BTreeSet::new();
-    for rec in py["records"].as_array().unwrap() {
+    // A common label (read as a dimension) is drawn as a label, compared with draftwright's by
+    // `tests/pmi_drawings.rs`.
+    for rec in py["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|rec| rec["kind"] != "common_label")
+    {
         let id = rec["source_id"].as_str().unwrap().to_string();
         let port = paired.get(&id).map(|&j| &rust[j]);
         let port_id = port.map_or(Value::Null, |r| json!(r.source_id));
@@ -325,7 +333,10 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
             diff("label", pl, rl);
         }
     }
-    for r in rust.iter().filter(|r| r.category == Category::Dimension) {
+    for r in rust
+        .iter()
+        .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
+    {
         if !seen.contains(&r.source_id) {
             let (ro, _, rl) = rust_outcome(plan, r);
             diffs.push(Diff {
@@ -452,7 +463,7 @@ fn every_dimension_is_drawn_or_reported_never_both() {
         let plan = model::plan(&a, &Spec::default()).unwrap();
         for r in records(&a)
             .iter()
-            .filter(|r| r.category == Category::Dimension)
+            .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
         {
             let stated = stating(&plan, r);
             let reported = plan

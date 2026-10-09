@@ -1,5 +1,6 @@
-//! General notes: the spec's `notes` (`n:<k>`, set in the spec), drawn as draftwright draws its
-//! document notes (`render_document_notes`): one `GENERAL NOTES` table whose rows are
+//! General notes: the spec's `notes` (`n:<k>`, set in the spec), then the part's AP242 edge
+//! conditions (`pmi:<source>`, [`crate::pmi_lowering::sheet_requirements`]), drawn as
+//! draftwright draws its document notes (`render_document_notes`): one `GENERAL NOTES` table whose rows are
 //! `document_note_rows`' (each note numbered by its place in the list, `1  BREAK ALL SHARP
 //! EDGES`, wrapped at 48 characters with continuation rows indented three spaces), in IBM Plex
 //! Mono at 3 mm, each row 3 mm plus 2 mm of padding above and below, ruled as `_build_table`
@@ -14,7 +15,8 @@
 //! undrawn; one that no sheet can hold at a standard scale is not reserved, so it never shrinks
 //! the views (draftwright would take a computed scale for it).
 //!
-//! Differences from draftwright: a continuation row keeps its three-space indent, where
+//! Differences from draftwright: the PMI's notes follow the spec's, so a spec note keeps its
+//! number, where draftwright numbers its notes in its model's order; a continuation row keeps its three-space indent, where
 //! draftwright's left alignment on each row's ink drops it; the views' areas are kept clear,
 //! where draftwright's late placement sees the views' drawn boxes and the annotations' ink.
 
@@ -327,17 +329,24 @@ pub fn plan(
                 }
             });
             first += rows.len();
+            let source = n.id.strip_prefix("pmi:");
             PlannedNote {
                 id: n.id.clone(),
                 text: n.text.trim().into(),
                 number: i + 1,
                 rows,
-                default: false,
-                basis: format!(
-                    "authored: the spec's note {} (notes/{i}), general note {} in the {TITLE} block, which goes towards the sheet's top right as draftwright places its document notes",
-                    n.id,
-                    i + 1
-                ),
+                default: source.is_some(),
+                basis: match source {
+                    Some(s) => format!(
+                        "source-authored: the part's AP242 edge condition {s}, general note {} in the {TITLE} block after the spec's notes (draftwright's DocumentNote)",
+                        i + 1
+                    ),
+                    None => format!(
+                        "authored: the spec's note {} (notes/{i}), general note {} in the {TITLE} block, which goes towards the sheet's top right as draftwright places its document notes",
+                        n.id,
+                        i + 1
+                    ),
+                },
                 placed,
             }
         })

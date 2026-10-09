@@ -280,6 +280,10 @@ pub struct Plan {
     /// ([`crate::dims::gdt`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub gdt: Vec<crate::dims::gdt::PlannedGdt>,
+    /// The part's drawing-wide AP242 requirements (general tolerance, default surface finish,
+    /// edge conditions), each with what carries it ([`crate::pmi_lowering::plan_sheet`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requirements: Vec<crate::pmi_lowering::PlannedRequirement>,
     /// The plan-view hole table a dropped hole item escalated to ([`crate::hole_table`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hole_table: Option<crate::hole_table::HoleTable>,
@@ -1043,10 +1047,13 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     }
     let mut demand = crate::demand::read(analysis);
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
-    // omits the profile view it keeps (front): the dropped view is then the only profile left.
+    // omits the profile view it keeps (front): the dropped view is then the only profile left;
+    // or a PMI item is drawn in it (draftwright's `annotation_view_required`).
     let omitted = |name: &str| spec.views.get(name).is_some_and(|v| v.omit);
-    let reduction = crate::demand::turned_views(&demand)
-        .filter(|(kept, dropped, _)| !spec.views.contains_key(*dropped) && !omitted(kept[0]));
+    let pmi_views = crate::pmi_lowering::views(analysis);
+    let reduction = crate::demand::turned_views(&demand).filter(|(kept, dropped, _)| {
+        !spec.views.contains_key(*dropped) && !omitted(kept[0]) && !pmi_views.contains(dropped)
+    });
     let shown = |name: &str| match spec.views.get(name) {
         Some(v) => !v.omit,
         None => !reduction.as_ref().is_some_and(|r| r.1 == name),
@@ -1143,7 +1150,21 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // The tables are reserved towards their corners and the general notes block top right, in
     // draftwright's order, unless only a fallback would make room for them: then each is placed
     // where it can be, or reported (crate::tables, crate::notes).
-    let notes_size = crate::notes::size(&spec.notes);
+    // The part's drawing-wide PMI requirements (crate::pmi_lowering): its edge conditions are
+    // general notes after the spec's.
+    let (requirements, more) = crate::pmi_lowering::sheet_requirements(analysis);
+    problems.extend(more);
+    let mut notes_given = spec.notes.clone();
+    notes_given.extend(
+        requirements
+            .iter()
+            .filter(|r| r.kind == "document_note")
+            .map(|r| NoteSpec {
+                id: format!("pmi:{}", r.source),
+                text: r.value.clone(),
+            }),
+    );
+    let notes_size = crate::notes::size(&notes_given);
     request.required_tables = crate::tables::sizes(&spec.tables);
     request
         .required_tables
@@ -1329,6 +1350,13 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     title
         .entry("number".into())
         .or_insert_with(|| "DWG-001".into());
+    let (requirements, more) = crate::pmi_lowering::plan_sheet(
+        &requirements,
+        &spec.sheet.title,
+        &mut title,
+        g.title_block,
+    );
+    problems.extend(more);
     let title_cells = title_block::cells(g.title_block, &title, &size);
     problems.extend(title_block::problems(&title_cells, pick.page));
     let sheet = PlannedSheet {
@@ -1350,8 +1378,15 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     problems.extend(more);
     let mut ink = dimensions.clone();
     ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
+    // The default finish's symbol beside the title block: what it meets, and kept clear of.
+    for r in &requirements {
+        problems.extend(crate::dims::gdt::finish_collisions(
+            analysis, &sheet, &views, &ink, r,
+        ));
+        ink.extend(crate::dims::gdt::finish_proxy(r));
+    }
     let (notes, notes_block, more) =
-        crate::notes::plan(&spec.notes, analysis, &sheet, &views, &ink);
+        crate::notes::plan(&notes_given, analysis, &sheet, &views, &ink);
     problems.extend(more);
     let (tables, more) = crate::tables::plan(
         &spec.tables,
@@ -1384,6 +1419,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         notes_block,
         tables,
         gdt,
+        requirements,
         hole_table: None,
         balloons: Vec::new(),
         problems,
@@ -1813,6 +1849,8 @@ pub fn render_with(
     // Each cell: its dividers, its label at its lower left, and its value (none drawn for a
     // field not supplied) centred in it, whole, and searchable. The ink is the font-safe value.
     let title_from = dims.len();
+    // The runs that state the sheet's PMI requirements, by requirement ID.
+    let mut stated: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for c in &plan.sheet.title_cells {
         let [x0, y0, x1, y1] = c.cell;
         if x0 > tx0 {
@@ -1831,12 +1869,17 @@ pub fn render_with(
             let centre = [0.5 * (x0 + x1), 0.5 * (y0 + y1)];
             let run = (v.as_str(), title_block::FONT, title_block::TEXT);
             let from = dims.len();
-            label(
+            let at = label(
                 title_block::lay(v, title_block::TEXT),
                 centre,
                 dims,
                 Some(run),
             );
+            for r in &plan.requirements {
+                if r.carrier == "title_block" && c.field == "general_tolerance" {
+                    stated.entry(r.id.clone()).or_default().extend(at);
+                }
+            }
             if let Some(ink) = items_bbox(&dims[from..]) {
                 sheet.fields.push(DrawnField {
                     field: c.field.clone(),
@@ -1880,10 +1923,25 @@ pub fn render_with(
         for [a, b] in crate::notes::rules(block) {
             dims.push(Item::Edge(Curve::Line(a, b)));
         }
-        for (row, at) in crate::notes::texts(block, &plan.notes) {
-            let run = (row.trim_start(), crate::dims::FONT, crate::notes::TEXT);
-            let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
-            label(laid, at, dims, Some(run));
+        let runs: Vec<Option<usize>> = crate::notes::texts(block, &plan.notes)
+            .into_iter()
+            .map(|(row, at)| {
+                let run = (row.trim_start(), crate::dims::FONT, crate::notes::TEXT);
+                let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
+                label(laid, at, dims, Some(run))
+            })
+            .collect();
+        // After the heading, each placed note's rows in turn.
+        let mut next = 1;
+        for n in plan.notes.iter().filter(|n| n.placed.is_some()) {
+            let mine = &runs[next..next + n.rows.len()];
+            next += n.rows.len();
+            if n.id.starts_with("pmi:") {
+                stated
+                    .entry(n.id.clone())
+                    .or_default()
+                    .extend(mine.iter().flatten());
+            }
         }
     }
     if let Some(ink) = items_bbox(&dims[notes_from..]) {
@@ -1896,6 +1954,33 @@ pub fn render_with(
             elbow: None,
             interior: false,
         });
+    }
+    // The default surface finish beside the title block: its symbol and its requirement.
+    for r in &plan.requirements {
+        let Some(p) = &r.placed else { continue };
+        let from = dims.len();
+        for [a, b] in &p.strokes {
+            dims.push(Item::Edge(Curve::Line(*a, *b)));
+        }
+        let run = (r.text.as_str(), title_block::FONT, title_block::TEXT);
+        let at = label(
+            title_block::lay(&r.text, title_block::TEXT),
+            p.text_at,
+            dims,
+            Some(run),
+        );
+        stated.entry(r.id.clone()).or_default().extend(at);
+        if let Some(ink) = items_bbox(&dims[from..]) {
+            sheet.items.push(Drawn {
+                name: r.id.clone(),
+                kind: Kind::Gdt,
+                ink,
+                label: Some(p.label_box),
+                lines: p.strokes.clone(),
+                elbow: None,
+                interior: false,
+            });
+        }
     }
     // The tables: each one's rules, and each cell centred on its planned ink, searchable.
     for table in &plan.tables {
@@ -2048,6 +2133,13 @@ pub fn render_with(
     sheet
         .items
         .extend(labelled("scale_note", Kind::ScaleNote, &dims[from..]));
+    // Each drawing-wide PMI requirement by the runs that state it, for lint and the PMI checks.
+    annotations.extend(stated.into_iter().map(|(name, runs)| Annotation {
+        name,
+        view: None,
+        runs,
+        claims: Vec::new(),
+    }));
     Ok(Drawing {
         page: plan.sheet.page,
         layers,

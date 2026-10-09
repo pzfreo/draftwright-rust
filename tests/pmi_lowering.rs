@@ -262,6 +262,7 @@ fn python_text(item: &Value) -> Value {
 fn rust_text(l: &Lowered) -> Value {
     match &l.glyph {
         Glyph::Datum { letter, .. } => json!(letter),
+        Glyph::Label { text } => json!(text),
         Glyph::ControlFrame {
             characteristic,
             tolerance,
@@ -300,7 +301,7 @@ fn rust_scope(l: &Lowered) -> Value {
             all_over,
             ..
         } => json!({"all_around": all_around, "all_over": all_over}),
-        Glyph::Datum { .. } => Value::Null,
+        Glyph::Datum { .. } | Glyph::Label { .. } => Value::Null,
     }
 }
 
@@ -393,6 +394,7 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
         let outcome = match l.map(|l| &l.glyph) {
             Some(Glyph::ControlFrame { .. }) => "control_frame",
             Some(Glyph::Datum { .. }) => "datum_ref",
+            Some(Glyph::Label { .. }) => "note",
             None => "raw",
         };
         if item["lowered"] != outcome {
@@ -450,7 +452,11 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
             diff("drawn", json!(python_drawn), json!(drawn));
         }
     }
-    for l in &lowered {
+    // Labels are compared with draftwright's drawing by `tests/pmi_drawings.rs`.
+    for l in lowered
+        .iter()
+        .filter(|l| !matches!(l.glyph, Glyph::Label { .. }))
+    {
         if !seen.contains(&l.source) {
             diffs.push(Diff {
                 file: file.into(),
@@ -581,8 +587,9 @@ fn every_record_and_source_is_drawn_or_reported() {
             let drawn = plan.gdt.iter().any(|g| g.source == r.source_id);
             match r.category {
                 // A dimension is stated by a planned dimension or said not drawn, never both
-                // (stage 2b, `tests/pmi_dimensions.rs`); never a frame or symbol.
-                Category::Dimension => {
+                // (stage 2b, `tests/pmi_dimensions.rs`); never a frame or symbol. A common label
+                // (read as a dimension) is a label, below.
+                Category::Dimension if r.kind != "common_label" => {
                     let feature = format!("pmi:{}", r.source_id);
                     let stated = plan
                         .dimensions
@@ -601,7 +608,10 @@ fn every_record_and_source_is_drawn_or_reported() {
                         r.source_id
                     );
                 }
-                Category::GeometricTolerance | Category::Datum => {
+                Category::GeometricTolerance
+                | Category::Datum
+                | Category::Dimension
+                | Category::SurfaceLabel => {
                     let reported = named("pmi_not_lowered", &r.source_id);
                     assert!(
                         drawn != reported,
@@ -612,6 +622,19 @@ fn every_record_and_source_is_drawn_or_reported() {
                     if !r.blockers.is_empty() {
                         assert!(reported, "{file}: {} has blockers", r.source_id);
                     }
+                }
+                // A drawing-wide requirement is carried by the sheet or said not drawn.
+                Category::ManufacturingRequirement
+                    if draftwright::pmi_lowering::sheet_kind(&r.kind) =>
+                {
+                    let carried = plan.requirements.iter().any(|q| q.source == r.source_id);
+                    let reported = named("pmi_not_lowered", &r.source_id)
+                        || named("step_general_tolerance_disagreement", &r.source_id);
+                    assert!(
+                        carried != reported,
+                        "{file}: {} is carried ({carried}) or reported ({reported}), not both",
+                        r.source_id
+                    );
                 }
                 _ => {}
             }
@@ -773,8 +796,9 @@ fn frames_and_symbols_are_searchable_and_drawn_from_the_font() {
     let face = ttf_parser::Face::parse(&mono, 0).unwrap();
     for g in &plan.gdt {
         let p = g.placed.as_ref().unwrap();
-        // Every letter and digit drawn is a glyph of the font, never its missing-glyph box.
-        for l in &p.letters {
+        // Every letter and digit drawn is a glyph of the font, never its missing-glyph box (a
+        // label's text is the file's, drawn as it is: `tests/pmi_labels.rs`).
+        for l in p.letters.iter().filter(|_| g.kind != "label") {
             for ch in l.text.chars() {
                 assert!(
                     face.glyph_index(ch).is_some(),

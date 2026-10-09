@@ -2046,6 +2046,8 @@
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
   status: pending
+  rust_test: "tests/pmi_labels.rs::the_specs_tolerance_wins_and_a_different_pmi_one_is_reported"
+  rust_note: "Partly: the plan reports it (a warning, naming the PMI source and sheet/title/tolerance) when the spec's tolerance, which wins, differs from the part's one AP242 general tolerance; also for a blank spec value, which draftwright passes in silence. As a lint code on a drawing it is the PMI coverage lint's."
   port_note: "Keep."
   rust_note: "Not ported: as step_general_tolerance_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port also does not fill the title block from the file yet (draftwright's `_resolve_title_document_defaults`)."
 

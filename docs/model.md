@@ -80,9 +80,9 @@ edited.
   the file has none (presentation alone is counted). `plan` lowers it (below); older analyses
   read with none. Manufacturing requirements (threads and knurls with their structured fields
   and faces, general tolerances, surface texture and edge notes), surface labels and common
-  labels are records too; `plan` reports each requirement and surface label as read but not
-  drawn yet (`pmi_not_lowered`), and a common label, read as a PMI dimension, as not drawn yet
-  (`pmi_dimensions_not_ported`).
+  labels are records too; a surface or common label carries its proven sites (`geometry`, below)
+  and is drawn as a label; the drawing-wide requirements are the sheet's (below); threads and
+  knurls are reported as read but not drawn yet (`pmi_not_lowered`).
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.
@@ -495,6 +495,26 @@ Compared with draftwright's lint on the 14 AP242 files, each drawn as the comman
 (Rust quiddity's features, the default spec) (`tests/pmi_coverage.rs`,
 `tests/fixtures/known_pmi_coverage.json`).
 
+### PMI labels and drawing-wide requirements
+
+A **surface or common label** (text on edges or faces: `A`, `F1.1`, `2X R`) is a `gdt` item of
+kind `label`, its one cell the text, hung from a leader like a frame (draftwright's `Note`): from
+its first proven site (`geometry.sites`: a surface label's edge at its parameter midpoint, a
+common label's face at the vertex nearest the face's box centre, `pmi_lowering::label_geometry`)
+in the front view, or the side when its references' box is longest along y, above or below by
+the site against the part's centre; with no site it is `pmi_not_lowered`. The **drawing-wide
+requirements** (`pmi_lowering::sheet_requirements`, draftwright's
+`lower_ap242_document_requirements`) are the plan's `requirements`: `{id: "pmi:<source>", kind,
+source, text, carrier, basis, placed?}`. The part's one general tolerance fills the title
+block's tolerance cell (`carrier: title_block`) unless the spec states one, which wins (a
+different PMI one is `step_general_tolerance_disagreement`, a warning); its one `Ra <v> µm unless
+otherwise specified` is ISO 1302's symbol at the left end of the band above the title block
+(`sheet`, its collisions reported as a dimension's); each edge condition on no face is a general
+note `pmi:<source>` after the spec's notes (`notes`). Two of one default are ambiguous and
+neither is drawn (`pmi_not_lowered`). Each is an annotation of the drawing by its ID, over the
+runs that state it. A turned part keeps a view a PMI item is drawn in (draftwright's
+`annotation_view_required`). Compared with draftwright's drawings by `tests/pmi_drawings.rs`.
+
 **IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
 view moves the dimension to its next view and renames it (the basis says so); a spec still keyed
 by the old ID is refused, with the new ID named first in the refusal's choices. Take IDs from
@@ -587,7 +607,7 @@ reads it back from any of the three.
 | Dimension | `d:<feature>/<parameter>@<view>` | the same file; carried to revisions through its feature |
 | View | `v:<name>` | always |
 | Note, table, section | `n:<k>`, `t:<k>`, `s:<letter>` | always (set in the spec) |
-| PMI frame or symbol | `pmi:<source>` (the record's `source_id`, `geometric_tolerance:#<instance>`) | the same file |
+| PMI frame, symbol, label or drawing-wide requirement | `pmi:<source>` (the record's `source_id`, `geometric_tolerance:#<instance>`) | the same file |
 | Problem | `p:<code>:<subject>` | the same plan |
 
 Parameter names follow the Python version's role vocabulary (`role.kind[.discriminator]`). A
