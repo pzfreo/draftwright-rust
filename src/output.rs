@@ -1167,14 +1167,21 @@ impl From<&haecceity::hlr::Exact> for Curve {
                     .zip(weights)
                     .map(|(p, w)| [p[0] * w, p[1] * w, *w])
                     .collect();
-                Curve::Rational(bezier_pieces(*degree, knots.clone(), homogeneous, *t0, *t1))
+                Curve::Rational(stretch_pieces(
+                    *degree,
+                    knots.clone(),
+                    homogeneous,
+                    *t0,
+                    *t1,
+                ))
             }
         }
     }
 }
 
 /// A projected stretch as drawn: its exact curve where it has one, else its points. None when
-/// there is nothing to draw: an exact stretch of no span (t0 == t1) or fewer than 2 points.
+/// there is nothing to draw: an exact stretch of no span (t0 == t1), one off its curve (a
+/// parameter range past the knots of a curve that is not closed), or fewer than 2 points.
 pub fn projected(piece: &haecceity::hlr::Projected) -> Option<Curve> {
     let curve = match &piece.exact {
         Some(exact) => Curve::from(exact),
@@ -1197,7 +1204,7 @@ pub fn undrawn(counts: &BTreeMap<String, usize>) -> Vec<Problem> {
             severity: "info".into(),
             message: format!(
                 "{n} projected edge piece{} in {view} had no length to draw (an exact curve's \
-                 stretch of no span, or fewer than two points) and {} left out.",
+                 stretch of no span or off its curve, or fewer than two points) and {} left out.",
                 if *n == 1 { "" } else { "s" },
                 if *n == 1 { "was" } else { "were" }
             ),
@@ -1226,7 +1233,73 @@ fn insert_knot(degree: usize, knots: &mut Vec<f64>, poles: &mut Vec<[f64; 3]>, t
 }
 
 /// The stretch of a B-spline from *t0* to *t1* (either way round) as Bézier pieces, in order
-/// from *t0*: every knot in between, and the ends, raised to full multiplicity.
+/// from *t0*, where the range may leave the knot domain: haecceity unwraps a closed curve's
+/// parameters along a stretch, so a stretch across the seam, or wholly in another period, runs
+/// past the domain's ends (nist_stc_10's closed periodic cubics, from one period to two). Such
+/// a range is cut at the seams and each part shifted into the domain. A range past the domain
+/// of a curve that is not closed, beyond rounding, has no pieces: it is left out and reported
+/// ([`undrawn`]), not guessed at.
+fn stretch_pieces(
+    degree: usize,
+    knots: Vec<f64>,
+    poles: Vec<[f64; 3]>,
+    t0: f64,
+    t1: f64,
+) -> Vec<Vec<[f64; 3]>> {
+    let (start, end) = (knots[degree], knots[knots.len() - degree - 1]);
+    let (lo, hi) = (t0.min(t1), t0.max(t1));
+    if start <= lo && hi <= end {
+        return bezier_pieces(degree, knots, poles, t0, t1);
+    }
+    let period = end - start;
+    if !period.is_finite() || period <= 0.0 || !lo.is_finite() || !hi.is_finite() {
+        return Vec::new();
+    }
+    let tol = 1e-9 * period;
+    let whole = bezier_pieces(degree, knots.clone(), poles.clone(), start, end);
+    let (first, last) = (
+        rational_at(&whole[0], 0.0),
+        rational_at(&whole[whole.len() - 1], 1.0),
+    );
+    let size = poles
+        .iter()
+        .flat_map(|q| [q[0] / q[2], q[1] / q[2]])
+        .fold(1.0f64, |m, c| m.max(c.abs()));
+    if (first[0] - last[0]).hypot(first[1] - last[1]) > 1e-9 * size {
+        // Not closed: only rounding past the ends is drawn, clamped to them.
+        if lo < start - tol || hi > end + tol {
+            return Vec::new();
+        }
+        let clamp = |t: f64| t.clamp(start, end);
+        return bezier_pieces(degree, knots, poles, clamp(t0), clamp(t1));
+    }
+    let mut pieces = Vec::new();
+    let mut s = lo;
+    while s < hi - tol {
+        // The period s is in (a point within rounding of a seam taken as past it), and the part
+        // of the range in it, shifted into the domain.
+        let shift = ((s - start + tol) / period).floor() * period;
+        let e = hi.min(end + shift);
+        let clamp = |t: f64| (t - shift).clamp(start, end);
+        pieces.extend(bezier_pieces(
+            degree,
+            knots.clone(),
+            poles.clone(),
+            clamp(s),
+            clamp(e),
+        ));
+        s = e;
+    }
+    if t0 > t1 {
+        pieces.reverse();
+        pieces.iter_mut().for_each(|p| p.reverse());
+    }
+    pieces
+}
+
+/// The stretch of a B-spline from *t0* to *t1* (either way round, within its knot domain) as
+/// Bézier pieces, in order from *t0*: every knot in between, and the ends, raised to full
+/// multiplicity.
 fn bezier_pieces(
     degree: usize,
     mut knots: Vec<f64>,
@@ -1543,17 +1616,22 @@ mod tests {
     }
 
     fn check(exact: Exact) {
-        let Curve::Rational(pieces) = Curve::from(&exact) else {
+        check_at(&exact, |t| exact.at(t), 1e-12);
+    }
+
+    /// The pieces of *exact* start and end (within *ends*) and run where *at* puts the stretch.
+    fn check_at(exact: &Exact, at: impl Fn(f64) -> P, ends: f64) {
+        let Curve::Rational(pieces) = Curve::from(exact) else {
             panic!("a NURBS stretch is rational")
         };
         let (t0, t1) = exact.range();
         let gap = |a: P, b: P| (a[0] - b[0]).hypot(a[1] - b[1]);
         assert!(
-            gap(point(pieces[0][0]), exact.at(t0)) < 1e-12,
+            gap(point(pieces[0][0]), at(t0)) < ends,
             "starts where the stretch does"
         );
         assert!(
-            gap(point(*pieces.last().unwrap().last().unwrap()), exact.at(t1)) < 1e-12,
+            gap(point(*pieces.last().unwrap().last().unwrap()), at(t1)) < ends,
             "ends where it does"
         );
         let traced = trace(&pieces);
@@ -1568,7 +1646,7 @@ mod tests {
             gap(q, [a[0] + t * dx, a[1] + t * dy])
         };
         for k in 0..=200 {
-            let q = exact.at(t0 + (t1 - t0) * k as f64 / 200.0);
+            let q = at(t0 + (t1 - t0) * k as f64 / 200.0);
             let near = traced
                 .windows(2)
                 .map(|w| to_segment(q, w[0], w[1]))
@@ -1767,6 +1845,105 @@ mod tests {
         assert!(
             (x - end[0]).abs() < 1e-5 && (y - end[1]).abs() < 1e-5,
             "the PDF path ends at {last_op:?}, not {end:?}"
+        );
+    }
+
+    /// nist_stc_10's closed periodic cubic (a top view's projected edge, placed on the sheet) as
+    /// haecceity gave it: unclamped uniform knots, its domain [0, 0.00788…] one period, and the
+    /// stretch unwrapped to the second period, t0 a rounding below the domain's end and t1 two
+    /// periods. `bezier_pieces` took the span index past the poles and panicked.
+    fn stc10(t0: f64, t1: f64) -> Exact {
+        Exact::Nurbs {
+            degree: 3,
+            poles: vec![
+                [79.979556728642, 352.61152944204383],
+                [79.0001392174733, 352.4442335451668],
+                [78.01988640129849, 352.6116638110308],
+                [77.6148149557302, 352.7904870243704],
+                [78.020855682099, 352.6114695503978],
+                [78.99909425782201, 352.44427128241233],
+                [79.9800207266354, 352.6115729333044],
+                [80.38510562634539, 352.7904949493546],
+                [79.979556728642, 352.61152944204383],
+                [79.0001392174733, 352.4442335451668],
+                [78.01988640129849, 352.6116638110308],
+            ],
+            weights: vec![1.0; 11],
+            knots: vec![
+                -0.00295532488714019,
+                -0.0019702165914268,
+                -0.000985108295713398,
+                0.0,
+                0.000985108295713398,
+                0.0019702165914268,
+                0.00295532488714019,
+                0.00394043318285359,
+                0.00492554147856699,
+                0.00591064977428039,
+                0.00689575806999378,
+                0.00788086636570718,
+                0.00886597466142058,
+                0.00985108295713398,
+                0.0108361912528474,
+            ],
+            t0,
+            t1,
+        }
+    }
+
+    /// The pieces of a closed stretch run past its domain trace the curve at the parameters
+    /// wrapped into the domain, from the wrapped t0 to the wrapped t1.
+    fn check_wrapped(exact: Exact, period: f64) {
+        check_at(&exact, |t| exact.at(t.rem_euclid(period)), 1e-9);
+    }
+
+    #[test]
+    fn nist_stc_10s_periodic_cubic_in_its_second_period() {
+        let period = 0.00788086636570718;
+        let exact = stc10(0.007880866365707166, 0.015761732731414346);
+        check_wrapped(exact.clone(), period);
+        let Curve::Rational(pieces) = Curve::from(&exact) else {
+            unreachable!()
+        };
+        // Drawn as the domain is, once: one piece a knot span, none of no length at the seam.
+        let Curve::Rational(domain) = Curve::from(&stc10(0.0, period)) else {
+            unreachable!()
+        };
+        assert_eq!(pieces.len(), 8);
+        assert_eq!(domain.len(), 8);
+        for (p, q) in pieces.iter().flatten().zip(domain.iter().flatten()) {
+            assert!((0..3).all(|k| (p[k] - q[k]).abs() < 1e-9), "{p:?} != {q:?}");
+        }
+        check_wrapped(stc10(0.015761732731414346, 0.007880866365707166), period);
+        // Across the seam, either way, and in a period below the domain.
+        check_wrapped(stc10(0.5 * period, 1.5 * period), period);
+        check_wrapped(stc10(1.5 * period, 0.5 * period), period);
+        check_wrapped(stc10(-0.75 * period, -0.25 * period), period);
+        check_wrapped(stc10(-0.25 * period, 2.25 * period), period);
+    }
+
+    /// A stretch past the knots of a curve that is not closed has no pieces (left out and
+    /// reported by `undrawn`), and a rounding past its ends is clamped to them.
+    #[test]
+    fn a_stretch_off_an_open_curve_is_not_drawn() {
+        let poles = vec![[0.0, 0.0], [1.0, 2.0], [2.0, -1.0], [3.0, 0.0]];
+        let nurbs = |t0, t1| Exact::Nurbs {
+            degree: 3,
+            poles: poles.clone(),
+            weights: vec![1.0; 4],
+            knots: vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
+            t0,
+            t1,
+        };
+        assert_eq!(Curve::from(&nurbs(0.5, 1.5)), Curve::Rational(Vec::new()));
+        assert_eq!(Curve::from(&nurbs(-0.5, 0.5)), Curve::Rational(Vec::new()));
+        assert_eq!(
+            Curve::from(&nurbs(f64::NAN, 0.5)),
+            Curve::Rational(Vec::new())
+        );
+        assert_eq!(
+            Curve::from(&nurbs(-1e-17, 1.0 + 1e-16)),
+            Curve::from(&nurbs(0.0, 1.0))
         );
     }
 }

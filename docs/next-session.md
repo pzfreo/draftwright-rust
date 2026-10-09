@@ -78,6 +78,9 @@ pushed):
   (adr 25, issues 22, lint 42), 44 translated, 8 retired, 382 pending. **Update a rule's status
   when you port it;** a partial port stays pending with `rust_test` and `rust_note`.
 - `docs/plan.md` is the overall plan.
+- **Render never panics (d-render-panic-stc10):** a closed NURBS stretch unwrapped past its
+  knots (nist_stc_10) is wrapped into the domain (`output::stretch_pieces`,
+  `tests/render_panics.rs`); the 30 quality parts and 14 AP242 fixtures all render, no panic.
 - **Verify** with
   `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`
   (45 binaries, 434 passed at 5ca1130), `cargo fmt --check` and
