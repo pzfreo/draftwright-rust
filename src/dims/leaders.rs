@@ -27,15 +27,16 @@
 //!   title block; the label or shoulder over any view (the exterior region); the leader across
 //!   another view, or back into its own view's box after leaving it; a leader longer than
 //!   [`MAX_LEADER`];
-//! - **crossings** (Policy B, ADR2-D6): one per other item met, as the plan's collision checks
-//!   report one problem per pair: an item whose line the leader or shoulder crosses or runs
-//!   along, and one whose ink and the label meet (its line through the label, the label on its
-//!   label, a leader line through its label). Of these, the ones that touch text are counted
-//!   again, below the crossings: between as many crossings, a leader across a line is kept over
-//!   text on a line (draftwright protects text both ways, `annotation_text_ink_clear`). The
-//!   dimensions are placed first and fixed (ARCH0014-3: principal dimensions claim their strips;
-//!   the callouts yield);
-//! - **area**: ink outside the view's reserved area (its box and bands), below the crossings and
+//! - **crossings** (Policy B, ADR2-D6): one per other item met and kind of contact, as the
+//!   plan's collision checks report one problem per pair and code: an item whose line the
+//!   leader or shoulder crosses or runs along, and (again) one whose ink and the label meet (its
+//!   line through the label, the label on its label, a leader line through its label);
+//!   the dimensions are placed first and fixed (ARCH0014-3: principal dimensions claim their
+//!   strips; the callouts yield);
+//! - **text**: of the items met, those whose ink and the label meet, below the crossings:
+//!   between as many crossings, a leader across a line is kept over text on a line (draftwright
+//!   protects text both ways, `annotation_text_ink_clear`);
+//! - **area**: ink outside the view's reserved area (its box and bands), below the text and
 //!   above any length.
 //!
 //! The jobs are then assigned jointly (ISSUE-740-a, `_assign_by_view`): each takes one candidate,
@@ -43,11 +44,7 @@
 //! chosen leaders), then the text touched, then the ink out of its area, then the total length.
 //! The jobs split into independent groups that could conflict; each group is solved exactly by a
 //! branch and bound whose work is bounded ([`NODE_BUDGET`]), from a greedy start that is its
-//! floor when the budget runs out. A callout still blocked or crossing then tries the
-//! clear-route sweep (ISSUE-1187-a, draftwright's `_clear_routes`: its leader leaving its sites
-//! radially in 64 directions at ten reaches) and takes the best route better than its own that
-//! meets no other leader, so a crossing is kept only when the sweep has no clear route
-//! ([`clear_routes`] measures it). Nothing is dropped: a job whose every candidate is blocked
+//! floor when the budget runs out. Nothing is dropped: a job whose every candidate is blocked
 //! takes the least blocked (ISSUE-798-a), and the plan's collision checks report what it still
 //! crosses; what they cannot see is reported here (a leader back across its own view, one over
 //! [`MAX_LEADER`], a search stopped at its budget).
@@ -105,17 +102,20 @@ const DESCENT: usize = 50;
 /// a text height and two `pad_around_text` apart; half a pad keeps them visibly apart here).
 const LABEL_PAD: f64 = 1.0;
 /// The weights of the objective's tiers, above any length in micrometres on a sheet.
-const HARD: i64 = 1_000_000_000_000;
-const CROSSING: i64 = 1_000_000_000;
+/// Each tier's weight exceeds the most the tier below it reaches on one candidate.
+const HARD: i64 = 1_000_000_000_000_000;
+const CROSSING: i64 = 1_000_000_000_000;
 /// The weight of ink outside the view's reserved area (its box and bands): below a crossing,
 /// above any length (a metre, in micrometres).
 const AREA: i64 = 1_000_000;
 /// Between as many crossings, the fewer through text (draftwright protects text both ways,
 /// `annotation_text_ink_clear`, and keeps shaft crossings under Policy B): above the area.
-const TEXT_INK: i64 = 100 * AREA;
-/// The clear-route sweep (ISSUE-1187-a, draftwright's `_clear_routes`): from each of a
-/// callout's [`SWEEP_SITES`] sites nearest its leader's tip, the leader leaves radially in
-/// [`SWEEP_DIRECTIONS`] directions, its elbow at each of [`SWEEP_REACH`] from the rim, mm.
+/// A candidate meets text of fewer than a thousand items, so this stays below one crossing.
+const TEXT_INK: i64 = 1_000 * AREA;
+/// The clear-route measurement (ISSUE-1187-a, after draftwright's test helper `_clear_routes`,
+/// which no placer uses): from each of a callout's [`SWEEP_SITES`] sites nearest its leader's
+/// tip, the leader leaves radially in [`SWEEP_DIRECTIONS`] directions, its elbow at each of
+/// [`SWEEP_REACH`] from the rim, mm.
 const SWEEP_DIRECTIONS: usize = 64;
 const SWEEP_REACH: [f64; 10] = [6.0, 8.0, 11.0, 15.0, 20.0, 27.0, 36.0, 48.0, 62.0, 75.0];
 const SWEEP_SITES: usize = 8;
@@ -132,8 +132,6 @@ struct Candidate {
     cost: i64,
     hard: u32,
     crossings: u32,
-    /// Of its crossings, those with other chosen leaders (in the repair, [`others`]).
-    leaders: u32,
     /// Of its crossings, those that touch text: a line through a label, or two labels together.
     text: u32,
     /// Whether its ink leaves its view's reserved area (1) or not (0).
@@ -153,11 +151,6 @@ impl Candidate {
             + i64::from(self.text) * TEXT_INK
             + i64::from(self.outside) * AREA
             + self.cost
-    }
-
-    /// Whether the label reads right of the elbow.
-    fn right(&self) -> bool {
-        self.end[0] > self.elbow[0]
     }
 
     /// Whether it is clear: no hard blocker and nothing crossed.
@@ -306,16 +299,10 @@ pub(super) fn place(
         .map(|(_, job)| inventory(job, &fixed, page))
         .collect();
     let (choice, capped) = assign(&inventories);
-    let mut chosen: Vec<Option<Candidate>> = inventories
-        .iter()
-        .zip(choice)
-        .map(|(inv, c)| inv.get(c).cloned())
-        .collect();
-    repair(&jobs, &mut chosen, &fixed, page);
     let mut problems = Vec::new();
     let named = |i: usize| format!("{} ({})", items[i].id, items[i].terms.join(" "));
-    for ((i, job), chosen) in jobs.iter().zip(&chosen) {
-        let Some(chosen) = chosen else { continue };
+    for ((i, job), (inv, c)) in jobs.iter().zip(inventories.iter().zip(choice)) {
+        let Some(chosen) = inv.get(c) else { continue };
         placed[*i] = Some(chosen.placed());
         let shaft = [chosen.tip, chosen.elbow];
         let view = format!("v:{}", job.view);
@@ -534,7 +521,7 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Vec<Candidate> {
             None => &[true, false],
         };
         for &right in options {
-            if let Some(c) = measure(job, tip, elbow, right, &[fixed], page) {
+            if let Some(c) = measure(job, tip, elbow, right, fixed, page) {
                 measured.push((measured.len(), c));
             }
         }
@@ -575,7 +562,7 @@ fn measure(
     tip: P2,
     elbow: P2,
     right: bool,
-    fixed: &[&Fixed],
+    fixed: &Fixed,
     page: &Page,
 ) -> Option<Candidate> {
     let shaft = (elbow[0] - tip[0]).hypot(elbow[1] - tip[1]);
@@ -653,7 +640,7 @@ fn measure(
     // plan's collision checks report them.
     let mut crossed: Vec<usize> = Vec::new();
     let mut text: Vec<usize> = Vec::new();
-    for (i, f) in fixed.iter().flat_map(|f| &f.segments) {
+    for (i, f) in &fixed.segments {
         if !segment_near(*f, near) {
             continue;
         }
@@ -664,17 +651,19 @@ fn measure(
             text.push(*i);
         }
     }
-    for (i, e) in fixed.iter().flat_map(|f| &f.heads) {
+    for (i, e) in &fixed.heads {
         if segment_near(*e, near) && crosses(*e, lb) {
             text.push(*i);
         }
     }
     let own_head = head(arrow(tip, elbow));
-    for (i, l) in fixed.iter().flat_map(|f| &f.labels) {
+    for (i, l) in &fixed.labels {
         if boxes_overlap(padded, *l) || segs.iter().chain(&own_head).any(|s| crosses(*s, *l)) {
             text.push(*i);
         }
     }
+    // An item both crossed and met by the label counts in each: the plan reports a crossing
+    // and a text contact as two problems of the pair.
     for v in [&mut crossed, &mut text] {
         v.sort_unstable();
         v.dedup();
@@ -699,11 +688,6 @@ fn measure(
         hard,
         crossings,
         text: text.len() as u32,
-        leaders: crossed
-            .iter()
-            .chain(&text)
-            .filter(|i| **i > usize::MAX / 2)
-            .count() as u32,
         outside: u32::from(outside),
         bounds,
     })
@@ -737,71 +721,10 @@ fn sweep(job: &Job, tip: P2) -> Vec<(P2, P2, bool)> {
     out
 }
 
-/// The ink of the chosen leaders other than job *k*'s, as fixed ink.
-fn others(chosen: &[Option<Candidate>], k: usize) -> Fixed {
-    let mut f = Fixed {
-        segments: Vec::new(),
-        labels: Vec::new(),
-        heads: Vec::new(),
-    };
-    for (j, c) in chosen.iter().enumerate() {
-        let Some(c) = c.as_ref().filter(|_| j != k) else {
-            continue;
-        };
-        // Keys above half the range mark the chosen leaders (`Candidate::leaders`).
-        let key = usize::MAX - j;
-        f.segments.extend(c.segments().map(|s| (key, s)));
-        f.segments.push((key, arrow(c.tip, c.elbow)));
-        f.labels.push((key, c.label_box));
-        f.heads
-            .extend(head(arrow(c.tip, c.elbow)).map(|e| (key, e)));
-    }
-    f
-}
-
-/// Policy B's retention, made exact (ISSUE-1187-a): a callout whose chosen leader is blocked or
-/// crosses ink (the dimensions', or another chosen leader's) takes the best route of its
-/// clear-route [`sweep`] (fewest hard blockers, then crossings, then through text, then out of
-/// its view's area, then shortest) that is better than its own and meets no other chosen
-/// leader; a route clear of everything is the best there is. Otherwise it keeps its leader, and
-/// what it crosses is reported. Repeated until no callout moves: a move lowers the mover's score
-/// and raises no other's (it meets no other leader), so the passes end; and afterwards no callout
-/// keeps a crossing while its sweep has a clear route.
-fn repair(jobs: &[(usize, Job)], chosen: &mut [Option<Candidate>], fixed: &Fixed, page: &Page) {
-    loop {
-        let mut moved = false;
-        for (k, (_, job)) in jobs.iter().enumerate() {
-            let Some(now) = chosen[k].clone() else {
-                continue;
-            };
-            let rest = others(chosen, k);
-            let sets = [fixed, &rest];
-            let now = measure(job, now.tip, now.elbow, now.right(), &sets, page).unwrap_or(now);
-            if now.clear() {
-                continue;
-            }
-            let best = sweep(job, now.tip)
-                .into_iter()
-                .filter_map(|(tip, elbow, right)| measure(job, tip, elbow, right, &sets, page))
-                .filter(|c| c.leaders == 0 && c.score() < now.score())
-                .enumerate()
-                .min_by_key(|(n, c)| (c.score(), *n))
-                .map(|(_, c)| c);
-            if let Some(c) = best {
-                chosen[k] = Some(c);
-                moved = true;
-            }
-        }
-        if !moved {
-            break;
-        }
-    }
-}
-
 /// How many routes of the clear-route sweep (ISSUE-1187-a) the planned callout *id* has that are
-/// clear of the page's furniture, the views and every other planned dimension's ink: what the
-/// plan measures before it keeps a blocked or crossing leader (Policy B), so for such a leader
-/// it is zero. None when *id* is not a placed callout of the plan.
+/// clear of the page's furniture, the views and every other planned dimension's ink. A
+/// measurement, as draftwright's `_clear_routes` is (no placer runs it): Policy B keeps a blocked
+/// or crossing leader only when this is zero. None when *id* is not a placed callout of the plan.
 pub fn clear_routes(
     analysis: &crate::model::Analysis,
     sheet: &crate::model::PlannedSheet,
@@ -858,7 +781,7 @@ pub fn clear_routes(
     Some(
         sweep(&job, tip)
             .into_iter()
-            .filter_map(|(tip, elbow, right)| measure(&job, tip, elbow, right, &[&fixed], &page))
+            .filter_map(|(tip, elbow, right)| measure(&job, tip, elbow, right, &fixed, &page))
             .filter(Candidate::clear)
             .count(),
     )
@@ -1261,7 +1184,6 @@ mod tests {
             hard: 0,
             crossings: 0,
             text: 0,
-            leaders: 0,
             outside: 0,
             bounds: [
                 tip[0].min(elbow[0]),
