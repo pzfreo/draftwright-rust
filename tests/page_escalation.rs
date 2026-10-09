@@ -457,3 +457,62 @@ fn ftc07_takes_draftwrights_first_choice() {
         said.message
     );
 }
+
+/// The port's own gate in `model::recover` (a try with more annotations over a view not their
+/// own than the first plan is not taken), on a stand-in part: no corpus part meets it since the
+/// layout reserves the bands between the views (a probe of the 30 quality parts on five sheets,
+/// seven scales and each view omitted finds every plan with an item over a view also failing a
+/// hard check), so mfcadpp 1004 (Rust quiddity's recognition) has its hole `f:hole:1` moved off
+/// the part, to y = -60, z = 120, where its y location's line in the side view runs from it across
+/// the front and the plan. Pinned at A4 2:1 it has a hard finding and drops three hole items; the
+/// recovery's first try, A4 at 1:1, is otherwise valid and complete but lays that line over the
+/// two views, which the pinned first plan does not, so the gate passes it over; A4 at 5:1 and A3 at 2:1 fail, and A2 at
+/// 2:1, clean, is taken.
+#[test]
+fn a_try_with_more_ink_over_the_views_than_the_first_is_not_taken() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    let analysis = api::analyse_from(&dir.join("mfcadpp/1004.step"), Features::Native).unwrap();
+    let mut json = serde_json::to_value(&analysis).unwrap();
+    let hole = json["features"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|f| f["id"] == "f:hole:1")
+        .expect("1004 has f:hole:1");
+    hole["parameters"]["location"][1] = json!(-60.0);
+    hole["parameters"]["location"][2] = json!(120.0);
+    let analysis: Analysis = serde_json::from_value(json).unwrap();
+    let over = |p: &Plan| {
+        p.problems
+            .iter()
+            .filter(|q| {
+                matches!(
+                    q.code.as_str(),
+                    "annotation_over_view" | "annotation_line_over_view"
+                )
+            })
+            .count()
+    };
+    // The try the gate decides, A4 at 1:1, lays a line over two views; the first plan none.
+    let gated = model::plan_escalated(&analysis, &spec(json!({ "size": "A4", "scale": "1:1" })));
+    assert_eq!(over(&gated.unwrap()), 2);
+    let first = model::plan_escalated(&analysis, &spec(json!({ "size": "A4", "scale": "2:1" })));
+    let first = first.unwrap();
+    assert_eq!(over(&first), 0, "{:?}", codes(&first));
+    let plan = model::recover(&analysis, &Spec::default(), first).unwrap();
+    assert_eq!(sheet(&plan), ("A2", "2:1"));
+    let said = plan
+        .problems
+        .iter()
+        .find(|p| p.code.starts_with("layout_re"))
+        .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
+    assert!(
+        said.message
+            .contains("A4 at 1:1 (valid and complete; 2 more items over a view than the first)"),
+        "{}",
+        said.message
+    );
+}
