@@ -1,24 +1,10 @@
 [
  {
   "part": "cgb245",
-  "code": "annotation_out_of_bounds",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "d:f:hole:1/location.length.y@plan (156.4) runs 75.6 mm past the left border: the one item of known_placement.json's cgb245 annotation_off_sheet (rust-wrong: the plan's left band is draftwright's 20 mm estimate, and the strip right of the plan, where its lane would fall through, crosses the isometric). 10 before stream d-placement-fit (the row pitch, the other y locations and slot 3's width and location now fall through or go beside the plan). draftwright's captured sheet reports no annotation_out_of_bounds."
- },
- {
-  "part": "cgb245",
   "code": "view_annotation_inside_extents",
   "count": 3,
   "verdict": "rust-wrong",
   "reason": "The labels of the height ladder's rungs h21_226, h23_226 and h25_226 (d:step_level/step_height.length.*@front, 21.2, 23.2, 25.2) lie inside the side view's extents over a blank region: known_placement.json's cgb245 annotation_over_view (rust-wrong; draftwright withholds these rungs at the sheet's scale). Since stream d-placement-fit the front's overall height takes the lane left of the front, so it no longer lies over the side view's line-work (view_annotation_overlap) and the leader crossings of the earlier count are gone."
- },
- {
-  "part": "ctc01",
-  "code": "annotation_out_of_bounds",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "d:f:hole_pattern:1/location.length.y@plan (225) runs 21.1 mm past the left border: the one item of known_placement.json's ctc01 annotation_off_sheet (rust-wrong: the plan's left band is 20 mm, and on the strip right of the plan its lane would cross the isometric). 10 before stream d-placement-fit (the row pitches and slot width now fall through to the right strip; the bore, end-radius, fillet and across-flats callouts go beside the plan). draftwright's captured sheet reports no annotation_out_of_bounds."
  },
  {
   "part": "ftc06",

@@ -168,6 +168,39 @@ fn views_keep_projection_alignment_and_their_areas_apart() {
     }
 }
 
+/// Over the sampled corpus parts, no view's reserved area (its box and annotation bands, the
+/// isometric's rectangle, a section's block) overlaps another's or the title block (drawing
+/// quality 3, docs/quality-2026-10-09.md); areas may touch.
+#[test]
+fn corpus_views_and_their_bands_keep_apart_and_off_the_title_block() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!(
+            "SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS \
+             (DRAFTWRIGHT_CORPUS_REQUIRED=1 makes this a failure)"
+        );
+        return;
+    };
+    let meets =
+        |a: &[f64; 4], b: &[f64; 4]| a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    let mut clashes = Vec::new();
+    for name in facts::names() {
+        let f = facts::load(&name);
+        let (_, analysis) = corpus::analyse(&dir, &f.binding.file, &name);
+        let plan = model::plan(&analysis, &Spec::default()).unwrap();
+        let mut areas: Vec<(&str, [f64; 4])> =
+            plan.views.iter().map(|v| (v.id.as_str(), v.area)).collect();
+        areas.push(("title block", plan.sheet.title_block));
+        for (i, (a, ra)) in areas.iter().enumerate() {
+            for (b, rb) in &areas[i + 1..] {
+                if meets(ra, rb) {
+                    clashes.push(format!("{name}: {a} {ra:?} meets {b} {rb:?}"));
+                }
+            }
+        }
+    }
+    assert!(clashes.is_empty(), "{clashes:#?}");
+}
+
 /// The sheet's basis says what a fallback is, not the rule that found nothing: a part too big
 /// for every standard scale takes a computed one, and one too big for every sheet at a pinned
 /// scale overflows; each also has its problem.

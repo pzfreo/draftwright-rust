@@ -1,0 +1,800 @@
+[
+  {
+    "fixture": "cgb245",
+    "call": 3,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 6,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 10,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 21,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_left",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 24,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_left",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 27,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 30,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 33,
+    "keys": [
+      "ISO_Y",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 36,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 40,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 43,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 46,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 49,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 54,
+    "keys": [
+      "ISO_Y",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "cgb245",
+    "call": 57,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "connector109",
+    "call": 5,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc01",
+    "call": 2,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc01",
+    "call": 5,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 2,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 5,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 8,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 9,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 20,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 23,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 27,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 30,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 33,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 36,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 40,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ctc04",
+    "call": 43,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 2,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 5,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 8,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 12,
+    "keys": [
+      "ISO_Y",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 15,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 20,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_bottom",
+      "iso_fits",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3'). The fit verdicts follow from that."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 23,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_bottom",
+      "iso_fits",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3'). The fit verdicts follow from that."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 27,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 30,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 34,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 37,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 41,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_bottom",
+      "iso_left",
+      "iso_right",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 44,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_bottom",
+      "iso_left",
+      "iso_right",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 48,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 51,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 55,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 58,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 62,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "ftc06",
+    "call": 65,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "grm03",
+    "call": 1,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_left",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "grm05",
+    "call": 3,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "hanger",
+    "call": 2,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "hanger",
+    "call": 5,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m1000",
+    "call": 6,
+    "keys": [
+      "FV_Y",
+      "ISO_Y",
+      "PV_Y",
+      "SECTION_Y",
+      "SV_Y",
+      "iso_bottom"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The orthographic row is lifted clear of the title block: draftwright's row verdict (auto_clears_tb) assumes a DIM_PAD band below the views, and this call's deeper lower band would put a view's band on the title block (as on 10020 at e0ad078); the sheet has the height, so the row moves up rather than overlap (layout::geometry). The isometric's rectangle moves with it."
+  },
+  {
+    "fixture": "m10046",
+    "call": 2,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 5,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 8,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 11,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 14,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 17,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 20,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 23,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 26,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 29,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10046",
+    "call": 32,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10127",
+    "call": 15,
+    "keys": [
+      "ISO_Y",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "m10127",
+    "call": 17,
+    "keys": [
+      "ISO_Y",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "spool132",
+    "call": 2,
+    "keys": [
+      "ISO_X",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "spool132",
+    "call": 5,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_left",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "spool132",
+    "call": 8,
+    "keys": [
+      "ISO_X",
+      "ISO_Y",
+      "iso_left",
+      "iso_top"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "string_post",
+    "call": 2,
+    "keys": [
+      "FV_Y",
+      "ISO_X",
+      "ISO_Y",
+      "PV_Y",
+      "SECTION_Y",
+      "SV_Y",
+      "fits",
+      "iso_bottom",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The orthographic row is lifted clear of the title block: draftwright's row verdict (auto_clears_tb) assumes a DIM_PAD band below the views, and this call's deeper lower band would put a view's band on the title block (as on 10020 at e0ad078); the sheet has the height, so the row moves up rather than overlap (layout::geometry). The isometric's rectangle moves with it. The fit verdicts follow from that."
+  },
+  {
+    "fixture": "string_post",
+    "call": 5,
+    "keys": [
+      "FV_Y",
+      "ISO_X",
+      "ISO_Y",
+      "PV_Y",
+      "SECTION_Y",
+      "SV_Y",
+      "fits",
+      "iso_bottom",
+      "iso_left",
+      "iso_right"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The orthographic row is lifted clear of the title block: draftwright's row verdict (auto_clears_tb) assumes a DIM_PAD band below the views, and this call's deeper lower band would put a view's band on the title block (as on 10020 at e0ad078); the sheet has the height, so the row moves up rather than overlap (layout::geometry). The isometric's rectangle moves with it. The fit verdicts follow from that."
+  },
+  {
+    "fixture": "string_post",
+    "call": 8,
+    "keys": [
+      "ISO_X",
+      "iso_left"
+    ],
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  }
+]

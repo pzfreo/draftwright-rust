@@ -8,13 +8,6 @@
  },
  {
   "part": "cgb245",
-  "code": "annotation_off_sheet",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "The plan's left band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side view only) and holds two of the port's lanes before the sheet's margin. dims::placement::fall_through (stream d-placement-fit, ISSUE-1215-e) passes the plan's other vertical items to the strip right of the plan (10 errors before it); d:f:hole:1/location.length.y@plan (156.4) fits on neither side (its next lane on the right would run across the isometric), so it keeps its lane left of the sheet's margin and stays reported. draftwright draws the y locations in the side view (staggered-side arrangement; the port's end-on rule, ADR1-6, puts them in the plan); its plan's left strip holds only the row pitch."
- },
- {
-  "part": "cgb245",
   "code": "annotation_outside_area",
   "count": 18,
   "verdict": "rust-wrong",
@@ -26,6 +19,13 @@
   "count": 3,
   "verdict": "rust-wrong",
   "reason": "The labels of the height ladder's rungs h21_226, h23_226 and h25_226 (d:step_level/step_height.length.*@front) lie over the side view: they stand in the front's right band in lanes past the side view's left edge (stream d-dims-steps-levels), where draftwright states 1 rung; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The front's right strip falls through to its left, where an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e): the overall height d:envelope/height.length@front takes the one lane left of the front before the sheet's margin and is clear of the side view; the rungs keep their lanes. Before the extent's first claim it was the overall height's label over the side view (count 1) and rung h9_876 took that lane; the three rungs' labels now settle about 1 mm lower, onto the side view's box."
+ },
+ {
+  "part": "cgb245",
+  "code": "annotation_leader_crossing",
+  "count": 1,
+  "verdict": "rust-wrong",
+  "reason": "The leader of d:f:hole:3/bore.diameter@plan (2× ⌀6 THRU) crosses an extension line of d:f:hole:1/location.length.y@plan (156.4). Before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md) that location fitted on neither side of the plan (its next lane on the right ran across the isometric) and kept its lane off the sheet (annotation_off_sheet); it now falls through to the strip right of the plan, and its extension line from the hole near the plan's left edge runs across the whole view to it, through the callout's leader. A location drawn on the side away from its feature: a placement residual (dims::placement::fall_through), one off-sheet error traded for one crossing."
  },
  {
   "part": "connector109",
@@ -43,24 +43,10 @@
  },
  {
   "part": "ctc01",
-  "code": "annotation_off_sheet",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "d:f:hole_pattern:1/location.length.y@plan (225) in the plan's left lanes runs past the sheet's margin: the plan's left band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side view only), and on the strip right of the plan its lane would run across the isometric, so it keeps its lane and stays reported. 9 before stream d-placement-fit, which passed the plan's row pitches and slot width to the right strip and moved the bore, fillet, end-radius and across-flats callouts beside the plan."
- },
- {
-  "part": "ctc01",
   "code": "annotation_outside_area",
-  "count": 11,
+  "count": 10,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only): plan items above and beside the plan (locations, pitches) and front items below the front run past them; three front callouts (2× ⌀20 ↧ 45, 2× C5, 2.1 mm each) stand just below the front. A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 20 before stream d-placement-fit, 15 before d-callout-leaders."
- },
- {
-  "part": "ftc06",
-  "code": "annotation_line_over_view",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "Lines across the isometric (a check stream d-placement-fit adds; they ran there unreported before): the front's locations d:f:hole:11/location.length.x@front and d:f:boss:6/location.length.x@front run into the isometric, which the layout placed in the space beyond the front's estimated band (layout::Strips::reserve reserves the port's lanes for the side view only). The strip above the front (between the front and the plan) has room for one lane, which the front's width d:envelope/width.length@front takes (an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e); before it, the width ran across the isometric and its label lay over it), so these keep their lanes."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only): plan items above and beside the plan (locations, pitches) and front items below the front run past them; three front callouts (2× ⌀20 ↧ 45, 2× C5, 2.1 mm each) stand just below the front. A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 20 before stream d-placement-fit, 15 before d-callout-leaders. 11 before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the location that ran off the sheet now has a lane on it."
  },
  {
   "part": "ftc06",
@@ -138,5 +124,12 @@
   "count": 1,
   "verdict": "undetermined",
   "reason": "The plan's 10 callouts conflict as one group (src/dims/leaders.rs::assign), and its branch and bound stops at NODE_BUDGET (200 000 nodes) from the descent-improved greedy start, so the assignment is the best found, not proved the best. In a one-off check (no test) a budget 100 times larger (20 000 000 nodes) gave the same leaders and the same crossings (none on ftc06); before the pairwise descent (stream d-callout-leaders' review round) the bounded search kept an assignment 28 mm longer in total (2× R12.7 28.6 mm against 7.7, 4× 31.8 × 25° 19.4 against 6.4). Whether the optimum is shorter still is not known."
+ },
+ {
+  "part": "ftc06",
+  "code": "annotation_leader_crossing",
+  "count": 2,
+  "verdict": "rust-wrong",
+  "reason": "The leaders of the front's callouts d:f:hole:11/bore.diameter@front (2× ⌀6.3 ↧ 12.7) and d:f:boss:5/boss.diameter@front (2× ø31.8) cross each other. They came with drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the isometric no longer lies beyond the front's band, so the front's locations no longer run into it (the 2 annotation_line_over_view listed before are gone), and the front's callout assignment (src/dims/leaders.rs) now takes routes that cross; the crossing is reported and kept, never a callout dropped (ADR2-D6)."
  }
 ]

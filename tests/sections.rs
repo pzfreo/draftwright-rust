@@ -103,11 +103,13 @@ fn section_a_a_is_planned_placed_and_drawn() {
         section.at[1], front.at[1],
         "the section shares the front's row"
     );
-    // The section's block is its box and a 20 mm band each side; draftwright starts it 10 mm
-    // past the side view's band, so the two bands share 10 mm of blank paper.
+    // draftwright starts the section's box 10 mm past the side view's band; that gap is all the
+    // band the section has on its left, so its area abuts the side's (a 20 mm band there lay
+    // 10 mm over the side's).
+    let gap = section.area[0] - side.area[2];
     assert!(
-        (section.area[0] + 20.0 - (side.area[2] + 10.0)).abs() < 1e-9,
-        "right of the side view's area"
+        (0.0..1e-9).contains(&gap),
+        "right of the side view's area: {gap}"
     );
     for v in plan
         .views

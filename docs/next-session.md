@@ -358,6 +358,11 @@ quiddity commit that has it.
   before and after on all 30 parts (no part may get worse) and compares its worst parts' PDFs
   visually with Python's. Re-run the tool and update the baseline doc at each integration. The
   hole-table and angled-step decisions below are part of this work where they remove problems.
+  - Quality 3 (r/d-quality-view-overlap): the layout reserves every view's bands (isometric clear
+    of the full blocks, section gap, exact abutment, row lifted off the title block or not fitting):
+    overlapping view pairs 34 to 0, views on the title block 1 to 0, no sheet or scale changed
+    (`docs/quality-2026-10-09.md`, "After Quality 3"; cgb245 trades an off-sheet dimension for a
+    leader crossing, rust-wrong, for the ink stream).
 - **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
   other backlog work):
   - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a

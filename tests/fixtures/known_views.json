@@ -187,6 +187,12 @@
   },
   {
     "part": "grm05",
+    "fact": "centre:iso",
+    "verdict": "rust-correct",
+    "reason": "The isometric's rectangle keeps clear of the front's and the plan's full blocks, bands included (layout::geometry, drawing quality 3, docs/quality-2026-10-09.md): draftwright's estimate, which the port matched here before, packs it around DIM_PAD silhouettes and its rectangle lay over the front's and the plan's right bands (33 mm into them on the CLI's native plan) (the height ladder's lanes); draftwright moves the iso clear of measured blocks only in a repack (#121), which no conflict on its grm05 drawing triggered. Sheet, scale and the principal views are unchanged."
+  },
+  {
+    "part": "grm05",
     "fact": "scale:iso",
     "verdict": "undetermined",
     "reason": "The isometric's own scale (draftwright 3): draftwright's iso-growth profile lets the isometric grow to 1.5 (here 1.5), the port's default cap is 1.3; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
