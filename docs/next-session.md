@@ -317,6 +317,22 @@ quiddity commit that has it.
     caller need not re-analyse;
   - quiddity-rust's CI also runs on macOS, beside Linux.
 
+- **Merge the maintainer's PR #1 first (2026-10-09):** "Render: keep each view's projection
+  across renders; box straight pieces by their end points" (branch `perf/render-cache`, by the
+  maintainer; read its description with `gh pr view 1`). Dispatch at once a stream `d-pr1-render-cache`
+  that branches from origin/main, **merges** `origin/perf/render-cache` into it (git merge, not
+  rebase or cherry-pick, so the PR's commits land on main unchanged and GitHub marks the PR merged),
+  resolves any conflict with what main gained since (keeping both intents), runs the full checks,
+  and confirms the speed-up (render time on NIST FTC 06 and CTC 02 before and after) and that the
+  SVGs are byte-identical before and after on the 30 quality parts. Do not comment on, close or
+  edit the PR. The integrator merges it like any other stream.
+- **Performance is part of quality: `plan` became much slower** (the PR's description): on NIST
+  FTC 06 from 2 ms to about 490 ms natively (about 1 s in WASM; CTC 01 from 1.5 ms to 34 ms),
+  between c1933ad and 2eee576, now about 70% of an edit in the maintainer's browser editor.
+  Suspects: callout-leader placement (7eae60f) and the placement fall-through (98190ba, 4061d81).
+  Bisect, find the cause and make placement fast again with the drawings unchanged (byte-identical
+  plans on the 30 quality parts), reporting plan times before and after; coordinate with the
+  in-flight quality streams that own src/dims/placement.rs (dispatch after them if they conflict).
 - **Maintainer directive, 2026-10-09: quality before features in draftwright-rust.** "Rather
   than add new features I'd rather that we fixed the obvious problems with the current code: out
   of bounds, repeated dimensions, overlapping views, overlapping ink." Until these are fixed, give
