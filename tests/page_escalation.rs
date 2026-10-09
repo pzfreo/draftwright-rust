@@ -402,8 +402,8 @@ fn every_planning_entry_point_applies_the_recovery() {
 /// default) has one hole location off the sheet at A3 1:5; A3 at 1:10 clears it but lays three
 /// items over the side view (the front's height lanes run into it), so it is passed over, and A2
 /// at 1:5 is taken, with nothing off the sheet or over a view. draftwright keeps A3 at 1:5,
-/// where its placement carries that location in the side view (undetermined until the port's
-/// placement does).
+/// where its placement carries that location in the side view (rust-wrong in placement, the
+/// escalation itself equivalent).
 #[test]
 fn a_try_with_more_ink_over_the_views_is_not_taken() {
     let Some(dir) = corpus::dir() else {

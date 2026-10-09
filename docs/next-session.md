@@ -1815,3 +1815,14 @@ improvement plan and questions are the current work. Still open from before it:
     cgb245 stays at 1:2 as in draftwright. The alternative is to wire it once placement no
     longer leaves ctc01's label off the sheet (d-placement-fit's note above: escalation is not
     what cgb245 needs, and now does not act there).
+    Answered by the maintainer's directive of 2026-10-09 (quality before features): the recovery
+    is applied to every plan the library gives (`model::plan_recovered`, d-quality-off-sheet).
+    With the port's gate below, ctc01 goes to A2 1:5, not A3 1:10.
+  - **Question for the maintainer** (d-quality-off-sheet): `model::recover` has one gate
+    draftwright does not: a try with more `annotation_over_view` + `annotation_line_over_view`
+    than the first plan is not taken. Without it native ctc01 goes to A3 1:10, clearing one
+    off-sheet label but laying three items over the side view (ink 14 to 21); with it, A2 1:5,
+    no worse in any column. Keep the gate (accuracy over parity), or follow draftwright's ladder
+    exactly? Also disclosed, not gated: native GRM-03 goes A4 2:1 to A4 1:1 (draftwright 5:1;
+    cause a leader label on an extension line in `leaders.rs`), and ftc07 A1 1:1 (draftwright
+    A2 1:2; its A2 1:2 try fails on three ink-placement findings).
