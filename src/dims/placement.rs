@@ -736,8 +736,17 @@ pub(super) fn boxes_overlap(a: [f64; 4], b: [f64; 4]) -> bool {
 
 /// Whether segment *s* passes through the open box *b*.
 pub(super) fn crosses(s: [P2; 2], b: [f64; 4]) -> bool {
-    // Liang–Barsky clipping against the box.
     let (p, q) = (s[0], s[1]);
+    // Wholly to one side of the box: the clipping below finds nothing there either (each bound
+    // it divides out is then at least 1 or below 0), so the answer is the same, found sooner.
+    if (p[0] < b[0] && q[0] < b[0])
+        || (p[0] > b[2] && q[0] > b[2])
+        || (p[1] < b[1] && q[1] < b[1])
+        || (p[1] > b[3] && q[1] > b[3])
+    {
+        return false;
+    }
+    // Liang–Barsky clipping against the box.
     let d = [q[0] - p[0], q[1] - p[1]];
     let (mut t0, mut t1) = (0.0f64, 1.0f64);
     for (num, den) in [

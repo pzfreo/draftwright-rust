@@ -178,6 +178,159 @@ struct Fixed {
     /// The arrowheads' outlines as `dims::render` draws them ([`head`]), which must stay out of
     /// the label: a flare can reach into it beside a shaft that does not.
     heads: Vec<(usize, [P2; 2])>,
+    /// Where each of them lies, so a candidate tests only those near it.
+    grid: Grid,
+}
+
+impl Fixed {
+    /// The fixed ink of the placed items *on* (each with its key).
+    fn new<'p>(on: impl Iterator<Item = (usize, &'p Placed)> + Clone) -> Fixed {
+        let segments: Vec<(usize, [P2; 2])> = on
+            .clone()
+            .flat_map(|(i, p)| p.lines.iter().chain(&p.arrows).map(move |s| (i, *s)))
+            .collect();
+        let labels: Vec<(usize, [f64; 4])> = on.clone().map(|(i, p)| (i, p.label_box)).collect();
+        let heads: Vec<(usize, [P2; 2])> = on
+            .flat_map(|(i, p)| p.arrows.iter().flat_map(move |a| head(*a).map(|e| (i, e))))
+            .collect();
+        let line_box = |s: &(usize, [P2; 2])| {
+            let [a, b] = s.1;
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[0].max(b[0]),
+                a[1].max(b[1]),
+            ]
+        };
+        let grid = Grid::new([
+            segments.iter().map(line_box).collect(),
+            labels.iter().map(|l| l.1).collect(),
+            heads.iter().map(line_box).collect(),
+        ]);
+        Fixed {
+            segments,
+            labels,
+            heads,
+            grid,
+        }
+    }
+}
+
+/// A uniform grid over boxes of three kinds (the fixed segments, labels and heads): each cell
+/// lists the boxes that meet it, within a hair ([`touches`]), so the boxes a query box meets are
+/// among those its cells list (each given once, with some that do not meet it). A box off the
+/// grid lies in its edge cells, as does a query. A box that is not finite is listed for every
+/// query, and a query that is not finite is given every box, so nothing the tests could pass is
+/// left out.
+struct Grid {
+    origin: P2,
+    cell: f64,
+    size: [usize; 2],
+    cells: [Vec<Vec<u32>>; 3],
+    always: [Vec<u32>; 3],
+    count: [usize; 3],
+    /// The last query that gave each box, so a box listed in several cells is given once.
+    seen: [Vec<std::cell::Cell<u64>>; 3],
+    query: std::cell::Cell<u64>,
+}
+
+fn finite(b: [f64; 4]) -> bool {
+    b.iter().all(|v| v.is_finite())
+}
+
+/// The grid's cells along its longer side.
+const GRID: f64 = 32.0;
+
+impl Grid {
+    fn new(boxes: [Vec<[f64; 4]>; 3]) -> Grid {
+        let all = boxes.iter().flatten().filter(|b| finite(**b));
+        let lo = all
+            .clone()
+            .fold([f64::INFINITY; 2], |m, b| [m[0].min(b[0]), m[1].min(b[1])]);
+        let hi = all.fold([f64::NEG_INFINITY; 2], |m, b| {
+            [m[0].max(b[2]), m[1].max(b[3])]
+        });
+        let (origin, extent) = if lo[0] <= hi[0] && lo[1] <= hi[1] {
+            (lo, (hi[0] - lo[0]).max(hi[1] - lo[1]))
+        } else {
+            ([0.0; 2], 0.0)
+        };
+        let cell = (extent / GRID).max(1.0);
+        let size = [
+            ((hi[0] - origin[0]) / cell).floor().clamp(0.0, GRID) as usize + 1,
+            ((hi[1] - origin[1]) / cell).floor().clamp(0.0, GRID) as usize + 1,
+        ];
+        let mut grid = Grid {
+            origin,
+            cell,
+            size,
+            cells: std::array::from_fn(|_| vec![Vec::new(); size[0] * size[1]]),
+            always: Default::default(),
+            count: std::array::from_fn(|k| boxes[k].len()),
+            seen: std::array::from_fn(|k| vec![std::cell::Cell::new(0); boxes[k].len()]),
+            query: std::cell::Cell::new(0),
+        };
+        for (kind, list) in boxes.iter().enumerate() {
+            for (n, b) in list.iter().enumerate() {
+                if !finite(*b) {
+                    grid.always[kind].push(n as u32);
+                    continue;
+                }
+                let (xs, ys) = grid.span(*b);
+                for y in ys {
+                    for x in xs.clone() {
+                        grid.cells[kind][y * size[0] + x].push(n as u32);
+                    }
+                }
+            }
+        }
+        grid
+    }
+
+    /// The columns and rows of the cells box *b* (grown by a hair) meets, clamped to the grid. A
+    /// box given with its corners swapped is taken as the box they span, which holds every point
+    /// the tests could find it meeting.
+    fn span(
+        &self,
+        b: [f64; 4],
+    ) -> (
+        std::ops::RangeInclusive<usize>,
+        std::ops::RangeInclusive<usize>,
+    ) {
+        const HAIR: f64 = 1e-6;
+        let at = |v: f64, o: f64, n: usize| {
+            ((v - o) / self.cell).floor().clamp(0.0, (n - 1) as f64) as usize
+        };
+        let (o, [nx, ny]) = (self.origin, self.size);
+        let (x0, x1) = (b[0].min(b[2]), b[0].max(b[2]));
+        let (y0, y1) = (b[1].min(b[3]), b[1].max(b[3]));
+        (
+            at(x0 - HAIR, o[0], nx)..=at(x1 + HAIR, o[0], nx),
+            at(y0 - HAIR, o[1], ny)..=at(y1 + HAIR, o[1], ny),
+        )
+    }
+
+    /// Calls *f* with the index of each box of *kind* listed in the cells *b* meets, once.
+    fn near(&self, kind: usize, b: [f64; 4], mut f: impl FnMut(usize)) {
+        if !finite(b) {
+            (0..self.count[kind]).for_each(f);
+            return;
+        }
+        let query = self.query.get() + 1;
+        self.query.set(query);
+        let seen = &self.seen[kind];
+        self.always[kind].iter().for_each(|&n| f(n as usize));
+        let (xs, ys) = self.span(b);
+        for y in ys {
+            for x in xs.clone() {
+                for &n in &self.cells[kind][y * self.size[0] + x] {
+                    if seen[n as usize].replace(query) != query {
+                        f(n as usize);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// The three edges of the arrowhead on *arrow* (tip, tail), as `dims::render` draws it.
@@ -238,15 +391,7 @@ pub(super) fn place(
             .enumerate()
             .filter_map(|(i, p)| Some((i, p.as_ref()?)))
     };
-    let fixed = Fixed {
-        segments: on()
-            .flat_map(|(i, p)| p.lines.iter().chain(&p.arrows).map(move |s| (i, *s)))
-            .collect(),
-        labels: on().map(|(i, p)| (i, p.label_box)).collect(),
-        heads: on()
-            .flat_map(|(i, p)| p.arrows.iter().flat_map(move |a| head(*a).map(|e| (i, e))))
-            .collect(),
-    };
+    let fixed = Fixed::new(on());
     // How far each view's strips reach with dimension ink, past the view's edges.
     let mut reach: BTreeMap<(&str, usize), f64> = BTreeMap::new();
     for i in 0..items.len() {
@@ -508,7 +653,7 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Vec<Candidate> {
             }
         }
     }
-    let mut measured: Vec<(usize, Candidate)> = Vec::new();
+    let mut measured: Vec<Candidate> = Vec::new();
     for (tip, elbow, side) in raw {
         // The label reads on the side the leader runs to; a vertical leader may take either.
         let dx = elbow[0] - tip[0];
@@ -522,13 +667,21 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Vec<Candidate> {
         };
         for &right in options {
             if let Some(c) = measure(job, tip, elbow, right, fixed, page) {
-                measured.push((measured.len(), c));
+                measured.push(c);
             }
         }
     }
-    measured.sort_by_key(|(n, c)| (c.hard, c.crossings, c.text, c.outside, c.cost, *n));
+    // Ordered by their keys alone (each key distinct, by its generation order), not moving the
+    // candidates themselves.
+    let mut order: Vec<_> = measured
+        .iter()
+        .enumerate()
+        .map(|(n, c)| (c.hard, c.crossings, c.text, c.outside, c.cost, n))
+        .collect();
+    order.sort_unstable();
     let mut kept: Vec<Candidate> = Vec::new();
-    for (_, c) in measured {
+    for (.., n) in order {
+        let c = &measured[n];
         if kept.len() >= KEEP {
             break;
         }
@@ -538,7 +691,7 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Vec<Candidate> {
                 && (k.tip[1] - c.tip[1]).abs() < 0.25
         });
         if !same {
-            kept.push(c);
+            kept.push(c.clone());
         }
     }
     kept
@@ -640,28 +793,45 @@ fn measure(
     // plan's collision checks report them.
     let mut crossed: Vec<usize> = Vec::new();
     let mut text: Vec<usize> = Vec::new();
-    for (i, f) in &fixed.segments {
+    let lines = segs.map(Line::new);
+    fixed.grid.near(0, near, |n| {
+        let (i, f) = &fixed.segments[n];
         if !segment_near(*f, near) {
-            continue;
+            return;
         }
-        if segs.iter().any(|s| lines_meet(*s, *f)) {
+        if lines.iter().any(|s| s.meets(*f)) {
             crossed.push(*i);
         }
         if crosses(*f, lb) {
             text.push(*i);
         }
-    }
-    for (i, e) in &fixed.heads {
+    });
+    fixed.grid.near(2, near, |n| {
+        let (i, e) = &fixed.heads[n];
         if segment_near(*e, near) && crosses(*e, lb) {
             text.push(*i);
         }
-    }
+    });
     let own_head = head(arrow(tip, elbow));
-    for (i, l) in &fixed.labels {
+    // A label clear of the padded label and of every line's box is met by neither: the tests
+    // below need not run on it.
+    let reach = segs.iter().chain(&own_head).flatten().fold(padded, |b, p| {
+        [
+            b[0].min(p[0]),
+            b[1].min(p[1]),
+            b[2].max(p[0]),
+            b[3].max(p[1]),
+        ]
+    });
+    fixed.grid.near(1, reach, |n| {
+        let (i, l) = &fixed.labels[n];
+        if finite(reach) && finite(*l) && !touches(reach, *l) {
+            return;
+        }
         if boxes_overlap(padded, *l) || segs.iter().chain(&own_head).any(|s| crosses(*s, *l)) {
             text.push(*i);
         }
-    }
+    });
     // An item both crossed and met by the label counts in each: the plan reports a crossing
     // and a text contact as two problems of the pair.
     for v in [&mut crossed, &mut text] {
@@ -768,15 +938,7 @@ pub fn clear_routes(
             .filter(|(_, o)| o.id != id)
             .filter_map(|(i, o)| Some((i, o.placed.as_ref()?)))
     };
-    let fixed = Fixed {
-        segments: rest()
-            .flat_map(|(i, q)| q.lines.iter().chain(&q.arrows).map(move |s| (i, *s)))
-            .collect(),
-        labels: rest().map(|(i, q)| (i, q.label_box)).collect(),
-        heads: rest()
-            .flat_map(|(i, q)| q.arrows.iter().flat_map(move |a| head(*a).map(|e| (i, e))))
-            .collect(),
-    };
+    let fixed = Fixed::new(rest());
     let tip = p.lines.first()?[0];
     Some(
         sweep(&job, tip)
@@ -813,6 +975,13 @@ fn reenters(s: [P2; 2], b: [f64; 4]) -> bool {
     t0 * len > 0.05 && (t1 - t0) * len > 0.05
 }
 
+/// Whether boxes *a* and *b* meet or come within a hair of each other: a pre-check that every
+/// overlap ([`boxes_overlap`]) and every segment through a box ([`crosses`]) within *a* passes.
+fn touches(a: [f64; 4], b: [f64; 4]) -> bool {
+    const HAIR: f64 = 1e-6;
+    a[0] <= b[2] + HAIR && a[2] >= b[0] - HAIR && a[1] <= b[3] + HAIR && a[3] >= b[1] - HAIR
+}
+
 fn segment_near(s: [P2; 2], b: [f64; 4]) -> bool {
     s[0][0].max(s[1][0]) >= b[0]
         && s[0][0].min(s[1][0]) <= b[2]
@@ -834,19 +1003,46 @@ pub(super) fn lines_meet(a: [P2; 2], b: [P2; 2]) -> bool {
 /// Whether two segments run along each other: parallel, within [`ALONG`], overlapping by
 /// [`ALONG_RUN`] or more.
 pub(super) fn segments_along(a: [P2; 2], b: [P2; 2]) -> bool {
-    let d = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
-    let len = d[0].hypot(d[1]);
-    if len < 1e-9 {
-        return false;
+    Line::new(a).along(b)
+}
+
+/// A line to test against many others ([`lines_meet`]), its direction worked out once.
+struct Line {
+    a: [P2; 2],
+    /// Its unit direction and length; none when it is shorter than a nanometre.
+    dir: Option<(P2, f64)>,
+}
+
+impl Line {
+    fn new(a: [P2; 2]) -> Line {
+        let d = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
+        let len = d[0].hypot(d[1]);
+        let dir = if len < 1e-9 {
+            None
+        } else {
+            Some(([d[0] / len, d[1] / len], len))
+        };
+        Line { a, dir }
     }
-    let u = [d[0] / len, d[1] / len];
-    let off = |p: P2| (p[0] - a[0][0]) * u[1] - (p[1] - a[0][1]) * u[0];
-    let at = |p: P2| (p[0] - a[0][0]) * u[0] + (p[1] - a[0][1]) * u[1];
-    if off(b[0]).abs() > ALONG || off(b[1]).abs() > ALONG {
-        return false;
+
+    /// [`lines_meet`] of this line and *b*.
+    fn meets(&self, b: [P2; 2]) -> bool {
+        segments_cross(self.a, b) || self.along(b)
     }
-    let (t0, t1) = (at(b[0]).min(at(b[1])), at(b[0]).max(at(b[1])));
-    t1.min(len) - t0.max(0.0) >= ALONG_RUN
+
+    /// [`segments_along`] of this line and *b*.
+    fn along(&self, b: [P2; 2]) -> bool {
+        let (a, Some((u, len))) = (self.a, self.dir) else {
+            return false;
+        };
+        let off = |p: P2| (p[0] - a[0][0]) * u[1] - (p[1] - a[0][1]) * u[0];
+        let at = |p: P2| (p[0] - a[0][0]) * u[0] + (p[1] - a[0][1]) * u[1];
+        if off(b[0]).abs() > ALONG || off(b[1]).abs() > ALONG {
+            return false;
+        }
+        let (t0, t1) = (at(b[0]).min(at(b[1])), at(b[0]).max(at(b[1])));
+        t1.min(len) - t0.max(0.0) >= ALONG_RUN
+    }
 }
 
 /// Whether two segments cross at a point inside both (touching ends and collinear runs do not
@@ -936,21 +1132,56 @@ fn assign(inventories: &[Vec<Candidate>]) -> (Vec<usize>, Vec<Vec<usize>>) {
     (choice, capped)
 }
 
-fn pair_cost(
-    pairs: &BTreeMap<(usize, usize), Vec<Vec<bool>>>,
-    a: usize,
-    ca: usize,
-    b: usize,
-    cb: usize,
-) -> i64 {
-    let (k, (x, y)) = if a < b {
-        ((a, b), (ca, cb))
-    } else {
-        ((b, a), (cb, ca))
-    };
-    match pairs.get(&k) {
-        Some(m) if m[x][y] => CROSSING,
-        _ => 0,
+/// The conflicts between a group's jobs, dense: for jobs *k* and *l* of the group (local
+/// indices), `of[k * m + l][c]` holds, bit *d*, whether candidate *c* of *k* and candidate *d* of
+/// *l* conflict; none for a pair that never does. Inventories hold at most [`KEEP`] candidates,
+/// so one word covers each.
+struct Conflicts {
+    m: usize,
+    of: Vec<Option<Vec<u64>>>,
+}
+
+const _: () = assert!(KEEP <= 64);
+
+impl Conflicts {
+    fn new(
+        members: &[usize],
+        sizes: &[usize],
+        pairs: &BTreeMap<(usize, usize), Vec<Vec<bool>>>,
+    ) -> Conflicts {
+        let m = members.len();
+        let mut of = vec![None; m * m];
+        for k in 0..m {
+            for l in (0..m).filter(|&l| l != k) {
+                let (a, b) = (members[k], members[l]);
+                let Some(matrix) = pairs.get(&(a.min(b), a.max(b))) else {
+                    continue;
+                };
+                let met = |c: usize, d: usize| if a < b { matrix[c][d] } else { matrix[d][c] };
+                of[k * m + l] = Some(
+                    (0..sizes[k])
+                        .map(|c| {
+                            (0..sizes[l])
+                                .filter(|&d| met(c, d))
+                                .fold(0, |w, d| w | 1 << d)
+                        })
+                        .collect(),
+                );
+            }
+        }
+        Conflicts { m, of }
+    }
+
+    fn any(&self, k: usize, l: usize) -> bool {
+        self.of[k * self.m + l].is_some()
+    }
+
+    /// [`CROSSING`] when candidate *c* of job *k* and candidate *d* of job *l* conflict.
+    fn cost(&self, k: usize, c: usize, l: usize, d: usize) -> i64 {
+        match &self.of[k * self.m + l] {
+            Some(rows) if rows[c] >> d & 1 == 1 => CROSSING,
+            _ => 0,
+        }
     }
 }
 
@@ -964,22 +1195,22 @@ fn solve_group(
         .iter()
         .map(|&i| inventories[i].iter().map(Candidate::score).collect())
         .collect();
+    let sizes: Vec<usize> = scores.iter().map(Vec::len).collect();
+    let conflicts = Conflicts::new(members, &sizes, pairs);
+    let pair_cost = |k: usize, c: usize, l: usize, d: usize| conflicts.cost(k, c, l, d);
     // Greedy floor.
     let mut best: Vec<usize> = Vec::with_capacity(m);
     let mut best_total = 0i64;
-    for k in 0..m {
+    for (k, row) in scores.iter().enumerate() {
         let mut pick = (i64::MAX, 0usize);
-        for (c, s) in scores[k].iter().enumerate() {
-            let t = s
-                + (0..k)
-                    .map(|j| pair_cost(pairs, members[k], c, members[j], best[j]))
-                    .sum::<i64>();
+        for (c, s) in row.iter().enumerate() {
+            let t = s + (0..k).map(|j| pair_cost(k, c, j, best[j])).sum::<i64>();
             if t < pick.0 {
                 pick = (t, c);
             }
         }
         best.push(pick.1);
-        best_total += if scores[k].is_empty() { 0 } else { pick.0 };
+        best_total += if row.is_empty() { 0 } else { pick.0 };
     }
     if m < 2 {
         return (best, false);
@@ -990,7 +1221,7 @@ fn solve_group(
     let others = |k: usize, c: usize, skip: usize, best: &[usize]| {
         (0..m)
             .filter(|&j| j != k && j != skip)
-            .map(|j| pair_cost(pairs, members[k], c, members[j], best[j]))
+            .map(|j| pair_cost(k, c, j, best[j]))
             .sum::<i64>()
     };
     for _ in 0..DESCENT {
@@ -1009,22 +1240,24 @@ fn solve_group(
         }
         for k in (0..m).filter(|&k| !scores[k].is_empty()) {
             for l in (k + 1..m).filter(|&l| !scores[l].is_empty()) {
-                let key = (members[k].min(members[l]), members[k].max(members[l]));
-                if !pairs.contains_key(&key) {
+                if !conflicts.any(k, l) {
                     continue;
                 }
-                let joint = |c: usize, d: usize, best: &[usize]| {
-                    scores[k][c]
-                        + scores[l][d]
-                        + pair_cost(pairs, members[k], c, members[l], d)
-                        + others(k, c, l, best)
-                        + others(l, d, k, best)
+                // The others' part of each job's cost, which the pair's own choice leaves alone.
+                let rest_k: Vec<i64> = (0..scores[k].len())
+                    .map(|c| others(k, c, l, &best))
+                    .collect();
+                let rest_l: Vec<i64> = (0..scores[l].len())
+                    .map(|d| others(l, d, k, &best))
+                    .collect();
+                let joint = |c: usize, d: usize| {
+                    scores[k][c] + scores[l][d] + pair_cost(k, c, l, d) + rest_k[c] + rest_l[d]
                 };
-                let now = joint(best[k], best[l], &best);
+                let now = joint(best[k], best[l]);
                 let mut pick = (now, best[k], best[l]);
                 for c in 0..scores[k].len() {
                     for d in 0..scores[l].len() {
-                        let t = joint(c, d, &best);
+                        let t = joint(c, d);
                         if t < pick.0 {
                             pick = (t, c, d);
                         }
@@ -1042,103 +1275,168 @@ fn solve_group(
             break;
         }
     }
-    // Exact search, bounded: the remaining jobs' best scores bound what is left.
-    let floor: Vec<i64> = scores
-        .iter()
-        .map(|s| s.iter().copied().min().unwrap_or(0))
-        .collect();
-    let mut rest = vec![0i64; m + 1];
-    for k in (0..m).rev() {
-        rest[k] = rest[k + 1] + floor[k];
-    }
-    let mut nodes = 0usize;
-    let mut current: Vec<usize> = Vec::with_capacity(m);
-    #[allow(clippy::too_many_arguments)]
-    fn search(
-        k: usize,
-        total: i64,
-        current: &mut Vec<usize>,
-        best: &mut Vec<usize>,
-        best_total: &mut i64,
-        nodes: &mut usize,
-        members: &[usize],
+    // Exact search, bounded.
+    let mut search = Search::new(&scores, &conflicts, best, best_total);
+    search.from(0, 0);
+    (search.best, search.nodes >= NODE_BUDGET)
+}
+
+/// The joint assignment's exact search, best first and bounded by [`NODE_BUDGET`] nodes. At each
+/// job its candidates are taken in order of their score plus [`CROSSING`] per conflict with the
+/// candidates chosen before (ties by index), generated lazily: the candidates with the same
+/// number of conflicts are in their ranked order already, so the next is the least of each
+/// count's first, and a job whose bound fails after a few never orders the rest.
+struct Search {
+    /// Per job, its candidates' indices in order of (score, index), and their scores so.
+    ranked: Vec<Vec<usize>>,
+    ranked_scores: Vec<Vec<i64>>,
+    /// Per job, each earlier job it can conflict with, and per candidate of that job, the ranks
+    /// of this job's candidates it conflicts with.
+    before: Vec<Vec<(usize, Vec<u64>)>>,
+    /// The remaining jobs' best scores, from each job on.
+    rest: Vec<i64>,
+    /// Per job, scratch: its ranks not yet taken, by their number of conflicts.
+    rem: Vec<Vec<u64>>,
+    current: Vec<usize>,
+    best: Vec<usize>,
+    best_total: i64,
+    nodes: usize,
+    /// A digest of the nodes tried, in order (the tests compare it).
+    #[cfg(test)]
+    trail: u64,
+}
+
+impl Search {
+    /// The search of a group with these *scores* and *conflicts*, from the incumbent *best*.
+    fn new(
         scores: &[Vec<i64>],
-        rest: &[i64],
-        pairs: &BTreeMap<(usize, usize), Vec<Vec<bool>>>,
-    ) {
-        if k == members.len() {
-            if total < *best_total {
-                *best_total = total;
-                *best = current.clone();
-            }
-            return;
-        }
-        if scores[k].is_empty() {
-            current.push(0);
-            search(
-                k + 1,
-                total,
-                current,
-                best,
-                best_total,
-                nodes,
-                members,
-                scores,
-                rest,
-                pairs,
-            );
-            current.pop();
-            return;
-        }
-        // Best first.
-        let mut order: Vec<(i64, usize)> = scores[k]
+        conflicts: &Conflicts,
+        best: Vec<usize>,
+        best_total: i64,
+    ) -> Search {
+        let m = scores.len();
+        let sizes: Vec<usize> = scores.iter().map(Vec::len).collect();
+        // The remaining jobs' best scores bound what is left.
+        let floor: Vec<i64> = scores
             .iter()
-            .enumerate()
-            .map(|(c, s)| {
-                let p: i64 = (0..k)
-                    .map(|j| pair_cost(pairs, members[k], c, members[j], current[j]))
-                    .sum();
-                (s + p, c)
+            .map(|s| s.iter().copied().min().unwrap_or(0))
+            .collect();
+        let mut rest = vec![0i64; m + 1];
+        for k in (0..m).rev() {
+            rest[k] = rest[k + 1] + floor[k];
+        }
+        // Each job's candidates ranked by (score, index), and each earlier conflicting job's
+        // conflicts with them as words over those ranks.
+        let ranked: Vec<Vec<usize>> = scores
+            .iter()
+            .map(|s| {
+                let mut r: Vec<usize> = (0..s.len()).collect();
+                r.sort_by_key(|&c| (s[c], c));
+                r
             })
             .collect();
-        order.sort();
-        for (t, c) in order {
-            if *nodes >= NODE_BUDGET {
-                return;
-            }
-            *nodes += 1;
-            if total + t + rest[k + 1] >= *best_total {
-                break;
-            }
-            current.push(c);
-            search(
-                k + 1,
-                total + t,
-                current,
-                best,
-                best_total,
-                nodes,
-                members,
-                scores,
-                rest,
-                pairs,
-            );
-            current.pop();
+        let before: Vec<Vec<(usize, Vec<u64>)>> = (0..m)
+            .map(|k| {
+                (0..k)
+                    .filter(|&j| conflicts.any(j, k))
+                    .map(|j| {
+                        let words = (0..sizes[j])
+                            .map(|cj| {
+                                let w = conflicts.of[j * m + k].as_ref().expect("a conflict")[cj];
+                                (0..sizes[k])
+                                    .filter(|&r| w >> ranked[k][r] & 1 == 1)
+                                    .fold(0, |x, r| x | 1 << r)
+                            })
+                            .collect();
+                        (j, words)
+                    })
+                    .collect()
+            })
+            .collect();
+        Search {
+            ranked_scores: (0..m)
+                .map(|k| ranked[k].iter().map(|&c| scores[k][c]).collect())
+                .collect(),
+            rem: before.iter().map(|b| vec![0; b.len() + 2]).collect(),
+            ranked,
+            before,
+            rest,
+            current: Vec::with_capacity(m),
+            best,
+            best_total,
+            nodes: 0,
+            #[cfg(test)]
+            trail: 0,
         }
     }
-    search(
-        0,
-        0,
-        &mut current,
-        &mut best,
-        &mut best_total,
-        &mut nodes,
-        members,
-        &scores,
-        &rest,
-        pairs,
-    );
-    (best, nodes >= NODE_BUDGET)
+
+    fn from(&mut self, k: usize, total: i64) {
+        let m = self.ranked.len();
+        if k == m {
+            if total < self.best_total {
+                self.best_total = total;
+                self.best.clone_from(&self.current);
+            }
+            return;
+        }
+        let size = self.ranked[k].len();
+        if size == 0 {
+            self.current.push(0);
+            self.from(k + 1, total);
+            self.current.pop();
+            return;
+        }
+        // The ranks with at least n conflicts, then with exactly n.
+        let rem = &mut self.rem[k];
+        rem.fill(0);
+        rem[0] = u64::MAX >> (64 - size);
+        for (i, (j, words)) in self.before[k].iter().enumerate() {
+            let w = words[self.current[*j]];
+            for n in (1..=i + 1).rev() {
+                rem[n] |= rem[n - 1] & w;
+            }
+        }
+        for n in 0..rem.len() - 1 {
+            rem[n] &= !rem[n + 1];
+        }
+        loop {
+            let mut next: Option<(i64, usize, usize, usize)> = None;
+            for (n, &w) in self.rem[k].iter().enumerate() {
+                if w == 0 {
+                    continue;
+                }
+                let r = w.trailing_zeros() as usize;
+                let (t, c) = (
+                    self.ranked_scores[k][r] + n as i64 * CROSSING,
+                    self.ranked[k][r],
+                );
+                if next.is_none_or(|(bt, bc, _, _)| (t, c) < (bt, bc)) {
+                    next = Some((t, c, n, r));
+                }
+            }
+            let Some((t, c, n, r)) = next else {
+                break;
+            };
+            self.rem[k][n] &= !(1 << r);
+            if self.nodes >= NODE_BUDGET {
+                return;
+            }
+            self.nodes += 1;
+            #[cfg(test)]
+            {
+                self.trail = self
+                    .trail
+                    .wrapping_mul(1_000_003)
+                    .wrapping_add((k * 64 + c) as u64);
+            }
+            if total + t + self.rest[k + 1] >= self.best_total {
+                break;
+            }
+            self.current.push(c);
+            self.from(k + 1, total + t);
+            self.current.pop();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1298,6 +1596,151 @@ mod tests {
             greedy.push(pick);
         }
         assert!(total(&inv, &a) <= total(&inv, &greedy));
+    }
+
+    /// The search as it was first written: each job's candidates fully sorted by score plus
+    /// crossings with those chosen before, then tried in that order.
+    #[allow(clippy::too_many_arguments)]
+    fn reference_search(
+        k: usize,
+        total: i64,
+        current: &mut Vec<usize>,
+        best: &mut Vec<usize>,
+        best_total: &mut i64,
+        nodes: &mut usize,
+        trail: &mut u64,
+        scores: &[Vec<i64>],
+        rest: &[i64],
+        conflicts: &Conflicts,
+    ) {
+        if k == scores.len() {
+            if total < *best_total {
+                *best_total = total;
+                *best = current.clone();
+            }
+            return;
+        }
+        let mut order: Vec<(i64, usize)> = (0..scores[k].len())
+            .map(|c| {
+                let p: i64 = (0..k).map(|j| conflicts.cost(k, c, j, current[j])).sum();
+                (scores[k][c] + p, c)
+            })
+            .collect();
+        order.sort();
+        if order.is_empty() {
+            current.push(0);
+            reference_search(
+                k + 1,
+                total,
+                current,
+                best,
+                best_total,
+                nodes,
+                trail,
+                scores,
+                rest,
+                conflicts,
+            );
+            current.pop();
+            return;
+        }
+        for (t, c) in order {
+            if *nodes >= NODE_BUDGET {
+                return;
+            }
+            *nodes += 1;
+            *trail = trail
+                .wrapping_mul(1_000_003)
+                .wrapping_add((k * 64 + c) as u64);
+            if total + t + rest[k + 1] >= *best_total {
+                break;
+            }
+            current.push(c);
+            reference_search(
+                k + 1,
+                total + t,
+                current,
+                best,
+                best_total,
+                nodes,
+                trail,
+                scores,
+                rest,
+                conflicts,
+            );
+            current.pop();
+        }
+    }
+
+    /// The lazily ordered search visits the same nodes in the same order as the fully sorted one:
+    /// the same assignment, total and node count, whether it finishes or stops at its bound, on
+    /// random groups with ties, empty inventories and many conflicts.
+    #[test]
+    fn the_lazy_search_matches_the_sorted_one() {
+        let mut seed = 5u64;
+        let mut stopped = 0;
+        for round in 0..24 {
+            let m = 3 + round % 10;
+            let scores: Vec<Vec<i64>> = (0..m)
+                .map(|k| {
+                    let n = if k == 1 && round % 4 == 0 {
+                        0
+                    } else {
+                        1 + (lcg(&mut seed) * KEEP as f64) as usize
+                    };
+                    (0..n)
+                        .map(|_| {
+                            (lcg(&mut seed) * 4.0) as i64 * CROSSING / 2
+                                + (lcg(&mut seed) * 6.0) as i64
+                        })
+                        .collect()
+                })
+                .collect();
+            let sizes: Vec<usize> = scores.iter().map(Vec::len).collect();
+            let density = 0.05 + 0.3 * lcg(&mut seed);
+            let mut pairs = BTreeMap::new();
+            for a in 0..m {
+                for b in a + 1..m {
+                    if lcg(&mut seed) < 0.3 {
+                        continue;
+                    }
+                    let matrix: Vec<Vec<bool>> = (0..sizes[a])
+                        .map(|_| (0..sizes[b]).map(|_| lcg(&mut seed) < density).collect())
+                        .collect();
+                    if matrix.iter().flatten().any(|x| *x) {
+                        pairs.insert((a, b), matrix);
+                    }
+                }
+            }
+            let members: Vec<usize> = (0..m).collect();
+            let conflicts = Conflicts::new(&members, &sizes, &pairs);
+            // A poor incumbent (each job's first candidate), so the search has work to do.
+            let start: Vec<usize> = vec![0; m];
+            let start_total = i64::MAX / 2;
+            let mut search = Search::new(&scores, &conflicts, start.clone(), start_total);
+            search.from(0, 0);
+            let (mut best, mut best_total, mut nodes, mut trail) = (start, start_total, 0, 0);
+            reference_search(
+                0,
+                0,
+                &mut Vec::new(),
+                &mut best,
+                &mut best_total,
+                &mut nodes,
+                &mut trail,
+                &scores,
+                &search.rest,
+                &conflicts,
+            );
+            stopped += usize::from(nodes >= NODE_BUDGET);
+            assert_eq!(
+                (search.best, search.best_total, search.nodes, search.trail),
+                (best, best_total, nodes, trail),
+                "round {round}"
+            );
+        }
+        // Both ends: searches that finish and searches stopped at the bound.
+        assert!(stopped > 0 && stopped < 24, "{stopped} of 24 stopped");
     }
 
     #[test]
