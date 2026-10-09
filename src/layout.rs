@@ -37,6 +37,9 @@ const VIEW_GUTTER_PREFERRED: f64 = 12.0;
 /// Breathing room a table is first offered beyond its hard clearance.
 const PREFERRED_BLOCK_GUTTER: f64 = 6.0;
 const TOL: f64 = 0.5;
+/// Blank paper between the side view's band and a section view, which is all the band a section
+/// has on its left (draftwright's row budget for a section, `10 + 2 hw + DIM_PAD`).
+const SECTION_GAP: f64 = 10.0;
 
 /// ISO 216 sheets, smallest first: name, width, height (mm, landscape).
 pub const PAGES: [(&str, f64, f64); 5] = [
@@ -472,13 +475,17 @@ impl Block {
     }
 }
 
-fn padded(cx: f64, cy: f64, hw: f64, hh: f64) -> Rect {
-    [
-        cx - hw - DIM_PAD,
-        cy - hh - DIM_PAD,
-        cx + hw + DIM_PAD,
-        cy + hh + DIM_PAD,
-    ]
+/// The centre nearest *centre*, never below it, at which a block's near edge (*edge_of* the
+/// centre) is not short of *edge*: neighbouring blocks abut exactly, whatever the rounding.
+fn clear_of(edge: f64, centre: f64, edge_of: impl Fn(f64) -> f64) -> f64 {
+    let mut c = centre;
+    for _ in 0..8 {
+        if edge_of(c) >= edge {
+            break;
+        }
+        c = c.next_up();
+    }
+    c
 }
 
 /// Measured blocks of an annotated drawing, for a repack: they may only widen the estimate.
@@ -767,7 +774,7 @@ fn geometry_with(
     let mut fv_y = y_offset + bottom + fv.bottom + fv.hh;
     let pv_x = fv_x;
     let mut pv_y = fv_y + fv.hh + (fv.top + vertical_gutter + pv.bottom) + pv.hh;
-    let sv_x = fv_x + fv.hw + col_right + side_gutter + sv.left + sv.hw;
+    let mut sv_x = fv_x + fv.hw + col_right + side_gutter + sv.left + sv.hw;
     let mut sv_y = fv_y;
     if arrangement == Arrangement::StaggeredSide && has_side {
         // Lift the whole orthographic row clear of the pinned title block.
@@ -780,8 +787,88 @@ fn geometry_with(
             pv_y += lift;
         }
     }
-    let section_x = sv_x + sv.hw + sv.right + 10.0 + section_hw;
-    let section_y = fv_y;
+    let mut section_x = sv_x + sv.hw + sv.right + SECTION_GAP + section_hw;
+    let mut section_y = fv_y;
+    let section_block = Block {
+        top: DIM_PAD,
+        right: DIM_PAD,
+        bottom: DIM_PAD + FONT_SIZE + 4.0,
+        left: SECTION_GAP,
+        ..Block::bare(section_hw, section_hh)
+    };
+    // Neighbouring blocks abut exactly: rounding never makes their bands overlap.
+    if has_front && has_plan {
+        let edge = fv.footprint(fv_x, fv_y)[3];
+        pv_y = clear_of(edge, pv_y, |y| pv.footprint(pv_x, y)[1]);
+    }
+    if has_column && has_side {
+        let edge = [(fv, fv_y, has_front), (pv, pv_y, has_plan)]
+            .iter()
+            .filter(|v| v.2)
+            .map(|(b, y, _)| b.footprint(fv_x, *y)[2])
+            .fold(f64::NEG_INFINITY, f64::max);
+        sv_x = clear_of(edge, sv_x, |x| sv.footprint(x, sv_y)[0]);
+    }
+    if req.sections > 0 {
+        let edge = sv.footprint(sv_x, sv_y)[2];
+        section_x = clear_of(edge, section_x, |x| {
+            section_block.footprint(x, section_y)[0]
+        });
+    }
+    // draftwright's stride between sections (`2 hw + DIM_PAD`): the plan draws only the first.
+    let section_at = |i: usize, x: f64, y: f64| {
+        section_block.footprint(x + i as f64 * (2.0 * section_hw + DIM_PAD), y)
+    };
+    // No view's bands may lie on the title block (draftwright's packed verdict, `fits`, keeps
+    // them off it; its row verdict assumes a DIM_PAD band below the views, which a deeper band
+    // breaks). When they would, the row is lifted clear if the sheet has the height; else the
+    // layout does not fit.
+    let tb_rect: Rect = [
+        page_w - tb_right - tb_w,
+        tb_bottom,
+        page_w - tb_right,
+        tb_bottom + TB_H,
+    ];
+    let placed_boxes = |fv_y: f64, pv_y: f64, sv_y: f64, section_y: f64| -> Vec<Rect> {
+        [
+            (fv, fv_x, fv_y, has_front),
+            (pv, pv_x, pv_y, has_plan),
+            (sv, sv_x, sv_y, has_side),
+        ]
+        .iter()
+        .filter(|v| v.3)
+        .map(|(b, x, y, _)| b.footprint(*x, *y))
+        .chain((0..req.sections).map(|i| section_at(i, section_x, section_y)))
+        .collect()
+    };
+    let on_tb = |boxes: &[Rect]| boxes.iter().any(|b| overlaps(b, &tb_rect));
+    let boxes = placed_boxes(fv_y, pv_y, sv_y, section_y);
+    let mut tb_clear = !on_tb(&boxes);
+    let mut lifted_by = 0.0;
+    if !tb_clear {
+        let mut lift = boxes
+            .iter()
+            .filter(|b| overlaps(b, &tb_rect))
+            .map(|b| tb_rect[3] - b[1])
+            .fold(0.0, f64::max);
+        let lifted =
+            |lift: f64| placed_boxes(fv_y + lift, pv_y + lift, sv_y + lift, section_y + lift);
+        for _ in 0..8 {
+            if !on_tb(&lifted(lift)) {
+                break;
+            }
+            lift = lift.next_up();
+        }
+        let top_edge = boxes.iter().map(|b| b[3]).fold(f64::NEG_INFINITY, f64::max);
+        if !on_tb(&lifted(lift)) && top_edge + lift <= page_h - top + TOL {
+            fv_y += lift;
+            pv_y += lift;
+            sv_y += lift;
+            section_y += lift;
+            lifted_by = lift;
+            tb_clear = true;
+        }
+    }
     let drawable: Rect = [left, bottom, page_w - right, page_h - top];
 
     // The pinned title block, and the isometric in the largest gap left.
@@ -802,28 +889,25 @@ fn geometry_with(
     ];
     for (b, x, y, present) in views {
         if present {
-            // The estimate keeps draftwright's padded silhouettes; a repack its measured blocks.
+            // A repack packs around the measured blocks. The estimate keeps draftwright's padded
+            // silhouettes and, as its repack would (#121), the full bands too: the port's plan is
+            // the estimate, with no measured repack to move the isometric off a deeper band.
             obstacles.push(match measured {
                 Some(_) => b.footprint(x, y),
-                None => padded(x, y, b.hw, b.hh),
+                None => Block {
+                    top: b.top.max(DIM_PAD),
+                    right: b.right.max(DIM_PAD),
+                    bottom: b.bottom.max(DIM_PAD),
+                    left: b.left.max(DIM_PAD),
+                    ..b
+                }
+                .footprint(x, y),
             });
         }
     }
     obstacles.push(tb_box);
-    let section_block = Block {
-        top: DIM_PAD,
-        right: DIM_PAD,
-        bottom: DIM_PAD + FONT_SIZE + 4.0,
-        left: DIM_PAD,
-        ..Block::bare(section_hw, section_hh)
-    };
     let section_boxes: Vec<Rect> = (0..req.sections)
-        .map(|i| {
-            section_block.footprint(
-                section_x + i as f64 * (2.0 * section_hw + DIM_PAD),
-                section_y,
-            )
-        })
+        .map(|i| section_at(i, section_x, section_y))
         .collect();
     obstacles.extend(section_boxes.iter().copied());
     let view_footprints: Vec<Rect> = views
@@ -913,7 +997,9 @@ fn geometry_with(
         .iter()
         .map(|b| b[3])
         .fold(f64::NEG_INFINITY, f64::max);
-    let clears_tb = cy0 >= tb_bottom + TB_H;
+    // Judged on the row as draftwright packs it: the lift above only keeps bands off the title
+    // block, and never lets a row past the block's left edge that draftwright would refuse.
+    let clears_tb = cy0 - lifted_by >= tb_bottom + TB_H;
     let right_limit = if clears_tb {
         page_w - right
     } else {
@@ -943,9 +1029,15 @@ fn geometry_with(
             .iter()
             .any(|s| fit_box(*s, drawable, &table_obstacles, Corner::TopRight, 0.0).is_some());
     let inside = cy0 >= bottom - TOL && cy1 <= page_h - top + TOL && cx0 >= left - TOL;
-    let fits =
-        iso_fits && derived_fit && table_fits && required_fit && inside && cx1 <= right_limit + TOL;
-    let auto_fits = auto_row_fits && derived_fit && table_fits && required_fit && inside;
+    let fits = iso_fits
+        && derived_fit
+        && table_fits
+        && required_fit
+        && inside
+        && tb_clear
+        && cx1 <= right_limit + TOL;
+    let auto_fits =
+        auto_row_fits && derived_fit && table_fits && required_fit && inside && tb_clear;
     Geometry {
         arrangement,
         front: [fv_x, fv_y],

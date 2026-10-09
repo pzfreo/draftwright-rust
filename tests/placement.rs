@@ -531,8 +531,9 @@ fn cgb245() -> Option<(Analysis, Plan)> {
 /// view. On cgb245 (A2 at 1:2) the band left of the plan holds two lanes before the sheet's
 /// margin, where its nine vertical dimensions used to stack off the sheet (10
 /// `annotation_off_sheet` errors). The y locations that do not fit there now stand right of the
-/// plan, on the sheet and clear of the isometric; the one that fits on neither side (hole:1's,
-/// whose next lane on the right would cross the isometric) keeps its lane and stays reported.
+/// plan, on the sheet and clear of the isometric: all of them since the layout keeps the
+/// isometric off the plan's right band (drawing quality 3; hole:1's used to fit on neither side,
+/// its next lane on the right crossing the isometric, and stayed off the sheet).
 #[test]
 fn a_strip_without_room_falls_through_to_the_opposite_strip() {
     let Some((analysis, plan)) = cgb245() else {
@@ -546,7 +547,7 @@ fn a_strip_without_room_falls_through_to_the_opposite_strip() {
         .filter(|p| p.code == "annotation_off_sheet")
         .map(|p| p.subjects[0].as_str())
         .collect();
-    assert_eq!(off, ["d:f:hole:1/location.length.y@plan"]);
+    assert!(off.is_empty(), "{off:?}");
     let mut moved = 0;
     for d in &plan.dimensions {
         if d.view != "v:plan" || !d.id.contains("location.length.y") || off.contains(&d.id.as_str())
@@ -568,7 +569,7 @@ fn a_strip_without_room_falls_through_to_the_opposite_strip() {
             );
         }
     }
-    assert!(moved >= 5, "{moved} y locations fell through to the right");
+    assert!(moved >= 6, "{moved} y locations fell through to the right");
 }
 
 /// ISSUE-1215-e: a starved overall extent falls through to the opposite strip. draftwright moves

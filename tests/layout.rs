@@ -1,15 +1,34 @@
 //! The layout arithmetic against draftwright's own: every sheet-layout call recorded from Python
 //! builds of the sample (`tools/capture_layout.py`, `tests/fixtures/layout/`) is replayed through
 //! `layout::choose` and `layout::geometry`, and must give the same scale, sheet and arrangement,
-//! the same view centres and isometric rectangle, and the same fit verdicts.
+//! the same view centres and isometric rectangle, and the same fit verdicts, except where the
+//! port departs on purpose: each such result is listed, with the port's value, a verdict and the
+//! evidence, in `tests/fixtures/known_layout.json`; a listed result must give exactly the value
+//! recorded there, and a listed one that agrees again must come off the list.
 
+use std::collections::BTreeMap;
 use std::io::Read as _;
 use std::path::Path;
 
 use draftwright::layout::{
     self, Arrangement, Block, Corner, Margins, Measured, Principals, Request, Scaled, Strips,
 };
+use serde::Deserialize;
 use serde_json::Value;
+
+/// A recorded call whose result the port departs from on purpose (`tests/fixtures/
+/// known_layout.json`): the fixture, the call's index, the port's value of each result key that
+/// differs (`pick` for a `choose_scale` call's scale, sheet, title block width and arrangement),
+/// a verdict and the evidence.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Known {
+    fixture: String,
+    call: usize,
+    rust: BTreeMap<String, Value>,
+    verdict: String,
+    reason: String,
+}
 
 fn fixtures() -> Vec<(String, Value)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/layout");
@@ -183,6 +202,8 @@ fn layout_calls_match_draftwright() {
     let all = fixtures();
     assert!(all.len() >= 10, "the layout fixtures are captured");
     let (mut choices, mut layouts) = (0, 0);
+    // The port's value of every result that differs from draftwright's.
+    let mut differ: BTreeMap<(String, usize, String), Value> = BTreeMap::new();
     for (name, fixture) in &all {
         for (i, c) in fixture["calls"].as_array().unwrap().iter().enumerate() {
             let at = format!("{name} call {i} ({})", c["call"]);
@@ -202,13 +223,20 @@ fn layout_calls_match_draftwright() {
                         c["title_block_width"].as_f64(),
                     );
                     let r = c["result"].as_array().unwrap();
-                    assert!(
-                        close(pick.scale, f(&r[0]))
-                            && pick.page == [f(&r[1]), f(&r[2])]
-                            && pick.tb_w == f(&r[3])
-                            && pick.arrangement.name() == r[4],
-                        "{at}: {pick:?} vs {r:?}"
-                    );
+                    if !(close(pick.scale, f(&r[0]))
+                        && pick.page == [f(&r[1]), f(&r[2])]
+                        && pick.tb_w == f(&r[3])
+                        && pick.arrangement.name() == r[4])
+                    {
+                        let ours = serde_json::json!([
+                            pick.scale,
+                            pick.page[0],
+                            pick.page[1],
+                            pick.tb_w,
+                            pick.arrangement.name()
+                        ]);
+                        differ.insert((name.clone(), i, "pick".into()), ours);
+                    }
                     choices += 1;
                 }
                 "layout_geometry" => {
@@ -261,7 +289,9 @@ fn layout_calls_match_draftwright() {
                         ("x_offset", g.x_offset),
                     ];
                     for (key, ours) in numbers {
-                        assert!(close(ours, f(&r[key])), "{at}: {key} {ours} vs {}", r[key]);
+                        if !close(ours, f(&r[key])) {
+                            differ.insert((name.clone(), i, key.to_string()), ours.into());
+                        }
                     }
                     let flags = [
                         ("iso_valid", g.iso_valid),
@@ -270,7 +300,9 @@ fn layout_calls_match_draftwright() {
                         ("auto_fits", g.auto_fits),
                     ];
                     for (key, ours) in flags {
-                        assert_eq!(Some(ours), r[key].as_bool(), "{at}: {key}");
+                        if Some(ours) != r[key].as_bool() {
+                            differ.insert((name.clone(), i, key.to_string()), ours.into());
+                        }
                     }
                     assert_eq!(g.arrangement.name(), r["arrangement"], "{at}");
                     layouts += 1;
@@ -283,6 +315,58 @@ fn layout_calls_match_draftwright() {
         choices > 20 && layouts > 20,
         "{choices} choices, {layouts} layouts"
     );
+    let known: Vec<Known> = serde_json::from_str(
+        &std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/known_layout.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut listed = BTreeMap::new();
+    for k in &known {
+        assert!(
+            ["rust-correct", "equivalent", "undetermined"].contains(&k.verdict.as_str())
+                && !k.reason.is_empty()
+                && !k.rust.is_empty(),
+            "{k:?}"
+        );
+        for (key, value) in &k.rust {
+            assert!(
+                listed
+                    .insert((k.fixture.clone(), k.call, key.clone()), value.clone())
+                    .is_none(),
+                "{} call {} {key} is listed twice",
+                k.fixture,
+                k.call
+            );
+        }
+    }
+    let unlisted: Vec<_> = differ.keys().filter(|k| !listed.contains_key(*k)).collect();
+    let stale: Vec<_> = listed.keys().filter(|k| !differ.contains_key(*k)).collect();
+    assert!(
+        unlisted.is_empty() && stale.is_empty(),
+        "differences not in known_layout.json: {unlisted:#?}\nlisted but no longer differing: {stale:#?}"
+    );
+    // A listed result gives the port's recorded value, not merely some other value than Python's.
+    let same = |a: &Value, b: &Value| match (a, b) {
+        (Value::Number(x), Value::Number(y)) => close(x.as_f64().unwrap(), y.as_f64().unwrap()),
+        (Value::Array(x), Value::Array(y)) => {
+            x.len() == y.len()
+                && x.iter().zip(y).all(|(p, q)| match (p, q) {
+                    (Value::Number(m), Value::Number(n)) => {
+                        close(m.as_f64().unwrap(), n.as_f64().unwrap())
+                    }
+                    _ => p == q,
+                })
+        }
+        _ => a == b,
+    };
+    let moved: Vec<_> = differ
+        .iter()
+        .filter(|(k, ours)| !same(ours, &listed[*k]))
+        .map(|(k, ours)| format!("{k:?}: {ours} (known_layout.json: {})", listed[k]))
+        .collect();
+    assert!(moved.is_empty(), "listed results that moved: {moved:#?}");
 }
 
 /// Paths the sample's builds never take, against values computed by draftwright's own
