@@ -380,15 +380,6 @@
  {
   "code": "pmi_not_lowered",
   "file": "assembly_plate_pin.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#1562",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI edge condition manufacturing_requirement:#1562 (Break sharp edges 0.2 max) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "assembly_plate_pin.step",
   "python": "warning",
   "rust": null,
   "source": "manufacturing_requirement:#1571",
@@ -407,29 +398,11 @@
  {
   "code": "pmi_not_lowered",
   "file": "assembly_plate_pin.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#1658",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI edge condition manufacturing_requirement:#1658 (Break sharp edges 0.2 max) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "assembly_plate_pin.step",
   "python": "warning",
   "rust": null,
   "source": "manufacturing_requirement:#1667",
   "verdict": "rust-correct",
   "evidence": "draftwright's record manufacturing_requirement:#1667 has no counterpart in the port's reading: as known_pmi.json's 'record' difference, Python's record is part 1's 'default tolerances' (#1667, ISO 2768-f) left unpaired: as for #1571, draftwright pairs a general tolerance only when the file has exactly one. The port reads part 1's requirement in words #1662 ('ISO 2768-f') and its class #1667 ('ISO 2768-f') as one record, manufacturing_requirement:#1662, with #1667's 'tolerance class' field. draftwright's lint reports its own record; the port reports the requirement under the record it reads. draftwright: \"AP242 source manufacturing_requirement:#1667 remains a raw 'general_tolerances' PMI fallback in the typed IR\""
- },
- {
-  "code": "pmi_not_rendered",
-  "file": "assembly_plate_pin.step",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#1487",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright draws this frame; the port lowers it to the side view, which the default plan omits, and leaves it undrawn (the plan says pmi_not_drawn; the lint, which reads no plan, says pmi_not_rendered). The cause is the frame's placement (dims::gdt, owned by stream d-pmi-drawings-check: no other view is tried), not the lint's. port: \"AP242 source geometric_tolerance:#1487 reached a drawing item (pmi:geometric_tolerance:#1487) but produced no annotation\""
  },
  {
   "code": "pmi_not_extracted",
@@ -466,33 +439,6 @@
   "source": "manufacturing_requirement:#475",
   "verdict": "equivalent",
   "evidence": "Neither drawing states it and both lints say so: draftwright lowers it to a typed feature its renderer does not draw (pmi_not_rendered); the port has no lowering for it yet (pmi_not_lowered, 'read but not drawn'). port: \"PMI knurl manufacturing_requirement:#475 (Straight knurl, 1 mm pitch, DIA 6.25 mm maximum after knurling; cut or formed process permitted) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bolt_thread_knurl.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#502",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface texture manufacturing_requirement:#502 (Ra 3.2 µm unless otherwise specified) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bolt_thread_knurl.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#506",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI edge condition manufacturing_requirement:#506 (Break sharp edges 0.2 max) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bolt_thread_knurl.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#510",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI general tolerances manufacturing_requirement:#510 (ISO 2768-m) is read but not drawn: drawing it is not ported yet.\""
  },
  {
   "code": "pmi_not_rendered",
@@ -606,33 +552,6 @@
   "evidence": "draftwright cannot draw this part (its projection raises, so its lint has nothing to report). The port refuses the dimension with draftwright's own lowering check (_proved_planar_linear: the reference faces' relationship does not lie in a principal projection plane, so no view shows the length true), as tests/pmi_dimensions.rs compares that check with draftwright on the files it can draw. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-78.0894, 39.9688, -21.25) mm); plane-to-bore location has no proven face-supported axis witness\""
  },
  {
-  "code": "pmi_not_lowered",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#31516",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright cannot draw this part (its projection raises), so its lint has nothing; on the parts it draws it states such a requirement. The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface texture manufacturing_requirement:#31516 (Ra 3.2 µm unless otherwise specified) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#31520",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright cannot draw this part (its projection raises), so its lint has nothing; on the parts it draws it states such a requirement. The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI edge condition manufacturing_requirement:#31520 (Break sharp edges 0.2 max) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#31524",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright cannot draw this part (its projection raises), so its lint has nothing; on the parts it draws it states such a requirement. The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI general tolerances manufacturing_requirement:#31524 (ISO 2768-m) is read but not drawn: drawing it is not ported yet.\""
- },
- {
   "code": "pmi_not_extracted",
   "file": "nist_ctc_01_asme1_ap242-e1.stp",
   "python": null,
@@ -703,24 +622,6 @@
   "source": "dimension:#33",
   "verdict": "rust-wrong",
   "evidence": "As known_pmi_dimensions.json's 'outcome' difference for dimension:0:1:4:17 (port dimension:#33): Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet. port: \"it is an angle, and the port draws no angular dimensions\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_asme1_ap242-e1.stp",
-  "python": null,
-  "rust": "error",
-  "source": "surface_label:#4340",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface label surface_label:#4340 (B) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_asme1_ap242-e1.stp",
-  "python": null,
-  "rust": "error",
-  "source": "surface_label:#4341",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface label surface_label:#4341 (A) is read but not drawn: drawing it is not ported yet.\""
  },
  {
   "code": "pmi_not_extracted",
@@ -802,51 +703,6 @@
   "source": "dimension:#33",
   "verdict": "rust-wrong",
   "evidence": "As known_pmi_dimensions.json's 'outcome' difference for dimension:0:1:4:17 (port dimension:#33): Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet. port: \"it is an angle, and the port draws no angular dimensions\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_merge.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#4412",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface texture manufacturing_requirement:#4412 (Ra 3.2 µm unless otherwise specified) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_merge.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#4416",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI edge condition manufacturing_requirement:#4416 (Break sharp edges 0.2 max) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_merge.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#4420",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI general tolerances manufacturing_requirement:#4420 (ISO 2768-m) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_merge.step",
-  "python": null,
-  "rust": "error",
-  "source": "surface_label:#4340",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface label surface_label:#4340 (B) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_merge.step",
-  "python": null,
-  "rust": "error",
-  "source": "surface_label:#4341",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface label surface_label:#4341 (A) is read but not drawn: drawing it is not ported yet.\""
  },
  {
   "code": "pmi_not_extracted",
@@ -3358,42 +3214,6 @@
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#16280",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#16308",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#16423",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#16482",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
   "source": "geometric_tolerance:#14121",
   "verdict": "rust-correct",
   "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:11 (port geometric_tolerance:#14121): Part of a composite tolerance: draftwright draws each segment as an independent frame, which states a different requirement (the composite's lower segment relaxes only the pattern-locating control); the port does not carry the relation yet and reports it (pmi_not_lowered: it is related to another tolerance (composite, …), which is not carried.). port: \"PMI geometric_tolerance:#14121 (profile_surface 1.02) is not drawn: it is related to another tolerance (composite, …), which is not carried.\""
@@ -4300,69 +4120,6 @@
   "source": "dimension:#20686",
   "verdict": "undetermined",
   "evidence": "The port reads the dimension as the file states it, on supplemental geometry, not only the part's faces; draftwright's census has no source for it (XCAF does not transfer it). Whether a dimension on supplemental (invisible) geometry is drawn is an open maintainer question (docs/next-session.md); the port refuses it until decided. port: \"applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#20787",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#20844",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#20960",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#20980",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#21000",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#21020",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#21060",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
  },
  {
   "code": "pmi_not_lowered",
@@ -9889,24 +9646,6 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#10483",
-  "verdict": "rust-wrong",
-  "evidence": "As known_pmi_dimensions.json's 'outcome' difference for dimension:0:1:4:113 (port dimension:#10483): A common label ('4X R'), read since stage 1b. draftwright draws common labels as label annotations; here it found no room and dropped it (pmi_dropped: m_gdt0 not placed (no legible room in any front strip or sheet fallback); plan_incomplete). The port draws no labels yet and says so: PMI dimension dimension:#10483 (4X R) is not drawn: it is a common label, text on its faces, and the port draws no labels yet. Neither draws it; the port's gap is the unported label drawing, reported, not dropped. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10504",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. port: \"it is a common label, text on its faces, and the port draws no labels\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#9866",
   "verdict": "rust-wrong",
   "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8626 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
@@ -12798,42 +12537,6 @@
   "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
  },
  {
-  "code": "pmi_not_lowered",
-  "file": "spool_fits.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#6467",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface texture manufacturing_requirement:#6467 (Ra 3.2 µm unless otherwise specified) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "spool_fits.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#6471",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI edge condition manufacturing_requirement:#6471 (Break sharp edges 0.2 max) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "spool_fits.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#6475",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI general tolerances manufacturing_requirement:#6475 (ISO 2768-m) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_rendered",
-  "file": "spool_fits.step",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#6441",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright draws this frame; the port lowers it to the side view, which the default plan omits, and leaves it undrawn (the plan says pmi_not_drawn; the lint, which reads no plan, says pmi_not_rendered). The cause is the frame's placement (dims::gdt, owned by stream d-pmi-drawings-check: no other view is tried), not the lint's. port: \"AP242 source geometric_tolerance:#6441 reached a drawing item (pmi:geometric_tolerance:#6441) but produced no annotation\""
- },
- {
   "code": "pmi_not_extracted",
   "file": "string_post_tapped.step",
   "python": {
@@ -12880,33 +12583,6 @@
   "source": "manufacturing_requirement:#3157",
   "verdict": "rust-wrong",
   "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI internal thread manufacturing_requirement:#3157 (M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "string_post_tapped.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#3190",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface texture manufacturing_requirement:#3190 (Ra 3.2 µm unless otherwise specified) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "string_post_tapped.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#3194",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI edge condition manufacturing_requirement:#3194 (Break sharp edges 0.2 max) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "string_post_tapped.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#3198",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI general tolerances manufacturing_requirement:#3198 (ISO 2768-f) is read but not drawn: drawing it is not ported yet.\""
  },
  {
   "code": "pmi_not_extracted",
@@ -12964,32 +12640,5 @@
   "source": "manufacturing_requirement:#749",
   "verdict": "rust-wrong",
   "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI external thread manufacturing_requirement:#749 (M5 x 0.8-6g RH, full available length on nominal DIA 5 region) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "thumbwheel_thread_knurl.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#780",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI surface texture manufacturing_requirement:#780 (Ra 3.2 µm unless otherwise specified) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "thumbwheel_thread_knurl.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#784",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI edge condition manufacturing_requirement:#784 (Break sharp edges 0.2 max) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "thumbwheel_thread_knurl.step",
-  "python": null,
-  "rust": "warning",
-  "source": "manufacturing_requirement:#788",
-  "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI general tolerances manufacturing_requirement:#788 (ISO 2768-f) is read but not drawn: drawing it is not ported yet.\""
  }
 ]
