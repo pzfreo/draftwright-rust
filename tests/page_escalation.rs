@@ -17,17 +17,20 @@
 //!   five-step profile the crowded-head and explicit-A4 tests build with build123d has no STEP
 //!   here; their order and pinning are held on stand-ins and corpus parts instead.
 //!
-//! The corpus tests apply `model::recover` to `model::plan`'s result: `model::plan` does not apply
-//! it yet, as on the captured parts it would move ctc01 off draftwright's sheet for the port's
-//! own placement residual (docs/next-session.md).
+//! The corpus tests apply `model::recover` to `model::plan`'s result, as `model::plan_recovered`
+//! does for every planning entry point of the library (`api`: the command line, the JSON-lines
+//! service and MCP), under the maintainer's directive of 2026-10-09 (nothing off the sheet:
+//! escalate scale or sheet as draftwright does, never clip). `model::plan` itself is one try.
 
 #[path = "common/corpus.rs"]
 mod corpus;
 #[path = "common/facts.rs"]
 mod facts;
 
+use draftwright::api::{self, Features};
 use draftwright::layout::{self, Attempt, Findings, Retry};
 use draftwright::model::{self, Analysis, Plan, Spec};
+use serde_json::json;
 
 const A4: [f64; 2] = [297.0, 210.0];
 const A3: [f64; 2] = [420.0, 297.0];
@@ -198,8 +201,7 @@ fn spec(sheet: serde_json::Value) -> Spec {
     serde_json::from_value(serde_json::json!({ "sheet": sheet })).unwrap()
 }
 
-/// The plan with draftwright's recovery applied (`model::recover`; `model::plan` does not apply it
-/// yet).
+/// The plan with draftwright's recovery applied (`model::recover` on `model::plan`'s try).
 fn recovered(analysis: &Analysis, spec: &Spec) -> Plan {
     let first = model::plan(analysis, spec).unwrap();
     model::recover(analysis, spec, first).unwrap()
@@ -349,4 +351,87 @@ fn an_info_or_view_box_finding_is_not_a_hard_failure() {
         !found.iter().any(|c| c.starts_with("layout_re")),
         "{found:?}"
     );
+}
+
+/// The maintainer's directive of 2026-10-09 (nothing off the sheet: escalate scale or sheet as
+/// draftwright does, never clip): every planning entry point applies the recovery. ctc01's plan
+/// from the library (`api::plan_analysed`) and from the JSON operation the service and MCP answer
+/// (`api::call("plan")`) is the recovered plan, the same each time: A3 at 1:10, said
+/// (`layout_replanned`), nothing off the sheet. The drawing's reply (`review`) says it too. A
+/// sheet and scale the spec names are kept, the label off the sheet reported; a sheet it names
+/// alone is kept.
+#[test]
+fn every_planning_entry_point_applies_the_recovery() {
+    let Some(analysis) = corpus_part("ctc01") else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    let plan = api::plan_analysed(&analysis, &Spec::default()).unwrap();
+    let as_json = serde_json::to_value(&plan).unwrap();
+    assert_eq!(
+        as_json,
+        serde_json::to_value(recovered(&analysis, &Spec::default())).unwrap()
+    );
+    assert_eq!(sheet(&plan), ("A3", "1:10"));
+    assert!(codes(&plan).contains(&"layout_replanned"));
+    assert!(!codes(&plan).contains(&"annotation_off_sheet"));
+    let again = api::plan_analysed(&analysis, &Spec::default()).unwrap();
+    assert_eq!(serde_json::to_value(&again).unwrap(), as_json);
+    let reply = api::call("plan", &json!({ "analysis": analysis })).unwrap();
+    assert_eq!(reply, as_json);
+
+    let step = corpus::dir()
+        .unwrap()
+        .join(facts::load("ctc01").binding.file);
+    let review = api::review_analysed(&step, &analysis, &Spec::default()).unwrap();
+    let said: Vec<&str> = review.problems.iter().map(|p| p.code.as_str()).collect();
+    assert!(said.contains(&"layout_replanned"), "{said:?}");
+    assert!(!said.contains(&"annotation_off_sheet"), "{said:?}");
+
+    let pinned = api::plan_analysed(&analysis, &spec(json!({ "size": "A3", "scale": "1:5" })));
+    let pinned = pinned.unwrap();
+    assert_eq!(sheet(&pinned), ("A3", "1:5"));
+    assert!(codes(&pinned).contains(&"annotation_off_sheet"));
+    assert!(!codes(&pinned).iter().any(|c| c.starts_with("layout_re")));
+    let named = api::plan_analysed(&analysis, &spec(json!({ "size": "A3" }))).unwrap();
+    assert_eq!(named.sheet.size, "A3");
+}
+
+/// The port's own gate (`model::recover`): a try with more annotations over a view not their own
+/// than the first plan is not taken. ctc01 with Rust quiddity's recognition (the command line's
+/// default) has one hole location off the sheet at A3 1:5; A3 at 1:10 clears it but lays three
+/// items over the side view (the front's height lanes run into it), so it is passed over, and A2
+/// at 1:5 is taken, with nothing off the sheet or over a view. draftwright keeps A3 at 1:5,
+/// where its placement carries that location in the side view (undetermined until the port's
+/// placement does).
+#[test]
+fn a_try_with_more_ink_over_the_views_is_not_taken() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    let step = dir.join(facts::load("ctc01").binding.file);
+    let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
+    assert_eq!(sheet(&plan), ("A2", "1:5"));
+    let said = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "layout_replanned")
+        .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
+    assert!(
+        said.message
+            .contains("A3 at 1:5 has 1 hard layout finding (annotation_off_sheet)")
+            && said.message.contains(
+                "A3 at 1:10 (valid and complete; 3 more items over a view than the first)"
+            ),
+        "{}",
+        said.message
+    );
+    for code in [
+        "annotation_off_sheet",
+        "annotation_over_view",
+        "annotation_line_over_view",
+    ] {
+        assert!(!codes(&plan).contains(&code), "{code}: {:?}", codes(&plan));
+    }
 }

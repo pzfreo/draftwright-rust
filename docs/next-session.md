@@ -60,8 +60,9 @@ pushed):
   exact against 285 recorded calls (`known_views.json`, 71 entries). Placement keeps annotations
   on the sheet with bounded lazy slides and places callout leaders beside the view with a
   horizontal shoulder; remaining collisions are rust-wrong in `known_placement.json` and
-  `known_leaders.json`. Page escalation (`model::recover`) is written but not called by
-  `model::plan`.
+  `known_leaders.json`. Page escalation (`model::recover`) is applied to every plan the library
+  gives (`model::plan_recovered`, called by `api`; `model::plan` is one try), under the
+  maintainer's directive of 2026-10-09.
 - **Dimensions** (`src/dims/`, one planner per family): envelope, turned steps (step diameters
   and lengths), holes and patterns with locations, slots and bosses, grooves and flats, steps and
   the height ladder, section recesses, hexagonal stock; coincident spans merged; spotface symbol;

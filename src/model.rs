@@ -680,6 +680,20 @@ fn findings(plan: &Plan) -> layout::Findings {
     }
 }
 
+/// A plan's annotations over a view not their own: a label on a view's box or a line across
+/// another view (`annotation_over_view`, `annotation_line_over_view`), at warning or error.
+fn over_views(plan: &Plan) -> usize {
+    plan.problems
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.code.as_str(),
+                "annotation_over_view" | "annotation_line_over_view"
+            ) && p.severity != "info"
+        })
+        .count()
+}
+
 /// What a plan's recovery findings are, in words.
 fn said(f: layout::Findings) -> String {
     let hard = match f.hard {
@@ -715,8 +729,18 @@ fn said(f: layout::Findings) -> String {
 /// detail, a recognised-requirement regression, the structural replay), whose inputs the port
 /// does not plan; a principal view too large for the page is the try's `views_do_not_fit`.
 ///
-/// [`plan`] does not call it yet (an integration decision: docs/next-session.md); applying it
-/// there means re-planning through the unrecovered plan, never through itself.
+/// One gate is the port's own: a try with more annotations over a view not their own
+/// (`annotation_over_view`, `annotation_line_over_view`) than the first plan is not taken. The
+/// port judges those by the view's box, so they are not hard findings that start a recovery
+/// (draftwright's `view_annotation_overlap` is judged by line-work); but the port keeps every
+/// item it cannot place well where draftwright drops it, so a smaller scale can move a label off
+/// the sheet onto a view instead of clearing it. On ctc01 (native recognition) A3 at 1:10 clears
+/// its one off-sheet label by laying three items over the side view; the gate passes it over for
+/// A2 at 1:5, which has neither.
+///
+/// Every planning entry point applies it through [`plan_recovered`] (the maintainer's directive
+/// of 2026-10-09: escalate scale or sheet, never clip); each try is the unrecovered [`plan`],
+/// never a recovered one.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     if spec.sheet.scale.is_some() {
         return Ok(first);
@@ -747,14 +771,25 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
                 return None;
             };
             let f = findings(&p);
+            // A re-plan that lays more ink over the views than the first plan did is no fix: it
+            // moves the defect, not removes it.
+            let over = over_views(&p).saturating_sub(over_views(&first));
+            let more = match over {
+                0 => String::new(),
+                1 => "; 1 more item over a view than the first".into(),
+                n => format!("; {n} more items over a view than the first"),
+            };
             tried.push(format!(
-                "{} at {} ({})",
+                "{} at {} ({}{more})",
                 p.sheet.size,
                 p.sheet.scale,
                 said(f)
             ));
             last = Some(p);
-            Some(f)
+            Some(layout::Findings {
+                hard: f.hard + over,
+                ..f
+            })
         },
     );
     if attempts.is_empty() {
@@ -828,6 +863,13 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
     }
 }
 
+/// [`plan`] with draftwright's bounded layout recovery applied ([`recover`]): the plan every
+/// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
+/// is given. A plan that cannot be made is refused as [`plan`] refuses it.
+pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    recover(analysis, spec, plan(analysis, spec)?)
+}
+
 /// Plans the sheet: which views, where, at what scale and on what sheet, as draftwright's layout
 /// does ([`layout`]): each principal view is a block of its box and the annotation bands reserved
 /// around it, packed third-angle; the isometric takes the largest space left. Each choice the
@@ -836,9 +878,8 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
 /// The bands, the turned-part view set and section A–A come from the features
 /// ([`crate::demand`]); the height ladder is sized for the steps legible at the scale chosen.
 /// The scale and sheet are draftwright's first choice, before it re-plans on its finished
-/// drawing's findings. That recovery is [`recover`], not yet applied here: on the captured parts
-/// it moves only ctc01, for a label the port's placement leaves off the sheet
-/// (docs/next-session.md, ISSUE-1299-a).
+/// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
+/// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // A document of a version this build does not know is refused, never read as the nearest
     // one it does (ADR3-4).
