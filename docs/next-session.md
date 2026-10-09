@@ -72,6 +72,13 @@ pushed):
   lint (`known_lint.json`, `known_structural.json`).
 - **PMI stage 1:** `src/pmi.rs` reads a part's AP242 semantic PMI into draftwright's records
   (`tests/pmi.rs`, `known_pmi.json`: 330 differences, 55 rust-wrong). Not lowered or drawn yet.
+- **PMI stage 3 (stream d-pmi-coverage-lint):** the coverage lint (`src/lint/pmi_coverage.rs`,
+  `tests/pmi_coverage.rs`, `known_pmi_coverage.json`: 1241 differences, 920 rust-correct, 261
+  rust-wrong, 60 undetermined). **Integrator:** after both d-pmi-coverage-lint and
+  d-pmi-dimensions merge, re-run `tests/pmi_coverage.rs` and re-verdict every entry whose
+  evidence starts "drawn by d-pmi-dimensions, in flight". The port's render panics on
+  nist_stc_10 (`src/output.rs` `bezier_pieces`, slice out of range; recorded there as a `drawing`
+  difference), so its coverage is not compared.
 - **Facts:** Python draftwright's sheets recorded for 13 parts (`tools/capture_sheet_facts.py`,
   `tests/fixtures/sheets/`, `docs/facts.md`).
 - **Rules:** ADRs R1–R4 accepted. `docs/rules/` has 515 rules learnt from Python; 89 ported

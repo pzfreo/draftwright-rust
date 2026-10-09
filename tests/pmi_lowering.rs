@@ -818,9 +818,12 @@ fn lint_reads_a_frame_as_no_measurement() {
     let mut bare = plan.clone();
     bare.gdt.clear();
     let without = model::render(&part, &a, &bare, &font).unwrap();
+    // The PMI coverage lint judges the frames themselves (`tests/pmi_coverage.rs`); no other
+    // rule may count them.
     let codes = |d: &draftwright::output::Drawing| {
         draftwright::lint::lint(&a, d)
             .into_iter()
+            .filter(|i| !i.code.starts_with("pmi_"))
             .map(|i| (i.code, i.subjects))
             .collect::<Vec<_>>()
     };
