@@ -581,6 +581,8 @@ improvement plan and questions are the current work. Still open from before it:
   - Questions for the maintainer:
     - Should quiddity-rust port Python's boss-versus-turned-step reconciliation, or record the
       disposition in its document? Without it a switched pipeline dimensions those bands twice.
+      **Settled (2026-10-09):** quiddity-rust applies the reconciliation in `recognise()`
+      (a02b758, pinned at 9f1e8ed); the boss entries it caused left `known_native.json`.
     - quiddity's boss free-end choice depends on the frame when both ends are open (Python and
       Rust alike); a quiddity-rust fix is needed. The constituent-faces question above now also
       covers boss cap faces.
@@ -776,7 +778,10 @@ improvement plan and questions are the current work. Still open from before it:
       aggregate makes and quiddity-rust does not (blend superseded by fillet, chamfer by angled
       step, fillet by circular blind step): port them in quiddity-rust, or have its document
       record dispositions? Switched as is, draftwright would ask for those radii and bevels
-      twice.
+      twice. **Settled (2026-10-09):** ported in quiddity-rust (a02b758, pinned at 9f1e8ed); 432
+      rust-wrong `known_native.json` entries (372 blend, 50 boss, 5 fillet, 3 chamfer, 2 slot)
+      no longer occur and were removed. The #1247 fixture's slant chamfer (f:chamfer:2) is still
+      produced natively beside its angled step (not in the native comparison; see ISSUE-1247-a).
     - Face levels and risers (`step_levels`, `risers`) are evidence the bridge carries: should
       quiddity-rust's document carry them (a schema change) so the native path can replace it?
 - From wave 4 (stream d-location-decisions, 2026-10-08): the maintainer's location decisions

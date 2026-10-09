@@ -1504,13 +1504,7 @@ fn turned_part_families_are_read_with_draftwrights_ids() {
     assert_eq!(
         got,
         [
-            ("f:blend:1", "blend", &[1][..]),
-            ("f:blend:2", "blend", &[2]),
-            ("f:blend:3", "blend", &[5]),
-            ("f:blend:4", "blend", &[7]),
-            ("f:boss:1", "boss", &[0]),
-            ("f:boss:2", "boss", &[6]),
-            ("f:fillet:1", "fillet", &[1]),
+            ("f:fillet:1", "fillet", &[1][..]),
             ("f:fillet:2", "fillet", &[2]),
             ("f:fillet:3", "fillet", &[5]),
             ("f:fillet:4", "fillet", &[7]),
@@ -1520,12 +1514,11 @@ fn turned_part_families_are_read_with_draftwrights_ids() {
     );
     for f in &n.features {
         assert_eq!(f.fingerprint.version, bridge::FINGERPRINT_VERSION);
-        // An axis letter and a vector both read as the part's z axis; a blend has no axis.
-        let axis = (f.kind != "blend").then_some([0.0, 0.0, 1.0]);
-        assert_eq!(f.fingerprint.axis, axis, "{}", f.id);
+        // An axis letter and a vector both read as the part's z axis.
+        assert_eq!(f.fingerprint.axis, Some([0.0, 0.0, 1.0]), "{}", f.id);
         assert_eq!(f.fingerprint.pattern, None);
     }
-    let step = &n.features[11];
+    let step = &n.features[5];
     assert_eq!(
         (
             step.parameters["lo"].as_f64(),
@@ -1588,7 +1581,7 @@ fn the_reader_refuses_a_record_without_what_draftwright_reads() {
 fn the_reader_checks_each_familys_fields() {
     let (part, doc) = document("turned");
     let of = |family: &str| doc.records.iter().position(|r| r.family == family).unwrap();
-    let (fillet, blend, step) = (of("fillets"), of("blends"), of("turned_steps"));
+    let (fillet, step) = (of("fillets"), of("turned_steps"));
     let read = |edit: &dyn Fn(&mut quiddity::recognition::RecognitionDocument)| {
         let mut d = doc.clone();
         edit(&mut d);
@@ -1644,10 +1637,14 @@ fn the_reader_checks_each_familys_fields() {
             .insert("profile".into(), Value::Null);
     })
     .unwrap();
+    // quiddity's reconciliation leaves this part no blend (each one is a fillet's), so a
+    // fillet's record is made a blend's, with a circular path that lacks its radius.
     let e = read(&|d| {
-        if let Some(Value::Object(path)) = d.records[blend].parameters.get_mut("path") {
-            path.remove("radius");
-        }
+        let r = &mut d.records[fillet];
+        r.family = "blends".into();
+        r.record_type = "Blend".into();
+        let path = serde_json::json!({"center": [0.0, 0.0, 0.0], "normal": [0.0, 0.0, 1.0]});
+        r.parameters.insert("path".into(), path);
     })
     .unwrap_err();
     assert!(e.contains("(Blend)'s path is"), "{e}");
