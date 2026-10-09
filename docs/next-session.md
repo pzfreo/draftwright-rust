@@ -344,6 +344,48 @@ quiddity commit that has it.
   Bisect, find the cause and make placement fast again with the drawings unchanged (byte-identical
   plans on the 30 quality parts), reporting plan times before and after; coordinate with the
   in-flight quality streams that own src/dims/placement.rs (dispatch after them if they conflict).
+  - Done (stream d-plan-speedup, `src/dims/leaders.rs`, `placement::crosses`). **Cause:** the
+    callout leaders' joint assignment (7eae60f). On FTC 06 one group of 10 callouts with 40
+    candidates each runs to the search's 200 000-node bound on every plan, and each node re-sorted
+    the next job's 40 candidates after summing their crossings through a BTreeMap lookup per
+    earlier job: about 95% of the plan. The search now keeps conflicts dense (a word per
+    candidate) and takes each job's candidates lazily in the same order (same nodes, same order,
+    same bound; a new test checks the node trail against the sorted search). The rest of the time
+    was the candidates' measurement (about 12 000 candidates per callout, each scanning all the
+    placed ink): a grid finds the ink near a candidate, labels clear of its ink box are skipped,
+    each leader's direction is worked out once, `crosses` rejects a segment wholly beside the box
+    before clipping, and the measured keys are sorted instead of the candidates. Plans (JSON) and
+    SVG renders are **byte-identical** with the base (ca792c8) on all 30 quality parts, from the
+    same saved Analyses.
+  - Release build, saved Analysis, median of 5, on a machine with load average about 55 (18 cores),
+    so absolute times run high; "plan" is one `model::plan`, "recovered" is `model::plan_recovered`
+    (what the command line and editor get); Minstr is instructions per call, which load does not
+    change:
+
+    | part | plan before | plan after | recovered before | recovered after | Minstr recovered before → after |
+    |---|---|---|---|---|---|
+    | NIST FTC 06 | 285 ms | 12.9 ms | 250 ms | **12.9 ms** | 4841 → 207 |
+    | NIST CTC 01 | 21.7 ms | 11.6 ms | 21.8 ms | 11.7 ms | 354 → 170 |
+    | NIST CTC 02 | 680 ms | 106 ms | 2866 ms | 630 ms | 38821 → 5668 |
+    | NIST CTC 04 | 300 ms | 68 ms | 3259 ms | 506 ms | 32732 → 5355 |
+    | NIST FTC 08 | 657 ms | 122 ms | 3149 ms | 830 ms | 20782 → 3056 |
+    | NIST FTC 09 | 388 ms | 91 ms | 2874 ms | 561 ms | 23544 → 8133 |
+    | NIST FTC 10 | 125 ms | 17 ms | 260 ms | 70 ms | 5713 → 1387 |
+    | NIST CTC 03 | 91 ms | 24 ms | 510 ms | 117 ms | 4814 → 840 |
+    | cgb245 | 35 ms | 16 ms | 286 ms | 113 ms | 6084 → 2231 |
+
+    The gate (FTC 06 under 50 ms natively) is met. Of the other parts on the list, CTC 05 and
+    FTC 07 take about 100 ms recovered (5 plans each, about 10 ms a plan), cgb207 about 22 ms,
+    and the rest under 5 ms.
+  - **What remains, for the slow parts:** (1) layout recovery multiplies the plan: CTC 02 and
+    CTC 04 make 4 full plans per `plan_recovered`, FTC 08, FTC 09, CTC 05 and cgb245 make 5 (the
+    first and each try in `model::recover`; the hole-table escalation adds no re-plan). That is
+    model.rs, not this stream's: proposal for the maintainer, not decided: let the tries share
+    what does not depend on scale and sheet, or evaluate the bounded list of tries in parallel on
+    native builds and take the same first acceptable one (no WASM gain). (2) Within one plan, the
+    leaders' candidate measurement is still about 70% (CTC 02: 22 callouts, about 90 000
+    candidates per plan), and `layout::fit_box`'s sorting about 8%. `tools/plan_timing.py` times
+    `plan --analysis` per part.
 - **Maintainer directive, 2026-10-09: quality before features in draftwright-rust.** "Rather
   than add new features I'd rather that we fixed the obvious problems with the current code: out
   of bounds, repeated dimensions, overlapping views, overlapping ink." Until these are fixed, give
