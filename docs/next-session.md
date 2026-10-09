@@ -372,9 +372,11 @@ quiddity commit that has it.
   - Hole tables (d-hole-tables, `src/hole_table.rs`): hole items placed off the sheet are dropped,
     reported and escalated as draftwright does; off the sheet 33 → 3 (the three slot locations),
     no table kept on the corpus (as draftwright), `docs/quality-2026-10-09.md` "After hole tables".
-    Question for the maintainer: ftc09's 18 front-view hole locations and one pattern callout are now
-    dropped and reported (`off_axis_location_dropped` / `callout_dropped`, as draftwright drops them), not drawn off the sheet. Keep
-    draftwright's rule that off-axis drops never tabulate, or give the front view its own table?
+    Question for the maintainer: ftc09's 18 front-view hole locations and one pattern callout are
+    now dropped and reported (`off_axis_location_dropped` / `callout_dropped`, as draftwright drops
+    them), not drawn off the sheet. Keep draftwright's rule that off-axis drops never tabulate, or
+    give the front view its own table?
+  - Quality 4 (d-quality-ink): ink 486 to 458; three questions (ctc03 21 to 24 via the recovery taking A2; draftwright's text gate; a post-assignment leader repair) in `docs/quality-2026-10-09.md`, "After Quality 4".
 - **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
   other backlog work):
   - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a

@@ -27,20 +27,27 @@
 //!   title block; the label or shoulder over any view (the exterior region); the leader across
 //!   another view, or back into its own view's box after leaving it; a leader longer than
 //!   [`MAX_LEADER`];
-//! - **crossings** (Policy B, ADR2-D6): a line through a dimension's line or label, or a
-//!   dimension's line through the label, or the label on another label. The dimensions are
-//!   placed first and fixed (ARCH0014-3: principal dimensions claim their strips; the callouts
-//!   yield).
+//! - **crossings** (Policy B, ADR2-D6): one per other item met and kind of contact, as the
+//!   plan's collision checks report one problem per pair and code: an item whose line the
+//!   leader or shoulder crosses or runs along, and (again) one whose ink and the label meet (its
+//!   line through the label, the label on its label, a leader line through its label);
+//!   the dimensions are placed first and fixed (ARCH0014-3: principal dimensions claim their
+//!   strips; the callouts yield);
+//! - **text**: of the items met, those whose ink and the label meet, below the crossings:
+//!   between as many crossings, a leader across a line is kept over text on a line (draftwright
+//!   protects text both ways, `annotation_text_ink_clear`);
+//! - **area**: ink outside the view's reserved area (its box and bands), below the text and
+//!   above any length.
 //!
 //! The jobs are then assigned jointly (ISSUE-740-a, `_assign_by_view`): each takes one candidate,
 //! minimising first the hard blockers, then the crossings (with the fixed ink and between the
-//! chosen leaders), then the total length. The jobs split into independent groups that could
-//! conflict; each group is solved exactly by a branch and bound whose work is bounded
-//! ([`NODE_BUDGET`]), from a greedy start that is its floor when the budget runs out. Nothing is
-//! dropped: a job whose every candidate is blocked takes the least blocked (ISSUE-798-a), and
-//! the plan's collision checks report what it still crosses; what they cannot see is reported
-//! here (a leader back across its own view, one over [`MAX_LEADER`], a search stopped at its
-//! budget).
+//! chosen leaders), then the text touched, then the ink out of its area, then the total length.
+//! The jobs split into independent groups that could conflict; each group is solved exactly by a
+//! branch and bound whose work is bounded ([`NODE_BUDGET`]), from a greedy start that is its
+//! floor when the budget runs out. Nothing is dropped: a job whose every candidate is blocked
+//! takes the least blocked (ISSUE-798-a), and the plan's collision checks report what it still
+//! crosses; what they cannot see is reported here (a leader back across its own view, one over
+//! [`MAX_LEADER`], a search stopped at its budget).
 //!
 //! The length limits ([`MIN_LEADER`], [`MAX_LEADER`]), the clearances ([`CLEAR`], [`ROW`]) and
 //! the inventory's caps are calibrated from draftwright's captured sheets, not taken from its
@@ -95,8 +102,23 @@ const DESCENT: usize = 50;
 /// a text height and two `pad_around_text` apart; half a pad keeps them visibly apart here).
 const LABEL_PAD: f64 = 1.0;
 /// The weights of the objective's tiers, above any length in micrometres on a sheet.
-const HARD: i64 = 1_000_000_000_000;
-const CROSSING: i64 = 1_000_000_000;
+/// Each tier's weight exceeds the most the tier below it reaches on one candidate.
+const HARD: i64 = 1_000_000_000_000_000;
+const CROSSING: i64 = 1_000_000_000_000;
+/// The weight of ink outside the view's reserved area (its box and bands): below a crossing,
+/// above any length (a metre, in micrometres).
+const AREA: i64 = 1_000_000;
+/// Between as many crossings, the fewer through text (draftwright protects text both ways,
+/// `annotation_text_ink_clear`, and keeps shaft crossings under Policy B): above the area.
+/// A candidate meets text of fewer than a thousand items, so this stays below one crossing.
+const TEXT_INK: i64 = 1_000 * AREA;
+/// The clear-route measurement (ISSUE-1187-a, after draftwright's test helper `_clear_routes`,
+/// which no placer uses): from each of a callout's [`SWEEP_SITES`] sites nearest its leader's
+/// tip, the leader leaves radially in [`SWEEP_DIRECTIONS`] directions, its elbow at each of
+/// [`SWEEP_REACH`] from the rim, mm.
+const SWEEP_DIRECTIONS: usize = 64;
+const SWEEP_REACH: [f64; 10] = [6.0, 8.0, 11.0, 15.0, 20.0, 27.0, 36.0, 48.0, 62.0, 75.0];
+const SWEEP_SITES: usize = 8;
 
 /// One leader a callout could take.
 #[derive(Clone, Debug)]
@@ -110,6 +132,10 @@ struct Candidate {
     cost: i64,
     hard: u32,
     crossings: u32,
+    /// Of its crossings, those that touch text: a line through a label, or two labels together.
+    text: u32,
+    /// Whether its ink leaves its view's reserved area (1) or not (0).
+    outside: u32,
     /// The box of all its ink.
     bounds: [f64; 4],
 }
@@ -120,7 +146,16 @@ impl Candidate {
     }
 
     fn score(&self) -> i64 {
-        i64::from(self.hard) * HARD + i64::from(self.crossings) * CROSSING + self.cost
+        i64::from(self.hard) * HARD
+            + i64::from(self.crossings) * CROSSING
+            + i64::from(self.text) * TEXT_INK
+            + i64::from(self.outside) * AREA
+            + self.cost
+    }
+
+    /// Whether it is clear: no hard blocker and nothing crossed.
+    fn clear(&self) -> bool {
+        self.hard == 0 && self.crossings == 0
     }
 
     fn placed(&self) -> Placed {
@@ -135,10 +170,26 @@ impl Candidate {
 }
 
 /// What the callouts must keep clear of besides the page: the placed dimensions' lines (with
-/// their arrowheads' shafts) and labels.
+/// their arrowheads' shafts) and labels, each with the key of the item it belongs to, as the
+/// plan's collision checks report one problem per pair of items.
 struct Fixed {
-    segments: Vec<[P2; 2]>,
-    labels: Vec<[f64; 4]>,
+    segments: Vec<(usize, [P2; 2])>,
+    labels: Vec<(usize, [f64; 4])>,
+    /// The arrowheads' outlines as `dims::render` draws them ([`head`]), which must stay out of
+    /// the label: a flare can reach into it beside a shaft that does not.
+    heads: Vec<(usize, [P2; 2])>,
+}
+
+/// The three edges of the arrowhead on *arrow* (tip, tail), as `dims::render` draws it.
+fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
+    let [tip, tail] = arrow;
+    let n = [tail[1] - tip[1], tip[0] - tail[0]];
+    let k = super::ARROW_HALF / n[0].hypot(n[1]).max(1e-12);
+    let (a, b) = (
+        [tail[0] + k * n[0], tail[1] + k * n[1]],
+        [tail[0] - k * n[0], tail[1] - k * n[1]],
+    );
+    [[tip, a], [a, b], [b, tip]]
 }
 
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
@@ -146,6 +197,8 @@ struct Fixed {
 struct Job<'a> {
     view: &'a str,
     outline: [f64; 4],
+    /// The view's reserved area (box and bands), when the sheet has it.
+    area: Option<[f64; 4]>,
     sites: Vec<(P2, f64)>,
     ink_min: P2,
     ink_max: P2,
@@ -179,13 +232,20 @@ pub(super) fn place(
     placed: &mut [Option<Placed>],
     page: &Page,
 ) -> Vec<Problem> {
-    let fixed = Fixed {
-        segments: placed
+    let on = || {
+        placed
             .iter()
-            .flatten()
-            .flat_map(|p| p.lines.iter().chain(&p.arrows).copied())
+            .enumerate()
+            .filter_map(|(i, p)| Some((i, p.as_ref()?)))
+    };
+    let fixed = Fixed {
+        segments: on()
+            .flat_map(|(i, p)| p.lines.iter().chain(&p.arrows).map(move |s| (i, *s)))
             .collect(),
-        labels: placed.iter().flatten().map(|p| p.label_box).collect(),
+        labels: on().map(|(i, p)| (i, p.label_box)).collect(),
+        heads: on()
+            .flat_map(|(i, p)| p.arrows.iter().flat_map(move |a| head(*a).map(|e| (i, e))))
+            .collect(),
     };
     // How far each view's strips reach with dimension ink, past the view's edges.
     let mut reach: BTreeMap<(&str, usize), f64> = BTreeMap::new();
@@ -226,6 +286,7 @@ pub(super) fn place(
             Job {
                 view,
                 outline: f.outline(),
+                area: page.area(view),
                 sites: page_sites(f, sites),
                 ink_min: ink.min,
                 ink_max: ink.max,
@@ -465,7 +526,7 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Vec<Candidate> {
             }
         }
     }
-    measured.sort_by_key(|(n, c)| (c.hard, c.crossings, c.cost, *n));
+    measured.sort_by_key(|(n, c)| (c.hard, c.crossings, c.text, c.outside, c.cost, *n));
     let mut kept: Vec<Candidate> = Vec::new();
     for (_, c) in measured {
         if kept.len() >= KEEP {
@@ -556,7 +617,6 @@ fn measure(
     if shaft > MAX_LEADER {
         hard += 1;
     }
-    let mut crossings = 0u32;
     let padded = [
         lb[0] - LABEL_PAD,
         lb[1] - LABEL_PAD,
@@ -575,21 +635,48 @@ fn measure(
         bounds[2] + LABEL_PAD,
         bounds[3] + LABEL_PAD,
     ];
-    for f in &fixed.segments {
+    // The items whose lines the leader crosses, and those whose ink and the label's text meet
+    // (a line through either label, or the labels together): each pair one problem, as the
+    // plan's collision checks report them.
+    let mut crossed: Vec<usize> = Vec::new();
+    let mut text: Vec<usize> = Vec::new();
+    for (i, f) in &fixed.segments {
         if !segment_near(*f, near) {
             continue;
         }
-        crossings += segs.iter().filter(|s| lines_meet(**s, *f)).count() as u32;
+        if segs.iter().any(|s| lines_meet(*s, *f)) {
+            crossed.push(*i);
+        }
         if crosses(*f, lb) {
-            crossings += 1;
+            text.push(*i);
         }
     }
-    for l in &fixed.labels {
-        if boxes_overlap(padded, *l) {
-            crossings += 1;
+    for (i, e) in &fixed.heads {
+        if segment_near(*e, near) && crosses(*e, lb) {
+            text.push(*i);
         }
-        crossings += segs.iter().filter(|s| crosses(**s, *l)).count() as u32;
     }
+    let own_head = head(arrow(tip, elbow));
+    for (i, l) in &fixed.labels {
+        if boxes_overlap(padded, *l) || segs.iter().chain(&own_head).any(|s| crosses(*s, *l)) {
+            text.push(*i);
+        }
+    }
+    // An item both crossed and met by the label counts in each: the plan reports a crossing
+    // and a text contact as two problems of the pair.
+    for v in [&mut crossed, &mut text] {
+        v.sort_unstable();
+        v.dedup();
+    }
+    let crossings = (crossed.len() + text.len()) as u32;
+    // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
+    let outside = job.area.is_some_and(|a| {
+        [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]
+            .iter()
+            .any(|p| {
+                p[0] < a[0] - 1e-6 || p[0] > a[2] + 1e-6 || p[1] < a[1] - 1e-6 || p[1] > a[3] + 1e-6
+            })
+    });
     let cost = ((shaft + SHOULDER) * 1000.0).round() as i64;
     Some(Candidate {
         tip,
@@ -600,8 +687,104 @@ fn measure(
         cost,
         hard,
         crossings,
+        text: text.len() as u32,
+        outside: u32::from(outside),
         bounds,
     })
+}
+
+/// The candidates of the clear-route sweep from *tip* (see [`SWEEP_DIRECTIONS`]): tip, elbow
+/// and label side, the label on the side the leader runs to (either for a vertical one). The
+/// sites are taken nearest *tip* first, so the sweep starts where the leader is.
+fn sweep(job: &Job, tip: P2) -> Vec<(P2, P2, bool)> {
+    let mut sites: Vec<(P2, f64)> = job.sites.clone();
+    let d = |s: &(P2, f64)| (s.0[0] - tip[0]).hypot(s.0[1] - tip[1]);
+    sites.sort_by(|a, b| d(a).total_cmp(&d(b)));
+    let mut out = Vec::new();
+    for (c, r) in sites.into_iter().take(SWEEP_SITES) {
+        for j in 0..SWEEP_DIRECTIONS {
+            let a = std::f64::consts::TAU * j as f64 / SWEEP_DIRECTIONS as f64;
+            let u = [a.cos(), a.sin()];
+            let tip = [c[0] + r * u[0], c[1] + r * u[1]];
+            for reach in SWEEP_REACH {
+                let elbow = [tip[0] + reach * u[0], tip[1] + reach * u[1]];
+                let dx = elbow[0] - tip[0];
+                if dx >= -1e-9 {
+                    out.push((tip, elbow, true));
+                }
+                if dx <= 1e-9 {
+                    out.push((tip, elbow, false));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// How many routes of the clear-route sweep (ISSUE-1187-a) the planned callout *id* has that are
+/// clear of the page's furniture, the views and every other planned dimension's ink. A
+/// measurement, as draftwright's `_clear_routes` is (no placer runs it): Policy B keeps a blocked
+/// or crossing leader only when this is zero. None when *id* is not a placed callout of the plan.
+pub fn clear_routes(
+    analysis: &crate::model::Analysis,
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+    dims: &[super::PlannedDimension],
+    id: &str,
+) -> Option<usize> {
+    let d = dims.iter().find(|d| d.id == id && d.kind == "callout")?;
+    let p = d.placed.as_ref()?;
+    let view = d.view.strip_prefix("v:")?;
+    let (mut wants, _) = super::wants(analysis);
+    let frames: BTreeMap<&str, Frame> = views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            super::NAMES
+                .contains(&name)
+                .then(|| (name, Frame::new(analysis, v)))
+        })
+        .collect();
+    super::route(&mut wants, &frames, analysis);
+    let w = wants.iter().find(|w| w.id == id)?;
+    let Shape::Callout { sites } = &w.shape else {
+        return None;
+    };
+    let f = frames.get(view)?;
+    let page = Page::new(analysis, sheet, views);
+    let ink = label_ink(&d.terms, font());
+    let job = Job {
+        view,
+        outline: f.outline(),
+        area: page.area(view),
+        sites: page_sites(f, sites),
+        ink_min: ink.min,
+        ink_max: ink.max,
+        beyond: [CLEAR; 4],
+    };
+    let rest = || {
+        dims.iter()
+            .enumerate()
+            .filter(|(_, o)| o.id != id)
+            .filter_map(|(i, o)| Some((i, o.placed.as_ref()?)))
+    };
+    let fixed = Fixed {
+        segments: rest()
+            .flat_map(|(i, q)| q.lines.iter().chain(&q.arrows).map(move |s| (i, *s)))
+            .collect(),
+        labels: rest().map(|(i, q)| (i, q.label_box)).collect(),
+        heads: rest()
+            .flat_map(|(i, q)| q.arrows.iter().flat_map(move |a| head(*a).map(|e| (i, e))))
+            .collect(),
+    };
+    let tip = p.lines.first()?[0];
+    Some(
+        sweep(&job, tip)
+            .into_iter()
+            .filter_map(|(tip, elbow, right)| measure(&job, tip, elbow, right, &fixed, &page))
+            .filter(Candidate::clear)
+            .count(),
+    )
 }
 
 /// Whether segment *s*, leaving from its first point, runs into the box *b* from outside it: a
@@ -1000,6 +1183,8 @@ mod tests {
             cost,
             hard: 0,
             crossings: 0,
+            text: 0,
+            outside: 0,
             bounds: [
                 tip[0].min(elbow[0]),
                 tip[1].min(elbow[1]).min(label_box[1]),
