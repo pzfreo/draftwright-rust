@@ -1915,23 +1915,26 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     let groups = groups(&analysis);
     let (marks, unjoined) = marks(&analysis, &groups, &f);
     assert_eq!(unjoined, 0);
-    // quiddity refused one recess recognition on m10127, which is reported whatever the sheet
-    // says (as Python's lint reports it on this sheet); nothing else is found. The sheet's
-    // structured hole locations are not joined into claims here (location coverage is compared
-    // on Python's recorded input, tests/lint_coverage.rs), so feature_not_located is left out.
+    // quiddity refused one recess recognition on m10127, and the part has an opening no feature
+    // states (its three-sided hole through the face at y 32.268, lint::profiles), both reported
+    // whatever the sheet says (as Python's lint reports them on this sheet); nothing else is
+    // found. The sheet's structured hole locations are not joined into claims here (location
+    // coverage is compared on Python's recorded input, tests/lint_coverage.rs), so
+    // feature_not_located is left out.
     let refused = "section_recess_recognition_refused";
+    let profile = "unrecognised_defining_geometry";
     let unjoined = "feature_not_located";
     let found: Vec<String> = lint::check(&analysis, &marks)
         .into_iter()
         .map(|i| i.code)
         .filter(|c| c != unjoined)
         .collect();
-    assert_eq!(found, [refused]);
+    assert_eq!(found, [refused, profile]);
     // hc_side0 prints "⌀8.1 THRU" for the through hole.
     let codes = |marks: &[Mark]| {
         lint::check(&analysis, marks)
             .into_iter()
-            .filter(|i| i.code != refused && i.code != unjoined)
+            .filter(|i| i.code != refused && i.code != profile && i.code != unjoined)
             .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
             .collect::<Vec<_>>()
     };

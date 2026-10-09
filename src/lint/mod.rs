@@ -19,12 +19,14 @@
 //!
 //! Ported rules, in the order Python's lint runs them: the diameter backstop
 //! ([`coverage::feature_coverage`]); boss heights ([`bosses`]); the location backstop
-//! ([`coverage::located`]); raised pads ([`pads`]) and polygonal bosses ([`polygonal`]); section
-//! recesses no drafting grammar reads, and refused recess recognitions ([`section_recesses`], which
-//! also reads every recess's grammar for the families below); hexagonal pockets and circular seats
-//! ([`pockets::hex_coverage`], [`channels::circular_coverage`]); angled steps ([`angled_steps`]);
-//! double-D bores ([`profiled_bores`]); flat, groove, chamfer, fillet and blend coverage
-//! ([`flats`], [`grooves`], [`chamfers`], [`fillets`], [`blends`]); paired-ramp steps
+//! ([`coverage::located`]); pads not defined and pockets not located ([`prismatic`]); raised pads
+//! ([`pads`]) and polygonal bosses ([`polygonal`]); section recesses no drafting grammar reads,
+//! and refused recess recognitions ([`section_recesses`], which also reads every recess's grammar
+//! for the families below); hexagonal pockets and circular seats ([`pockets::hex_coverage`],
+//! [`channels::circular_coverage`]); angled steps ([`angled_steps`]); openings and outlines of
+//! the principal faces no feature states ([`profiles`], from the Analysis's record of the part's
+//! principal faces); double-D bores ([`profiled_bores`]); flat, groove, chamfer, fillet and
+//! blend coverage ([`flats`], [`grooves`], [`chamfers`], [`fillets`], [`blends`]); paired-ramp steps
 //! ([`paired_ramp_steps`]), gusset ribs ([`gussets`]), circular blind steps
 //! ([`circular_blind_steps`]) and blind slots ([`blind_slots`]); through-step and slot coverage
 //! ([`steps`], [`slots`]); hole coverage ([`holes`]); open channels ([`channels`]); polygonal stock
@@ -59,7 +61,9 @@ pub mod paired_ramp_steps;
 pub mod parameters;
 pub mod pockets;
 pub mod polygonal;
+pub mod prismatic;
 pub mod profiled_bores;
+pub mod profiles;
 pub mod section_recesses;
 pub mod slots;
 pub mod steps;
@@ -177,12 +181,14 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = coverage::feature_coverage(analysis, marks);
     issues.extend(bosses::coverage(analysis, marks));
     issues.extend(coverage::located(analysis, marks));
+    issues.extend(prismatic::coverage(analysis, marks));
     issues.extend(pads::coverage(analysis, marks));
     issues.extend(polygonal::boss_coverage(analysis, marks));
     issues.extend(section_recesses::coverage(analysis, marks));
     issues.extend(pockets::hex_coverage(analysis, marks));
     issues.extend(channels::circular_coverage(analysis, marks));
     issues.extend(angled_steps::coverage(analysis, marks));
+    issues.extend(profiles::coverage(analysis));
     issues.extend(profiled_bores::coverage(analysis, marks));
     issues.extend(flats::coverage(analysis, marks));
     issues.extend(grooves::coverage(analysis, marks));

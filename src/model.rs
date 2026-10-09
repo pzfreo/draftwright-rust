@@ -33,14 +33,16 @@ use crate::title_block::{self, TitleCell};
 /// Version 2 added the isometric box (`iso_bounds`) and the recognised features, version 3 the
 /// horizontal face levels (`levels`), version 4 their supports and the step risers
 /// (`level_supports`, `risers`), version 5 the families the recogniser did not give
-/// (`unrecognised`).
-pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/5";
-/// The analyses [`plan`] reads: this version, and versions 2 to 4 (it reads them with none of
+/// (`unrecognised`), version 6 the principal boundary faces' loops lint's profile check reads
+/// (`principal_profiles`).
+pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/6";
+/// The analyses [`plan`] reads: this version, and versions 2 to 5 (it reads them with none of
 /// what they lack).
-pub const ANALYSIS_SCHEMAS: [&str; 4] = [
+pub const ANALYSIS_SCHEMAS: [&str; 5] = [
     "draftwright.analysis/2",
     "draftwright.analysis/3",
     "draftwright.analysis/4",
+    "draftwright.analysis/5",
     ANALYSIS_SCHEMA,
 ];
 pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
@@ -85,6 +87,11 @@ pub struct Analysis {
     /// part's frame): where a prismatic part's steps are located along x and y.
     #[serde(default)]
     pub risers: Vec<Riser>,
+    /// Each solid's principal boundary faces (each solid of a part of several, else the whole
+    /// part), with their loops' edges: what lint's principal profile check judges
+    /// ([`crate::lint::profiles`]), read from the part as draftwright's lint reads it.
+    #[serde(default)]
+    pub principal_profiles: Vec<crate::lint::profiles::Source>,
     /// The families of features the recogniser did not give, so the part may have features of
     /// them that the Analysis lacks: empty for Python quiddity's recognition, which the bridge
     /// reads in full; for Rust quiddity's ([`analyse_native`]), the families its document has
@@ -453,6 +460,7 @@ pub fn analyse_with(
         levels: crate::demand::face_levels(&part),
         level_supports,
         risers,
+        principal_profiles: crate::lint::profiles::evidence(&part),
         unrecognised: Vec::new(),
     };
     let (_, toward, up) = VIEWS[3];

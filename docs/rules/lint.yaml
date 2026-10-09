@@ -387,6 +387,7 @@
     issues: [1378]
     tests: [tests/test_issue_1378_diameter_leader_targets.py]
   status: pending
+  rust_note: "Not ported: lint would need each callout's leader tip and its view's projection from the part to the page, which the Drawing does not record (output::DrawnView keeps a view's visible box and edges, Drawn a callout's lines and elbow, not the projection), and the edges of the hole's defining faces, which the Analysis does not carry (it keeps face indices only). Recording the view projection in the Drawing (src/output.rs, model::render) is outside the lint module. On Python's captured sheets the code appears once (ctc04's hc_plan3)."
   port_note: "Keep: check leader tips against projected feature edges."
 
 - id: LINT-code-diameter_leader_target_unverifiable
@@ -398,6 +399,7 @@
     issues: [1378]
     tests: [tests/test_issue_1378_diameter_leader_targets.py]
   status: pending
+  rust_note: "Not ported, with LINT-code-diameter_leader_target_mismatch: the Drawing records no view projection or leader tip for lint to check. On Python's captured sheets it appears for connector109's and spool132's rotational bore leaders (same-run ownership unavailable)."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -443,7 +445,7 @@
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_e2e_slice.py]
   status: pending
   rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
-  rust_note: "The check is ported (src/lint/coverage.rs::location and ::judge: a centre mark within 0.6 mm of the hole's centre projected into its end-on view, front or rear for y; one finding counting the holes, naming them) and gives exactly draftwright's findings on its recorded input (python.json.gz: a cgb245 with its 16 centre marks taken off). Not run by lint::check: the port draws no centre marks (the Drawing records none), so on its own drawings it reports every hole (coverage::centre_marks; tests/fixtures/lint_coverage/known.json, rust-wrong, 9 parts, connector109 drawn only with LINT_OWN_ALL=1). Not ported: double-D bores among the holes (lint does not read them yet)."
+  rust_note: "The check is ported (src/lint/coverage.rs::location and ::judge: a centre mark within 0.6 mm of the hole's centre projected into its end-on view, front or rear for y; one finding counting the holes, naming them) and gives exactly draftwright's findings on its recorded input (python.json.gz: a cgb245 with its 16 centre marks taken off). Not run by lint::check: the port draws no centre marks (the Drawing records none), so on its own drawings it reports every hole (coverage::centre_marks; tests/fixtures/lint_coverage/known.json, rust-wrong, 9 parts, connector109 drawn only with LINT_OWN_ALL=1). Double-D bores are among the holes (coverage::sites, as Python's profiled_bores)."
   port_note: "Keep."
 
 - id: LINT-code-feature_not_located
@@ -457,7 +459,7 @@
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_interior_label_placement.py]
   status: pending
   rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
-  rust_note: "Partly ported (src/lint/coverage.rs::located, run by lint::check after boss heights). The judgement (::judge: pattern members exempt, an axis needs locating when the hole is more than 1.0 mm off the part box's centre across it, located by structured evidence or a witness within 0.6 mm on that page axis; one finding counting the holes, naming them, each axis not located a requirement) gives exactly draftwright's findings on its recorded input (python.json.gz: cgb245's 2, ctc03's 1, ctc04's 9, ctc05's 3, ftc09's 7, a stripped m10127's 1). On the port's drawings the evidence is structured only: an annotation claiming the hole's location.length.<axis>. Not ported: the geometric witness fallback on the port's own drawings (the Drawing records neither its dimensions' witness points nor the views' projections), location notes (the port has none), double-D bores, and the assembly severity. On cgb245 the port locates the two holes draftwright leaves unlocated in y (known.json, rust-correct)."
+  rust_note: "Partly ported (src/lint/coverage.rs::located, run by lint::check after boss heights). The judgement (::judge: pattern members exempt, an axis needs locating when the hole is more than 1.0 mm off the part box's centre across it, located by structured evidence or a witness within 0.6 mm on that page axis; one finding counting the holes, naming them, each axis not located a requirement) gives exactly draftwright's findings on its recorded input (python.json.gz: cgb245's 2, ctc03's 1, ctc04's 9, ctc05's 3, ftc09's 7, a stripped m10127's 1). On the port's drawings the evidence is structured only: an annotation claiming the hole's location.length.<axis>. Double-D bores are located as holes are (coverage::sites: at the record's location, along its axis, never patterned; src/lint/coverage.rs::tests::a_double_d_bore_is_located_as_a_hole_is). Not ported: the geometric witness fallback on the port's own drawings (the Drawing records neither its dimensions' witness points nor the views' projections), location notes (the port has none), and the assembly severity. On cgb245 the port locates the two holes draftwright leaves unlocated in y (known.json, rust-correct)."
   port_note: "Keep."
 
 - id: LINT-code-unrecognised_defining_geometry-principal_profile
@@ -469,7 +471,9 @@
     module: "linting/coverage.py"
     issues: [1058, 1245, 1246]
     tests: [tests/test_issue_1058_wheel_profile.py, tests/test_issue_1245_passage_disposition.py]
-  status: pending
+  status: ported
+  rust_test: tests/lint_coverage.rs::pythons_principal_profile_scan_is_reproduced
+  rust_note: "src/lint/profiles.rs. Lint never sees the part, so the scan is made when the part is analysed (profiles::evidence, the Analysis's principal_profiles, schema draftwright.analysis/6): each solid of a part of several (else the part), its box and each principal boundary face (a plane flat across one axis on the solid's box, Python's _principal_boundary_plane) with its inner loops' edges and its outer loop's arcs; lint judges it (profiles::verdicts, ::radial_count): an inner loop is supported as an open end of a closed square-ended section recess record, the mouth of a through double-D bore claimed once, or a circle, axis-aligned rectangle, true obround or rounded rectangle; an outer loop of six or more equal, evenly spaced arcs on one circle (not all its edges) is counted. One finding each, Python's messages; info on a part of several solids, as in Python. Against draftwright's own scan (tools/capture_lint_profiles.py: all 100 corpus parts and 27 of draftwright's test parts): every inner loop's verdicts agree (709 loops; the recess and double-D claims compared on the 65 parts whose recognition the port has or whose recognition has no bore or closed recess, by shape alone on the other 62), and so do the findings on those 65 parts (15 findings, among them ctc02's, ctc04's, m10127's and the oriented slots part's). Differences, in tests/fixtures/lint_coverage/known_profiles.json: on ctc01, ctc03 and ftc06 draftwright's box takes in the file's PMI presentation curves (build123d imports them with the solid), so it misses principal faces the port scans (their openings are supported; rust-correct); cgb241's box is OpenCascade's untrimmed B-spline box (rust-correct); ctc02's differs by an edge's 0.002 mm (equivalent). No corpus part has a toothed outline (the radial count is unit-tested only). On Rust quiddity's recognition (the CLI's default) section recesses are not read, so an opening a recess accounts for is reported unsupported (fail closed), and the Analysis's unrecognised lists section_recesses. Python claims double-D mouths in its recognition's order, the port in the Analysis's: equivalent, since a mouth matches only the loop at it."
   port_note: "Keep: independent B-rep scan for undimensionable profiles."
 
 - id: LINT-code-unrecognised_defining_geometry-prismatic
@@ -482,6 +486,7 @@
     issues: [885]
     tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_declared_recognition_gate.py]
   status: pending
+  rust_note: "Not ported. Python compares two of its own stages: the pocket records and riser shoulders quiddity recognised (project_step_shoulders over the risers, two or more stations) against the features draftwright's conversion made of them (pocket IR, step_level shoulders, channel walls, X/Y through-step bends), and reports what the conversion dropped. The port has no conversion between the Analysis and the drawing: lint reads quiddity's features in the Analysis, and the height ladder's shoulders are projected from the same risers by the plan (dims::levels), which lint may not read, so the denominator Python checks against does not exist on the lint side. A pocket record lint cannot read in the part's frame is the pocket ledger's unverifiable (lint::pockets). Open question for the maintainer: should the port's lint instead check that each projected riser shoulder is stated on the drawing (a drawing check, not Python's stage check)?"
   port_note: "Keep."
 
 - id: LINT-code-pad_footprint_not_defined
@@ -494,6 +499,8 @@
     issues: [885]
     tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_issue_1351_structured_note_coverage.py]
   status: pending
+  rust_test: src/lint/prismatic.rs::tests::a_pad_is_defined_by_its_sizes_height_and_location
+  rust_note: "Partly ported (src/lint/prismatic.rs::undefined_pads, run by lint::check after the location backstop, as Python orders it). Each Analysis pad is defined when each of lint::pads' requirements (pad_width, pad_length, pad_height, its locations from the part's box corner) is claimed by an annotation that prints it; a pad standing along z is also located along x or y by an edge on the part's box there (within 0.6 mm); a pad whose record cannot be read is undefined; one finding counting them, Python's message. Not ported: Python's dimension-witness evidence (any dimension spanning the pad's edges in the plan or side) and structured location notes (the Drawing records neither), and the assembly severity. Python judges the pads its conversion modelled, counting a dropped one undefined; here every Analysis pad is judged (there is no conversion), and a side pad's location coincident with the datum is not asked for, as the pad ledger and draftwright's compiler leave it out (Python's check still asks for it). On draftwright's test parts with sheets the findings agree but for the port's own drawing of the pad part, which states no pad dimensions yet (tests/lint_coverage.rs::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known, rust-correct). Pads are not read from Rust quiddity's recognition yet."
   port_note: "Keep (or fold into the pad ledger)."
 
 - id: LINT-code-pocket_not_located
@@ -506,6 +513,8 @@
     issues: [885]
     tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_issue_1485_rounded_pockets.py]
   status: pending
+  rust_test: src/lint/prismatic.rs::tests::a_pocket_is_located_by_symmetry_the_datum_or_a_stated_location
+  rust_note: "Partly ported (src/lint/prismatic.rs::unlocated_pockets). Each lone blind pocket lint::pockets reads, not open at the part's edge, is located along each axis across it (x and y when cut along z, else its long and width axes) when its reference (its centre, its long-axis end when that end is within 0.6 mm of the box minimum) is within 1.0 mm of the box's centre, within 0.6 mm of the box minimum, or its location_pocket requirement on that axis is claimed and printed; one finding counting them, Python's message. Not ported: Python's dimension-witness evidence and structured notes (the Drawing records neither), recognised pocket patterns (the bridge drops them), and the assembly severity. Python excuses a pocket cut along z at the datum only by symmetry or a witness to its centre, though its planner places no centre location for a pocket starting on the datum; the port applies the catalogue detail's datum-start rule to it too (rust-correct; no captured part has one). On m10046 draftwright's sheet drops the pocket's two position dimensions and reports it unlocated; the port's drawing places them (tests/fixtures/lint_coverage/known.json, rust-correct). Python judges the pockets its conversion modelled; here every Analysis pocket is."
   port_note: "Keep (or fold into the pocket ledger)."
 
 - id: LINT-code-axial_length_missing
@@ -777,6 +786,7 @@
     issues: [1479]
     tests: [tests/test_issue_1479_radius_leader_targets.py]
   status: pending
+  rust_note: "Not ported, for the reason LINT-code-diameter_leader_target_mismatch gives: lint would need the radius callout's leader tip, its view's projection and the blend's trimmed profile arc, and the Drawing records no projection (src/lint/blends.rs judges the radii only)."
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_unverifiable
@@ -788,6 +798,7 @@
     issues: [1479]
     tests: [tests/test_issue_1479_radius_leader_targets.py]
   status: pending
+  rust_note: "Not ported, for the reason LINT-code-diameter_leader_target_mismatch gives: lint would need the radius callout's leader tip, its view's projection and the blend's trimmed profile arc, and the Drawing records no projection (src/lint/blends.rs judges the radii only)."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------

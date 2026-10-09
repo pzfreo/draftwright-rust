@@ -33,7 +33,7 @@ edited.
 
 ```json
 {
-  "schema": "draftwright.analysis/5",
+  "schema": "draftwright.analysis/6",
   "binding": { "source_sha256": "…", "part": "10127", "face_count": 27, "loader": "haecceity 0.1" },
   "frame": { "origin": [0, 0, 0], "axes": [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
   "envelope": { "min": [0, 0, 0], "max": [28.8, 32.3, 44.7] },
@@ -65,6 +65,12 @@ edited.
   `bridge::native` does not read yet (raised pads among them), and section recesses, which it
   does not carry. `plan` reports them as one `features_not_recognised` warning. `plan` reads older
   analyses with none; `render` and `review` draw only from this version.
+- **Principal profiles** (`draftwright.analysis/6`, `principal_profiles`): for each solid of a
+  part of several (else the whole part), its box and each principal boundary face (a plane flat
+  across one axis on that box), with its inner loops' edges and its outer loop's arcs: the B-rep
+  scan draftwright's lint makes for undimensionable openings and toothed outlines, made here when
+  the part is analysed because lint never sees the part (`src/lint/profiles.rs`). `plan` reads
+  older analyses with none; `review` judges only this version.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.
