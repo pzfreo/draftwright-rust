@@ -316,6 +316,24 @@ quiddity commit that has it.
     caller need not re-analyse;
   - quiddity-rust's CI also runs on macOS, beside Linux.
 
+- **Maintainer directive, 2026-10-09: quality before features in draftwright-rust.** "Rather
+  than add new features I'd rather that we fixed the obvious problems with the current code: out
+  of bounds, repeated dimensions, overlapping views, overlapping ink." Until these are fixed, give
+  every draftwright-rust slot to them and dispatch no new draftwright-rust features (PMI drawing,
+  angular dimensions, note leaders and the like wait; the in-flight PMI lowering stream finishes
+  and merges as it is). Baseline and method: `docs/quality-2026-10-09.md`, tool `tools/quality.py`
+  on `tools/quality_parts.txt` (30 parts): 34 annotations off the sheet in 6 parts, 50 repeated
+  labels in 15, 34 overlapping view pairs in 16 plus one view on the title block, 506 ink problems
+  in 24. Streams by problem, owning disjoint files: (1) out of bounds: nothing off the sheet
+  (escalate scale or sheet, or the hole table now decided, as draftwright does; never clip);
+  (2) repeated dimensions: state each quantity once and group identical features with n× as
+  draftwright does, judged per case against Python draftwright's drawing of the same part;
+  (3) overlapping views: layout reserves each view's bands so no view, band or title block
+  overlaps another; (4) overlapping ink: leaders that cross, text on lines, annotations over
+  views, by placement candidates that clear existing ink. Each stream reports the tool's table
+  before and after on all 30 parts (no part may get worse) and compares its worst parts' PDFs
+  visually with Python's. Re-run the tool and update the baseline doc at each integration. The
+  hole-table and angled-step decisions below are part of this work where they remove problems.
 - **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
   other backlog work):
   - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a
