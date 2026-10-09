@@ -2511,7 +2511,7 @@
     corpus_parts: []
   status: pending
   rust_test: a_boss_height_between_the_parts_own_faces_is_the_overall_extents
-  rust_note: "Partial: each boss height is its own item with its own claim (boss_height.length) and witness lines on the boss's outline (src/dims/bosses.rs; connector109's end caps agree with draftwright's sheet); a full-height boss yields only to an overall extent that is kept, never to one the spec omits, and never on a part turned whole, whose overall length stands in for the step chain draftwright withholds it for. Not ported: the tolerance clause (no tolerances yet) and lint's exposure of a removed cap height (src/lint/bosses.rs owns boss_height_missing)."
+  rust_note: "Partial: each boss height has its own claim (boss_height.length; bosses whose heights share one span are one counted item claiming each, src/dims/mod.rs::share) and witness lines on the boss's outline (src/dims/bosses.rs; connector109's end caps agree with draftwright's sheet); a full-height boss yields only to an overall extent that is kept, never to one the spec omits, and never on a part turned whole, whose overall length stands in for the step chain draftwright withholds it for. Not ported: the tolerance clause (no tolerances yet) and lint's exposure of a removed cap height (src/lint/bosses.rs owns boss_height_missing)."
   port_note: "Keep."
 
 - id: ISSUE-1514-a

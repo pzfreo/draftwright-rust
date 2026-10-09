@@ -296,8 +296,22 @@ fn omitting_one_dimension_moves_no_other() {
             ..Spec::default()
         };
         let every = ids(&full);
+        let conveyed_by = |id: &str| -> Vec<&str> {
+            full.omitted
+                .iter()
+                .filter(|o| o.basis.starts_with(&format!("conveyed by {id}: ")))
+                .map(|o| o.id.as_str())
+                .collect()
+        };
+        // The complete set: every item drawn and every item one of them conveys (one span, one
+        // dimension: ARCH0009-6), as an author lists them; a shared size counts what is listed.
+        let complete: Vec<&str> = every
+            .iter()
+            .copied()
+            .chain(every.iter().flat_map(|i| conveyed_by(i)))
+            .collect();
         assert_eq!(
-            placed(&model::plan(analysis, &authored(&every)).unwrap())
+            placed(&model::plan(analysis, &authored(&complete)).unwrap())
                 .values()
                 .map(|d| (&d.id, &d.placed))
                 .collect::<Vec<_>>(),
@@ -315,16 +329,18 @@ fn omitting_one_dimension_moves_no_other() {
             );
             let rest: Vec<&str> = every.iter().copied().filter(|i| i != gone).collect();
             // Omitting it brings back a coincident location it conveyed (ARCH0009-6), drawn in
-            // its own lane; one left out of an authored set conveys nothing back.
-            let conveyed: Vec<&str> = full
-                .omitted
+            // its own lane (a size it shared among three or more is shared again by the rest,
+            // the others conveyed by the one drawn); one left out of an authored set, with what
+            // it conveyed, conveys nothing back.
+            let conveyed = conveyed_by(gone);
+            let listed: Vec<&str> = complete
                 .iter()
-                .filter(|o| o.basis.starts_with(&format!("conveyed by {gone}: ")))
-                .map(|o| o.id.as_str())
+                .copied()
+                .filter(|i| i != gone && !conveyed.contains(i))
                 .collect();
             for (how, spec, promoted) in [
                 ("omitted", spec, conveyed.clone()),
-                ("left out of the authored set", authored(&rest), vec![]),
+                ("left out of the authored set", authored(&listed), vec![]),
             ] {
                 let plan = model::plan(analysis, &spec).unwrap();
                 edits += 1;
@@ -348,7 +364,16 @@ fn omitting_one_dimension_moves_no_other() {
                     .into_iter()
                     .filter(|i| promoted.contains(i))
                     .collect();
-                assert_eq!(back, promoted, "{name}: {gone} {how}");
+                assert_eq!(back.is_empty(), promoted.is_empty(), "{name}: {gone} {how}");
+                for p in promoted.iter().filter(|p| !back.contains(p)) {
+                    assert!(
+                        plan.omitted.iter().any(|o| o.id == *p
+                            && back
+                                .iter()
+                                .any(|b| o.basis.starts_with(&format!("conveyed by {b}: ")))),
+                        "{name}: {gone} {how}: {p} is neither drawn nor conveyed by what is"
+                    );
+                }
                 assert_eq!(
                     ids(&plan)
                         .into_iter()

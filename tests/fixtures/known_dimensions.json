@@ -858,5 +858,85 @@
     "count": 1,
     "verdict": "equivalent",
     "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
+  },
+  {
+    "part": "cgb245",
+    "side": "python",
+    "family": "slot",
+    "view": "plan",
+    "label": "6",
+    "count": 2,
+    "verdict": "rust-correct",
+    "reason": "cgb245's two obround slots (f:slot:1, f:slot:2, 6 wide) lie across the same span in y (one witness span, 172.2 to 184.6 mm on the page in both): the port states their width once, counted, claiming both (src/dims/mod.rs::share), as draftwright's own shared slot width does (_slot_shared_width_key in annotations/_slots.py: 'Quantify one size statement for that span'; ftc08's sheet prints '2× 15.2' so). draftwright skips the rule here only because a plan-view width along y takes immediate placement, which 'does not share the corridor dedup' (_render_slot_dimensions): a placement mechanism, not a drafting rule, so its sheet states the one span twice. rust-correct: the same quantity once (ARCH0009-6; the maintainer's directive of 2026-10-09)."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "slot",
+    "view": "plan",
+    "label": "2× 6",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "cgb245's two obround slots (f:slot:1, f:slot:2, 6 wide) lie across the same span in y (one witness span, 172.2 to 184.6 mm on the page in both): the port states their width once, counted, claiming both (src/dims/mod.rs::share), as draftwright's own shared slot width does (_slot_shared_width_key in annotations/_slots.py: 'Quantify one size statement for that span'; ftc08's sheet prints '2× 15.2' so). draftwright skips the rule here only because a plan-view width along y takes immediate placement, which 'does not share the corridor dedup' (_render_slot_dimensions): a placement mechanism, not a drafting rule, so its sheet states the one span twice. rust-correct: the same quantity once (ARCH0009-6; the maintainer's directive of 2026-10-09)."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "boss",
+    "view": "front",
+    "label": "38.1",
+    "count": 4,
+    "verdict": "rust-correct",
+    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "boss",
+    "view": "side",
+    "label": "12.1",
+    "count": 2,
+    "verdict": "rust-correct",
+    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "boss",
+    "view": "side",
+    "label": "16.3",
+    "count": 2,
+    "verdict": "rust-correct",
+    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "boss",
+    "view": "front",
+    "label": "4× 38.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "boss",
+    "view": "side",
+    "label": "2× 12.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "boss",
+    "view": "side",
+    "label": "2× 16.3",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
   }
 ]

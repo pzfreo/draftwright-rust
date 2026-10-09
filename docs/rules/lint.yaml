@@ -540,7 +540,7 @@
     tests: [tests/test_issue_1154_one_owner_per_measurement.py, tests/test_issue_1511_turned_boss_heights.py]
   status: pending
   rust_test: a_boss_states_its_height_by_a_dimension
-  rust_note: "Partial (src/lint/bosses.rs): each boss whose record gives a height must have boss_height.length claimed by an annotation that prints it; a boss that shares a face with a groove of its diameter (within 0.15 mm) is the groove's floor and not judged (draftwright's boss_groove_owner). The port reports one boss_height_missing per boss, naming it, where Python reports one finding counting them. Not ported: a height consolidated onto an overall extent (the omission's conveyed_by lives in the plan), bosses absorbed into blends or turned steps by recognition ownership, and the assembly severity."
+  rust_note: "Partial (src/lint/bosses.rs): each boss whose record gives a height must have boss_height.length claimed by an annotation that prints it; a boss that shares a face with a groove of its diameter (within 0.15 mm) is the groove's floor and not judged (draftwright's boss_groove_owner). The port reports one boss_height_missing per boss, naming it, where Python reports one finding counting them. A boss on exactly a turned step's faces is the step's band and not judged (draftwright's boss_turned_step_owner: lint::bosses::turned_band, tests/repeated_dimensions.rs::a_turned_band_is_dimensioned_by_its_step_not_again_as_a_boss). Not ported: a height consolidated onto an overall extent (the omission's conveyed_by lives in the plan), bosses absorbed into blends by recognition ownership, and the assembly severity."
   port_note: "Keep."
 
 - id: LINT-code-turned_profile_not_spanned
