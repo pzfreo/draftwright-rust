@@ -9,7 +9,7 @@
 //! This first cut covers the views (which views, the sheet, the scale and the placement) and a
 //! title block. Features, dimensions and annotations join the same documents as they are ported.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use haecceity::Part;
@@ -618,6 +618,208 @@ pub(crate) fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
     )
 }
 
+/// The problems that make a plan's layout invalid for the recovery: draftwright's hard layout
+/// codes (`linting.quality._HARD_LAYOUT_CODES`) as the port reports them (`annotation_off_sheet`
+/// is its `annotation_out_of_bounds`; views that do not fit are its `view_out_of_bounds` and
+/// `view_overlap`). `annotation_over_view` is not one: the port judges it by the view's box,
+/// draftwright's `view_annotation_overlap` by the view's line-work.
+const HARD_LAYOUT: [&str; 6] = [
+    "annotation_off_sheet",
+    "annotation_overlap",
+    "annotation_ink_overlap",
+    "title_field_overflow",
+    "page_fit_uncertain",
+    "views_do_not_fit",
+];
+
+/// A plan's findings for the recovery. The port drops nothing for want of room (an item that
+/// collides is placed and reported; one no shown view carries is kept unplaced, which no sheet
+/// or scale changes), so its completeness tier reads the one required loss draftwright's
+/// blockers have that a scale decides: hole locations too close to dimension legibly
+/// ([`layout::crowded_locations`], draftwright's `location_ref_dropped`), counted per view and
+/// axis, a pattern's centre ordinate apart (draftwright keeps it whatever its spacing).
+fn findings(plan: &Plan) -> layout::Findings {
+    let mut axes: BTreeMap<(&str, &str), Vec<f64>> = BTreeMap::new();
+    for d in &plan.dimensions {
+        let Some(m) = d.measurements.first() else {
+            continue;
+        };
+        let located = matches!(
+            m.parameter.as_str(),
+            "location.length.x" | "location.length.y"
+        );
+        let centre = d
+            .measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:hole_pattern:"));
+        if d.kind == "linear" && located && !centre {
+            axes.entry((d.view.as_str(), m.parameter.as_str()))
+                .or_default()
+                .push(d.value);
+        }
+    }
+    let scale = plan.sheet.scale_factor;
+    layout::Findings {
+        hard: plan
+            .problems
+            .iter()
+            .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+            .count(),
+        dropped: axes
+            .values()
+            .map(|o| layout::crowded_locations(o, scale))
+            .sum(),
+    }
+}
+
+/// What a plan's recovery findings are, in words.
+fn said(f: layout::Findings) -> String {
+    let hard = match f.hard {
+        1 => "1 hard layout finding".to_string(),
+        n => format!("{n} hard layout findings"),
+    };
+    let crowded = match f.dropped {
+        1 => "1 hole location too close to read".to_string(),
+        n => format!("{n} hole locations too close to read"),
+    };
+    match (f.hard, f.dropped) {
+        (0, 0) => "valid and complete".into(),
+        (_, 0) => hard,
+        (0, _) => crowded,
+        _ => format!("{hard}, {crowded}"),
+    }
+}
+
+/// draftwright's bounded layout recovery on a finished plan (ISSUE-1299-a, [`layout::recover`]):
+/// a plan with a hard layout failure is re-planned at the nearest smaller, then the nearest
+/// larger standard scale on its sheet, then on each larger standard sheet; one without, whose
+/// hole locations are too close to read, at the next two larger scales, then each larger sheet;
+/// the first valid and complete one is taken. A scale the spec names is never re-planned
+/// (draftwright resolves an explicit scale apart), a sheet it names is never left, and a valid,
+/// complete plan is kept. The change and what was tried are said (`layout_replanned`), as is a
+/// recovery that found nothing better (`layout_recovery_exhausted`). Each try is a whole
+/// [`plan`] (no projection): six at most.
+///
+/// Unlike draftwright's retries (`try_scales_on_selected_page`, `try_larger_standard_pages`),
+/// which rebuild with the first drawing's settled arrangement and principal views, each try
+/// here is planned afresh at the sheet and scale named, so its arrangement and view set are
+/// chosen again for them. Not ported: draftwright's other candidate gates (a retained recovery
+/// detail, a recognised-requirement regression, the structural replay), whose inputs the port
+/// does not plan; a principal view too large for the page is the try's `views_do_not_fit`.
+///
+/// [`plan`] does not call it yet (an integration decision: docs/next-session.md); applying it
+/// there means re-planning through the unrecovered plan, never through itself.
+pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    if spec.sheet.scale.is_some() {
+        return Ok(first);
+    }
+    let found = findings(&first);
+    let mut tried = Vec::new();
+    let mut last = None;
+    let attempts = layout::recover(
+        first.sheet.scale_factor,
+        first.sheet.page,
+        spec.sheet.size.is_some(),
+        found,
+        &mut |retry| {
+            let mut s = spec.clone();
+            match retry {
+                layout::Retry::Scale(k) => {
+                    s.sheet.size = Some(first.sheet.size.clone());
+                    s.sheet.scale = Some(scale_name(k));
+                }
+                layout::Retry::Sheet(n) => s.sheet.size = Some(n.into()),
+            }
+            let Ok(p) = plan(analysis, &s) else {
+                let at = s.sheet.scale.as_deref().unwrap_or("its scale");
+                tried.push(format!(
+                    "{} at {at} (could not be planned)",
+                    s.sheet.size.as_deref().unwrap_or_default()
+                ));
+                return None;
+            };
+            let f = findings(&p);
+            tried.push(format!(
+                "{} at {} ({})",
+                p.sheet.size,
+                p.sheet.scale,
+                said(f)
+            ));
+            last = Some(p);
+            Some(f)
+        },
+    );
+    if attempts.is_empty() {
+        return Ok(first);
+    }
+    let codes: BTreeSet<&str> = first
+        .problems
+        .iter()
+        .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+        .map(|p| p.code.as_str())
+        .collect();
+    let why = if found.hard > 0 {
+        format!(
+            "{} at {} has {} ({})",
+            first.sheet.size,
+            first.sheet.scale,
+            said(found),
+            codes.into_iter().collect::<Vec<_>>().join(", ")
+        )
+    } else {
+        format!(
+            "{} at {} has {}",
+            first.sheet.size,
+            first.sheet.scale,
+            said(found)
+        )
+    };
+    let scales = if found.hard > 0 {
+        "the nearest smaller, then larger standard scale"
+    } else {
+        "the next two larger standard scales"
+    };
+    let order = if spec.sheet.size.is_some() {
+        format!("{scales} on the sheet the spec names")
+    } else {
+        format!("{scales} on the same sheet, then each larger standard sheet")
+    };
+    let tried = tried.join(", ");
+    match (attempts.last().is_some_and(|a| a.taken), last) {
+        (true, Some(mut p)) => {
+            let to = format!("{} at {}", p.sheet.size, p.sheet.scale);
+            p.sheet.basis = format!(
+                "draftwright's layout recovery: {why}, so {order} was tried, the first valid and complete one taken: {to}"
+            );
+            p.sheet.default = true;
+            p.spec = first.spec;
+            p.problems.push(Problem {
+                id: "p:layout_replanned:sheet".into(),
+                code: "layout_replanned".into(),
+                severity: "info".into(),
+                message: format!(
+                    "The sheet was re-planned: {why}. Tried {tried}; {to} is used. Name a sheet and scale to keep another."
+                ),
+                subjects: vec!["sheet".into()],
+            });
+            Ok(p)
+        }
+        _ => {
+            let mut p = first;
+            p.problems.push(Problem {
+                id: "p:layout_recovery_exhausted:sheet".into(),
+                code: "layout_recovery_exhausted".into(),
+                severity: "info".into(),
+                message: format!(
+                    "{why}; re-planning ({order}) found nothing valid and complete: tried {tried}. The first choice is kept."
+                ),
+                subjects: vec!["sheet".into()],
+            });
+            Ok(p)
+        }
+    }
+}
+
 /// Plans the sheet: which views, where, at what scale and on what sheet, as draftwright's layout
 /// does ([`layout`]): each principal view is a block of its box and the annotation bands reserved
 /// around it, packed third-angle; the isometric takes the largest space left. Each choice the
@@ -626,7 +828,9 @@ pub(crate) fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
 /// The bands, the turned-part view set and section A–A come from the features
 /// ([`crate::demand`]); the height ladder is sized for the steps legible at the scale chosen.
 /// The scale and sheet are draftwright's first choice, before it re-plans on its finished
-/// drawing's findings.
+/// drawing's findings. That recovery is [`recover`], not yet applied here: on the captured parts
+/// it moves only ctc01, for a label the port's placement leaves off the sheet
+/// (docs/next-session.md, ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // A document of a version this build does not know is refused, never read as the nearest
     // one it does (ADR3-4).
