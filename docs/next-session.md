@@ -282,11 +282,7 @@ quiddity commit that has it.
     - An ISO 286 class stated without limits (FTC-10's three Ø3.50 G6): the record keeps the
       class and a blocker; haecceity has no ISO 286 table. Compute the limits (a table to add),
       or draw the class alone?
-  - Stage 1b (stream d-pmi-manufacturing): manufacturing requirements (36), surface labels (5)
-    and common labels (14) are read into records (46 of 55 agree with draftwright; the rest
-    rust-correct: per-part pairing in the assembly, an undecoded `\X\0A`), `known_pmi.json` 283
-    rust-correct, 0 rust-wrong, 3 undetermined; the plan reports each requirement and surface
-    label `pmi_not_drawn` (drawing them is the next stage).
+  - Stage 1b (d-pmi-manufacturing): requirements, surface and common labels are records (0 rust-wrong), each `pmi_not_lowered` warning/info until drawn; question: draftwright's lint makes that an error for a kind it draws, keep warning/info?
 - **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now** (done:
   q-merge-ap242, 48dbe43). The `ap242`
   branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and

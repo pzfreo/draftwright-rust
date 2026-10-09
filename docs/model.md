@@ -81,7 +81,7 @@ edited.
   read with none. Manufacturing requirements (threads and knurls with their structured fields
   and faces, general tolerances, surface texture and edge notes), surface labels and common
   labels are records too; `plan` reports each requirement and surface label as read but not
-  drawn yet (`pmi_not_drawn`), and a common label as a PMI dimension.
+  drawn yet (`pmi_not_lowered`), and a common label as a PMI dimension.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.

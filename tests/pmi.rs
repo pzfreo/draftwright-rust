@@ -695,8 +695,8 @@ fn requirements_are_records_and_what_is_not_projected_is_a_source() {
 const BOLT: &str = "bolt_thread_knurl.step.gz";
 
 #[test]
-fn a_thread_takes_its_structured_statement_and_without_one_has_no_faces() {
-    let (doc, defs, part, mut read) = reading(BOLT);
+fn a_thread_pairs_with_the_structured_statement_on_its_callouts_faces() {
+    let (doc, defs, part, read) = reading(BOLT);
     let r = pmi::report(&doc, &defs, &part, &read).unwrap();
     let thread = r
         .records
@@ -729,35 +729,34 @@ fn a_thread_takes_its_structured_statement_and_without_one_has_no_faces() {
             .fields
             .contains(&("pitch".to_string(), pmi::Field::Length(1.5)))
     );
-    // Its structured statement gone, the requirement in words has no faces, and says so.
-    let a = read.parts[0]
-        .attributes
-        .iter()
-        .position(|a| a.name == "external thread")
-        .unwrap();
-    read.parts[0].attributes.remove(a);
-    read.provenance.parts[0].attributes.remove(a);
+    // Its callout renamed, the requirement in words is presented on nothing: it has no faces
+    // and does not pair, and its structured statement is a record of its own (draftwright's
+    // `paired_structured` pairs by the callouts' faces only).
+    let bytes = gunzip(&std::fs::read(fixtures().join("step").join(BOLT)).unwrap());
+    let text = String::from_utf8(bytes).unwrap();
+    let renamed = text.replace("'External thread requirement'", "'Callout one'");
+    assert_ne!(renamed, text);
+    let bytes = renamed.into_bytes();
+    let part = haecceity::read_step(&bytes).unwrap();
+    let defs = step::read_part_definitions(&bytes).unwrap();
+    let doc = p21::Document::parse(bytes).unwrap();
+    let read = hpmi::read(&doc, &defs).unwrap();
     let r = pmi::report(&doc, &defs, &part, &read).unwrap();
-    let thread = r
+    let threads: Vec<&Record> = r
         .records
         .iter()
-        .find(|x| x.kind == "external_thread")
-        .unwrap();
-    assert!(thread.faces.is_empty() && thread.fields.is_empty());
-    assert!(
-        thread
-            .blockers
-            .iter()
-            .any(|b| b.starts_with("the requirement's faces are not read")),
-        "{:?}",
-        thread.blockers
-    );
-    let source = r.sources.iter().find(|s| s.id == thread.source_id).unwrap();
-    assert_eq!(source.outcome, Outcome::PartiallyExtracted);
+        .filter(|x| x.kind == "external_thread")
+        .collect();
+    assert_eq!(threads.len(), 2);
+    assert_eq!(threads[0].part21_id, 444);
+    assert!(threads[0].faces.is_empty() && threads[0].fields.is_empty());
+    assert_eq!(threads[1].part21_id, 468);
+    assert_eq!(threads[1].label, "external thread");
+    assert_eq!(threads[1].face_ids, [17]);
 }
 
 #[test]
-fn a_requirement_or_label_record_is_reported_not_drawn() {
+fn a_requirement_or_label_record_is_reported_not_lowered() {
     for (name, severities) in [
         (
             BOLT,
@@ -772,7 +771,7 @@ fn a_requirement_or_label_record_is_reported_not_drawn() {
         ),
     ] {
         let bytes = gunzip(&std::fs::read(fixtures().join("step").join(name)).unwrap());
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pmi_not_drawn");
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pmi_not_lowered");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join(name.strip_suffix(".gz").unwrap());
         std::fs::write(&path, &bytes).unwrap();
@@ -793,7 +792,7 @@ fn a_requirement_or_label_record_is_reported_not_drawn() {
                 .filter(|p| p.subjects == [r.source_id.clone()])
                 .collect();
             assert_eq!(said.len(), 1, "{name}: {} is said once", r.source_id);
-            assert_eq!(said[0].code, "pmi_not_drawn");
+            assert_eq!(said[0].code, "pmi_not_lowered");
             if let Some((_, s)) = severities.iter().find(|(k, _)| *k == r.kind) {
                 assert_eq!(said[0].severity, *s, "{name}: {}", r.source_id);
             }

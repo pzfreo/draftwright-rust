@@ -62,9 +62,9 @@ use haecceity::geom::{Bounds, Surface};
 use haecceity::p21::{self, Attribute, Document, RawEntity};
 use haecceity::pmi::{
     self, Anchor, AngleUnit, AttributeValue, AuxiliaryClassification, DatumId, DimTolerance,
-    Dimension, DimensionId, DimensionKind, Feature, FeatureId, GeneralTolerance,
-    GeometricTolerance, GroupKind, LengthUnit, LocationKind, NoteOwner, PartPmi, PartProvenance,
-    Quantity, SizeKind, ToleranceKind, ToleranceModifier, ToleranceTarget, Value,
+    Dimension, DimensionId, DimensionKind, EdgeIndex, FaceIndex, Feature, FeatureId,
+    GeneralTolerance, GeometricTolerance, GroupKind, LengthUnit, LocationKind, NoteOwner, PartPmi,
+    PartProvenance, Quantity, SizeKind, ToleranceKind, ToleranceModifier, ToleranceTarget, Value,
 };
 use haecceity::step::{PartDefinition, read_part_definitions};
 use serde::{Deserialize, Serialize};
@@ -461,8 +461,19 @@ struct Structured {
     pdef: u64,
     kind: String,
     feature: Option<FeatureId>,
+    /// The Part 21 items its shape aspect is used on (draftwright's `reference_item_ids`).
+    items: BTreeSet<u64>,
     fields: Vec<(String, Field)>,
     blockers: Vec<String>,
+}
+
+/// What a requirement in words is presented on (draftwright's `read_manufacturing_requirements`):
+/// the shape aspects of the part's draughting callouts named like it, and their items.
+struct Presentation {
+    items: BTreeSet<u64>,
+    /// A thread's callouts have several supports: draftwright keeps none of them.
+    ambiguous: bool,
+    reasons: Vec<String>,
 }
 
 struct PartReader<'a> {
@@ -1125,6 +1136,34 @@ impl PartReader<'_> {
                 None
             }
         };
+        let doc = self.doc;
+        let items = ref_of(doc, pdef, "PROPERTY_DEFINITION", 2)
+            .filter(|&t| attributes(doc, t, "SHAPE_ASPECT").is_some())
+            .map(|t| aspect_items(doc, t))
+            .unwrap_or_default();
+        // draftwright's `_structured_manufacturing_fields`: one representation, its items text
+        // or measures.
+        let reps = representations(doc, pdef);
+        match reps.iter().collect::<Vec<_>>()[..] {
+            [&r] => match attributes(doc, r, "REPRESENTATION") {
+                Some(a) if a.len() >= 2 => {
+                    for item in refs_of(doc, r, "REPRESENTATION", 1) {
+                        if attributes(doc, item, "DESCRIPTIVE_REPRESENTATION_ITEM").is_none()
+                            && attributes(doc, item, "MEASURE_REPRESENTATION_ITEM").is_none()
+                        {
+                            blockers.push(format!(
+                                "structured representation item #{item} is unsupported"
+                            ));
+                        }
+                    }
+                }
+                _ => blockers.push("structured manufacturing representation is malformed".into()),
+            },
+            _ => blockers.push(format!(
+                "structured manufacturing property has {} representations",
+                reps.len()
+            )),
+        }
         let mut fields = Vec::new();
         for (name, v) in &a.items {
             let name = name.to_lowercase();
@@ -1153,6 +1192,7 @@ impl PartReader<'_> {
             pdef,
             kind,
             feature,
+            items,
             fields,
             blockers,
         })
@@ -1170,17 +1210,113 @@ impl PartReader<'_> {
         s
     }
 
+    /// Where requirement in words *pdef* is presented (draftwright's
+    /// `read_manufacturing_requirements`): the callouts among *named* whose name is its
+    /// representation's (ignoring case), else whose name's words include its kind's
+    /// ([`name_tokens`]); their shape aspects on this part; and the items those are used on. A
+    /// thread whose callouts have several items keeps none of them.
+    fn presentation(&self, pdef: u64, named: &[(u64, String)]) -> Presentation {
+        let doc = self.doc;
+        let semantic = text_of(doc, pdef, "PROPERTY_DEFINITION", 1)
+            .trim()
+            .to_lowercase();
+        let reps = representations(doc, pdef);
+        let rep = match reps.iter().collect::<Vec<_>>()[..] {
+            [&r] => text_of(doc, r, "REPRESENTATION", 0).trim().to_lowercase(),
+            _ => String::new(),
+        };
+        let mut matched: Vec<u64> = named
+            .iter()
+            .filter(|(_, n)| !rep.is_empty() && n.to_lowercase() == rep)
+            .map(|&(c, _)| c)
+            .collect();
+        if matched.is_empty() {
+            let words = name_tokens(&semantic);
+            matched = named
+                .iter()
+                .filter(|(_, n)| !words.is_empty() && words.is_subset(&name_tokens(n)))
+                .map(|&(c, _)| c)
+                .collect();
+        }
+        let mut reasons = Vec::new();
+        let mut aspects: Vec<u64> = Vec::new();
+        let mut bare = Vec::new();
+        for &c in &matched {
+            let of = callout_aspects(doc, c);
+            if of.is_empty() {
+                bare.push(format!("#{c}"));
+            }
+            for a in of {
+                // Another part's aspect is that part's presentation.
+                if ref_of(doc, a, "SHAPE_ASPECT", 2) == Some(self.def.shape)
+                    && !aspects.contains(&a)
+                {
+                    aspects.push(a);
+                }
+            }
+        }
+        let mut items: BTreeSet<u64> = aspects.iter().flat_map(|&a| aspect_items(doc, a)).collect();
+        let ambiguous =
+            matches!(semantic.as_str(), "internal thread" | "external thread") && items.len() > 1;
+        if ambiguous {
+            reasons.push(AMBIGUOUS_CALLOUTS.to_string());
+            aspects.clear();
+            items.clear();
+        }
+        if !bare.is_empty() {
+            reasons.push(format!(
+                "matched semantic callout(s) have no shape-aspect association: {}",
+                bare.join(", ")
+            ));
+        }
+        let empty: Vec<String> = aspects
+            .iter()
+            .filter(|&&a| aspect_items(doc, a).is_empty())
+            .map(|a| format!("#{a}"))
+            .collect();
+        if !empty.is_empty() {
+            reasons.push(format!(
+                "associated shape aspect(s) have no representation items: {}",
+                empty.join(", ")
+            ));
+        }
+        Presentation {
+            items,
+            ambiguous,
+            reasons,
+        }
+    }
+
+    /// The faces and edges of the part among Part 21 *items*; another item is not resolved.
+    fn item_support(&self, items: &BTreeSet<u64>) -> Support {
+        let mut s = Support::default();
+        for &i in items {
+            if let Some(f) = self.def.face_index(i) {
+                self.anchor(Anchor::Face(FaceIndex(f)), &mut s);
+            } else if let Some(e) = self.def.edge_index(i) {
+                self.anchor(Anchor::Edge(EdgeIndex(e)), &mut s);
+            } else {
+                s.unresolved.push(format!(
+                    "{UNRESOLVED}: presented item #{i} is neither a face nor an edge of part {}",
+                    self.p
+                ));
+            }
+        }
+        s
+    }
+
     /// The part's manufacturing requirements (draftwright's
-    /// `_manufacturing_requirement_projection`). Each requirement in words (a 'manufacturing requirement' property: haecceity's notes) is
-    /// a record, paired with the structured statement of the same requirement: a thread's or
-    /// knurl's attribute set when the part has exactly one requirement in words and one
-    /// structured statement of that kind (and their thread designations agree), whose faces and
-    /// fields the record takes; the general tolerance class when it is the only one left.
-    /// draftwright pairs a thread or knurl by the faces of presentation callouts named like the
-    /// requirement, which haecceity does not read. A structured statement left unpaired is a
-    /// record of its own, labelled as draftwright labels it (its kind, or its tolerance class).
+    /// `_manufacturing_requirement_projection`). Each requirement in words (a 'manufacturing
+    /// requirement' property: haecceity's notes) is a record on the faces of the part's
+    /// draughting callouts named like it ([`Self::presentation`]). A thread or knurl takes the
+    /// faces and fields of the structured statement of its kind used on exactly those faces, or,
+    /// its callouts ambiguous, the one whose thread designation is its own; a general tolerance
+    /// takes the general tolerance class when it is the only one left. A structured statement
+    /// left unpaired is a record of its own, labelled as draftwright labels it (its kind, or its
+    /// tolerance class). draftwright matches callouts across the file, the port within the part.
     fn requirements(&self, sources: &mut Vec<Source>, used: &mut Used) -> Vec<Record> {
         let pmi = self.pmi;
+        let doc = self.doc;
         let structured: Vec<Structured> = (0..pmi.attributes.len())
             .filter_map(|i| self.structured(i))
             .collect();
@@ -1191,44 +1327,72 @@ impl PartReader<'_> {
         let classes: Vec<usize> = (0..pmi.general.len())
             .filter(|&g| matches!(pmi.general[g], GeneralTolerance::Class { .. }))
             .collect();
-        let kinds: Vec<String> = pmi
+        let named: Vec<(u64, String)> = doc
+            .ids()
+            .filter(|&c| attributes(doc, c, "DRAUGHTING_CALLOUT").is_some())
+            .map(|c| {
+                (
+                    c,
+                    text_of(doc, c, "DRAUGHTING_CALLOUT", 0).trim().to_string(),
+                )
+            })
+            .collect();
+        let pdefs: Vec<Option<u64>> = (0..pmi.notes.len())
+            .map(|n| {
+                let ids = self.prov.notes.get(n).map_or(&[][..], Vec::as_slice);
+                self.property(ids)
+            })
+            .collect();
+        let shown: Vec<Option<Presentation>> = pdefs
+            .iter()
+            .map(|p| p.map(|p| self.presentation(p, &named)))
+            .collect();
+        let ambiguous: Vec<Option<Designation>> = pmi
             .notes
             .iter()
-            .map(|n| {
-                let k = n.kind.to_lowercase();
-                let words: Vec<&str> = k.split_whitespace().collect();
-                if words.is_empty() {
-                    "manufacturing_requirement".into()
-                } else {
-                    words.join("_")
-                }
-            })
+            .zip(&shown)
+            .filter(|(_, s)| s.as_ref().is_some_and(|s| s.ambiguous))
+            .map(|(n, _)| prose_designation(&n.text))
             .collect();
         let attribute_ids = |i: usize| self.prov.attributes.get(i).into_iter().flatten();
         let mut out = Vec::new();
         for (n, note) in pmi.notes.iter().enumerate() {
             let ids = self.prov.notes.get(n).map_or(&[][..], Vec::as_slice);
-            let pdef = self
-                .property(ids)
-                .or_else(|| ids.first().copied())
-                .unwrap_or(0);
             used.notes[n] = true;
+            let (Some(pdef), Some(shown)) = (pdefs[n], &shown[n]) else {
+                sources.push(Source {
+                    id: format!("note:{}:{n}", self.p),
+                    category: Category::ManufacturingRequirement,
+                    entity: String::new(),
+                    instances: ids.to_vec(),
+                    outcome: Outcome::NotExtracted,
+                    reason: "manufacturing requirement has no property definition among its \
+                             instances"
+                        .into(),
+                });
+                continue;
+            };
             if note.text.is_empty() {
                 sources.push(Source {
                     id: format!("manufacturing_requirement:#{pdef}"),
                     category: Category::ManufacturingRequirement,
-                    entity: entity_name(self.doc, pdef),
+                    entity: entity_name(doc, pdef),
                     instances: ids.to_vec(),
                     outcome: Outcome::NotExtracted,
                     reason: "manufacturing requirement has no authoritative text".into(),
                 });
                 continue;
             }
-            let kind = &kinds[n];
+            let words = note.kind.to_lowercase();
+            let words: Vec<&str> = words.split_whitespace().collect();
+            let kind = if words.is_empty() {
+                "manufacturing_requirement".to_string()
+            } else {
+                words.join("_")
+            };
             let mut own = ids.to_vec();
-            let mut blockers = Vec::new();
-            let mut support = Support::default();
             let mut fields = Vec::new();
+            let mut pair = None;
             if kind == "general_tolerances" {
                 let free: Vec<usize> = classes
                     .iter()
@@ -1243,38 +1407,49 @@ impl PartReader<'_> {
                     fields.push(("tolerance class".into(), Field::Text(text.clone())));
                 }
             } else {
-                let alone = kinds.iter().filter(|k| *k == kind).count() == 1;
-                let free: Vec<usize> = (0..structured.len())
-                    .filter(|&j| !paired[j] && structured[j].kind == *kind)
+                let mut free: Vec<usize> = (0..structured.len())
+                    .filter(|&j| {
+                        !paired[j]
+                            && structured[j].kind == kind
+                            && !shown.items.is_empty()
+                            && shown.items == structured[j].items
+                    })
                     .collect();
-                let agree = |j: usize| match (
-                    prose_designation(&note.text),
-                    structured_designation(&structured[j].fields),
-                ) {
-                    (Some(a), Some(b)) => a == b,
-                    _ => true,
-                };
-                match free[..] {
-                    [j] if alone && agree(j) => {
-                        paired[j] = true;
-                        let st = &structured[j];
-                        own.extend(attribute_ids(st.attr));
-                        support = self.structured_support(st, &mut blockers);
-                        blockers.extend(st.blockers.iter().cloned());
-                        fields = st.fields.clone();
+                if free.is_empty() && shown.items.is_empty() && shown.ambiguous {
+                    // A designation unique among the ambiguous threads pairs it; its face is
+                    // still checked when it is lowered.
+                    let d = prose_designation(&note.text);
+                    if d.is_some() && ambiguous.iter().filter(|x| **x == d).count() == 1 {
+                        free = (0..structured.len())
+                            .filter(|&j| {
+                                !paired[j]
+                                    && structured[j].kind == kind
+                                    && structured[j].items.len() == 1
+                                    && structured_designation(&structured[j].fields) == d
+                            })
+                            .collect();
                     }
-                    _ => match note.on {
-                        // A requirement on a shape aspect: its own faces.
-                        Some(NoteOwner::Feature(f)) => support = self.support(&[f]),
-                        Some(other) => blockers.push(format!(
-                            "the requirement is on {other:?}, which is not carried"
-                        )),
-                        None if STRUCTURED_KINDS.contains(&kind.as_str()) => {
-                            blockers.push(FACES_NOT_READ.into());
-                        }
-                        None => {}
-                    },
                 }
+                if let [j] = free[..] {
+                    paired[j] = true;
+                    pair = Some(j);
+                }
+            }
+            let mut blockers: Vec<String> = shown
+                .reasons
+                .iter()
+                .filter(|r| pair.is_none() || r.as_str() != AMBIGUOUS_CALLOUTS)
+                .cloned()
+                .collect();
+            let mut support = self.item_support(&shown.items);
+            if let Some(j) = pair {
+                let st = &structured[j];
+                own.extend(attribute_ids(st.attr));
+                if shown.items.is_empty() {
+                    support = self.structured_support(st, &mut blockers);
+                }
+                blockers.extend(st.blockers.iter().cloned());
+                fields = st.fields.clone();
             }
             let mut r = self.record(
                 Category::ManufacturingRequirement,
@@ -1283,7 +1458,7 @@ impl PartReader<'_> {
                 support,
                 blockers,
             );
-            r.kind = kind.clone();
+            r.kind = kind;
             r.label = note.text.clone();
             r.fields = fields;
             out.push(r);
@@ -1317,10 +1492,18 @@ impl PartReader<'_> {
             }
             used.general[g] = true;
             let ids = self.prov.general.get(g).map_or(&[][..], Vec::as_slice);
-            let pdef = self
-                .property(ids)
-                .or_else(|| ids.first().copied())
-                .unwrap_or(0);
+            let Some(pdef) = self.property(ids) else {
+                sources.push(Source {
+                    id: format!("general_tolerance:{}:{g}", self.p),
+                    category: Category::ManufacturingRequirement,
+                    entity: String::new(),
+                    instances: ids.to_vec(),
+                    outcome: Outcome::NotExtracted,
+                    reason: "general tolerance has no property definition among its instances"
+                        .into(),
+                });
+                continue;
+            };
             let mut r = self.record(
                 Category::ManufacturingRequirement,
                 pdef,
@@ -1522,12 +1705,8 @@ const NOT_PROJECTED: &str = "read by haecceity; not projected to a draftwright r
                              projects dimensions, geometric tolerances, datums, manufacturing \
                              requirements, surface labels and common labels)";
 
-/// Why a part-owned thread or knurl requirement has no faces.
-const FACES_NOT_READ: &str = "the requirement's faces are not read: it is owned by the part, and \
-                              draftwright finds its faces through presentation callouts of the \
-                              same name, which haecceity counts but does not read; no single \
-                              structured (pmi-assist) requirement of its kind on the part pairs \
-                              with it";
+/// draftwright's `_AMBIGUOUS_MANUFACTURING_CALLOUTS`.
+const AMBIGUOUS_CALLOUTS: &str = "thread presentation callouts have multiple distinct supports";
 
 /// The structured requirements draftwright reads (`read_structured_manufacturing_requirements`).
 const STRUCTURED_KINDS: [&str; 3] = ["internal_thread", "external_thread", "knurl"];
@@ -1592,6 +1771,48 @@ fn callouts(doc: &Document, subject: u64) -> BTreeSet<u64> {
         .filter(|&&a| ref_of(doc, a, DMIA, 2) == Some(subject))
         .flat_map(|&a| refs_of(doc, a, DMIA, 4))
         .filter(|&c| attributes(doc, c, "DRAUGHTING_CALLOUT").is_some())
+        .collect()
+}
+
+/// The shape aspects a `draughting_model_item_association` relates draughting callout *c* to.
+fn callout_aspects(doc: &Document, c: u64) -> Vec<u64> {
+    const DMIA: &str = "DRAUGHTING_MODEL_ITEM_ASSOCIATION";
+    let mut out = Vec::new();
+    for &a in doc.referrers(c) {
+        if refs_of(doc, a, DMIA, 4).contains(&c)
+            && let Some(s) = ref_of(doc, a, DMIA, 2)
+            && attributes(doc, s, "SHAPE_ASPECT").is_some()
+            && !out.contains(&s)
+        {
+            out.push(s);
+        }
+    }
+    out
+}
+
+/// The items a `geometric_item_specific_usage` uses shape aspect *aspect* on.
+fn aspect_items(doc: &Document, aspect: u64) -> BTreeSet<u64> {
+    const GISU: &str = "GEOMETRIC_ITEM_SPECIFIC_USAGE";
+    doc.referrers(aspect)
+        .iter()
+        .filter(|&&g| ref_of(doc, g, GISU, 2) == Some(aspect))
+        .flat_map(|&g| refs_of(doc, g, GISU, 4))
+        .collect()
+}
+
+/// A callout's or kind's name as words, for matching one with the other (draftwright's
+/// `_name_tokens`): lower case, alphanumeric, a plural 's' dropped, 'requirement' left out.
+fn name_tokens(name: &str) -> BTreeSet<String> {
+    name.to_lowercase()
+        .replace(['_', '-'], " ")
+        .split_whitespace()
+        .filter_map(|raw| {
+            let mut w: String = raw.chars().filter(|c| c.is_alphanumeric()).collect();
+            if w.chars().count() > 3 && w.ends_with('s') && !w.ends_with("ss") {
+                w.pop();
+            }
+            (!w.is_empty() && w != "requirement").then_some(w)
+        })
         .collect()
 }
 
