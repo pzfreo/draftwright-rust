@@ -770,6 +770,8 @@
     corpus_parts: []
   status: pending
   port_note: "Keep: plan table cells bound to measurement IDs; empty cell = no claim."
+  rust_test: tests/hole_tables.rs::table_rows_match_draftwrights_attempt_on_ctc02
+  rust_note: "Partly ported (src/hole_table.rs): each row prints THRU or the depth its callout states and the X and Y its plan-view location dimensions state, a blank cell when none locates the hole along that axis, and claims only what it prints (the drawing's row annotation claims bore.diameter, bore.depth when printed, and each printed location); a table not kept (no place, or a balloon short) restores every replaced item and keeps the drops. Not ported: the public hole-table verb."
 
 - id: ISSUE-1143-e
   statement: "An unmatched countersink is counted in the denominator but deliberately left unattributable rather than given an invented owner."
@@ -798,6 +800,8 @@
     corpus_parts: []
   status: pending
   port_note: "Keep: planner evaluates table vs callouts as alternative plans; never emits a partial table."
+  rust_test: tests/hole_tables.rs::a_table_without_every_balloon_is_withdrawn_whole
+  rust_note: "Partly ported (src/hole_table.rs): the table is committed only when every row's balloon (one per hole, owning that hole) is placed with its leader clear of labels, other views and the title block; otherwise it is withdrawn whole, every replaced callout and location restored (table_dropped, balloon_dropped), as draftwright does on NIST CTC-02. The plan is built afresh, so there is nothing to roll back. Not ported: crossings of a leader with another item's lines."
 
 - id: ISSUE-1144-b
   statement: "An automatic hole table cannot resolve a dropped decorated or thread callout and preserves authored through-wording; a user-requested hole table is additive and keeps every balloon."
@@ -812,6 +816,7 @@
     corpus_parts: []
   status: pending
   port_note: "Keep: scenario tests on table eligibility."
+  rust_note: "Partly ported (src/hole_table.rs::rows): an automatic table replaces only plain callouts (no counterbore, spotface or countersink, no authored tolerance or fit) and clears only the drops of items it replaces; THRU is printed as the callout prints it. Not ported: threads (not dimensioned), authored through-wording, the public hole-table verb."
 
 - id: ISSUE-1144-c
   statement: "Hole-table balloon placement is work-bounded; exceeding a solver or carve budget rolls the automatic transaction back rather than committing a partial result."
@@ -824,7 +829,7 @@
       - "tests/test_issue_1144_transactional_hole_table.py::test_finalize_exception_restores_automatic_transaction_markers"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: no hole table or balloon placement."
+  rust_note: "Not applicable as written: the port's balloon placement (src/hole_table.rs) has no search to bound: one pass over four bands, linear in balloons times placed items; the table is committed whole or not at all."
   port_note: "Translate: bounded search with explicit budget-exhausted problem; no mutable rollback needed in a stateless planner."
 
 - id: ISSUE-1146-a
@@ -1167,7 +1172,7 @@
     corpus_parts: ["nist_ctc_03_asme1_ap203", "nist_ctc_04_asme1_ap203"]
   status: pending
   rust_test: "tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them"
-  rust_note: "Partly ported: lint judges the rendered drawing's annotations, so a hole callout the plan approved but never drew earns nothing, and contradicted or empty text is not credited; a render that fails is a failed error with no findings. Not ported: an evaluation harness over a corpus scoring each hole (unknown on a failed build) and hole tables."
+  rust_note: "Partly ported: lint judges the rendered drawing's annotations, so a hole callout the plan approved but never drew earns nothing, and contradicted or empty text is not credited; a render that fails is a failed error with no findings. Not ported: an evaluation harness over a corpus scoring each hole (unknown on a failed build). A hole table's rows are recorded on the drawing as annotations claiming what their cells print, so they are credited as callouts are (src/hole_table.rs)."
   port_note: "Keep: evaluation harness reads the plan/render output, not declared capabilities."
 
 - id: ISSUE-1204-a
@@ -1249,7 +1254,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::every_authored_tolerance_reaches_the_label_that_claims_it"
-  rust_note: "Partial: on the five fixtures and thirteen sampled parts (ctc04 among them), every dimension the default plan has or leaves out, each given its own band, prints its band exactly once and no other's (or the plan reports tolerance_withheld); an undrawn one is reported (view_plan_incomplete) and one left out is reported (tolerance_not_shown); on plate each band is drawn in exactly one text run. Not ported: a callout's other terms (counterbore and countersink sizes, a bore's depth) have no dimension ID and cannot be toleranced, where draftwright's kind-keyed sweep tolerances them too; hole tables (the port draws none)."
+  rust_note: "Partial: on the five fixtures and thirteen sampled parts (ctc04 among them), every dimension the default plan has or leaves out, each given its own band, prints its band exactly once and no other's (or the plan reports tolerance_withheld); an undrawn one is reported (view_plan_incomplete) and one left out is reported (tolerance_not_shown); on plate each band is drawn in exactly one text run. Not ported: a callout's other terms (counterbore and countersink sizes, a bore's depth) have no dimension ID and cannot be toleranced, where draftwright's kind-keyed sweep tolerances them too; a hole table's cells (src/hole_table.rs) print a callout's tolerance term after the diameter, untested: no corpus part keeps a table."
   port_note: "Keep: scenario test (spec with tolerance on every parameter -> every plan label contains it); renderers draw only plan text."
 
 - id: ISSUE-1215-d
@@ -2603,7 +2608,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::an_authored_magnitude_is_never_rounded"
-  rust_note: "Partial: an authored band keeps its digits, one decimal at least (src/dims/tolerance.rs::printed): each of draftwright's cases (±0.02 to ±0.000000123, +0.015 -0.002, and +0.00001 -0 as +0.00001 -0.0) prints as its _tol_suffix does, in the label, the drawn text run and the placed box, and adds no problem. The spec carries the band as text, so no float formatting can round it. Not ported: hole tables (the port draws none)."
+  rust_note: "Partial: an authored band keeps its digits, one decimal at least (src/dims/tolerance.rs::printed): each of draftwright's cases (±0.02 to ±0.000000123, +0.015 -0.002, and +0.00001 -0 as +0.00001 -0.0) prints as its _tol_suffix does, in the label, the drawn text run and the placed box, and adds no problem. The spec carries the band as text, so no float formatting can round it. Not ported: a hole table's cells (src/hole_table.rs) print a callout's tolerance term after the diameter, untested: no corpus part keeps a table."
   port_note: "Keep: unit test on label formatting (nominal 1 dp, tolerance 0.005)."
 
 - id: ISSUE-1530-a

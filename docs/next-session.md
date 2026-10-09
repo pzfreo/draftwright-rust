@@ -335,6 +335,12 @@ quiddity commit that has it.
   before and after on all 30 parts (no part may get worse) and compares its worst parts' PDFs
   visually with Python's. Re-run the tool and update the baseline doc at each integration. The
   hole-table and angled-step decisions below are part of this work where they remove problems.
+  - Hole tables (d-hole-tables, `src/hole_table.rs`): hole items placed off the sheet are dropped,
+    reported and escalated as draftwright does; off the sheet 33 → 3 (the three slot locations),
+    no table kept on the corpus (as draftwright), `docs/quality-2026-10-09.md` "After hole tables".
+    Question for the maintainer: ftc09's 19 front-view hole locations are now dropped and reported
+    (`off_axis_location_dropped`, info, as draftwright drops them), not drawn off the sheet. Keep
+    draftwright's rule that off-axis drops never tabulate, or give the front view its own table?
 - **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
   other backlog work):
   - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a

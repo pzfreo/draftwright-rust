@@ -1,0 +1,494 @@
+{
+ "cgb245": {
+  "attempted_tables": [],
+  "balloons": [],
+  "findings": [
+   [
+    "location_ref_dropped",
+    "2 Y location dim(s) too closely spaced to dimension legibly (use a detail view)"
+   ]
+  ],
+  "scale": 0.5,
+  "sheet": [
+   594.0,
+   420.0
+  ],
+  "table_kept": false
+ },
+ "ctc02": {
+  "attempted_tables": [
+   [
+    [
+     "TAG",
+     "⌀",
+     "DEPTH",
+     "X",
+     "Y"
+    ],
+    [
+     "A",
+     "ø10.1",
+     "30",
+     "547",
+     "475"
+    ],
+    [
+     "B",
+     "ø10.1",
+     "30",
+     "509",
+     "540"
+    ],
+    [
+     "C",
+     "ø10.1",
+     "30",
+     "450",
+     "800"
+    ],
+    [
+     "D",
+     "ø10.1",
+     "30",
+     "375",
+     "800"
+    ],
+    [
+     "E",
+     "ø10.1",
+     "30",
+     "133",
+     "475"
+    ],
+    [
+     "F",
+     "ø10.1",
+     "30",
+     "171",
+     "540"
+    ],
+    [
+     "G",
+     "ø10.1",
+     "30",
+     "230",
+     "800"
+    ],
+    [
+     "H",
+     "ø10.1",
+     "30",
+     "305",
+     "800"
+    ],
+    [
+     "I",
+     "ø120",
+     "THRU",
+     "340",
+     "326"
+    ],
+    [
+     "J",
+     "ø22",
+     "86.0",
+     "567",
+     "675"
+    ],
+    [
+     "K",
+     "ø22",
+     "86.0",
+     "38",
+     "342"
+    ],
+    [
+     "L",
+     "ø22",
+     "86.0",
+     "38",
+     "137"
+    ],
+    [
+     "M",
+     "ø22",
+     "86.0",
+     "113",
+     "675"
+    ],
+    [
+     "N",
+     "ø22",
+     "86.0",
+     "642",
+     "342"
+    ],
+    [
+     "O",
+     "ø22",
+     "86.0",
+     "642",
+     "137"
+    ],
+    [
+     "P",
+     "ø8.4",
+     "25",
+     "218",
+     "401.8"
+    ],
+    [
+     "Q",
+     "ø8.4",
+     "25",
+     "242.0",
+     "447.6"
+    ],
+    [
+     "R",
+     "ø8.4",
+     "25",
+     "414",
+     "168"
+    ],
+    [
+     "S",
+     "ø8.4",
+     "25",
+     "462",
+     "401.8"
+    ],
+    [
+     "T",
+     "ø8.4",
+     "25",
+     "438.0",
+     "447.6"
+    ],
+    [
+     "U",
+     "ø12",
+     "25",
+     "190",
+     "795"
+    ],
+    [
+     "V",
+     "ø12",
+     "25",
+     "556",
+     "65"
+    ]
+   ]
+  ],
+  "balloons": [],
+  "findings": [
+   [
+    "callout_dropped",
+    "hole callout ø10.1 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "callout_dropped",
+    "hole callout ø8.4 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "callout_dropped",
+    "hole callout ø8.4 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "callout_dropped",
+    "hole callout ø120 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "callout_dropped",
+    "hole callout ø22 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "callout_dropped",
+    "hole callout ø8.4 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "callout_dropped",
+    "hole callout ø10.1 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "location_ref_dropped",
+    "11 X location dim(s) too closely spaced to dimension legibly (use a detail view)"
+   ],
+   [
+    "location_ref_dropped",
+    "4 Y location dim(s) too closely spaced to dimension legibly (use a detail view)"
+   ],
+   [
+    "table_dropped",
+    "hole table lacked complete feature-owned balloon evidence"
+   ],
+   [
+    "balloon_dropped",
+    "one or more required hole-table balloons could not be placed"
+   ],
+   [
+    "balloon_dropped",
+    "4 balloon(s) could not fit their reserved band and were dropped"
+   ]
+  ],
+  "scale": 0.2,
+  "sheet": [
+   1189.0,
+   841.0
+  ],
+  "table_kept": false
+ },
+ "ctc04": {
+  "attempted_tables": [
+   [
+    [
+     "TAG",
+     "⌀",
+     "DEPTH",
+     "X",
+     "Y"
+    ],
+    [
+     "A",
+     "ø12.1",
+     "15",
+     "101.4",
+     "752.1"
+    ],
+    [
+     "B",
+     "ø12.1",
+     "15",
+     "473.6",
+     "25"
+    ],
+    [
+     "C",
+     "ø14",
+     "THRU",
+     "457",
+     "435"
+    ],
+    [
+     "D",
+     "ø14",
+     "THRU",
+     "419",
+     "500"
+    ],
+    [
+     "E",
+     "ø14",
+     "THRU",
+     "360",
+     "760"
+    ],
+    [
+     "F",
+     "ø14",
+     "THRU",
+     "285",
+     "760"
+    ],
+    [
+     "G",
+     "ø14",
+     "THRU",
+     "215",
+     "760"
+    ],
+    [
+     "H",
+     "ø14",
+     "THRU",
+     "140",
+     "760"
+    ],
+    [
+     "I",
+     "ø14",
+     "THRU",
+     "81",
+     "500"
+    ],
+    [
+     "J",
+     "ø14",
+     "THRU",
+     "43",
+     "435"
+    ],
+    [
+     "K",
+     "ø12",
+     "20",
+     "155",
+     "165.3"
+    ],
+    [
+     "L",
+     "ø12",
+     "20",
+     "155",
+     "132.8"
+    ],
+    [
+     "M",
+     "ø12",
+     "20",
+     "345",
+     "132.8"
+    ],
+    [
+     "N",
+     "ø12",
+     "20",
+     "345",
+     "165.3"
+    ],
+    [
+     "O",
+     "ø10.1",
+     "30",
+     "345",
+     "193.1"
+    ],
+    [
+     "P",
+     "ø10.1",
+     "30",
+     "345",
+     "105"
+    ],
+    [
+     "Q",
+     "ø10.1",
+     "30",
+     "155",
+     "105"
+    ],
+    [
+     "R",
+     "ø10.1",
+     "30",
+     "155",
+     "193.1"
+    ]
+   ]
+  ],
+  "balloons": [],
+  "findings": [
+   [
+    "callout_dropped",
+    "hole callout ø14 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "callout_dropped",
+    "hole callout ø6.6 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "callout_dropped",
+    "hole callout ø6.6 dropped from the plan view (no legible room: settled annotation ink crosses the callout text)"
+   ],
+   [
+    "location_ref_dropped",
+    "10 X location dim(s) too closely spaced to dimension legibly (use a detail view)"
+   ],
+   [
+    "location_ref_dropped",
+    "2 Y location dim(s) too closely spaced to dimension legibly (use a detail view)"
+   ],
+   [
+    "table_dropped",
+    "hole table lacked complete feature-owned balloon evidence"
+   ],
+   [
+    "balloon_dropped",
+    "one or more required hole-table balloons could not be placed"
+   ],
+   [
+    "balloon_dropped",
+    "3 balloon(s) could not fit their reserved band and were dropped"
+   ]
+  ],
+  "scale": 0.2,
+  "sheet": [
+   841.0,
+   594.0
+  ],
+  "table_kept": false
+ },
+ "ftc08": {
+  "attempted_tables": [],
+  "balloons": [],
+  "findings": [
+   [
+    "location_ref_dropped",
+    "1 X location dim(s) too closely spaced to dimension legibly (use a detail view)"
+   ],
+   [
+    "location_ref_dropped",
+    "2 Y location dim(s) too closely spaced to dimension legibly (use a detail view)"
+   ],
+   [
+    "location_ref_dropped",
+    "m_locy0 not placed (no room above the side view)"
+   ]
+  ],
+  "scale": 0.5,
+  "sheet": [
+   594.0,
+   420.0
+  ],
+  "table_kept": false
+ },
+ "ftc09": {
+  "attempted_tables": [],
+  "balloons": [],
+  "findings": [
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ],
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ],
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ],
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ],
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ],
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ],
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ],
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ],
+   [
+    "off_axis_location_dropped",
+    "x location dim for a front-view hole not placed (no room beside the view)"
+   ]
+  ],
+  "scale": 1.0,
+  "sheet": [
+   841.0,
+   594.0
+  ],
+  "table_kept": false
+ }
+}

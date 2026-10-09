@@ -1,0 +1,38 @@
+{
+ "about": "Differences between the port's hole-table escalation (src/hole_table.rs, native recognition) and draftwright's on the same parts (tests/fixtures/hole_tables.json), each with its verdict. Read by tests/hole_tables.rs.",
+ "rows": {
+  "ctc02": {
+   "rust_only": [
+    {"x": "315", "y": "168"},
+    {"x": "266", "y": "168"},
+    {"x": "265.4", "y": "492"},
+    {"x": "315", "y": "492"},
+    {"x": "365", "y": "168"},
+    {"x": "414.6", "y": "492"},
+    {"x": "365", "y": "492"}
+   ],
+   "verdict": "undetermined",
+   "reason": "Seven ⌀8.4 ↧25 holes are loose holes in the port's plan (quiddity-rust's native recognition puts them in no pattern) and so table rows; draftwright's table leaves them out, as it leaves out the members of recognised patterns (its Python quiddity recognition differs). Every row both tables have (22 holes: the eight ⌀10.1, the ⌀120, the six ⌀22, five ⌀8.4 and the two ⌀12) prints the same cells; the tags shift after the first difference. Which grouping is right is recognition's question (quiddity-rust), not the escalation's."
+  },
+  "ctc04": {
+   "python_only": [
+    {"x": "155", "y": "165.3"},
+    {"x": "155", "y": "132.8"},
+    {"x": "345", "y": "132.8"},
+    {"x": "345", "y": "165.3"},
+    {"x": "345", "y": "193.1"},
+    {"x": "345", "y": "105"},
+    {"x": "155", "y": "105"},
+    {"x": "155", "y": "193.1"}
+   ],
+   "verdict": "undetermined",
+   "reason": "draftwright's model has four ⌀12 ↧20 and four ⌀10.1 ↧30 z holes at x 155 and 345 that the port's plan view calls out nowhere: quiddity-rust's native recognition does not give them as plan-view holes. The ten rows both have (the two ⌀12.1 ↧15 and eight ⌀14 THRU) print the same cells."
+  }
+ },
+ "attempted": {
+  "ctc04": {
+   "verdict": "undetermined",
+   "reason": "draftwright attempts a table (its plan view has 18 holes outside a pattern, at least 16) and withdraws it for want of balloon room; the port's has 10 (the eight holes above missing), fewer than 16, so it attempts none and says so on each drop. Neither draws a table. Follows the recognition difference in rows.ctc04."
+  }
+ }
+}

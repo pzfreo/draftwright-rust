@@ -184,6 +184,21 @@ mention takes its default.
   (`layout_replanned`, info, and the sheet's basis say so); none found keeps the first plan and
   says so (`layout_recovery_exhausted`). A scale the spec names is never re-planned and a sheet
   it names never left. Nothing is clipped.
+- **A hole item with no place on the sheet is dropped and escalated** (the maintainer's decision
+  of 2026-10-09, draftwright's `_prepare_hole_table_run`; `src/hole_table.rs`, applied to every
+  plan the recovery judges by `model::plan_escalated`). A hole callout or hole location that
+  placement put off the sheet keeps its ID in the plan, unplaced, with a problem
+  (`callout_dropped`, `location_ref_dropped`, or `off_axis_location_dropped` at info for a hole
+  the plan view does not see end-on); every such drop is a required loss the recovery tries to
+  repair. A dropped callout or plan-view location escalates as draftwright's does: when the plan
+  view has at least 16 holes outside a pattern, a hole table (`hole_table`: one row per hole,
+  `TAG | ⌀ | DEPTH | X | Y`, in up to four side-by-side blocks towards the top right) replaces
+  their plain callouts and locations, each row with a balloon (`balloons`: a tagged ring leadered
+  from the hole); a dropped pattern callout in the plan view gets one `n×TAG` balloon that states
+  nothing, so its drop stays. The table is kept only whole, every row's balloon placed; else it
+  is withdrawn and the drops stay reported (`table_dropped`, `balloon_dropped`). The drawing
+  records each row as an annotation claiming what its cells state, so lint credits the rows as
+  it credits callouts, never reading the plan.
 
 ### Dimensions (first cut)
 

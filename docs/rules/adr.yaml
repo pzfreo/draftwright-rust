@@ -1306,6 +1306,8 @@
     tests: []
   status: pending
   port_note: "Keep: planner escalation rule for patterns."
+  rust_test: tests/hole_tables.rs::an_escalated_table_is_whole_on_the_sheet_with_a_balloon_per_row
+  rust_note: "Partly ported (src/hole_table.rs, stream d-hole-tables): a pattern callout in the plan view that placement put off the sheet is dropped (callout_dropped) and gets one balloon n×TAG on its first member, tagged after any table rows, non-certifying (the drop stays), as orchestrator.py _prepare_hole_table_run. A pattern callout dropped in another view gets none (draftwright's balloon halo covers the plan only). No corpus part drops a plan-view pattern callout in the port; draftwright drops four on NIST CTC-02 (for crossing ink, which the port places and reports) and fails to balloon them too."
 
 - id: ARCH0009-2
   statement: "'Doesn't fit' is a first-class escalation with a fixed remedy ladder, not an arrival-order drop: group balloon, then table, then detail view, then drop; only unresolved escalations become *_dropped findings."
@@ -1317,6 +1319,8 @@
     tests: []
   status: pending
   port_note: "Keep: escalation is a planner stage; each Plan entry records which remedy was applied as its basis."
+  rust_test: tests/hole_tables.rs::dropped_hole_items_are_reported_and_escalate_as_draftwrights_do
+  rust_note: "Partly ported (src/hole_table.rs, model::plan_escalated): a hole callout or location placed off the sheet is dropped, reported with draftwright's code (callout_dropped, location_ref_dropped; off_axis_location_dropped at info), and a callout or plan-view location drop escalates to the pattern balloon or the hole table with balloons under draftwright's gates (at least 16 holes outside a pattern), the table transactional; unresolved drops are required losses the layout recovery (model::recover) tries a scale or sheet for; the Plan item's basis records a table's replacement. Not ported: detail views; drops for collisions or illegible ladders (the port places and reports those); the Escalation remedies list."
 
 - id: ARCH0009-3
   statement: "A central hole's callout on a prismatic part stays on the view-centre row; on a turned part a coaxial bore's callout is pushed off the centre-line instead."
@@ -1484,6 +1488,8 @@
     tests: []
   status: pending
   port_note: "Keep: balloon assignment in the planner."
+  rust_test: tests/hole_tables.rs::an_escalated_table_is_whole_on_the_sheet_with_a_balloon_per_row
+  rust_note: "Partly ported (src/hole_table.rs::place_balloons): bands left, right, above and below the plan view beyond its deepest placed annotation and along its reserved area, free stretches carved around what is placed, strip spacing and least-squares spreading near each hole; a balloon that does not land is reported (balloon_dropped). Simplified: each hole goes out of the side of the view nearest it that has a band, its band's members spread in order (not draftwright's min-cost max-flow with perimeter preference); no halo is reserved by the layout; a ring that overlaps another, or a leader crossing a label, another view, the title block, a table or another leader, is retried on every band half a strip step at a time either way, the nearest clear place taken. Leaders crossing other items' lines are not checked."
 
 - id: ARCH0014-6
   statement: "An optional, not-yet-committed section cannot veto a required leader; the section checks its final cutting-plane ink, makes at most one bounded end-symbol repair, and yields if a conflict remains."

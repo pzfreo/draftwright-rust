@@ -985,7 +985,9 @@ fn the_review_reports_structural_findings_beside_coverage() {
         &std::fs::read_to_string(&features).unwrap(),
     )
     .unwrap();
-    let plan = model::plan(&analysis, &spec).unwrap();
+    // The plan the review draws: the named scale is never re-planned, but a hole item placed off
+    // the sheet is dropped (`model::plan_escalated`).
+    let plan = model::plan_escalated(&analysis, &spec).unwrap();
     let font = draftwright::text::Font::new(
         std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
             .unwrap(),

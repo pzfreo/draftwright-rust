@@ -201,9 +201,10 @@ fn spec(sheet: serde_json::Value) -> Spec {
     serde_json::from_value(serde_json::json!({ "sheet": sheet })).unwrap()
 }
 
-/// The plan with draftwright's recovery applied (`model::recover` on `model::plan`'s try).
+/// The plan with draftwright's recovery applied (`model::recover` on the first try, its hole items
+/// with no place dropped and escalated: `model::plan_escalated`), as `model::plan_recovered`.
 fn recovered(analysis: &Analysis, spec: &Spec) -> Plan {
-    let first = model::plan(analysis, spec).unwrap();
+    let first = model::plan_escalated(analysis, spec).unwrap();
     model::recover(analysis, spec, first).unwrap()
 }
 
@@ -215,15 +216,18 @@ fn sheet(plan: &Plan) -> (&str, &str) {
     (plan.sheet.size.as_str(), plan.sheet.scale.as_str())
 }
 
-/// On the corpus: ctc01's first choice (A3 at 1:5, draftwright's too) has one label off the
-/// sheet; the recovery tries the nearest smaller scale first, A3 at 1:10, which is valid and
-/// complete and is taken, said (`layout_replanned`), the sheet's basis naming the recovery, the
-/// spec unchanged. draftwright tries nothing on ctc01: its drawing has no hard layout finding.
-/// The ladder and its gate are draftwright's (equivalent); the move comes from the port's
-/// off-sheet label, a placement residual it reports (`known_placement.json`).
+/// On the corpus: ctc01's first choice (A3 at 1:5, draftwright's too) places one hole location
+/// off the sheet, so it is dropped (`location_ref_dropped`, `src/hole_table.rs`; too few holes for
+/// a table), a required loss: the recovery tries the next two larger scales on A3 (1:2, 1:1),
+/// then A2 at 1:5, which is valid and complete and is taken, said (`layout_replanned`), the
+/// sheet's basis naming the recovery, the spec unchanged. draftwright tries nothing on ctc01: its
+/// placement carries that location in the side view. The ladder and its gate are draftwright's
+/// (equivalent); the move comes from the port's placement residual (`known_placement.json`).
+/// Before the drop (stream d-hole-tables) the off-sheet label was a hard finding and A3 at 1:10
+/// was taken.
 #[test]
-fn a_plan_with_ink_off_the_sheet_is_re_planned_at_a_smaller_scale_on_its_sheet() {
-    let (first, after) = (("A3", "1:5"), ("A3", "1:10"));
+fn a_plan_that_drops_a_hole_item_is_re_planned_on_a_larger_sheet() {
+    let (first, after) = (("A3", "1:5"), ("A2", "1:5"));
     let Some(analysis) = corpus_part("ctc01") else {
         eprintln!("SKIPPED: the corpus is not found");
         return;
@@ -237,30 +241,41 @@ fn a_plan_with_ink_off_the_sheet_is_re_planned_at_a_smaller_scale_on_its_sheet()
         .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
     assert_eq!(said.severity, "info");
     assert!(
-        said.message
-            .contains(&format!("{} at {}", first.0, first.1))
-            && said.message.contains("annotation_off_sheet"),
+        said.message.contains(&format!(
+            "{} at {} has 1 hole item dropped for want of room",
+            first.0, first.1
+        )) && said.message.contains("A3 at 1:2 (")
+            && said.message.contains("A3 at 1:1 ("),
         "{}",
         said.message
     );
     assert!(plan.sheet.default && plan.sheet.basis.contains("layout recovery"));
     assert!(plan.spec.sheet.size.is_none() && plan.spec.sheet.scale.is_none());
-    assert!(!codes(&plan).contains(&"annotation_off_sheet"));
+    for code in ["annotation_off_sheet", "location_ref_dropped"] {
+        assert!(!codes(&plan).contains(&code), "{code}");
+    }
 
-    // A scale the spec names is never re-planned: the label stays off the sheet, reported.
+    // A scale the spec names is never re-planned: the location stays dropped, reported.
     let pinned = recovered(&analysis, &spec(serde_json::json!({ "scale": first.1 })));
     assert_eq!(sheet(&pinned), first);
-    assert!(codes(&pinned).contains(&"annotation_off_sheet"));
+    assert!(codes(&pinned).contains(&"location_ref_dropped"));
+    assert!(!codes(&pinned).contains(&"annotation_off_sheet"));
     assert!(!codes(&pinned).iter().any(|c| c.starts_with("layout_re")));
 
-    // A sheet the spec names is kept; its scale is recovered on it.
+    // A sheet the spec names is kept; no larger scale on it places the location, so the first
+    // choice is kept and the failed recovery said.
     let named = recovered(&analysis, &spec(serde_json::json!({ "size": first.0 })));
-    assert_eq!(sheet(&named), after);
+    assert_eq!(sheet(&named), first);
+    assert!(codes(&named).contains(&"layout_recovery_exhausted"));
 }
 
 /// draftwright's own recovery on cgb245, which the port's now matches: the first choice, A2 at
-/// 1:2, is invalid (draftwright: an ink overlap; the port: a label off the sheet), and every try
-/// fails its gate, so 1:2 is kept and the failed recovery said (`layout_recovery_exhausted`).
+/// 1:2, is invalid or incomplete (draftwright: an ink overlap; the port: a hole location placed
+/// off the sheet and dropped, `location_ref_dropped`, besides two locations too close to read),
+/// and every try fails its gate, so 1:2 is kept and the failed recovery said
+/// (`layout_recovery_exhausted`). With no hard finding the port's ladder is the completeness one
+/// (A2 at 1:1 and 2:1, then A1 and A0 at 1:1), where draftwright's is the hard one (A2 at 1:5 and
+/// 1:1, then A1, A0); both end where they began.
 /// draftwright's captured sheet (`tests/fixtures/sheets/cgb245.json.gz`) rejects 1:5 for two
 /// `location_ref_dropped` blockers (hole locations closer than 4.7 mm on the page), 1:1 for
 /// `view_out_of_bounds`, A1 and A0 for a required drop. The port keeps every location, so its
@@ -276,19 +291,14 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
     };
     let plan = recovered(&analysis, &Spec::default());
     assert_eq!(sheet(&plan), ("A2", "1:2"));
-    assert!(codes(&plan).contains(&"annotation_off_sheet"));
+    assert!(codes(&plan).contains(&"location_ref_dropped"));
     let said = plan
         .problems
         .iter()
         .find(|p| p.code == "layout_recovery_exhausted")
         .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
     assert_eq!(said.severity, "info");
-    for tried in [
-        "A2 at 1:5 (4 hole locations too close to read)",
-        "A2 at 1:1 (",
-        "A1 at 1:1 (",
-        "A0 at 1:1 (",
-    ] {
+    for tried in ["A2 at 1:1 (", "A2 at 2:1 (", "A1 at 1:1 (", "A0 at 1:1 ("] {
         assert!(said.message.contains(tried), "{tried}: {}", said.message);
     }
     assert!(!plan.sheet.basis.contains("layout recovery"));
@@ -356,10 +366,10 @@ fn an_info_or_view_box_finding_is_not_a_hard_failure() {
 /// The maintainer's directive of 2026-10-09 (nothing off the sheet: escalate scale or sheet as
 /// draftwright does, never clip): every planning entry point applies the recovery. ctc01's plan
 /// from the library (`api::plan_analysed`) and from the JSON operation the service and MCP answer
-/// (`api::call("plan")`) is the recovered plan, the same each time: A3 at 1:10, said
-/// (`layout_replanned`), nothing off the sheet. The drawing's reply (`review`) says it too. A
-/// sheet and scale the spec names are kept, the label off the sheet reported; a sheet it names
-/// alone is kept.
+/// (`api::call("plan")`) is the recovered plan, the same each time: A2 at 1:5, said
+/// (`layout_replanned`), nothing off the sheet or dropped. The drawing's reply (`review`) says it
+/// too. A sheet and scale the spec names are kept, the hole location with no place dropped and
+/// reported; a sheet it names alone is kept.
 #[test]
 fn every_planning_entry_point_applies_the_recovery() {
     let Some(analysis) = corpus_part("ctc01") else {
@@ -372,7 +382,7 @@ fn every_planning_entry_point_applies_the_recovery() {
         as_json,
         serde_json::to_value(recovered(&analysis, &Spec::default())).unwrap()
     );
-    assert_eq!(sheet(&plan), ("A3", "1:10"));
+    assert_eq!(sheet(&plan), ("A2", "1:5"));
     assert!(codes(&plan).contains(&"layout_replanned"));
     assert!(!codes(&plan).contains(&"annotation_off_sheet"));
     let again = api::plan_analysed(&analysis, &Spec::default()).unwrap();
@@ -391,7 +401,8 @@ fn every_planning_entry_point_applies_the_recovery() {
     let pinned = api::plan_analysed(&analysis, &spec(json!({ "size": "A3", "scale": "1:5" })));
     let pinned = pinned.unwrap();
     assert_eq!(sheet(&pinned), ("A3", "1:5"));
-    assert!(codes(&pinned).contains(&"annotation_off_sheet"));
+    assert!(codes(&pinned).contains(&"location_ref_dropped"));
+    assert!(!codes(&pinned).contains(&"annotation_off_sheet"));
     assert!(!codes(&pinned).iter().any(|c| c.starts_with("layout_re")));
     let named = api::plan_analysed(&analysis, &spec(json!({ "size": "A3" }))).unwrap();
     assert_eq!(named.sheet.size, "A3");
@@ -399,9 +410,11 @@ fn every_planning_entry_point_applies_the_recovery() {
 
 /// The port's own gate (`model::recover`): a try with more annotations over a view not their own
 /// than the first plan is not taken. ctc01 with Rust quiddity's recognition (the command line's
-/// default) has one hole location off the sheet at A3 1:5; A3 at 1:10 clears it but lays three
-/// items over the side view (the front's height lanes run into it), so it is passed over, and A2
-/// at 1:5 is taken, with nothing off the sheet or over a view. draftwright keeps A3 at 1:5,
+/// default) places one hole location off the sheet at A3 1:5, which is dropped
+/// (`location_ref_dropped`): the larger scales on A3 (1:2, 1:1) each drop more and lay more items
+/// over the views, so they are passed over, and A2 at 1:5 is taken, with nothing off the sheet,
+/// dropped or over a view. (Before the drop, the off-sheet label was a hard finding: A3 at 1:10
+/// cleared it but laid three items over the side view, and the gate passed it over too.) draftwright keeps A3 at 1:5,
 /// where its placement carries that location in the side view (rust-wrong in placement, the
 /// escalation itself equivalent).
 #[test]
@@ -420,10 +433,10 @@ fn a_try_with_more_ink_over_the_views_is_not_taken() {
         .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
     assert!(
         said.message
-            .contains("A3 at 1:5 has 1 hard layout finding (annotation_off_sheet)")
-            && said.message.contains(
-                "A3 at 1:10 (valid and complete; 3 more items over a view than the first)"
-            ),
+            .contains("A3 at 1:5 has 1 hole item dropped for want of room")
+            && said
+                .message
+                .contains("more items over a view than the first), A2 at 1:5 (valid and complete)"),
         "{}",
         said.message
     );

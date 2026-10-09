@@ -23,8 +23,8 @@ use crate::dims::{Omitted, PlannedDimension};
 use crate::layout::{self, Corner, Fallback, MARGIN, Principals, Request, Scaled};
 use crate::notes::{NoteSpec, NotesBlock, PlannedNote};
 use crate::output::{
-    Curve, Drawing, Drawn, DrawnField, DrawnView, HAlign, Item, Kind, Layer, Sheet, TextRun,
-    VAlign, items_bbox, layer_styles, projected,
+    Annotation, Claim, Curve, Drawing, Drawn, DrawnField, DrawnView, HAlign, Item, Kind, Layer,
+    Sheet, TextRun, VAlign, items_bbox, layer_styles, projected,
 };
 use crate::tables::{PlannedTable, TableSpec};
 use crate::text::{Font, Laid, Segment};
@@ -280,6 +280,12 @@ pub struct Plan {
     /// ([`crate::dims::gdt`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub gdt: Vec<crate::dims::gdt::PlannedGdt>,
+    /// The plan-view hole table a dropped hole item escalated to ([`crate::hole_table`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hole_table: Option<crate::hole_table::HoleTable>,
+    /// The balloons beside the plan view: the hole table's rows' and dropped patterns'.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub balloons: Vec<crate::hole_table::Balloon>,
     pub problems: Vec<Problem>,
     /// The spec the plan was made from, embedded in every output.
     pub spec: Spec,
@@ -653,12 +659,15 @@ const HARD_LAYOUT: [&str; 6] = [
     "views_do_not_fit",
 ];
 
-/// A plan's findings for the recovery. The port drops nothing for want of room (an item that
-/// collides is placed and reported; one no shown view carries is kept unplaced, which no sheet
-/// or scale changes), so its completeness tier reads the one required loss draftwright's
-/// blockers have that a scale decides: hole locations too close to dimension legibly
-/// ([`layout::crowded_locations`], draftwright's `location_ref_dropped`), counted per view and
-/// axis, a pattern's centre ordinate apart (draftwright keeps it whatever its spacing).
+/// A plan's findings for the recovery. The port drops for want of room only the hole items it
+/// placed off the sheet ([`crate::hole_table`]: an item that collides is placed and reported; one
+/// no shown view carries is kept unplaced, which no sheet or scale changes), so its completeness
+/// tier reads those drops still reported (each a `*_dropped` blocker of draftwright's
+/// `_is_required_scale_drop`; a hole table's rows clear the ones they state) and the one other
+/// required loss draftwright's blockers have that a scale decides: hole locations too close to
+/// dimension legibly ([`layout::crowded_locations`], draftwright's `location_ref_dropped`),
+/// counted per view and axis, a pattern's centre ordinate apart (draftwright keeps it whatever
+/// its spacing).
 fn findings(plan: &Plan) -> layout::Findings {
     let mut axes: BTreeMap<(&str, &str), Vec<f64>> = BTreeMap::new();
     for d in &plan.dimensions {
@@ -689,7 +698,8 @@ fn findings(plan: &Plan) -> layout::Findings {
         dropped: axes
             .values()
             .map(|o| layout::crowded_locations(o, scale))
-            .sum(),
+            .sum::<usize>()
+            + drops(plan),
     }
 }
 
@@ -707,33 +717,53 @@ fn over_views(plan: &Plan) -> usize {
         .count()
 }
 
-/// What a plan's recovery findings are, in words.
-fn said(f: layout::Findings) -> String {
+/// The hole items a plan dropped for want of room and still reports ([`crate::hole_table`]).
+fn drops(plan: &Plan) -> usize {
+    plan.problems
+        .iter()
+        .filter(|p| crate::hole_table::DROPS.contains(&p.code.as_str()))
+        .count()
+}
+
+/// What a plan's recovery findings are, in words; *dropped* of them are hole items dropped.
+fn said(f: layout::Findings, dropped: usize) -> String {
     let hard = match f.hard {
         1 => "1 hard layout finding".to_string(),
         n => format!("{n} hard layout findings"),
     };
-    let crowded = match f.dropped {
-        1 => "1 hole location too close to read".to_string(),
-        n => format!("{n} hole locations too close to read"),
+    let crowded = match f.dropped - dropped {
+        0 => None,
+        1 => Some("1 hole location too close to read".to_string()),
+        n => Some(format!("{n} hole locations too close to read")),
     };
-    match (f.hard, f.dropped) {
-        (0, 0) => "valid and complete".into(),
-        (_, 0) => hard,
-        (0, _) => crowded,
-        _ => format!("{hard}, {crowded}"),
+    let lost = match dropped {
+        0 => None,
+        1 => Some("1 hole item dropped for want of room".to_string()),
+        n => Some(format!("{n} hole items dropped for want of room")),
+    };
+    let parts: Vec<String> = (f.hard > 0)
+        .then_some(hard)
+        .into_iter()
+        .chain(crowded)
+        .chain(lost)
+        .collect();
+    if parts.is_empty() {
+        "valid and complete".into()
+    } else {
+        parts.join(", ")
     }
 }
 
 /// draftwright's bounded layout recovery on a finished plan (ISSUE-1299-a, [`layout::recover`]):
 /// a plan with a hard layout failure is re-planned at the nearest smaller, then the nearest
-/// larger standard scale on its sheet, then on each larger standard sheet; one without, whose
-/// hole locations are too close to read, at the next two larger scales, then each larger sheet;
+/// larger standard scale on its sheet, then on each larger standard sheet; one without, that
+/// dropped a hole item or whose hole locations are too close to read, at the next two larger
+/// scales, then each larger sheet;
 /// the first valid and complete one is taken. A scale the spec names is never re-planned
 /// (draftwright resolves an explicit scale apart), a sheet it names is never left, and a valid,
 /// complete plan is kept. The change and what was tried are said (`layout_replanned`), as is a
 /// recovery that found nothing better (`layout_recovery_exhausted`). Each try is a whole
-/// [`plan`] (no projection): six at most.
+/// [`plan_escalated`] (no projection): six at most.
 ///
 /// Unlike draftwright's retries (`try_scales_on_selected_page`, `try_larger_standard_pages`),
 /// which rebuild with the first drawing's settled arrangement and principal views, each try
@@ -752,8 +782,9 @@ fn said(f: layout::Findings) -> String {
 /// A2 at 1:5, which has neither.
 ///
 /// Every planning entry point applies it through [`plan_recovered`] (the maintainer's directive
-/// of 2026-10-09: escalate scale or sheet, never clip); each try is the unrecovered [`plan`],
-/// never a recovered one.
+/// of 2026-10-09: escalate scale or sheet, never clip); each try is the unrecovered plan with the
+/// hole items it has no place for dropped and escalated ([`plan_escalated`]), never a recovered
+/// one, as *first* should be.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     if spec.sheet.scale.is_some() {
         return Ok(first);
@@ -775,7 +806,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
                 }
                 layout::Retry::Sheet(n) => s.sheet.size = Some(n.into()),
             }
-            let Ok(p) = plan(analysis, &s) else {
+            let Ok(p) = plan_escalated(analysis, &s) else {
                 let at = s.sheet.scale.as_deref().unwrap_or("its scale");
                 tried.push(format!(
                     "{} at {at} (could not be planned)",
@@ -796,7 +827,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
                 "{} at {} ({}{more})",
                 p.sheet.size,
                 p.sheet.scale,
-                said(f)
+                said(f, drops(&p))
             ));
             last = Some(p);
             Some(layout::Findings {
@@ -819,7 +850,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
             "{} at {} has {} ({})",
             first.sheet.size,
             first.sheet.scale,
-            said(found),
+            said(found, drops(&first)),
             codes.into_iter().collect::<Vec<_>>().join(", ")
         )
     } else {
@@ -827,7 +858,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
             "{} at {} has {}",
             first.sheet.size,
             first.sheet.scale,
-            said(found)
+            said(found, drops(&first))
         )
     };
     let scales = if found.hard > 0 {
@@ -880,7 +911,17 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    recover(analysis, spec, plan(analysis, spec)?)
+    recover(analysis, spec, plan_escalated(analysis, spec)?)
+}
+
+/// [`plan`] with draftwright's drop and escalate applied ([`crate::hole_table`]): a hole callout
+/// or location placed off the sheet is dropped and reported, and may escalate to a plan-view hole
+/// table with balloons. What the recovery judges, as draftwright's escalation runs inside every
+/// build its recovery compares.
+pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let mut p = plan(analysis, spec)?;
+    crate::hole_table::escalate(analysis, &mut p);
+    Ok(p)
 }
 
 /// Plans the sheet: which views, where, at what scale and on what sheet, as draftwright's layout
@@ -1343,6 +1384,8 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         notes_block,
         tables,
         gdt,
+        hole_table: None,
+        balloons: Vec::new(),
         problems,
         spec,
     })
@@ -1635,11 +1678,12 @@ pub fn render(
         }
     }
     // Glyphs *laid* out drawn moved to *at*, and the *run* (text, font file, size), if any, as
-    // invisible text centred there.
+    // invisible text centred there; the run's index in the drawing's text.
     let mut label = |laid: Laid,
                      at: [f64; 2],
                      layer: &mut Vec<Item>,
-                     run: Option<(&str, &str, f64)>| {
+                     run: Option<(&str, &str, f64)>|
+     -> Option<usize> {
         let shift = |p: [f64; 2]| [p[0] + at[0], p[1] + at[1]];
         let curves: Vec<Curve> = laid
             .contours
@@ -1667,17 +1711,17 @@ pub fn render(
                 .collect();
             layer.push(Item::Face(wires));
         }
-        if let Some((s, font, size)) = run {
-            text.push(TextRun {
-                text: s.into(),
-                at,
-                size,
-                rotation: 0.0,
-                font: font.into(),
-                h_align: HAlign::Center,
-                v_align: VAlign::Middle,
-            });
-        }
+        let (s, font, size) = run?;
+        text.push(TextRun {
+            text: s.into(),
+            at,
+            size,
+            rotation: 0.0,
+            font: font.into(),
+            h_align: HAlign::Center,
+            v_align: VAlign::Middle,
+        });
+        Some(text.len() - 1)
     };
     let dims = &mut layers[2].items;
     dims.extend(furniture);
@@ -1808,6 +1852,119 @@ pub fn render(
                 ink,
                 label: None,
                 lines: Vec::new(),
+                elbow: None,
+                interior: false,
+            });
+        }
+    }
+    // The hole table, drawn as the tables are, block by block. Each row is an annotation for
+    // lint: its cells' text (the tag apart) and the measurements they state, as draftwright
+    // registers the table's measurements.
+    if let Some(t) = &plan.hole_table {
+        let table_from = dims.len();
+        let mut row_runs: Vec<Vec<usize>> = vec![Vec::new(); t.rows.len()];
+        let per = t
+            .blocks
+            .first()
+            .map_or(0, |b| b.rows.len().saturating_sub(1));
+        for (k, block) in t.blocks.iter().enumerate() {
+            let Some(p) = &block.placed else { continue };
+            for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
+                dims.push(Item::Edge(Curve::Line(a, b)));
+            }
+            for (r, (row, at)) in block.rows.iter().zip(&p.cells_at).enumerate() {
+                for (c, (cell, at)) in row.iter().zip(at).enumerate() {
+                    let Some(at) = at else { continue };
+                    let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
+                    let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
+                    let index = label(laid, *at, dims, Some(run));
+                    if r > 0
+                        && c > 0
+                        && let Some(runs) = row_runs.get_mut(k * per + r - 1)
+                    {
+                        runs.extend(index);
+                    }
+                }
+            }
+        }
+        if let Some(ink) = items_bbox(&dims[table_from..]) {
+            sheet.items.push(Drawn {
+                name: t.id.clone(),
+                kind: Kind::Table,
+                ink,
+                label: None,
+                lines: Vec::new(),
+                elbow: None,
+                interior: false,
+            });
+        }
+        for (row, runs) in t.rows.iter().zip(row_runs) {
+            annotations.push(Annotation {
+                name: format!("{}/{}", t.id, row.tag),
+                view: Some("v:plan".into()),
+                runs,
+                claims: row
+                    .measurements
+                    .iter()
+                    .map(|m| Claim {
+                        feature: m.feature.clone(),
+                        parameter: m.parameter.clone(),
+                    })
+                    .collect(),
+            });
+        }
+    }
+    // The balloons: each a ring with its tag, and its leader with an arrowhead at the hole's
+    // rim. Furniture to lint's sheet checks, as draftwright marks a balloon a centreline: judged
+    // by its leader and its ring's box.
+    for b in &plan.balloons {
+        let from = dims.len();
+        let [cx, cy] = b.at;
+        let circle = |r: f64, turn: f64| Curve::Conic {
+            centre: b.at,
+            radii: [r, r],
+            x_axis: [1.0, 0.0],
+            y_axis: [0.0, turn],
+            t0: 0.0,
+            t1: 2.0 * std::f64::consts::PI,
+        };
+        dims.push(Item::Face(vec![
+            vec![circle(b.radius, 1.0)],
+            vec![circle(b.radius - crate::hole_table::RING, -1.0)],
+        ]));
+        let run = (b.tag.as_str(), crate::dims::FONT, crate::dims::TEXT);
+        label(font.text(&b.tag, crate::dims::TEXT), b.at, dims, Some(run));
+        let r = b.radius;
+        let mut lines = vec![
+            [[cx - r, cy - r], [cx + r, cy - r]],
+            [[cx + r, cy - r], [cx + r, cy + r]],
+            [[cx + r, cy + r], [cx - r, cy + r]],
+            [[cx - r, cy + r], [cx - r, cy - r]],
+        ];
+        if let Some([tip, end]) = b.leader {
+            dims.push(Item::Edge(Curve::Line(tip, end)));
+            let d = [end[0] - tip[0], end[1] - tip[1]];
+            let len = d[0].hypot(d[1]).max(1e-12);
+            let u = [d[0] / len, d[1] / len];
+            let a = crate::dims::ARROW.min(len);
+            let tail = [tip[0] + a * u[0], tip[1] + a * u[1]];
+            let h = crate::dims::ARROW / 6.0;
+            let b1 = [tail[0] - h * u[1], tail[1] + h * u[0]];
+            let b2 = [tail[0] + h * u[1], tail[1] - h * u[0]];
+            dims.push(Item::Face(vec![vec![
+                Curve::Line(tip, b1),
+                Curve::Line(b1, b2),
+                Curve::Line(b2, tip),
+            ]]));
+            lines.insert(0, [tip, end]);
+        }
+        if let Some(ink) = items_bbox(&dims[from..]) {
+            sheet.items.push(Drawn {
+                name: b.id.clone(),
+                kind: Kind::Centreline,
+                ink,
+                label: None,
+                lines,
                 elbow: None,
                 interior: false,
             });
