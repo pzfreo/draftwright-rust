@@ -252,7 +252,8 @@ feature (blends, turned steps, …) gets one info problem, `dimensions_not_porte
 ID: draftwright dimensions those kinds and the port does not yet, so this is a gap in the port,
 not in the part. Record types draftwright itself leaves undimensioned (freeform surfaces,
 thin-wall and sheet-metal bodies, …; `detect.py`'s unconsumed and orchestrated records) are not
-reported.
+reported, except an angled step: draftwright cannot dimension one, so it gets a warning
+`angled_step_requirement_unsupported` on its ID (ISSUE-1247-a; lint's code and wording).
 
 `placed` is the item's ink on the page (lines, arrowheads, the label's baseline origin, rotation
 and box); renderers draw it and the terms, and nothing else. Placement is simple: lanes outward
