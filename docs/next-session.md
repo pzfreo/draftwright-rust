@@ -329,6 +329,7 @@ quiddity commit that has it.
   writer decisions, section recesses, specify-core-rust's upstream needs, CI). Re-run
   `tools/quality.py` after each draftwright-rust integration and record the table in the status
   file. Report each gate's state in the status file. The releases are cut by the main session.
+  - Release hygiene (d-alpha1-readme-changelog): README.md (what alpha 1 does and does not do) and CHANGELOG.md (`0.1.0-alpha.1 (unreleased)`) were written at origin/main 15629f1 (PMI stage 1b included); the main session must refresh both before cutting the release for what merged after: d-quality-merged-lanes, d-pmi-drawings-check and the PMI coverage lint (stage 3).
 - **Merge the maintainer's PR #1 first (2026-10-09):** "Render: keep each view's projection
   across renders; box straight pieces by their end points" (branch `perf/render-cache`, by the
   maintainer; read its description with `gh pr view 1`). Dispatch at once a stream `d-pr1-render-cache`
