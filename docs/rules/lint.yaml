@@ -1837,6 +1837,7 @@
     tests: [tests/test_pmi.py]
   status: pending
   port_note: "Keep if PMI is ported."
+  rust_note: "Not-applicable as stated: the port has no switch to ignore PMI (draftwright's `pmi=\"off\"`, its default); a part's semantic PMI is always lowered and drawn, and presentation-only PMI is reported once (`pmi_presentation_not_read`, info)."
 
 - id: LINT-code-pmi_not_extracted
   statement: "Every source PMI requirement discovered in the STEP is extracted, or reported with its reason."
@@ -1848,7 +1849,9 @@
     issues: [623]
     tests: [tests/test_pmi.py]
   status: pending
+  rust_test: "tests/pmi.rs::every_item_and_finding_is_accounted_for_and_the_output_is_deterministic"
   port_note: "Keep if PMI is ported."
+  rust_note: "Partly: `pmi::read` inventories every dimension, tolerance and datum and reports every haecceity finding, unprojected item and unresolved face as a source not read with its reason, and the plan reports each as `pmi_not_extracted` (error for a requirement, info for a shape aspect, property or standard; `tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported`); the lint code on a drawing is the coverage lint's (not ported)."
 
 - id: LINT-code-pmi_not_lowered
   statement: "Every extracted PMI requirement reaches a typed drawing feature rather than remaining a raw fallback."
@@ -1860,7 +1863,9 @@
     issues: [623]
     tests: [tests/test_pmi.py, tests/test_pmi_manufacturing_finish.py]
   status: pending
+  rust_test: "tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported"
   port_note: "Keep if PMI is ported."
+  rust_note: "Partly: the plan reports each geometric tolerance or datum it does not lower as `pmi_not_lowered` (error) with its reasons (reading blockers, unsupported modifiers, an attachment the faces do not prove, faces in several placements), and each PMI dimension as `pmi_dimensions_not_ported` (info: the next stage); the lint code on a drawing is the coverage lint's (not ported)."
 
 - id: LINT-code-pmi_not_rendered
   statement: "Every typed PMI requirement produces an annotation on the drawing unless a specific drop or omission reason is already reported."
@@ -1872,7 +1877,9 @@
     issues: [623, 1190]
     tests: [tests/test_issue_1296_cylindrical_diameter_pmi.py]
   status: pending
+  rust_test: "tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported"
   port_note: "Keep if PMI is ported."
+  rust_note: "Partly: every lowered frame and symbol is placed (kept and logged when it collides) or reported `pmi_not_drawn` when its view is not on the sheet; the lint code on a drawing is the coverage lint's (not ported)."
 
 - id: LINT-code-pmi_value_mismatch
   statement: "A placed geometric tolerance frame states the same tolerance value and zone as its AP242 source, in both text layer and visible ink."
@@ -1884,7 +1891,9 @@
     issues: [623]
     tests: [tests/test_pmi_gtol_lowering.py]
   status: pending
+  rust_test: "tests/pmi_lowering.rs::frames_and_symbols_are_searchable_and_drawn_from_the_font"
   port_note: "Keep if PMI is ported."
+  rust_note: "Partly: a frame states its record's magnitude (`_fmt_pmi_magnitude`) and zone in both its ink and its text runs, compared with draftwright's in `tests/pmi_lowering.rs`; the lint check of a drawing's frames against their sources is not ported."
 
 - id: LINT-code-pmi_source_text_mismatch
   statement: "A source-scoped manufacturing note or face-finish annotation states the AP242 requirement text it claims to carry."

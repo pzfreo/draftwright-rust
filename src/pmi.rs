@@ -1,6 +1,7 @@
 //! A part's AP242 semantic PMI read into draftwright's PMI records: stage 1 of drawing PMI
-//! (draftwright `pmi.py`, `extract_pmi_report`). Lowering the records to Plan items and the PMI
-//! coverage lint are later stages; nothing here reaches the Analysis yet.
+//! (draftwright `pmi.py`, `extract_pmi_report`). The Analysis carries the report ([`attach`],
+//! [`Reading`]), each geometric tolerance and datum with where it attaches ([`Geometry`]);
+//! [`crate::pmi_lowering`] lowers it to Plan items. The PMI coverage lint is a later stage.
 //!
 //! draftwright reads PMI through OpenCascade's XCAF document, with Part 21 overlays where XCAF
 //! loses something (magnitudes, datum supports, dimension groups). The port reads it through
@@ -25,9 +26,10 @@
 //!   `ADVANCED_FACE` instances, and `face_groups`, a location's two sides or a size's one
 //!   (draftwright's `reference_item_groups`). `ref_bbox` (their box) and `dominant_axis` are in
 //!   the frame the drawing uses, the file's own: the port draws a part where the file puts it,
-//!   which is draftwright's frame-less extraction (`frame=None`). draftwright's other
-//!   coordinates (`ref_pts`, cylinder and angular supports, datum normals) are lowering's to
-//!   derive from the faces.
+//!   which is draftwright's frame-less extraction (`frame=None`). A geometric tolerance's and a
+//!   datum's `geometry` (draftwright's `ref_pts`, `reference_axis`, `reference_surface_kind` and
+//!   `reference_normal`) is derived from the faces for lowering; a dimension's (its cylinder,
+//!   linear and angular supports) is the next stage's.
 //! - [`Source`] is `PmiSourceEntity`: what was not read, and why, as a `not_extracted` source;
 //!   every read record is a source too (`extracted`, or `partially_extracted` with its
 //!   blockers). Not read: every haecceity finding not on a record's instances; every item
@@ -46,6 +48,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use haecceity::Part;
+use haecceity::geom::{Bounds, Surface};
 use haecceity::p21::{Document, RawEntity};
 use haecceity::pmi::{
     self, Anchor, AngleUnit, AuxiliaryClassification, DatumId, DimTolerance, Dimension,
@@ -54,13 +57,13 @@ use haecceity::pmi::{
     ToleranceTarget, Value,
 };
 use haecceity::step::{PartDefinition, read_part_definitions};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub const PMI_SCHEMA: &str = "draftwright.pmi/1";
 
 /// draftwright's source categories (`PmiSourceCategory`), and `other` for what haecceity reads
 /// or reports that belongs to none of them (shape aspects, properties, standards).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Category {
     Dimension,
@@ -73,7 +76,7 @@ pub enum Category {
 
 /// draftwright's extraction outcomes (`PmiExtractionOutcome`), less `presentation_only`:
 /// presentation is counted, not inventoried ([`Accounting::presentation`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
     Extracted,
@@ -82,7 +85,7 @@ pub enum Outcome {
 }
 
 /// One source and the outcome of reading it.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Source {
     /// `<category>:#<instance>` for a record (the record's `source_id`), `finding:#<instance>`
     /// for a finding, `<item>:<part>:<index>` for an item this stage does not project.
@@ -97,7 +100,7 @@ pub struct Source {
 }
 
 /// One semantic PMI requirement of a part (draftwright's `PmiRecord`).
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Record {
     pub source_id: String,
     pub category: Category,
@@ -145,10 +148,15 @@ pub struct Record {
     /// Every instance the record was read from, ascending.
     pub instances: Vec<u64>,
     pub blockers: Vec<String>,
+    /// Where a geometric tolerance or datum attaches, derived from its faces for lowering
+    /// (draftwright's `ref_pts`, `reference_axis`, `reference_surface_kind` and
+    /// `reference_normal`); absent on a dimension.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry: Option<Geometry>,
 }
 
 /// How the file's semantic-PMI instances were accounted for (haecceity's accounting).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Accounting {
     pub semantic: usize,
     pub consumed: usize,
@@ -158,7 +166,7 @@ pub struct Accounting {
 }
 
 /// A part's PMI as draftwright reads it (`PmiExtractionReport`).
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Report {
     pub schema: String,
     /// The parts of the file, in haecceity's order (`Record::part` indexes it).
@@ -166,6 +174,82 @@ pub struct Report {
     pub sources: Vec<Source>,
     pub records: Vec<Record>,
     pub accounting: Accounting,
+}
+
+/// Where a geometric tolerance or datum attaches to the part, in the drawing's frame (the
+/// file's), as draftwright measures it from the record's faces (`_datum_geometry_from_shapes`,
+/// `_datum_reference_normal` and `_common_principal_cylinder_axis`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Geometry {
+    /// A datum's attachment site on each face, face by face (`ref_pts`): a point inside a plane,
+    /// or on a cylinder's projected silhouette (`_datum_face_site`). Empty for a tolerance.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sites: Vec<[f64; 3]>,
+    /// Other proven sites on a datum's first face, ranked as draftwright ranks its choice and
+    /// spread over the face (on a cylinder, on the first site's side): where the port's placement
+    /// may attach the symbol when the first site's has no clear place.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub alternatives: Vec<[f64; 3]>,
+    /// `X`, `Y` or `Z` (`reference_axis`): a datum's common plane normal or cylinder axis; a
+    /// tolerance's common principal cylinder axis, when every face is a cylinder on one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub axis: Option<String>,
+    /// A datum's surface: `plane` or `cylinder` (`reference_surface_kind`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<String>,
+    /// A planar datum's outward unit normal (`reference_normal`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal: Option<[f64; 3]>,
+    /// Why the attachment is not proven: the record is then not lowered.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reasons: Vec<String>,
+}
+
+/// A part's PMI as the Analysis carries it: the report, or why the file's PMI could not be
+/// read at all.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Reading {
+    Read(Report),
+    Refused(String),
+}
+
+/// The entity types of semantic PMI (ISO 10303-242's dimensions, tolerances and datums), by
+/// which a file that cannot be read is known to carry PMI that is then lost.
+const SEMANTIC: [&str; 6] = [
+    "DIMENSIONAL_SIZE",
+    "DIMENSIONAL_LOCATION",
+    "GEOMETRIC_TOLERANCE",
+    "DATUM",
+    "DATUM_FEATURE",
+    "DATUM_SYSTEM",
+];
+
+/// What the Analysis carries of the STEP file *bytes*' PMI, read on the drawing's *part*: the
+/// report when the file has any PMI to account for (a record, a source, or a counted instance),
+/// none when it has none. A file that cannot be read is refused with the reason when its text
+/// names a semantic PMI entity, so PMI the reader loses is said, never dropped.
+pub fn attach(bytes: &[u8], part: &Part) -> Option<Reading> {
+    match read(bytes, part) {
+        Ok(r) => {
+            let a = &r.accounting;
+            let any = !r.records.is_empty()
+                || !r.sources.is_empty()
+                || a.semantic + a.presentation + a.reported > 0;
+            any.then_some(Reading::Read(r))
+        }
+        Err(e) => {
+            let text = String::from_utf8_lossy(bytes);
+            let named = SEMANTIC.iter().any(|n| {
+                text.match_indices(n).any(|(i, _)| {
+                    let after = text[i + n.len()..].trim_start();
+                    let before = text[..i].trim_end();
+                    after.starts_with('(') && (before.ends_with('=') || before.ends_with('('))
+                })
+            });
+            named.then_some(Reading::Refused(e))
+        }
+    }
 }
 
 /// Reads the semantic PMI of the STEP file *bytes*, whose part the drawing read as *part*
@@ -230,6 +314,13 @@ pub fn report(
             outcome: Outcome::NotExtracted,
             reason: format!("haecceity {}: {}", f.kind.as_str(), f.detail),
         });
+    }
+    for r in &mut records {
+        r.geometry = match r.category {
+            Category::GeometricTolerance => Some(tolerance_geometry(part, r)),
+            Category::Datum => Some(datum_geometry(part, r)),
+            _ => None,
+        };
     }
     records.sort_by_key(|r| (r.category, r.part));
     let mut record_sources: Vec<Source> = records
@@ -591,6 +682,7 @@ impl PartReader<'_> {
             edges: edges.into_iter().collect(),
             instances: instances.into_iter().collect(),
             blockers,
+            geometry: None,
         }
     }
 
@@ -1057,6 +1149,280 @@ fn tolerance_kind(k: ToleranceKind) -> (&'static str, u32) {
         ToleranceKind::Symmetry => ("symmetry", 14),
         ToleranceKind::TotalRunout => ("total_runout", 15),
     }
+}
+
+/// Why a record's faces give no single attachment: they lie in several placements of their
+/// part (an assembly placing it more than once), so which one to annotate is not known.
+fn placements_reason(r: &Record) -> Option<String> {
+    (r.faces.len() > r.face_ids.len()).then(|| {
+        format!(
+            "its {} faces are drawn in {} placements of the part; which placement to annotate is \
+             an open question",
+            r.face_ids.len(),
+            r.faces.len().div_ceil(r.face_ids.len().max(1))
+        )
+    })
+}
+
+/// The axis (0, 1, 2) a unit direction lies along, when it is principal to within
+/// *tolerance*: draftwright's tests, a component ≥ 1e-6 with the others summing to at most
+/// *tolerance* times it.
+fn principal(d: [f64; 3], tolerance: f64) -> Option<usize> {
+    let c = d.map(f64::abs);
+    let k = (0..3).fold(0, |k, i| if c[i] > c[k] { i } else { k });
+    let others = c[0] + c[1] + c[2] - c[k];
+    (c[k] >= 1e-6 && others <= tolerance * c[k]).then_some(k)
+}
+
+/// A geometric tolerance's attachment: its faces' common principal cylinder axis, when every
+/// face is a cylinder and they share one (`_common_principal_cylinder_axis`, which reads no axis
+/// when any reference is not a cylindrical face). The leader's site is its faces' box centre,
+/// which the record carries (`ref_bbox`).
+fn tolerance_geometry(part: &Part, r: &Record) -> Geometry {
+    let reasons: Vec<String> = placements_reason(r).into_iter().collect();
+    let mut axes = BTreeSet::new();
+    let mut cylinders = r.edges.is_empty() && !r.faces.is_empty();
+    for &f in &r.faces {
+        match &part.faces[f].surface {
+            Surface::Cylinder { frame, .. } => {
+                let d = frame.z;
+                let k = (0..3).fold(0, |k, i| if d[i].abs() > d[k].abs() { i } else { k });
+                let exact = (d[k].abs() - 1.0).abs() <= 1e-6
+                    && (0..3).all(|i| i == k || d[i].abs() <= 1e-6);
+                if exact {
+                    axes.insert(k);
+                } else {
+                    cylinders = false;
+                }
+            }
+            _ => cylinders = false,
+        }
+    }
+    let axis = (cylinders && axes.len() == 1)
+        .then(|| AXIS_NAMES[*axes.first().expect("one axis")].to_string());
+    Geometry {
+        sites: Vec::new(),
+        alternatives: Vec::new(),
+        axis,
+        surface: None,
+        normal: None,
+        reasons,
+    }
+}
+
+const AXIS_NAMES: [&str; 3] = ["X", "Y", "Z"];
+
+/// A datum's attachment (`_datum_geometry_from_shapes` and `_datum_reference_normal`): every
+/// face a plane or cylinder whose axis is principal, all of one kind, coplanar or coaxial; a
+/// site on each; and a plane's outward normal, the faces agreeing.
+fn datum_geometry(part: &Part, r: &Record) -> Geometry {
+    let mut reasons: Vec<String> = placements_reason(r).into_iter().collect();
+    let mut sites = Vec::new();
+    let mut axes = Vec::new();
+    let mut kinds = Vec::new();
+    let mut supports: Vec<Vec<f64>> = Vec::new();
+    let mut alternatives = Vec::new();
+    if r.faces.is_empty() {
+        reasons.push("referenced geometry is unavailable".into());
+    }
+    for &f in &r.faces {
+        let b = part.face_bounds(f);
+        sites.push(b.centre());
+        let (kind, frame) = match &part.faces[f].surface {
+            Surface::Plane { frame } => ("plane", frame),
+            Surface::Cylinder { frame, .. } => ("cylinder", frame),
+            _ => {
+                reasons.push("one datum reference is neither planar nor cylindrical".into());
+                continue;
+            }
+        };
+        let Some(k) = principal(frame.z, 1e-6) else {
+            reasons.push("one datum reference surface is not axis-aligned".into());
+            continue;
+        };
+        let o = frame.origin;
+        supports.push(if kind == "plane" {
+            vec![o[k]]
+        } else {
+            (0..3).filter(|&i| i != k).map(|i| o[i]).collect()
+        });
+        axes.push(k);
+        kinds.push(kind);
+        let found = face_sites(part, f, &b, kind, k);
+        match found.first() {
+            Some(site) => {
+                *sites.last_mut().expect("pushed") = *site;
+                if alternatives.is_empty() && sites.len() == 1 {
+                    alternatives = spread(&found, &b, 8);
+                }
+            }
+            None => reasons
+                .push("one datum reference face has no proven interior attachment point".into()),
+        }
+    }
+    let mut axis = None;
+    if axes.is_empty() {
+        reasons.push("datum reference surface is unavailable".into());
+    } else if kinds.iter().any(|k| *k != kinds[0]) {
+        reasons.push("datum reference faces mix planar and cylindrical surfaces".into());
+    } else if axes.iter().any(|a| *a != axes[0])
+        || supports[1..].iter().any(|s| {
+            s.iter()
+                .zip(&supports[0])
+                .any(|(a, b)| (a - b).abs() > 1e-4)
+        })
+    {
+        let qualifier = if kinds[0] == "plane" {
+            "coplanar"
+        } else {
+            "coaxial"
+        };
+        reasons.push(format!("datum reference faces are not {qualifier}"));
+    } else {
+        axis = Some(AXIS_NAMES[axes[0]].to_string());
+    }
+    let surface =
+        (!kinds.is_empty() && kinds.iter().all(|k| *k == kinds[0])).then(|| kinds[0].to_string());
+    let mut normal = None;
+    if reasons.is_empty() && surface.as_deref() == Some("plane") {
+        let normals: Vec<[f64; 3]> = r
+            .faces
+            .iter()
+            .filter_map(|&f| part.face_normal(f, 0.0, 0.0))
+            .collect();
+        if normals.len() != r.faces.len() {
+            reasons.push("datum reference surface has no usable normal".into());
+        } else if normals[1..]
+            .iter()
+            .any(|n| n[0] * normals[0][0] + n[1] * normals[0][1] + n[2] * normals[0][2] < 0.999)
+        {
+            reasons.push("datum reference faces disagree about outward normal".into());
+        } else {
+            normal = Some(normals[0]);
+        }
+    }
+    reasons.dedup();
+    Geometry {
+        sites,
+        alternatives,
+        axis,
+        surface,
+        normal,
+        reasons,
+    }
+}
+
+/// The proven sites on face *f* (box *b*, of *kind*, its normal or axis along *k*), the one
+/// `_datum_face_site` chooses first: on a cylinder, points of the silhouette the edge-on view
+/// projects (`_cylindrical_datum_site`'s stations, then others along the axis on the same side);
+/// on a plane, the points of a 13 × 13 grid over its parameter range that lie on the face, nearest
+/// the box's centre across the view (then in space) first. Where no grid point lies on the face
+/// (a narrow ring), draftwright takes mesh triangles' centroids; the port takes finer grids (52,
+/// then 208, per side). Empty when none is proven.
+fn face_sites(part: &Part, f: usize, b: &Bounds, kind: &str, k: usize) -> Vec<[f64; 3]> {
+    let surface = &part.faces[f].surface;
+    let Some(domain) = part.domain(f) else {
+        return Vec::new();
+    };
+    let centre = b.centre();
+    if kind == "cylinder" {
+        let Surface::Cylinder { frame, radius } = surface else {
+            return Vec::new();
+        };
+        let radial = if k < 2 { 2 } else { 0 };
+        let signs = if k < 2 { [-1.0, 1.0] } else { [1.0, -1.0] };
+        let mut stations = vec![centre[k]];
+        if k == 2 {
+            stations.insert(0, centre[k] + ((b.max[2] - b.min[2]) / 4.0).min(10.0));
+        }
+        let on = |station: f64, sign: f64| {
+            let mut s = frame.origin;
+            s[k] = station;
+            s[radial] += sign * radius;
+            if !b.contains(s, 1e-6) {
+                return None;
+            }
+            let (u, v) = surface.parameters(s, None)?;
+            let p = surface.value(u, v);
+            let d = ((p[0] - s[0]).powi(2) + (p[1] - s[1]).powi(2) + (p[2] - s[2]).powi(2)).sqrt();
+            // On the face, its boundary included (draftwright measures the distance to the face,
+            // 1e-6): a silhouette on the seam between two halves of a split cylinder is on both.
+            let e = 1e-9;
+            let inside = [(0.0, 0.0), (e, 0.0), (-e, 0.0), (0.0, e), (0.0, -e)]
+                .iter()
+                .any(|(du, dv)| domain.contains(u + du, v + dv));
+            (d <= 1e-6 && inside).then_some(s)
+        };
+        let Some((first, sign)) = stations
+            .iter()
+            .flat_map(|&st| signs.map(|sg| (st, sg)))
+            .find_map(|(st, sg)| on(st, sg).map(|s| (s, sg)))
+        else {
+            return Vec::new();
+        };
+        let mut out = vec![first];
+        for t in [0.3, 0.7, 0.15, 0.85, 0.05, 0.95] {
+            if let Some(s) = on(b.min[k] + t * (b.max[k] - b.min[k]), sign) {
+                out.push(s);
+            }
+        }
+        return out;
+    }
+    let Some((u0, u1, v0, v1)) = part.uv_bounds(f) else {
+        return Vec::new();
+    };
+    if ![u0, u1, v0, v1].iter().all(|x| x.is_finite()) {
+        return Vec::new();
+    }
+    let hidden = if k == 1 { 0 } else { 1 };
+    for n in [13usize, 52, 208] {
+        let mut found: Vec<([f64; 2], [f64; 3])> = Vec::new();
+        for ui in 0..n {
+            let u = u0 + (ui as f64 + 0.5) * (u1 - u0) / n as f64;
+            for vi in 0..n {
+                let v = v0 + (vi as f64 + 0.5) * (v1 - v0) / n as f64;
+                if domain.contains(u, v) {
+                    let p = surface.value(u, v);
+                    let key = [
+                        (p[hidden] - centre[hidden]).abs(),
+                        (0..3).map(|i| (p[i] - centre[i]).powi(2)).sum(),
+                    ];
+                    found.push((key, p));
+                }
+            }
+        }
+        if !found.is_empty() {
+            found.sort_by(|(ka, pa), (kb, pb)| {
+                ka[0]
+                    .total_cmp(&kb[0])
+                    .then(ka[1].total_cmp(&kb[1]))
+                    .then(pa[0].total_cmp(&pb[0]))
+                    .then(pa[1].total_cmp(&pb[1]))
+                    .then(pa[2].total_cmp(&pb[2]))
+            });
+            return found.into_iter().map(|(_, p)| p).collect();
+        }
+    }
+    Vec::new()
+}
+
+/// Up to *n* of *sites* (ranked) after the first, each at least a tenth of the face's box
+/// diagonal from those kept before it: other places a symbol may attach.
+fn spread(sites: &[[f64; 3]], b: &Bounds, n: usize) -> Vec<[f64; 3]> {
+    let gap = 0.1 * b.diagonal();
+    let mut kept: Vec<[f64; 3]> = sites.iter().take(1).copied().collect();
+    for s in sites.iter().skip(1) {
+        if kept.len() > n {
+            break;
+        }
+        let far = kept
+            .iter()
+            .all(|k| ((0..3).map(|i| (k[i] - s[i]).powi(2)).sum::<f64>()).sqrt() >= gap);
+        if far {
+            kept.push(*s);
+        }
+    }
+    kept.split_off(1.min(kept.len()))
 }
 
 /// The box of *faces* on *part*.

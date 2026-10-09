@@ -15,6 +15,7 @@ pub mod model;
 pub mod notes;
 pub mod output;
 pub mod pmi;
+pub mod pmi_lowering;
 pub mod png;
 pub mod section;
 pub mod tables;

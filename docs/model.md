@@ -65,6 +65,14 @@ edited.
   `bridge::native` does not read yet (raised pads among them), and section recesses, which it
   does not carry. `plan` reports them as one `features_not_recognised` warning. `plan` reads older
   analyses with none; `render` and `review` draw only from this version.
+- **PMI** (`draftwright.analysis/6`, `pmi`): the part's AP242 semantic PMI as `src/pmi.rs`
+  reads it (`read`, the report: records with their faces, and every source not read with its
+  reason), each geometric tolerance and datum with where it attaches (`geometry`: a datum's site
+  on each face, its plane normal or cylinder axis and its outward normal; a tolerance's common
+  cylinder axis), derived from the faces as draftwright's `_datum_geometry_from_shapes` derives
+  them; or `refused` with the reason when a file naming semantic PMI cannot be read. Absent when
+  the file has none (presentation alone is counted). `plan` lowers it (below); older analyses
+  read with none.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.
@@ -363,6 +371,46 @@ placement and rules) live there too; the notes block is draftwright's single-col
   Not ported: `block_cols` (side-by-side blocks, which only the hole table uses through
   `_wrap_rows`), `left_align_cols`, a table's `name`, and `Sheet.schedule`'s measured tables.
 
+### Feature control frames and datum feature symbols (PMI)
+
+`src/pmi_lowering.rs` lowers the Analysis's PMI as draftwright's `build_pmi_features` does, and
+`src/dims/gdt.rs` places and draws it. Plan items (`gdt`): `{id: "pmi:<source>", kind:
+"control_frame" | "datum_feature", view, side, source, faces, cells, modifiers?, default, basis,
+placed}`.
+
+- **A feature control frame** for each geometric tolerance read without blockers: its
+  characteristic, magnitude (`_fmt_pmi_magnitude`), the zone's `⌀` or `S⌀`, `Ⓜ` or `Ⓛ`, the
+  datum letters (repeats removed) and the all-around or all-over circle at its leader's bend. It is
+  drawn in the view that sees its axis end-on (its faces' common cylinder axis, else their box's
+  longest extent, else z: x → side, y → front, z → plan), below the front and the side, above
+  the plan, its leader from the centre of its faces' box. Only the modifiers draftwright draws
+  are drawn (all-around, all-over, the zone, the material condition); any other is a
+  `pmi_not_lowered` error.
+- **A datum feature symbol** for each datum whose faces are all planes, or all cylinders, on one
+  principal plane or axis: in the view that sees it edge-on (x and z: front; y: side; a y-normal
+  plane goes to the plan when the side view is not drawn), on the side its outward normal points
+  to (a cylinder's: its site's), from a proven site on its first face. Drawn as ISO 5459 draws it:
+  the filled triangle on the surface, a line along the normal, the letter in a square frame.
+- **Placement**: in its strip beyond every dimension of its view there, nearest tier first,
+  clear of the sheet's edge, the views, the title block, other labels and leaders; a frame with
+  no clear tier tries draftwright's other strips, a datum keeps its side; one with no clear place
+  keeps its first tier and its collisions are reported as the dimensions' are. Notes and tables
+  keep clear of the frames.
+- **Render**: strokes for the frame, the symbols and rings, the font's glyphs for letters and
+  numbers (`⌀` drawn as a ring and a stroke, `S⌀` as `Sø`), and one invisible text run per
+  compartment (`⌖`, `⌀0.05Ⓜ`, `A`), so the PDF and SVG text layers can be searched; lint reads
+  them as annotations that claim no measurement.
+- **Reported, not drawn**: a record whose reading left blockers or whose faces prove no
+  attachment, or whose faces lie in several placements of its part (`pmi_not_lowered`, error); a
+  source not read (`pmi_not_extracted`: error for a requirement, info for a shape aspect or
+  property); a file whose PMI cannot be read (`pmi_not_read`); presentation
+  (`pmi_presentation_not_read`, info); every PMI dimension (`pmi_dimensions_not_ported`, info:
+  the next stage); an item whose view is not drawn (`pmi_not_drawn`). draftwright draws PMI only
+  with `pmi="annotate"`; the port draws it whenever the part has some.
+
+Compared item by item with draftwright on 14 AP242 files (`tests/pmi_lowering.rs`,
+`tests/fixtures/known_pmi_lowering.json`).
+
 **IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
 view moves the dimension to its next view and renames it (the basis says so); a spec still keyed
 by the old ID is refused, with the new ID named first in the refusal's choices. Take IDs from
@@ -455,6 +503,7 @@ reads it back from any of the three.
 | Dimension | `d:<feature>/<parameter>@<view>` | the same file; carried to revisions through its feature |
 | View | `v:<name>` | always |
 | Note, table, section | `n:<k>`, `t:<k>`, `s:<letter>` | always (set in the spec) |
+| PMI frame or symbol | `pmi:<source>` (the record's `source_id`, `geometric_tolerance:#<instance>`) | the same file |
 | Problem | `p:<code>:<subject>` | the same plan |
 
 Parameter names follow the Python version's role vocabulary (`role.kind[.discriminator]`). A

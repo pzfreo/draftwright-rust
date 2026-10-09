@@ -33,14 +33,15 @@ use crate::title_block::{self, TitleCell};
 /// Version 2 added the isometric box (`iso_bounds`) and the recognised features, version 3 the
 /// horizontal face levels (`levels`), version 4 their supports and the step risers
 /// (`level_supports`, `risers`), version 5 the families the recogniser did not give
-/// (`unrecognised`).
-pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/5";
-/// The analyses [`plan`] reads: this version, and versions 2 to 4 (it reads them with none of
+/// (`unrecognised`), version 6 the part's AP242 PMI (`pmi`).
+pub const ANALYSIS_SCHEMA: &str = "draftwright.analysis/6";
+/// The analyses [`plan`] reads: this version, and versions 2 to 5 (it reads them with none of
 /// what they lack).
-pub const ANALYSIS_SCHEMAS: [&str; 4] = [
+pub const ANALYSIS_SCHEMAS: [&str; 5] = [
     "draftwright.analysis/2",
     "draftwright.analysis/3",
     "draftwright.analysis/4",
+    "draftwright.analysis/5",
     ANALYSIS_SCHEMA,
 ];
 pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
@@ -92,6 +93,12 @@ pub struct Analysis {
     /// reports them (`features_not_recognised`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unrecognised: Vec<Unrecognised>,
+    /// The part's AP242 semantic PMI ([`crate::pmi::attach`]): its records, each with where it
+    /// attaches, and every source not read; or why the file's PMI could not be read. Absent
+    /// when the file has none. The plan lowers it to feature control frames and datum feature
+    /// symbols ([`crate::pmi_lowering`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pmi: Option<crate::pmi::Reading>,
 }
 
 /// A family of features the recogniser did not give the Analysis (quiddity's family name).
@@ -261,6 +268,11 @@ pub struct Plan {
     /// Corner-block tables, each with its ID, cells, default flag, basis and place.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<PlannedTable>,
+    /// The part's AP242 geometric tolerances and datums as feature control frames and datum
+    /// feature symbols, each with its ID, view, compartments, basis and place
+    /// ([`crate::dims::gdt`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub gdt: Vec<crate::dims::gdt::PlannedGdt>,
     pub problems: Vec<Problem>,
     /// The spec the plan was made from, embedded in every output.
     pub spec: Spec,
@@ -454,6 +466,7 @@ pub fn analyse_with(
         level_supports,
         risers,
         unrecognised: Vec::new(),
+        pmi: crate::pmi::attach(&bytes, &part),
     };
     let (_, toward, up) = VIEWS[3];
     let iso = View::new(toward, up).expect("standard view");
@@ -1242,15 +1255,20 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     };
     let (dimensions, mut omitted, more) = crate::dims::plan(analysis, spec, &sheet, &views)?;
     problems.extend(more);
+    // The part's PMI, placed beyond the dimensions; the notes and tables keep clear of both.
+    let (gdt, more) = crate::dims::gdt::plan(analysis, &sheet, &views, &dimensions);
+    problems.extend(more);
+    let mut ink = dimensions.clone();
+    ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
     let (notes, notes_block, more) =
-        crate::notes::plan(&spec.notes, analysis, &sheet, &views, &dimensions);
+        crate::notes::plan(&spec.notes, analysis, &sheet, &views, &ink);
     problems.extend(more);
     let (tables, more) = crate::tables::plan(
         &spec.tables,
         analysis,
         &sheet,
         &views,
-        &dimensions,
+        &ink,
         notes_block.as_ref().map(|b| b.cells),
     );
     problems.extend(more);
@@ -1275,6 +1293,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         notes,
         notes_block,
         tables,
+        gdt,
         problems,
         spec,
     })
@@ -1544,6 +1563,27 @@ pub fn render(
             });
         }
         annotations.extend(drawn);
+    }
+    // The feature control frames and datum feature symbols, likewise.
+    for g in &plan.gdt {
+        let from = layers[2].items.len();
+        let drawn = crate::dims::gdt::render(g, &mut layers[2].items, &mut text);
+        if let (Some(a), Some(ink), Some(p)) = (
+            drawn,
+            items_bbox(&layers[2].items[from..]),
+            g.placed.as_ref(),
+        ) {
+            sheet.items.push(Drawn {
+                name: a.name.clone(),
+                kind: Kind::Gdt,
+                ink,
+                label: Some(p.label_box),
+                lines: p.lines.clone(),
+                elbow: p.lines.first().map(|l| l[1]),
+                interior: false,
+            });
+            annotations.push(a);
+        }
     }
     // Glyphs *laid* out drawn moved to *at*, and the *run* (text, font file, size), if any, as
     // invisible text centred there.

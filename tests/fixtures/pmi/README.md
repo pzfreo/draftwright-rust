@@ -17,3 +17,13 @@ The files `tests/pmi.rs` reads AP242 semantic PMI from, and draftwright's readin
 
 Regenerate with
 `~/repos/draftwright/.venv/bin/python tools/capture_pmi.py <draftwright>/src <quiddity>/tests/corpus`.
+
+- `lowering/<stem>.json.gz`: how draftwright lowers and draws each AP242 file's geometric
+  tolerances and datums (`tests/pmi_lowering.rs`): `build_pmi_features` on `extract_pmi_report`'s
+  records in the file's own STEP space, one item per geometric-tolerance or datum record (what it
+  became, its view, strip, site and what it states), and what `build_drawing(..., pmi="annotate")`
+  placed and dropped (or why it could not draw the part: on bracket_positions its projection
+  raises). The part's box comes from draftwright's own STEP reader (`_import_step`), as
+  build123d's XCAF import crashes on NIST CTC-02 (draftwright #20). Written by `tools/capture_pmi_lowering.py` from
+  draftwright `origin/main` 4dfc63f. Regenerate with
+  `~/repos/draftwright/.venv/bin/python tools/capture_pmi_lowering.py <draftwright>/src`.
