@@ -34,7 +34,7 @@ order.
 - CI (nextest shards, Linux and macOS): Linux about 10 min, macOS about 20 min. **Linux failed
   at 0c76531** (the uv-bounds merge): `tests/recognition.rs::the_default_document_moves_with_the_part`,
   cgb203 under translation, `circular_face_patterns` fit_error 0.278052 vs 0.386336; macOS
-  passes. Fixing it is the first backlog item.
+  passes. Still failing at 5798c59 (run 37880089947). Fixing it is the first backlog item.
 
 **draftwright-rust** (`~/repos/draftwright-rust`, `main`, at 5ca1130 plus the final docs commit,
 pushed):
