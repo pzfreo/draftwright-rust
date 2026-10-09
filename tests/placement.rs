@@ -284,6 +284,7 @@ fn omitting_one_dimension_moves_no_other() {
             .filter(|(n, _)| ["m10127", "hanger", "ftc06"].contains(&n.as_str())),
     );
     let mut edits = 0;
+    let mut shared = 0;
     for (name, analysis) in &parts {
         let full = model::plan(analysis, &Spec::default()).unwrap();
         let all = placed(&full);
@@ -329,9 +330,9 @@ fn omitting_one_dimension_moves_no_other() {
             );
             let rest: Vec<&str> = every.iter().copied().filter(|i| i != gone).collect();
             // Omitting it brings back a coincident location it conveyed (ARCH0009-6), drawn in
-            // its own lane (a size it shared among three or more is shared again by the rest,
-            // the others conveyed by the one drawn); one left out of an authored set, with what
-            // it conveyed, conveys nothing back.
+            // its lane, which the item merged away shares (a size it shared among three or more
+            // is shared again by the rest, the others conveyed by the one drawn); one left out of
+            // an authored set, with what it conveyed, conveys nothing back.
             let conveyed = conveyed_by(gone);
             let listed: Vec<&str> = complete
                 .iter()
@@ -384,7 +385,24 @@ fn omitting_one_dimension_moves_no_other() {
                 );
                 for d in &plan.dimensions {
                     if promoted.contains(&d.id.as_str()) {
-                        assert!(d.placed.is_some(), "{name}: {} is not drawn", d.id);
+                        let Some(p) = d.placed.as_ref() else {
+                            panic!("{name}: {} is not drawn", d.id);
+                        };
+                        // In the lane of the item it was merged into: its dimension line on that
+                        // item's (the merged items hold no lane of their own).
+                        let lane = |p: &dims::Placed| {
+                            let [a, b] = p.lines[2];
+                            if a[0] == b[0] { a[0] } else { a[1] }
+                        };
+                        if let (true, Some(survivor)) = (d.kind == "linear", all.get(gone)) {
+                            let survivor = survivor.placed.as_ref().unwrap();
+                            assert!(
+                                (lane(p) - lane(survivor)).abs() < 1e-9,
+                                "{name}: {} is not drawn in {gone}'s lane",
+                                d.id
+                            );
+                            shared += 1;
+                        }
                         continue;
                     }
                     let was = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
@@ -397,7 +415,11 @@ fn omitting_one_dimension_moves_no_other() {
             }
         }
     }
-    eprintln!("{edits} single-dimension edits, none moving another item");
+    eprintln!(
+        "{edits} single-dimension edits, none moving another item; {shared} items brought back in \
+         their survivor's lane"
+    );
+    assert!(shared > 0, "no item merged away was brought back");
 }
 
 /// Each view's drawn box on the page: a principal view's part box (the envelope projected, at

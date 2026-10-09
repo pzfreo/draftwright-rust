@@ -316,18 +316,77 @@ pub(super) fn across(frame: &Frame, axis: usize) -> Option<bool> {
     }
 }
 
+/// For each item, the item whose lane it shares, when the defaults merge it away: one span, one
+/// dimension (ARCH0009-6; [`super::bosses::consolidate`], [`super::holes::consolidate`],
+/// [`super::share`]) leaves one dimension on a span that several items measure, so the others
+/// take no lane of their own (draftwright's corridor dedup: a displaced duplicate is never
+/// placed while its winner is). The merges are decided among every item the part would have,
+/// under the defaults' labels, so no spec edit changes them (ARCH0003-2): an item the spec brings
+/// back by omitting its survivor is drawn in the survivor's lane, where the span already was.
+pub(super) fn owners(
+    analysis: &Analysis,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+) -> Vec<Option<usize>> {
+    let mut kept: Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)> = items
+        .iter()
+        .zip(views_of)
+        .map(|(w, view)| (w.clone(), true, *view, Vec::new()))
+        .collect();
+    let mut given = vec![Vec::new(); kept.len()];
+    let mut omitted = Vec::new();
+    super::bosses::consolidate(analysis, &mut kept, &mut omitted);
+    super::holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    super::share(&mut kept, &mut given, &mut omitted);
+    let index: BTreeMap<&str, usize> = items
+        .iter()
+        .enumerate()
+        .map(|(i, w)| (w.id.as_str(), i))
+        .collect();
+    // Each merge records its survivor as `conveyed by <ID>: ...` (IDs hold no spaces).
+    let mut owner = vec![None; items.len()];
+    for o in &omitted {
+        let survivor = o
+            .basis
+            .strip_prefix("conveyed by ")
+            .and_then(|rest| rest.split_once(": "))
+            .and_then(|(id, _)| index.get(id));
+        let (Some(&i), Some(&s)) = (index.get(o.id.as_str()), survivor) else {
+            unreachable!("a merge names its survivor: {}", o.basis);
+        };
+        owner[i] = Some(s);
+    }
+    // A survivor merged away in turn passes on its own survivor.
+    for i in 0..owner.len() {
+        let mut s = owner[i];
+        for _ in 0..owner.len() {
+            match s.and_then(|s| owner[s]) {
+                Some(next) => s = Some(next),
+                None => break,
+            }
+        }
+        owner[i] = s;
+    }
+    owner
+}
+
 /// Each item's strip and lane in its carrying view (none when it has no view, or its view looks
 /// along it): per view and strip, sizes nearest, then locations by distance, overall outermost
-/// (ARCH0009-5), then callouts by their tips, right to left.
+/// (ARCH0009-5), then callouts by their tips, right to left. An item merged away ([`owners`])
+/// takes its survivor's strip and lane.
 pub(super) fn lanes<'a>(
     frames: &BTreeMap<&str, Frame>,
     items: impl ExactSizeIterator<Item = (&'a Want, Option<&'static str>)>,
+    owner: &[Option<usize>],
 ) -> (Vec<Option<Side>>, Vec<usize>) {
     let n = items.len();
     let mut strips: Strips = BTreeMap::new();
     let mut sides: Vec<Option<Side>> = vec![None; n];
     for (i, (w, view)) in items.enumerate() {
         let Some(view) = view else { continue };
+        if owner[i].is_some() {
+            continue;
+        }
         let f = &frames[view];
         let (side, rank) = match &w.shape {
             Shape::Linear {
@@ -360,7 +419,18 @@ pub(super) fn lanes<'a>(
             lane[*i] = n;
         }
     }
+    share_lanes(owner, &mut sides, &mut lane);
     (sides, lane)
+}
+
+/// Gives each item merged away its survivor's strip and lane.
+fn share_lanes(owner: &[Option<usize>], sides: &mut [Option<Side>], lanes: &mut [usize]) {
+    for (i, s) in owner.iter().enumerate() {
+        if let Some(s) = *s {
+            sides[i] = sides[s];
+            lanes[i] = lanes[s];
+        }
+    }
 }
 
 /// The lanes each strip holds (one more than its outermost item's lane), from each item's view,
@@ -408,14 +478,16 @@ fn opposite(side: Side) -> Side {
 /// move to the next free lanes of the opposite strip, an overall extent first (draftwright moves
 /// only the extent), each that fits there taking the next lane; the extent then goes outside the
 /// rest where that still fits. One that fits on neither side keeps its own lane, where the collision checks
-/// report it: nothing is dropped. Callouts take no lanes ([`super::leaders`] places them). The
-/// strips' lanes come from every item the part would have, and the page from the sheet and the
-/// views, which no omission changes, so where an item falls is edit-local (ARCH0003-2).
+/// report it: nothing is dropped. Callouts take no lanes ([`super::leaders`] places them), and an
+/// item merged away follows its survivor ([`owners`]). The strips' lanes come from every item the
+/// part would have, and the page from the sheet and the views, which no omission changes, so
+/// where an item falls is edit-local (ARCH0003-2).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn fall_through(
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
     views_of: &[Option<&'static str>],
+    owner: &[Option<usize>],
     sides: &mut [Option<Side>],
     lanes: &mut [usize],
     analysis: &Analysis,
@@ -427,6 +499,9 @@ pub(super) fn fall_through(
     let mut strips: BTreeMap<(&str, Side), Vec<usize>> = BTreeMap::new();
     // Callouts hold no lanes: their leaders are placed around the dimensions afterwards.
     for i in 0..items.len() {
+        if owner[i].is_some() {
+            continue;
+        }
         if let (Some(view), Some(side), true) = (views_of[i], sides[i], linear(i)) {
             strips.entry((view, side)).or_default().push(i);
         }
@@ -489,6 +564,7 @@ pub(super) fn fall_through(
         }
         held.insert((view, across), first + moved.len());
     }
+    share_lanes(owner, sides, lanes);
 }
 
 /// Places *w* in lane *lane* of strip *side* of its view; none for a callout.
@@ -589,7 +665,50 @@ pub(super) fn settle(
     views: &[PlannedView],
 ) {
     let page = Page::new(analysis, sheet, views);
+    settle_where(items, &page, |_| true, |i, j| j != i);
+}
+
+/// Places each item merged away ([`owners`]) in its survivor's lane, once everything else is
+/// placed (callouts included), and moves its label as [`settle`] would, clear of every other
+/// item but its survivor and the items merged with it: their ink is the one span drawn once. The
+/// others never see it, so it moves nothing (it is drawn only when the spec omits its survivor).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn place_merged(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    owner: &[Option<usize>],
+    sides: &[Option<Side>],
+    lanes: &[usize],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+) {
     for i in 0..items.len() {
+        if owner[i].is_some() {
+            placed[i] = views_of[i]
+                .zip(sides[i])
+                .and_then(|(v, side)| place(&frames[v], &items[i], side, lanes[i]));
+        }
+    }
+    settle_where(
+        placed,
+        page,
+        |i| owner[i].is_some(),
+        |i, j| owner[j].is_none() && Some(j) != owner[i],
+    );
+}
+
+/// [`settle`] over the items *moves* picks, each against the others *sees* picks for it.
+fn settle_where(
+    items: &mut [Option<Placed>],
+    page: &Page,
+    moves: impl Fn(usize) -> bool,
+    sees: impl Fn(usize, usize) -> bool,
+) {
+    for i in 0..items.len() {
+        if !moves(i) {
+            continue;
+        }
         let Some(p) = items[i].as_ref() else {
             continue;
         };
@@ -597,7 +716,7 @@ pub(super) fn settle(
             items
                 .iter()
                 .enumerate()
-                .filter(|(j, _)| *j != i)
+                .filter(|(j, _)| sees(i, *j))
                 .filter_map(|(_, q)| q.as_ref())
         };
         // A linear dimension's own lines are fixed by what it measures, so only a line run on to
