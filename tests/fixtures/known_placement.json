@@ -1,24 +1,10 @@
 [
  {
   "part": "cgb245",
-  "code": "annotation_line_over_view",
-  "count": 6,
-  "verdict": "rust-wrong",
-  "reason": "Lines across the side view (a check stream d-placement-fit adds; they ran there unreported before): 6 of the height ladder's rungs (h11_226, h11_876, h13_226, h21_226, h23_226, h25_226) stand in the front's right strip in lanes past the side view's left edge. The front's right strip falls through to its left, where an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e): the overall height d:envelope/height.length@front takes the one lane before the sheet's margin, so the rungs keep their lanes (before the extent's first claim, rung h9_876 took that lane and the overall height ran across the side view instead). draftwright states 1 rung here and withholds the rest at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' verdicts, undetermined pending the maintainer, are in known_dimensions.json)."
- },
- {
-  "part": "cgb245",
   "code": "annotation_outside_area",
-  "count": 17,
+  "count": 4,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only): the plan's x locations above the plan past its band, y locations that fell through to the strip right of the plan, which no band reserves (dims::placement::fall_through, ISSUE-1215-e), one y location kept off the sheet, a slot location; and 6 of the height ladder's rungs past the front's area (the overall height takes the lane left of the front, an overall extent having first claim on the opposite strip's free lanes), which draftwright withholds at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json). One callout: 18× R4 (2.1 mm) below the front; 2× ⌀5 THRU now stands inside the plan's area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 30 before stream d-placement-fit, 24 before d-callout-leaders (the callouts moved beside the plan by settle stood in the space right of it)."
- },
- {
-  "part": "cgb245",
-  "code": "annotation_over_view",
-  "count": 3,
-  "verdict": "rust-wrong",
-  "reason": "The labels of the height ladder's rungs h21_226, h23_226 and h25_226 (d:step_level/step_height.length.*@front) lie over the side view: they stand in the front's right band in lanes past the side view's left edge (stream d-dims-steps-levels), where draftwright states 1 rung; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The front's right strip falls through to its left, where an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e): the overall height d:envelope/height.length@front takes the one lane left of the front before the sheet's margin and is clear of the side view; the rungs keep their lanes. Before the extent's first claim it was the overall height's label over the side view (count 1) and rung h9_876 took that lane; the three rungs' labels now settle about 1 mm lower, onto the side view's box."
+  "reason": "The plan's band above is draftwright's estimate (layout::Strips::reserve reserves the side's bands and the band right of the front and the plan, not the bands facing open paper): three x locations (297.9, 308.4, 372) and a slot location (286.0) above the plan run 5.6 to 26.6 mm past it, into open paper. Since stream d-quality-lanes the band right of the front and the plan holds the front's height-ladder lanes, so the rungs, the overall height and the y locations that fell through to the strip right of the plan (dims::placement::fall_through, ISSUE-1215-e) lie inside it, the side view moved clear of them, and 18× R4 stands inside the front's area (17 before; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json). 30 before stream d-placement-fit, 24 before d-callout-leaders."
  },
  {
   "part": "cgb245",
@@ -39,21 +25,21 @@
   "code": "annotation_outside_area",
   "count": 3,
   "verdict": "rust-wrong",
-  "reason": "The front's lower band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side view only): three front diameters below the front run past it. 8 before stream d-placement-fit, which passed the outer lanes below the front (the callouts and grooves that ran off the sheet) to the strip above it. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e); since stream d-callout-leaders callouts take no lanes (src/dims/leaders.rs places them beside the view)."
+  "reason": "The front's lower band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): three front diameters below the front run past it. 8 before stream d-placement-fit, which passed the outer lanes below the front (the callouts and grooves that ran off the sheet) to the strip above it. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e); since stream d-callout-leaders callouts take no lanes (src/dims/leaders.rs places them beside the view)."
  },
  {
   "part": "ctc01",
   "code": "annotation_outside_area",
   "count": 8,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only): plan items above and beside the plan (locations, pitches) and front items below the front run past them; the front's polygonal boss height (6.9 mm) past the front's band. No callout is left past its band: the front callouts (2× ⌀20 ↧ 45, 2× C5) that stood 2.1 mm below the front now stand inside its area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 20 before stream d-placement-fit, 15 before d-callout-leaders. 11 before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the location that ran off the sheet now has a lane on it."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): plan items above and beside the plan (locations, pitches) and front items below the front run past them; the front's polygonal boss height (6.9 mm) past the front's band. No callout is left past its band: the front callouts (2× ⌀20 ↧ 45, 2× C5) that stood 2.1 mm below the front now stand inside its area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 20 before stream d-placement-fit, 15 before d-callout-leaders. 11 before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the location that ran off the sheet now has a lane on it."
  },
  {
   "part": "ftc06",
   "code": "annotation_outside_area",
   "count": 16,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side view only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, the step shoulder d:step_level/step_position.length.y46_99@side, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels) and the front's width (in the one lane above the front, an overall extent's first claim). Two front callouts (2× ⌀6.3 ↧ 12.7, 2× ø31.8, 2.1 mm each). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 28 before stream d-placement-fit, 26 before d-callout-leaders (its callouts' labels ran right along their lanes), 18 before d-quality-repeated-dims (each pair of side-view boss heights on one span, 12.1 and 16.3, is now one counted item, src/dims/mod.rs::share, so two of these four items are gone)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, the step shoulder d:step_level/step_position.length.y46_99@side, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels) and the front's width (in the one lane above the front, an overall extent's first claim). Two front callouts (2× ⌀6.3 ↧ 12.7, 2× ø31.8, 2.1 mm each). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 28 before stream d-placement-fit, 26 before d-callout-leaders (its callouts' labels ran right along their lanes), 18 before d-quality-repeated-dims (each pair of side-view boss heights on one span, 12.1 and 16.3, is now one counted item, src/dims/mod.rs::share, so two of these four items are gone)."
  },
  {
   "part": "grm03",
@@ -64,24 +50,10 @@
  },
  {
   "part": "m1000",
-  "code": "annotation_line_over_view",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "A line of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1) runs across the side view (a check stream d-placement-fit adds): it keeps its lane in the front's right band past the side view's left edge, the front's left strip's one lane going to the overall height (an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e)); draftwright withholds the height ladder's rungs at the sheet's scale (its legibility gate, not ported). See annotation_over_view."
- },
- {
-  "part": "m1000",
   "code": "annotation_outside_area",
-  "count": 4,
+  "count": 3,
   "verdict": "rust-wrong",
-  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.3) in the same way. The seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1), in a lane beyond the height ladder's rungs (stream d-dims-steps-levels), runs 3.5 mm past the front's area; draftwright withholds these rungs at the sheet's scale (its legibility gate, _classify_steps, not ported). One recess callout beside its view: the side's hex pocket (12.5 mm, its long label); the front's seat callout, 2.1 mm past before, now stands inside the front's area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 7 before stream d-placement-fit, 6 before d-callout-leaders."
- },
- {
-  "part": "m1000",
-  "code": "annotation_over_view",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "The label of the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1) lies over the side view: it stands in the front's right band in a lane past the height ladder's rungs (stream d-dims-steps-levels), which draftwright withholds at the sheet's scale (its legibility gate, _classify_steps, not ported; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json), so its front band holds fewer lanes. The front's right strip falls through to its left strip, which has room for one lane; an overall extent has first claim on the opposite strip's free lanes (dims::placement::fall_through, ISSUE-1215-e), so the overall height d:envelope/height.length@front takes it (before the extent's first claim the seat's z location did, and the height's label lay over the side view, crossed by the seat's y location: an annotation_ink_overlap now gone)."
+  "reason": "d:envelope/depth.length@side (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y@side (6.3) in the same way. One recess callout beside its view: the side's hex pocket (11.5 mm, its long label). Since stream d-quality-lanes the band right of the front holds the height ladder's lanes, so the seat's z location d:f:section_recess:4/seat_location.location.z@front (23.1), in the lane beyond the rungs, lies inside the front's area (4 before). Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). 7 before stream d-placement-fit, 6 before d-callout-leaders."
  },
  {
   "part": "m10046",

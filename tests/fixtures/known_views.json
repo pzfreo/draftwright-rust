@@ -24,6 +24,12 @@
     "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): draftwright's hole-callout band (left 34.369 mm), not ported until the plan carries the callout labels; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
   },
   {
+    "part": "cgb245",
+    "fact": "scale:iso",
+    "verdict": "undetermined",
+    "reason": "The isometric's own scale (draftwright 0.65, the port 0.64365): the port fits the isometric to the rectangle the views leave, and since stream d-quality-lanes the band right of the front and the plan holds the port's height-ladder lanes (layout::Strips::reserve: 11 rungs and the overall height, where draftwright states 1 rung, its legibility gate not ported), so the side view stands further right and the isometric's rectangle is narrower; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
+  },
+  {
     "part": "connector109",
     "fact": "centre:front",
     "verdict": "undetermined",

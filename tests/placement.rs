@@ -574,16 +574,23 @@ fn a_strip_without_room_falls_through_to_the_opposite_strip() {
 
 /// ISSUE-1215-e: a starved overall extent falls through to the opposite strip. draftwright moves
 /// only the extent; the port moves every linear item past the cut, so the extent has first claim
-/// on the opposite strip's free lanes. On cgb245 and m1000 the front's right strip runs into the
-/// side view past the height ladder's rungs and its left strip has one lane before the sheet's
-/// margin: the overall height takes it (left of the front, its lines clear of the side view and
-/// nothing reported against it), not the innermost rung or location that would reach it first.
+/// on the opposite strip's free lanes. The layout now reserves the front's right band for its
+/// lanes (`layout::Strips::reserve`), so on the default sheets nothing starves; on cgb245 pinned
+/// to A3 at 1:2 and m1000 to A3 at 5:1 the front's right strip still runs out of sheet past the
+/// height ladder's rungs: the overall height takes the outermost free lane left of the front
+/// (nothing reported against it), not the innermost rung or location that would reach it first.
 #[test]
 fn a_starved_overall_extent_has_first_claim_on_the_opposite_strip() {
     let parts = corpus_parts();
     let mut checked = 0;
     for (name, analysis) in parts.iter().filter(|(n, _)| n == "cgb245" || n == "m1000") {
-        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let sheet = if name == "cgb245" {
+            serde_json::json!({ "size": "A3", "scale": "1:2" })
+        } else {
+            serde_json::json!({ "size": "A3", "scale": "5:1" })
+        };
+        let spec: Spec = serde_json::from_value(serde_json::json!({ "sheet": sheet })).unwrap();
+        let plan = model::plan(analysis, &spec).unwrap();
         let boxes = view_boxes(&plan, analysis);
         let front = boxes.iter().find(|(v, _)| v == "v:front").unwrap().1;
         let id = "d:envelope/height.length@front";
