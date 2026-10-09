@@ -1,8 +1,8 @@
 //! Features from Rust quiddity (`bridge::native`: holes and hole patterns, fillets, chamfers,
 //! countersinks, bosses, turned steps, grooves, flats, the steps, blends, slots and slot patterns,
 //! polygonal bosses and stock, double-D bores, plates, gusset ribs and their patterns, oriented
-//! slots and their patterns, raised pads) against the same parts' Python quiddity recognition through the
-//! bridge, record by record.
+//! slots and their patterns, raised pads) against the same parts' Python quiddity recognition
+//! through the bridge, record by record.
 //!
 //! Every part with bridged Python recognition is compared: the fixtures in `tests/fixtures/parts/`
 //! (set `parts`), the slot-pattern plates (`slot_patterns`) and quiddity-rust's golden parts with

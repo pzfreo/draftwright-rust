@@ -1,7 +1,7 @@
 //! Oriented slot coverage (Python's `linting/oriented_slot_coverage.py`): a free-direction slot
 //! (quiddity's `OrientedSlot`, a rectangular through passage whose width and length need not lie
-//! along the part's axes) states its width and its length (LINT-oriented_slot_coverage-width_length,
-//! LINT-code-oriented_slot_requirement_state).
+//! along the part's axes) states its width and its length
+//! (LINT-oriented_slot_coverage-width_length, LINT-code-oriented_slot_requirement_state).
 //!
 //! Each `oriented_slot` feature has two requirements, `oriented_slot_width.length` and
 //! `oriented_slot_length.length`, the record's `width` and `length`, judged by

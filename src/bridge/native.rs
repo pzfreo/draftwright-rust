@@ -218,8 +218,8 @@ pub enum Field {
 /// (dims, lint, demand, and the fingerprint's axis and sizes), as Python's records carry them: a
 /// record without one, or with one of another shape, is refused rather than filled in. A field
 /// nothing reads (a fillet's `side`, a chamfer's `corner`, a pad's `direction`) is not required,
-/// so a change to it does not refuse a read that would not use it. `a.b` is field `b` of object field `a`, checked when
-/// `a` is not null (`a` is listed first).
+/// so a change to it does not refuse a read that would not use it. `a.b` is field `b` of object
+/// field `a`, checked when `a` is not null (`a` is listed first).
 pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
     (
         "Fillet",

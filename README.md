@@ -72,10 +72,10 @@ d-native-holes, d-native-families and d-native-more-families entries):
 
 - **Not every family.** Rust quiddity's document does not carry section recesses (pockets,
   channels, blind slots, circular recesses), and the reader does not take every family the
-  document has (oriented chamfers, …). The Analysis lists what it
-  lacks (`unrecognised`, with each family's record count on the part) and the plan reports it as
-  a `features_not_recognised` warning: features of those families are not dimensioned,
-  sectioned or linted. Use `--features` for them.
+  document has (oriented chamfers, …). The Analysis lists what it lacks (`unrecognised`, with
+  each family's record count on the part) and the plan reports it as a `features_not_recognised`
+  warning: features of those families are not dimensioned, sectioned or linted. Use `--features`
+  for them.
 - **A hole lacks the face that closes it** (a drill point's cone, a blind floor), and a boss
   its free-end face, as the document carries only defining faces (rust-wrong).
 - **No cross-family reconciliation.** Python's aggregate drops a boss whose faces are a turned
