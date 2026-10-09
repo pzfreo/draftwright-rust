@@ -649,6 +649,13 @@ fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
     if !r.blockers.is_empty() {
         return Outcome::Refused(not_lowered(r.blockers.join("; ")));
     }
+    // A common label (stage 1b) is text on its faces, not a measurement: draftwright draws it as
+    // a label, which is not ported yet.
+    if r.kind == "common_label" {
+        return Outcome::Refused(not_ported(
+            "it is a common label, text on its faces, and the port draws no labels yet",
+        ));
+    }
     let Some(g) = &r.geometry else {
         return Outcome::Refused(not_lowered(
             "its attachment was not derived (the Analysis predates PMI dimensions; analyse the part again)",

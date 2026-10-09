@@ -243,58 +243,6 @@
  },
  {
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:103",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "F1.2"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, 'F1.2', Part 21 #16280, shape aspects #13683) from its Part 21 readers; the port reads dimensions, geometric tolerances and), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:104",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "F1.1"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, 'F1.1', Part 21 #16308, shape aspects #13687) from its Part 21 readers; the port reads dimensions, geometric tolerances and), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:108",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": ""
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '\\uf055', Part 21 #16423, shape aspects #14355) from its Part 21 readers; the port reads dimensions, geometric tolerances a), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:110",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "⌴"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '⌴', Part 21 #16482, shape aspects #15827) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
   "record": "dimension:0:1:4:85",
   "port": "dimension:#15130",
   "field": "label",
@@ -593,110 +541,6 @@
   "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø7 ±0.25' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
  },
  {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:137",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "4"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20787, shape aspects #18716) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:138",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "4X R0.15 MAX"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4X R0.15 MAX', Part 21 #20824, shape aspects #20805) from its Part 21 readers; the port reads dimensions, geometric tolera), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:139",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "F65"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, 'F65', Part 21 #20844, shape aspects #19975) from its Part 21 readers; the port reads dimensions, geometric tolerances and ), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:143",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "4"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20960, shape aspects #18192) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:144",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "4"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #20980, shape aspects #18219) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:145",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "4"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #21000, shape aspects #18246) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:146",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "4"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4', Part 21 #21020, shape aspects #19331) from its Part 21 readers; the port reads dimensions, geometric tolerances and da), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:148",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "F81"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, 'F81', Part 21 #21060, shape aspects #20561) from its Part 21 readers; the port reads dimensions, geometric tolerances and ), so the port has no record to draw or report here."
- },
- {
   "file": "nist_stc_06_asme1_ap242-e3.stp",
   "record": "dimension:0:1:4:10",
   "port": "dimension:#9195",
@@ -946,32 +790,6 @@
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "dimension:0:1:4:113",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "4X R"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '4X R', Part 21 #10483, shape aspects #9707) from its Part 21 readers; the port reads dimensions, geometric tolerances and ), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "dimension:0:1:4:114",
-  "port": null,
-  "field": "record",
-  "python": {
-   "kind": "common_label",
-   "label": "2X R"
-  },
-  "rust": null,
-  "verdict": "rust-wrong",
-  "evidence": "A common label, not a dimension: stage 1 does not project draftwright's common labels (known_pmi.json lists this record rust-wrong: Not projected by stage 1: draftwright reads this common label (common_label, '2X R', Part 21 #10504, shape aspects #10136) from its Part 21 readers; the port reads dimensions, geometric tolerances and), so the port has no record to draw or report here."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "dimension:0:1:4:92",
   "port": "dimension:#9797",
   "field": "outcome",
@@ -1071,6 +889,24 @@
   },
   "verdict": "undetermined",
   "evidence": "draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10063 (ø0.250 ±0.008 INCH) is not drawn: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:113",
+  "port": "dimension:#10483",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": [
+    "pmi_dimensions_not_ported"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-wrong",
+  "evidence": "A common label ('4X R'), read since stage 1b. draftwright draws common labels as label annotations; here it found no room and dropped it (pmi_dropped: m_gdt0 not placed (no legible room in any front strip or sheet fallback); plan_incomplete). The port draws no labels yet and says so: PMI dimension dimension:#10483 (4X R) is not drawn: it is a common label, text on its faces, and the port draws no labels yet. Neither draws it; the port's gap is the unported label drawing, reported, not dropped."
  },
  {
   "file": "nist_stc_10_asme1_ap242-e2.stp",

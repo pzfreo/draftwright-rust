@@ -206,6 +206,9 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                     }),
                 }
             }
+            // A dimension (and a common label, read as one) is stated or refused by stage 2b
+            // (`dims::pmi_dimensions`), never here.
+            Category::Dimension => {}
             // Manufacturing requirements and surface labels are read, not drawn yet (draftwright
             // draws them: a requirements table, thread and knurl callouts, labels): said with
             // draftwright's code for a record that produced no feature, never dropped. A face's
