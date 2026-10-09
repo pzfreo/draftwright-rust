@@ -22,15 +22,15 @@ The first alpha. Its gates and their state are in `docs/alpha1.md`.
   with spec tolerances and ISO 286 fits; hole tables by drop-and-escalate.
 - Lint of the drawing against the recognised features, independent of the Plan.
 - AP242 semantic PMI: read through haecceity; feature control frames, datum feature symbols,
-  and toleranced and basic dimensions drawn.
+  and toleranced and basic dimensions drawn; surface and common labels drawn with leaders, and
+  the general tolerance, default surface finish and edge-condition notes on the sheet.
 - SVG, DXF, PDF (subset fonts, searchable text) and PNG output, each carrying its Spec;
   deterministic to the byte in every time zone.
 
 ### Known limitations
 
-- Angular and oblique PMI dimensions, and PMI manufacturing requirements (threads, knurls,
-  surface texture, notes) and labels, are read and reported, not drawn; the PMI coverage lint
-  is in progress.
+- Angular and oblique PMI dimensions, and PMI thread, knurl and face-finish requirements, are
+  read and reported, not drawn; the PMI coverage lint is in progress.
 - Section recesses and some other families are not read from quiddity-rust's document
   (`features_not_recognised`); an angled step is reported unsupported.
 - Revision rebinding (ADR R3) is not implemented.

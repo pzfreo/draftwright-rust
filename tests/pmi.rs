@@ -756,18 +756,19 @@ fn a_thread_pairs_with_the_structured_statement_on_its_callouts_faces() {
 }
 
 #[test]
-fn a_requirement_or_label_record_is_reported_not_lowered() {
-    for (name, severities) in [
+fn a_requirement_or_label_record_is_lowered_or_reported() {
+    // What each lowers to: a label, the sheet's (a general tolerance), or a report.
+    for (name, outcomes) in [
         (
             BOLT,
             [
                 ("external_thread", "warning"),
-                ("general_tolerances", "info"),
+                ("general_tolerances", "sheet"),
             ],
         ),
         (
             CTC01,
-            [("surface_label", "warning"), ("surface_label", "warning")],
+            [("surface_label", "label"), ("surface_label", "label")],
         ),
     ] {
         let bytes = gunzip(&std::fs::read(fixtures().join("step").join(name)).unwrap());
@@ -780,7 +781,9 @@ fn a_requirement_or_label_record_is_reported_not_lowered() {
         let Some(pmi::Reading::Read(report)) = &a.pmi else {
             panic!("{name}: its PMI is read");
         };
-        let (_, problems) = draftwright::pmi_lowering::lower(&a, &|_| true);
+        let (items, mut problems) = draftwright::pmi_lowering::lower(&a, &|_| true);
+        let (sheet, more) = draftwright::pmi_lowering::sheet_requirements(&a);
+        problems.extend(more);
         for r in report.records.iter().filter(|r| {
             matches!(
                 r.category,
@@ -791,10 +794,16 @@ fn a_requirement_or_label_record_is_reported_not_lowered() {
                 .iter()
                 .filter(|p| p.subjects == [r.source_id.clone()])
                 .collect();
-            assert_eq!(said.len(), 1, "{name}: {} is said once", r.source_id);
-            assert_eq!(said[0].code, "pmi_not_lowered");
-            if let Some((_, s)) = severities.iter().find(|(k, _)| *k == r.kind) {
-                assert_eq!(said[0].severity, *s, "{name}: {}", r.source_id);
+            let label = items.iter().any(|i| i.source == r.source_id);
+            let carried = sheet.iter().any(|q| q.source == r.source_id);
+            let outcome = match (label, carried, said.as_slice()) {
+                (true, false, []) => "label",
+                (false, true, []) => "sheet",
+                (false, false, [p]) if p.code == "pmi_not_lowered" => p.severity.as_str(),
+                _ => panic!("{name}: {} is lowered once or said once", r.source_id),
+            };
+            if let Some((_, o)) = outcomes.iter().find(|(k, _)| *k == r.kind) {
+                assert_eq!(outcome, *o, "{name}: {}", r.source_id);
             }
         }
     }

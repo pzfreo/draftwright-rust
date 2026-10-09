@@ -361,6 +361,7 @@ pub fn report(
             Category::GeometricTolerance => Some(tolerance_geometry(part, r)),
             Category::Datum => Some(datum_geometry(part, r)),
             Category::Dimension => Some(crate::pmi_lowering::dimension_geometry(part, r)),
+            Category::SurfaceLabel => Some(crate::pmi_lowering::label_geometry(part, r)),
             _ => None,
         };
     }

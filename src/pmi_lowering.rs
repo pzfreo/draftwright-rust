@@ -18,6 +18,18 @@
 //!   on the side its outward normal points to (a plane's) or its site lies on (a cylinder's): a
 //!   y-normal plane whose side view is not shown is drawn in the plan instead.
 //!
+//! - **A surface label or common label** (text on edges or faces: `A`, `F1.1`, `2X R`) carries
+//!   its text, drawn with a leader from its first proven site (draftwright's `ref_pts[0]`: a
+//!   surface label's edge at its parameter midpoint, a common label's face at the vertex nearest
+//!   the face's box centre, [`label_geometry`]) in the front view, or the side view when its
+//!   references' box is longest along y, above or below by whether the site is above the part's
+//!   centre (`build_pmi_features`' label branch, drawn as `render_gdt` draws a `Note`).
+//! - **Drawing-wide requirements** ([`sheet_requirements`], `lower_ap242_document_requirements`):
+//!   the one general tolerance fills the title block's tolerance cell, the one default surface
+//!   texture (`Ra 3.2 µm unless otherwise specified`) is drawn beside the title block, and each
+//!   edge condition (`Break sharp edges 0.2 max`) is a general note; two of one default are
+//!   ambiguous and neither is drawn.
+//!
 //! What is not lowered is said, never guessed: a record whose reading left blockers (datum
 //! targets, composite relations, projected or non-uniform zones, datum modifiers, common
 //! datums, …), a modifier draftwright has no drawing for (only all-around, all-over, the zone's
@@ -81,6 +93,8 @@ pub enum Glyph {
         /// `plane` or `cylinder`.
         surface: String,
     },
+    /// A surface or common label's text.
+    Label { text: String },
 }
 
 /// Modifiers a feature control frame draws (draftwright's `_SUPPORTED_GTOL_SCOPE_MODIFIERS` and
@@ -206,13 +220,19 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                     }),
                 }
             }
-            // A dimension (and a common label, read as one) is stated or refused by stage 2b
-            // (`dims::pmi_dimensions`), never here.
+            // A surface label, and a common label (read as a dimension), is drawn as its text.
+            Category::SurfaceLabel => labelled(&mut items, &mut problems, r, centre),
+            Category::Dimension if r.kind == "common_label" => {
+                labelled(&mut items, &mut problems, r, centre)
+            }
+            // A dimension is stated or refused by stage 2b (`dims::pmi_dimensions`), never here.
             Category::Dimension => {}
-            // Manufacturing requirements and surface labels are read, not drawn yet (draftwright
-            // draws them: a requirements table, thread and knurl callouts, labels): said with
-            // draftwright's code for a record that produced no feature, never dropped. A face's
-            // requirement is a warning; a part's note or general tolerance is information.
+            // A drawing-wide requirement is the sheet's ([`sheet_requirements`]).
+            Category::ManufacturingRequirement if sheet_kind(&r.kind) => {}
+            // Other manufacturing requirements are read, not drawn yet (draftwright draws thread
+            // and knurl callouts and face finishes): said with draftwright's code for a record
+            // that produced no feature, never dropped. A face's requirement is a warning; a
+            // part's note is information.
             _ => {
                 let face = r.kind.ends_with("_thread")
                     || r.kind == "knurl"
@@ -234,6 +254,454 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
         }
     }
     (items, problems)
+}
+
+/// A surface or common label lowered into *items*, or its refusal into *problems*.
+fn labelled(items: &mut Vec<Lowered>, problems: &mut Vec<Problem>, r: &Record, centre: [f64; 3]) {
+    match label(r, centre) {
+        Ok(item) => items.push(item),
+        Err(reasons) => problems.push(Problem {
+            id: format!("p:pmi_not_lowered:{}", r.source_id),
+            code: "pmi_not_lowered".into(),
+            severity: "error".into(),
+            message: format!(
+                "PMI {} {} ({}) is not drawn: {}.",
+                r.kind.replace('_', " "),
+                r.source_id,
+                r.label,
+                reasons.join("; ")
+            ),
+            subjects: vec![r.source_id.clone()],
+        }),
+    }
+}
+
+/// A surface or common label as a leadered text label (`build_pmi_features`' label branch), or
+/// why it is not one: its reading's or attachment's blockers, no text, or no proven site.
+fn label(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
+    let mut reasons = blockers(r);
+    if r.label.trim().is_empty() {
+        reasons.push("the label has no text".into());
+    }
+    let g = r.geometry.as_ref();
+    let site = g.and_then(|g| g.sites.first().copied());
+    if site.is_none() && reasons.is_empty() {
+        reasons.push("the label's references give no proven site".into());
+    }
+    let (Some(site), true) = (site, reasons.is_empty()) else {
+        return Err(dedup(reasons));
+    };
+    let axis = g
+        .and_then(|g| g.axis.as_deref())
+        .unwrap_or(r.dominant_axis.as_str());
+    let view = if axis == "Y" { "side" } else { "front" };
+    let side = if site[2] >= centre[2] {
+        "above"
+    } else {
+        "below"
+    };
+    let what = if r.category == Category::SurfaceLabel {
+        "surface label"
+    } else {
+        "common label"
+    };
+    Ok(Lowered {
+        id: format!("pmi:{}", r.source_id),
+        source: r.source_id.clone(),
+        glyph: Glyph::Label {
+            text: r.label.clone(),
+        },
+        view,
+        side,
+        site,
+        alternatives: Vec::new(),
+        faces: r.faces.clone(),
+        basis: format!(
+            "source-authored: the AP242 {what} {} ({}), drawn in the {view} view (its references' longest extent is {}) on the {side} side, as its site lies {side} the part's centre, its leader from its first proven site",
+            r.label,
+            r.source_id,
+            axis.to_lowercase()
+        ),
+    })
+}
+
+/// Where a surface or common label attaches (draftwright's `_surface_label_topology` and
+/// `_common_label_topology`): a surface label's edges each at their parameter midpoint, a common
+/// label's faces each at the vertex nearest the face's box centre; `axis` is the longest extent
+/// of their box (`_dominant_from_bbox`), none when it has none.
+pub fn label_geometry(part: &Part, r: &Record) -> Geometry {
+    let mut g = Geometry::default();
+    g.reasons.extend(crate::pmi::placements_reason(r));
+    let surface = r.category == Category::SurfaceLabel;
+    let (noun, wrong) = if surface {
+        ("surface label", !r.faces.is_empty())
+    } else {
+        ("common-label", !r.edges.is_empty())
+    };
+    if wrong {
+        g.reasons.push(format!(
+            "one {} reference is not {}",
+            noun.replace('-', " "),
+            if surface { "an edge" } else { "a face" }
+        ));
+    }
+    let mut boxes = Vec::new();
+    if surface {
+        for &e in &r.edges {
+            let Some(edge) = part.edges.get(e) else {
+                continue;
+            };
+            let closed = edge.vertices.0 == edge.vertices.1;
+            let (a, b) = haecceity::sampling::edge_interval(
+                &edge.curve,
+                edge.start,
+                edge.end,
+                edge.same_sense,
+                closed,
+            );
+            let p = edge.curve.value(0.5 * (a + b));
+            if a.is_finite() && b.is_finite() && p.iter().all(|c| c.is_finite()) {
+                g.sites.push(p);
+            } else {
+                g.reasons.push(format!(
+                    "{noun} reference could not be measured (edge has no finite parameter interval)"
+                ));
+            }
+            boxes.extend(edge_box(part, e));
+        }
+    } else {
+        for &f in &r.faces {
+            let b = face_box(part, f);
+            let c = [0, 1, 2].map(|i| 0.5 * (b[i] + b[i + 3]));
+            let d = |p: &[f64; 3]| (0..3).map(|i| (p[i] - c[i]).powi(2)).sum::<f64>();
+            let face = &part.faces[f];
+            let vertices = face.loops.iter().flat_map(|l| {
+                l.edges
+                    .iter()
+                    .flat_map(|&(e, _)| [part.edges[e].start, part.edges[e].end])
+                    .chain(l.vertex)
+            });
+            match vertices.fold(None, |best: Option<[f64; 3]>, p| match best {
+                Some(q) if d(&q) <= d(&p) => Some(q),
+                _ => Some(p),
+            }) {
+                Some(p) => g.sites.push(p),
+                None => g.reasons.push(format!(
+                    "{noun} reference could not be measured (face has no topological vertices)"
+                )),
+            }
+            boxes.push(b);
+        }
+    }
+    if g.sites.is_empty() && g.reasons.is_empty() {
+        g.reasons
+            .push(format!("{noun} reference geometry is unavailable"));
+    }
+    if let Some(first) = boxes.first().copied() {
+        let b = boxes.iter().fold(first, |mut m, b| {
+            for i in 0..3 {
+                m[i] = m[i].min(b[i]);
+                m[i + 3] = m[i + 3].max(b[i + 3]);
+            }
+            m
+        });
+        let spans = [0, 1, 2].map(|i| (b[i + 3] - b[i]).abs());
+        let k = (0..3).fold(0, |k, i| if spans[i] > spans[k] { i } else { k });
+        if spans[k] > 1e-6 {
+            g.axis = Some(XYZ[k].to_string());
+        }
+    }
+    g.reasons = dedup(std::mem::take(&mut g.reasons));
+    g
+}
+
+/// The drawing-wide manufacturing requirements the sheet carries
+/// ([`sheet_requirements`]): general tolerances, a default surface texture, edge conditions.
+pub fn sheet_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "general_tolerances" | "surface_texture" | "edge_condition"
+    )
+}
+
+/// A drawing-wide requirement the sheet states.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SheetRequirement {
+    pub source: String,
+    /// `general_tolerance` (the title block's tolerance cell), `default_surface_finish` (a
+    /// surface texture symbol beside the title block) or `document_note` (a general note).
+    pub kind: &'static str,
+    /// What the sheet states: the tolerance's designation, the finish's Ra value in µm, the
+    /// note's text.
+    pub value: String,
+    pub basis: String,
+}
+
+/// The Analysis's drawing-wide requirements (draftwright's `lower_ap242_document_requirements`),
+/// and the problems met: the one general tolerance not blocked (its designation: the prose before
+/// any `;`, or the structured tolerance class, which must agree with it), the one surface
+/// texture stated as `Ra <value> µm unless otherwise specified`, and every edge condition on no
+/// face or edge, with text. Two general tolerances, or two surface textures, are ambiguous:
+/// neither is drawn. A record the reading blocked, or one whose statement is not a supported
+/// default, is said with its reason (`pmi_not_lowered`). Other document kinds draftwright knows
+/// (a datum scheme, a model representation note) are reported as not ported.
+pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Problem>) {
+    let mut out = Vec::new();
+    let mut problems = Vec::new();
+    let Some(Reading::Read(report)) = &analysis.pmi else {
+        return (out, problems);
+    };
+    let refuse = |problems: &mut Vec<Problem>, r: &Record, why: &str| {
+        problems.push(Problem {
+            id: format!("p:pmi_not_lowered:{}", r.source_id),
+            code: "pmi_not_lowered".into(),
+            severity: "error".into(),
+            message: format!(
+                "PMI {} {} ({}) is not drawn: {why}.",
+                r.kind.replace('_', " "),
+                r.source_id,
+                r.label
+            ),
+            subjects: vec![r.source_id.clone()],
+        })
+    };
+    let records: Vec<&Record> = report
+        .records
+        .iter()
+        .filter(|r| r.category == Category::ManufacturingRequirement && sheet_kind(&r.kind))
+        .collect();
+    for r in records.iter().filter(|r| !r.blockers.is_empty()) {
+        refuse(&mut problems, r, &dedup(r.blockers.clone()).join("; "));
+    }
+    let open: Vec<&Record> = records
+        .iter()
+        .copied()
+        .filter(|r| r.blockers.is_empty())
+        .collect();
+    let of =
+        |kind: &str| -> Vec<&Record> { open.iter().copied().filter(|r| r.kind == kind).collect() };
+    let tolerances = of("general_tolerances");
+    match tolerances[..] {
+        [] => {}
+        [r] => match designation(r) {
+            Ok(d) => out.push(SheetRequirement {
+                source: r.source_id.clone(),
+                kind: "general_tolerance",
+                basis: format!(
+                    "source-authored: the AP242 general tolerance {} ({}), the part's one, in the title block's tolerance cell (draftwright's GeneralTolerance)",
+                    d, r.source_id
+                ),
+                value: d,
+            }),
+            Err(why) => refuse(&mut problems, r, why),
+        },
+        _ => {
+            for r in &tolerances {
+                refuse(
+                    &mut problems,
+                    r,
+                    "ambiguous document default: multiple general-tolerance requirements",
+                );
+            }
+        }
+    }
+    let finishes = of("surface_texture");
+    match finishes[..] {
+        [] => {}
+        [r] => match default_ra(&r.label) {
+            Some(ra) => out.push(SheetRequirement {
+                source: r.source_id.clone(),
+                kind: "default_surface_finish",
+                basis: format!(
+                    "source-authored: the AP242 surface texture '{}' ({}), the part's default finish, drawn as a surface texture symbol beside the title block (draftwright's DefaultSurfaceFinish)",
+                    r.label, r.source_id
+                ),
+                value: ra,
+            }),
+            None => refuse(
+                &mut problems,
+                r,
+                "surface-texture requirement is not a supported document default",
+            ),
+        },
+        _ => {
+            for r in &finishes {
+                refuse(
+                    &mut problems,
+                    r,
+                    "ambiguous document default: multiple surface-texture requirements",
+                );
+            }
+        }
+    }
+    for r in of("edge_condition") {
+        if r.label.trim().is_empty() {
+            refuse(&mut problems, r, "document requirement text is empty");
+        } else if !r.faces.is_empty() || !r.edges.is_empty() {
+            refuse(
+                &mut problems,
+                r,
+                "face-specific edge condition cannot be a document-wide note",
+            );
+        } else {
+            out.push(SheetRequirement {
+                source: r.source_id.clone(),
+                kind: "document_note",
+                value: r.label.trim().to_string(),
+                basis: format!(
+                    "source-authored: the AP242 edge condition '{}' ({}), a general note (draftwright's DocumentNote)",
+                    r.label.trim(),
+                    r.source_id
+                ),
+            });
+        }
+    }
+    (out, problems)
+}
+
+/// A drawing-wide requirement as the plan carries it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlannedRequirement {
+    /// `pmi:<source>`.
+    pub id: String,
+    /// `general_tolerance`, `default_surface_finish` or `document_note`.
+    pub kind: String,
+    pub source: String,
+    /// What the sheet states: the designation, `Ra <value>`, the note's text.
+    pub text: String,
+    /// What carries it: `title_block` (its tolerance cell), `sheet` (the symbol beside the title
+    /// block), or `notes` (the general note of the same ID).
+    pub carrier: String,
+    pub basis: String,
+    /// The default finish's symbol.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placed: Option<crate::title_block::FinishPlaced>,
+}
+
+/// The drawing-wide *requirements* given their carriers on a sheet whose title block is *block*
+/// and whose title the spec gives as *given* (the title to draw, *title*, takes the general
+/// tolerance), and the problems met. draftwright's precedence (`_resolve_title_document_defaults`):
+/// a tolerance the spec states, even blank, wins over the PMI's, which is then not drawn and,
+/// when they differ, reported (`step_general_tolerance_disagreement`, a warning, as
+/// draftwright's PMI lint reports it).
+pub fn plan_sheet(
+    requirements: &[SheetRequirement],
+    given: &std::collections::BTreeMap<String, String>,
+    title: &mut std::collections::BTreeMap<String, String>,
+    block: [f64; 4],
+) -> (Vec<PlannedRequirement>, Vec<Problem>) {
+    let mut out = Vec::new();
+    let mut problems = Vec::new();
+    for r in requirements {
+        let id = format!("pmi:{}", r.source);
+        let mut planned = PlannedRequirement {
+            id: id.clone(),
+            kind: r.kind.into(),
+            source: r.source.clone(),
+            text: r.value.clone(),
+            carrier: "notes".into(),
+            basis: r.basis.clone(),
+            placed: None,
+        };
+        match r.kind {
+            "general_tolerance" => {
+                planned.carrier = "title_block".into();
+                match given.get("tolerance") {
+                    None => {
+                        title.insert("tolerance".into(), r.value.clone());
+                    }
+                    Some(v) if v.trim() == r.value => {
+                        planned.basis +=
+                            "; the spec states the same tolerance (sheet/title/tolerance)";
+                    }
+                    Some(v) => {
+                        problems.push(Problem {
+                            id: format!("p:step_general_tolerance_disagreement:{}", r.source),
+                            code: "step_general_tolerance_disagreement".into(),
+                            severity: "warning".into(),
+                            message: format!(
+                                "The title block states the spec's general tolerance {v:?} (sheet/title/tolerance), which wins; the part's AP242 PMI {} states {:?}, which is not drawn.",
+                                r.source, r.value
+                            ),
+                            subjects: vec![r.source.clone(), "sheet/title/tolerance".into()],
+                        });
+                        continue;
+                    }
+                }
+            }
+            "default_surface_finish" => {
+                planned.carrier = "sheet".into();
+                planned.text = format!("Ra {}", r.value);
+                planned.placed = Some(crate::title_block::default_finish(block, &planned.text));
+            }
+            _ => {}
+        }
+        out.push(planned);
+    }
+    (out, problems)
+}
+
+/// A general tolerance's designation (`_general_tolerance_designation`): its prose before any
+/// `;`, or its structured tolerance class, which must agree with the prose unless the prose is
+/// only `general tolerances`.
+fn designation(r: &Record) -> Result<String, &'static str> {
+    let prose = r.label.split(';').next().unwrap_or("").trim().to_string();
+    let class = r.fields.iter().find(|(n, _)| n == "tolerance class");
+    let d = match (r.fields.is_empty(), class) {
+        (true, _) => prose,
+        (false, Some((_, crate::pmi::Field::Text(t)))) if !t.trim().is_empty() => {
+            if r.label != "general tolerances" && prose != *t {
+                return Err("structured general-tolerance class disagrees with prose");
+            }
+            t.clone()
+        }
+        (false, _) => return Err("structured general-tolerance class is missing"),
+    };
+    if d.is_empty() {
+        return Err("general-tolerance designation is empty");
+    }
+    Ok(d)
+}
+
+/// The Ra value of a default surface texture stated as draftwright reads one
+/// (`Ra <value> µm unless otherwise specified`, case and spacing free, `um`, `µm` or `μm`).
+fn default_ra(label: &str) -> Option<String> {
+    let lower = label.trim().to_lowercase();
+    let words: Vec<&str> = lower.split_whitespace().collect();
+    let (ra, rest) = match words.as_slice() {
+        ["ra", value, rest @ ..] => (*value, rest.to_vec()),
+        _ => return None,
+    };
+    // The unit may be written against the value (`3.2µm`).
+    let (value, rest) = match ["um", "µm", "μm"]
+        .iter()
+        .find_map(|u| ra.strip_suffix(u).filter(|v| !v.is_empty()))
+    {
+        Some(v) => (v, rest),
+        None => match rest.split_first() {
+            Some((u, tail)) if ["um", "µm", "μm"].contains(u) => (ra, tail.to_vec()),
+            _ => return None,
+        },
+    };
+    let number = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let ok = match value.split_once('.') {
+        Some((i, f)) => number(i) && number(f),
+        None => number(value),
+    };
+    (ok && rest == ["unless", "otherwise", "specified"]).then(|| value.to_string())
+}
+
+/// The principal views the Analysis's PMI items are drawn in, as lowering targets them with
+/// every view shown: a turned part keeps a view one of them needs (draftwright's
+/// `annotation_view_required`, which vetoes the reduction for any GD&T, datum or label aspect
+/// targeting a view the reduced set lacks).
+pub fn views(analysis: &Analysis) -> BTreeSet<&'static str> {
+    lower(analysis, &|_| true)
+        .0
+        .iter()
+        .map(|i| i.view)
+        .collect()
 }
 
 /// What stops a record lowering: its reading's blockers, then its attachment's.
@@ -554,6 +1022,7 @@ pub fn dimension_geometry(part: &Part, r: &Record) -> Geometry {
     match r.kind.as_str() {
         "linear" | "thickness" => linear_geometry(part, r, value, &mut g),
         "diameter" | "radius" => cylinder_geometry(part, r, value, &mut g),
+        "common_label" => return label_geometry(part, r),
         _ => {}
     }
     g.reasons = dedup(std::mem::take(&mut g.reasons));
@@ -1011,5 +1480,28 @@ fn g6(v: f64) -> String {
         s.trim_end_matches('0').trim_end_matches('.').into()
     } else {
         s
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// draftwright's default finish statement (`Ra <value> µm unless otherwise specified`), and
+    /// what is not one.
+    #[test]
+    fn a_default_surface_texture_is_read_as_draftwright_reads_it() {
+        for (label, ra) in [
+            ("Ra 3.2 µm unless otherwise specified", Some("3.2")),
+            ("  RA 0.8um UNLESS  OTHERWISE specified ", Some("0.8")),
+            ("Ra 12 μm unless otherwise specified", Some("12")),
+            ("Ra 3.2 µm", None),
+            ("Ra 3.2 mm unless otherwise specified", None),
+            ("Rz 3.2 µm unless otherwise specified", None),
+            ("Ra .8 µm unless otherwise specified", None),
+            ("Ra 3.2 µm unless otherwise specified; ground", None),
+        ] {
+            assert_eq!(default_ra(label).as_deref(), ra, "{label:?}");
+        }
     }
 }

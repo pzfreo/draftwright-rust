@@ -339,6 +339,16 @@ fn python_projection(item: &Value) -> Value {
     json!({"outcome": if dropped { "dropped" } else { "refused" }, "codes": codes})
 }
 
+/// A planned GD&T item's kind in draftwright's words: a frame, a datum symbol, a label (a
+/// `note`).
+fn gdt_kind(kind: &str) -> &'static str {
+    match kind {
+        "control_frame" => "control_frame",
+        "label" => "note",
+        _ => "datum_ref",
+    }
+}
+
 /// The parameter a model item's ID names: `d:f:hole:1/bore.diameter@plan` → `bore.diameter`.
 fn parameter_of(id: &str) -> Option<&str> {
     let (_, rest) = id.rsplit_once('/')?;
@@ -360,9 +370,26 @@ fn rust_projection(drawing: Option<&Drawing>, plan: &Plan, r: &Record) -> Value 
                 .iter()
                 .map(|&i| drawing.text[i].text.as_str())
                 .collect();
-            if a.name == feature {
-                // A frame or datum symbol: its compartments as planned (the characteristic's
-                // symbol is drawn in strokes, so has no text run), checked against its runs.
+            if a.name == feature
+                && let Some(q) = plan.requirements.iter().find(|q| q.id == a.name)
+            {
+                // A drawing-wide requirement: what it states, read back from its runs (a general
+                // note's rows less the note's number).
+                let read: Vec<&str> = text
+                    .iter()
+                    .enumerate()
+                    .map(|(i, t)| match (i, q.carrier.as_str()) {
+                        (0, "notes") => t.split_once("  ").map_or(*t, |(_, rest)| rest),
+                        _ => t,
+                    })
+                    .collect();
+                let words = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+                assert_eq!(words(&read.join(" ")), words(&q.text), "{}", a.name);
+                drawn.push(entry(&q.kind, None, None, norm(&q.text), false));
+            } else if a.name == feature {
+                // A frame, datum symbol or label: its compartments as planned (the
+                // characteristic's symbol is drawn in strokes, so has no text run), checked
+                // against its runs.
                 let g = plan.gdt.iter().find(|g| g.id == a.name).unwrap();
                 let shown: Vec<&str> = g.cells.iter().map(String::as_str).collect();
                 let runs: Vec<&str> = text.iter().copied().filter(|t| !t.is_empty()).collect();
@@ -371,12 +398,13 @@ fn rust_projection(drawing: Option<&Drawing>, plan: &Plan, r: &Record) -> Value 
                     "{}: runs {runs:?} not among its cells {shown:?}",
                     a.name
                 );
-                let kind = if g.kind == "control_frame" {
-                    "control_frame"
-                } else {
-                    "datum_ref"
-                };
-                drawn.push(entry(kind, view, None, norm(&g.cells.join(" ")), false));
+                drawn.push(entry(
+                    gdt_kind(&g.kind),
+                    view,
+                    None,
+                    norm(&g.cells.join(" ")),
+                    false,
+                ));
             } else if a.claims.iter().any(|c| c.feature == feature) {
                 let standalone = a.name.starts_with(&own);
                 let boxed = a
@@ -404,18 +432,27 @@ fn rust_projection(drawing: Option<&Drawing>, plan: &Plan, r: &Record) -> Value 
             .filter(|g| g.id == feature && g.placed.is_some())
         {
             let view = g.view.strip_prefix("v:").unwrap_or(&g.view);
-            let kind = if g.kind == "control_frame" {
-                "control_frame"
-            } else {
-                "datum_ref"
-            };
             drawn.push(entry(
-                kind,
+                gdt_kind(&g.kind),
                 Some(view),
                 None,
                 norm(&g.cells.join(" ")),
                 false,
             ));
+        }
+        // The drawing-wide requirements whose carrier has a place.
+        for q in plan.requirements.iter().filter(|q| q.id == feature) {
+            let placed = match q.carrier.as_str() {
+                "notes" => plan
+                    .notes
+                    .iter()
+                    .any(|n| n.id == q.id && n.placed.is_some()),
+                "sheet" => q.placed.is_some(),
+                _ => true,
+            };
+            if placed {
+                drawn.push(entry(&q.kind, None, None, norm(&q.text), false));
+            }
         }
         for d in plan.dimensions.iter().filter(|d| d.placed.is_some()) {
             if d.measurements.iter().any(|m| m.feature == feature) {
@@ -444,13 +481,15 @@ fn rust_projection(drawing: Option<&Drawing>, plan: &Plan, r: &Record) -> Value 
     if !drawn.is_empty() {
         return json!({"drawn": drawn});
     }
-    // The items that state it: its frame or symbol (`pmi:<source>`) and the dimensions claiming
-    // it; their problems say why they are not drawn.
+    // The items that state it: its frame, symbol, label or drawing-wide requirement
+    // (`pmi:<source>`) and the dimensions claiming it; their problems say why they are not
+    // drawn.
     let mut items: Vec<&str> = plan
         .gdt
         .iter()
-        .filter(|g| g.id == feature)
         .map(|g| g.id.as_str())
+        .chain(plan.requirements.iter().map(|q| q.id.as_str()))
+        .filter(|id| *id == feature)
         .collect();
     items.extend(
         plan.dimensions

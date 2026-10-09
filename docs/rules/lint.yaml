@@ -2032,6 +2032,8 @@
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
   status: pending
+  rust_test: "tests/pmi_labels.rs::the_specs_tolerance_wins_and_a_different_pmi_one_is_reported"
+  rust_note: "Partly: the plan reports it (a warning, naming the PMI source and sheet/title/tolerance) when the spec's tolerance, which wins, differs from the part's one AP242 general tolerance; also for a blank spec value, which draftwright passes in silence. As a lint code on a drawing it is the PMI coverage lint's."
   port_note: "Keep."
 
 - id: LINT-pmi_coverage-stage_summary

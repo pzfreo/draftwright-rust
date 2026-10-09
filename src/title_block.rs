@@ -245,6 +245,58 @@ pub fn scale_note(block: [f64; 4], text: &str) -> [f64; 2] {
     [right - w / 2.0, top(block) + FURNITURE_GAP + h / 2.0]
 }
 
+/// A part's default surface finish as drawn beside the title block: ISO 1302's complete
+/// graphical symbol, its short and long legs at 60° to a tip (1.4 and 3 text heights tall, the
+/// proportions ISO 1302 gives a text height), the bar from the long leg's top, and the
+/// requirement (`Ra 3.2`) under the bar; mm on the page.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FinishPlaced {
+    pub strokes: Vec<[P; 2]>,
+    /// The requirement's text, centred here.
+    pub text_at: P,
+    /// The text's box.
+    pub label_box: [f64; 4],
+    /// The whole symbol's box.
+    #[serde(rename = "box")]
+    pub glyph: [f64; 4],
+}
+
+/// The default surface finish *text* (`Ra 3.2`) as its symbol, at the left end of the band
+/// above the grid of *block*, as draftwright places it (`_add_default_surface_finish`: the
+/// scale note and the projection symbol take the band's right end). draftwright's glyph
+/// (build123d_drafting's `SurfaceFinish`) draws one leg at 60° and a vertical stub, not
+/// ISO 1302's two legs; the port draws ISO 1302's.
+pub fn default_finish(block: [f64; 4], text: &str) -> FinishPlaced {
+    let laid = lay(text, TEXT);
+    let w = laid.max[0] - laid.min[0];
+    let cot = 1.0 / 3f64.sqrt();
+    let (short, long, gap) = (1.4 * TEXT, 3.0 * TEXT, 0.3 * TEXT);
+    // About the tip at the origin.
+    let short_top = [-short * cot, short];
+    let long_top = [long * cot, long];
+    let left = long_top[0] + gap;
+    let end = left + w + gap;
+    let at = [block[0] - short_top[0], top(block) + FURNITURE_GAP];
+    let m = |p: P| [p[0] + at[0], p[1] + at[1]];
+    let centre = m([left + w / 2.0, long - gap - TEXT / 2.0]);
+    FinishPlaced {
+        strokes: vec![
+            [m(short_top), m([0.0, 0.0])],
+            [m([0.0, 0.0]), m(long_top)],
+            [m(long_top), m([end, long])],
+        ],
+        text_at: centre,
+        label_box: [
+            centre[0] - w / 2.0,
+            centre[1] - TEXT / 2.0,
+            centre[0] + w / 2.0,
+            centre[1] + TEXT / 2.0,
+        ],
+        glyph: [block[0], at[1], m([end, long])[0], at[1] + long],
+    }
+}
+
 /// The spec path a cell's value comes from, or what states it.
 fn source(field: &str) -> String {
     match KEYS.iter().find(|(_, f)| *f == field) {

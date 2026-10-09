@@ -93,8 +93,10 @@ yet been tried in a real client.
 - **PMI from AP242:** the part's semantic PMI is read through haecceity (`src/pmi.rs`) and drawn:
   feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`),
   and toleranced and basic dimensions (`src/dims/pmi_dimensions.rs`), given to the model
-  dimension that states the same quantity or drawn beside it (basic ones boxed). What is not
-  drawn is reported, never dropped silently.
+  dimension that states the same quantity or drawn beside it (basic ones boxed); surface and
+  common labels with leaders; the general tolerance in the title block, the default surface
+  finish beside it and edge conditions as general notes. What is not drawn is reported, never
+  dropped silently.
 - **Output:** SVG, DXF, PDF and PNG (`src/output.rs`, `src/png.rs`). The PDF embeds subset
   fonts and carries every label as searchable text, callout symbols included; the SVG carries
   the text too. Every format embeds the Spec, which `draftwright spec` reads back.
@@ -108,10 +110,9 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
 
 - **PMI, not drawn yet:** angular dimensions, lengths oblique to the views' axes, diameters or
   radii not along x, y or z, and bolt circles whose holes carry different requirements
-  (`pmi_dimensions_not_ported`). Manufacturing requirements (threads, knurls, general
-  tolerances, surface texture, edge notes), surface labels and common labels are read but not
-  drawn yet; each is reported (`pmi_not_lowered`, or `pmi_dimensions_not_ported` for a common
-  label). The PMI coverage lint (every PMI item on the drawing or reported) is in progress. See
+  (`pmi_dimensions_not_ported`). Thread, knurl and face-finish requirements, datum scheme and
+  model representation notes are read but not drawn yet; each is reported (`pmi_not_lowered`).
+  The PMI coverage lint (every PMI item on the drawing or reported) is in progress. See
   `tests/fixtures/known_pmi.json` and `known_pmi_dimensions.json`.
 - **Families not read natively:** section recesses (pockets, channels, blind slots, circular
   recesses) are not in Rust quiddity's recognition document yet, and some families it has

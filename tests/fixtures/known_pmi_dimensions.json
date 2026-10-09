@@ -891,24 +891,6 @@
   "evidence": "draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10063 (ø0.250 ±0.008 INCH) is not drawn: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
  },
  {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "dimension:0:1:4:113",
-  "port": "dimension:#10483",
-  "field": "outcome",
-  "python": {
-   "detail": null,
-   "outcome": "dropped"
-  },
-  "rust": {
-   "detail": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "A common label ('4X R'), read since stage 1b. draftwright draws common labels as label annotations; here it found no room and dropped it (pmi_dropped: m_gdt0 not placed (no legible room in any front strip or sheet fallback); plan_incomplete). The port draws no labels yet and says so: PMI dimension dimension:#10483 (4X R) is not drawn: it is a common label, text on its faces, and the port draws no labels yet. Neither draws it; the port's gap is the unported label drawing, reported, not dropped."
- },
- {
   "file": "nist_stc_10_asme1_ap242-e2.stp",
   "record": "dimension:0:1:4:89",
   "port": "dimension:#295",

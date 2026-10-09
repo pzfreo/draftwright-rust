@@ -1,7 +1,7 @@
-//! Feature control frames and datum feature symbols: the part's AP242 PMI as
+//! Feature control frames, datum feature symbols and labels: the part's AP242 PMI as
 //! [`crate::pmi_lowering`] lowers it, placed beside its view and drawn (draftwright's
 //! `annotations/_gdt.py` `render_gdt`, and `build123d_drafting`'s `FeatureControlFrame`,
-//! `DatumFeature` and `Leader`).
+//! `DatumFeature`, `TextBlock` and `Leader`).
 //!
 //! - **A feature control frame** is draftwright's glyph at the dimensions' text height (3 mm):
 //!   cells two text heights tall, the characteristic's symbol drawn in strokes in the first, the
@@ -15,6 +15,9 @@
 //!   square frame two text heights wide holding the letter. draftwright hangs its `DatumFeature`
 //!   glyph (triangle, line and frame together) off an arrowed leader's shelf instead, so its
 //!   triangle sits beside the frame in mid-air, not on the surface.
+//! - **A label** (a surface or common label: `A`, `F1.1`, `2X R`) is its text at the
+//!   dimensions' text height, unframed, hung from a leader as a frame is (draftwright's `Note`,
+//!   a `TextBlock` callout on a `Leader`).
 //!
 //! **Placement** (additive to the dimensions' and leaders'): each item's strip is the one
 //! lowering chose; it stands beyond every dimension already in that strip, as draftwright tiers
@@ -34,7 +37,8 @@
 //! Each item's text layer is its compartments as the plan states them (`⌖`, `⌀0.05Ⓜ`, `A`, …),
 //! one invisible run over each, so the PDF and SVG can be searched and lint reads it. The ink of
 //! the symbols is strokes, so the font need hold only the digits, letters and `ø` (checked by
-//! `tests/pmi_lowering.rs`).
+//! `tests/pmi_lowering.rs`); a label's text is drawn as the file states it, a character the font
+//! lacks as its missing-glyph box (as draftwright's FreeType draws it).
 
 use std::collections::BTreeMap;
 
@@ -53,7 +57,7 @@ use crate::text::Segment;
 pub struct PlannedGdt {
     /// `pmi:<source>`.
     pub id: String,
-    /// `control_frame` or `datum_feature`.
+    /// `control_frame`, `datum_feature` or `label`.
     pub kind: String,
     pub view: String,
     /// Its strip: `above`, `below`, `left` or `right` of the view.
@@ -350,6 +354,16 @@ fn datum_frame(letter: &str) -> Laid {
     laid
 }
 
+/// A label's text laid out from its lower left corner, a text height tall.
+fn label(s: &str) -> Laid {
+    let w = width(s, TEXT).max(0.5 * TEXT);
+    let mut laid = Laid::default();
+    laid.letters.push(text(s, [w / 2.0, TEXT / 2.0], TEXT));
+    laid.runs.push(text(s, [w / 2.0, TEXT / 2.0], TEXT));
+    laid.size = [w, TEXT];
+    laid
+}
+
 /// The outward direction of strip *side*.
 fn outward(side: &str) -> P2 {
     match side {
@@ -581,6 +595,7 @@ pub fn plan(
         let datum = matches!(item.glyph, Glyph::Datum { .. });
         let (laid, cells) = match &item.glyph {
             Glyph::Datum { letter, .. } => (datum_frame(letter), vec![letter.clone()]),
+            Glyph::Label { text } => (label(text), vec![text.clone()]),
             g => control_frame(g),
         };
         let modifiers: Vec<String> = match &item.glyph {
@@ -593,14 +608,14 @@ pub fn plan(
                 .filter(|(_, on)| *on)
                 .map(|(m, _)| m.to_string())
                 .collect(),
-            Glyph::Datum { .. } => Vec::new(),
+            Glyph::Datum { .. } | Glyph::Label { .. } => Vec::new(),
         };
         let mut planned = PlannedGdt {
             id: item.id.clone(),
-            kind: if datum {
-                "datum_feature"
-            } else {
-                "control_frame"
+            kind: match item.glyph {
+                Glyph::Datum { .. } => "datum_feature",
+                Glyph::Label { .. } => "label",
+                Glyph::ControlFrame { .. } => "control_frame",
             }
             .into(),
             view: format!("v:{}", item.view),
@@ -767,6 +782,54 @@ pub fn proxy(g: &PlannedGdt) -> Option<PlannedDimension> {
             label_box: p.label_box,
         }),
     })
+}
+
+/// The default surface finish's symbol beside the title block (*r*) as the placed items'
+/// collision checks and the blocks placed after it see it: its strokes as lines, its whole box
+/// as its label.
+pub fn finish_proxy(r: &crate::pmi_lowering::PlannedRequirement) -> Option<PlannedDimension> {
+    let p = r.placed.as_ref()?;
+    Some(PlannedDimension {
+        id: r.id.clone(),
+        kind: "symbol".into(),
+        view: String::new(),
+        value: 0.0,
+        label: r.text.clone(),
+        terms: vec![r.text.clone()],
+        measurements: Vec::new(),
+        default: true,
+        from_spec: Vec::new(),
+        basis: r.basis.clone(),
+        placed: Some(Placed {
+            lines: p.strokes.clone(),
+            arrows: Vec::new(),
+            label_at: [p.glyph[0], p.glyph[1]],
+            rotation: 0.0,
+            label_box: p.glyph,
+        }),
+    })
+}
+
+/// What the default surface finish's symbol (*r*) collides with among the placed *items* (the
+/// dimensions, frames and labels), judged as their collisions are.
+pub fn finish_collisions(
+    analysis: &Analysis,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    items: &[PlannedDimension],
+    r: &crate::pmi_lowering::PlannedRequirement,
+) -> Vec<Problem> {
+    let Some(proxy) = finish_proxy(r) else {
+        return Vec::new();
+    };
+    let mut all = items.to_vec();
+    all.push(proxy);
+    // It stands in the band the title block's reservation keeps above the grid, as the scale
+    // note does, so the reservation is not an obstacle to it.
+    placement::collisions(analysis, &all, sheet, views)
+        .into_iter()
+        .filter(|q| q.subjects.contains(&r.id) && q.code != "annotation_over_title_block")
+        .collect()
 }
 
 /// Draws a planned item into *items* (the dims layer) and its runs into *text*, from the plan
