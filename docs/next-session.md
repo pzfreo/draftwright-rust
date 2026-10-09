@@ -47,11 +47,11 @@ pushed):
     (`t:<k>`) drawn and in the PDF text;
   - output deterministic to the byte, in every time zone (`tests/timezone.rs`).
 - **Recognition:** the CLI takes features from Rust quiddity's recognition by default
-  (`src/bridge/native.rs`, recognition/2, 25 families read; a record with `local` fields is
+  (`src/bridge/native.rs`, recognition/2, 26 families read; a record with `local` fields is
   refused); `--features` reads Python quiddity's JSON through `src/bridge.rs`. serve, MCP and the
   library's `None` still use the bridge (maintainer question). Differences are listed in
   `known_native.json`. Not read natively: section recesses (not in quiddity-rust's document),
-  prismatic pockets (Python publishes none), pads (known, not read).
+  prismatic pockets (Python publishes none). Pads are read (d-native-pads).
 - **haecceity** is pinned at quiddity-rust 5798c59 (`Cargo.lock`; AGPL-3.0-only). The bridge
   reads nist_ftc_07, nist_ftc_10 and nist_ctc_04 (sphere areas held to 1e-2,
   `known_bridge_faces.json`). haecceity refuses a part whose drawn faces or edges did not resolve

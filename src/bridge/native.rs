@@ -4,9 +4,9 @@
 //! fillets, chamfers, countersinks, bosses and turned steps, then grooves, flats, the steps
 //! (angled, paired-ramp, circular blind, through and oblique through) and blends, then through
 //! slots and slot patterns, polygonal bosses and stock, double-D bores, plates, gusset ribs and
-//! their patterns, and oriented slots and their patterns. Face levels and risers are evidence
-//! Rust quiddity finds (`features::levels`) but its document does not carry, so they still come
-//! through the bridge.
+//! their patterns, oriented slots and their patterns, and raised pads. Face levels and risers
+//! are evidence Rust quiddity finds (`features::levels`) but its document does not carry, so they
+//! still come through the bridge.
 //!
 //! The recess families the document carries (pockets, channels, pocket patterns, prismatic
 //! pockets, round-bottom and rectangular blind slots, section passages, edge-open circular
@@ -20,7 +20,7 @@
 //! quiddity-rust's to publish (a schema question). The other families draftwright neither draws
 //! nor lints (oriented chamfers, circular face patterns, thin-wall bodies, interior voids,
 //! sheet-metal bodies, repeating radial profiles, freeform surfaces) are known and not read
-//! either, and so are raised pads, which draftwright lints but this reader does not take yet.
+//! either.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
@@ -144,7 +144,7 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
 
 /// The families read here: each record is a feature, except an oriented slot pattern's, which is
 /// checked and not kept (see the module docs).
-pub const READ: [&str; 25] = [
+pub const READ: [&str; 26] = [
     "holes",
     "hole_patterns",
     "fillets",
@@ -170,6 +170,7 @@ pub const READ: [&str; 25] = [
     "gusset_rib_patterns",
     "oriented_slots",
     "oriented_slot_patterns",
+    "pads",
 ];
 
 /// What a field of a record must be.
@@ -216,8 +217,8 @@ pub enum Field {
 /// The fields draftwright reads of each record type it takes besides holes and hole patterns
 /// (dims, lint, demand, and the fingerprint's axis and sizes), as Python's records carry them: a
 /// record without one, or with one of another shape, is refused rather than filled in. A field
-/// nothing reads (a fillet's `side`, a chamfer's `corner`) is not required, so a change to it does
-/// not refuse a read that would not use it. `a.b` is field `b` of object field `a`, checked when
+/// nothing reads (a fillet's `side`, a chamfer's `corner`, a pad's `direction`) is not required,
+/// so a change to it does not refuse a read that would not use it. `a.b` is field `b` of object field `a`, checked when
 /// `a` is not null (`a` is listed first).
 pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
     (
@@ -460,6 +461,18 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("slots", Field::Records("OrientedSlot")),
             ("pitch", Field::Number),
             ("direction", Field::Point),
+        ],
+    ),
+    (
+        "RaisedPad",
+        &[
+            ("axis", Field::Letter),
+            ("x0", Field::Number),
+            ("x1", Field::Number),
+            ("y0", Field::Number),
+            ("y1", Field::Number),
+            ("z0", Field::Number),
+            ("z1", Field::Number),
         ],
     ),
 ];
