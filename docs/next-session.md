@@ -316,6 +316,32 @@ quiddity commit that has it.
     caller need not re-analyse;
   - quiddity-rust's CI also runs on macOS, beside Linux.
 
+- **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
+  other backlog work):
+  - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a
+    callout or location ref, drop it and escalate to a hole table with balloons, as
+    orchestrator.py `_prepare_hole_table_run` does.
+  - **ISSUE-1247-a:** report an `unsupported` Problem for each angled step now (remove it from
+    `dims::UNDRAFTED`), until it is dimensioned or a completeness report exists.
+  - **quiddity-rust macOS CI:** keep the full suite on macOS (decision H1 stands), sharded across
+    more parallel jobs to reach about 10 minutes, like Linux.
+  - **haecceity's PMI writer (quiddity-rust),** from specify-core-rust's questions Q16, Q20 and Q3
+    (`~/repos/specify-core-rust/docs/questions.md`, upstream needs U3 and U15):
+    1. **Do not write the `MECHANICAL_DESIGN_AND_DRAUGHTING_RELATIONSHIP` relating datum feature
+       symbols to the part.** OpenCascade 7.9's STEP reader crashes (SIGSEGV) on every file that
+       has it; without it all seven test files load and read correctly in OpenCascade. Record it
+       as a deliberate departure from the full form, to revisit when OpenCascade is fixed.
+    2. **A size or tolerance on a feature of several faces: one `geometric_item_specific_usage`
+       per face** (PMI practice §5.1), not one `item_identified_representation_usage` of a
+       `set_representation_item` (§6.5.1), which OpenCascade drops along with the datums only
+       it cites.
+    3. **Notes and surface finish in standard forms:** surface texture as AP242's
+       `surface_texture_parameter` (with the practice's representation), and other part notes
+       (coating, heat treatment, edge breaks) as standard text notes, so specify-core-rust can
+       write what is now listed as `not_written`. Verify each by read-back and an OpenCascade
+       cross-check, with verdicts.
+    Then specify-core-rust is moved to the new haecceity by its own run.
+
 ## Open leftovers from earlier reviews
 
 The 2026-10-08 review (`docs/review-2026-10-08.md`) supersedes the old spike list: its
