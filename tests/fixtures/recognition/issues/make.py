@@ -2,7 +2,7 @@
 the cited Python tests build them (draftwright's `tests/test_issue_<n>_*.py`, AGPL-3.0). Run from
 this directory with draftwright's venv, then record quiddity's recognition for each:
 
-    ~/repos/draftwright/.venv/bin/python make.py .
+    ~/repos/draftwright/.venv/bin/python make.py . [name ...]   # every part, or those named
     ~/repos/draftwright/.venv/bin/python ../../../../tools/recognise.py <name>.step -o <name>.json
     gzip -9 -n <name>.json                # for each name below
 
@@ -21,6 +21,7 @@ from pathlib import Path
 from build123d import Align, Box, Cylinder, Pos, Rot, Rotation, export_step
 
 out = Path(sys.argv[1])
+MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
 
 
 def blind_pocket(x_size=20, y_size=20):
@@ -82,7 +83,14 @@ PARTS = {
     "u_channel_asymmetric": lambda: u_channel(lower_wall=10.0, upper_wall=15.0),
     "bounded_pocket": lambda: Box(80, 60, 20) - Pos(0, 0, 6) * Box(30, 20, 8),
     "centred_rebate": lambda: Box(80, 60, 30) - Pos(0, 0, 7.5) * Box(80, 20, 15),
+    # test_issue_1143_hole_completeness.py::_single_hole.
+    "single_hole": lambda: Box(80, 50, 10, align=MIN_Z)
+    - Pos(12, 7, 0) * Cylinder(4, 10, align=MIN_Z),
+    # test_issue_1351_structured_note_coverage.py::_part: a counterbored through hole.
+    "counterbored_block": lambda: Box(60, 40, 20) - Cylinder(4, 40) - Pos(0, 0, 6) * Cylinder(7, 8),
 }
 
 for name, build in PARTS.items():
+    if sys.argv[2:] and name not in sys.argv[2:]:
+        continue
     export_step(build(), str(out / f"{name}.step"))

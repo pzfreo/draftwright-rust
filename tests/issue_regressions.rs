@@ -4,11 +4,16 @@
 //! names the rule it checks and what draftwright's own run of the same part gives where the port
 //! is compared with it. None needs the corpus.
 
+use std::collections::BTreeSet;
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
-use draftwright::lint::section_recesses::{Grammar, grammar, recesses};
-use draftwright::model::{self, Analysis, Plan, PlannedView, Spec};
+use draftwright::lint::{
+    self,
+    section_recesses::{Grammar, grammar, recesses},
+};
+use draftwright::model::{self, Analysis, DimensionSpec, Plan, PlannedView, Spec};
+use draftwright::output::Drawing;
 use draftwright::text::Font;
 use serde_json::{Value, json};
 
@@ -251,12 +256,13 @@ fn a_pocket_leader_starts_on_its_rim_on_the_matching_axis() {
 /// of no known surface, two cylindrical ends, a mouth opening towards its floor) are refused by
 /// the reader with draftwright's reasons, and the plan states nothing for them and reports the
 /// recess (an info `dimensions_not_ported`, whose message, that no section recess is dimensioned
-/// yet, is out of date since dims::recesses). Not ported here: a planar substitution that cannot certify it (lint's coverage, owned
-/// by the stream porting it), and repeated curved pockets as one `N×` group (quiddity's
-/// `section_recess_patterns` are not read). Difference: the centred depth prints `12.0` where
-/// draftwright prints `12`. The document rounds the floor's run interval to 0.001 mm but gives
-/// the mouth's axis to the micrometre, so the depth reads 12.000483 (rust-wrong in what is
-/// printed, from the input: draftwright's own run reads the shape exactly).
+/// yet, is out of date since dims::recesses). The planar-substitution clause is
+/// `a_planar_reading_cannot_certify_a_curved_pocket`. Not ported: repeated curved pockets as one
+/// `N×` group (quiddity's `section_recess_patterns` are not read). Difference: the centred depth
+/// prints `12.0` where draftwright prints `12`. The document rounds the floor's run interval to
+/// 0.001 mm but gives the mouth's axis to the micrometre, so the depth reads 12.000483
+/// (rust-wrong in what is printed, from the input: draftwright's own run reads the shape
+/// exactly).
 #[test]
 fn a_cylindrical_mouth_states_its_greatest_depth() {
     let offset = 364f64.sqrt() - 8.0;
@@ -380,6 +386,10 @@ fn a_cylindrical_mouth_states_its_greatest_depth() {
 /// as draftwright's sheet), its recess reported, not dimensioned. Not ported: the independent
 /// wall thickness (draftwright's `12.5`, or `10` with the opposite wall derived) and the base's
 /// `12`: plate thickness is not dimensioned, and each plate is reported `dimensions_not_ported`.
+/// Lint says so on the port's own drawing: its one finding is the channel's wall,
+/// `channel_requirement_missing` for the plate's `thickness.length` (12.5, or 10), where
+/// draftwright's drawing states it and its lint finds nothing of the channel (rust-wrong in the
+/// plan, reported honestly).
 #[test]
 fn an_open_channel_is_one_feature_with_one_width() {
     let labels = |plan: &Plan, part: &str| -> Vec<String> {
@@ -422,6 +432,26 @@ fn an_open_channel_is_one_feature_with_one_width() {
             .filter(|q| q.code == "dimensions_not_ported" && q.subjects[0].starts_with("f:plate:"))
             .collect();
         assert_eq!(plates.len(), 3, "{part}");
+        let (shape, analysis) = analysed(part);
+        let drawing = model::render(&shape, &analysis, &plan, &font()).unwrap();
+        let issues = lint::lint(&analysis, &drawing);
+        assert_eq!(
+            findings(&analysis, &drawing),
+            BTreeSet::from(["channel_requirement_missing f:plate:1 thickness.length".to_string()]),
+            "{part}"
+        );
+        let wall = if part == "u_channel" {
+            "(12.5)"
+        } else {
+            "(10)"
+        };
+        assert!(
+            issues[0]
+                .message
+                .contains(&format!("plate.thickness.length {wall}")),
+            "{part}: {}",
+            issues[0].message
+        );
     }
 
     let pocket = planned("bounded_pocket", &Spec::default());
@@ -736,4 +766,242 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
         .find(|d| d.id.contains("/seat_location.location.x@"))
         .unwrap();
     assert_eq!((x.label.as_str(), x.measurements.len()), ("15.6", 3));
+}
+
+/// Lint's findings on *drawing* as `code feature parameter`, one per requirement they name.
+fn findings(analysis: &Analysis, drawing: &Drawing) -> BTreeSet<String> {
+    lint::lint(analysis, drawing)
+        .iter()
+        .flat_map(|i| {
+            i.requirements
+                .iter()
+                .map(move |r| format!("{} {} {}", i.code, r.feature, r.parameter))
+        })
+        .collect()
+}
+
+fn omitting(omit: &[&str]) -> Spec {
+    let mut spec = Spec::default();
+    for id in omit {
+        spec.dimensions.insert(
+            id.to_string(),
+            DimensionSpec {
+                omit: true,
+                ..Default::default()
+            },
+        );
+    }
+    spec
+}
+
+/// ISSUE-1143-a, the location clause, on draftwright's single hole (`_single_hole`: an 80 × 50
+/// × 10 plate with a ⌀8 hole 12 and 7 off its centre): removing a required location reduces
+/// completeness, and so does removing the callout. The default plan states `⌀8 THRU` and the
+/// hole's two locations, `52` and `32`, as draftwright's own run of the part does, and lint finds
+/// nothing. Leaving out the x location gives `feature_not_located` (the coverage backstop,
+/// `lint::coverage::located`) naming exactly that requirement, `location.length.x`, with
+/// draftwright's message; leaving out both names both axes; leaving out the callout gives
+/// `feature_not_dimensioned` for ø8 (draftwright's message) and the callout's two requirements
+/// missing, and no location finding. draftwright's lint on the same removals gives the same two
+/// backstop findings and, from its hole ledger, `hole_requirement_missing` for each location
+/// axis too: the port's hole coverage does not count locations yet (src/lint/holes.rs), so a
+/// location is earned through the backstop alone. Lint reads the drawing, never the spec: an
+/// omitted location is missing, where draftwright's ledger calls an authored omission
+/// suppressed.
+#[test]
+fn removing_a_hole_location_or_its_callout_is_reported() {
+    let (part, analysis) = analysed("single_hole");
+    let callout = "d:f:hole:1/bore.diameter@plan";
+    let [x, y] = ["x", "y"].map(|k| format!("d:f:hole:1/location.length.{k}@plan"));
+    let full = model::plan(&analysis, &Spec::default()).unwrap();
+    let labels: BTreeSet<(&str, &str)> = full
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:f:hole:1/"))
+        .map(|d| (d.id.as_str(), d.label.as_str()))
+        .collect();
+    assert_eq!(
+        labels,
+        BTreeSet::from([(callout, "⌀8 THRU"), (x.as_str(), "52"), (y.as_str(), "32")])
+    );
+    let lint_of = |spec: &Spec| {
+        let plan = model::plan(&analysis, spec).unwrap();
+        let drawing = model::render(&part, &analysis, &plan, &font()).unwrap();
+        (
+            findings(&analysis, &drawing),
+            lint::lint(&analysis, &drawing),
+        )
+    };
+    let (none, _) = lint_of(&Spec::default());
+    assert!(none.is_empty(), "{none:?}");
+
+    let (found, issues) = lint_of(&omitting(&[&x]));
+    assert_eq!(
+        found,
+        BTreeSet::from(["feature_not_located f:hole:1 location.length.x".to_string()])
+    );
+    let located = issues
+        .iter()
+        .find(|i| i.code == "feature_not_located")
+        .unwrap();
+    assert_eq!(located.message, "1 hole(s) have no locating dimension");
+    assert_eq!(located.subjects, ["f:hole:1"]);
+
+    let (found, _) = lint_of(&omitting(&[&x, &y]));
+    assert_eq!(
+        found,
+        BTreeSet::from([
+            "feature_not_located f:hole:1 location.length.x".to_string(),
+            "feature_not_located f:hole:1 location.length.y".to_string(),
+        ])
+    );
+
+    let (found, issues) = lint_of(&omitting(&[callout]));
+    assert_eq!(
+        found,
+        BTreeSet::from([
+            "feature_not_dimensioned f:hole:1 bore.diameter".to_string(),
+            "hole_requirement_missing f:hole:1 bore.diameter".to_string(),
+            "hole_requirement_missing f:hole:1 bore.through".to_string(),
+        ])
+    );
+    assert!(issues.iter().any(|i| i.code == "feature_not_dimensioned"
+        && i.message == "cylindrical feature ø8 has no diameter callout on the sheet"));
+}
+
+/// ISSUE-1351-a's prose clause and ISSUE-1543-c's descriptive-table clause, on draftwright's
+/// counterbored block (`_part` of its #1351 test: a 60 × 40 × 20 block, ⌀8 through, counterbore
+/// ⌀14 × 8 deep): prose cannot silence coverage, and a table that is not a verified schedule
+/// cannot credit what it prints. The default callout is draftwright's, `⌀8 THRU ⌴ ⌀14 ↧ 8`.
+/// With it left out, lint reports the counterbore's diameter and depth missing (with the bore's
+/// diameter and through) and `feature_not_dimensioned` for ø14, as draftwright's
+/// `test_prose_without_structured_satisfaction_cannot_silence_coverage` reports them; adding
+/// draftwright's prose note (`PROFILED BORE: diameter 14 x 8 DEEP`) as a general note, a note
+/// in the callout's own words, or a table printing the callout changes no finding, though each
+/// is drawn on the sheet with its text searchable. Lint reads only the drawing's annotations
+/// (the dimensions and callouts, each with its claims); general notes and spec tables are not
+/// annotations, so nothing they print is credited, even a `⌀` diameter the backstop would
+/// otherwise read as free text. Not ported: a structured note's explicit `satisfies` claim on a
+/// placed feature (the spec's notes carry no claims), and verified schedule cells (spec tables
+/// are descriptive only). draftwright calls the omitted requirements `suppressed` (its ledger
+/// reads the author's omission); the port's lint never reads the spec, so they are missing.
+#[test]
+fn prose_and_descriptive_tables_cannot_silence_coverage() {
+    let (part, analysis) = analysed("counterbored_block");
+    let callout = "d:f:hole:1/bore.diameter@plan";
+    let full = model::plan(&analysis, &Spec::default()).unwrap();
+    assert_eq!(
+        full.dimensions
+            .iter()
+            .find(|d| d.id == callout)
+            .unwrap()
+            .label,
+        "⌀8 THRU ⌴ ⌀14 ↧ 8"
+    );
+    let drawn = |spec: &Spec| {
+        let plan = model::plan(&analysis, spec).unwrap();
+        let drawing = model::render(&part, &analysis, &plan, &font()).unwrap();
+        (plan, drawing)
+    };
+    let mut bare = omitting(&[callout]);
+    let (_, drawing) = drawn(&bare);
+    let missing = findings(&analysis, &drawing);
+    for wanted in [
+        "hole_requirement_missing f:hole:1 counterbore.diameter",
+        "hole_requirement_missing f:hole:1 counterbore.depth",
+        "feature_not_dimensioned f:hole:1 counterbore.diameter",
+    ] {
+        assert!(missing.contains(wanted), "{wanted}: {missing:?}");
+    }
+    assert!(
+        lint::lint(&analysis, &drawing)
+            .iter()
+            .any(|i| i.message == "cylindrical feature ø14 has no diameter callout on the sheet")
+    );
+
+    let prose = "PROFILED BORE: diameter 14 x 8 DEEP";
+    let words = "⌀8 THRU ⌴ ⌀14 ↧ 8";
+    for (what, extra) in [
+        (
+            "draftwright's prose note",
+            json!({ "notes": [ { "id": "n:1", "text": prose } ] }),
+        ),
+        (
+            "the callout's words as a note",
+            json!({ "notes": [ { "id": "n:1", "text": words } ] }),
+        ),
+        (
+            "a table printing the callout",
+            json!({ "tables": [ { "id": "t:1", "rows": [["HOLE", "SIZE"], ["A", words]] } ] }),
+        ),
+    ] {
+        let with: Spec = spec(extra);
+        bare.notes = with.notes;
+        bare.tables = with.tables;
+        let (plan, drawing) = drawn(&bare);
+        assert!(
+            plan.notes.iter().all(|n| n.placed.is_some())
+                && plan.tables.iter().all(|t| t.placed.is_some()),
+            "{what}: {:?}",
+            plan.problems
+        );
+        let printed = if what.contains("prose") { prose } else { words };
+        let text: Vec<&str> = drawing.text.iter().map(|r| r.text.as_str()).collect();
+        assert!(text.iter().any(|t| t.contains(printed)), "{what}: {text:?}");
+        assert_eq!(findings(&analysis, &drawing), missing, "{what}");
+    }
+}
+
+/// ISSUE-1485-a's planar-substitution clause, on draftwright's pocket cut into a cylinder: a
+/// drawing that states the pocket as a planar one (a uniform `pocket_depth.length`, `DEEP` in place
+/// of `MAX DEEP`) cannot certify it. On the port's own drawing lint finds nothing for the pocket;
+/// with the callout's maximum-depth claim and words changed to the planar reading, lint reports the
+/// pocket's `pocket_max_depth.length` (lint::pockets requires it of a pocket whose mouth is a
+/// cylinder) and credits nothing for the uniform depth. draftwright's test substitutes a planar
+/// declared feature for the recognised one and finds the pocket's five requirements unverifiable;
+/// the port has no declared features (maintainer decision), so the substitution is made where the
+/// port's lint reads its evidence, the drawn callout (equivalent in what it guards: a uniform depth
+/// never stands for a cylindrical mouth's).
+#[test]
+fn a_planar_reading_cannot_certify_a_curved_pocket() {
+    let (part, analysis) = analysed("curved_centered");
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    let drawing = model::render(&part, &analysis, &plan, &font()).unwrap();
+    let pocket = |f: &BTreeSet<String>| -> BTreeSet<String> {
+        f.iter()
+            .filter(|s| s.contains("f:section_recess:1"))
+            .cloned()
+            .collect()
+    };
+    assert!(pocket(&findings(&analysis, &drawing)).is_empty());
+
+    let mut planar = drawing.clone();
+    let a = planar
+        .annotations
+        .iter_mut()
+        .find(|a| {
+            a.name
+                .starts_with("d:f:section_recess:1/pocket_width.length@")
+        })
+        .unwrap();
+    let max = a
+        .claims
+        .iter_mut()
+        .find(|c| c.parameter == "pocket_max_depth.length")
+        .unwrap();
+    max.parameter = "pocket_depth.length".into();
+    let run = a.runs[0];
+    assert!(planar.text[run].text.ends_with(" MAX DEEP"));
+    planar.text[run].text = planar.text[run].text.replace(" MAX DEEP", " DEEP");
+    let found = pocket(&findings(&analysis, &planar));
+    assert!(
+        found
+            .iter()
+            .any(|f| f.ends_with(" f:section_recess:1 pocket_max_depth.length")),
+        "{found:?}"
+    );
+    assert!(
+        found.iter().all(|f| !f.ends_with(" pocket_depth.length")),
+        "{found:?}"
+    );
 }

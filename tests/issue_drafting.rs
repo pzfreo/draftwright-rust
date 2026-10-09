@@ -453,17 +453,19 @@ fn what_the_spec_asks_of_the_views_is_kept_or_reported() {
 }
 
 /// ISSUE-1299-a, in part: a sheet the spec names is never escalated. Pinned alone it takes the
-/// largest standard scale at which the views fit it; pinned with a scale too large for it, both
-/// are kept and the misfit reported. Not ported: draftwright's recovery, which re-plans on its
-/// finished drawing's findings (a larger scale on the same page before a larger sheet); the
-/// port makes the first choice only.
+/// largest standard scale at which the views fit it, and draftwright's recovery
+/// (`model::recover`, which `model::plan` does not apply yet) keeps it, re-planning at most its
+/// scale on that sheet; pinned with a scale too large for it, both are kept, before and after
+/// the recovery, and the misfit reported.
 #[test]
 fn a_sheet_the_spec_names_is_never_escalated() {
     for (name, analysis, _) in planned() {
         for size in ["A4", "A3"] {
-            let pinned =
-                model::plan(analysis, &spec(json!({ "sheet": { "size": size } }))).unwrap();
+            let named = spec(json!({ "sheet": { "size": size } }));
+            let pinned = model::plan(analysis, &named).unwrap();
             assert_eq!(pinned.sheet.size, size, "{name}");
+            let recovered = model::recover(analysis, &named, pinned).unwrap();
+            assert_eq!(recovered.sheet.size, size, "{name}");
             let both = model::plan(
                 analysis,
                 &spec(json!({ "sheet": { "size": size, "scale": "10:1" } })),
@@ -473,6 +475,10 @@ fn a_sheet_the_spec_names_is_never_escalated() {
                 (both.sheet.size.as_str(), both.sheet.scale.as_str()),
                 (size, "10:1")
             );
+            let both_spec = spec(json!({ "sheet": { "size": size, "scale": "10:1" } }));
+            let before = serde_json::to_value(&both).unwrap();
+            let kept = model::recover(analysis, &both_spec, both).unwrap();
+            assert_eq!(serde_json::to_value(&kept).unwrap(), before, "{name}");
         }
     }
 }
@@ -1993,4 +1999,164 @@ fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
         "{:#?}",
         plan.problems
     );
+}
+
+/// draftwright's hard layout codes as the port reports them: what makes `model::recover`
+/// re-plan (its private `HARD_LAYOUT`, at warning or error).
+const HARD_LAYOUT: [&str; 6] = [
+    "annotation_off_sheet",
+    "annotation_overlap",
+    "annotation_ink_overlap",
+    "title_field_overflow",
+    "page_fit_uncertain",
+    "views_do_not_fit",
+];
+
+/// Every part's default plan with draftwright's recovery applied (`model::recover`, which
+/// `model::plan` does not apply yet: a maintainer question in docs/next-session.md).
+fn recovered() -> &'static [(String, Plan)] {
+    static RECOVERED: OnceLock<Vec<(String, Plan)>> = OnceLock::new();
+    RECOVERED.get_or_init(|| {
+        planned()
+            .iter()
+            .map(|(n, a, p)| {
+                (
+                    n.clone(),
+                    model::recover(a, &Spec::default(), p.clone()).unwrap(),
+                )
+            })
+            .collect()
+    })
+}
+
+/// What the recovery said it tried, from its `layout_replanned` or `layout_recovery_exhausted`
+/// message.
+fn tried(message: &str) -> &str {
+    let from = message
+        .find("Tried ")
+        .or_else(|| message.find(": tried "))
+        .map(|i| i + message[i..].find("ried ").unwrap() + 5)
+        .unwrap_or_else(|| panic!("{message}"));
+    &message[from..]
+}
+
+/// The (feature, parameter) of every hole and turned-step measurement a placed dimension states.
+fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
+    plan.dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .flat_map(|d| &d.measurements)
+        .filter(|m| m.feature.starts_with("f:hole") || m.feature.starts_with("f:turned_step:"))
+        .map(|m| (m.feature.as_str(), m.parameter.as_str()))
+        .collect()
+}
+
+/// ISSUE-1338-a, in part: the sheet is not the first lever. On every part whose first plan the
+/// recovery re-plans or tries to, the first thing tried is another scale on the same sheet, and
+/// a re-planned sheet keeps every hole and turned-shoulder outcome the first plan placed. On the
+/// captured parts that is ctc01 (A3 1:5 → A3 1:10, for a label the port's placement leaves off
+/// the sheet; draftwright tries nothing there) and cgb245 (A2 1:5 tried first, nothing taken, as
+/// in draftwright); GRM-03, the reported part, is kept on A4 at 2:1 with nothing tried, its four
+/// shoulders located (`grm03_locates_every_turned_shoulder_and_keeps_the_isometric`). Not
+/// ported: draftwright reaches 5:1 on A4 for GRM-03 by measuring larger scales against the
+/// recovery detail its estimate reserved, which the port does not plan (not-applicable); the
+/// PMI-mode clause (the port lowers no PMI into the plan, not-applicable); and `model::plan`
+/// does not apply the recovery yet.
+#[test]
+fn the_recovery_tries_the_same_page_first_and_keeps_every_outcome() {
+    let mut moved = BTreeSet::new();
+    for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
+        let Some(said) = after
+            .problems
+            .iter()
+            .find(|p| p.code.starts_with("layout_re"))
+        else {
+            assert_eq!(
+                (&after.sheet.size, &after.sheet.scale),
+                (&first.sheet.size, &first.sheet.scale),
+                "{name}"
+            );
+            continue;
+        };
+        assert!(
+            tried(&said.message).starts_with(&format!("{} at ", first.sheet.size)),
+            "{name}: {}",
+            said.message
+        );
+        if said.code == "layout_replanned" {
+            let kept = hole_and_shoulder_outcomes(after);
+            assert!(
+                hole_and_shoulder_outcomes(first).is_subset(&kept),
+                "{name}: {:?}",
+                hole_and_shoulder_outcomes(first).difference(&kept)
+            );
+        }
+        moved.insert((name.as_str(), said.code.as_str()));
+    }
+    if sampled().is_empty() {
+        return;
+    }
+    assert!(moved.contains(&("ctc01", "layout_replanned")), "{moved:?}");
+    assert!(
+        moved.contains(&("cgb245", "layout_recovery_exhausted")),
+        "{moved:?}"
+    );
+    let grm03 = &recovered().iter().find(|p| p.0 == "grm03").unwrap().1;
+    assert_eq!(
+        (grm03.sheet.size.as_str(), grm03.sheet.scale.as_str()),
+        ("A4", "2:1")
+    );
+}
+
+/// ISSUE-1146-b, in part: the recovery is honest about what it counts. On every part, a plan
+/// with no hard layout finding (at warning or error) is never moved for its other problems
+/// (validation findings, missing ports, an info observation): it is kept, sheet and problems,
+/// unless the recovery says hole locations are too close to read (the one required loss it
+/// counts, `layout::crowded_locations`, from the plan's dimensions whatever their problems'
+/// severity). A plan with one that no try clears keeps its sheet and says so
+/// (`layout_recovery_exhausted`, naming the codes), never silently. Not ported: a scale
+/// policy (strict, permissive) and its vocabulary; the rendering floor (the port's ladder ends
+/// at the largest standard sheet, and says so the same way); an unrelated build error (a plan
+/// that cannot be made is an error before any recovery).
+#[test]
+fn only_layout_findings_move_the_sheet_and_a_failed_recovery_is_said() {
+    for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
+        let hard: BTreeSet<&str> = first
+            .problems
+            .iter()
+            .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+            .map(|p| p.code.as_str())
+            .collect();
+        let said = after
+            .problems
+            .iter()
+            .find(|p| p.code.starts_with("layout_re"));
+        if hard.is_empty() {
+            match said {
+                None => assert_eq!(
+                    serde_json::to_value(after).unwrap(),
+                    serde_json::to_value(first).unwrap(),
+                    "{name}"
+                ),
+                Some(s) => assert!(
+                    s.message.contains("too close to read"),
+                    "{name}: {}",
+                    s.message
+                ),
+            }
+            continue;
+        }
+        let said = said.unwrap_or_else(|| panic!("{name}: {hard:?} and no recovery said"));
+        assert_eq!(said.severity, "info", "{name}");
+        if (&after.sheet.size, &after.sheet.scale) == (&first.sheet.size, &first.sheet.scale) {
+            assert_eq!(said.code, "layout_recovery_exhausted", "{name}");
+            assert!(
+                hard.iter().all(|c| said.message.contains(c)),
+                "{name}: {}",
+                said.message
+            );
+        } else {
+            assert_eq!(said.code, "layout_replanned", "{name}");
+        }
+    }
 }
