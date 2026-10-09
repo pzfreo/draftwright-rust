@@ -1,7 +1,7 @@
 //! Each quantity stated once (the maintainer's directive of 2026-10-09, `docs/quality-2026-10-09.md`),
 //! on corpus parts read with Rust quiddity's recognition as the command line reads them:
 //!
-//! - a band of a turned part, which quiddity reports both as a turned step and as a boss, is
+//! - a band of a turned part, were quiddity to report it both as a turned step and as a boss, is
 //!   dimensioned by its step alone (draftwright's `boss_turned_step_owner`);
 //! - parallel hole rows with the same stations show one pitch (draftwright's
 //!   `_coalesce_aligned_linear_pitch_dims`);
@@ -102,9 +102,12 @@ fn claiming<'a>(plan: &'a Plan, feature: &str, parameter: &str) -> &'a PlannedDi
     found[0]
 }
 
-/// On a turned part every band is a turned step and also a boss on the same faces; the plan
-/// dimensions it by the step's diameter and length alone, as draftwright's sheets of the same
-/// parts do (grm05, string_post: no boss item), and lint asks no boss height of it.
+/// On a turned part a band is a turned step, and quiddity's aggregate rejects a boss on the same
+/// faces (`reconcile_boss_turned_step_candidates`, ported in quiddity-rust a02b758). Should one
+/// reach the analysis, the plan dimensions the band by the step's diameter and length alone, as
+/// draftwright's sheets of the same parts do (grm05, string_post: no boss item), and lint asks no
+/// boss height of it: each band is given a boss on its faces, as quiddity-rust reported them
+/// before the reconciliation.
 #[test]
 fn a_turned_band_is_dimensioned_by_its_step_not_again_as_a_boss() {
     let Some(dir) = corpus::dir() else {
@@ -117,17 +120,44 @@ fn a_turned_band_is_dimensioned_by_its_step_not_again_as_a_boss() {
         "gramel/string_post.step",
         "nist/nist_ctc_05_asme1_rd.stp",
     ] {
-        let a = native(&dir, file);
+        let mut a = native(&dir, file);
+        assert!(
+            a.features
+                .iter()
+                .all(|f| f.kind != "boss" || !lint::bosses::turned_band(&a, f)),
+            "{file}: quiddity reports a band as a boss too"
+        );
+        let steps: Vec<_> = a
+            .features
+            .iter()
+            .filter(|f| f.kind == "turned_step")
+            .cloned()
+            .collect();
+        assert!(!steps.is_empty(), "{file}: no turned step");
+        for (n, mut f) in steps.into_iter().enumerate() {
+            // A boss record as quiddity-rust gave one: the band's diameter and height, its axis,
+            // and its top on the axis (here taken through the origin; placement only).
+            let size = |k: &str| f.parameters[k].as_f64().unwrap();
+            let (lo, hi, diameter) = (size("lo"), size("hi"), size("diameter"));
+            let axis = f.fingerprint.axis.expect("a turned step's axis");
+            let location: Vec<f64> = axis.iter().map(|c| c * hi).collect();
+            f.parameters = serde_json::json!({
+                "axis": axis, "diameter": diameter, "height": hi - lo, "location": location,
+            })
+            .as_object()
+            .unwrap()
+            .clone();
+            f.id = format!("f:boss:band{}", n + 1);
+            f.kind = "boss".into();
+            f.fingerprint.family = "boss".into();
+            a.features.push(f);
+        }
         let bands: Vec<&str> = a
             .features
             .iter()
             .filter(|f| f.kind == "boss" && lint::bosses::turned_band(&a, f))
             .map(|f| f.id.as_str())
             .collect();
-        assert!(
-            !bands.is_empty(),
-            "{file}: quiddity reports its bands as bosses too"
-        );
         let plan = model::plan(&a, &Spec::default()).unwrap();
         for d in &plan.dimensions {
             assert!(
