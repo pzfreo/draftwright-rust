@@ -26,7 +26,8 @@
 //! double-D bores ([`profiled_bores`]); flat, groove, chamfer, fillet and blend coverage
 //! ([`flats`], [`grooves`], [`chamfers`], [`fillets`], [`blends`]); paired-ramp steps
 //! ([`paired_ramp_steps`]), gusset ribs ([`gussets`]), circular blind steps
-//! ([`circular_blind_steps`]) and blind slots ([`blind_slots`]); through-step and slot coverage
+//! ([`circular_blind_steps`]), blind slots ([`blind_slots`]) and oriented slots
+//! ([`oriented_slots`]); through-step and slot coverage
 //! ([`steps`], [`slots`]); hole coverage ([`holes`]); open channels ([`channels`]); polygonal stock
 //! ([`polygonal`]); and lone pockets ([`pockets`]). The backstop's count check and centre marks
 //! ([`coverage::counts`], [`coverage::centre_marks`]) are not run: draftwright's drawing lint
@@ -54,6 +55,7 @@ pub mod flats;
 pub mod grooves;
 pub mod gussets;
 pub mod holes;
+pub mod oriented_slots;
 pub mod pads;
 pub mod paired_ramp_steps;
 pub mod parameters;
@@ -193,6 +195,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(gussets::coverage(analysis, marks));
     issues.extend(circular_blind_steps::coverage(analysis, marks));
     issues.extend(blind_slots::coverage(analysis, marks));
+    issues.extend(oriented_slots::coverage(analysis, marks));
     issues.extend(steps::coverage(analysis, marks));
     issues.extend(slots::coverage(analysis, marks));
     issues.extend(holes::coverage(analysis, marks));
