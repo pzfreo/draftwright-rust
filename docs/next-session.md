@@ -386,6 +386,16 @@ quiddity commit that has it.
     leaders' candidate measurement is still about 70% (CTC 02: 22 callouts, about 90 000
     candidates per plan), and `layout::fit_box`'s sorting about 8%. `tools/plan_timing.py` times
     `plan --analysis` per part.
+  - Stream d-plan-recover-speed (measured on 4ff1b94, no code change kept): the tries share almost
+    nothing worth sharing. What does not depend on scale and sheet (`demand::read`, `dims::lanes`,
+    `dims::wants`) is 0.1-0.3 ms of a 17-130 ms plan, under 0.2% of `plan_recovered` (CTC 02 5798,
+    CTC 04 5388, FTC 08 3125, FTC 09 7735, CTC 03 888, cgb245 2282, FTC 06 255 Minstr); in each try
+    `dims::leaders::place` is about 97% of `dims::plan`, and a try that escalates to a hole table
+    (CTC 02 at A1 1:2) spends about 190 ms more in `hole_table::place_table` → `tables::place` →
+    `layout::fit_auxiliary_box` → `fit_box` (one block count after another, up to four), whose
+    candidate grid grows as the square of the obstacles (every dimension's ink). Faster recovery
+    needs those (leaders.rs, layout.rs), or fewer tries (a maintainer decision).
+    `tools/plan_timing.py` now gives CPU time and, on macOS, instructions retired.
 - **Maintainer directive, 2026-10-09: quality before features in draftwright-rust.** "Rather
   than add new features I'd rather that we fixed the obvious problems with the current code: out
   of bounds, repeated dimensions, overlapping views, overlapping ink." Until these are fixed, give
