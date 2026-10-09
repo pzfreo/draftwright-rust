@@ -207,9 +207,13 @@ fn ctc02_has_no_hole_item_off_the_sheet_to_drop() {
     check_part("ctc02", false);
 }
 
+/// Its one off-sheet hole location (`d:f:hole_pattern:2/location.length.x@plan`, 480) has had
+/// a place since the items merged away stopped holding lanes of their own: two x locations that
+/// fell through below the plan now fit above it, and it takes the first lane below. Nothing of
+/// ctc04's is dropped either.
 #[test]
-fn ctc04_drops_and_reports_its_off_sheet_hole_items() {
-    check_part("ctc04", true);
+fn ctc04_has_no_hole_item_off_the_sheet_to_drop() {
+    check_part("ctc04", false);
 }
 
 #[test]

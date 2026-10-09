@@ -284,6 +284,7 @@ fn omitting_one_dimension_moves_no_other() {
             .filter(|(n, _)| ["m10127", "hanger", "ftc06"].contains(&n.as_str())),
     );
     let mut edits = 0;
+    let mut shared = 0;
     for (name, analysis) in &parts {
         let full = model::plan(analysis, &Spec::default()).unwrap();
         let all = placed(&full);
@@ -329,9 +330,9 @@ fn omitting_one_dimension_moves_no_other() {
             );
             let rest: Vec<&str> = every.iter().copied().filter(|i| i != gone).collect();
             // Omitting it brings back a coincident location it conveyed (ARCH0009-6), drawn in
-            // its own lane (a size it shared among three or more is shared again by the rest,
-            // the others conveyed by the one drawn); one left out of an authored set, with what
-            // it conveyed, conveys nothing back.
+            // its lane, which the item merged away shares (a size it shared among three or more
+            // is shared again by the rest, the others conveyed by the one drawn); one left out of
+            // an authored set, with what it conveyed, conveys nothing back.
             let conveyed = conveyed_by(gone);
             let listed: Vec<&str> = complete
                 .iter()
@@ -384,7 +385,24 @@ fn omitting_one_dimension_moves_no_other() {
                 );
                 for d in &plan.dimensions {
                     if promoted.contains(&d.id.as_str()) {
-                        assert!(d.placed.is_some(), "{name}: {} is not drawn", d.id);
+                        let Some(p) = d.placed.as_ref() else {
+                            panic!("{name}: {} is not drawn", d.id);
+                        };
+                        // In the lane of the item it was merged into: its dimension line on that
+                        // item's (the merged items hold no lane of their own).
+                        let lane = |p: &dims::Placed| {
+                            let [a, b] = p.lines[2];
+                            if a[0] == b[0] { a[0] } else { a[1] }
+                        };
+                        if let (true, Some(survivor)) = (d.kind == "linear", all.get(gone)) {
+                            let survivor = survivor.placed.as_ref().unwrap();
+                            assert!(
+                                (lane(p) - lane(survivor)).abs() < 1e-9,
+                                "{name}: {} is not drawn in {gone}'s lane",
+                                d.id
+                            );
+                            shared += 1;
+                        }
                         continue;
                     }
                     let was = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
@@ -397,7 +415,88 @@ fn omitting_one_dimension_moves_no_other() {
             }
         }
     }
-    eprintln!("{edits} single-dimension edits, none moving another item");
+    eprintln!(
+        "{edits} single-dimension edits, none moving another item; {shared} items brought back in \
+         their survivor's lane"
+    );
+    assert!(shared > 0, "no item merged away was brought back");
+}
+
+/// A merge the spec's labels break draws both items, each in a lane of its own. The defaults
+/// merge one span's items into one dimension (ARCH0009-6) and the merged items share their
+/// survivor's lane (`dims::placement::owners`); a tolerance on the survivor makes the labels
+/// differ, so the plan draws both, and the one merged away moves to its strip's next free lane
+/// (`dims::placement::separate`). On ctc01 a tolerance on the hole pattern's x location used to
+/// draw the hex boss's x location (400) on the same three lines as the pattern's (400 ±0.05), the
+/// labels overlapping. Every other item stays where it was.
+#[test]
+fn a_merge_the_spec_breaks_draws_both_in_their_own_lanes() {
+    let mut parts = fixture_parts();
+    parts.extend(
+        corpus_parts()
+            .into_iter()
+            .filter(|(n, _)| ["ctc01", "ftc06", "m10127", "hanger"].contains(&n.as_str())),
+    );
+    let mut broken = 0;
+    for (name, analysis) in &parts {
+        let full = model::plan(analysis, &Spec::default()).unwrap();
+        let survivors: Vec<&str> = full
+            .omitted
+            .iter()
+            .filter_map(|o| o.basis.strip_prefix("conveyed by "))
+            .filter_map(|rest| rest.split_once(": ").map(|(id, _)| id))
+            .collect();
+        for survivor in survivors {
+            let mut spec = Spec::default();
+            spec.dimensions.insert(
+                survivor.to_string(),
+                DimensionSpec {
+                    tolerance: Some("±0.05".into()),
+                    ..Default::default()
+                },
+            );
+            let plan = model::plan(analysis, &spec).unwrap();
+            let back: Vec<&PlannedDimension> = plan
+                .dimensions
+                .iter()
+                .filter(|d| full.omitted.iter().any(|o| o.id == d.id))
+                .collect();
+            if back.is_empty() {
+                continue;
+            }
+            broken += 1;
+            // No two drawn linear items in one view share a dimension line.
+            let linear: Vec<(&str, &str, [[f64; 2]; 2])> = plan
+                .dimensions
+                .iter()
+                .filter(|d| d.kind == "linear")
+                .filter_map(|d| Some((d.id.as_str(), d.view.as_str(), d.placed.as_ref()?.lines[2])))
+                .collect();
+            for (k, a) in linear.iter().enumerate() {
+                for b in &linear[k + 1..] {
+                    assert!(
+                        a.1 != b.1 || a.2 != b.2,
+                        "{name}: tolerance on {survivor}: {} and {} share a dimension line",
+                        a.0,
+                        b.0
+                    );
+                }
+            }
+            for d in &plan.dimensions {
+                if d.id == survivor || back.iter().any(|b| b.id == d.id) {
+                    continue;
+                }
+                let was = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
+                assert_eq!(
+                    d.placed, was.placed,
+                    "{name}: {} moved when {survivor} took a tolerance",
+                    d.id
+                );
+            }
+        }
+    }
+    eprintln!("{broken} merges broken by a tolerance, each drawn in two lanes");
+    assert!(broken > 0, "no merge was broken");
 }
 
 /// Each view's drawn box on the page: a principal view's part box (the envelope projected, at

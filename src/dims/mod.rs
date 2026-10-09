@@ -498,6 +498,12 @@ fn route(
 /// the viewer, up) before they are placed: what the layout reserves for them
 /// ([`crate::layout::Strips::reserve`]). Every item the part would have counts, whatever the
 /// spec omits, as [`plan`] gives each its lane in that full set (edit locality, ARCH0003-2).
+///
+/// Items the defaults merge away count here with a lane each, though [`plan`] gives them their
+/// survivor's ([`placement::owners`]): the band below the side is also the front's lower band,
+/// which holds the front's own lanes without reserving them, and on ftc06 and ftc07 the side's
+/// merged boss heights were what kept the front's lowest lanes inside it (counted without them,
+/// ink 11 to 13 and 9 to 11; `docs/quality-2026-10-09.md`, "After merged-away lanes").
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
     let (mut wants, ..) = wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
@@ -511,7 +517,8 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
         })
         .collect();
     let (chosen, _) = route(&mut wants, &frames, analysis);
-    let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()));
+    let owner = vec![None; wants.len()];
+    let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
     placement::band_lanes(chosen.iter().zip(sides).zip(lane))
 }
 
@@ -576,6 +583,7 @@ pub fn plan(
     }
     // The spec chooses what is drawn, and states the tolerances and fits on the kept labels.
     let all = wants.clone();
+    let owner = placement::owners(analysis, &all, &chosen);
     let mut omitted = Vec::new();
     let mut kept = Vec::new();
     for ((w, view), along) in wants.into_iter().zip(chosen.iter().copied()).zip(end_on) {
@@ -603,8 +611,9 @@ pub fn plan(
     // Then everything the part would have is placed: each item's lane, and where its label
     // settles, come from the full set, so omitting or restoring one leaves the others where they
     // were (ARCH0003-2). A kept item is placed with its label as drawn (its tolerance or fit
-    // included); one the spec omits, or a height the overall extent conveys, keeps its default
-    // label and its place, so it leaves a gap.
+    // included); one the spec omits keeps its default label and its place, so it leaves a gap.
+    // An item the defaults merge away (a height the overall extent conveys among them) takes no
+    // lane: it shares its survivor's.
     let labels: BTreeMap<&str, &[String]> = kept
         .iter()
         .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
@@ -618,22 +627,41 @@ pub fn plan(
             w
         })
         .collect();
-    let (mut sides, mut lane) = placement::lanes(&frames, all.iter().zip(chosen.iter().copied()));
+    let (mut sides, mut lane) =
+        placement::lanes(&frames, all.iter().zip(chosen.iter().copied()), &owner);
     placement::fall_through(
-        &frames, &all, &chosen, &mut sides, &mut lane, analysis, sheet, views,
+        &frames, &all, &chosen, &owner, &mut sides, &mut lane, analysis, sheet, views,
     );
+    let drawn: Vec<bool> = all
+        .iter()
+        .map(|w| labels.contains_key(w.id.as_str()))
+        .collect();
+    let alone = placement::separate(&owner, &drawn, &chosen, &sides, &mut lane);
     let mut placed: Vec<Option<Placed>> = all
         .iter()
         .zip(&chosen)
         .zip(sides.iter().zip(&lane))
-        .map(|((w, view), (side, lane))| {
+        .zip(&owner)
+        .map(|(((w, view), (side, lane)), owner)| {
             view.zip(*side)
+                .filter(|_| owner.is_none())
                 .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
         })
         .collect();
     placement::settle(&mut placed, analysis, sheet, views);
     let page = placement::Page::new(analysis, sheet, views);
     let leader_problems = leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page);
+    placement::place_merged(
+        &frames,
+        &all,
+        &chosen,
+        &owner,
+        &alone,
+        &sides,
+        &lane,
+        &mut placed,
+        &page,
+    );
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
