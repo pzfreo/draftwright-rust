@@ -1607,6 +1607,8 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_exact_grm03_renders_complete_source_owned_manufacturing_drawing_once"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
+  rust_test: "tests/pmi.rs::a_thread_takes_its_structured_statement_and_without_one_has_no_faces"
+  rust_note: "Partly: thread and knurl requirements are read into draftwright's records with their structured fields (designation, fit class, pitch, tap drill, knurl pattern) and faces (`src/pmi.rs`); attaching them to their owning feature and drawing the callouts is not ported: each is a `pmi_not_drawn` warning in the plan."
   port_note: "Keep: scenario GRM-03 AP242 -> plan thread/knurl callouts with PMI provenance."
 
 - id: ISSUE-1298-b
@@ -1621,7 +1623,7 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_document_note_table_drop_is_a_source_complete_annotate_error"
     corpus_parts: ["GRM-03"]
   status: pending
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`). Document-level PMI (general tolerances, default surface finish, datum explanation notes) is read by haecceity but not projected: each is a `pmi_not_extracted` source in the plan, not a note; so no source datum note is omitted or restored."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`). Document-level manufacturing requirements (general tolerances with their ISO 2768 class, default surface texture, edge condition) are read into draftwright's records (`src/pmi.rs`, `tests/pmi.rs::requirements_are_records_and_what_is_not_projected_is_a_source`) but not drawn: the plan reports each as `pmi_not_drawn` (info), not a note; datum explanation notes ('semantic text' on the part) are not projected, so no source datum note is omitted or restored."
   port_note: "Keep."
 
 - id: ISSUE-1298-c
@@ -1637,7 +1639,7 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_known_unsupported_manufacturing_intent_is_explicit_without_error_lint"
     corpus_parts: []
   status: pending
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`). Manufacturing PMI (threads, knurls, general tolerances) is not projected yet: each is reported as a `pmi_not_extracted` source with its reason, never guessed; nothing is re-synthesised from it."
+  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`). Manufacturing PMI (threads, knurls, general tolerances, surface texture and edge notes) is read into draftwright's records, a thread or knurl in words paired with its structured statement only when the part has exactly one of each and their designations agree; otherwise it keeps no faces and says why (`tests/pmi.rs::a_thread_takes_its_structured_statement_and_without_one_has_no_faces`). None is drawn yet: each is a `pmi_not_drawn` plan problem (warning for a face's requirement); nothing is re-synthesised from it."
   port_note: "Keep."
 
 - id: ISSUE-1299-a
@@ -2813,7 +2815,7 @@
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
   rust_test: "tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported"
-  rust_note: "Partly: on the plan path every PMI record is drawn or reported (`pmi_not_lowered`, `pmi_dimensions_not_ported`), every source not read is a `pmi_not_extracted` problem and a file whose PMI cannot be read is `pmi_not_read`; reconciling a drawing's claimed source IDs (fabricated IDs, content with no census) is the PMI coverage lint's, not ported."
+  rust_note: "Partly: on the plan path every PMI record is drawn or reported (`pmi_not_lowered`, `pmi_dimensions_not_ported`, `pmi_not_drawn` for manufacturing requirements and surface labels), every source not read is a `pmi_not_extracted` problem and a file whose PMI cannot be read is `pmi_not_read`; reconciling a drawing's claimed source IDs (fabricated IDs, content with no census) is the PMI coverage lint's, not ported."
   port_note: "Keep: Plan problems from PMI census vs Spec; Spec references PMI by source id."
 
 - id: ISSUE-1585-a

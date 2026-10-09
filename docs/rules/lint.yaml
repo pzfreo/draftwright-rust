@@ -1866,7 +1866,7 @@
   status: pending
   rust_test: "tests/pmi.rs::every_item_and_finding_is_accounted_for_and_the_output_is_deterministic"
   port_note: "Keep if PMI is ported."
-  rust_note: "Partly: `pmi::read` inventories every dimension, tolerance and datum and reports every haecceity finding, unprojected item and unresolved face as a source not read with its reason, and the plan reports each as `pmi_not_extracted` (error for a requirement, info for a shape aspect, property or standard; `tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported`); the lint code on a drawing is the coverage lint's (not ported)."
+  rust_note: "Partly: `pmi::read` inventories every dimension, tolerance, datum, manufacturing requirement, surface label and common label and reports every haecceity finding, unprojected item and unresolved face as a source not read with its reason, and the plan reports each as `pmi_not_extracted` (error for a requirement, info for a shape aspect, property or standard; `tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported`); the lint code on a drawing is the coverage lint's (not ported)."
 
 - id: LINT-code-pmi_not_lowered
   statement: "Every extracted PMI requirement reaches a typed drawing feature rather than remaining a raw fallback."

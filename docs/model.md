@@ -78,7 +78,10 @@ edited.
   cylinder axis), derived from the faces as draftwright's `_datum_geometry_from_shapes` derives
   them; or `refused` with the reason when a file naming semantic PMI cannot be read. Absent when
   the file has none (presentation alone is counted). `plan` lowers it (below); older analyses
-  read with none.
+  read with none. Manufacturing requirements (threads and knurls with their structured fields
+  and faces, general tolerances, surface texture and edge notes), surface labels and common
+  labels are records too; `plan` reports each requirement and surface label as read but not
+  drawn yet (`pmi_not_drawn`), and a common label as a PMI dimension.
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.
