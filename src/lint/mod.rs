@@ -31,7 +31,8 @@
 //! ([`circular_blind_steps`]), blind slots ([`blind_slots`]) and oriented slots
 //! ([`oriented_slots`]); through-step and slot coverage
 //! ([`steps`], [`slots`]); hole coverage ([`holes`]); open channels ([`channels`]); polygonal stock
-//! ([`polygonal`]); and lone pockets ([`pockets`]). The backstop's count check and centre marks
+//! ([`polygonal`]); lone pockets ([`pockets`]); and, after them as Python's `_lint_pmi` runs, the
+//! part's AP242 PMI on the drawing ([`pmi_coverage`]). The backstop's count check and centre marks
 //! ([`coverage::counts`], [`coverage::centre_marks`]) are not run: draftwright's drawing lint
 //! leaves counts to hole coverage, and the port draws no centre marks yet. The families whose
 //! requirements are a feature's own sizes share [`parameters`]. The envelope's and turned steps'
@@ -61,6 +62,7 @@ pub mod oriented_slots;
 pub mod pads;
 pub mod paired_ramp_steps;
 pub mod parameters;
+pub mod pmi_coverage;
 pub mod pockets;
 pub mod polygonal;
 pub mod prismatic;
@@ -208,5 +210,6 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(channels::coverage(analysis, marks));
     issues.extend(polygonal::stock_coverage(analysis, marks));
     issues.extend(pockets::coverage(analysis, marks));
+    issues.extend(pmi_coverage::coverage(analysis, marks));
     issues
 }
