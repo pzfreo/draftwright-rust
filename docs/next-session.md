@@ -7,74 +7,102 @@ its improvement plan and the maintainer questions) and `docs/plan.md`'s "Next st
 
 ## Where things stand
 
-**quiddity-rust** (`~/repos/quiddity-rust`, branch `prototype/rust-port`, at c9ce1cd):
+Updated 2026-10-09 at the end of the resumed autonomous run. The final summary at the top of
+`docs/status-2026-10-08.md` lists what each stream changed, what is verified and the backlog in
+order.
+
+**quiddity-rust** (`~/repos/quiddity-rust`, branch `prototype/rust-port`, at 5798c59, pushed):
 
 - `crates/haecceity` is the kernel. It covers:
   - STEP import, rays, classification, volume probes and coverage;
   - surface recovery;
-  - hidden lines with exact projected curves, and sections without booleans;
-  - prism probes and face sweeps, and face mass.
-- 28 recogniser entry points are ported (the README's table). Each family is checked:
-  - call by call against Python's captured test calls;
-  - over the 100-part corpus, including defining faces;
-  - under rigid motion.
-- Correspondence (`docs/correspondence.md`) is implemented in the library and the CLI
-  (`quiddity part.step` writes records and fingerprints; `quiddity correspond old new`), not yet
-  in a JSON-lines or MCP surface.
-- Its own review (`docs/review-2026-10-08.md` there) found CI red at 2fa7207 on a pinned face
-  count that depends on float round-off.
-- Verify with
-  `QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release`, fmt and clippy. The corpus is at
-  `~/repos/quiddity/tests/corpus`. Set `QUIDDITY_CORPUS` when working from a worktree.
+  - hidden lines with exact projected curves, and sections without booleans (coplanar cut faces
+    traced since 10ce207);
+  - prism probes and face sweeps, and face mass;
+  - AP242 (merged from `ap242`): lossless Part 21, EXPRESS validation, semantic PMI read and
+    write, removal; `quiddity parts` and `quiddity pmi read|write`.
+- 45 recogniser entry points are ported (the README's table), each checked call by call against
+  Python's captured calls, over the 100-part corpus and under rigid motion. Recognition runs in
+  the part's own frame by default and reports in file coordinates (`recognise_placed`,
+  document `quiddity-rust/recognition/2` with a part `frame` and per-record `local` fields).
+- Ported but not yet wired into `recognise()` or the document: the section-recess types,
+  geometry and discovery; the aggregate's reconciliation decisions (261/261 match Python);
+  locally degraded holes and pockets (the retry waits on the panic-versus-refusal question).
+- Verify with `QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release` (401 passed,
+  2 ignored at 5798c59), fmt and clippy. The corpus is at `~/repos/quiddity/tests/corpus`. Set
+  `QUIDDITY_CORPUS` when working from a worktree.
+- CI (nextest shards, Linux and macOS): Linux about 10 min, macOS about 20 min. **Linux failed
+  at 0c76531** (the uv-bounds merge): `tests/recognition.rs::the_default_document_moves_with_the_part`,
+  cgb203 under translation, `circular_face_patterns` fit_error 0.278052 vs 0.386336; macOS
+  passes. Fixing it is the first backlog item.
 
-**draftwright-rust** (`~/repos/draftwright-rust`, `main`; the state below is at bbd3dd7, with
-the corpus check, CI and these docs from stream d-ci-docs on top):
+**draftwright-rust** (`~/repos/draftwright-rust`, `main`, at 5ca1130 plus the final docs commit,
+pushed):
 
 - **The document model** (ADR R1, `docs/model.md`):
   - Analysis, Spec and Plan;
   - `analyse`, `plan`, `edit`, `render`, `review` and `spec`, through the CLI, the JSON-lines
     service and the MCP server (`src/api.rs`, `src/bin/`);
-  - the spec embedded in SVG, PDF and DXF;
+  - the spec embedded in SVG, PDF, DXF and PNG; general notes (`n:<k>`) and spec tables
+    (`t:<k>`) drawn and in the PDF text;
   - output deterministic to the byte, in every time zone (`tests/timezone.rs`).
-- **Layout:** draftwright's sheet, scale and view layout arithmetic (`src/layout.rs`), exact
-  against 285 recorded Python calls. Differences from Python's final sheets are listed with
-  verdicts in `tests/fixtures/known_views.json` (71 entries).
-- **Bridge:** quiddity's features come in through `src/bridge.rs`, with stable IDs and
-  fingerprints that include the AAG neighbourhood. haecceity is pinned at quiddity-rust 4258e35
-  (`Cargo.lock`; AGPL-3.0-only since 8023ea7); the bridge reads nist_ftc_07 and nist_ftc_10,
-  and since stream d-bridge-area-tolerance nist_ctc_04 too (sphere areas held to 1e-2, with the
-  evidence in `tests/fixtures/known_bridge_faces.json`). Since
-  05c5d99 haecceity refuses to draw a part whose drawn faces or edges did not resolve on
-  reading, and since 8023ea7 one with a stretch whose visibility no ray can decide (no corpus
-  part has one); `analyse` and `render` pass that refusal on (`render` as a `failed` error).
-  Since 8023ea7 it makes no stretch of no span, so cgb242 no longer reports `edges_not_drawn`
-  and no corpus part has a drawing problem (`output::projected` stays as a guard).
-- **Merged streams** (2026-10-07):
-  - **View gaps** (d707219): a turned part drops the view that repeats its profile (ISSUE-1262-a,
-    pending: the veto is narrower than Python's); annotation bands reserved from the features
-    (`src/demand.rs`, `known_bands.json`); section A–A planned and hatched at 45°.
-  - **First dimensions** (5b7be0d, now `src/dims/`, one planner module per family): the envelope, turned steps and hole callouts
-    with locations and pattern pitches, as Plan items with IDs, labels, defaults and bases;
-    compared with the captured facts (`tests/dimensions.rs`, `known_dimensions.json`).
-  - **Lint** (54ce4cc, `src/lint/`): a guarded module that never reads the Plan or Spec,
-    `LintIssue`, and hole coverage, compared with Python's lint on the captured sheets
-    (`tests/lint.rs`, `known_lint.json`).
-- **Facts:** Python draftwright's sheets are recorded as facts (`tools/capture_sheet_facts.py`,
-  `tests/fixtures/sheets/`, `docs/facts.md`) for 13 parts.
-- **ADRs R1–R4** are accepted. `docs/rules/` has 515 rules learnt from Python, classed drafting,
-  trust, spec or machinery, with statuses (23 ported after wave 2). **Update a
-  rule's status when you port it;** a partial port stays pending with `rust_test` and
-  `rust_note`.
+- **Recognition:** the CLI takes features from Rust quiddity's recognition by default
+  (`src/bridge/native.rs`, recognition/2, 25 families read; a record with `local` fields is
+  refused); `--features` reads Python quiddity's JSON through `src/bridge.rs`. serve, MCP and the
+  library's `None` still use the bridge (maintainer question). Differences are listed in
+  `known_native.json`. Not read natively: section recesses (not in quiddity-rust's document),
+  prismatic pockets (Python publishes none), pads (known, not read).
+- **haecceity** is pinned at quiddity-rust 5798c59 (`Cargo.lock`; AGPL-3.0-only). The bridge
+  reads nist_ftc_07, nist_ftc_10 and nist_ctc_04 (sphere areas held to 1e-2,
+  `known_bridge_faces.json`). haecceity refuses a part whose drawn faces or edges did not resolve
+  or whose visibility no ray decides; `analyse` and `render` pass that on.
+- **Layout and placement:** draftwright's sheet, scale and view arithmetic (`src/layout.rs`),
+  exact against 285 recorded calls (`known_views.json`, 71 entries). Placement keeps annotations
+  on the sheet with bounded lazy slides and places callout leaders beside the view with a
+  horizontal shoulder; remaining collisions are rust-wrong in `known_placement.json` and
+  `known_leaders.json`. Page escalation (`model::recover`) is written but not called by
+  `model::plan`.
+- **Dimensions** (`src/dims/`, one planner per family): envelope, turned steps (step diameters
+  and lengths), holes and patterns with locations, slots and bosses, grooves and flats, steps and
+  the height ladder, section recesses, hexagonal stock; coincident spans merged; spotface symbol;
+  spec tolerances. Compared with the captured facts (`known_dimensions.json`).
+- **Lint** (`src/lint/`, never reads the Plan or Spec): hole coverage with group credit, family
+  coverage, slot patterns, eleven structural codes, the coverage backstop. Compared with Python's
+  lint (`known_lint.json`, `known_structural.json`).
+- **PMI stage 1:** `src/pmi.rs` reads a part's AP242 semantic PMI into draftwright's records
+  (`tests/pmi.rs`, `known_pmi.json`: 330 differences, 55 rust-wrong). Not lowered or drawn yet.
+- **Facts:** Python draftwright's sheets recorded for 13 parts (`tools/capture_sheet_facts.py`,
+  `tests/fixtures/sheets/`, `docs/facts.md`).
+- **Rules:** ADRs R1–R4 accepted. `docs/rules/` has 515 rules learnt from Python; 89 ported
+  (adr 25, issues 22, lint 42), 44 translated, 8 retired, 382 pending. **Update a rule's status
+  when you port it;** a partial port stays pending with `rust_test` and `rust_note`.
 - `docs/plan.md` is the overall plan.
 - **Verify** with
-  `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`,
-  `cargo fmt --check` and `cargo clippy --all-targets --release -- -D warnings`. Without
+  `DRAFTWRIGHT_CORPUS=~/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`
+  (45 binaries, 434 passed at 5ca1130), `cargo fmt --check` and
+  `cargo clippy --all-targets --release -- -D warnings`. Without
   `DRAFTWRIGHT_CORPUS_REQUIRED=1`, corpus-backed tests skip (print SKIPPED and pass) when the
   corpus is missing; with it, they fail.
 
+**Open maintainer questions** are recorded with the stream entries below and in quiddity-rust's
+`docs/review-2026-10-08.md`. Two raised at the end of the run are not written elsewhere:
+
+- Hole tables: draftwright adds one (with balloons) only when its hole placers drop a callout or
+  location and escalate (`orchestrator.py` `_prepare_hole_table_run`). The port never drops: it
+  places everything and records collisions as rust-wrong. Adopt drop-and-escalate, make hole
+  tables spec-driven (a `t:<k>` of kind holes), or leave them out?
+- ISSUE-1247-a: draftwright reports an angled step as an explicit unsupported completeness
+  outcome; the port has no completeness report. Carry an `unsupported` Problem for each angled
+  step (removing it from `dims::UNDRAFTED`), or wait for a completeness report?
+
+**Housekeeping:** clean leftover worktrees in quiddity-rust can be removed
+(`.claude/worktrees/agent-a461c0d2e1bd3494a`, `wf_7fc79fa8-4f8-162`, `wf_7ff99f80-ece-23`,
+`wf_7ff99f80-ece-24`, and the scratchpad `wt-ap242`); their branches are merged or superseded.
+
 **Python references (read-only):**
 
-- draftwright at origin/main 586628b. Read it with
+- draftwright: references were taken at origin/main 586628b; origin/main is now 4dfc63f (one
+  commit later, 2026-10-07). Read it with
   `git -C ~/repos/draftwright show origin/main:<path>` (the working tree is on a stale branch).
 - Run it with `~/repos/draftwright/.venv/bin/python` and `PYTHONPATH` pointing at a source
   export (`git -C ~/repos/draftwright archive origin/main src | tar -x -C <dir>`).
@@ -92,7 +120,9 @@ See README.md, "Taking a new haecceity".
 `rust-toolchain.toml`, `cargo fmt --all --check`, clippy with `-D warnings`, and
 `cargo test --release` with `DRAFTWRIGHT_CORPUS` at a sparse checkout of the public
 `pzfreo/quiddity`'s `tests/corpus` (pinned to 6d544e060cd0eeb4442d2196e5df757b5a15ea55) and
-`DRAFTWRIGHT_CORPUS_REQUIRED=1`.
+`DRAFTWRIGHT_CORPUS_REQUIRED=1`. Since d-ci-fast (d3b92f8) the build compiles every test binary
+once into a nextest archive and the tests run in parallel shards (`.config/nextest.toml`); about
+11 min per push, every test still run.
 
 haecceity comes by git from the public `pzfreo/quiddity-rust` (Cargo.toml, pinned in
 `Cargo.lock`), so CI needs no secret.
@@ -138,7 +168,9 @@ quiddity commit that has it.
     file's coordinates, so results don't depend on how the part was placed. This is the default
     for `recognise`, the CLI and the recognition document.
   - **AP242** decisions are in quiddity-rust `docs/step-ap242.md` (ap242 branch).
-- **Priority for the next dispatch (main session, 2026-10-08):** quiddity-rust's GitHub CI (Linux)
+- **Priority for the next dispatch (main session, 2026-10-08)** (done: q-seam-fix merged at
+  e6234b6; Linux CI green from 384992f until the uv-bounds merge, see "Where things stand"):
+  quiddity-rust's GitHub CI (Linux)
   has been red since the first run on one platform-dependent count (cgb202 torus
   `uv_bounds … another turn`, 13 listed, 12 found). The fix is ready on quiddity-rust's local
   branch `q-seam-fix` (commit 1966d3c, "uv: place a loop centred on the seam deterministically",
@@ -146,7 +178,10 @@ quiddity commit that has it.
   stream `q-seam-fix` whose brief is: rebase that commit onto the current branch head, re-run
   the full checks, adjust the known-divergence counts the newer merges change, keep the 1e-9
   seam band and its reasons; then the integrator merges it like any other stream.
-- **Priorities from a CLI trial (main session, 2026-10-08, afternoon):** the maintainer is trying
+- **Priorities from a CLI trial (main session, 2026-10-08, afternoon)** (all five done: views
+  memory by d-coincident-locations, CLI native default by d-cli-native, annotations on the sheet by
+  d-placement-fit, turned steps by d-dims-turned-steps, ctc04 by d-bridge-area-tolerance): the
+  maintainer is trying
   `draftwright render` on corpus parts (at 98deec8). Dispatch these ahead of other backlog work:
   1. **Memory blow-up in `tests/views.rs`.** Since the restart, a guard has killed the `views` test
      binary 15 times at 16–26 GB, always in stream worktrees under the session scratchpad; the
@@ -166,7 +201,9 @@ quiddity commit that has it.
      ("face 367 has area 13.080630 here and 13.100238 in the recognition JSON", 0.15%). Decide a
      principled tolerance (with evidence that the faces are the same) instead of exact agreement.
 - **Top priority from the maintainer (2026-10-08 evening): make quiddity-rust's CI much
-  faster** ("I'd like to speed it up a lot"). Now 37–57 min per push (run 37791515187 onward):
+  faster** (done in part by q-ci-fast, ea4eda7: Linux about 10 min, macOS about 20 min; under 10 on
+  macOS needs a decision on runners or kernel speed; draftwright-rust's CI is about 11 min)
+  ("I'd like to speed it up a lot"). Then 37–57 min per push (run 37791515187 onward):
   almost all of it is `cargo test --workspace --release`, which runs its 27 test binaries one after
   another on a 4-core runner (Linux: 52 min of tests after a 4 min compile; recognition.rs 13.1 min,
   invariance.rs 11.5, correspondence.rs 6.7, section_recess_helpers.rs 4.0, determinism.rs 2.7,
@@ -186,8 +223,10 @@ quiddity commit that has it.
   5. measure before and after on a pushed branch or a workflow_dispatch run, and record the
      numbers in the status file. Do the same for draftwright-rust's CI afterwards if it is cheap
      (now ~20 min, one job).
-- **Priority from the maintainer (2026-10-08 evening): draw PMI.** draftwright-rust reads no PMI
-  today (only Spec tolerances on dimensions); Python draftwright reads AP242 semantic PMI
+- **Priority from the maintainer (2026-10-08 evening): draw PMI** (stage 1, reading, done by
+  d-pmi-read; lowering and coverage lint are the next draftwright backlog items). When this was
+  written draftwright-rust read no PMI (only Spec tolerances on dimensions); Python draftwright
+  reads AP242 semantic PMI
   (pmi.py, _pmi_part21.py, _pmi_schema.py, _pmi_topology.py, _pmi_datum_geometry.py,
   _pmi_linear_geometry.py, _pmi_support_blockers.py), lowers it to drawing items
   (model/pmi_lowering.py: feature control frames and datum symbols, annotations/_gdt.py;
@@ -242,9 +281,8 @@ quiddity commit that has it.
     - An ISO 286 class stated without limits (FTC-10's three Ø3.50 G6): the record keeps the
       class and a blocker; haecceity has no ISO 286 table. Compute the limits (a table to add),
       or draw the class alone?
- - **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`
-   branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and
-- **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now.** The `ap242`
+- **Maintainer decision (2026-10-08 evening): merge AP242 into quiddity-rust now** (done:
+  q-merge-ap242, 48dbe43). The `ap242`
   branch (pushed, at a16d7af: lossless Part 21, schema validation, semantic PMI reader and
   writer, removal plan, `quiddity parts` / `quiddity pmi read|write`; four stages each integrated
   green on the branch) is to join `prototype/rust-port`. A new repo, specify-core-rust, depends on
@@ -253,7 +291,9 @@ quiddity commit that has it.
   both sides changed crates/haecceity/src/lib.rs, step.rs, src/bin/quiddity.rs, README.md and
   fixtures), run the full checks including the AP242 suites, update README's status for the
   merged capabilities; then the integrator merges it like any other stream.
-- **Top priority from the maintainer (2026-10-08 evening): callout leaders.** "Something is
+- **Top priority from the maintainer (2026-10-08 evening): callout leaders** (done by
+  d-callout-leaders, 9a4af8f; interior label candidates and outline-based checks still open).
+  "Something is
   wrong with the leaders, especially diagonals." Callouts are stacked in lanes beyond every linear
   dimension with a fixed 45° leader (`src/dims/placement.rs` `place_callout`, `turned`), so on a
   part with location ladders the leaders run across the view, the ladders and the sheet. Even
