@@ -77,9 +77,10 @@ impl Curve {
         }
     }
 
-    /// The curve's box, `[x0, y0, x1, y1]`: exact for a line; for a conic or Bézier piece, each
-    /// coordinate's extremes found by sampling 64 steps and refining each turning point by golden
-    /// section to 1e-12 of the parameter (a piece turns at most a few times).
+    /// The curve's box, `[x0, y0, x1, y1]`: exact for a line or a straight Bézier piece; for a
+    /// conic or any other piece, each coordinate's extremes found by sampling 64 steps and
+    /// refining each turning point by golden section to 1e-12 of the parameter (a piece turns
+    /// at most a few times).
     pub fn bbox(&self) -> [f64; 4] {
         let mut b = [f64::INFINITY, f64::INFINITY, -f64::INFINITY, -f64::INFINITY];
         let mut grow = |p: P| {
@@ -136,8 +137,14 @@ impl Curve {
                 *t1,
             ),
             Curve::Beziers(pieces) => {
-                for poles in pieces {
+                // A straight piece (a polyline's) spans its end points. Sampled, a piece
+                // parallel to an axis ties at every sample and has each one refined.
+                for poles in pieces.iter().filter(|p| p.len() != 2) {
                     sweep(&|t| de_casteljau(poles, t), 0.0, 1.0);
+                }
+                for poles in pieces.iter().filter(|p| p.len() == 2) {
+                    grow(poles[0]);
+                    grow(poles[1]);
                 }
             }
             Curve::Rational(pieces) => {

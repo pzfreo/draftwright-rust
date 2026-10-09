@@ -333,6 +333,10 @@ quiddity commit that has it.
   and confirms the speed-up (render time on NIST FTC 06 and CTC 02 before and after) and that the
   SVGs are byte-identical before and after on the 30 quality parts. Do not comment on, close or
   edit the PR. The integrator merges it like any other stream.
+  - Merged on branch `r/d-pr1-render-cache` (clean merge, no conflicts). CLI `render --analysis`,
+    release, median of 5 on a loaded box: FTC 06 9.80 s → 1.39 s, CTC 02 19.76 s → 12.00 s (one
+    fresh render, so the gain is the box fix; the kept `Projections` helps later renders). SVG
+    byte-identical on all 30 quality parts. Plan on FTC 06 0.37 s either way.
 - **Performance is part of quality: `plan` became much slower** (the PR's description): on NIST
   FTC 06 from 2 ms to about 490 ms natively (about 1 s in WASM; CTC 01 from 1.5 ms to 34 ms),
   between c1933ad and 2eee576, now about 70% of an edit in the maintainer's browser editor.
