@@ -175,6 +175,15 @@ mention takes its default.
 - **Nothing the plan approves vanishes silently.** An item that can't be drawn is reported
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.
+- **The sheet and scale the spec leaves open are re-planned when the layout fails** (ISSUE-1299-a,
+  `model::plan_recovered`, which every caller of the library is given): a plan with a hard
+  layout finding (ink off the sheet, overlapping labels, a line through a label, an overflowing
+  title field, views that do not fit) or hole locations too close to read is planned again on
+  draftwright's bounded ladder (a scale each way, or two larger, on its sheet; then each larger
+  sheet), and the first valid, complete try that lays no more ink over the views is taken
+  (`layout_replanned`, info, and the sheet's basis say so); none found keeps the first plan and
+  says so (`layout_recovery_exhausted`). A scale the spec names is never re-planned and a sheet
+  it names never left. Nothing is clipped.
 
 ### Dimensions (first cut)
 

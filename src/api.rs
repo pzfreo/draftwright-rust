@@ -148,13 +148,14 @@ pub fn plan(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Plan, E
 /// The Plan for the STEP file at *step*, with its features from *features*, under *spec*.
 pub fn plan_from(step: &Path, features: Features, spec: &Spec) -> Result<Plan, Error> {
     let (_, analysis) = analysed(step, features)?;
-    Ok(model::plan(&analysis, spec)?)
+    Ok(model::plan_recovered(&analysis, spec)?)
 }
 
 /// The Plan for *analysis* (made by [`analyse`]) under *spec*. No STEP file is read; a document
-/// of a version [`model::plan`] does not read is refused.
+/// of a version [`model::plan`] does not read is refused. Every plan here has draftwright's
+/// layout recovery applied ([`model::plan_recovered`]).
 pub fn plan_analysed(analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
-    Ok(model::plan(analysis, spec)?)
+    Ok(model::plan_recovered(analysis, spec)?)
 }
 
 /// Where an operation that draws takes the part's Analysis from.
@@ -213,7 +214,7 @@ pub fn edit(spec: &Spec, ops: &Value) -> Result<Spec, Error> {
 /// problems include the drawing's: what could not be drawn as planned.
 fn drawn(step: &Path, given: Given, spec: &Spec) -> Result<(Analysis, Plan, Drawing), Error> {
     let (part, analysis) = read(step, given)?;
-    let mut plan = model::plan(&analysis, spec)?;
+    let mut plan = model::plan_recovered(&analysis, spec)?;
     let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
     let drawing = model::render(&part, &analysis, &plan, &font).map_err(|e| {
         Error::failed(format!(
