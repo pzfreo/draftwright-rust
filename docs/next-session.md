@@ -369,6 +369,12 @@ quiddity commit that has it.
     its off-sheet location for one leader crossing (ink 27 to 28, rust-wrong in placement:
     draftwright carries the plan's Y locations in the side view); accept the trade until the ink
     stream moves that ladder, or hold Quality 3 until it does?
+  - Hole tables (d-hole-tables, `src/hole_table.rs`): hole items placed off the sheet are dropped,
+    reported and escalated as draftwright does; off the sheet 33 → 3 (the three slot locations),
+    no table kept on the corpus (as draftwright), `docs/quality-2026-10-09.md` "After hole tables".
+    Question for the maintainer: ftc09's 18 front-view hole locations and one pattern callout are now
+    dropped and reported (`off_axis_location_dropped` / `callout_dropped`, as draftwright drops them), not drawn off the sheet. Keep
+    draftwright's rule that off-axis drops never tabulate, or give the front view its own table?
 - **Maintainer decisions, 2026-10-09** (answers to recorded questions; dispatch these ahead of
   other backlog work):
   - **Hole tables:** adopt draftwright's drop-and-escalate. When the hole placers cannot place a

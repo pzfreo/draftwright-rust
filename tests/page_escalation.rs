@@ -201,9 +201,10 @@ fn spec(sheet: serde_json::Value) -> Spec {
     serde_json::from_value(serde_json::json!({ "sheet": sheet })).unwrap()
 }
 
-/// The plan with draftwright's recovery applied (`model::recover` on `model::plan`'s try).
+/// The plan with draftwright's recovery applied (`model::recover` on the first try, its hole items
+/// with no place dropped and escalated: `model::plan_escalated`), as `model::plan_recovered`.
 fn recovered(analysis: &Analysis, spec: &Spec) -> Plan {
-    let first = model::plan(analysis, spec).unwrap();
+    let first = model::plan_escalated(analysis, spec).unwrap();
     model::recover(analysis, spec, first).unwrap()
 }
 
@@ -252,8 +253,9 @@ fn a_plan_without_ink_off_the_sheet_keeps_its_first_choice_on_ctc01() {
 /// plan's bands, drawing quality 3, the label that ran off the sheet stands right of the plan)
 /// but two locations too close to read, a loss, so it tries the next two larger scales and then
 /// each larger sheet: A2 at 1:1 and 2:1, A1 and A0 at 1:1, each with hard findings, and each but
-/// 2:1 still with two locations too close to read; none is taken. Before the gate counted them,
-/// the port took 1:5, valid by its placement checks but with location witness lines as close as
+/// 2:1 still with two locations too close to read (their hole items placed off the sheet dropped,
+/// `src/hole_table.rs`, so A2 at 1:1 has 3 hard findings and 3 drops); none is taken. Before the
+/// gate counted them, the port took 1:5, valid by its placement checks but with location witness lines as close as
 /// 0.6 mm.
 #[test]
 fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
@@ -277,7 +279,7 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         said.message
     );
     for tried in [
-        "A2 at 1:1 (6 hard layout findings, 2 hole locations too close to read)",
+        "A2 at 1:1 (3 hard layout findings, 2 hole locations too close to read, 3 hole items dropped for want of room)",
         "A2 at 2:1 (",
         "A1 at 1:1 (",
         "A0 at 1:1 (",

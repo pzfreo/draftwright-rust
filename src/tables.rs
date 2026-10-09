@@ -280,7 +280,7 @@ pub fn check(tables: &[TableSpec]) -> Result<(), Invalid> {
 
 /// Each column's width, as `_table_metrics` measures it: its widest cell's ink and the padding
 /// each side, at least 2.5 text heights.
-fn widths(rows: &[Vec<String>]) -> Vec<f64> {
+pub(crate) fn widths(rows: &[Vec<String>]) -> Vec<f64> {
     (0..rows[0].len())
         .map(|c| {
             let ink = rows
@@ -332,31 +332,10 @@ pub fn plan(
             let [w, h] = [widths.iter().sum::<f64>(), ROW * rows.len() as f64];
             let (prefer, corner) = t.corner();
             let at = place([w, h], sheet, &obstacles, corner);
-            let placed = at.map(|[x0, y0]| {
-                let mut columns = vec![x0];
-                for w in &widths {
-                    columns.push(columns.last().expect("a column") + w);
-                }
-                let top = y0 + h;
-                let cells_at = rows
-                    .iter()
-                    .enumerate()
-                    .map(|(r, row)| {
-                        let y = top - (r as f64 + 0.5) * ROW;
-                        row.iter()
-                            .enumerate()
-                            .map(|(c, cell)| {
-                                span(cell).map(|_| [0.5 * (columns[c] + columns[c + 1]), y])
-                            })
-                            .collect()
-                    })
-                    .collect();
-                obstacles.push([x0, y0, x0 + w, top]);
-                PlacedTable {
-                    cells_at,
-                    columns,
-                    cells: [x0, y0, x0 + w, top],
-                }
+            let placed = at.map(|at| {
+                let p = lay(&rows, &widths, at);
+                obstacles.push(p.cells);
+                p
             });
             if placed.is_none() {
                 problems.push(Problem {
@@ -383,6 +362,34 @@ pub fn plan(
         })
         .collect();
     (items, problems)
+}
+
+/// A table of *rows*, its columns *widths* wide, laid with its lower-left corner at *at*: each
+/// column's edges and each cell's ink centre.
+pub(crate) fn lay(rows: &[Vec<String>], widths: &[f64], at: [f64; 2]) -> PlacedTable {
+    let [x0, y0] = at;
+    let mut columns = vec![x0];
+    for w in widths {
+        columns.push(columns.last().expect("a column") + w);
+    }
+    let top = y0 + ROW * rows.len() as f64;
+    let cells_at = rows
+        .iter()
+        .enumerate()
+        .map(|(r, row)| {
+            let y = top - (r as f64 + 0.5) * ROW;
+            row.iter()
+                .enumerate()
+                .map(|(c, cell)| span(cell).map(|_| [0.5 * (columns[c] + columns[c + 1]), y]))
+                .collect()
+        })
+        .collect();
+    let x1 = *columns.last().expect("a column");
+    PlacedTable {
+        cells_at,
+        columns,
+        cells: [x0, y0, x1, top],
+    }
 }
 
 /// Every cell a placed table draws, with its ink centre.
