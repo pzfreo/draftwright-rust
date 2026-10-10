@@ -1,7 +1,9 @@
 //! Hole callouts, in draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`): identical
 //! holes grouped and counted, quiddity's hole patterns called out as patterns with the pitches
 //! that space them, and every hole or pattern located from the part's box in the view that looks
-//! along it.
+//! along it. A hole that owns an AP242 thread ([`crate::pmi_lowering::manufacturing`]) prints it
+//! after its terms (`⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`, or `SEE MFG n`) on a callout
+//! of its own.
 //!
 //! Coincident locations from every family that locates from the part's box (holes, hole and slot
 //! patterns, bosses, slots) are merged here into one dimension per span ([`consolidate`],
@@ -376,13 +378,20 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
     }
 
-    // The holes left: identical ones grouped and counted (ARCH0008-2).
-    let mut groups: Vec<(Vec<i64>, Vec<usize>)> = Vec::new();
+    // The holes left: identical ones grouped and counted (ARCH0008-2). A hole that carries an
+    // AP242 thread keeps a callout of its own (draftwright: identical threads on distinct owners
+    // keep two annotations, ISSUE-1298-a).
+    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
+    // (requirement, the threaded hole's own ID), members.
+    type Group<'a> = ((Vec<i64>, Option<&'a str>), Vec<usize>);
+    let mut groups: Vec<Group> = Vec::new();
     for (i, h) in holes.iter().enumerate() {
         if taken.contains(&i) {
             continue;
         }
-        let req = h.requirement();
+        let threaded =
+            (!manufacturing.on(&h.feature.id).is_empty()).then_some(h.feature.id.as_str());
+        let req = (h.requirement(), threaded);
         match groups.iter_mut().find(|g| g.0 == req) {
             Some(g) => g.1.push(i),
             None => groups.push((req, vec![i])),
@@ -396,6 +405,40 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             terms.push(format!("{}×", members.len()));
         }
         terms.extend(first.terms());
+        let mut measurements: Vec<Measurement> = members
+            .iter()
+            .flat_map(|&m| holes[m].measurements())
+            .collect();
+        let mut threaded = String::new();
+        let (suffix, through) = manufacturing.terms(&first.feature.id);
+        if !suffix.is_empty() {
+            // draftwright's `hole_callout_spec`: the thread's suffix after the hole's terms (or
+            // `SEE MFG n`), a through tap's own `THRU` standing for the bore's.
+            if through {
+                terms.retain(|t| t != "THRU");
+            }
+            terms.extend(suffix);
+            let on = manufacturing.on(&first.feature.id);
+            for o in &on {
+                measurements.push(Measurement {
+                    feature: format!("pmi:{}", o.source),
+                    parameter: o.aspect.into(),
+                    value: first.diameter,
+                });
+            }
+            threaded = format!(
+                "; it carries the part's AP242 thread ({}), {}, as draftwright gives a thread to the hole whose bore its cylinder is (lower_ap242_manufacturing_requirements)",
+                on.iter()
+                    .map(|o| o.source.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                if manufacturing.tags.is_empty() {
+                    "printed after its size"
+                } else {
+                    "referred to the manufacturing requirements table"
+                }
+            );
+        }
         let note = members
             .iter()
             .find_map(|m| declined.get(m))
@@ -405,12 +448,12 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             views: vec![view],
             value: first.diameter,
             terms,
-            measurements: members.iter().flat_map(|&m| holes[m].measurements()).collect(),
+            measurements,
             turning: None,
             basis: if members.len() > 1 {
-                format!("identical holes drilled from one face are called out once and counted, where they are seen end-on{note}")
+                format!("identical holes drilled from one face are called out once and counted, where they are seen end-on{note}{threaded}")
             } else {
-                format!("a hole's size is called out where it is seen end-on{note}")
+                format!("a hole's size is called out where it is seen end-on{note}{threaded}")
             },
             shape: Shape::Callout {
                 sites: members
