@@ -409,6 +409,8 @@ pub(super) fn lanes<'a>(
                 let (tip, _) = callout_tip(f, sites, side == Side::Above);
                 (side, (3, -key(tip[0])))
             }
+            // An angle is placed about its vertex, in no strip ([`super::angular`]).
+            Shape::Angular { .. } => continue,
         };
         sides[i] = Some(side);
         strips
@@ -723,8 +725,9 @@ fn share_held(
 pub(super) fn place(frame: &Frame, w: &Want, side: Side, lane: usize) -> Option<Placed> {
     match &w.shape {
         Shape::Linear { .. } => place_linear(frame, &w.shape, &w.terms, side, lane),
-        // A callout's leader is placed with the others' ([`super::leaders`]).
-        Shape::Callout { .. } => None,
+        // A callout's leader is placed with the others' ([`super::leaders`]), an angle about its
+        // vertex ([`super::angular`]).
+        Shape::Callout { .. } | Shape::Angular { .. } => None,
     }
 }
 

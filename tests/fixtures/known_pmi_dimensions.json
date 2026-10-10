@@ -44,42 +44,6 @@
   "evidence": "draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it and lowers its PMI dimensions."
  },
  {
-  "file": "nist_ctc_01_asme1_ap242-e1.stp",
-  "record": "dimension:0:1:4:17",
-  "port": "dimension:#33",
-  "field": "outcome",
-  "python": {
-   "detail": "60 ±0.5",
-   "outcome": "standalone"
-  },
-  "rust": {
-   "detail": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet."
- },
- {
-  "file": "nist_ctc_01_merge.step",
-  "record": "dimension:0:1:4:17",
-  "port": "dimension:#33",
-  "field": "outcome",
-  "python": {
-   "detail": "60 ±0.5",
-   "outcome": "standalone"
-  },
-  "rust": {
-   "detail": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet."
- },
- {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
   "record": "dimension:0:1:4:110",
   "port": "dimension:#403",

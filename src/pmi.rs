@@ -263,6 +263,11 @@ pub struct Geometry {
     /// one does (draftwright's `support_view`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<String>,
+    /// An angular dimension's sides: its vertex and a witness on each side
+    /// ([`crate::dims::angular::geometry`]); its `axis` is then the normal of their plane, when it
+    /// is x, y or z.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub angle: Option<crate::dims::angular::Angle>,
     /// Why the attachment is not proven: the record is then not lowered.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasons: Vec<String>,

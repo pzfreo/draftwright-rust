@@ -257,12 +257,13 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
 
 /// Whether dimension record *r* lowers to a drawing item (draftwright's typed dimension), or why
 /// not: a function of the record alone. The kinds stage 2b (`dims::pmi_dimensions`) draws, a length
-/// along x, y or z between two proven stations or a diameter or radius seen end-on, lower; a record
-/// its reading or its faces block, a common label (which [`lower`] lowers as a label), an angle and
-/// an oblique or curved quantity do not (draftwright checks the faces when it extracts, so it says
-/// `pmi_not_extracted` where the port's reading holds the record and lowering refuses it). Where a
-/// lowered dimension then goes, a model dimension that states it or its own, is the drawing's;
-/// one the drawing does not state is `pmi_not_rendered`.
+/// along x, y or z between two proven stations, a diameter or radius seen end-on or an angle a view
+/// shows true, lower; a record its reading or its faces block, a common label (which [`lower`]
+/// lowers as a label), an angle no view shows true and an oblique or curved quantity do not
+/// (draftwright checks the faces when it extracts, so it says `pmi_not_extracted` where the port's
+/// reading holds the record and lowering refuses it). Where a lowered dimension then goes, a model
+/// dimension that states it or its own, is the drawing's; one the drawing does not state is
+/// `pmi_not_rendered`.
 fn dimension(r: &Record) -> Result<(), String> {
     if !r.blockers.is_empty() {
         return Err(r.blockers.join("; "));
@@ -289,7 +290,12 @@ fn dimension(r: &Record) -> Result<(), String> {
             "its axis is not along x, y or z; the port draws a diameter or radius seen end-on"
                 .into(),
         ),
-        ("angular", _) => Err("it is an angle, and the port draws no angular dimensions".into()),
+        // As the plan's `pmi_dimensions` decides: drawn where a view shows the angle true.
+        ("angular", _) => match g.angle.as_ref().map(|a| a.principal()) {
+            Some(Some(_)) => Ok(()),
+            Some(None) => Err("supported angular ink requires explicit coplanar rays in a principal view: the plane of its sides is oblique to every view, so none shows the angle true".into()),
+            None => Err("the sides of its angle were not derived (analyse the part again)".into()),
+        },
         (kind, _) => Err(format!(
             "the port draws no {} dimension",
             kind.replace('_', " ")
@@ -475,11 +481,28 @@ mod tests {
         let mut blocked = r.clone();
         blocked.blockers = vec!["the dimension modifier Reference is not carried".into()];
         assert!(dimension(&blocked).unwrap_err().contains("Reference"));
-        for (kind, why) in [("angular", "angle"), ("common_label", "common label")] {
-            let mut other = r.clone();
-            other.kind = kind.into();
-            assert!(dimension(&other).unwrap_err().contains(why), "{kind}");
-        }
+        let mut label = r.clone();
+        label.kind = "common_label".into();
+        assert!(dimension(&label).unwrap_err().contains("common label"));
+        // An angle lowers where a view shows it true, as the plan draws it.
+        let mut angle = r.clone();
+        angle.kind = "angular".into();
+        assert!(dimension(&angle).unwrap_err().contains("not derived"));
+        // The sides as the Analysis carries them (the lint names no planner type, ADR1-9).
+        let sides = |second: [f64; 3]| {
+            serde_json::from_value(serde_json::json!({
+                "vertex": [0.0, 0.0, 0.0], "first": [1.0, 0.0, 0.0], "second": second,
+            }))
+            .unwrap()
+        };
+        angle.geometry.as_mut().unwrap().angle = Some(sides([0.5, 0.866, 0.0]));
+        assert_eq!(dimension(&angle), Ok(()));
+        angle.geometry.as_mut().unwrap().angle = Some(sides([0.5, 0.6, 0.6]));
+        assert!(
+            dimension(&angle)
+                .unwrap_err()
+                .contains("oblique to every view")
+        );
     }
 
     #[test]

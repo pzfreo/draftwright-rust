@@ -15,11 +15,12 @@
 //!   length along x, y or z between its two proven stations, in the front view (x and z; the plan
 //!   when only the plan's witness is proven), or the side then the plan (y); a diameter by a
 //!   leader to its cylinder where it is seen end-on; a radius by a leader to a proven point of
-//!   its arc. Its label is the record's (`⌀62 +0.03/0`, `30`); a basic dimension's is boxed. It
-//!   is an ordinary planned dimension, placed with the others;
+//!   its arc; an angle about the vertex of its two planar sides, in the view that shows it true
+//!   ([`super::angular`]). Its label is the record's (`⌀62 +0.03/0`, `30`, `60 ±0.5`); a basic
+//!   dimension's is boxed. It is an ordinary planned dimension, placed with the others;
 //! - **or is not drawn, and says why**: a record whose reading left blockers, whose faces lie in
 //!   several placements of the part, or whose faces prove no witness (`pmi_not_lowered`, with
-//!   draftwright's reasons); a kind the port does not draw yet: an angle, a length oblique to
+//!   draftwright's reasons); a kind the port does not draw yet: a length oblique to
 //!   the views' axes, a diameter or radius not along x, y or z, a bolt circle whose holes carry
 //!   different requirements (draftwright splits it; the port splits count groups, grids and
 //!   lines), a counted turned diameter a record names only one of (`pmi_dimensions_not_ported`).
@@ -665,9 +666,40 @@ fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
     let band = requirement(r, value);
     let k = axis(g.axis.as_deref());
     match r.kind.as_str() {
-        "angular" => Outcome::Refused(not_ported(
-            "it is an angle, and the port draws no angular dimensions yet",
-        )),
+        "angular" => {
+            let Some(angle) = &g.angle else {
+                return Outcome::Refused(not_lowered(
+                    "the sides of its angle were not derived (the Analysis predates angular dimensions; analyse the part again)",
+                ));
+            };
+            // draftwright's `_angular_renderable`: drawn only where the angle shows true.
+            let Some(k) = angle.principal() else {
+                return Outcome::Refused(not_lowered(
+                    "supported angular ink requires explicit coplanar rays in a principal view: the plane of its sides is oblique to every view, so none shows the angle true",
+                ));
+            };
+            let view = end_on(k);
+            let basis = format!(
+                "source-authored: the AP242 angular dimension {} ({}), about the vertex of its two planar sides in the {view} view, which looks along the normal of their plane and so shows the angle true (draftwright's render_pmi); no recognised feature's dimension states it, so it stands beside them{}",
+                r.source_id,
+                r.label,
+                if r.basic {
+                    "; basic, so its label is boxed"
+                } else {
+                    ""
+                }
+            );
+            Outcome::Standalone(own(
+                r,
+                value,
+                view,
+                vec![view],
+                Shape::Angular {
+                    angle: angle.clone(),
+                },
+                basis,
+            ))
+        }
         "linear" | "thickness" => {
             let Some(k) = k else {
                 return Outcome::Refused(not_ported(

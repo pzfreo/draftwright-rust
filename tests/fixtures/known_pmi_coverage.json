@@ -615,15 +615,6 @@
   "evidence": "The file states no value for this dimension (haecceity's nonconformance finding); draftwright reads it as 0 through XCAF (known_pmi.json's rust-correct kind, label and value differences for it), the port reports it not read. port: \"the file states no nominal value (haecceity reads it without one); haecceity nonconformance on #25 (dimensional_location): a dimension without a dimensional_characteristic_representation: no value is…\""
  },
  {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_asme1_ap242-e1.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#33",
-  "verdict": "rust-wrong",
-  "evidence": "As known_pmi_dimensions.json's 'outcome' difference for dimension:0:1:4:17 (port dimension:#33): Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet. port: \"it is an angle, and the port draws no angular dimensions\""
- },
- {
   "code": "pmi_not_extracted",
   "file": "nist_ctc_01_merge.step",
   "python": null,
@@ -694,15 +685,6 @@
   "source": "material:0:0",
   "verdict": "rust-wrong",
   "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_01_merge.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#33",
-  "verdict": "rust-wrong",
-  "evidence": "As known_pmi_dimensions.json's 'outcome' difference for dimension:0:1:4:17 (port dimension:#33): Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet. port: \"it is an angle, and the port draws no angular dimensions\""
  },
  {
   "code": "pmi_not_extracted",
