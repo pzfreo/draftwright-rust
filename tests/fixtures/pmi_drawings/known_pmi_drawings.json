@@ -464,31 +464,6 @@
  },
  {
   "file": "nist_ctc_01_asme1_ap242-e1.stp",
-  "record": "dimension:0:1:4:17",
-  "port": "dimension:#33",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "60 ±0.5",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '60 ±0.5' (dimension, plan view); the port's: not drawn, refused (pmi_dimensions_not_ported). As known_pmi_dimensions.json (outcome, rust-wrong): Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet. Owner: src/dims/pmi_dimensions.rs (angular PMI dimensions need angle ink, not yet drawn by the port)."
- },
- {
-  "file": "nist_ctc_01_asme1_ap242-e1.stp",
   "record": "datum:0:1:4:2",
   "port": "datum:#34",
   "field": "drawing",
@@ -512,31 +487,6 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'A' (datum ref, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
- },
- {
-  "file": "nist_ctc_01_merge.step",
-  "record": "dimension:0:1:4:17",
-  "port": "dimension:#33",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "60 ±0.5",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_dimensions_not_ported"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "rust-wrong",
-  "evidence": "draftwright's drawing: '60 ±0.5' (dimension, plan view); the port's: not drawn, refused (pmi_dimensions_not_ported). As known_pmi_dimensions.json (outcome, rust-wrong): Angular PMI dimensions are not ported (the port draws no angle ink yet); reported, not dropped: PMI dimension dimension:#33 (60 ±0.5) is not drawn: it is an angle, and the port draws no angular dimensions yet. Owner: src/dims/pmi_dimensions.rs (angular PMI dimensions need angle ink, not yet drawn by the port)."
  },
  {
   "file": "nist_ctc_01_merge.step",

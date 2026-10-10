@@ -1018,8 +1018,9 @@ fn cylinder(part: &Part, f: usize) -> Result<Cylinder, &'static str> {
 /// `_linear_reference_stations` for a linear or thickness dimension, `_cylindrical_references`
 /// with `_diameter_reference_blockers` for a diameter): what [`crate::dims`] draws it from, and
 /// the reasons it cannot be drawn when its faces prove no witness. A radius is read as a
-/// diameter's cylinders are, with a proven site on its arc; an angle and the curved kinds keep
-/// no geometry (not drawn: see `pmi_dimensions`).
+/// diameter's cylinders are, with a proven site on its arc; an angle by its two planar sides
+/// ([`crate::dims::angular::geometry`]); the curved kinds keep no geometry (not drawn: see
+/// `pmi_dimensions`).
 pub fn dimension_geometry(part: &Part, r: &Record) -> Geometry {
     let mut g = Geometry::default();
     g.reasons.extend(crate::pmi::placements_reason(r));
@@ -1027,6 +1028,7 @@ pub fn dimension_geometry(part: &Part, r: &Record) -> Geometry {
     match r.kind.as_str() {
         "linear" | "thickness" => linear_geometry(part, r, value, &mut g),
         "diameter" | "radius" => cylinder_geometry(part, r, value, &mut g),
+        "angular" => crate::dims::angular::geometry(part, r, &mut g),
         "common_label" => return label_geometry(part, r),
         _ => {}
     }

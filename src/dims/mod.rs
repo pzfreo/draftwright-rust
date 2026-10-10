@@ -49,6 +49,7 @@
 //! [`levels`] (the height ladder) each say what their family wants dimensioned, and
 //! [`placement`] places it. A new family is a new planner module and an entry in the list.
 
+pub mod angular;
 mod bosses;
 mod edges;
 mod envelope;
@@ -116,7 +117,7 @@ pub(crate) fn font() -> &'static Font {
 pub struct PlannedDimension {
     /// `d:<feature>/<parameter>@<view>`; the feature is `envelope` for the overall extents.
     pub id: String,
-    /// `linear` or `callout`.
+    /// `linear`, `callout` or `angular`.
     pub kind: String,
     pub view: String,
     /// The measured value it leads with, mm (a callout's bore diameter).
@@ -221,6 +222,8 @@ enum Shape {
     },
     /// A leader to one of these circles (centre, radius), world mm.
     Callout { sites: Vec<(P3, f64)> },
+    /// An angle between two sides, drawn about its vertex ([`angular`]).
+    Angular { angle: angular::Angle },
 }
 
 #[derive(Clone, Debug)]
@@ -650,6 +653,7 @@ pub fn plan(
         .collect();
     placement::settle(&mut placed, analysis, sheet, views);
     let page = placement::Page::new(analysis, sheet, views);
+    angular::place(&frames, &all, &chosen, &mut placed, &page);
     let leader_problems = leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page);
     placement::place_merged(
         &frames,
@@ -688,6 +692,7 @@ pub fn plan(
             kind: match w.shape {
                 Shape::Linear { .. } => "linear",
                 Shape::Callout { .. } => "callout",
+                Shape::Angular { .. } => "angular",
             }
             .into(),
             view: format!("v:{view}"),
@@ -799,7 +804,7 @@ fn share(
                 a[axis].max(b[axis]),
                 w.terms.join(" "),
             )),
-            Shape::Callout { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } => None,
         }
     };
     let same = |s: &Span, t: &Span| {

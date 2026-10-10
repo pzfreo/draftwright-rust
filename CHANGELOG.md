@@ -26,13 +26,16 @@ The first alpha. Its gates and their state are in `docs/alpha1.md`.
   the general tolerance, default surface finish and edge-condition notes on the sheet.
 - The title block's material from the STEP file's one usable material property when the spec
   states none, as draftwright does.
+- Angular PMI dimensions between two planar faces, drawn about their vertex in the view that
+  shows the angle true (nist_ctc_01's `60 ±0.5` in the plan); one no view shows true is refused.
 - SVG, DXF, PDF (subset fonts, searchable text) and PNG output, each carrying its Spec;
   deterministic to the byte in every time zone.
 
 ### Known limitations
 
-- Angular and oblique PMI dimensions, and PMI thread, knurl and face-finish requirements, are
-  read and reported, not drawn; the PMI coverage lint is in progress.
+- Oblique PMI lengths, angles not between two planar faces (a cone's), and PMI thread, knurl
+  and face-finish requirements, are read and reported, not drawn; the PMI coverage lint is in
+  progress.
 - Section recesses and some other families are not read from quiddity-rust's document
   (`features_not_recognised`); an angled step is reported unsupported.
 - Revision rebinding (ADR R3) is not implemented.
