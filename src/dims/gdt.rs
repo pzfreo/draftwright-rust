@@ -20,16 +20,20 @@
 //!   a `TextBlock` callout on a `Leader`).
 //!
 //! **Placement** (additive to the dimensions' and leaders'): each item's strip is the one
-//! lowering chose; it stands beyond every dimension already in that strip, as draftwright tiers
-//! GD&T beyond the size, location and overall runs (`_GDT_SUBCHAIN`). Items of one strip are
-//! taken in turn (above and below a view, the rightmost leader first, as each frame runs right
-//! of its leader); each takes the nearest tier where its frame is on the sheet, off the views,
-//! the title block, the other labels and frames, and no line of it runs through a label or
-//! another view. A feature control frame with no such tier in its strip tries the other strips
-//! in draftwright's order (`_gdt_retry_sides`); a datum keeps its outward side but may attach at
-//! another proven site on its face. One with no clear place anywhere takes the best place found
-//! (on the sheet and off every label and frame, then off them only), and what it collides with
-//! is reported as for the dimensions (Policy B: kept and logged, never dropped). draftwright
+//! lowering chose, and the layout reserves room for it there ([`demand`],
+//! [`crate::layout::Strips::reserve_gdt`]); it stands beyond every dimension already in that
+//! strip across from it, as draftwright tiers GD&T beyond the size, location and overall runs
+//! (`_GDT_SUBCHAIN`) and reuses a tier where it is free (`_adjust_strip_candidate_labels`).
+//! Items of one strip are taken in turn (above and below a view, the rightmost leader first, as
+//! each frame runs right of its leader); each takes the nearest tier where its frame is on the
+//! sheet, off the views, the title block, the other labels and frames, no line of it runs
+//! through a label or another view, and it lies inside its view's reserved area. A feature
+//! control frame with no such tier in its strip tries the other strips in draftwright's order
+//! (`_gdt_retry_sides`); a datum keeps its outward side but may attach at another proven site on
+//! its face. One with no such place anywhere takes the best place found (clear but past the
+//! area, then on the sheet and off every label and frame, then off them only), and what it
+//! collides with is reported as for the dimensions (Policy B: kept and logged, never dropped,
+//! its ink past the area an `annotation_outside_area`). draftwright
 //! instead drops a frame or symbol its strips cannot hold (`pmi_dropped`) and may set a datum's
 //! symbol between its face and the strip where its projected material leaves whitespace, which
 //! the plan, holding no projected geometry, cannot judge.
@@ -44,7 +48,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::placement::{self, Frame, Page, boxes_overlap, crosses, ink_points};
+use super::placement::{self, Frame, Page, boxes_overlap, crosses};
 use super::{ARROW, ARROW_HALF, FONT, P2, Placed, PlannedDimension, TEXT, font};
 use crate::model::{Analysis, PlannedSheet, PlannedView, Problem};
 use crate::output::{Annotation, Curve, HAlign, Item, TextRun, VAlign};
@@ -123,7 +127,7 @@ const MATERIAL_R: f64 = 0.62 * TEXT;
 const TRIANGLE: f64 = 1.4 * TEXT;
 const RING: f64 = 0.7 * ARROW;
 /// The clearance beyond the dimensions, and between tiers.
-const CLEAR: f64 = 2.0;
+const CLEAR: f64 = crate::layout::GDT_CLEAR;
 const TIERS: usize = 16;
 
 /// A glyph laid out at its own origin, before it is placed.
@@ -444,10 +448,26 @@ fn candidate(datum: bool, tip: P2, side: &str, pos: f64, size: P2) -> Candidate 
     }
 }
 
+/// An item's extent across strip *side* from its site, page mm: a frame's or label's leader,
+/// shelf and box above or below its view, its box centred on the leader left or right; a datum's
+/// frame centred on its line.
+fn span(datum: bool, side: &str, size: P2) -> [f64; 2] {
+    if datum {
+        [-TEXT, TEXT]
+    } else if outward(side)[0] == 0.0 {
+        [0.0, SHELF + size[0]]
+    } else {
+        [-size[1] / 2.0, size[1] / 2.0]
+    }
+}
+
 /// The strip coordinate of an item's first tier in *side* of the view whose outline is *o*:
-/// beyond the outline and every dimension of that view on that side, with room for the
-/// leader's arrowhead or the datum's triangle.
-fn first_tier(datum: bool, side: &str, tip: P2, o: [f64; 4], ink: &[P2], size: P2) -> f64 {
+/// beyond the outline and every piece of that view's dimensions (*ink*: lines, arrows and label
+/// boxes as their corners) on that side that lies across from it, with room for the leader's
+/// arrowhead or the datum's triangle. A dimension elsewhere along the strip does not push it
+/// out (draftwright's lateral tier reuse, `_adjust_strip_candidate_labels`): its tier is free
+/// there.
+fn first_tier(datum: bool, side: &str, tip: P2, o: [f64; 4], ink: &[[P2; 2]], size: P2) -> f64 {
     let d = outward(side);
     let horizontal = d[0] == 0.0;
     let edge = match side {
@@ -456,9 +476,15 @@ fn first_tier(datum: bool, side: &str, tip: P2, o: [f64; 4], ink: &[P2], size: P
         "left" => -o[0],
         _ => o[2],
     };
+    let across = |p: P2| if horizontal { p[0] } else { p[1] };
+    let [a, b] = span(datum, side, size).map(|v| across(tip) + v);
     let base = ink
         .iter()
-        .map(|q| dot(*q, d))
+        .filter(|[p, q]| {
+            let (lo, hi) = (across(*p).min(across(*q)), across(*p).max(across(*q)));
+            lo < b + CLEAR && hi > a - CLEAR
+        })
+        .flat_map(|s| s.iter().map(|q| dot(*q, d)))
         .filter(|v| *v > edge)
         .fold(edge, f64::max);
     let along = dot(tip, d);
@@ -488,14 +514,16 @@ fn step(datum: bool, side: &str, size: P2) -> f64 {
 struct Obstacles<'a> {
     page: &'a Page<'a>,
     own: String,
+    /// The area reserved for its view and bands.
+    area: Option<[f64; 4]>,
     labels: Vec<[f64; 4]>,
     lines: Vec<[P2; 2]>,
 }
 
 impl Obstacles<'_> {
-    /// How well *c* fits, best first: 0 clear of everything; 1 on the sheet and off every label
-    /// and frame, a line of it through a label or another view; 2 off every label and frame only;
-    /// 3 neither.
+    /// How well *c* fits, best first: 0 clear of everything and inside its view's reserved area;
+    /// 1 clear of everything, past the area; 2 on the sheet and off every label and frame, a line
+    /// of it through a label or another view; 3 off every label and frame only; 4 neither.
     fn grade(&self, c: &Candidate) -> u8 {
         let b = c.label_box;
         let d = self.page.drawable();
@@ -503,13 +531,13 @@ impl Obstacles<'_> {
         let grown = [b[0] - 0.5, b[1] - 0.5, b[2] + 0.5, b[3] + 0.5];
         let off_labels = self.labels.iter().all(|l| !boxes_overlap(grown, *l));
         if !off_labels {
-            return 3;
+            return 4;
         }
         let furniture = on_sheet
             && !boxes_overlap(b, self.page.title_block())
             && self.page.views().iter().all(|(_, v)| !boxes_overlap(b, *v));
         if !furniture {
-            return 2;
+            return 3;
         }
         let lines_clear =
             self.page.views().iter().all(|(id, v)| {
@@ -520,7 +548,17 @@ impl Obstacles<'_> {
                     .lines
                     .iter()
                     .any(|l| self.labels.iter().any(|x| crosses(*l, *x)));
-        if lines_clear { 0 } else { 1 }
+        if !lines_clear {
+            return 2;
+        }
+        let inside = |q: &P2, a: [f64; 4]| {
+            q[0] >= a[0] - 1e-6 && q[0] <= a[2] + 1e-6 && q[1] >= a[1] - 1e-6 && q[1] <= a[3] + 1e-6
+        };
+        let within = self.area.is_none_or(|a| {
+            c.lines.iter().flatten().all(|q| inside(q, a))
+                && [[b[0], b[1]], [b[2], b[3]]].iter().all(|q| inside(q, a))
+        });
+        if within { 0 } else { 1 }
     }
 }
 
@@ -532,6 +570,65 @@ fn retries(side: &str) -> [&'static str; 3] {
         "left" => ["right", "above", "below"],
         _ => ["left", "above", "below"],
     }
+}
+
+/// The principal views' towards-the-viewer and up directions, third angle (`model::VIEWS`).
+const PRINCIPALS: [(&str, [f64; 3], [f64; 3]); 3] = [
+    ("front", [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]),
+    ("plan", [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+    ("side", [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+];
+
+/// The part's lowered PMI as the layout reserves room for it ([`crate::layout::Gdt`],
+/// [`crate::layout::Strips::reserve_gdt`]), *shown* saying which principal views the sheet
+/// carries: each item's strip as lowering chose it, its site across the strip, and its glyph's
+/// extents as [`plan`] places it (the leader and shelf of a frame or label, a datum's frame
+/// centred on its line), with the room [`first_tier`] leaves for the arrowhead or triangle.
+pub fn demand(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> Vec<crate::layout::Gdt> {
+    let (items, _) = crate::pmi_lowering::lower(analysis, shown);
+    let frames: BTreeMap<&str, Frame> = PRINCIPALS
+        .iter()
+        .map(|(name, toward, up)| (*name, Frame::looking(analysis, *toward, *up, [0.0; 2], 1.0)))
+        .collect();
+    items
+        .iter()
+        .map(|item| {
+            let datum = matches!(item.glyph, Glyph::Datum { .. });
+            let size = match &item.glyph {
+                Glyph::Datum { .. } => [H, H],
+                Glyph::Label { text } => label(text).size,
+                g => control_frame(g).0.size,
+            };
+            let horizontal = outward(item.side)[0] == 0.0;
+            let f = &frames[item.view];
+            let p = f.page(item.site);
+            let o = f.outline();
+            let depth = if datum {
+                H
+            } else if horizontal {
+                size[1]
+            } else {
+                SHELF + size[0]
+            };
+            crate::layout::Gdt {
+                view: item.view,
+                side: item.side,
+                at: if horizontal { p[0] } else { p[1] },
+                span: span(datum, item.side, size),
+                ends: if horizontal {
+                    [o[0], o[2]]
+                } else {
+                    [o[1], o[3]]
+                },
+                depth,
+                lead: if datum {
+                    0.9 * TRIANGLE + 0.8 * TEXT
+                } else {
+                    ARROW + 1.0
+                },
+            }
+        })
+        .collect()
 }
 
 /// The part's PMI lowered and placed around *views* on *sheet*, after the dimensions *dims*:
@@ -646,15 +743,24 @@ pub fn plan(
             continue;
         };
         let own = format!("v:{}", item.view);
-        let ink: Vec<P2> = dims
+        let ink: Vec<[P2; 2]> = dims
             .iter()
             .filter(|d| d.view == own)
             .filter_map(|d| d.placed.as_ref())
-            .flat_map(|p| ink_points(p).collect::<Vec<_>>())
+            .flat_map(|p| {
+                let b = p.label_box;
+                p.lines
+                    .iter()
+                    .chain(&p.arrows)
+                    .copied()
+                    .chain([[[b[0], b[1]], [b[2], b[3]]]])
+                    .collect::<Vec<_>>()
+            })
             .collect();
         let obstacles = Obstacles {
             page: &page,
             own: own.clone(),
+            area: page.area(item.view),
             labels: labels.clone(),
             lines: lines.clone(),
         };

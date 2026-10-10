@@ -10,7 +10,9 @@
 //! - **Annotation bands** ([`Strips`]): the height ladder, the X-location tiers above the plan,
 //!   the balloon ring, and the rows of Y-hole leaders below the front; each band then widened to
 //!   hold the lanes the port's own dimensions stack in ([`Demand::lanes`], which the plan sets),
-//!   the side view's bands from those lanes alone.
+//!   the side view's bands from those lanes alone; and, on a part with AP242 PMI, room for its
+//!   feature control frames, datum feature symbols and labels at the scale chosen
+//!   ([`Demand::gdt`], [`Strips::reserve_gdt`]), which draftwright does not reserve.
 //! - **Section A–A** through the densest row of Z-axis holes whose profile no standard view shows.
 //!
 //! Not ported here: the hole-callout band (it is measured from the callout labels, which come with
@@ -72,6 +74,14 @@ pub struct Demand {
     /// The lanes the port's own dimensions take beside each view (set from `dims::lanes` by the
     /// plan; none from [`read`]): the bands are widened to hold them ([`Strips::reserve`]).
     pub lanes: layout::Lanes,
+    /// The part's feature control frames, datum feature symbols and labels as the layout
+    /// reserves for them ([`Strips::reserve_gdt`]): with every principal view shown, and with
+    /// the side view not shown (where a datum on a y-normal plane moves to the plan).
+    pub gdt: [Vec<layout::Gdt>; 2],
+    /// Whether the GD&T's room starts beyond its strips' full lane counts
+    /// ([`Strips::reserve_gdt`]'s *beyond_lanes*): unset from [`read`]; the plan's second try
+    /// sets it (`model::plan_escalated`).
+    pub gdt_beyond_lanes: bool,
 }
 
 /// The part frame's point for quiddity's local *l*.
@@ -221,6 +231,10 @@ pub fn read(analysis: &Analysis) -> Demand {
         .cloned()
         .collect();
     d.section = section(&keyed, centre[1]);
+    d.gdt = [
+        crate::dims::gdt::demand(analysis, &|_| true),
+        crate::dims::gdt::demand(analysis, &|v| v != "side"),
+    ];
     d
 }
 
@@ -447,8 +461,8 @@ pub fn face_levels(part: &haecceity::Part) -> Vec<f64> {
 }
 
 /// Chooses the scale, sheet and arrangement for *request* with the bands *d* needs, the height
-/// ladder sized for the steps legible at the scale chosen ([`layout::converge_steps`]). *base*
-/// is the part's lowest z. Returns the choice, the bands, and the number of steps they hold.
+/// ladder sized for the steps legible at the scale chosen ([`layout::converge_steps`]), then the
+/// GD&T's bands at the scale chosen, re-chosen until they hold. *base* is the part's lowest z. Returns the choice, the bands, and the number of steps they hold.
 pub fn size(
     d: &Demand,
     request: &Request,
@@ -473,7 +487,34 @@ pub fn size(
         )
     };
     let count = |s: f64| legible(d, base, s);
-    layout::converge_steps(d.step_zs.len(), &measure, &choose, &count)
+    let (mut pick, mut strips, n) =
+        layout::converge_steps(d.step_zs.len(), &measure, &choose, &count);
+    // Room for the GD&T at the chosen scale; the bands only widen, so the choice moves one way
+    // along the ladder and settles (a pinned scale at once).
+    let views = request.views;
+    let shown = |v: &str| match v {
+        "front" => views.front,
+        "plan" => views.plan,
+        _ => views.side,
+    };
+    let gdt: Vec<layout::Gdt> = d.gdt[usize::from(!views.side && views.plan)]
+        .iter()
+        .filter(|g| shown(g.view))
+        .cloned()
+        .collect();
+    if !gdt.is_empty() {
+        let base = strips.clone();
+        for _ in 0..=layout::SCALES.len() * layout::PAGES.len() {
+            let mut wider = strips.clone();
+            wider.reserve_gdt(&base, &d.lanes, d.gdt_beyond_lanes, &gdt, pick.scale);
+            if wider == strips {
+                break;
+            }
+            strips = wider;
+            pick = choose(&strips);
+        }
+    }
+    (pick, strips, n)
 }
 
 #[cfg(test)]

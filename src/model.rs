@@ -922,10 +922,53 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
 /// or location placed off the sheet is dropped and reported, and may escalate to a plan-view hole
 /// table with balloons. What the recovery judges, as draftwright's escalation runs inside every
 /// build its recovery compares.
+///
+/// A plan that leaves feature control frames, datum feature symbols or PMI labels off the sheet
+/// or over another view is made again with their room reserved beyond every dimension lane of
+/// their strips (`layout::Strips::reserve_gdt`'s *beyond_lanes*), and that plan is taken when it
+/// leaves fewer: the first reserves within draftwright's estimate where the lane count overstates
+/// the dimensions, which on most parts keeps a larger scale, but where the dimensions run on
+/// past it an item can find no place (nist_stc_09 e4 at 1:1: 13 frames across the plan).
 pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    let mut p = plan(analysis, spec)?;
-    crate::hole_table::escalate(analysis, &mut p);
-    Ok(p)
+    let escalated = |beyond_lanes: bool| {
+        plan_with(analysis, spec, beyond_lanes).map(|mut p| {
+            crate::hole_table::escalate(analysis, &mut p);
+            p
+        })
+    };
+    let first = escalated(false)?;
+    let misplaced = gdt_misplaced(&first);
+    if misplaced == 0 {
+        return Ok(first);
+    }
+    let mut again = escalated(true)?;
+    if gdt_misplaced(&again) >= misplaced {
+        return Ok(first);
+    }
+    again.sheet.basis += &format!(
+        "; the GD&T's room reserved beyond every dimension lane of its strips, as reserved within \
+         draftwright's estimate, on {} at {}, {misplaced} of its items had no place on the sheet \
+         off the other views",
+        first.sheet.size, first.sheet.scale
+    );
+    Ok(again)
+}
+
+/// A plan's feature control frames, datum feature symbols and PMI labels off the sheet or over
+/// another view (`annotation_off_sheet`, `annotation_over_view`, `annotation_line_over_view`),
+/// at warning or error.
+fn gdt_misplaced(plan: &Plan) -> usize {
+    let ids: BTreeSet<&str> = plan.gdt.iter().map(|g| g.id.as_str()).collect();
+    plan.problems
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.code.as_str(),
+                "annotation_off_sheet" | "annotation_over_view" | "annotation_line_over_view"
+            ) && p.severity != "info"
+                && p.subjects.first().is_some_and(|s| ids.contains(s.as_str()))
+        })
+        .count()
 }
 
 /// Plans the sheet: which views, where, at what scale and on what sheet, as draftwright's layout
@@ -939,6 +982,12 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    plan_with(analysis, spec, false)
+}
+
+/// [`plan`], the GD&T's room reserved beyond every dimension lane of its strips when
+/// *gdt_beyond_lanes* ([`crate::demand::Demand::gdt_beyond_lanes`]).
+fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result<Plan, Invalid> {
     // A document of a version this build does not know is refused, never read as the nearest
     // one it does (ADR3-4).
     if !ANALYSIS_SCHEMAS.contains(&analysis.schema.as_str()) {
@@ -1046,6 +1095,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         }
     }
     let mut demand = crate::demand::read(analysis);
+    demand.gdt_beyond_lanes = gdt_beyond_lanes;
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
     // omits the profile view it keeps (front): the dropped view is then the only profile left;
     // or a PMI item is drawn in it (draftwright's `annotation_view_required`).

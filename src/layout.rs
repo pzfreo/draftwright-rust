@@ -178,6 +178,9 @@ pub struct Strips {
     pub sv_top: f64,
     pub sv_bottom: f64,
     pub sv_right: f64,
+    /// Left of the side view, between it and the front/plan column's right band: draftwright
+    /// reserves none; only the port's GD&T reservation ([`Strips::reserve_gdt`]) sets it.
+    pub sv_left: f64,
     /// Side-above dimensions that are not feature leaders (each takes an outward tier when the
     /// side view is staggered).
     pub side_ladder: usize,
@@ -204,6 +207,7 @@ impl Strips {
             sv_top: 0.0,
             sv_bottom: 0.0,
             sv_right: 0.0,
+            sv_left: 0.0,
             side_ladder: 0,
             plan_demand: false,
             side_step_y: false,
@@ -275,6 +279,175 @@ impl Strips {
         widen(&mut self.sv_top, lanes.side_above);
         widen(&mut self.sv_right, lanes.side_right);
     }
+
+    /// Reserves room at *scale* for the feature control frames, datum feature symbols and labels
+    /// *items* (`dims::gdt::demand`): each strip that holds any is at least the room its
+    /// dimensions take (below; *base* is the bands before any GD&T: draftwright's estimates,
+    /// widened by [`Strips::reserve`] where the port reserves its dimension lanes) and the tiers
+    /// its items stack in beyond it, as `dims::gdt` places them. A strip's items are packed in placement's order (above and below
+    /// a view, the rightmost leader first; left and right, the lowest first), each into the
+    /// nearest tier where its extent across the strip, leader included, is clear of the items
+    /// already there.
+    ///
+    /// draftwright reserves no band for GD&T: its frames and symbols compete for the strips the
+    /// dimensions' estimates leave (`annotations/_gdt.py`, `_GDT_SUBCHAIN`) and are dropped
+    /// when none holds them (`pmi_dropped`); its typed annotation scheme
+    /// (`layout_scheme.plan_annotation_scheme`) counts their lanes the same way, but only to
+    /// observe, or to cap an opt-in profile's bands, never to widen them. The port places and
+    /// reports every item (the maintainer's escalate-never-lose directive), so it reserves the
+    /// room they take. A part with none reserves nothing.
+    ///
+    /// The tiers start beyond the lesser of *base*'s band and the band of the strip's dimension
+    /// lanes ([`lane_band`]), or, with *beyond_lanes*, beyond the lanes' band whatever *base* is.
+    /// The lane count is an upper bound: it counts callouts, which take no lane, and every item
+    /// in a lane of its own, where placement shares lanes; so [`Strips::reserve`] keeps the bands
+    /// that face open paper (below the front, above and left of the plan) at draftwright's
+    /// estimates, and the GD&T's room starts within them too (nist_stc_09 e4: 45 lanes, 322 mm,
+    /// below a front whose dimensions take 173 mm at 1:1 on A1; tiers beyond the count drove its
+    /// scale down the ladder to 1:5). Where the dimensions then run past that start and leave an
+    /// item no place on the sheet off the other views, the plan is made again with
+    /// *beyond_lanes* (`model::plan_escalated`).
+    ///
+    /// The bands are those `geometry` reads: the front's above and below, the column's left and
+    /// right (shared by the front and the plan), the plan's above and below, the side's four. An
+    /// item that runs past the view's end along its strip (a frame hung right of a leader near
+    /// the right end) widens the band beyond that end as far. As in [`Strips::reserve`], the
+    /// front's lower band is then at least the side's. Bands only widen.
+    pub fn reserve_gdt(
+        &mut self,
+        base: &Strips,
+        lanes: &Lanes,
+        beyond_lanes: bool,
+        items: &[Gdt],
+        scale: f64,
+    ) {
+        let mut base = base.clone();
+        let strips: [(&str, &str, usize); 12] = [
+            ("front", "below", lanes.front_below),
+            ("front", "above", 0),
+            ("front", "left", 0),
+            ("front", "right", lanes.front_right),
+            ("plan", "above", lanes.plan_above),
+            ("plan", "below", 0),
+            ("plan", "left", lanes.plan_left),
+            ("plan", "right", 0),
+            ("side", "above", lanes.side_above),
+            ("side", "below", lanes.side_below),
+            ("side", "left", 0),
+            ("side", "right", lanes.side_right),
+        ];
+        for (view, side, n) in strips {
+            let mine: Vec<&Gdt> = items
+                .iter()
+                .filter(|g| g.view == view && g.side == side)
+                .collect();
+            if mine.is_empty() {
+                continue;
+            }
+            let start = if beyond_lanes {
+                lane_band(n)
+            } else {
+                base.band(view, side).min(lane_band(n))
+            };
+            let depth = gdt_band(&mine, start, scale);
+            let band = self.band(view, side);
+            *band = band.max(depth);
+            // A frame hung beside its leader near the view's end runs past the end: the band
+            // beyond that end holds it.
+            let ends = if matches!(side, "above" | "below") {
+                ["left", "right"]
+            } else {
+                ["below", "above"]
+            };
+            for g in mine {
+                let past = [
+                    g.ends[0] * scale - (g.at * scale + g.span[0]),
+                    g.at * scale + g.span[1] - g.ends[1] * scale,
+                ];
+                for (end, past) in ends.into_iter().zip(past) {
+                    let band = self.band(view, end);
+                    *band = band.max(past);
+                }
+            }
+        }
+        if !items.is_empty() {
+            self.fv_bottom = self.fv_bottom.max(self.sv_bottom);
+        }
+    }
+
+    /// The band `geometry` reads for strip *side* (`above`, `below`, `left`, `right`) of *view*.
+    fn band(&mut self, view: &str, side: &str) -> &mut f64 {
+        match (view, side) {
+            ("front", "below") => &mut self.fv_bottom,
+            ("front", "above") => &mut self.fv_top,
+            ("front" | "plan", "left") => &mut self.left,
+            ("front" | "plan", "right") => &mut self.right,
+            ("plan", "above") => &mut self.pv_authored_top,
+            ("plan", "below") => &mut self.pv_bottom,
+            (_, "above") => &mut self.sv_top,
+            (_, "below") => &mut self.sv_bottom,
+            (_, "left") => &mut self.sv_left,
+            _ => &mut self.sv_right,
+        }
+    }
+}
+
+/// The clearance `dims::gdt` keeps beyond a strip's dimensions and between its tiers, mm.
+pub const GDT_CLEAR: f64 = 2.0;
+
+/// A feature control frame, datum feature symbol or label as the layout reserves for it
+/// ([`Strips::reserve_gdt`]), from `dims::gdt::demand`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Gdt {
+    /// Its view (`front`, `plan` or `side`) and strip (`above`, `below`, `left`, `right`).
+    pub view: &'static str,
+    pub side: &'static str,
+    /// Its site across the strip (page x above and below, page y left and right), world mm from
+    /// the view's centre.
+    pub at: f64,
+    /// Its extent across the strip, page mm from its site, leader included.
+    pub span: [f64; 2],
+    /// The view's outline across the strip, world mm from its centre.
+    pub ends: [f64; 2],
+    /// Its extent outward, page mm: the frame's height above or below, its shelf and width
+    /// left or right; a datum's frame.
+    pub depth: f64,
+    /// The least distance from the view's outline to its near edge outward: room for the
+    /// leader's arrowhead or the datum's triangle.
+    pub lead: f64,
+}
+
+/// The band, page mm from the outline, that *items* of one strip need beyond *base* (the
+/// strip's dimensions' band) at *scale*: their tiers packed first fit.
+fn gdt_band(items: &[&Gdt], base: f64, scale: f64) -> f64 {
+    let horizontal = matches!(items[0].side, "above" | "below");
+    let mut order: Vec<&Gdt> = items.to_vec();
+    order.sort_by(|a, b| {
+        if horizontal {
+            b.at.total_cmp(&a.at)
+        } else {
+            a.at.total_cmp(&b.at)
+        }
+    });
+    // Each tier's extents across the strip and its depth.
+    let mut tiers: Vec<(Vec<[f64; 2]>, f64)> = Vec::new();
+    for g in order {
+        let x = [g.at * scale + g.span[0], g.at * scale + g.span[1]];
+        // The frames' grown boxes must not meet (`dims::gdt`'s 0.5 mm each way).
+        let clear = |t: &[[f64; 2]]| t.iter().all(|y| x[1] + 1.0 <= y[0] || y[1] + 1.0 <= x[0]);
+        match tiers.iter_mut().find(|t| clear(&t.0)) {
+            Some(t) => {
+                t.0.push(x);
+                t.1 = t.1.max(g.depth);
+            }
+            None => tiers.push((vec![x], g.depth)),
+        }
+    }
+    let start = items
+        .iter()
+        .map(|g| g.lead)
+        .fold(base + GDT_CLEAR, f64::max);
+    start + tiers.iter().map(|t| t.1).sum::<f64>() + (tiers.len() - 1) as f64 * GDT_CLEAR
 }
 
 /// The band right of the front view for its height ladder (draftwright's
@@ -624,6 +797,7 @@ fn geometry_with(
         top: strips.sv_top,
         right: sv_right_band,
         bottom: strips.sv_bottom,
+        left: strips.sv_left,
         ..Block::bare(sv_hw, fv_hh)
     };
     for (view, [x0, y0, x1, y1]) in &scaled.angular {
