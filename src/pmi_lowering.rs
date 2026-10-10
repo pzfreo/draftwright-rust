@@ -229,10 +229,15 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
             Category::Dimension => {}
             // A drawing-wide requirement is the sheet's ([`sheet_requirements`]).
             Category::ManufacturingRequirement if sheet_kind(&r.kind) => {}
-            // Other manufacturing requirements are read, not drawn yet (draftwright draws thread
-            // and knurl callouts and face finishes): said with draftwright's code for a record
-            // that produced no feature, never dropped. A face's requirement is a warning; a
-            // part's note is information.
+            // Other manufacturing requirements are read, not drawn yet: said with draftwright's
+            // code for a record that produced no feature, never dropped. A face's requirement is
+            // a warning; a part's note is information. draftwright draws no leader note for a
+            // thread or knurl: `lower_ap242_manufacturing_requirements` gives it to the one hole
+            // or turned step its cylinder proves, and that feature's callout prints its
+            // `callout_suffix` (`⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`), or `SEE MFG n`
+            // with a manufacturing requirements table (`manufacturing_schedule`): the port's
+            // hole and diameter callouts (`dims`) would carry it. Face finishes are not drawn
+            // either (`lower_ap242_face_finishes`).
             _ => {
                 let face = r.kind.ends_with("_thread")
                     || r.kind == "knurl"

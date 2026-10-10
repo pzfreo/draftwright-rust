@@ -1612,7 +1612,7 @@
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
   rust_test: "tests/pmi.rs::a_thread_pairs_with_the_structured_statement_on_its_callouts_faces"
-  rust_note: "Partly: thread and knurl requirements are read into draftwright's records with their structured fields (designation, fit class, pitch, tap drill, knurl pattern) and faces (`src/pmi.rs`); attaching them to their owning feature and drawing the callouts is not ported: each is a `pmi_not_lowered` warning in the plan."
+  rust_note: "Partly: thread and knurl requirements are read into draftwright's records with their structured fields (designation, fit class, pitch, tap drill, knurl pattern) and faces (`src/pmi.rs`); attaching them to their owning feature and drawing the callouts is not ported: each is a `pmi_not_lowered` warning in the plan. draftwright draws no leader note for them: the owning hole's or turned step's own callout prints the requirement's suffix (string_post_tapped: `⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`), or `SEE MFG n` with a manufacturing requirements table when two or more are imported and one suffix exceeds 52 characters (thumbwheel_thread_knurl: `ø6 SEE MFG 2`); porting it is in the hole and diameter callouts (`src/dims`, `pmi_dimensions`' owner matching) and the tables."
   port_note: "Keep: scenario GRM-03 AP242 -> plan thread/knurl callouts with PMI provenance."
 
 - id: ISSUE-1298-b
