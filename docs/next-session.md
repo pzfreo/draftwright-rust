@@ -170,6 +170,15 @@ pushed):
   location and escalate (`orchestrator.py` `_prepare_hole_table_run`). The port never drops: it
   places everything and records collisions as rust-wrong. Adopt drop-and-escalate, make hole
   tables spec-driven (a `t:<k>` of kind holes), or leave them out?
+- Accepted regressions (a1/baseline-regressions, `docs/quality-2026-10-09.md`, "Accepted
+  regressions"): of the seven cells worse than the 86ffcbc baseline, ctc03's three cells, ftc08's
+  crossings and ctc04's crossings are judged better drafting (labels and locations traded for
+  crossings, or a valid sheet). Two are accepted only on the part's balance, and are overturnable:
+  cgb245's crossing with `d:f:slot:3/slot_width.length@plan`'s lines (7.0 left of the plan, where
+  draftwright puts it right), and ctc02's text contacts, two more net (⌀120 THRU with hole_pattern:10,
+  and hole_pattern:5 with hole_pattern:4). Overturning either reopens questions 7 and 9 of the
+  alpha 1 readiness record (`docs/alpha1.md` section 6, branch r/d-alpha1-readiness), and the gate
+  is not met.
 - ISSUE-1247-a: draftwright reports an angled step as an explicit unsupported completeness
   outcome; the port has no completeness report. Carry an `unsupported` Problem for each angled
   step (removing it from `dims::UNDRAFTED`), or wait for a completeness report?
