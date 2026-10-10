@@ -201,16 +201,18 @@ mention takes its default.
   `subjects` are live item IDs only: the plan's items (the sheet as `sheet`) and the Analysis's
   features. What else a problem names is in `refs`: a PMI record's source (its Part 21
   provenance), a source not read, a recogniser family, a view not drawn (`v:section_aa`), the
-  height ladder (`step_level`), a title-block cell (`title_block/<field>`, the sheet its
+  height ladder (`step_level`), the whole part (`part`, for PMI not read), a title-block cell (`title_block/<field>`, the sheet its
   subject), a spec entry not applied, a thread a schedule states. `fix` is a list of `edit`
   operations that resolve the problem, given only where one does: a band of nothing removed
   (`tolerance_withheld`); an omitted dimension brought back, else its tolerance or fit removed
   (`tolerance_not_shown`); an omitted view restored (`dimension_view_not_shown`,
   `view_plan_incomplete`, `pmi_not_drawn`, `section_not_shown`) or the omitted dimension
   stating a PMI dimension brought back (`pmi_not_drawn`); a section with no plane un-asked
-  (`section_not_shown`); another revision's entries removed (`spec_entries_inactive`). Placement
+  (`section_not_shown`); an empty isometric omitted (`iso_projection_empty`); another revision's entries removed (`spec_entries_inactive`). Placement
   problems get theirs with `place` (S3). Each fix is applied and re-planned in
-  `tests/items.rs`, and the problem is gone.
+  `tests/items.rs` (the isometric's in `tests/views.rs`), and the problem is gone. Where the
+  turned-part rule, not the spec, dropped a view, the message says so and gives no fix (restoring
+  an omission the spec never made would fail).
 - **Nothing the plan approves vanishes silently.** An item that can't be drawn is reported
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.

@@ -269,8 +269,8 @@ pushed):
      sources not read, recogniser families, the undrawn section `v:section_aa`, the height
      ladder `step_level`, title-block cells (`title_block/<field>`, whose problems now name
      `sheet`), spec entries not applied, and a schedule's threads. A problem about the whole part
-     (`pmi_not_read`, `pmi_presentation_not_read`) has no subjects (as
-     `spec_from_other_revision` already had). Problem IDs are unchanged.
+     (`pmi_not_read`, `pmi_presentation_not_read`) has no subjects and names the part in `refs`
+     (`["part"]`; restored after review, as `spec_from_other_revision`'s own subjects stay empty). Problem IDs are unchanged.
   5. `severity` stays a string (`error`, `warning`, `info`): its JSON is the same as an enum's
      would be, and some 70 sites and many tests compare it as text.
   6. A view omitted by the spec is not added to the plan as an item (`views` lists drawn views,
