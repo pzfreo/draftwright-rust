@@ -6,8 +6,10 @@ fully-annotated engineering drawings from STEP B-rep. No OpenCascade: geometry c
 kernel, and features from the Rust port of quiddity, both in
 [quiddity-rust](https://github.com/pzfreo/quiddity-rust).
 
-**Status: working towards alpha 1** (`0.1.0-alpha.1`, not yet released). Its gates and their
-state are in `docs/alpha1.md`; what changed is in `CHANGELOG.md`. The port is checked against
+**Status: alpha 1** (`0.1.0-alpha.1`, not yet tagged: the version and tag are set when the
+release is cut). Its gates are in `docs/alpha1.md`; what changed is in `CHANGELOG.md`. It is an
+alpha: every drawing reports what it does not state, but drawings are not yet as clean as Python
+draftwright's on dense parts (see "Known limitations"). The port is checked against
 what Python draftwright produces, and every difference has a verdict (rust-correct, rust-wrong,
 equivalent, undetermined or not-applicable) in a known-differences list under
 `tests/fixtures/` (`known_*.json`).
@@ -36,8 +38,9 @@ lint); `--analysis` reuses an Analysis that `analyse` printed for the same file:
 ```
 draftwright analyse part.step > part.analysis.json     # the Analysis, features from Rust quiddity
 draftwright plan part.step --spec part.drawing.json    # the Plan, every choice with its basis
-draftwright plan part.step --analysis part.analysis.json
-                                                       # the Plan, without analysing again
+draftwright plan --analysis part.analysis.json         # the Plan, without analysing again (about
+                                                       # 16 ms on NIST FTC 06); naming part.step
+                                                       # too checks the Analysis was made from it
 draftwright edit part.drawing.json ops.json            # apply edits to a Spec
 draftwright render part.step --spec part.drawing.json -o out
                                                        # out.svg, out.dxf, out.pdf
@@ -86,17 +89,24 @@ yet been tried in a real client.
   the spec or the part's PMI, never guessed from the geometry.
 - **Hole tables** by draftwright's drop-and-escalate: a hole callout or location that cannot be
   placed on the sheet is dropped and reported, and a dense plan view escalates to a hole table
-  with balloons (`src/hole_table.rs`).
+  with balloons (`src/hole_table.rs`; limits under "Known limitations").
 - **Lint** (`src/lint/`, independent of the Plan and Spec): every recognised feature's
   requirements must be stated on the drawing; `review` reports what is not, with structural
   checks and a coverage backstop.
 - **PMI from AP242:** the part's semantic PMI is read through haecceity (`src/pmi.rs`) and drawn:
   feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`),
   and toleranced and basic dimensions (`src/dims/pmi_dimensions.rs`), given to the model
-  dimension that states the same quantity or drawn beside it (basic ones boxed); surface and
-  common labels with leaders; the general tolerance in the title block, the default surface
-  finish beside it and edge conditions as general notes. What is not drawn is reported, never
-  dropped silently.
+  dimension that states the same quantity or drawn beside it (basic ones boxed), angles between
+  two planar faces in the view that shows them true; surface and common labels with leaders;
+  thread and knurl requirements on the callout of the hole or turned step that owns them, or
+  `SEE MFG n` with a manufacturing requirements table; the general tolerance in the title block,
+  the default surface finish beside it, edge conditions as general notes, and the title block's
+  material from the file's one usable material. The layout reserves band space for frames,
+  datum symbols and labels. The **PMI coverage lint** (`src/lint/pmi_coverage.rs`) checks that
+  every PMI item is on the drawing or reported. What is not drawn is reported, never dropped
+  silently. Checked record by record against Python draftwright's drawings of 22 AP242 files
+  (NIST CTC/FTC/STC models and files written by specify-core and by haecceity's PMI writer):
+  every difference has a verdict, and none is rust-wrong.
 - **Output:** SVG, DXF, PDF and PNG (`src/output.rs`, `src/png.rs`). The PDF embeds subset
   fonts and carries every label as searchable text, callout symbols included; the SVG carries
   the text too. Every format embeds the Spec, which `draftwright spec` reads back.
@@ -108,16 +118,20 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
 
 ## What alpha 1 does not do
 
-- **PMI, not drawn yet:** angular dimensions, lengths oblique to the views' axes, diameters or
-  radii not along x, y or z, and bolt circles whose holes carry different requirements
-  (`pmi_dimensions_not_ported`). Thread, knurl and face-finish requirements, datum scheme and
-  model representation notes are read but not drawn yet; each is reported (`pmi_not_lowered`).
-  The PMI coverage lint (every PMI item on the drawing or reported) is in progress. See
-  `tests/fixtures/known_pmi.json` and `known_pmi_dimensions.json`.
-- **Families not read natively:** section recesses (pockets, channels, blind slots, circular
-  recesses) are not in Rust quiddity's recognition document yet, and some families it has
-  (oriented chamfers, …) are not read. Both are named in the Analysis and reported as
-  `features_not_recognised`; `--features` gives them from Python quiddity.
+- **PMI, not drawn yet:** lengths oblique to the views' axes, a cone's angle (an angle no view
+  shows true), diameters or radii not along x, y or z, a size several faces state together that
+  draftwright gives its own step, and bolt circles whose holes carry different requirements
+  (`pmi_dimensions_not_ported`). A thread or knurl on a boss, face-finish requirements, datum
+  scheme and model representation notes are read but not drawn; each is reported
+  (`pmi_not_lowered`). A record haecceity could read only in part (NIST CTC-02's
+  composite_shape_aspect groups, for example) is reported, not drawn, where draftwright draws
+  OpenCascade's reading.
+- **Families not read natively:** draftwright's section recesses (pockets, channels, blind
+  slots, passages, read as one section-recess feature) are not in Rust quiddity's recognition
+  document: it carries the pocket, channel, blind slot and passage records they are made from,
+  which the reader does not take. Some other families it has (oriented chamfers, …) are not read
+  either. Both are named in the Analysis and reported as `features_not_recognised`;
+  `--features` gives section recesses from Python quiddity.
 - **Families read but not dimensioned:** a recognised feature that no planner claims (blends,
   for example) gets a `dimensions_not_ported` info problem. An angled step cannot be dimensioned
   (draftwright has no grammar for it) and gets an `angled_step_requirement_unsupported` warning.
@@ -127,48 +141,61 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
 - **Revisions:** a spec made for another revision of the part keeps its sheet, view and
   envelope choices, but its feature entries stay inactive until revision rebinding (ADR R3) is
   implemented.
-- **Quality gaps remain:** ink collisions (leaders crossing, text on lines) and a few
-  annotations off the sheet on the larger NIST parts, measured with `tools/quality.py`; the
-  current figures and each remaining case's verdict are in `docs/quality-2026-10-09.md`. The
-  port places every item other than hole items (dropped and escalated, above) and reports what
-  collides, where draftwright drops more.
+- **Callouts inside a view:** draftwright puts some callouts over blank face inside the view;
+  the port places every annotation outside the views (it has no view line-work to test against,
+  ADR R1), so some leader crossings draftwright avoids that way remain (below).
 - **The rules catalogue** (`docs/rules/`) tracks what Python draftwright learnt; most of its
   rules are still pending.
 - DXF table head handles (ezdxf adds them on audit) are not written.
 
 ## Known limitations
 
-Measured with `tools/quality.py` on the 30 parts of `tools/quality_parts.txt`; the figures, the
-per-part comparison with the baseline and the evidence are in `docs/quality-2026-10-09.md`
-("Alpha 1 gate audit"). No annotation lies over a view and no annotation line crosses one; no
-annotation is off the sheet. What remains is reported on the plan, never hidden:
+Measured for alpha 1 at 873506e with `tools/quality.py` on the 30 parts of
+`tools/quality_parts.txt`; the per-part figures, the comparison with the 86ffcbc baseline and
+the evidence are in `docs/quality-2026-10-09.md`. On those parts no annotation is off the sheet,
+no view overlaps another or the title block, no annotation lies over a view and no annotation
+line crosses one. What remains (282 ink problems, from 506 at the baseline) is reported on the
+plan, never hidden:
 
-- **Leader crossings, 108** (`annotation_leader_crossing`, warning; ctc04 29, ftc08 24,
-  ctc02 19, others 36). Rust-wrong, inventory-limited: nearly every one is a crossing that every
-  candidate leader of that callout has (71 of 73 measured), so no ordering or cost change removes
-  it. draftwright avoids some by putting callouts inside the view over blank face (needs the
-  view's line-work; not ported, ADR R1) and the plan's Y locations above the side view (an open
-  question).
+- **Leader crossings, 109** (`annotation_leader_crossing`, warning; ctc04 29, ftc08 24,
+  ctc02 21, others 35). Rust-wrong, mostly inventory-limited: in a sample of 73 measured earlier,
+  71 were crossings every candidate leader of that callout has, so no ordering or cost change
+  removes them. draftwright avoids some by putting callouts inside the view (above) and the
+  plan's Y locations above the side view (an open maintainer question).
 - **Ink past a view's area, 155** (`annotation_outside_area`, info). Rust-wrong as to the
   reservation, harmless on the page: lanes above and left of the plan and below the front run
   past the bands draftwright's estimate gives them, onto open paper, crossing nothing; reserving
   those bands moves sheets and scales on other parts (an open question).
-- **Ink overlaps, 20** (`annotation_ink_overlap`, warning: a line through a label). Rust-wrong;
-  how a text contact weighs against a leader crossing is an open question (draftwright gates
-  text first).
-- **Worse than the first quality baseline** on a few parts and codes (ctc03's ink 21 to 24,
-  more leader crossings on cgb245, ctc04 and ftc08, two more ink overlaps on ctc02), each
-  traced to its merge and waiting on an open maintainer question.
-- **Off the sheet or over a view on the AP242 fixtures:** no feature control frame, datum
-  feature symbol or label since d-gdt-band-space (6 off the sheet and 15 over a view before, on
-  ctc_02, stc_09, spool_fits and thumbwheel); none on the 30 measured parts. 41 still stand past
-  their view's area, on the sheet and clear of the other views, and stc_09 is drawn at 1:5
-  where draftwright keeps 1:1 (`docs/quality-2026-10-09.md`, "GD&T band space").
+- **Ink overlaps, 18** (`annotation_ink_overlap`, warning: a line through a label; ctc02 7,
+  ftc08 7, ftc10 3, ftc09 1). Rust-wrong; how a text contact weighs against a leader crossing
+  is an open question (draftwright gates text first).
+- **Worse than the 86ffcbc baseline, accepted:** ctc03's ink 21 to 24 (a valid A2 sheet where
+  the baseline's A3 had lines through labels), leader crossings on ftc08 (22 to 24) and ctc04
+  (27 to 29), traded for locations brought onto the sheet and labels kept clear, and cgb245's
+  leader crossings 0 to 2: one trades an off-sheet location for a crossing, the other follows
+  from merged items sharing a lane and is accepted as an overturnable judgement. Each is in
+  `docs/quality-2026-10-09.md`, "Accepted regressions".
+- **Repeated dimension labels, 18** (16 groups on 9 parts), each with a verdict against
+  draftwright's sheet in `tests/fixtures/known_repeated_labels.json` (kept by
+  `tests/repeated_labels.rs`): 10 groups are identical features each dimensioned, 5 are distinct
+  quantities that happen to share a value, and 1 (ftc10's front `12.5`, a hole location and a
+  step-height rung on one span) is a repeat draftwright also makes, pending a maintainer
+  question. The repeats on the AP242 fixtures (below) have no such verdicts yet.
+- **The AP242 fixtures** (22 files with PMI, not in the 30): no frame, datum symbol, label or
+  dimension is off the sheet or over a view, but dense parts carry much more ink: 1736 problems
+  in all (1525 leader crossings, 132 past a view's area, 79 ink overlaps), most on NIST STC-09
+  (521), FTC-10 (449) and STC-10 (288). STC-09 is drawn on A1 at 1:5 where draftwright keeps
+  1:1 by dropping 15 items. Undetermined PMI differences (a part placed several times,
+  dimensions on supplemental geometry, an ISO 286 class stated without limits, records
+  haecceity reads only in part) wait on maintainer questions; see the `known_pmi*.json` fixtures.
 - **Hole tables** are drawn only by drop-and-escalate: a hole callout or location whose ink runs
-  off the sheet is dropped and reported, and a plan-view drop escalates to a hole table with
-  balloons. On the 30 parts, ftc08 drops 3 plan-view locations and ftc09 a callout and 13
-  off-axis locations (no table row, as draftwright drops them). Hole tables are not an alpha 1
-  gate.
+  off the sheet is dropped and reported (`callout_dropped`, `location_ref_dropped`,
+  `off_axis_location_dropped`), and a plan-view drop escalates to a hole table with balloons
+  only when the plan has at least 16 holes outside any pattern. An item that collides, rather
+  than leaving the sheet, is placed and reported, not dropped; balloons are placed more simply
+  than draftwright's, and a table whose balloons do not all land is withdrawn whole. On the 30
+  parts no table is drawn: ftc08 drops 3 plan-view locations and ftc09 a callout and 13
+  off-axis locations. Hole tables are not an alpha 1 gate.
 
 ## Background: the four hard pieces
 

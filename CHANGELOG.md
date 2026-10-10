@@ -38,14 +38,22 @@ The first alpha. Its gates and their state are in `docs/alpha1.md`.
   nist_stc_09's hole callouts and their position frames are drawn, counted over the pattern.
 - SVG, DXF, PDF (subset fonts, searchable text) and PNG output, each carrying its Spec;
   deterministic to the byte in every time zone.
+- The PMI coverage lint: every PMI item is on the drawing or reported.
+- `plan` from a saved Analysis is fast again (the maintainer's render cache and straight-piece
+  boxes, PR #1): about 16 ms on NIST FTC 06, from about 490 ms; drawings unchanged.
+- Drawing quality on the 30 measured parts (`tools/quality_parts.txt`), against the 86ffcbc
+  baseline: annotations off the sheet 34 to 0, overlapping views 34 to 0, views on the title
+  block 1 to 0, repeated labels 50 to 18 (each remaining one verdicted), ink problems 506 to 282,
+  with none over a view.
 
 ### Known limitations
 
-- Oblique PMI lengths, angles not between two planar faces (a cone's), face-finish requirements
-  and a thread or knurl on a boss are read and reported, not drawn; the PMI coverage lint is in
-  progress.
+- Oblique PMI lengths, a cone's angle, a thread or knurl on a boss and face-finish
+  requirements are read and reported, not drawn.
 - Section recesses and some other families are not read from quiddity-rust's document
   (`features_not_recognised`); an angled step is reported unsupported.
 - Revision rebinding (ADR R3) is not implemented.
-- Remaining layout quality gaps are listed in `docs/quality-2026-10-09.md`; the full list is
-  in the README, "What alpha 1 does not do".
+- 282 ink problems remain on the 30 measured parts (109 leader crossings, 155 cases of ink
+  past a view's area, 18 lines through labels), four parts have accepted cells worse than the
+  baseline, dense AP242 parts carry much more ink, and hole tables are drawn only by
+  drop-and-escalate; the README's "Known limitations" lists each with its counts and verdict.
