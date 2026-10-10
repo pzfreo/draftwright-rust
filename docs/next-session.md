@@ -89,10 +89,10 @@ pushed):
     A3 1:2, A3 2:1, A2 1:1, A1 2:1 each with a hard finding -> A0 2:1); draftwright takes A1
     1:1, incomplete (`pmi_dropped` '45', `scale_decision`). Pinned to A1 1:1 by a spec the port's
     plan has no hard layout finding and drops nothing: rust-wrong, but the cause is the first
-    sheet choice's bands, not the recovery (corrected by d-plate-pin-recovery, below). Quality
-    (`tools/quality.py`,
-    `tools/quality_parts.txt`, release): 475eefc (before the labels), origin/main ba0bd72 and
-    this head give byte-identical `baseline.json`; no part changes in any column:
+    sheet choice's bands, not the recovery (corrected by d-plate-pin-recovery, below).
+    Quality (`tools/quality.py`, `tools/quality_parts.txt`, release): 475eefc (before the labels),
+    origin/main ba0bd72 and this head give byte-identical `baseline.json`; no part changes in any
+    column:
 
     | part | off_sheet | repeated_label | repeated_measure | views_overlap | view_on_title_block | ink |
     |---|---|---|---|---|---|---|
