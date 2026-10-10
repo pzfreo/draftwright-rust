@@ -396,6 +396,26 @@ quiddity commit that has it.
     caller need not re-analyse;
   - quiddity-rust's CI also runs on macOS, beside Linux.
 
+- **Alpha 1: what is left, and nothing else (main session, 2026-10-10 morning).** The readiness
+  audit (d-alpha1-readiness) found the run starting work outside alpha 1 (angular dimensions,
+  volume-probe calls, CI shard balance, face moments). Stop that: dispatch ONLY the items below,
+  in this order, and no other stream in any repo until they are done:
+  1. **d-pmi-hole-occurrences-reverdict** (in flight): re-verdict the four PMI comparison
+     fixtures on nist_stc_09 after haecceity's basic_round_hole reading (694dc17), so the suite is
+     green at the new pin before it is pushed.
+  2. **d-pmi-haecceity-written** and **d-gdt-band-space** (frames and datum symbols off the sheet
+     or over a view on ctc02, stc_09, spool_fits, thumbwheel): finish them.
+  3. **Repeated-label verdicts (new stream, nobody has it):** for each of the 18 repeated labels
+     in docs/alpha1.md section 6, a verdict with evidence against Python draftwright's drawing of
+     the same part, committed in the repository (e.g. tests/fixtures/known_repeated_labels.json
+     with a test that every repeat in tools/quality.py's output has an entry). Fix any that are
+     wrong (the same quantity stated twice) rather than verdicting them.
+  4. **No part worse than the baseline (new stream):** the 7 cells on ctc03, ftc08, ctc02, cgb245
+     and ctc04 that are worse than docs/quality-2026-10-09.md: bring each back to at most its
+     baseline, or record why the new figure is better drafting (e.g. a hole item now drawn that
+     was dropped), with the maintainer's question if it is a trade.
+  The README and CHANGELOG are corrected by the main session at the release cut; do not dispatch
+  streams for them. When 1-4 are merged, dispatch nothing more.
 - **The run ends with alpha 1 (maintainer, 2026-10-09):** once the gates in `docs/alpha1.md`
   are met, dispatch nothing new (return no streams); let in-flight streams finish and integrate.
 - **Milestone: alpha 1 (maintainer, 2026-10-09). Read `docs/alpha1.md`; it governs dispatch.**
