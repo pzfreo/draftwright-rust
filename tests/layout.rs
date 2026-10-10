@@ -117,6 +117,8 @@ fn request(c: &Value) -> Request {
             sv_top: f(&s["sv_top"]),
             sv_bottom: f(&s["sv_bottom"]),
             sv_right: f(&s["sv_right"]),
+            // draftwright has no band left of the side view (only the port's GD&T sets it).
+            sv_left: 0.0,
             side_ladder: s["side_ladder"].as_u64().unwrap() as usize,
             plan_demand: s["plan_demand"].as_bool().unwrap(),
             side_step_y: s["side_step_y"].as_bool().unwrap(),
