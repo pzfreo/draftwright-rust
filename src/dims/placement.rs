@@ -719,6 +719,12 @@ fn share_held(
         lanes[i] = lane;
         taken.entry((view, side, lane)).or_default().push(e);
     }
+    // What is left in `places` keeps its own lane and is not added to `taken`, which needs no
+    // entry for it: that lane is the item's lane in the strip it overflowed, at or past the
+    // strip's cut, and the strip holds only the lanes inside its cut (an overflowing strip takes
+    // nothing from across, so [`fall_through`] never raises its count). Every place above is
+    // inside a held lane, so no item placed here can land in it, and a strip's lanes are
+    // distinct, so no two items left over share one. [`separate`] counts it when it opens lanes.
 }
 
 /// Places *w* in lane *lane* of strip *side* of its view; none for a callout.

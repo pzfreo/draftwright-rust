@@ -381,6 +381,7 @@ quiddity commit that has it.
     and CHANGELOG.md (`0.1.0-alpha.1 (unreleased)`) were written at origin/main 15629f1 (PMI
     stage 1b included); the main session must refresh both before cutting the release for what
     merged after: d-quality-merged-lanes, d-pmi-drawings-check and the PMI coverage lint (stage 3).
+  - Settled (d-placement-share-held-taken): the gate audit review's minor point (stranded items `share_held` leaves unplaced are not in `taken`) is not a defect; such items keep lanes past their strip's held lanes, distinct and never a candidate place (evidence in `docs/quality-2026-10-09.md`, end of "Alpha 1 gate audit"; comment in `share_held`).
 - **Merge the maintainer's PR #1 first (2026-10-09):** "Render: keep each view's projection
   across renders; box straight pieces by their end points" (branch `perf/render-cache`, by the
   maintainer; read its description with `gh pr view 1`). Dispatch at once a stream `d-pr1-render-cache`
