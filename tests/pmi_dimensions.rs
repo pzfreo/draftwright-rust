@@ -204,18 +204,26 @@ fn python_outcome(rec: &Value) -> (String, Value, Value) {
     )
 }
 
-/// The planned item that states the port's record, if any.
-fn stating<'a>(plan: &'a Plan, r: &Record) -> Option<&'a PlannedDimension> {
-    let feature = format!("pmi:{}", r.source_id);
+/// The item ID of the record *r* of *a* (`pmi:<identity>`), if it has one.
+fn item_id(a: &Analysis, r: &Record) -> Option<String> {
+    match &a.pmi {
+        Some(Reading::Read(report)) => report.identities().ids.get(&r.source_id).cloned(),
+        _ => None,
+    }
+}
+
+/// The planned item that states the port's record, if any: the one claiming its item ID.
+fn stating<'a>(plan: &'a Plan, a: &Analysis, r: &Record) -> Option<&'a PlannedDimension> {
+    let feature = item_id(a, r)?;
     plan.dimensions
         .iter()
         .find(|d| d.measurements.iter().any(|m| m.feature == feature))
 }
 
 /// The port's outcome for its record, in draftwright's terms.
-fn rust_outcome(plan: &Plan, r: &Record) -> (String, Value, Value) {
-    if let Some(d) = stating(plan, r) {
-        let own = d.id.starts_with(&format!("d:pmi:{}/", r.source_id));
+fn rust_outcome(plan: &Plan, a: &Analysis, r: &Record) -> (String, Value, Value) {
+    if let Some(d) = stating(plan, a, r) {
+        let own = item_id(a, r).is_some_and(|id| d.id.starts_with(&format!("d:{id}/")));
         if d.placed.is_none() {
             return ("dropped".into(), Value::Null, Value::Null);
         }
@@ -271,7 +279,7 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
         let drawn = rust
             .iter()
             .filter(|r| r.category == Category::Dimension)
-            .filter(|r| stating(plan, r).is_some_and(|d| d.placed.is_some()))
+            .filter(|r| stating(plan, a, r).is_some_and(|d| d.placed.is_some()))
             .count();
         diffs.push(Diff {
             file: file.into(),
@@ -317,7 +325,7 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
             continue;
         }
         let (po, pv, pl) = python_outcome(rec);
-        let (ro, rv, rl) = rust_outcome(plan, r);
+        let (ro, rv, rl) = rust_outcome(plan, a, r);
         if po != ro {
             diff(
                 "outcome",
@@ -338,7 +346,7 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
         .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
     {
         if !seen.contains(&r.source_id) {
-            let (ro, _, rl) = rust_outcome(plan, r);
+            let (ro, _, rl) = rust_outcome(plan, a, r);
             diffs.push(Diff {
                 file: file.into(),
                 record: r.source_id.clone(),
@@ -465,7 +473,7 @@ fn every_dimension_is_drawn_or_reported_never_both() {
             .iter()
             .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
         {
-            let stated = stating(&plan, r);
+            let stated = stating(&plan, &a, r);
             let reported = plan
                 .problems
                 .iter()
@@ -520,7 +528,7 @@ fn the_open_questions_stay_refused() {
             .collect();
         assert!(!open.is_empty(), "{stem}: {needle}");
         for r in open {
-            assert!(stating(&plan, r).is_none(), "{}", r.source_id);
+            assert!(stating(&plan, &a, r).is_none(), "{}", r.source_id);
             let p = plan
                 .problems
                 .iter()
@@ -541,22 +549,27 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
     let callout = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter@plan")
+        .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter")
         .unwrap();
     assert_eq!(callout.label, "6× ⌀10 +0.09 -0.0 THRU EQ SP ON ø90 BC");
     assert!(callout.basis.contains("lower_ap242_hole_tolerances"));
-    let source = callout
+    let feature = callout
         .measurements
         .iter()
-        .find_map(|m| m.feature.strip_prefix("pmi:"))
+        .find(|m| m.feature.starts_with("pmi:"))
         .unwrap()
-        .to_string();
+        .feature
+        .clone();
+    let Some(Reading::Read(report)) = &a.pmi else {
+        panic!("its PMI is read")
+    };
+    let source = report.identities().source(&feature).unwrap().to_string();
     // Stated once: no item of its own.
     assert!(
         !plan
             .dimensions
             .iter()
-            .any(|d| d.id.starts_with(&format!("d:pmi:{source}/")))
+            .any(|d| d.id.starts_with(&format!("d:{feature}/")))
     );
     // The spec's own tolerance on that size wins, and the PMI one is said not drawn.
     let mut spec = Spec::default();
@@ -631,7 +644,7 @@ fn holes_of_different_requirements_are_called_out_apart() {
     let labels: Vec<&str> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/bore.diameter@front"))
+        .filter(|d| d.id.ends_with("/bore.diameter") && d.view == "v:front")
         .map(|d| d.label.as_str())
         .collect();
     assert!(labels.contains(&"⌀20 +0.1 -0.05 ↧ 45"), "{labels:?}");
@@ -641,7 +654,7 @@ fn holes_of_different_requirements_are_called_out_apart() {
     let plan_labels: Vec<&str> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/bore.diameter@plan"))
+        .filter(|d| d.id.ends_with("/bore.diameter") && d.view == "v:plan")
         .map(|d| d.label.as_str())
         .collect();
     for want in [
@@ -674,7 +687,11 @@ fn an_omitted_standalone_dimension_is_said_not_drawn() {
     );
     let edited = model::plan(&a, &spec).unwrap();
     assert!(edited.dimensions.iter().all(|d| d.id != own.id));
-    let source = own.measurements[0].feature.strip_prefix("pmi:").unwrap();
+    let Some(Reading::Read(report)) = &a.pmi else {
+        panic!("its PMI is read")
+    };
+    let ids = report.identities();
+    let source = ids.source(&own.measurements[0].feature).unwrap();
     assert!(
         edited
             .problems
@@ -781,12 +798,9 @@ fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
             .map(|d| d.label.clone())
             .unwrap()
     };
+    assert_eq!(label("d:envelope/od.diameter"), "2× ø130 -0.014 -0.039");
     assert_eq!(
-        label("d:envelope/od.diameter@front"),
-        "2× ø130 -0.014 -0.039"
-    );
-    assert_eq!(
-        label("d:f:turned_step:3/step.diameter@front"),
+        label("d:f:turned_step:3/step.diameter"),
         "ø70 -0.03 -0.06 OD"
     );
     // bolt_thread_knurl's shank: the turned step's ø6 takes its band, and nothing restates it.
@@ -794,7 +808,7 @@ fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
     let d = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:turned_step:3/step.diameter@front")
+        .find(|d| d.id == "d:f:turned_step:3/step.diameter")
         .unwrap();
     assert_eq!(d.label, "ø6 +0.0 -0.008");
     assert!(d.basis.contains("lower_ap242_external_diameter_tolerances"));

@@ -1,0 +1,10 @@
+{
+  "schema": "draftwright.spec/1",
+  "views": { "front": { "omit": true } },
+  "dimensions": {
+    "d:envelope/width.length@plan": { "tolerance": "±0.05" },
+    "d:envelope/height.length@side": { "omit": true }
+  },
+  "features": { "f:hole_pattern:1": {} },
+  "notes": [ { "id": "n:1", "text": "DEBURR" } ]
+}

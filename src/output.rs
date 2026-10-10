@@ -292,7 +292,7 @@ pub struct Claim {
 /// Python draftwright's registry is; lint still checks the label's text against the part.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Annotation {
-    /// The plan item it draws, e.g. `d:f:hole:3/bore.diameter@plan`.
+    /// The plan item it draws, e.g. `d:f:hole:3/bore.diameter`.
     pub name: String,
     /// The view, `v:<name>`; none for sheet furniture.
     pub view: Option<String>,

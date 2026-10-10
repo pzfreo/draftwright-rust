@@ -294,9 +294,9 @@ fn feature_entries_from_another_revision_are_kept_inactive() {
     let (_, plate) =
         model::analyse_with(&part("plate.step"), Some(&recognition.join("plate.json"))).unwrap();
     let (_, other) = model::analyse(&part("prismatic.step")).unwrap();
-    let hole = "d:f:hole_pattern:1/bore.diameter@plan";
-    let gone = "d:f:hole:9/bore.diameter@plan";
-    let envelope = "d:envelope/width.length@front";
+    let hole = "d:f:hole_pattern:1/bore.diameter";
+    let gone = "d:f:hole:9/bore.diameter";
+    let envelope = "d:envelope/width.length";
     let spec: Spec = serde_json::from_value(json!({
         "binding": other.binding,
         "dimensions": { hole: { "omit": true }, gone: { "omit": true }, envelope: { "omit": true } },
@@ -391,7 +391,7 @@ fn removing_what_is_not_there_is_refused() {
     for path in [
         "views/iso/omit",
         "sheet/size",
-        "dimensions/d:envelope~1width.length@front",
+        "dimensions/d:envelope~1width.length",
     ] {
         let e =
             model::edit(&Spec::default(), &json!([{ "op": "remove", "path": path }])).unwrap_err();

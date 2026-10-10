@@ -53,8 +53,8 @@ fn stating(plan: &Plan, a: &Analysis) -> Vec<(String, String, String)> {
                 .any(|m| ids.contains(&m.feature.as_str()))
         })
         .map(|d| {
-            let (_, rest) = d.id.split_once('/').unwrap();
-            let (parameter, view) = rest.split_once('@').unwrap();
+            let (_, parameter) = d.id.split_once('/').unwrap();
+            let view = d.view.trim_start_matches("v:");
             (parameter.to_string(), view.to_string(), d.label.clone())
         })
         .collect();

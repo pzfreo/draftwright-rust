@@ -334,7 +334,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             coincident.push((callouts.len(), first.at, projected));
         }
         callouts.push(Want {
-            id: want_id(&p.id, "bore.diameter", view),
+            id: want_id(&p.id, "bore.diameter"),
             views: vec![view],
             value: first.diameter,
             terms,
@@ -421,7 +421,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             let on = manufacturing.on(&first.feature.id);
             for o in &on {
                 measurements.push(Measurement {
-                    feature: format!("pmi:{}", o.source),
+                    feature: o.id.clone(),
                     parameter: o.aspect.into(),
                     value: first.diameter,
                 });
@@ -444,7 +444,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .find_map(|m| declined.get(m))
             .map_or(String::new(), |d| format!("; {d}"));
         callouts.push(Want {
-            id: want_id(&first.feature.id, "bore.diameter", view),
+            id: want_id(&first.feature.id, "bore.diameter"),
             views: vec![view],
             value: first.diameter,
             terms,
@@ -514,7 +514,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let parameter = format!("location.length.{}", AXES[k]);
         let view: &'static str = NAMES.iter().find(|n| **n == view).expect("a view");
         out.push(Want {
-            id: want_id(first, &parameter, view),
+            id: want_id(first, &parameter),
             views: vec![view],
             value: d,
             terms: vec![fmt(d)],
@@ -638,7 +638,7 @@ fn pitch_want(
     a[along] = values[0];
     b[along] = values[1];
     Want {
-        id: want_id(pattern, parameter, view),
+        id: want_id(pattern, parameter),
         views: vec![view],
         value: p,
         terms,
@@ -814,7 +814,7 @@ mod tests {
     /// A default location of *feature* in the plan, from x = 0 to *at*, labelled *label*.
     fn location(feature: &str, parameter: &str, at: f64, label: &str) -> Kept {
         let want = Want {
-            id: want_id(feature, parameter, "plan"),
+            id: want_id(feature, parameter),
             views: vec!["plan"],
             value: at,
             terms: vec![label.into()],
@@ -869,16 +869,13 @@ mod tests {
             location("f:boss:1", "location.length.x", 40.0, "40"),
             location("f:hole:1", "location.length.x", 40.0, "40"),
         ]);
-        let hole = "d:f:hole:1/location.length.x@plan";
+        let hole = "d:f:hole:1/location.length.x";
         assert_eq!(kept, [hole]);
         assert_eq!(
             gone,
             [
-                ("d:f:boss:1/location.length.x@plan".into(), hole.into()),
-                (
-                    "d:f:slot:1/location_slot_across.length@plan".into(),
-                    hole.into()
-                ),
+                ("d:f:boss:1/location.length.x".into(), hole.into()),
+                ("d:f:slot:1/location_slot_across.length".into(), hole.into()),
             ]
         );
         // Omitting the hole's (it is then not kept) promotes the boss's, which conveys the slot's.
@@ -886,7 +883,7 @@ mod tests {
             location("f:slot:1", "location_slot_across.length", 40.0, "40"),
             location("f:boss:1", "location.length.x", 40.0, "40"),
         ]);
-        assert_eq!(kept, ["d:f:boss:1/location.length.x@plan"]);
+        assert_eq!(kept, ["d:f:boss:1/location.length.x"]);
         assert_eq!(gone.len(), 1);
     }
 
@@ -909,7 +906,7 @@ mod tests {
             location("f:hole:1", "location.length.x", 40.0 + 1e-9, "40"),
             location("f:boss:1", "location.length.x", 40.0, "40"),
         ]);
-        assert_eq!(kept, ["d:f:hole:1/location.length.x@plan"]);
+        assert_eq!(kept, ["d:f:hole:1/location.length.x"]);
     }
 
     #[test]
@@ -918,13 +915,13 @@ mod tests {
             location("f:hole:2", "location.length.x", 40.0, "40"),
             location("f:hole:1", "location.length.x", 40.0, "40"),
         ]);
-        assert_eq!(kept, ["d:f:hole:1/location.length.x@plan"]);
+        assert_eq!(kept, ["d:f:hole:1/location.length.x"]);
         let mut listed = location("f:hole:2", "location.length.x", 40.0, "40");
         listed.1 = false;
         let (kept, _) = merged(vec![
             listed,
             location("f:hole:1", "location.length.x", 40.0, "40"),
         ]);
-        assert_eq!(kept, ["d:f:hole:2/location.length.x@plan"]);
+        assert_eq!(kept, ["d:f:hole:2/location.length.x"]);
     }
 }

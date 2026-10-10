@@ -256,7 +256,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .map(|e| (site(cx.turned.as_ref(), e.at, e.axis, e.turned), 0.0))
             .collect();
         out.push(Want {
-            id: super::want_id(&first.feature.id, first.parameter, views[0]),
+            id: super::want_id(&first.feature.id, first.parameter),
             views,
             value: first.value,
             terms,

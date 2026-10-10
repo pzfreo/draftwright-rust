@@ -121,7 +121,7 @@ mention takes its default.
 
 ```json
 {
-  "schema": "draftwright.spec/1",
+  "schema": "draftwright.spec/2",
   "binding": { "source_sha256": "…" },
   "sheet": { "size": "A3", "scale": "2:1", "projection": "first-angle",
              "title": { "title": "BRACKET", "number": "DWG-001", "material": "6082-T6" } },
@@ -129,16 +129,16 @@ mention takes its default.
              "sections": [ { "id": "A", "through": "f:hole:3" } ] },
   "features": { "f:hole:3": { "anchor": { "…": "fingerprint" }, "fit": "H7", "note": "REAM" } },
   "dimensions": {
-    "d:f:hole:3/diameter@plan": { "tolerance": "±0.05" },
-    "d:envelope/width@front": { "place": { "side": "below", "offset": 8 } },
-    "d:f:pocket:1/depth@front": { "omit": true }
+    "d:f:hole:3/diameter": { "tolerance": "±0.05" },
+    "d:envelope/width": { "view": "plan", "place": { "side": "below", "offset": 8 } },
+    "d:f:pocket:1/depth": { "omit": true }
   },
   "notes": [ { "id": "n:1", "text": "BREAK ALL SHARP EDGES" } ]
 }
 ```
 
 - **Fields read so far:** `sheet` (`size`, `scale`, `title`), `views/<name>/omit`,
-  `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`), `features/<id>/fit` (see
+  `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`, `view`), `features/<id>/fit` (see
   Dimensions below) and `notes` (see General notes below). `anchor`, `note` and `place` above
   are the design, not yet read: an unknown field is refused. All are optional, so a spec
   written before a field existed reads unchanged.
@@ -161,15 +161,15 @@ mention takes its default.
   "views": [ { "id": "v:front", "direction": [0, -1, 0], "at": [120, 180], "default": true,
                "basis": "front shows the most features" } ],
   "dimensions": [
-    { "id": "d:f:hole:3/diameter@plan", "view": "v:plan", "value": 8.1, "label": "ø8.1 H7",
+    { "id": "d:f:hole:3/diameter", "view": "v:plan", "value": 8.1, "label": "ø8.1 H7",
       "from_spec": ["fit"], "default": false, "basis": "a hole's size is called out where it is seen end-on",
       "rebind": "carried" }
   ],
   "problems": [
     { "id": "p:overlap:d:…", "code": "annotation_overlap", "severity": "warning",
       "message": "ø8.1 H7 overlaps the plan view's outline",
-      "subjects": ["d:f:hole:3/diameter@plan"],
-      "fix": { "op": "set", "path": "dimensions/d:f:hole:3/diameter@plan/place/side", "value": "left" } }
+      "subjects": ["d:f:hole:3/diameter"],
+      "fix": { "op": "set", "path": "dimensions/d:f:hole:3~1diameter/place/side", "value": "left" } }
   ]
 }
 ```
@@ -211,9 +211,9 @@ mention takes its default.
 so far, each a Plan item `{id, kind, view, value, label, terms, measurements, default, from_spec,
 basis, placed}`:
 
-- **Overall extents:** `d:envelope/width.length@front`, `depth.length@side`,
-  `height.length@front` for a prismatic part (each falling back to the plan or side view when its
-  view is omitted). A part turned whole states `od.diameter` (printed `ø…`) and its length along
+- **Overall extents:** `d:envelope/width.length` (in the front view), `depth.length` (side),
+  `height.length` (front) for a prismatic part (each falling back to the plan or side view when
+  its view is omitted). A part turned whole states `od.diameter` (printed `ø…`) and its length along
   the axis instead, in either profile view; the diameter is drawn across whichever radial axis
   that view shows. A view that looks along a dimension never carries it.
 - **Hole callouts** in draftwright's grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), in the view that
@@ -413,7 +413,7 @@ placement and rules) live there too; the notes block is draftwright's single-col
 ### Feature control frames and datum feature symbols (PMI)
 
 `src/pmi_lowering.rs` lowers the Analysis's PMI as draftwright's `build_pmi_features` does, and
-`src/dims/gdt.rs` places and draws it. Plan items (`gdt`): `{id: "pmi:<source>", kind:
+`src/dims/gdt.rs` places and draws it. Plan items (`gdt`): `{id: "pmi:<identity>", kind:
 "control_frame" | "datum_feature", view, side, source, faces, cells, modifiers?, default, basis,
 placed}`.
 
@@ -464,11 +464,11 @@ cylinders are a hole callout's holes (axis lines, axis, diameter) gives the call
 or below the nominal with its signs), and a callout whose holes carry different requirements is
 split by requirement (a bolt circle is not: reported); an external cylinder gives its band to the
 turned step, boss or turned part whose diameter it is; a plain diameter or step length is stated
-by its owner. Otherwise it **stands beside** them, an ordinary planned dimension `d:pmi:<source>/
-<kind>[.basic]@<view>` (a length along x, y or z in draftwright's view; a diameter or radius by a
+by its owner. Otherwise it **stands beside** them, an ordinary planned dimension `d:pmi:<identity>/
+<kind>[.basic]` (a length along x, y or z in draftwright's view; a diameter or radius by a
 leader where it is seen end-on), its label the record's, a basic one boxed (its label box widened
 to take the frame). Every item that states a PMI dimension claims it (a measurement of feature
-`pmi:<source>`); a spec's own tolerance or fit on that size (a hole's or a boss's) wins
+`pmi:<identity>`, its record's item ID); a spec's own tolerance or fit on that size (a hole's or a boss's) wins
 (`pmi_not_lowered`; when the spec's is withheld, the label states neither and the report says
 so), and an omitted item's PMI is `pmi_not_drawn`. Not drawn, with the reason: reading blockers, faces in
 several placements, faces that prove no witness (`pmi_not_lowered`); angles, oblique lengths,
@@ -478,8 +478,9 @@ an ISO 286 class without limits) stay refused. Compared record by record on the 
 
 **PMI coverage lint** (`src/lint/pmi_coverage.rs`, draftwright's `linting/pmi_coverage.py`): lint
 checks the finished drawing against the Analysis's PMI, never the Plan. A record is drawn when an
-annotation is named `pmi:<source>` (a frame, symbol, label or sheet requirement) or claims a
-measurement of feature `pmi:<source>` (a dimension, hole callout or turned size stating a PMI
+annotation is named `pmi:<identity>` (a frame, symbol, label or sheet requirement) or claims a
+measurement of feature `pmi:<identity>`, each read back to its record's source through the
+Analysis's identities (a dimension, hole callout or turned size stating a PMI
 dimension); otherwise it is `pmi_not_lowered` or `pmi_not_rendered`. A record lowers when
 `pmi_lowering::lower` (a function of the Analysis alone) lowers it, a frame, symbol or label, when
 `pmi_lowering::sheet_requirements` lowers it to the sheet (a general tolerance, default finish or
@@ -507,13 +508,13 @@ common label's face at the vertex nearest the face's box centre, `pmi_lowering::
 in the front view, or the side when its references' box is longest along y, above or below by
 the site against the part's centre; with no site it is `pmi_not_lowered`. The **drawing-wide
 requirements** (`pmi_lowering::sheet_requirements`, draftwright's
-`lower_ap242_document_requirements`) are the plan's `requirements`: `{id: "pmi:<source>", kind,
+`lower_ap242_document_requirements`) are the plan's `requirements`: `{id: "pmi:<identity>", kind,
 source, text, carrier, basis, placed?}`. The part's one general tolerance fills the title
 block's tolerance cell (`carrier: title_block`) unless the spec states one, which wins (a
 different PMI one is `step_general_tolerance_disagreement`, a warning); its one `Ra <v> µm unless
 otherwise specified` is ISO 1302's symbol at the left end of the band above the title block
 (`sheet`, its collisions reported as a dimension's); each edge condition on no face is a general
-note `pmi:<source>` after the spec's notes (`notes`). Two of one default are ambiguous and
+note `pmi:<identity>` after the spec's notes (`notes`). Two of one default are ambiguous and
 neither is drawn (`pmi_not_lowered`). Each is an annotation of the drawing by its ID, over the
 runs that state it. A turned part keeps a view a PMI item is drawn in (draftwright's
 `annotation_view_required`). Compared with draftwright's drawings by `tests/pmi_drawings.rs`.
@@ -525,7 +526,7 @@ An AP242 thread or knurl is no item of its own (`pmi_lowering::manufacturing`, d
 structured statement, reconciled, its one cylinder the size its text states, it is given to the one
 hole (blind to the drill depth, or through) or turned step that cylinder proves, and that
 feature's callout prints its suffix after the size (`⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL
-THREAD`; a through tap's `THRU` stands for the bore's) and claims it (feature `pmi:<source>`,
+THREAD`; a through tap's `THRU` stands for the bore's) and claims it (feature `pmi:<identity>`,
 parameter `thread` or `knurl`). With two or more owned and one suffix over 52 characters, each
 callout prints `SEE MFG n` instead and the plan's table `manufacturing_requirements` (`default:
 true`, `REF | MANUFACTURING REQUIREMENT`, the text wrapped at 44 characters, the second column
@@ -536,16 +537,24 @@ or text that disagrees with the cylinder is `pmi_not_lowered` (error) with draft
 requirement a boss owns is refused too, as the boss callout prints none yet
 (`tests/pmi_thread_knurl.rs`).
 
-**IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
-view moves the dimension to its next view and renames it (the basis says so); a spec still keyed
-by the old ID is refused, with the new ID named first in the refusal's choices. Take IDs from
-the latest plan.
+**IDs and views.** A dimension's ID names what it measures, never the view that carries it
+(`draftwright.spec/2`; version 1 added `@<view>`). The view is the item's `view`. Omitting that
+view moves the dimension to its next view under the same ID (the basis says so), and so does a
+change of sheet or scale. The spec may choose the view, `dimensions/<id>/view` (`front`,
+`plan` or `side`): it must be one that can carry the dimension (one of its views that does not
+look along it), else the plan is refused with those that can; one the spec omits leaves the
+dimension in its default view, with a warning (`dimension_view_not_shown`). The item then lists
+`view` in `from_spec`. A version 2 spec keyed by a version 1 ID is refused, reading it as the ID
+it now has (first among the choices). Every planner states each quantity once under one ID
+(asserted in every build); a planner that drew one quantity in two views would give the second a
+discriminator from what it states, as the height ladder's rungs are told apart by their heights
+(`step_height.length.h12_001`), never from where it is drawn.
 
 The spec chooses the source (ADR4-5): `"dimension_source": "auto"` (the default: the defaults
 less `dimensions/<id>/omit`) or `"authored"` (exactly the IDs listed in `dimensions`, a complete
 set). Omitted items are listed in the Plan's `omitted` with their basis. In an edit path, the
 `/` inside a dimension's ID is written `~1`, as in a JSON pointer:
-`{"op": "set", "path": "dimensions/d:envelope~1width.length@front/omit", "value": true}`.
+`{"op": "set", "path": "dimensions/d:envelope~1width.length/omit", "value": true}`.
 
 ## The five operations
 
@@ -564,7 +573,7 @@ calls.
 
 ```json
 [ { "op": "set", "path": "features/f:hole:3/fit", "value": "H7" },
-  { "op": "remove", "path": "dimensions/d:f:pocket:1/depth@front/omit" },
+  { "op": "remove", "path": "dimensions/d:f:pocket:1~1depth/omit" },
   { "op": "add", "path": "notes", "value": { "text": "DEBURR" } } ]
 ```
 
@@ -625,15 +634,42 @@ reads it back from any of the three.
 | Item | Form | Stable across |
 | --- | --- | --- |
 | Feature | `f:<kind>:<n>`, derived from its faces | the same file |
-| Dimension | `d:<feature>/<parameter>@<view>` | the same file; carried to revisions through its feature |
+| Dimension | `d:<feature>/<parameter>`; never the view, which is the item's `view` | the same file, whichever view carries it and whatever the sheet or scale; carried to revisions through its feature |
 | View | `v:<name>` | always |
 | Note, table, section | `n:<k>`, `t:<k>`, `s:<letter>` | always (set in the spec) |
-| PMI frame, symbol, label or drawing-wide requirement | `pmi:<source>` (the record's `source_id`, `geometric_tolerance:#<instance>`) | the same file |
+| PMI frame, symbol, label, drawing-wide requirement, thread or knurl (and the feature of a PMI dimension's claim) | `pmi:<identity>`: the record's semantic identity, below; never its Part 21 instance (that is the item's `source`, e.g. `geometric_tolerance:#123`) | the same requirements on the same faces: the intent written again (new Part 21 numbers) keeps it |
 | Problem | `p:<code>:<subject>` | the same plan |
 
 Parameter names follow the Python version's role vocabulary (`role.kind[.discriminator]`). A
 name that matches more than one measurement is refused rather than guessed (Python ADR 4
 invariant 6).
+
+**A PMI record's identity** (`pmi::identity`, `pmi::Report::identities`; the editor's
+`gdt::editor_key`, upstreamed) is its category and kind (`.basic` for a basic dimension), then,
+each tagged and left out when empty: its part in a file of several (`p<n>`), the drawing faces
+(`f<i>,<j>`) and edges (`e<i>,<j>`) it applies to, its datum references (`ref=A,B,C`) and its
+modifiers (`mod=…`), and a datum's letter or a label's text (`t=…`), every character but
+letters, digits, `_`, `.` and `-` written `%XX`:
+`pmi:geometric_tolerance.position:f12,13:ref=A,B:mod=diameter_zone`. No value enters it, so a
+changed magnitude is the same item with another label. Records that share an identity (a
+composite frame's two segments, NIST FTC-07's and FTC-10's) are each told apart by their label,
+`:t=position%200.8`, a discriminator from what they state, never from their order; records whose
+labels are the same too (NIST STC-09's two identical `0.03 ±0.01 INCH` records, FTC-10's three
+`ø3` on no face) get no ID and are not drawn: `pmi_not_lowered`, naming the records they cannot
+be told from (ADR R1 invariant 5). Problems about PMI records still name the record's source
+(`p:pmi_not_lowered:<source>`), as the record is not an item.
+
+**Spec versions.** `draftwright.spec/2` is the version this build writes. A
+`draftwright.spec/1` spec is read through `model::migrate` (in `plan`, so every caller of the
+library gets it; the plan's embedded spec is the migrated one): `d:<feature>/<parameter>@<view>`
+becomes `d:<feature>/<parameter>` (the view was where the plan routed it, not a decision, so the
+entry does not keep it as its `view`), and a PMI dimension's `pmi:<category>:#<n>` becomes its
+record's identity, when the spec is bound to the analysis's file (a Part 21 instance names a
+record only in its own file). Two keys that come to one are refused, with both as the
+candidates; a key whose record has no identity, or is of another file, is kept for `plan` to
+refuse with the nearest IDs. `edit` has no analysis and leaves a spec's version and keys as they
+are. A version 1 spec plans as it did (`tests/identity.rs`, on fixtures the 0.1.0-alpha.1 build
+planned).
 
 ## Rebinding: when the STEP changes
 

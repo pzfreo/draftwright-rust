@@ -5,8 +5,8 @@
     "label": "15.0",
     "rotation": 0,
     "items": [
-      "d:f:slot:1/slot_length.length@plan",
-      "d:f:slot:2/slot_length.length@plan"
+      "d:f:slot:1/slot_length.length",
+      "d:f:slot:2/slot_length.length"
     ],
     "verdict": "identical-features",
     "draftwright": "m_slot0_length '15.0' and m_slot1_length '15.0' in the plan, one per slot (slots at x -103.4 and +103.4).",
@@ -18,8 +18,8 @@
     "label": "19.3",
     "rotation": 0,
     "items": [
-      "d:f:hole:1/location.length.y@side",
-      "d:step_level/step_position.length.y19_256@side"
+      "d:f:hole:1/location.length.y",
+      "d:step_level/step_position.length.y19_256"
     ],
     "verdict": "distinct-quantities",
     "draftwright": "dim_shoulder_y0 '19.3' (step_position.length 19.256) and dim_loc_side_y1931 '19.3' (the hole's y location 19.31), both in the side view: the same repeat.",
@@ -31,8 +31,8 @@
     "label": "50",
     "rotation": 90,
     "items": [
-      "d:f:polygonal_boss:1/boss_height.length@front",
-      "d:step_level/step_height.length.h50@front"
+      "d:f:polygonal_boss:1/boss_height.length",
+      "d:step_level/step_height.length.h50"
     ],
     "verdict": "distinct-quantities",
     "draftwright": "m_bossheight_z0 '50' in the front; it plans the 50 rung and withholds it at 1:5 (lint step_dim_withheld: 'approved step height(s) span less than 12.4 mm on the page'); known_dimensions.json lists the rung (undetermined, the legibility gate).",
@@ -44,8 +44,8 @@
     "label": "2× 75",
     "rotation": 0,
     "items": [
-      "d:f:hole_pattern:1/pitch.length@plan",
-      "d:f:hole_pattern:4/pitch.length@plan"
+      "d:f:hole_pattern:1/pitch.length",
+      "d:f:hole_pattern:4/pitch.length"
     ],
     "verdict": "identical-features",
     "draftwright": "dim_pitch_plan0 and dim_pitch_plan6 '2× 75', horizontal in the plan, one per pattern (x = +110 and -110), and dim_pitch_plan3 '2× 75' claiming two patterns (vertical).",
@@ -57,9 +57,9 @@
     "label": "140",
     "rotation": 0,
     "items": [
-      "d:f:hole:18/location.length.x@plan",
-      "d:f:slot:4/slot_width.length@plan",
-      "d:f:slot:6/slot_width.length@plan"
+      "d:f:hole:18/location.length.x",
+      "d:f:slot:4/slot_width.length",
+      "d:f:slot:6/slot_width.length"
     ],
     "verdict": "identical-features",
     "draftwright": "m_locx3 '140' (a hole's x location), m_slot4_width '140' and m_slot5_width '140' in the plan: the same three.",
@@ -71,8 +71,8 @@
     "label": "2× 45",
     "rotation": 90,
     "items": [
-      "d:f:hole_pattern:10/pitch.length@plan",
-      "d:f:hole_pattern:8/pitch.length@plan"
+      "d:f:hole_pattern:10/pitch.length",
+      "d:f:hole_pattern:8/pitch.length"
     ],
     "verdict": "identical-features",
     "draftwright": "dim_pitch_plan5 '2× 45' (patterns at y 380) and dim_pitch_plan7 '2× 45' (patterns at y 580), each claiming two parallel rows.",
@@ -84,8 +84,8 @@
     "label": "2× 75",
     "rotation": 0,
     "items": [
-      "d:f:hole_pattern:1/pitch.length@plan",
-      "d:f:hole_pattern:6/pitch.length@plan"
+      "d:f:hole_pattern:1/pitch.length",
+      "d:f:hole_pattern:6/pitch.length"
     ],
     "verdict": "identical-features",
     "draftwright": "dim_pitch_plan0 and dim_pitch_plan9 '2× 75', one per pattern (x = +110 and -110).",
@@ -97,8 +97,8 @@
     "label": "75",
     "rotation": 0,
     "items": [
-      "d:f:slot:3/slot_width.length@plan",
-      "d:f:slot:5/slot_width.length@plan"
+      "d:f:slot:3/slot_width.length",
+      "d:f:slot:5/slot_width.length"
     ],
     "verdict": "identical-features",
     "draftwright": "m_slot2_width '75' and m_slot3_width '75' in the plan, one per slot.",
@@ -110,8 +110,8 @@
     "label": "127",
     "rotation": 90,
     "items": [
-      "d:f:hole_pattern:1/grid_pitch.length.row@front",
-      "d:f:hole_pattern:1/location.length.z@front"
+      "d:f:hole_pattern:1/grid_pitch.length.row",
+      "d:f:hole_pattern:1/location.length.z"
     ],
     "verdict": "distinct-quantities",
     "draftwright": "dim_pitch_front0_0 '127' (the grid's row pitch) in the front and dim_loc_side_z12700 '127' (the grid's z location) in the side: both stated, in two views.",
@@ -123,8 +123,8 @@
     "label": "266.7",
     "rotation": 0,
     "items": [
-      "d:f:boss:6/location.length.x@front",
-      "d:f:hole_pattern:1/grid_pitch.length.col@front"
+      "d:f:boss:6/location.length.x",
+      "d:f:hole_pattern:1/grid_pitch.length.col"
     ],
     "verdict": "distinct-quantities",
     "draftwright": "dim_pitch_front0_1 '266.7' (the grid's column pitch); it locates no boss (known_dimensions.json ftc06 location.x 266.7, rust-correct).",
@@ -136,8 +136,8 @@
     "label": "31.8",
     "rotation": 90,
     "items": [
-      "d:f:slot:2/slot_length.length@plan",
-      "d:f:slot:4/slot_length.length@plan"
+      "d:f:slot:2/slot_length.length",
+      "d:f:slot:4/slot_length.length"
     ],
     "verdict": "identical-features",
     "draftwright": "m_slot1_length '31.8' and m_slot2_length '31.8' in the plan, one per slot (y = -46.4 and +46.4).",
@@ -149,8 +149,8 @@
     "label": "2× 19.1",
     "rotation": 0,
     "items": [
-      "d:f:hole_pattern:2/pitch.length@front",
-      "d:f:hole_pattern:3/pitch.length@front"
+      "d:f:hole_pattern:2/pitch.length",
+      "d:f:hole_pattern:3/pitch.length"
     ],
     "verdict": "identical-features",
     "draftwright": "dim_pitch_front2, dim_pitch_front5 and dim_pitch_front9 '2× 19.1' in the front, one per pattern.",
@@ -162,8 +162,8 @@
     "label": "38.1",
     "rotation": 0,
     "items": [
-      "d:f:hole:5/location.length.x@front",
-      "d:f:slot:3/slot_length.length@front"
+      "d:f:hole:5/location.length.x",
+      "d:f:slot:3/slot_length.length"
     ],
     "verdict": "distinct-quantities",
     "draftwright": "dim_loc_front_x3810 '38.1' (the hole's x location) in the front; it plans slot2's length and drops it for room (lint slot_dim_dropped 'slot2 length dim not placed').",
@@ -175,8 +175,8 @@
     "label": "6.3",
     "rotation": 90,
     "items": [
-      "d:f:slot:1/slot_width.length@front",
-      "d:f:slot:2/slot_width.length@front"
+      "d:f:slot:1/slot_width.length",
+      "d:f:slot:2/slot_width.length"
     ],
     "verdict": "identical-features",
     "draftwright": "plans slot0's and slot1's widths as two dimensions and drops both for room (lint slot_dim_dropped 'slot0 width' and 'slot1 width'); m_slot0_pos '130.2' claims both slots' common location.",
@@ -188,8 +188,8 @@
     "label": "12.5",
     "rotation": 90,
     "items": [
-      "d:f:hole_pattern:7/location.length.z@front",
-      "d:step_level/step_height.length.h12_5@front"
+      "d:f:hole_pattern:7/location.length.z",
+      "d:step_level/step_height.length.h12_5"
     ],
     "verdict": "draftwright-repeats",
     "draftwright": "dim_step_0 '12.5' (the rung, base z -37.5 to the level at -25) in the front and dim_loc_side_z1250 '12.5' (the same pattern's z location, at -25) in the side: it states the span twice, in two views. Its rungs register their corridor candidates with no dedup key (`_height_ladder.py`; `_axial_render.py`: 'No cross-dedup against hole locations'), so it would keep both in one view too.",
@@ -201,9 +201,9 @@
     "label": "2× 11",
     "rotation": 0,
     "items": [
-      "d:f:hole_pattern:5/pitch.length@front",
-      "d:f:hole_pattern:6/pitch.length@front",
-      "d:f:hole_pattern:7/pitch.length@front"
+      "d:f:hole_pattern:5/pitch.length",
+      "d:f:hole_pattern:6/pitch.length",
+      "d:f:hole_pattern:7/pitch.length"
     ],
     "verdict": "identical-features",
     "draftwright": "dim_pitch_front1, dim_pitch_front2 and dim_pitch_front4 '2× 11' in the front, one per pattern (rows starting at x 46.1, 44.5 and 42.9).",

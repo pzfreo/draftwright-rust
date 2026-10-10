@@ -451,11 +451,11 @@ pub fn manufacturing(
         }
         p
     });
-    let sources = m.scheduled();
+    let scheduled = m.scheduled();
     let mut problems = Vec::new();
     if placed.is_none() {
         let mut subjects = vec![id.to_string()];
-        subjects.extend(sources.iter().cloned());
+        subjects.extend(scheduled);
         problems.push(Problem {
             id: format!("p:table_not_placed:{id}"),
             code: "table_not_placed".into(),
@@ -472,7 +472,11 @@ pub fn manufacturing(
         default: true,
         basis: format!(
             "source-authored: the part's AP242 thread and knurl requirements ({}): with two or more and one too long for its callout, each callout refers to its row (SEE MFG n) and this table states them, towards the sheet's top right, as draftwright's manufacturing schedule",
-            sources.join(", ")
+            m.tags
+                .iter()
+                .map(|(s, _)| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         placed,
     };

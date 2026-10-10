@@ -329,7 +329,7 @@ fn severity(i: &LintIssue) -> String {
 }
 
 /// The alpha 1 gate on *file*: every record of the reading is drawn (an annotation names or
-/// claims `pmi:<source>`) or reported by lint as not lowered or not rendered, never both; every
+/// claims its item ID, `pmi:<identity>`) or reported by lint as not lowered or not rendered, never both; every
 /// source not read, or read in part, is reported as not extracted, unless it is drawn (a material
 /// the title block states), never both.
 fn gate(file: &str, a: &Analysis, drawing: &Drawing, found: &[LintIssue]) {
@@ -341,8 +341,10 @@ fn gate(file: &str, a: &Analysis, drawing: &Drawing, found: &[LintIssue]) {
             .iter()
             .any(|i| i.code == code && i.sources.iter().any(|s| s == id))
     };
+    let ids = report.identities();
     for r in &report.records {
-        let name = format!("pmi:{}", r.source_id);
+        // An item is named by its record's identity (none when another record shares it).
+        let name = ids.ids.get(&r.source_id).cloned().unwrap_or_default();
         let on_sheet = drawing
             .annotations
             .iter()
@@ -561,10 +563,14 @@ fn a_frame_that_misstates_its_source_is_reported() {
     let k = drawing
         .annotations
         .iter()
-        .position(|x| x.name.starts_with("pmi:geometric_tolerance:"))
+        .position(|x| x.name.starts_with("pmi:geometric_tolerance."))
         .expect("a drawn frame");
     let name = drawing.annotations[k].name.clone();
-    let source = name.strip_prefix("pmi:").unwrap().to_string();
+    // Named by its record's identity; lint reports by the record's source.
+    let Some(Reading::Read(report)) = &a.pmi else {
+        panic!("its PMI is read")
+    };
+    let source = report.identities().source(&name).unwrap().to_string();
     // The magnitude's last digit altered in the frame's text run.
     let mut bad = drawing.clone();
     let run = bad.annotations[k].runs[1];

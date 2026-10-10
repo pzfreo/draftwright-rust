@@ -103,7 +103,7 @@ fn location(
     let mut from = at;
     from[k] = lo;
     Want {
-        id: want_id(&owners[0].id, parameter, view),
+        id: want_id(&owners[0].id, parameter),
         views: vec![view],
         value: d,
         terms: vec![fmt(d)],
@@ -168,7 +168,7 @@ fn pocket_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) 
             (c, 0.0)
         };
         out.push(Want {
-            id: want_id(&f.id, "pocket_width.length", view),
+            id: want_id(&f.id, "pocket_width.length"),
             views: vec![view],
             value: p.width,
             terms,
@@ -272,7 +272,7 @@ fn hex_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
         terms.extend(["HEX".into(), fmt(across), "A/F".into(), "×".into()]);
         terms.extend([fmt(depth), "DEEP".into()]);
         out.push(Want {
-            id: want_id(&first.id, "polygon_across_flats.length", view),
+            id: want_id(&first.id, "polygon_across_flats.length"),
             views: vec![view],
             value: across,
             terms,
@@ -345,7 +345,7 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
         terms.extend(["LONG".into(), "×".into(), format!("{}°", fmt(first.sweep))]);
         terms.push("ARC".into());
         out.push(Want {
-            id: want_id(&first.feature.id, "seat_diameter.diameter", view),
+            id: want_id(&first.feature.id, "seat_diameter.diameter"),
             views: vec![view],
             value: diameter,
             terms,
@@ -494,7 +494,7 @@ fn channel_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>)
             p
         };
         out.push(Want {
-            id: want_id(&c.feature.id, "channel_width.length", view),
+            id: want_id(&c.feature.id, "channel_width.length"),
             views: vec![view],
             value: c.width,
             terms: vec![fmt(c.width)],
@@ -566,11 +566,11 @@ mod tests {
             located,
             [
                 (
-                    "d:f:section_recess:1/location_pocket.location.x@plan".to_string(),
+                    "d:f:section_recess:1/location_pocket.location.x".to_string(),
                     50.0
                 ),
                 (
-                    "d:f:section_recess:1/location_pocket.location.y@plan".to_string(),
+                    "d:f:section_recess:1/location_pocket.location.y".to_string(),
                     50.0
                 ),
             ]
@@ -631,7 +631,7 @@ mod tests {
         assert_eq!(w.len(), 2, "{w:?}");
         assert_eq!(
             (w[1].id.as_str(), w[1].value),
-            ("d:f:section_recess:1/location_pocket.location.y@plan", 40.0)
+            ("d:f:section_recess:1/location_pocket.location.y", 40.0)
         );
     }
 }

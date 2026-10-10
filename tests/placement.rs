@@ -693,7 +693,7 @@ fn a_starved_overall_extent_has_first_claim_on_the_opposite_strip() {
         let plan = model::plan(analysis, &spec).unwrap();
         let boxes = view_boxes(&plan, analysis);
         let front = boxes.iter().find(|(v, _)| v == "v:front").unwrap().1;
-        let id = "d:envelope/height.length@front";
+        let id = "d:envelope/height.length";
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
         let p = d.placed.as_ref().unwrap();
         assert!(
@@ -728,7 +728,7 @@ fn a_callout_that_does_not_fit_its_lane_goes_beside_its_view() {
     let d = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter@plan")
+        .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter")
         .unwrap();
     let p = d.placed.as_ref().unwrap();
     let b = p.label_box;
@@ -756,6 +756,7 @@ fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
         return;
     };
     for (file, slots) in [
+        // Slot n in a view.
         ("nist/nist_ftc_08_asme1_rc.stp", &["4@plan"][..]),
         ("nist/nist_ftc_09_asme1_rd.stp", &["1@front", "3@front"][..]),
     ] {
@@ -770,8 +771,11 @@ fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
         for slot in slots {
             let (n, view) = slot.split_once('@').unwrap();
             let line = |param: &str| {
-                let id = format!("d:f:slot:{n}/{param}.length@{view}");
-                let d = plan.dimensions.iter().find(|d| d.id == id);
+                let id = format!("d:f:slot:{n}/{param}.length");
+                let d = plan
+                    .dimensions
+                    .iter()
+                    .find(|d| d.id == id && d.view == format!("v:{view}"));
                 let p = d.and_then(|d| d.placed.as_ref());
                 p.unwrap_or_else(|| panic!("{file}: {id} placed")).lines[2]
             };

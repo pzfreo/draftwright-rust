@@ -273,6 +273,10 @@ pub fn plan(
     if notes.is_empty() {
         return (Vec::new(), None, Vec::new());
     }
+    let ids = match &analysis.pmi {
+        Some(crate::pmi::Reading::Read(r)) => r.identities(),
+        _ => crate::pmi::Identities::default(),
+    };
     let (all, per) = table(notes);
     let (w, pen) = width(&all);
     let h = ROW * all.len() as f64;
@@ -329,7 +333,12 @@ pub fn plan(
                 }
             });
             first += rows.len();
-            let source = n.id.strip_prefix("pmi:");
+            // A PMI edge condition's note is named by its record's item ID; its basis names the
+            // record's source.
+            let source = n.id.starts_with("pmi:").then(|| {
+                ids.source(&n.id)
+                    .map_or_else(|| n.id.clone(), str::to_string)
+            });
             PlannedNote {
                 id: n.id.clone(),
                 text: n.text.trim().into(),

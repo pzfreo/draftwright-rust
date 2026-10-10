@@ -33,13 +33,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::turned::Turned;
 use super::{Context, Measurement, P3, Problem, Shape, Want, end_on, fmt, tolerance, want_id};
 use crate::model::Spec;
-use crate::pmi::{Category, Reading, Record};
+use crate::pmi::{Category, Identities, Reading, Record};
 use crate::pmi_lowering::Cylinder;
 
-/// What the plan keeps of a model item's PMI tolerance, by its ID's stem (the ID before `@`,
-/// which routing does not change): the band the PMI put on its label, and the sources it came
+/// What the plan keeps of a model item's PMI tolerance, by its ID (which routing does not
+/// change): the band the PMI put on its label, and the sources it came
 /// from, so a spec's own tolerance can take its place. (Every item that states a PMI dimension
-/// claims it: a measurement of feature `pmi:<source>`.)
+/// claims it: a measurement of feature `pmi:<identity>`, its item ID, [`feature`].)
 #[derive(Clone, Debug, Default)]
 pub(super) struct Note {
     /// The band as printed.
@@ -48,6 +48,8 @@ pub(super) struct Note {
     pub before: Vec<String>,
     /// The sources whose tolerance it is.
     pub banded: Vec<String>,
+    /// Their claims' features ([`feature`]).
+    pub claimed: Vec<String>,
     /// The clause the band added to the item's basis.
     pub clause: String,
 }
@@ -89,14 +91,21 @@ impl Req {
             band,
             before,
             banded: Vec::new(),
+            claimed: Vec::new(),
             clause: String::new(),
         })
     }
 }
 
-/// The feature a PMI dimension's claim names.
-pub(super) fn feature(source: &str) -> String {
-    format!("pmi:{source}")
+/// The feature a PMI dimension's claim names: the record's item ID, `pmi:<identity>`, never its
+/// Part 21 instance. A record whose identity another shares has none, and is not lowered
+/// ([`lower`]): its shared identity stands in while that is decided.
+pub(super) fn feature(ids: &Identities, source: &str) -> String {
+    match (ids.ids.get(source), ids.shared.get(source)) {
+        (Some(id), _) => id.clone(),
+        (None, Some((identity, _))) => format!("pmi:{identity}"),
+        (None, None) => unreachable!("every record of the reading has an identity"),
+    }
 }
 
 /// Whether a planned item is a basic PMI dimension: its label is then boxed.
@@ -108,9 +117,9 @@ pub(super) fn basic(measurements: &[Measurement]) -> bool {
 
 /// A claim on a PMI dimension: its feature, its kind as the parameter (`.basic` for a basic
 /// one), its value.
-fn claim(r: &Record, value: f64) -> Measurement {
+fn claim(ids: &Identities, r: &Record, value: f64) -> Measurement {
     Measurement {
-        feature: feature(&r.source_id),
+        feature: feature(ids, &r.source_id),
         parameter: if r.basic {
             format!("{}.basic", r.kind)
         } else {
@@ -122,11 +131,6 @@ fn claim(r: &Record, value: f64) -> Measurement {
 
 /// What [`lower`] returns: the standalone items, the problems, and the notes.
 pub(super) type Lowered = (Vec<Want>, Vec<Problem>, BTreeMap<String, Note>);
-
-/// The stem of a dimension ID: `d:<feature>/<parameter>`.
-pub(super) fn stem(id: &str) -> &str {
-    id.rsplit_once('@').map_or(id, |(s, _)| s)
-}
 
 /// Why a record is not drawn: its code and its reason.
 struct Refusal(&'static str, String);
@@ -231,7 +235,7 @@ fn hole_callout(
 ) -> Option<(usize, BTreeSet<usize>)> {
     let mut found: Vec<(usize, BTreeSet<usize>)> = Vec::new();
     for (i, w) in wants.iter().enumerate() {
-        if stem(&w.id).rsplit_once('/').map(|(_, p)| p) != Some("bore.diameter")
+        if w.id.as_str().rsplit_once('/').map(|(_, p)| p) != Some("bore.diameter")
             || w.views.first() != Some(&end_on(k))
         {
             continue;
@@ -271,7 +275,7 @@ fn step_length(wants: &[Want], stations: &[P3], k: usize, value: f64) -> Option<
                     || ((q - stations[0][k]).abs() <= 0.01 && (p - stations[1][k]).abs() <= 0.01)
             };
             *axis == k
-                && stem(&w.id).ends_with("/step.length")
+                && w.id.as_str().ends_with("/step.length")
                 && (w.value - value).abs() <= 1e-6
                 && ends(a[k], b[k])
         })
@@ -317,7 +321,7 @@ fn external_owner(
     let mut whole = Vec::new();
     let mut partly = Vec::new();
     for (i, w) in wants.iter().enumerate() {
-        let parameter = stem(&w.id).rsplit_once('/').map(|(_, p)| p);
+        let parameter = w.id.as_str().rsplit_once('/').map(|(_, p)| p);
         // A part turned whole: its overall diameter, about the turning axis.
         if parameter == Some("od.diameter")
             && let (Some(t), Some(axis)) = (turned, w.turning)
@@ -391,9 +395,20 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
         // `pmi_lowering`, not here.
         .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
         .collect();
+    // A record whose identity another shares has no item ID, so it is not drawn (ADR R1
+    // invariant 5).
+    let ids = report.identities();
     let mut outcomes: Vec<Outcome> = records
         .iter()
-        .map(|r| outcome(r, wants, cx.turned.as_ref()))
+        .map(|r| {
+            match (
+                outcome(&ids, r, wants, cx.turned.as_ref()),
+                ids.id(&r.source_id),
+            ) {
+                (o @ Outcome::Refused(_), _) | (o, Ok(_)) => o,
+                (_, Err(why)) => Outcome::Refused(not_lowered(why)),
+            }
+        })
         .collect();
 
     // A callout states a band only when every hole it calls out has the same one: one with
@@ -490,6 +505,7 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
                     .collect();
                 if let Some(mut printed) = q.print(&mut w) {
                     printed.banded = with.iter().map(|&j| records[j].source_id.clone()).collect();
+                    printed.claimed = printed.banded.iter().map(|s| feature(&ids, s)).collect();
                     printed.clause = format!(
                         "; its tolerance {} is the part's AP242 PMI ({}): draftwright gives a toleranced bore diameter to the hole callout whose holes it names (lower_ap242_hole_tolerances)",
                         printed.band,
@@ -521,10 +537,10 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
                 );
             }
             for &j in &stating {
-                w.measurements.push(claim(records[j], w.value));
+                w.measurements.push(claim(&ids, records[j], w.value));
             }
             if let Some(n) = note {
-                notes.insert(stem(&w.id).to_string(), n);
+                notes.insert(w.id.as_str().to_string(), n);
             }
             if g == 0 {
                 wants[i] = w;
@@ -597,10 +613,11 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
         );
         w.basis += &printed.clause;
         for &j in &js {
-            w.measurements.push(claim(records[j], w.value));
+            w.measurements.push(claim(&ids, records[j], w.value));
         }
+        printed.claimed = sources.iter().map(|s| feature(&ids, s)).collect();
         printed.banded = sources;
-        notes.insert(stem(&w.id).to_string(), printed);
+        notes.insert(w.id.as_str().to_string(), printed);
     }
 
     for (r, o) in records.iter().zip(outcomes) {
@@ -611,7 +628,7 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
             Outcome::Stated(i, how) => {
                 let w = &mut wants[i];
                 w.basis += &format!("; it states the part's AP242 {how} ({})", r.source_id);
-                w.measurements.push(claim(r, w.value));
+                w.measurements.push(claim(&ids, r, w.value));
             }
         }
     }
@@ -648,7 +665,7 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
 
 /// One record's outcome against the planners' items (and the part's turning, when it is turned
 /// whole).
-fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
+fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
     if !r.blockers.is_empty() {
         return Outcome::Refused(not_lowered(r.blockers.join("; ")));
     }
@@ -690,9 +707,9 @@ fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
                 }
             );
             Outcome::Standalone(own(
+                ids,
                 r,
                 value,
-                view,
                 vec![view],
                 Shape::Angular {
                     angle: angle.clone(),
@@ -716,7 +733,7 @@ fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
                     "length, which draftwright gives to the turned step it spans (lower_ap242_nominal_step_lengths)",
                 );
             }
-            Outcome::Standalone(linear(r, g, k, value))
+            Outcome::Standalone(linear(ids, r, g, k, value))
         }
         "diameter" => {
             let Some(k) = k else {
@@ -767,6 +784,7 @@ fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
                 [s[0] + m[0] / n, s[1] + m[1] / n, s[2] + m[2] / n]
             });
             Outcome::Standalone(leader(
+                ids,
                 r,
                 k,
                 value,
@@ -783,6 +801,7 @@ fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
             };
             let site = g.sites[0];
             Outcome::Standalone(leader(
+                ids,
                 r,
                 k,
                 value,
@@ -805,16 +824,16 @@ fn outcome(r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
 
 /// The source's own item: its feature `pmi:<source>`, its kind as the parameter.
 fn own(
+    ids: &Identities,
     r: &Record,
     value: f64,
-    view: &'static str,
     views: Vec<&'static str>,
     shape: Shape,
     basis: String,
 ) -> Want {
-    let m = claim(r, value);
+    let m = claim(ids, r, value);
     Want {
-        id: want_id(&m.feature, &m.parameter, view),
+        id: want_id(&m.feature, &m.parameter),
         views,
         value,
         terms: terms(&r.label),
@@ -831,7 +850,7 @@ fn own(
 /// sit across the axis where draftwright's witness does (`_pmi_witness_from_bbox`): the faces'
 /// box's middle in the front and side views, the stations' mean in the plan (for y, when it lies
 /// on the faces).
-fn linear(r: &Record, g: &crate::pmi::Geometry, k: usize, value: f64) -> Want {
+fn linear(ids: &Identities, r: &Record, g: &crate::pmi::Geometry, k: usize, value: f64) -> Want {
     let s = &g.stations;
     let b = r.ref_bbox.unwrap_or_else(|| {
         let mut b = [
@@ -891,9 +910,9 @@ fn linear(r: &Record, g: &crate::pmi::Geometry, k: usize, value: f64) -> Want {
         }
     );
     own(
+        ids,
         r,
         value,
-        view,
         views,
         Shape::Linear {
             a,
@@ -908,7 +927,15 @@ fn linear(r: &Record, g: &crate::pmi::Geometry, k: usize, value: f64) -> Want {
 }
 
 /// A diameter or radius led to its feature where it is seen end-on.
-fn leader(r: &Record, k: usize, value: f64, what: &str, sites: Vec<(P3, f64)>, how: &str) -> Want {
+fn leader(
+    ids: &Identities,
+    r: &Record,
+    k: usize,
+    value: f64,
+    what: &str,
+    sites: Vec<(P3, f64)>,
+    how: &str,
+) -> Want {
     let view = end_on(k);
     let basis = format!(
         "source-authored: the AP242 {what} {} ({}), led {how} in the {view} view, which sees it end-on (draftwright's render_pmi); no recognised feature's dimension states it, so it stands beside them{}",
@@ -920,7 +947,7 @@ fn leader(r: &Record, k: usize, value: f64, what: &str, sites: Vec<(P3, f64)>, h
             ""
         }
     );
-    own(r, value, view, vec![view], Shape::Callout { sites }, basis)
+    own(ids, r, value, vec![view], Shape::Callout { sites }, basis)
 }
 
 /// A spec's own tolerance or fit on a size wins over an imported one (draftwright's
@@ -936,7 +963,7 @@ pub(super) fn yield_to_spec(
     problems: &mut Vec<Problem>,
 ) {
     for (w, ..) in kept.iter_mut() {
-        let Some(note) = notes.get(stem(&w.id)) else {
+        let Some(note) = notes.get(w.id.as_str()) else {
             continue;
         };
         let Some((what, printed)) = tolerance::authored(spec, w) else {
@@ -945,8 +972,8 @@ pub(super) fn yield_to_spec(
         let band = &note.band;
         w.terms = note.before.clone();
         w.basis = w.basis.replacen(&note.clause, "", 1);
-        let gone: Vec<String> = note.banded.iter().map(|s| feature(s)).collect();
-        w.measurements.retain(|m| !gone.contains(&m.feature));
+        w.measurements
+            .retain(|m| !note.claimed.contains(&m.feature));
         let label = if printed {
             String::new()
         } else {
@@ -972,6 +999,7 @@ pub(super) fn yield_to_spec(
 /// The PMI dimensions the plan leaves out with the items that state them (the spec omits them,
 /// or another item conveys them without claiming them), each reported not drawn.
 pub(super) fn omitted(
+    analysis: &crate::model::Analysis,
     all: &[Want],
     kept: &[(Want, bool, Option<&'static str>, Vec<&'static str>)],
     omitted: &[super::Omitted],
@@ -981,13 +1009,18 @@ pub(super) fn omitted(
         .flat_map(|(w, ..)| w.measurements.iter().map(|m| m.feature.as_str()))
         .filter(|f| f.starts_with("pmi:"))
         .collect();
+    let ids = match &analysis.pmi {
+        Some(Reading::Read(r)) => r.identities(),
+        _ => Identities::default(),
+    };
     let mut out = Vec::new();
     for o in omitted {
         let Some(w) = all.iter().find(|w| w.id == o.id) else {
             continue;
         };
         for m in &w.measurements {
-            let Some(source) = m.feature.strip_prefix("pmi:") else {
+            // Named by its record's source, as the other PMI problems are.
+            let Some(source) = ids.source(&m.feature) else {
                 continue;
             };
             if claimed.contains(m.feature.as_str()) {
@@ -1066,12 +1099,11 @@ fn split(w: &Want, groups: &[Group]) -> Vec<(Want, Vec<usize>)> {
             part.shape = Shape::Callout {
                 sites: members.iter().map(|&m| sites[m]).collect(),
             };
-            let view = w.views[0];
-            part.id = want_id(&holes[members[0]].0, "bore.diameter", view);
+            part.id = want_id(&holes[members[0]].0, "bore.diameter");
             part.basis += &format!(
                 "; {n} of the {} identical holes, called out apart from the others because their AP242 requirements differ (draftwright splits a count group by requirement){}",
                 holes.len(),
-                if stem(&w.id).starts_with("d:f:hole_pattern:") {
+                if w.id.as_str().starts_with("d:f:hole_pattern:") {
                     "; the pattern's pitches still locate them"
                 } else {
                     ""
@@ -1097,7 +1129,7 @@ mod tests {
     #[test]
     fn symmetric_limits_print_as_a_band_and_asymmetric_ones_as_limits() {
         let callout = || Want {
-            id: "d:f:hole:1/bore.diameter@plan".into(),
+            id: "d:f:hole:1/bore.diameter".into(),
             views: vec!["plan"],
             value: 35.0,
             terms: vec!["2×".into(), "⌀35".into(), "THRU".into()],

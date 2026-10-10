@@ -101,7 +101,7 @@ fn a_holes_view_follows_from_its_axis() {
 #[test]
 fn a_grid_of_holes_is_called_out_once_located_and_spaced() {
     let plan = planned("plate", &recognition("plate"), &Spec::default());
-    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter@plan");
+    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter");
     assert_eq!(c.label, "4× ⌀6 THRU (2×2)");
     assert_eq!(c.measurements.len(), 4, "one bore diameter per hole");
     assert!(
@@ -110,26 +110,26 @@ fn a_grid_of_holes_is_called_out_once_located_and_spaced() {
             .all(|m| m.parameter == "bore.diameter")
     );
     assert_eq!(
-        find(&plan, "d:f:hole_pattern:1/grid_pitch.length.col@plan").label,
+        find(&plan, "d:f:hole_pattern:1/grid_pitch.length.col").label,
         "40"
     );
     assert_eq!(
-        find(&plan, "d:f:hole_pattern:1/grid_pitch.length.row@plan").label,
+        find(&plan, "d:f:hole_pattern:1/grid_pitch.length.row").label,
         "20"
     );
     // The grid's centre is the part's centre: 30 and 20 from the left and front faces.
     assert_eq!(
-        find(&plan, "d:f:hole_pattern:1/location.length.x@plan").label,
+        find(&plan, "d:f:hole_pattern:1/location.length.x").label,
         "30"
     );
     assert_eq!(
-        find(&plan, "d:f:hole_pattern:1/location.length.y@plan").label,
+        find(&plan, "d:f:hole_pattern:1/location.length.y").label,
         "20"
     );
     for (id, label) in [
-        ("d:envelope/width.length@front", "60"),
-        ("d:envelope/depth.length@side", "40"),
-        ("d:envelope/height.length@front", "5"),
+        ("d:envelope/width.length", "60"),
+        ("d:envelope/depth.length", "40"),
+        ("d:envelope/height.length", "5"),
     ] {
         assert_eq!(find(&plan, id).label, label);
     }
@@ -138,7 +138,7 @@ fn a_grid_of_holes_is_called_out_once_located_and_spaced() {
     ids.dedup();
     assert_eq!(ids.len(), plan.dimensions.len(), "IDs are unique");
     for d in &plan.dimensions {
-        assert!(d.id.ends_with(&format!("@{}", &d.view[2..])), "{}", d.id);
+        assert!(!d.id.contains('@'), "an ID never names its view: {}", d.id);
         assert!(d.default && !d.basis.is_empty(), "{}", d.id);
         assert!(d.placed.is_some(), "{}", d.id);
     }
@@ -245,7 +245,7 @@ fn nothing_approved_vanishes_when_its_view_is_omitted() {
         .filter(|d| d.placed.is_none())
         .map(|d| d.id.as_str())
         .collect();
-    assert!(unplaced.contains(&"d:f:hole_pattern:1/bore.diameter@plan"));
+    assert!(unplaced.contains(&"d:f:hole_pattern:1/bore.diameter"));
     for id in &unplaced {
         assert!(
             plan.problems
@@ -269,8 +269,8 @@ fn nothing_approved_vanishes_when_its_view_is_omitted() {
 #[test]
 fn both_dimension_sources_and_their_validation() {
     let json = recognition("plate");
-    let callout = "d:f:hole_pattern:1/bore.diameter@plan";
-    let width = "d:envelope/width.length@front";
+    let callout = "d:f:hole_pattern:1/bore.diameter";
+    let width = "d:envelope/width.length";
 
     // auto, through an edit: the ID's `/` is written `~1`.
     let spec = model::edit(
@@ -310,7 +310,7 @@ fn both_dimension_sources_and_their_validation() {
     let e = model::plan(&a, &spec).unwrap_err();
     assert!(e.message.contains("authored set"), "{}", e.message);
 
-    // An unknown ID: the nearest are offered.
+    // An unknown ID (a version 1 ID, naming a view): the nearest are offered.
     let mut spec = Spec::default();
     spec.dimensions.insert(
         "d:envelope/width.length@plan".into(),
@@ -336,15 +336,15 @@ fn a_turned_part_states_its_diameter_and_length() {
     let env: Vec<(&str, &str)> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.starts_with("d:envelope") || d.id.contains("/step.length@"))
+        .filter(|d| d.id.starts_with("d:envelope") || d.id.ends_with("/step.length"))
         .map(|d| (d.id.as_str(), d.label.as_str()))
         .collect();
     assert_eq!(
         env,
         [
-            ("d:envelope/od.diameter@front", "ø30"),
-            ("d:f:turned_step:1/step.length@front", "40"),
-            ("d:f:turned_step:2/step.length@front", "30")
+            ("d:envelope/od.diameter", "ø30"),
+            ("d:f:turned_step:1/step.length", "40"),
+            ("d:f:turned_step:2/step.length", "30")
         ]
     );
 }
@@ -356,10 +356,7 @@ fn a_turned_part_states_its_diameter_and_length() {
 fn a_turned_parts_diameter_follows_its_view() {
     let spec: Spec = serde_json::from_value(json!({"views": {"front": {"omit": true}}})).unwrap();
     let plan = planned("turned", &recognition("turned"), &spec);
-    for id in [
-        "d:envelope/od.diameter@side",
-        "d:f:turned_step:1/step.length@side",
-    ] {
+    for id in ["d:envelope/od.diameter", "d:f:turned_step:1/step.length"] {
         let d = find(&plan, id);
         assert!(d.placed.is_some(), "{id} is drawn");
         assert_eq!(d.view, "v:side");
@@ -384,9 +381,7 @@ fn a_turned_parts_diameter_follows_its_view() {
         .find(|p| p.code == "view_plan_incomplete")
         .expect("reported");
     assert!(
-        p.subjects
-            .iter()
-            .any(|s| s == "d:envelope/od.diameter@front"),
+        p.subjects.iter().any(|s| s == "d:envelope/od.diameter"),
         "{:?}",
         p.subjects
     );
@@ -455,25 +450,34 @@ fn features_with_no_ported_dimensions_are_reported() {
     assert!(not_ported(&plate).is_empty(), "{:?}", plate.problems);
 }
 
-/// An ID names the view that carries its dimension, so omitting that view renames it; a spec
-/// still keyed by the old ID is refused, and the refusal names the new ID first.
+/// An ID never names the view that carries its dimension (`draftwright.spec/2`), so omitting that
+/// view moves the dimension and keeps its ID; a version 2 spec keyed by a version 1 ID (with its
+/// `@<view>`) is refused, and the refusal reads it as the ID it now has, first among the choices.
 #[test]
-fn a_dimension_renamed_by_an_omitted_view_is_named_in_the_refusal() {
+fn an_omitted_view_keeps_a_dimensions_id_and_an_old_key_reads_as_the_new_one() {
+    let (_, a) = analysed_with("plate", &recognition("plate"));
+    let shown = model::plan(&a, &Spec::default()).unwrap();
+    let width = find(&shown, "d:envelope/width.length");
+    assert_eq!(width.view, "v:front");
+    let spec: Spec = serde_json::from_value(json!({ "views": {"front": {"omit": true}} })).unwrap();
+    let moved = model::plan(&a, &spec).unwrap();
+    let width = find(&moved, "d:envelope/width.length");
+    assert_eq!(width.view, "v:plan");
+    assert!(
+        width.basis.contains("front view is omitted"),
+        "{}",
+        width.basis
+    );
+
     let spec: Spec = serde_json::from_value(json!({
         "views": {"front": {"omit": true}},
         "dimensions": {"d:envelope/width.length@front": {"omit": true}}
     }))
     .unwrap();
-    let (_, a) = analysed_with("plate", &recognition("plate"));
     let e = model::plan(&a, &spec).unwrap_err();
-    assert_eq!(
-        e.choices[0], "d:envelope/width.length@plan",
-        "{:?}",
-        e.choices
-    );
+    assert_eq!(e.choices[0], "d:envelope/width.length", "{:?}", e.choices);
     assert!(
-        e.message.contains("d:envelope/width.length@plan")
-            && e.message.contains("front view is omitted"),
+        e.message.contains("reads as \"d:envelope/width.length\""),
         "{}",
         e.message
     );
@@ -501,7 +505,7 @@ fn a_countersunk_hole_states_its_countersink() {
         "{:?}",
         plan.problems
     );
-    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter@plan");
+    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter");
     assert_eq!(c.label, "4× ⌀6 THRU ⌵ ⌀12 × 90° (2×2)");
     for (parameter, value) in [("countersink.diameter", 12.0), ("countersink.angle", 90.0)] {
         let m: Vec<f64> = c
@@ -529,7 +533,7 @@ fn a_hole_with_a_counterbore_and_a_spotface_states_both() {
     }
     let (part, analysis) = analysed_with("plate", &json);
     let plan = model::plan(&analysis, &Spec::default()).unwrap();
-    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter@plan");
+    let c = find(&plan, "d:f:hole_pattern:1/bore.diameter");
     assert_eq!(c.label, "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1 (2×2)");
     for (parameter, value) in [
         ("counterbore.diameter", 11.0),
@@ -632,7 +636,7 @@ fn renderers_draw_only_from_the_plan() {
     let d = plan
         .dimensions
         .iter_mut()
-        .find(|d| d.id == "d:envelope/width.length@front")
+        .find(|d| d.id == "d:envelope/width.length")
         .unwrap();
     d.terms = vec!["WIDTH-FROM-PLAN".into()];
     let after = runs(&plan);

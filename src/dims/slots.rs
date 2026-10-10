@@ -283,7 +283,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
         terms.push(fmt(s.width));
         out.push(Want {
-            id: want_id(&s.feature.id, "slot_width.length", view),
+            id: want_id(&s.feature.id, "slot_width.length"),
             views: vec![view],
             value: s.width,
             terms,
@@ -326,7 +326,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             value,
         };
         out.push(Want {
-            id: want_id(id, "slot_length.length", view),
+            id: want_id(id, "slot_length.length"),
             views: vec![view],
             value: s.length,
             terms: vec![fmt(s.length)],
@@ -337,7 +337,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         });
         if let Some(r) = s.end_radius {
             out.push(Want {
-                id: want_id(id, "slot_end_radius.radius", view),
+                id: want_id(id, "slot_end_radius.radius"),
                 views: vec![view],
                 value: r,
                 terms: vec!["2×".into(), format!("R{}", fmt(r))],
@@ -376,7 +376,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         };
         a[s.long] = lo[s.long];
         out.push(Want {
-            id: want_id(id, "location_slot.length", view),
+            id: want_id(id, "location_slot.length"),
             views: vec![view],
             value: d,
             terms: vec![fmt(d)],
@@ -456,7 +456,7 @@ fn located_across(
         let mut a = *p;
         a[k] = lo[k];
         out.push(Want {
-            id: want_id(first, parameter, view),
+            id: want_id(first, parameter),
             views: vec![view],
             value: d,
             terms: vec![fmt(d)],
@@ -641,7 +641,7 @@ fn pattern<'a>(cx: &Context<'a>, p: &'a Feature) -> Result<Grouped<'a>, String> 
         value,
     };
     let mut items = vec![Want {
-        id: want_id(&p.id, "slot_width.length", view),
+        id: want_id(&p.id, "slot_width.length"),
         views: vec![view],
         value: s.width,
         terms: vec![
@@ -671,7 +671,7 @@ fn pattern<'a>(cx: &Context<'a>, p: &'a Feature) -> Result<Grouped<'a>, String> 
     }];
     if let Some(r) = s.end_radius {
         items.push(Want {
-            id: want_id(&p.id, "slot_end_radius.radius", view),
+            id: want_id(&p.id, "slot_end_radius.radius"),
             views: vec![view],
             value: r,
             terms: vec!["2×".into(), format!("R{}", fmt(r))],
@@ -710,7 +710,7 @@ fn pattern<'a>(cx: &Context<'a>, p: &'a Feature) -> Result<Grouped<'a>, String> 
         let mut a = centre;
         a[k] = lo[k];
         items.push(Want {
-            id: want_id(&p.id, &parameter, view),
+            id: want_id(&p.id, &parameter),
             views: vec![view],
             value: d,
             terms: vec![fmt(d)],
@@ -763,7 +763,7 @@ fn pitch_want(
     a[along] = values[0];
     b[along] = values[1];
     Want {
-        id: want_id(pattern, parameter, view),
+        id: want_id(pattern, parameter),
         views: vec![view],
         value: p,
         terms: vec![text],
@@ -979,7 +979,7 @@ impl Blind<'_> {
             (c, 0.0)
         };
         Want {
-            id: want_id(id, &measurements[0].parameter, view),
+            id: want_id(id, &measurements[0].parameter),
             views: vec![view],
             value: measurements[0].value,
             terms,

@@ -93,7 +93,7 @@ fn equal_fillets_share_one_counted_callout() {
     let c = callouts(&plan);
     assert_eq!(c.len(), 1, "{:?}", labels(&plan));
     let c = c[0];
-    assert_eq!(c.id, "d:f:fillet:1/fillet.radius@plan");
+    assert_eq!(c.id, "d:f:fillet:1/fillet.radius");
     assert_eq!((c.kind.as_str(), c.label.as_str()), ("callout", "4× R2"));
     assert_eq!(c.terms, ["4×", "R2"]);
     assert_eq!(c.view, "v:plan", "the fillets run along the part's z");
@@ -123,7 +123,7 @@ fn a_turned_fillet_reads_in_the_profile_and_is_never_guessed_turned() {
     let plan = planned("turned", &json, &Spec::default());
     let c = callouts(&plan);
     assert_eq!(c.len(), 1, "{:?}", labels(&plan));
-    assert_eq!(c[0].id, "d:f:fillet:1/fillet.radius@front");
+    assert_eq!(c[0].id, "d:f:fillet:1/fillet.radius");
     assert_eq!(c[0].label, "4× R0.8");
     assert_eq!(c[0].measurements.len(), 4);
     assert!(c[0].basis.contains("profile"), "{}", c[0].basis);
@@ -176,7 +176,8 @@ fn chamfers_are_called_out_c_or_leg_and_angle() {
         assert_eq!(lengths, c.label.strip_prefix("2× ").map_or(1, |_| 2));
         // The angle is a measurement only when the label prints it.
         assert_eq!(angles, usize::from(c.label.contains('°')), "{}", c.label);
-        assert!(c.id.ends_with("/chamfer.length@plan"), "{}", c.id);
+        assert!(c.id.ends_with("/chamfer.length"), "{}", c.id);
+        assert_eq!(c.view, "v:plan", "{}", c.id);
         assert!(c.placed.is_some());
     }
     assert!(problems(&plan, "dimensions_not_ported").is_empty());
@@ -296,7 +297,7 @@ fn lint_finds_the_fillets_stated() {
     assert_eq!(missing(&Spec::default()), 0);
     let mut spec = Spec::default();
     spec.dimensions.insert(
-        "d:f:fillet:1/fillet.radius@plan".into(),
+        "d:f:fillet:1/fillet.radius".into(),
         DimensionSpec {
             omit: true,
             ..Default::default()

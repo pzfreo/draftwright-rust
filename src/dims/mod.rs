@@ -22,7 +22,8 @@
 //! - **the height ladder** of a prismatic part: its face levels' heights from its base, in the
 //!   front view, and its shoulders' positions along x and y.
 //!
-//! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>@<view>`, its value,
+//! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>`, the view that
+//! carries it, its value,
 //! its printed terms and label, the measurements it states, a default flag and a basis. A
 //! tolerance or fit the spec gives reaches the label verbatim ([`tolerance`]), before placement.
 //! Each quantity is then stated once (ARCH0009-6): coincident locations merge
@@ -82,6 +83,86 @@ use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
 pub(crate) use tolerance::check as check_tolerances;
 
+/// Checks the view every dimension entry of the spec names (`dimensions/<id>/view`) is one a
+/// dimension can be carried by: the form, never the part (that is [`plan`]'s).
+pub(crate) fn check_views(spec: &Spec) -> Result<(), Invalid> {
+    for (id, entry) in &spec.dimensions {
+        if let Some(v) = &entry.view
+            && !NAMES.contains(&v.as_str())
+        {
+            return Err(Invalid {
+                message: format!(
+                    "The view of {id:?} is {v:?}: a dimension is carried by a principal view."
+                ),
+                choices: NAMES.map(String::from).to_vec(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Whether view *v* can carry *w*: it is one of *w*'s views and does not look along it (a
+/// turned part's diameter turns to a radial axis the view shows), as [`route`] decides.
+fn carries(w: &Want, v: &str) -> bool {
+    let Some((_, toward)) = TOWARD.iter().find(|(n, _)| *n == v) else {
+        return false;
+    };
+    w.views.contains(&v)
+        && match &w.shape {
+            Shape::Linear { axis, .. } => {
+                toward[*axis] == 0.0
+                    || w.turning
+                        .is_some_and(|t| (0..3).any(|j| j != t && j != *axis && toward[j] == 0.0))
+            }
+            Shape::Callout { .. } | Shape::Angular { .. } => true,
+        }
+}
+
+/// The spec's choice of the view that carries each dimension (`dimensions/<id>/view`): put
+/// first among its views when it is shown, so [`route`] gives it that view; a view that is not
+/// shown leaves it to its default view and says so (a warning on its ID). A view that cannot
+/// carry it is refused, with the views that can.
+fn chosen_views(
+    wants: &mut [Want],
+    spec: &Spec,
+    frames: &BTreeMap<&str, Frame>,
+) -> Result<Vec<Problem>, Invalid> {
+    let mut problems = Vec::new();
+    for w in wants.iter_mut() {
+        let Some(v) = spec.dimensions.get(&w.id).and_then(|e| e.view.as_deref()) else {
+            continue;
+        };
+        let able: Vec<&'static str> = w.views.iter().copied().filter(|c| carries(w, c)).collect();
+        let Some(&v) = able.iter().find(|c| **c == v) else {
+            return Err(Invalid {
+                message: format!(
+                    "{} cannot be carried by the {v} view (dimensions/{}/view): it is drawn only in a view that sees it across.",
+                    w.id,
+                    w.id.replace('~', "~0").replace('/', "~1")
+                ),
+                choices: able.iter().map(|c| c.to_string()).collect(),
+            });
+        };
+        if frames.contains_key(v) {
+            w.views.retain(|c| *c != v);
+            w.views.insert(0, v);
+            w.basis += &format!("; the spec places it in the {v} view");
+        } else {
+            problems.push(Problem {
+                id: format!("p:dimension_view_not_shown:{}", w.id),
+                code: "dimension_view_not_shown".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The spec places {} in the {v} view, which is omitted, so it is drawn in its default view instead. Restore the view (remove views/{v}/omit) or remove the dimension's view.",
+                    w.id
+                ),
+                subjects: vec![w.id.clone()],
+            });
+        }
+    }
+    Ok(problems)
+}
+
 /// Annotation text height (the em), mm: draftwright's `_FONT_SIZE`.
 pub const TEXT: f64 = 3.0;
 /// Arrowhead length, mm: draftwright's draft preset at its text height.
@@ -115,7 +196,8 @@ pub(crate) fn font() -> &'static Font {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlannedDimension {
-    /// `d:<feature>/<parameter>@<view>`; the feature is `envelope` for the overall extents.
+    /// `d:<feature>/<parameter>`; the feature is `envelope` for the overall extents, and
+    /// `pmi:<identity>` for a PMI dimension standing on its own. It never names the view.
     pub id: String,
     /// `linear`, `callout` or `angular`.
     pub kind: String,
@@ -241,8 +323,10 @@ struct Want {
     turning: Option<usize>,
 }
 
-fn want_id(feature: &str, parameter: &str, view: &str) -> String {
-    format!("d:{feature}/{parameter}@{view}")
+/// A dimension's ID, `d:<feature>/<parameter>`: what it measures, never the view that carries
+/// it, so routing it to another view (an omitted view, a sheet or scale change) keeps it.
+fn want_id(feature: &str, parameter: &str) -> String {
+    format!("d:{feature}/{parameter}")
 }
 
 fn add(a: P3, b: P3) -> P3 {
@@ -444,7 +528,7 @@ fn levenshtein(a: &str, b: &str) -> usize {
 
 /// The view that carries each of *wants*: its first choice that is shown (in *frames*) and does
 /// not look along it (a turned part's diameter turns to the radial axis the view shows). A later
-/// choice renames it. Those with none keep the views that were shown but look along them.
+/// choice says so in its basis; its ID stays. Those with none keep the views that were shown but look along them.
 fn route(
     wants: &mut [Want],
     frames: &BTreeMap<&str, Frame>,
@@ -479,8 +563,6 @@ fn route(
         if let Some(v) = view
             && v != w.views[0]
         {
-            let (stem, _) = w.id.rsplit_once('@').expect("an ID names its view");
-            w.id = format!("{stem}@{v}");
             let why = if frames.contains_key(w.views[0]) {
                 "looks along it"
             } else {
@@ -544,6 +626,7 @@ pub fn plan(
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    problems.extend(chosen_views(&mut wants, spec, &frames)?);
     let (chosen, end_on) = route(&mut wants, &frames, analysis);
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
@@ -554,22 +637,20 @@ pub fn plan(
             let mut near: Vec<&str> = ids.iter().copied().collect();
             near.sort_by_key(|c| (levenshtein(id, c), *c));
             near.truncate(5);
-            // An ID names the view that carries the dimension, so omitting that view renames it.
-            let stem = id.rsplit_once('@').map_or(id.as_str(), |(s, _)| s);
-            let moved = wants
-                .iter()
-                .find(|w| w.id.rsplit_once('@').is_some_and(|(s, _)| s == stem) && w.id != *id);
-            let mut choices: Vec<String> = moved.iter().map(|w| w.id.clone()).collect();
+            // A `draftwright.spec/1` ID named its view (`d:<feature>/<parameter>@<view>`); a spec
+            // of version 2 is read with the IDs it has, so such a key reads as its stem.
+            let stem = id.rsplit_once('@').map(|(s, _)| s);
+            let reads = stem.filter(|s| ids.contains(s));
+            let mut choices: Vec<String> = reads.iter().map(|s| s.to_string()).collect();
             for c in near {
                 if !choices.iter().any(|x| x == c) {
                     choices.push(c.into());
                 }
             }
             choices.truncate(5);
-            let message = match moved {
-                Some(w) => format!(
-                    "There is no dimension {id:?} on this part: an ID names the view that carries it, and that dimension is now {:?} ({}).",
-                    w.id, w.basis
+            let message = match reads {
+                Some(s) => format!(
+                    "There is no dimension {id:?} on this part: a dimension's ID no longer names its view (draftwright.spec/2), so it reads as {s:?}."
                 ),
                 None => format!("There is no dimension {id:?} on this part."),
             };
@@ -609,7 +690,7 @@ pub fn plan(
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     share(&mut kept, &mut given, &mut omitted);
-    problems.extend(pmi_dimensions::omitted(&all, &kept, &omitted));
+    problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
     // Then everything the part would have is placed: each item's lane, and where its label
     // settles, come from the full set, so omitting or restoring one leaves the others where they
@@ -673,8 +754,13 @@ pub fn plan(
     type Undrawn = (Vec<&'static str>, Vec<&'static str>);
     let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
-    for ((w, default, chosen, along), from_spec) in kept.into_iter().zip(given) {
+    for ((w, default, chosen, along), mut from_spec) in kept.into_iter().zip(given) {
         let placed = positions.remove(&w.id).flatten();
+        if let Some(v) = spec.dimensions.get(&w.id).and_then(|e| e.view.as_deref())
+            && chosen == Some(v)
+        {
+            from_spec.push("view".into());
+        }
         let view = chosen.unwrap_or(w.views[0]);
         if placed.is_none() {
             missing
@@ -1010,7 +1096,7 @@ mod tests {
     /// A default size of *feature* in the plan, along x from *lo* to *hi*, labelled *label*.
     fn size(feature: &str, parameter: &str, lo: f64, hi: f64, label: &[&str]) -> Kept {
         let want = Want {
-            id: want_id(feature, parameter, "plan"),
+            id: want_id(feature, parameter),
             views: vec!["plan"],
             value: hi - lo,
             terms: label.iter().map(|t| t.to_string()).collect(),
@@ -1065,15 +1151,15 @@ mod tests {
         assert_eq!(
             kept,
             [
-                ("d:f:slot:1/slot_width.length@plan".into(), "2× 6".into(), 2),
-                ("d:f:slot:3/slot_width.length@plan".into(), "6".into(), 1),
+                ("d:f:slot:1/slot_width.length".into(), "2× 6".into(), 2),
+                ("d:f:slot:3/slot_width.length".into(), "6".into(), 1),
             ]
         );
         assert_eq!(
             omitted,
             [(
-                "d:f:slot:2/slot_width.length@plan".into(),
-                "d:f:slot:1/slot_width.length@plan".into()
+                "d:f:slot:2/slot_width.length".into(),
+                "d:f:slot:1/slot_width.length".into()
             )]
         );
     }
@@ -1086,11 +1172,7 @@ mod tests {
         ]);
         assert_eq!(
             kept,
-            [(
-                "d:f:hole_pattern:1/pitch.length@plan".into(),
-                "2× 75".into(),
-                2
-            )]
+            [("d:f:hole_pattern:1/pitch.length".into(), "2× 75".into(), 2)]
         );
         // A different band, a different parameter, or a size draftwright never shares.
         let (kept, omitted) = shared(vec![
@@ -1114,12 +1196,8 @@ mod tests {
         ]);
         assert_eq!(
             kept,
-            [(
-                "d:f:boss:2/boss_height.length@plan".into(),
-                "2× 5".into(),
-                2
-            )]
+            [("d:f:boss:2/boss_height.length".into(), "2× 5".into(), 2)]
         );
-        assert_eq!(omitted[0].0, "d:f:boss:1/boss_height.length@plan");
+        assert_eq!(omitted[0].0, "d:f:boss:1/boss_height.length");
     }
 }

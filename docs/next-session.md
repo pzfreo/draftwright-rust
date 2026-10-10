@@ -222,6 +222,30 @@ pushed):
   merged, pending alpha 1 question 11 (merge, and which owns it). Answering "merge" removes that
   entry.
 
+- Stable identity (ts/s1-identity, the editor thin slice's S1; judgement calls, overturnable;
+  `docs/model.md`, "IDs"):
+  1. A PMI record's identity uses the drawing's face and edge indices, not their
+     `ADVANCED_FACE` instances as the editor's `gdt::editor_key` did: no Part 21 number enters
+     an ID, and a rewrite that keeps the geometry keeps the indices.
+  2. A record's label enters its identity only to tell apart records that otherwise share it
+     (composite frames on NIST FTC-07, FTC-10, STC-09), so a changed magnitude keeps an ID.
+     Records alike in their labels too (STC-09's two `0.03 ±0.01 INCH`, FTC-10's three `ø3`, all
+     already undrawn for other reasons) get no ID and are refused.
+  3. A migrated `draftwright.spec/1` key does not keep its `@<view>` as the entry's `view`: the
+     view was where the plan routed it, not a decision, so a migrated spec plans as before and
+     an omitted view never refuses it.
+  4. `dimensions/<id>/view` naming an omitted view leaves the dimension in its default view with
+     a warning (`dimension_view_not_shown`), where the editor's fork refused the plan; a view
+     that cannot carry it is refused. S3's `place.view` may absorb the field.
+  5. Coincident GD&T leaders still take their tiers in source order (Part 21 text), as before,
+     so no drawing changed; a rewrite that renumbers may reorder two frames whose leaders stand
+     together (their IDs stay). The manufacturing table's tags keep draftwright's source order.
+  6. Problems about PMI records still name the record's source (`p:pmi_not_lowered:<source>`):
+     the record is not an item. Typed subjects are S2's.
+  7. The layout's lane reservation (`dims::lanes`) does not see a spec's `view`.
+  8. `edit` has no analysis, so it leaves a version 1 spec's version and keys as they are; `plan`
+     migrates (and its embedded spec is version 2).
+
 **Housekeeping:** clean leftover worktrees in quiddity-rust can be removed
 (`.claude/worktrees/agent-a461c0d2e1bd3494a`, `wf_7fc79fa8-4f8-162`, `wf_7ff99f80-ece-23`,
 `wf_7ff99f80-ece-24`, and the scratchpad `wt-ap242`); their branches are merged or superseded.

@@ -39,12 +39,12 @@ def one(f):
             meas[(m.get("feature"), m.get("parameter"))] += 1
         pl = d.get("placed") or {}
         lines = pl.get("lines") or []
-        view = d["id"].split("@")[-1]
+        view = d["view"]
         if lines:
             ends = sorted((round(x, 1), round(y, 1)) for l in lines[:2] for (x, y) in l)
             spans[(view, d.get("label"), tuple(ends))] += 1
     labels = collections.Counter(
-        (d["id"].split("@")[-1], d.get("label"), (d.get("placed") or {}).get("rotation", 0))
+        (d["view"], d.get("label"), (d.get("placed") or {}).get("rotation", 0))
         for d in plan["dimensions"] if d.get("kind") == "linear")
     rep_label = sum(n - 1 for n in labels.values() if n > 1)
     rep_meas = sum(n - 1 for n in meas.values() if n > 1)

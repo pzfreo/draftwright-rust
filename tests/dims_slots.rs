@@ -38,8 +38,8 @@ fn items(plan: &Plan, prefix: &str) -> Vec<(String, String, String)> {
         .dimensions
         .iter()
         .filter_map(|d| {
-            let (_, rest) = d.id.split_once('/')?;
-            let (parameter, view) = rest.split_once('@')?;
+            let (_, parameter) = d.id.split_once('/')?;
+            let view = d.view.trim_start_matches("v:");
             parameter
                 .starts_with(prefix)
                 .then(|| (parameter.to_string(), view.to_string(), d.label.clone()))
@@ -124,7 +124,7 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
     let conveyed: Vec<_> = plan
         .omitted
         .iter()
-        .filter(|o| o.id.contains("/location_slot_across.length@"))
+        .filter(|o| o.id.ends_with("/location_slot_across.length"))
         .collect();
     assert_eq!(conveyed.len(), 1, "{:#?}", plan.omitted);
     assert!(conveyed[0].basis.contains("ARCH0009-6"));
@@ -132,7 +132,7 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
     let owner = &basis["conveyed by ".len()..basis.find(": ").unwrap()];
     let hole = plan.dimensions.iter().find(|d| d.id == owner).unwrap();
     assert!(
-        hole.id.contains("/location.length.y@plan") && hole.label == "50.4",
+        hole.id.ends_with("/location.length.y") && hole.view == "v:plan" && hole.label == "50.4",
         "{hole:?}"
     );
     for d in plan.dimensions.iter().filter(|d| d.id.contains("slot")) {
@@ -157,7 +157,7 @@ fn ctc01_slot_locations_are_exact() {
     let mut values: Vec<f64> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/location_slot.length@"))
+        .filter(|d| d.id.ends_with("/location_slot.length"))
         .map(|d| d.value)
         .collect();
     values.sort_by(f64::total_cmp);
@@ -197,7 +197,7 @@ fn ftc06_bosses_are_counted_called_out_and_their_heights_stated() {
     let heights: usize = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/boss_height.length@"))
+        .filter(|d| d.id.ends_with("/boss_height.length"))
         .map(|d| d.measurements.len())
         .sum();
     assert_eq!(heights, 8);
@@ -334,8 +334,8 @@ fn stating(plan: &Plan, a: &Analysis, kind: &str) -> Vec<(String, String, String
                 .any(|m| ids.contains(&m.feature.as_str()))
         })
         .map(|d| {
-            let (_, rest) = d.id.split_once('/').unwrap();
-            let (parameter, view) = rest.split_once('@').unwrap();
+            let (_, parameter) = d.id.split_once('/').unwrap();
+            let view = d.view.trim_start_matches("v:");
             (parameter.to_string(), view.to_string(), d.label.clone())
         })
         .collect();
@@ -364,7 +364,7 @@ fn ctc01_hex_boss_states_its_size_across_flats_and_its_height() {
     let across = plan
         .dimensions
         .iter()
-        .find(|d| d.id.contains("/polygon_across_flats.length@"))
+        .find(|d| d.id.ends_with("/polygon_across_flats.length"))
         .unwrap();
     assert_eq!(across.kind, "callout");
     assert_eq!(across.terms, ["HEX", "100", "A/F"]);
@@ -427,14 +427,14 @@ fn ftc07_square_bosses_are_counted_across_flats_with_their_heights() {
     let across = plan
         .dimensions
         .iter()
-        .find(|d| d.id.contains("/polygon_across_flats.length@"))
+        .find(|d| d.id.ends_with("/polygon_across_flats.length"))
         .unwrap();
     assert_eq!(across.measurements.len(), 4);
     assert!(across.placed.is_some());
     let height = plan
         .dimensions
         .iter()
-        .find(|d| d.id.contains("/boss_height.length@"))
+        .find(|d| d.id.ends_with("/boss_height.length"))
         .unwrap();
     assert_eq!(height.measurements.len(), 4);
 }
@@ -521,7 +521,7 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
         for d in plan
             .dimensions
             .iter()
-            .filter(|d| d.id.contains("/location_slot_across.length@"))
+            .filter(|d| d.id.ends_with("/location_slot_across.length"))
         {
             assert!(d.placed.is_some(), "{name}: {} is not drawn", d.id);
         }
@@ -598,12 +598,12 @@ fn a_boss_height_between_the_parts_own_faces_is_the_overall_extents() {
     let depth = plan
         .dimensions
         .iter()
-        .find(|d| d.id.starts_with("d:envelope/depth.length@"))
+        .find(|d| d.id.starts_with("d:envelope/depth.length"))
         .unwrap();
     let gone = plan
         .omitted
         .iter()
-        .find(|o| o.id.contains("/boss_height.length@"))
+        .find(|o| o.id.ends_with("/boss_height.length"))
         .expect("the boss height is omitted");
     assert!(
         gone.basis.starts_with(&format!("conveyed by {}", depth.id)),
@@ -685,20 +685,11 @@ fn a_slot_pattern_is_called_out_once_with_its_pitches_and_centre() {
     assert_eq!(
         of_pattern,
         [
-            (
-                "d:f:slot_pattern:1/slot_width.length@plan",
-                "3× SLOT 6 × 20"
-            ),
-            ("d:f:slot_pattern:1/slot_end_radius.radius@plan", "2× R3"),
-            ("d:f:slot_pattern:1/pitch.length@plan", "2× 25"),
-            (
-                "d:f:slot_pattern:1/location_slot_pattern.length.x@plan",
-                "60"
-            ),
-            (
-                "d:f:slot_pattern:1/location_slot_pattern.length.y@plan",
-                "30"
-            ),
+            ("d:f:slot_pattern:1/slot_width.length", "3× SLOT 6 × 20"),
+            ("d:f:slot_pattern:1/slot_end_radius.radius", "2× R3"),
+            ("d:f:slot_pattern:1/pitch.length", "2× 25"),
+            ("d:f:slot_pattern:1/location_slot_pattern.length.x", "60"),
+            ("d:f:slot_pattern:1/location_slot_pattern.length.y", "30"),
         ]
         .map(|(a, b)| (a.to_string(), b.to_string()))
     );
@@ -753,21 +744,12 @@ fn a_slot_pattern_is_called_out_once_with_its_pitches_and_centre() {
     assert_eq!(
         of_pattern,
         [
-            (
-                "d:f:slot_pattern:1/slot_width.length@plan",
-                "6× SLOT 8 × 24"
-            ),
-            ("d:f:slot_pattern:1/slot_end_radius.radius@plan", "2× R4"),
-            ("d:f:slot_pattern:1/grid_pitch.length.col@plan", "30"),
-            ("d:f:slot_pattern:1/grid_pitch.length.row@plan", "2× 40"),
-            (
-                "d:f:slot_pattern:1/location_slot_pattern.length.x@plan",
-                "80"
-            ),
-            (
-                "d:f:slot_pattern:1/location_slot_pattern.length.y@plan",
-                "50"
-            ),
+            ("d:f:slot_pattern:1/slot_width.length", "6× SLOT 8 × 24"),
+            ("d:f:slot_pattern:1/slot_end_radius.radius", "2× R4"),
+            ("d:f:slot_pattern:1/grid_pitch.length.col", "30"),
+            ("d:f:slot_pattern:1/grid_pitch.length.row", "2× 40"),
+            ("d:f:slot_pattern:1/location_slot_pattern.length.x", "80"),
+            ("d:f:slot_pattern:1/location_slot_pattern.length.y", "50"),
         ]
         .map(|(a, b)| (a.to_string(), b.to_string()))
     );
@@ -803,7 +785,7 @@ fn a_slot_pattern_that_does_not_hold_together_is_reported_and_its_slots_dimensio
     let lengths: Vec<&str> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/slot_length.length@plan"))
+        .filter(|d| d.id.ends_with("/slot_length.length") && d.view == "v:plan")
         .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
         .collect();
     assert_eq!(lengths.len(), 3, "{lengths:?}");
@@ -818,7 +800,7 @@ fn across(plan: &Plan) -> Vec<(String, usize)> {
     let mut out: Vec<_> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/location_slot_across.length@"))
+        .filter(|d| d.id.ends_with("/location_slot_across.length"))
         .map(|d| (d.label.clone(), d.measurements.len()))
         .collect();
     out.sort();
@@ -843,7 +825,7 @@ fn a_lone_slot_is_located_across_its_width_from_the_box_to_its_centre_line() {
     for d in plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/location_slot_across.length@"))
+        .filter(|d| d.id.ends_with("/location_slot_across.length"))
     {
         assert_eq!(d.view, "v:plan", "{d:?}");
         assert_eq!(d.kind, "linear", "{d:?}");
@@ -893,7 +875,7 @@ fn a_slot_pattern_is_located_across_its_slots_by_its_centre() {
     let x = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:slot_pattern:1/location_slot_pattern.length.x@plan")
+        .find(|d| d.id == "d:f:slot_pattern:1/location_slot_pattern.length.x")
         .unwrap();
     assert_eq!(x.label, "60");
     // Its slots run along y and are 6 wide in x: x is across them.
@@ -921,8 +903,8 @@ fn ctc01_hex_boss_location_is_conveyed_by_its_hole_grid() {
     };
     for (axis, label) in [("x", "400"), ("y", "225")] {
         let stated = in_plan(&plan, label);
-        let grid = format!("d:f:hole_pattern:1/location.length.{axis}@plan");
-        let boss = format!("d:f:polygonal_boss:1/location.length.{axis}@plan");
+        let grid = format!("d:f:hole_pattern:1/location.length.{axis}");
+        let boss = format!("d:f:polygonal_boss:1/location.length.{axis}");
         assert_eq!(
             stated,
             std::slice::from_ref(&grid),

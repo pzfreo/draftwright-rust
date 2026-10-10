@@ -141,10 +141,9 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
     Ok(())
 }
 
-/// The parameter an ID names: `d:<feature>/<parameter>@<view>`.
+/// The parameter an ID names: `d:<feature>/<parameter>`.
 fn parameter(id: &str) -> &str {
-    let stem = id.rsplit_once('@').map_or(id, |(s, _)| s);
-    stem.rsplit_once('/').map_or(stem, |(_, p)| p)
+    id.rsplit_once('/').map_or(id, |(_, p)| p)
 }
 
 /// The term a band follows: the first that states a number and is not a count (`4×`).
@@ -563,20 +562,16 @@ mod tests {
                 serde_json::from_value(serde_json::json!({"fit": "H7"})).unwrap(),
             );
         }
-        let boss = want(
-            "d:f:boss:1/boss.diameter@front",
-            "boss.diameter",
-            &["f:boss:1"],
-        );
+        let boss = want("d:f:boss:1/boss.diameter", "boss.diameter", &["f:boss:1"]);
         assert_eq!(authored(&spec, &boss), Some(("fit", true)));
         let mixed = want(
-            "d:f:hole:1/bore.diameter@plan",
+            "d:f:hole:1/bore.diameter",
             "bore.diameter",
             &["f:hole:1", "f:hole:2"],
         );
         assert_eq!(authored(&spec, &mixed), Some(("fit", false)));
         let step = want(
-            "d:f:turned_step:1/step.diameter@front",
+            "d:f:turned_step:1/step.diameter",
             "step.diameter",
             &["f:boss:1"],
         );

@@ -51,7 +51,7 @@ use std::collections::BTreeSet;
 
 use super::{LintIssue, Mark, Severity};
 use crate::model::Analysis;
-use crate::pmi::{Category, Outcome, Reading, Record, Report};
+use crate::pmi::{Category, Identities, Outcome, Reading, Record, Report};
 use crate::pmi_lowering::{lower, manufacturing, sheet_requirements};
 
 /// Python's `_SUPPORTED_MANUFACTURING_REQUIREMENTS`.
@@ -102,17 +102,20 @@ fn category_name(c: Category) -> &'static str {
     }
 }
 
-/// The PMI sources the marks draw or state: each `pmi:<source>` annotation name and claim.
-fn drawn(marks: &[Mark]) -> BTreeSet<&str> {
+/// The PMI sources the marks draw or state: each `pmi:<id>` annotation name and claim, read as
+/// the source of the record whose item ID it is (a record's ID is its semantic identity,
+/// [`crate::pmi::Report::identities`]); any other (a material's census source, an ID no record
+/// has) as it is.
+fn drawn<'a>(marks: &'a [Mark], ids: &'a Identities) -> BTreeSet<&'a str> {
+    let source = |name: &'a str| {
+        name.strip_prefix("pmi:")
+            .map(|s| ids.source(name).unwrap_or(s))
+    };
     let mut out = BTreeSet::new();
     for m in marks {
-        if let Some(s) = m.name.strip_prefix("pmi:") {
-            out.insert(s);
-        }
+        out.extend(source(&m.name));
         for c in &m.claims {
-            if let Some(s) = c.feature.strip_prefix("pmi:") {
-                out.insert(s);
-            }
+            out.extend(source(&c.feature));
         }
     }
     out
@@ -120,7 +123,11 @@ fn drawn(marks: &[Mark]) -> BTreeSet<&str> {
 
 /// The PMI coverage findings on a drawing whose annotations are *marks*.
 pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
-    let on_sheet = drawn(marks);
+    let ids = match &analysis.pmi {
+        Some(Reading::Read(r)) => r.identities(),
+        _ => Identities::default(),
+    };
+    let on_sheet = drawn(marks, &ids);
     let report = match &analysis.pmi {
         Some(Reading::Read(r)) => r,
         Some(Reading::Refused(why)) => {
@@ -178,6 +185,8 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             .filter(|r| r.category == Category::Dimension && dimension(r).is_ok())
             .map(|r| r.source_id.as_str()),
     );
+    // A record whose identity another shares has no drawing item to lower to.
+    lowered.retain(|s| ids.ids.contains_key(*s));
     for r in &report.records {
         let id = r.source_id.as_str();
         if on_sheet.contains(id) || lowered.contains(id) {
@@ -221,7 +230,8 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 id,
                 Severity::Error,
                 format!(
-                    "AP242 source {id} reached a drawing item (pmi:{id}) but produced no annotation"
+                    "AP242 source {id} reached a drawing item ({}) but produced no annotation",
+                    ids.ids[id]
                 ),
             ));
         }
@@ -230,6 +240,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         let Some(id) = m.name.strip_prefix("pmi:") else {
             continue;
         };
+        let id = ids.source(&m.name).unwrap_or(id);
         if let Some(r) = report.records.iter().find(|r| {
             r.source_id == id
                 && r.category == Category::GeometricTolerance

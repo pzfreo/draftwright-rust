@@ -46,7 +46,13 @@ pub const ANALYSIS_SCHEMAS: [&str; 6] = [
     "draftwright.analysis/6",
     ANALYSIS_SCHEMA,
 ];
-pub const SPEC_SCHEMA: &str = "draftwright.spec/1";
+/// Version 2 names a dimension by what it measures, `d:<feature>/<parameter>` (version 1 added
+/// the view that carries it, `@<view>`), and a PMI item by its record's semantic identity
+/// (version 1 by its Part 21 instance, `pmi:<category>:#<n>`); the carrying view is the entry's
+/// `view`. A version 1 spec is read through [`migrate`].
+pub const SPEC_SCHEMA: &str = "draftwright.spec/2";
+/// The specs [`plan`] reads: this version, and version 1 through [`migrate`].
+pub const SPEC_SCHEMAS: [&str; 2] = ["draftwright.spec/1", SPEC_SCHEMA];
 pub const PLAN_SCHEMA: &str = "draftwright.plan/1";
 
 /// Which file, and which reading of it, a document was made from.
@@ -163,7 +169,7 @@ pub struct Spec {
     /// `authored` (exactly the dimensions listed, a complete set: ADR4-5).
     #[serde(skip_serializing_if = "DimensionSource::is_auto")]
     pub dimension_source: DimensionSource,
-    /// Per dimension, by its ID (`d:<feature>/<parameter>@<view>`).
+    /// Per dimension, by its ID (`d:<feature>/<parameter>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub dimensions: BTreeMap<String, DimensionSpec>,
     /// Per feature, by its ID (`f:<kind>:<n>`).
@@ -205,6 +211,11 @@ pub struct DimensionSpec {
     /// rules; ARCH0011-1).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<String>,
+    /// The view that carries it (`front`, `plan` or `side`), where the default would put it
+    /// elsewhere: no longer part of its ID (`draftwright.spec/2`). One that cannot carry it is
+    /// refused; one that is omitted leaves it in its default view, with a warning.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub view: Option<String>,
 }
 
 /// What the author decided of a feature.
@@ -1022,15 +1033,8 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             &ANALYSIS_SCHEMAS,
         ));
     }
-    if spec.schema != SPEC_SCHEMA {
-        return Err(invalid(
-            format!(
-                "The spec is {:?}, which this draftwright does not read.",
-                spec.schema
-            ),
-            &[SPEC_SCHEMA],
-        ));
-    }
+    let spec = &migrate(spec, analysis)?;
+    crate::dims::check_views(spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
@@ -1233,7 +1237,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             .iter()
             .filter(|r| r.kind == "document_note")
             .map(|r| NoteSpec {
-                id: format!("pmi:{}", r.source),
+                id: r.id.clone(),
                 text: r.value.clone(),
             }),
     );
@@ -1520,6 +1524,70 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     })
 }
 
+/// *spec* as this version reads it (`draftwright.spec/2`): a version 2 spec as it is; a version
+/// 1 spec with each dimension's key rewritten to the form it now has (R1 invariant 9: a change
+/// of form is read, never guessed at):
+/// - `d:<feature>/<parameter>@<view>` becomes `d:<feature>/<parameter>`: the view was where the
+///   plan routed it, not a decision, so the entry does not keep it as its `view`;
+/// - a PMI dimension's feature, `pmi:<category>:#<n>` (its record's Part 21 instance), becomes
+///   the record's item ID in *analysis* ([`crate::pmi::Report::identities`]), when the spec is
+///   bound to the analysis's file (or to none): a Part 21 instance names a record only in its
+///   own file. A key whose record is not in the analysis, has no ID, or is of another file, is
+///   kept as it was, for [`plan`] to refuse with the nearest IDs.
+///
+/// Two keys that come to one are ambiguous, and refused with both as the candidates. Anything
+/// but a version 1 or 2 spec is refused.
+pub fn migrate(spec: &Spec, analysis: &Analysis) -> Result<Spec, Invalid> {
+    if spec.schema == SPEC_SCHEMA {
+        return Ok(spec.clone());
+    }
+    if !SPEC_SCHEMAS.contains(&spec.schema.as_str()) {
+        return Err(invalid(
+            format!(
+                "The spec is {:?}, which this draftwright does not read.",
+                spec.schema
+            ),
+            &SPEC_SCHEMAS,
+        ));
+    }
+    let same_file = spec
+        .binding
+        .as_ref()
+        .is_none_or(|b| b.source_sha256 == analysis.binding.source_sha256);
+    let ids = match &analysis.pmi {
+        Some(crate::pmi::Reading::Read(r)) if same_file => r.identities(),
+        _ => crate::pmi::Identities::default(),
+    };
+    let mut out = spec.clone();
+    out.schema = SPEC_SCHEMA.into();
+    out.dimensions.clear();
+    let mut from: BTreeMap<String, String> = BTreeMap::new();
+    for (old, entry) in &spec.dimensions {
+        let mut key = match old.rsplit_once('@') {
+            Some((stem, view)) if old.starts_with("d:") && !view.contains('/') => stem.to_string(),
+            _ => old.clone(),
+        };
+        if let Some((feature, parameter)) = key.strip_prefix("d:").and_then(|k| k.rsplit_once('/'))
+            && let Some(source) = feature.strip_prefix("pmi:")
+            && let Some(id) = ids.ids.get(source)
+        {
+            key = format!("d:{id}/{parameter}");
+        }
+        if let Some(first) = from.get(&key) {
+            return Err(Invalid {
+                message: format!(
+                    "The spec is {:?}, whose dimension keys {first:?} and {old:?} both read as {key:?} in {SPEC_SCHEMA} (a dimension's ID no longer names its view, and a PMI dimension is named by its record's identity): keep one of them.",
+                    spec.schema
+                ),
+                choices: vec![first.clone(), old.clone()],
+            });
+        }
+        from.insert(key.clone(), old.clone());
+        out.dimensions.insert(key, entry.clone());
+    }
+    Ok(out)
+}
+
 /// Applies edit operations to a spec. Each operation is `{"op": "set" | "remove" | "add",
 /// "path": "a/b/c", "value": …}`, with paths into the spec's JSON; a `/` inside a key (a
 /// dimension's ID) is written `~1` and a `~` is written `~0`, as in a JSON pointer (RFC 6901).
@@ -1610,6 +1678,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     let spec: Spec = serde_json::from_value(doc)
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::dims::check_tolerances(&spec)?;
+    crate::dims::check_views(&spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;

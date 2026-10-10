@@ -1714,7 +1714,7 @@ fn review_finds_the_plates_holes_stated_by_its_own_callout() {
     let review = draftwright::api::review(&step, Some(&features), &model::Spec::default()).unwrap();
     assert!(review.lint.is_empty(), "{:#?}", review.lint);
 
-    let callout = "d:f:hole_pattern:1/bore.diameter@plan";
+    let callout = "d:f:hole_pattern:1/bore.diameter";
     let mut spec = model::Spec::default();
     spec.dimensions.entry(callout.into()).or_default().omit = true;
     let review = draftwright::api::review(&step, Some(&features), &spec).unwrap();

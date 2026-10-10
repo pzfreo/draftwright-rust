@@ -590,7 +590,8 @@ fn every_record_and_source_is_drawn_or_reported() {
                 // (stage 2b, `tests/pmi_dimensions.rs`); never a frame or symbol. A common label
                 // (read as a dimension) is a label, below.
                 Category::Dimension if r.kind != "common_label" => {
-                    let feature = format!("pmi:{}", r.source_id);
+                    let feature = report.identities().ids.get(&r.source_id).cloned();
+                    let feature = feature.unwrap_or_default();
                     let stated = plan
                         .dimensions
                         .iter()

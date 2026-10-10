@@ -152,18 +152,18 @@ fn grm05_states_its_step_diameters_and_lengths_as_draftwright_does() {
     assert_eq!(
         turned_items(&plan),
         strs(&[
-            ("d:envelope/od.diameter@front", "ø10"),
-            ("d:f:turned_step:2/step.diameter@front", "ø6.2"),
-            ("d:f:turned_step:3/step.diameter@front", "ø6"),
-            ("d:f:turned_step:1/step.length@front", "14"),
-            ("d:f:turned_step:2/step.length@front", "5"),
-            ("d:f:turned_step:3/step.length@front", "13"),
+            ("d:envelope/od.diameter", "ø10"),
+            ("d:f:turned_step:2/step.diameter", "ø6.2"),
+            ("d:f:turned_step:3/step.diameter", "ø6"),
+            ("d:f:turned_step:1/step.length", "14"),
+            ("d:f:turned_step:2/step.length", "5"),
+            ("d:f:turned_step:3/step.length", "13"),
         ])
     );
     let od = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:envelope/od.diameter@front")
+        .find(|d| d.id == "d:envelope/od.diameter")
         .unwrap();
     let claims: Vec<String> = od
         .measurements
@@ -244,14 +244,14 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
                 .map(|d| d.label.clone())
         };
         assert_eq!(
-            label("d:envelope/od.diameter@front").as_deref(),
+            label("d:envelope/od.diameter").as_deref(),
             Some(od),
             "{name}"
         );
         let along = plan
             .dimensions
             .iter()
-            .find(|d| d.id.starts_with("d:envelope/") && d.id.contains(".length@"))
+            .find(|d| d.id.starts_with("d:envelope/") && d.id.ends_with(".length"))
             .map(|d| d.label.as_str());
         assert_eq!(along, length, "{name}");
         assert!(
@@ -272,10 +272,10 @@ fn the_chain_states_the_overall_length_only_when_it_runs_end_to_end() {
     assert_eq!(
         turned_items(&plan),
         strs(&[
-            ("d:envelope/od.diameter@front", "ø30"),
-            ("d:f:turned_step:2/step.diameter@front", "ø16"),
-            ("d:f:turned_step:1/step.length@front", "40"),
-            ("d:f:turned_step:2/step.length@front", "30"),
+            ("d:envelope/od.diameter", "ø30"),
+            ("d:f:turned_step:2/step.diameter", "ø16"),
+            ("d:f:turned_step:1/step.length", "40"),
+            ("d:f:turned_step:2/step.length", "30"),
         ])
     );
     let a = with_bands(&[(q(0.0), q(40.0), 30.0)]);
@@ -283,15 +283,15 @@ fn the_chain_states_the_overall_length_only_when_it_runs_end_to_end() {
     assert_eq!(
         turned_items(&plan),
         strs(&[
-            ("d:envelope/od.diameter@front", "ø30"),
-            ("d:envelope/height.length@front", "70"),
-            ("d:f:turned_step:1/step.length@front", "40"),
+            ("d:envelope/od.diameter", "ø30"),
+            ("d:envelope/height.length", "70"),
+            ("d:f:turned_step:1/step.length", "40"),
         ])
     );
     let height = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:envelope/height.length@front")
+        .find(|d| d.id == "d:envelope/height.length")
         .unwrap();
     assert!(
         height.basis.contains("does not run end to end"),
@@ -316,7 +316,7 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
     let lengths: Vec<String> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/step.length@"))
+        .filter(|d| d.id.ends_with("/step.length"))
         .map(|d| d.label.clone())
         .collect();
     assert_eq!(lengths, ["23", "23.3", "23.7"]);
@@ -329,15 +329,15 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
     assert_eq!(
         turned_items(&plan),
         strs(&[
-            ("d:envelope/od.diameter@front", "2× ø30"),
-            ("d:f:turned_step:2/step.diameter@front", "ø20"),
-            ("d:f:turned_step:1/step.length@front", "3× 23.3"),
+            ("d:envelope/od.diameter", "2× ø30"),
+            ("d:f:turned_step:2/step.diameter", "ø20"),
+            ("d:f:turned_step:1/step.length", "3× 23.3"),
         ])
     );
     let chain = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:turned_step:1/step.length@front")
+        .find(|d| d.id == "d:f:turned_step:1/step.length")
         .unwrap();
     let members: Vec<&str> = chain
         .measurements
@@ -351,7 +351,7 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
     let od = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:envelope/od.diameter@front")
+        .find(|d| d.id == "d:envelope/od.diameter")
         .unwrap();
     assert_eq!(od.measurements.len(), 3);
     // Lint credits every band's length and diameter on these labels.
@@ -368,10 +368,10 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
     assert_eq!(
         turned_items(&plan),
         strs(&[
-            ("d:envelope/od.diameter@front", "ø30"),
-            ("d:f:turned_step:1/step.diameter@front", "2× ø30"),
-            ("d:f:turned_step:1/step.length@front", "40"),
-            ("d:f:turned_step:2/step.length@front", "30"),
+            ("d:envelope/od.diameter", "ø30"),
+            ("d:f:turned_step:1/step.diameter", "2× ø30"),
+            ("d:f:turned_step:1/step.length", "40"),
+            ("d:f:turned_step:2/step.length", "30"),
         ])
     );
 }
@@ -389,14 +389,14 @@ fn equal_z_bands_share_a_callout_and_a_bore_sized_band_reads_od() {
     assert_eq!(
         turned_items(&plan)[..2],
         strs(&[
-            ("d:envelope/od.diameter@front", "ø30"),
-            ("d:f:turned_step:1/step.diameter@front", "2× ø16"),
+            ("d:envelope/od.diameter", "ø30"),
+            ("d:f:turned_step:1/step.diameter", "2× ø16"),
         ])
     );
     let pair = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:turned_step:1/step.diameter@front")
+        .find(|d| d.id == "d:f:turned_step:1/step.diameter")
         .unwrap();
     assert_eq!(pair.measurements.len(), 2);
     assert_eq!(pair.measurements[1].feature, "f:turned_step:3");
@@ -416,7 +416,7 @@ fn equal_z_bands_share_a_callout_and_a_bore_sized_band_reads_od() {
     let d = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:turned_step:1/step.diameter@front")
+        .find(|d| d.id == "d:f:turned_step:1/step.diameter")
         .unwrap();
     assert_eq!(d.label, "2× ø16 OD");
 }
@@ -446,12 +446,12 @@ fn a_part_turned_about_y_reads_its_diameters_end_on() {
     assert_eq!(
         turned_items(&plan),
         strs(&[
-            ("d:envelope/od.diameter@side", "ø30"),
-            ("d:f:turned_step:1/step.diameter@front", "ø20"),
-            ("d:f:turned_step:2/step.diameter@front", "ø24"),
-            ("d:f:turned_step:3/step.diameter@front", "ø20"),
-            ("d:f:turned_step:1/step.length@side", "3× 10"),
-            ("d:f:turned_step:4/step.length@side", "40"),
+            ("d:envelope/od.diameter", "ø30"),
+            ("d:f:turned_step:1/step.diameter", "ø20"),
+            ("d:f:turned_step:2/step.diameter", "ø24"),
+            ("d:f:turned_step:3/step.diameter", "ø20"),
+            ("d:f:turned_step:1/step.length", "3× 10"),
+            ("d:f:turned_step:4/step.length", "40"),
         ])
     );
 }
@@ -480,7 +480,7 @@ fn a_band_that_cannot_be_stated_is_reported() {
     assert!(
         plan.dimensions
             .iter()
-            .any(|d| d.id == "d:f:turned_step:1/step.length@front")
+            .any(|d| d.id == "d:f:turned_step:1/step.length")
     );
 
     let mut a = turned();
@@ -520,8 +520,8 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
     let a = turned();
     let mut spec = Spec::default();
     for (id, band) in [
-        ("d:f:turned_step:2/step.length@front", "±0.05"),
-        ("d:f:turned_step:2/step.diameter@front", "+0 -0.1"),
+        ("d:f:turned_step:2/step.length", "±0.05"),
+        ("d:f:turned_step:2/step.diameter", "+0 -0.1"),
     ] {
         spec.dimensions.insert(
             id.into(),
@@ -533,8 +533,8 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
     }
     let plan = model::plan(&a, &spec).unwrap();
     for (id, label) in [
-        ("d:f:turned_step:2/step.length@front", "30 ±0.05"),
-        ("d:f:turned_step:2/step.diameter@front", "ø16 +0.0 -0.1"),
+        ("d:f:turned_step:2/step.length", "30 ±0.05"),
+        ("d:f:turned_step:2/step.diameter", "ø16 +0.0 -0.1"),
     ] {
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
         assert_eq!(d.label, label);
@@ -543,7 +543,7 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
     }
     let mut spec = Spec::default();
     spec.dimensions.insert(
-        "d:f:turned_step:1/step.length@front".into(),
+        "d:f:turned_step:1/step.length".into(),
         DimensionSpec {
             omit: true,
             ..Default::default()
@@ -554,7 +554,7 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
     assert!(
         less.omitted
             .iter()
-            .any(|o| o.id == "d:f:turned_step:1/step.length@front")
+            .any(|o| o.id == "d:f:turned_step:1/step.length")
     );
     for d in &less.dimensions {
         let same = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
