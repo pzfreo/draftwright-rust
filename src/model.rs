@@ -510,7 +510,7 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
         risers,
         principal_profiles: crate::lint::profiles::evidence(&part),
         unrecognised: Vec::new(),
-        pmi: crate::pmi::attach(&bytes, &part),
+        pmi: crate::pmi::attach(bytes, &part),
     };
     let (_, toward, up) = VIEWS[3];
     let iso = View::new(toward, up).expect("standard view");

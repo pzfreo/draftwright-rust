@@ -514,3 +514,28 @@ fn projections_kept_across_edits_draw_what_a_fresh_render_draws() {
         }
     }
 }
+
+#[test]
+fn analysing_step_bytes_matches_analysing_the_file() {
+    // A browser has the file's bytes and no file system: the analysis from the bytes must be the
+    // one from the file, without features and with Rust quiddity's.
+    for name in ["turned.step", "prismatic.step"] {
+        let path = part(name);
+        let bytes = std::fs::read(&path).unwrap();
+        let json = |a: &model::Analysis| serde_json::to_string(a).unwrap();
+        let (_, from_file) = model::analyse(&path).unwrap();
+        let (_, from_bytes) = model::analyse_step(&path, &bytes).unwrap();
+        assert_eq!(
+            json(&from_file),
+            json(&from_bytes),
+            "{name} without features"
+        );
+        let (_, from_file) = model::analyse_native(&path).unwrap();
+        let (_, from_bytes) = model::analyse_native_step(&path, &bytes).unwrap();
+        assert_eq!(
+            json(&from_file),
+            json(&from_bytes),
+            "{name} with native features"
+        );
+    }
+}
