@@ -539,6 +539,739 @@
   "evidence": "known_pmi_dimensions.json (drawing, rust-correct): draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it, lowers its PMI dimensions, and carries its drawing-wide requirements (general tolerance ISO 2768-m in the title block, the Ra 3.2 default finish beside it, the edge-condition note), so 20 records are drawn."
  },
  {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#1360",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "6× ⌀6.6 THRU (2×3)",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#1360 (ø6.6) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (assembly_plate_pin.step, which states its limits, drawn by the port). draftwright's drawing states the plain size '6× ⌀6.6 THRU (2×3)' (on bore.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#1360 (ø6.6) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:14",
+  "port": "dimension:#1416",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "plan_incomplete",
+    "pmi_dropped"
+   ],
+   "outcome": "dropped"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": true,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "45",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '45' (dimension, plan view, boxed). draftwright found no room and dropped this source requirement (plan_incomplete, pmi_dropped: PMI '45' not placed (no room beside the plan)); the port places it with the other planned dimensions, boxed (basic), any collision reported against its ID. The same cause as assembly_plate_pin.step's dimension:0:1:4:14 (rust-correct)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:25",
+  "port": "dimension:#1524",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "⌀6",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#1524 (ø6) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (assembly_plate_pin.step dimension:#1436, which states its limits, drawn by the port). draftwright's drawing states the plain size '⌀6' (standalone) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#1524 (ø6) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\". The pin is also placed twice in the assembly (the second open question, as assembly_plate_pin.step's dimension:#1436)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "geometric_tolerance:0:1:4:26",
+  "port": "geometric_tolerance:#1534",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "⌖ ⌀0.25 A B",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright's drawing: '⌖ ⌀0.25 A B' (control frame, plan view); the port's: not drawn, refused (pmi_not_lowered). The pin is placed twice in the assembly; draftwright annotates XCAF's one shape, the port refuses rather than choose (pmi_not_lowered: its 1 faces are drawn in 2 placements of the part; which placement to annotate is an open question). Which placement a drawing should annotate is an open maintainer question (docs/next-session.md); the same cause as assembly_plate_pin.step's geometric_tolerance:0:1:4:26 (undetermined)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "geometric_tolerance:0:1:4:29",
+  "port": "geometric_tolerance:#1538",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "↗ 0.02 A B",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "draftwright's drawing: '↗ 0.02 A B' (control frame, plan view); the port's: not drawn, refused (pmi_not_lowered). The pin is placed twice in the assembly; draftwright annotates XCAF's one shape, the port refuses rather than choose (pmi_not_lowered: its 1 faces are drawn in 2 placements of the part; which placement to annotate is an open question). Which placement a drawing should annotate is an open maintainer question (docs/next-session.md); the same cause as assembly_plate_pin.step's geometric_tolerance:0:1:4:29 (undetermined)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:17",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "A"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum A (face #239, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1272 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:18 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:18",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "B"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B (face #163, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1274 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:19 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:19",
+  "port": "datum:#1276",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "pmi_not_extracted",
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "C",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered). draftwright leaves datum C raw because it cannot find its face (\"Part21 representation item #43 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the face, proves the attachment and draws the symbol (port datum:#1276). The same cause as assembly_plate_pin.step's datum:0:1:4:20 (rust-correct)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:21",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "A"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum A (face #239, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1272 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:22 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:22",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "B"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B (face #163, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1274 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:23 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:27",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "A"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum A (face #1252, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1479 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:27 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:28",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "B"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B (face #980, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1481 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:28 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:30",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "A"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum A (face #1252, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1479 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:30 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:31",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "B"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B (face #980, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1481 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:31 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum_definition:#1299",
+  "port": "datum:#1272",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "pmi_not_extracted",
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "A",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered). draftwright leaves datum A raw because it cannot find its face (\"Part21 representation item #239 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the face, proves the attachment and draws the symbol (port datum:#1272). The same cause as assembly_plate_pin.step's datum_definition:#1274 (rust-correct)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum_definition:#1301",
+  "port": "datum:#1274",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "pmi_not_extracted",
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "side"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered). draftwright leaves datum B raw because it cannot find its face (\"Part21 representation item #163 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the face, proves the attachment and draws the symbol (port datum:#1274). The same cause as assembly_plate_pin.step's datum_definition:#1278 (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:9",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "B"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:14",
+  "port": "datum:#6517",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "plan_incomplete",
+    "pmi_dropped"
+   ],
+   "outcome": "dropped"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "D",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'D' (datum ref, front view). draftwright drops datum D (plan_incomplete, pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B). The same cause as string_post_tapped.step's datum:0:1:4:5 (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:15",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "B"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:19",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "B"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:24",
+  "port": null,
+  "field": "record",
+  "python": {
+   "drawing": {
+    "codes": [
+     "pmi_not_extracted",
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "category": "datum",
+    "kind": "datum",
+    "label": "B"
+   }
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:1",
+  "port": "dimension:#6386",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "⌀62",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6386 (ø62) as the class H7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6333 'ø62 +0.03/0', drawn by the port). draftwright's drawing states the plain size '⌀62' (standalone) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6386 (ø62) is not drawn: the ISO 286 class H7 is stated without limits; they are not computed\"."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:2",
+  "port": "dimension:#6392",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "6× ⌀10 THRU EQ SP ON ⌀90 BC",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6392 (ø10) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6360 'ø10 +0.09/0', drawn by the port). draftwright's drawing states the plain size '6× ⌀10 THRU EQ SP ON ⌀90 BC' (on bore.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6392 (ø10) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#6398",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "2× ⌀130",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6398 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6370 'ø130 -0.014/-0.039', drawn by the port). draftwright's drawing states the plain size '2× ⌀130' (on step.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6398 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:4",
+  "port": "dimension:#6404",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "2× ⌀130",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6404 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6380 'ø130 -0.014/-0.039', drawn by the port). draftwright's drawing states the plain size '2× ⌀130' (on step.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6404 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:5",
+  "port": "dimension:#6410",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀70 OD",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6410 (ø70) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6390 'ø70 -0.03/-0.06', drawn by the port). draftwright's drawing states the plain size '⌀70 OD' (on step.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6410 (ø70) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
+ },
+ {
+  "file": "hw_string_post_tapped_intent.step",
+  "record": "dimension:0:1:4:2",
+  "port": "dimension:#3116",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.7 ↧ 5.4",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#3116 (ø1.7) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (string_post_tapped.step, which states its limits, drawn by the port). draftwright's drawing states the plain size '⌀1.7 ↧ 5.4' (on bore.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#3116 (ø1.7) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
+ },
+ {
+  "file": "hw_string_post_tapped_intent.step",
+  "record": "datum:0:1:4:5",
+  "port": "datum:#3082",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "plan_incomplete",
+    "pmi_dropped"
+   ],
+   "outcome": "dropped"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "A",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'A' (datum ref, front view). draftwright drops datum A (plan_incomplete, pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B). The same cause as string_post_tapped.step's datum:0:1:4:5 (specify-core's datum:#3086) (rust-correct)."
+ },
+ {
+  "file": "hw_thumbwheel_notes_add.step",
+  "record": "dimension:0:1:4:1",
+  "port": "dimension:#651",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "od.diameter",
+     "text": "⌀10 -0.013 -0.028",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): draftwright's drawing: not drawn, refused (authored_dim_source_unresolved, pmi_not_extracted); the port's: '⌀10 -0.013 -0.028' (dimension, front view, on od.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "hw_thumbwheel_thread_knurl_intent.step",
+  "record": "dimension:0:1:4:1",
+  "port": "dimension:#685",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀10",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "undetermined",
+  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#685 (ø10) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (thumbwheel_thread_knurl.step dimension:#651 'ø10 -0.013/-0.028', drawn by the port). draftwright's drawing states the plain size '⌀10' (on step.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#685 (ø10) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
+ },
+ {
   "file": "nist_ctc_01_asme1_ap242-e1.stp",
   "record": "datum:0:1:4:2",
   "port": "datum:#34",

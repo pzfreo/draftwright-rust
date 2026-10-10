@@ -372,6 +372,244 @@
     "evidence": "The port reads part 1's general tolerance class #1667 ('ISO 2768-f') as the structured statement of its requirement in words #1662 ('ISO 2768-f'); draftwright cannot pair them because the file has two 'default tolerances' (see manufacturing_requirement:#1667's entry)."
   },
   {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "datum:0:1:4:17",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "A"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum A (face #239, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1272 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:18 (rust-correct), whose datums specify-core wrote the same way."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "datum:0:1:4:18",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "B"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum B (face #163, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1274 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:19 (rust-correct), whose datums specify-core wrote the same way."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "datum:0:1:4:21",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "A"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum A (face #239, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1272 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:22 (rust-correct), whose datums specify-core wrote the same way."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "datum:0:1:4:22",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "B"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum B (face #163, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1274 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:23 (rust-correct), whose datums specify-core wrote the same way."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "datum:0:1:4:27",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "A"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum A (face #1252, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1479 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:27 (rust-correct), whose datums specify-core wrote the same way."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "datum:0:1:4:28",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "B"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum B (face #980, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1481 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:28 (rust-correct), whose datums specify-core wrote the same way."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "datum:0:1:4:30",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "A"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum A (face #1252, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1479 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:30 (rust-correct), whose datums specify-core wrote the same way."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "datum:0:1:4:31",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "B"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum B (face #980, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1481 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:31 (rust-correct), whose datums specify-core wrote the same way."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
+    "record": "dimension:0:1:4:3",
+    "port": "dimension:#6615",
+    "field": "value",
+    "python": 20.0105,
+    "rust": 20.0,
+    "verdict": "rust-correct",
+    "evidence": "dimension:#6615 states the nominal 20 with the ISO 286 class H7 and its limits 20.0 and 20.021 (both readers read the limits and the label 'ø20 - ø20.021'). OpenCascade returns a limits dimension's value as the middle of its limits (20.0105), which draftwright takes as the value; the port keeps the stated nominal 20. quiddity-rust's OpenCascade cross-check of the written files records the same misread as rust-correct (docs/step-ap242.md: 'the H7 fit read as its limits' middle', known_pmi_write.json 'occt')."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
+    "record": "datum:0:1:4:9",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "B"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
+    "record": "datum:0:1:4:15",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "B"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
+    "record": "datum:0:1:4:19",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "B"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
+    "record": "datum:0:1:4:24",
+    "port": null,
+    "field": "record",
+    "python": {
+      "category": "datum",
+      "kind": "datum",
+      "label": "B"
+    },
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+  },
+  {
+    "file": "hw_thumbwheel_notes_add.step.gz",
+    "record": "dimension:0:1:4:1",
+    "port": "dimension:#651",
+    "field": "value",
+    "python": 5.014,
+    "rust": 10.0,
+    "verdict": "rust-correct",
+    "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (value) (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+  },
+  {
+    "file": "hw_thumbwheel_notes_add.step.gz",
+    "record": "dimension:0:1:4:1",
+    "port": "dimension:#651",
+    "field": "upper_tol",
+    "python": null,
+    "rust": -0.013,
+    "verdict": "rust-correct",
+    "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (upper_tol) (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+  },
+  {
+    "file": "hw_thumbwheel_notes_add.step.gz",
+    "record": "dimension:0:1:4:1",
+    "port": "dimension:#651",
+    "field": "lower_tol",
+    "python": null,
+    "rust": 0.028,
+    "verdict": "rust-correct",
+    "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (lower_tol) (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+  },
+  {
+    "file": "hw_thumbwheel_notes_add.step.gz",
+    "record": "dimension:0:1:4:1",
+    "port": "dimension:#651",
+    "field": "lower_bound",
+    "python": 10.0,
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (lower_bound) (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+  },
+  {
+    "file": "hw_thumbwheel_notes_add.step.gz",
+    "record": "dimension:0:1:4:1",
+    "port": "dimension:#651",
+    "field": "upper_bound",
+    "python": 0.028,
+    "rust": null,
+    "verdict": "rust-correct",
+    "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (upper_bound) (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+  },
+  {
+    "file": "hw_thumbwheel_notes_add.step.gz",
+    "record": "dimension:0:1:4:1",
+    "port": "dimension:#651",
+    "field": "label",
+    "python": "ø10 - ø0.028",
+    "rust": "ø10 -0.013/-0.028",
+    "verdict": "rust-correct",
+    "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (label) (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+  },
+  {
     "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
     "record": "dimension:0:1:4:10",
     "port": "dimension:#25",

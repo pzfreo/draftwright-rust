@@ -14,6 +14,8 @@ What draftwright's drawing shows of each AP242 file's PMI (`tests/fixtures/pmi/s
   part. No positions. `sha256` is the STEP text's. Written by
   `tools/capture_pmi_drawings.py` from draftwright `origin/main` 4dfc63f. Regenerate with
   `~/repos/draftwright/.venv/bin/python tools/capture_pmi_drawings.py <draftwright>/src`.
+  The `hw_*` files (haecceity-written, `tests/fixtures/pmi/README.md`) were captured from the
+  same draftwright commit, 4dfc63f.
 - `known_pmi_drawings.json`: every difference between draftwright's drawing and the port's, with
   a verdict and evidence. A difference already judged at an earlier stage carries that stage's
   verdict and evidence, named (`known_pmi.json`, `known_pmi_lowering.json`,
