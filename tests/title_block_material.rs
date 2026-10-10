@@ -20,10 +20,16 @@ use draftwright::model::{self, Analysis, Plan, Spec};
 use draftwright::output::Drawing;
 
 /// draftwright's MATERIAL cell, by fixture. assembly_plate_pin states two materials (one per part):
-/// ambiguous, none drawn; the NIST AP242 files state none.
-const PYTHON: [(&str, &str); 6] = [
+/// ambiguous, none drawn; the NIST AP242 files state none, and so do haecceity's written
+/// hw_thread_removed and hw_thread_replaced (no material in the file).
+const PYTHON: [(&str, &str); 11] = [
     ("bolt_thread_knurl", "Steel C45"),
     ("bracket_positions", "Aluminium 6061-T6"),
+    ("hw_every_kind", "Aluminium 6082-T6"),
+    ("hw_spool_fits_intent", "Aluminium 6082-T6"),
+    ("hw_string_post_tapped_intent", "Brass CW614N"),
+    ("hw_thumbwheel_notes_add", "Stainless steel 303"),
+    ("hw_thumbwheel_thread_knurl_intent", "Stainless steel 303"),
     ("nist_ctc_01_merge", "Aluminium 6082-T6"),
     ("spool_fits", "Aluminium 6082-T6"),
     ("string_post_tapped", "Brass CW614N"),
