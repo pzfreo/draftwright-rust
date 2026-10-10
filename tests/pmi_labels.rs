@@ -17,8 +17,12 @@ fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// An AP242 fixture's part and Analysis (`tests/fixtures/pmi/step/<stem>.*.gz`).
+/// An AP242 fixture's part and Analysis (`tests/fixtures/pmi/step/<stem>.*.gz`), its bytes
+/// written to a scratch file of each call's own, as the tests run in parallel and several read
+/// one fixture.
 fn analysed(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = root().join("tests/fixtures/pmi/step");
     let gz = std::fs::read_dir(&dir)
         .unwrap()
@@ -35,7 +39,7 @@ fn analysed(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
     let file = gz.file_name().unwrap().to_string_lossy();
     let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_labels")
-        .join(stem);
+        .join(n.to_string());
     std::fs::create_dir_all(&out).unwrap();
     let path = out.join(file.strip_suffix(".gz").unwrap());
     std::fs::write(&path, &bytes).unwrap();
