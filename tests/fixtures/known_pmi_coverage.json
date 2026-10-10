@@ -3779,8 +3779,8 @@
   },
   "rust": null,
   "source": "dimension:#20824",
-  "verdict": "rust-wrong",
-  "evidence": "A common label (text on faces, read as a dimension of kind common_label): draftwright lowers it to a label and its lint finds it drawn; the port reads it but draws no labels yet (dims::pmi_dimensions: pmi_dimensions_not_ported). A drawing gap, not the lint's. draftwright: \"Part21 representation item #11005 is not an advanced face; Part21 representation item #11128 is not an advanced face; Part21 representation item #11097 is not an advanced face; Part21 representation …\""
+  "verdict": "equivalent",
+  "evidence": "Both leave the common label '4X R0.15 MAX' off the drawing for the same reason, found at a different stage: its references are edges (#11005, #11128, #11097, #10956), not faces; draftwright checks them when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (pmi_lowering::label_geometry, as draftwright's _common_label_topology), so it is pmi_not_lowered ('one common label reference is not a face'; tests/pmi_labels.rs). draftwright: \"Part21 representation item #11005 is not an advanced face; Part21 representation item #11128 is not an advanced face; Part21 representation item #11097 is not an advanced face; Part21 representation …\""
  },
  {
   "code": "pmi_not_extracted",
@@ -12582,7 +12582,7 @@
   "rust": "error",
   "source": "manufacturing_requirement:#3157",
   "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI internal thread manufacturing_requirement:#3157 (M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth) is read but not drawn: drawing it is not ported yet.\""
+  "evidence": "The port reads this thread or knurl requirement but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'; the drawing-wide requirements and labels are drawn, thread and knurl callouts are not): draftwright lowers it to a thread or knurl callout and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI internal thread manufacturing_requirement:#3157 (M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth) is read but not drawn: drawing it is not ported yet.\""
  },
  {
   "code": "pmi_not_extracted",
@@ -12621,7 +12621,7 @@
   "rust": "error",
   "source": "manufacturing_requirement:#689",
   "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI internal thread manufacturing_requirement:#689 (M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 3.8 mm full-diameter depth) is read but not drawn: drawing it is not ported yet.\""
+  "evidence": "The port reads this thread or knurl requirement but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'; the drawing-wide requirements and labels are drawn, thread and knurl callouts are not): draftwright lowers it to a thread or knurl callout and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI internal thread manufacturing_requirement:#689 (M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 3.8 mm full-diameter depth) is read but not drawn: drawing it is not ported yet.\""
  },
  {
   "code": "pmi_not_lowered",
@@ -12630,7 +12630,7 @@
   "rust": "error",
   "source": "manufacturing_requirement:#722",
   "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI knurl manufacturing_requirement:#722 (Diamond knurl, 1 mm pitch, DIA 6 mm maximum after knurling; cut or formed process permitted) is read but not drawn: drawing it is not ported yet.\""
+  "evidence": "The port reads this thread or knurl requirement but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'; the drawing-wide requirements and labels are drawn, thread and knurl callouts are not): draftwright lowers it to a thread or knurl callout and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI knurl manufacturing_requirement:#722 (Diamond knurl, 1 mm pitch, DIA 6 mm maximum after knurling; cut or formed process permitted) is read but not drawn: drawing it is not ported yet.\""
  },
  {
   "code": "pmi_not_lowered",
@@ -12639,6 +12639,6 @@
   "rust": "error",
   "source": "manufacturing_requirement:#749",
   "verdict": "rust-wrong",
-  "evidence": "The port reads this manufacturing requirement or surface label but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'): draftwright lowers it to a thread or knurl callout, a general note, a surface label or the title block's general tolerance and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI external thread manufacturing_requirement:#749 (M5 x 0.8-6g RH, full available length on nominal DIA 5 region) is read but not drawn: drawing it is not ported yet.\""
+  "evidence": "The port reads this thread or knurl requirement but draws none yet (pmi_lowering: 'read but not drawn: drawing it is not ported yet'; the drawing-wide requirements and labels are drawn, thread and knurl callouts are not): draftwright lowers it to a thread or knurl callout and its lint finds it drawn. A drawing gap, not the lint's. port: \"PMI external thread manufacturing_requirement:#749 (M5 x 0.8-6g RH, full available length on nominal DIA 5 region) is read but not drawn: drawing it is not ported yet.\""
  }
 ]

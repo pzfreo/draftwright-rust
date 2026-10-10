@@ -3,9 +3,9 @@
 //!
 //! The requirements are the Analysis's PMI reading ([`Reading`]): its records and the sources it
 //! did not read. The evidence is the drawing's marks: a record is drawn when an annotation is
-//! named `pmi:<source>` (a feature control frame or datum feature symbol) or claims a
-//! measurement of feature `pmi:<source>` (a dimension stating a PMI dimension). Which records
-//! lower to a drawing item at all is [`lower`]'s decision, a function of the Analysis alone that
+//! named `pmi:<source>` (a feature control frame, datum feature symbol, label or drawing-wide
+//! requirement) or claims a measurement of feature `pmi:<source>` (a dimension stating a PMI
+//! dimension). Which records lower to a drawing item at all is [`lower`]'s decision, a function of the Analysis alone that
 //! drawing the part also takes; lint asks it only to tell a record not lowered from one lowered
 //! but not drawn, never for what to count. In the order Python reports them:
 //!
@@ -15,12 +15,13 @@
 //!   aspect, property or standard haecceity reports, which draftwright's census does not hold)
 //!   is info, as the plan reports it.
 //! - `pmi_not_lowered`: a record that is not drawn and that [`lower`] does not lower: its
-//!   reading's blockers, its modifiers or its attachment stop it, or it is a manufacturing
-//!   requirement or surface label (read, not drawn yet); a dimension that does not lower
-//!   ([`dimension`]). Error; a manufacturing requirement of a kind draftwright does not support
+//!   reading's blockers, its modifiers or its attachment stop it, a surface or common label has
+//!   no proven site, a drawing-wide requirement ([`sheet_requirements`]) is ambiguous or not a
+//!   supported default, or it is a manufacturing requirement of a face (a thread, knurl or face
+//!   finish: read, not drawn yet); a dimension that does not lower ([`dimension`]). Error; a manufacturing requirement of a kind draftwright does not support
 //!   is a warning.
-//! - `pmi_not_rendered`: a record [`lower`] lowers, or a dimension that lowers, that no
-//!   annotation draws or states. Error.
+//! - `pmi_not_rendered`: a record [`lower`] or [`sheet_requirements`] lowers, or a dimension that
+//!   lowers, that no annotation draws or states. Error.
 //! - `pmi_value_mismatch`: a frame whose text runs do not state its source's magnitude (one
 //!   number, within half the display's 13th significant digit, as Python allows), its zone
 //!   (`⌀`, `S⌀` or none) and its datum letters (repeats removed). Error.
@@ -34,10 +35,10 @@
 //!   Warnings.
 //!
 //! Python's `pmi_present_but_ignored` is not-applicable: the port has no switch that ignores a
-//! part's PMI. Its other codes wait on the drawing or on a decision: the manufacturing notes,
+//! part's PMI. Its other codes wait on the drawing or on a decision: of the manufacturing notes,
 //! finish symbols and requirement table that `pmi_source_text_mismatch`,
-//! `pmi_source_site_mismatch` and `manufacturing_reference_unresolved` check are not drawn by the
-//! port; and the title block's material and general tolerance against the file
+//! `pmi_source_site_mismatch` and `manufacturing_reference_unresolved` check, the port draws only
+//! the drawing-wide notes and default finish (a face's finish, thread or knurl is not drawn); and the title block's material and general tolerance against the file
 //! (`step_material_mismatch` and `_disagreement`, `step_general_tolerance_*`) turn on whether the
 //! caller authored the field, which only the Spec says.
 
@@ -46,7 +47,7 @@ use std::collections::BTreeSet;
 use super::{LintIssue, Mark, Severity};
 use crate::model::Analysis;
 use crate::pmi::{Category, Outcome, Reading, Record, Report};
-use crate::pmi_lowering::lower;
+use crate::pmi_lowering::{lower, sheet_requirements};
 
 /// Python's `_SUPPORTED_MANUFACTURING_REQUIREMENTS`.
 const MANUFACTURING: [&str; 5] = [
@@ -153,9 +154,13 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             ),
         ));
     }
-    // Lowering does not depend on which views are drawn, only where an item goes.
-    let (items, why_not) = lower(analysis, &|_| true);
+    // Lowering does not depend on which views are drawn, only where an item goes. A drawing-wide
+    // requirement lowers to the sheet (the title block, the finish symbol, a general note).
+    let (items, mut why_not) = lower(analysis, &|_| true);
+    let (sheet, more) = sheet_requirements(analysis);
+    why_not.extend(more);
     let mut lowered: BTreeSet<&str> = items.iter().map(|l| l.source.as_str()).collect();
+    lowered.extend(sheet.iter().map(|r| r.source.as_str()));
     lowered.extend(
         report
             .records
@@ -169,7 +174,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             continue;
         }
         let reason = match dimension(r) {
-            Err(why) if r.category == Category::Dimension => why,
+            Err(why) if r.category == Category::Dimension && r.kind != "common_label" => why,
             _ => why_not
                 .iter()
                 .find(|p| p.subjects.first().is_some_and(|s| s == id))
@@ -251,8 +256,8 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
 /// Whether dimension record *r* lowers to a drawing item (draftwright's typed dimension), or why
 /// not: a function of the record alone. The kinds stage 2b (`dims::pmi_dimensions`) draws, a
 /// length along x, y or z between two proven stations or a diameter or radius seen end-on, lower;
-/// a record its reading or its faces block, a common label, an angle and an oblique or curved
-/// quantity do not (draftwright checks the faces when it extracts, so it says
+/// a record its reading or its faces block, a common label (which [`lower`] lowers as a label), an
+/// angle and an oblique or curved quantity do not (draftwright checks the faces when it extracts, so it says
 /// `pmi_not_extracted` where the port's reading holds the record and lowering refuses it). Where
 /// a lowered dimension then goes, a model dimension that states it or its own, is the drawing's;
 /// one the drawing does not state is `pmi_not_rendered`.
@@ -261,7 +266,7 @@ fn dimension(r: &Record) -> Result<(), String> {
         return Err(r.blockers.join("; "));
     }
     if r.kind == "common_label" {
-        return Err("it is a common label, text on its faces, and the port draws no labels".into());
+        return Err("it is a common label, text on its faces, which lowers as a label".into());
     }
     let Some(g) = &r.geometry else {
         return Err("its attachment was not derived".into());

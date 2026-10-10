@@ -75,11 +75,34 @@ pushed):
 - **PMI stage 2b (dimensions):** `src/dims/pmi_dimensions.rs` gives each AP242 dimension to the model dimension that states it (hole callouts split by requirement, turned and boss diameters) or draws it beside them (basic ones boxed), else reports why (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`); left: angles, oblique lengths, bolt-circle splits, a radius on several faces.
 - **PMI on the drawing vs draftwright's (alpha 1 gate):** `tests/pmi_drawings.rs` (`tools/capture_pmi_drawings.py`, `tests/fixtures/pmi_drawings/`) compares, per AP242 record of the 14 fixtures, what each drawing states (view, label or frame, datums, modifiers, basic box, the model dimension it rides on) through `plan_recovered` and `render`: 334 differences, all with verdicts (252 rust-correct, 38 rust-wrong, 40 undetermined, 4 equivalent; after d-pmi-labels-sheet-reqs 299: 253 rust-correct, 2 rust-wrong, 40 undetermined, 4 equivalent); every frame both draw states the same compartments, and where both draw a dimension they differ only by the port's grid suffix or its giving the requirement to the callout that states the size (verdicted). Rust-wrong left: only the two angular dimensions (ctc_01 `60 ±0.5`).
   - PMI labels and sheet requirements (d-pmi-labels-sheet-reqs): surface and common labels are drawn as leadered `label` items (`pmi_lowering::label_geometry`, `dims::gdt`); the general tolerance fills the title block's cell (a spec tolerance wins; a different PMI one is `step_general_tolerance_disagreement`), the `Ra` default finish is an ISO 1302 symbol beside the title block (draftwright's glyph has a vertical second leg; rust-correct), edge conditions are general notes `pmi:<source>`; the plan's new `requirements` lists them; a turned part keeps a view a PMI item needs (`annotation_view_required`). The 30 quality parts' plans are byte-identical; on the AP242 fixtures label leaders add Policy B crossings (ftc_10 +88, stc_09 +46, ftc_07 +21), and assembly_plate_pin, now with its side view as draftwright, recovers to A0 2:1 (draftwright A1 1:1, incomplete). **Questions for the maintainer:** the PMI's general notes follow the spec's (a spec note keeps its number; draftwright numbers by its model's order): keep? Should label leaders get their own placement pass (draftwright's corridor solver drops what it cannot place; the port places and reports)? **Question for the maintainer:** should a basic PMI dimension whose span a model dimension already states box that dimension instead of being drawn again beside it (bracket_positions, assembly_plate_pin; draftwright never gives a basic dimension to a model dimension)?
+  - Landed and re-verdicted (d-land-pmi-labels, on main after c3f2e33/dd5d915): the coverage lint
+    now counts a drawing-wide requirement `pmi_lowering::sheet_requirements` lowers as lowered (so
+    one lowered and not drawn is `pmi_not_rendered`, a refused one `pmi_not_lowered` with
+    `sheet_requirements`' reason), and a common label not lowered gets `lower`'s reason (it said
+    "the port draws no labels"); no finding on the fixtures changes. `known_pmi_coverage.json`:
+    ftc_10 `4X R0.15 MAX` (dimension:#20824) rust-wrong -> equivalent (its references are edges:
+    draftwright refuses it at extraction, the port at lowering, `label_geometry`); the four
+    thread/knurl entries' evidence no longer lists labels and notes. `tests/pmi_labels.rs` wrote
+    one scratch file per fixture from parallel tests (a STEP parse error when two raced); each
+    call has its own now. **assembly_plate_pin:** the port recovers to A0 2:1 (A3 1:1 hard ->
+    A3 1:2, A3 2:1, A2 1:1, A1 2:1 each with a hard finding -> A0 2:1); draftwright takes A1
+    1:1, incomplete (`pmi_dropped` '45', `scale_decision`). Pinned to A1 1:1 by a spec the port's
+    plan has no hard layout finding and drops nothing, so the recovery (its A1 retry is at 2:1;
+    1:1 on A1 is never tried, where draftwright's attempts try both) spends a larger sheet than
+    needed: rust-wrong, owner the layout recovery (`layout::recover`, the sheet
+    retry in `model.rs`; not this stream's files). Quality (`tools/quality.py`,
+    `tools/quality_parts.txt`, release): 475eefc (before the labels), origin/main ba0bd72 and
+    this head give byte-identical `baseline.json`; no part changes in any column:
+
+    | part | off_sheet | repeated_label | repeated_measure | views_overlap | view_on_title_block | ink |
+    |---|---|---|---|---|---|---|
+    | TOTAL (30 parts, each column the same before and after) | 3 | 18 | 0 | 0 | 0 | 284 |
+    | parts affected | 2 | 9 | 0 | 0 | 0 | 21 |
 - **PMI stage 3 (streams d-pmi-coverage-lint, d-pmi-coverage-complete):** the coverage lint
   (`src/lint/pmi_coverage.rs`, `tests/pmi_coverage.rs`, `known_pmi_coverage.json`: 1362
-  differences, 1187 rust-correct, 64 equivalent, 82 undetermined, 29 rust-wrong, all the drawing's
-  or the reader's: angles and four manufacturing requirements not drawn, the title block's material not filled from
-  the file, haecceity's unmodelled hole occurrences). nist_stc_10 is compared now it renders.
+  differences, 1187 rust-correct, 65 equivalent, 82 undetermined, 28 rust-wrong, all the drawing's
+  or the reader's: two angles and four thread/knurl requirements not drawn, the title block's
+  material not filled from the file (6), haecceity's unmodelled hole occurrences (16)). nist_stc_10 is compared now it renders.
   Questions for the maintainer: (1) draftwright's lint skips a source its build already explained
   (`*_dropped`, `_EXPLAINED_OMISSION_CODES`); the port's lint cannot read the plan's problems (R1),
   so an omitted frame or a refused dimension is reported by the plan and by lint
