@@ -18,7 +18,10 @@
 //!   leaders). A band along z whose diameter prints as a coaxial hole's bore, counterbore or
 //!   spotface does reads `ø70 OD` (`_external_diameter_rider`), and exactly two bands along z
 //!   with the same diameter at different stations share one `2× ø6` callout
-//!   (`_counted_column_items`).
+//!   (`_counted_column_items`). A band that owns an AP242 thread or knurl
+//!   ([`crate::pmi_lowering::manufacturing`]) prints it after its diameter (`ø5 SEE MFG 3`), on a
+//!   callout of its own, or on the overall diameter when that states the band alone (beyond
+//!   draftwright, whose overall diameter prints none and whose lint then finds it not drawn).
 //! - **A step's length** is `step.length`, the band's span along its axis, in its first profile
 //!   view (front for x and z, side for y), its witnesses at the band's shoulders: a chain, one
 //!   item per band, for each turned profile (the bands of one axis line and one recorded
@@ -50,6 +53,7 @@ use super::{AXES, Context, Measurement, P3, Planner, Problem, Shape, Want, fmt, 
 use crate::bridge::{Feature, holes};
 use crate::lint::turned::{Band, band, bands};
 use crate::model::Analysis;
+use crate::pmi_lowering::Manufacturing;
 
 pub(super) const PLANNER: Planner = Planner {
     kinds: &["turned_step"],
@@ -220,7 +224,12 @@ fn diameter_views(k: usize) -> Vec<&'static str> {
 }
 
 /// The steps' diameters, those the overall diameter does not state.
-fn diameters(cx: &Context, read: &[Banded], carried: &[&str]) -> Vec<Want> {
+fn diameters(
+    cx: &Context,
+    read: &[Banded],
+    carried: &[&str],
+    manufacturing: &Manufacturing,
+) -> Vec<Want> {
     let mut items: Vec<(Vec<&Banded>, Vec<String>)> = Vec::new();
     for fb in read {
         let (f, b) = fb;
@@ -229,6 +238,9 @@ fn diameters(cx: &Context, read: &[Banded], carried: &[&str]) -> Vec<Want> {
         }
         let text = fmt(b.diameter);
         let mut terms = vec![format!("ø{text}")];
+        // A thread or knurl the band carries follows its diameter (`_manufacturing_suffix`),
+        // before the `OD` rider (`_external_diameter_rider`).
+        terms.extend(manufacturing.terms(&f.id).0);
         if b.axis == 2 && coaxial_bores(cx.analysis, b.axis, b.on).contains(&text) {
             terms.push("OD".into());
         }
@@ -237,8 +249,9 @@ fn diameters(cx: &Context, read: &[Banded], carried: &[&str]) -> Vec<Want> {
     // Along z, exactly two bands of one printed diameter at different stations share a callout.
     let mut by_text: BTreeMap<(i64, Vec<String>), Vec<usize>> = BTreeMap::new();
     for (i, (members, terms)) in items.iter().enumerate() {
-        let b = &members[0].1;
-        if b.axis == 2 {
+        let (f, b) = members[0];
+        // A band carrying a thread or knurl keeps its own callout (one annotation per owner).
+        if b.axis == 2 && manufacturing.on(&f.id).is_empty() {
             by_text
                 .entry((super::key(b.diameter), terms.clone()))
                 .or_default()
@@ -276,8 +289,9 @@ fn diameters(cx: &Context, read: &[Banded], carried: &[&str]) -> Vec<Want> {
                         parameter: "step.diameter".into(),
                         value: c.diameter,
                     })
+                    .chain(claims(manufacturing, &members, b.diameter))
                     .collect(),
-                basis: if n == 2 {
+                basis: format!("{}{}", if n == 2 {
                     format!(
                         "two turned steps about {} have one diameter at different stations, so one callout states both (draftwright's counted column), in a view that shows the profile",
                         AXES[b.axis]
@@ -294,7 +308,7 @@ fn diameters(cx: &Context, read: &[Banded], carried: &[&str]) -> Vec<Want> {
                             ""
                         }
                     )
-                },
+                }, carries(manufacturing, &members)),
                 terms,
                 shape: Shape::Callout {
                     sites: members.iter().flat_map(|(_, c)| sites(c)).collect(),
@@ -346,6 +360,46 @@ fn length(first: &Feature, members: &[&Banded], terms: Vec<String>, basis: Strin
         },
         turning: None,
     }
+}
+
+/// The claims a diameter of *members*, *value* across, makes on the AP242 threads and knurls
+/// they carry: one measurement of feature `pmi:<source>` each.
+fn claims<'a>(
+    manufacturing: &'a Manufacturing,
+    members: &'a [&Banded],
+    value: f64,
+) -> impl Iterator<Item = Measurement> + 'a {
+    members.iter().flat_map(move |(f, _)| {
+        manufacturing
+            .on(&f.id)
+            .into_iter()
+            .map(move |o| Measurement {
+                feature: format!("pmi:{}", o.source),
+                parameter: o.aspect.into(),
+                value,
+            })
+    })
+}
+
+/// The clause a diameter's basis gives the threads and knurls *members* carry, or none.
+fn carries(manufacturing: &Manufacturing, members: &[&Banded]) -> String {
+    let sources: Vec<&str> = members
+        .iter()
+        .flat_map(|(f, _)| manufacturing.on(&f.id))
+        .map(|o| o.source.as_str())
+        .collect();
+    if sources.is_empty() {
+        return String::new();
+    }
+    format!(
+        "; it carries the part's AP242 thread or knurl ({}), {}, as draftwright gives one to the turned step whose cylinder it names (lower_ap242_manufacturing_requirements)",
+        sources.join(", "),
+        if manufacturing.tags.is_empty() {
+            "printed after its diameter"
+        } else {
+            "referred to the manufacturing requirements table"
+        }
+    )
 }
 
 fn mean(members: &[&Banded]) -> f64 {
@@ -465,9 +519,19 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         p.sort_by(|x, y| x.1.lo.total_cmp(&y.1.lo).then(x.1.hi.total_cmp(&y.1.hi)));
     }
 
+    let manufacturing = crate::pmi_lowering::manufacturing(cx.analysis);
     let mut carried: Vec<&str> = Vec::new();
     if let Some(t) = &cx.turned {
-        let share = shared(t, &read, cx.analysis.envelope);
+        let mut share = shared(t, &read, cx.analysis.envelope);
+        // A band that carries a thread or knurl keeps a diameter of its own when another band
+        // shares the overall diameter (ISSUE-1298-a: one annotation per owner).
+        if share.len() > 1
+            && share
+                .iter()
+                .any(|(f, _)| !manufacturing.on(&f.id).is_empty())
+        {
+            share.clear();
+        }
         carried = share.iter().map(|(f, _)| f.id.as_str()).collect();
         let grooves = groove_spans(cx);
         let spans: Vec<Vec<(f64, f64)>> = profiles
@@ -490,9 +554,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             })
             .collect();
         let covered = chain_covers(&spans, cx.analysis.envelope, t.axis);
-        out.extend(overall(cx, t, &share, covered));
+        out.extend(overall(cx, t, &share, covered, &manufacturing));
     }
-    out.extend(diameters(cx, &read, &carried));
+    out.extend(diameters(cx, &read, &carried, &manufacturing));
     for p in &profiles {
         out.extend(chain(p));
     }
@@ -501,7 +565,13 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
 
 /// The overall diameter and, unless the step chain conveys it, the overall length of part *t*,
 /// turned whole. The diameter also states the bands in *share*.
-fn overall(cx: &Context, t: &Turned, share: &[&Banded], covered: bool) -> Vec<Want> {
+fn overall(
+    cx: &Context,
+    t: &Turned,
+    share: &[&Banded],
+    covered: bool,
+    manufacturing: &Manufacturing,
+) -> Vec<Want> {
     let [lo, hi] = cx.analysis.envelope;
     let mut out = Vec::new();
     let views = profile_views(t.axis);
@@ -513,6 +583,11 @@ fn overall(cx: &Context, t: &Turned, share: &[&Banded], covered: bool) -> Vec<Wa
     if share.len() == 2 {
         terms.insert(0, "2×".into());
     }
+    // A thread or knurl the bands it states carry follows the diameter (beyond draftwright,
+    // whose overall diameter prints none and whose lint then finds the requirement not drawn).
+    if let Some((f, _)) = share.first() {
+        terms.extend(manufacturing.terms(&f.id).0);
+    }
     let mut measurements = vec![Measurement {
         feature: "envelope".into(),
         parameter: "od.diameter".into(),
@@ -523,6 +598,7 @@ fn overall(cx: &Context, t: &Turned, share: &[&Banded], covered: bool) -> Vec<Wa
         parameter: "step.diameter".into(),
         value: b.diameter,
     }));
+    measurements.extend(claims(manufacturing, share, t.diameter));
     let stands = match share.len() {
         1 => "; it is also the diameter of the one band that size",
         2 => "; it is also the diameter of the two separate bands that size",
@@ -536,8 +612,9 @@ fn overall(cx: &Context, t: &Turned, share: &[&Banded], covered: bool) -> Vec<Wa
         measurements,
         turning: Some(t.axis),
         basis: format!(
-            "the part is turned whole about {}: its largest diameter is its overall size across the axis, in a view that shows the profile{stands}",
-            AXES[t.axis]
+            "the part is turned whole about {}: its largest diameter is its overall size across the axis, in a view that shows the profile{stands}{}",
+            AXES[t.axis],
+            carries(manufacturing, share)
         ),
         shape: Shape::Linear {
             a: corner(radial, lo[radial], lo),

@@ -405,3 +405,100 @@ pub fn texts(table: &PlannedTable) -> Vec<(&str, [f64; 2])> {
         .filter_map(|(cell, at)| at.map(|at| (cell.as_str(), at)))
         .collect()
 }
+
+/// The size of the manufacturing requirements table of *rows* (as [`measure`] sizes a table),
+/// or none when there is none: what the sheet reserves for it, top right.
+pub fn manufacturing_size(rows: &[Vec<String>]) -> Option<[f64; 2]> {
+    (!rows.is_empty()).then(|| measure(rows))
+}
+
+/// The manufacturing requirements table (draftwright's `_place_manufacturing_schedule`): the
+/// part's thread and knurl requirements when their callouts print `SEE MFG n`
+/// ([`crate::pmi_lowering::manufacturing`]), drawn as a declared table is, its requirement
+/// column left-aligned at the padding (`_left_align_cols=(1,)`), and placed towards the top
+/// right clear of the views, the dimensions, the PMI and the title block, before the general
+/// notes and the spec's tables (draftwright commits it before its other furniture). A table
+/// that fits nowhere is a `table_not_placed` error naming it and the requirements it states,
+/// which stays in the plan undrawn; draftwright then prints the requirements on their callouts
+/// in full, which the port, whose callouts are placed by then, does not (a question for the
+/// maintainer).
+pub fn manufacturing(
+    analysis: &Analysis,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    dims: &[PlannedDimension],
+) -> (Option<PlannedTable>, Vec<Problem>) {
+    let m = crate::pmi_lowering::manufacturing(analysis);
+    let rows = m.rows();
+    if rows.is_empty() {
+        return (None, Vec::new());
+    }
+    let id = crate::pmi_lowering::SCHEDULE_ID;
+    let widths = widths(&rows);
+    let [w, h] = [widths.iter().sum::<f64>(), ROW * rows.len() as f64];
+    let at = place(
+        [w, h],
+        sheet,
+        &obstacles(analysis, sheet, views, dims),
+        Corner::TopRight,
+    );
+    let placed = at.map(|at| {
+        let mut p = lay(&rows, &widths, at);
+        for (row, cells) in rows.iter().zip(&mut p.cells_at) {
+            if let (Some(s), Some(c)) = (span(&row[1]), cells[1].as_mut()) {
+                c[0] = p.columns[1] + PAD + 0.5 * (s[1] - s[0]);
+            }
+        }
+        p
+    });
+    let sources = m.scheduled();
+    let mut problems = Vec::new();
+    if placed.is_none() {
+        let mut subjects = vec![id.to_string()];
+        subjects.extend(sources.iter().cloned());
+        problems.push(Problem {
+            id: format!("p:table_not_placed:{id}"),
+            code: "table_not_placed".into(),
+            severity: "error".into(),
+            message: format!(
+                "The manufacturing requirements table ({w:.1} × {h:.1} mm) has no place on the sheet clear of the views, their dimensions and the title block; it stays in the plan undrawn, so the callouts' SEE MFG references point to no table. Choose a larger sheet (sheet/size) or a smaller scale (sheet/scale)."
+            ),
+            subjects,
+        });
+    }
+    let table = PlannedTable {
+        id: id.into(),
+        rows,
+        default: true,
+        basis: format!(
+            "source-authored: the part's AP242 thread and knurl requirements ({}): with two or more and one too long for its callout, each callout refers to its row (SEE MFG n) and this table states them, towards the sheet's top right, as draftwright's manufacturing schedule",
+            sources.join(", ")
+        ),
+        placed,
+    };
+    (Some(table), problems)
+}
+
+/// The placed table as the blocks placed after it see it: its box as a label.
+pub fn proxy(t: &PlannedTable) -> Option<PlannedDimension> {
+    let p = t.placed.as_ref()?;
+    Some(PlannedDimension {
+        id: t.id.clone(),
+        kind: "table".into(),
+        view: String::new(),
+        value: 0.0,
+        label: String::new(),
+        terms: Vec::new(),
+        measurements: Vec::new(),
+        default: t.default,
+        from_spec: Vec::new(),
+        basis: t.basis.clone(),
+        placed: Some(crate::dims::Placed {
+            lines: Vec::new(),
+            arrows: Vec::new(),
+            label_at: [p.cells[0], p.cells[1]],
+            rotation: 0.0,
+            label_box: p.cells,
+        }),
+    })
+}

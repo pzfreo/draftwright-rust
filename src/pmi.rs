@@ -276,7 +276,8 @@ pub struct Geometry {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stations: Vec<[f64; 3]>,
     /// A diameter's or radius's exact cylinders (draftwright's `cylindrical_refs`), identical
-    /// ones once; its `axis` is then their common axis, when it is x, y or z.
+    /// ones once; its `axis` is then their common axis, when it is x, y or z. A thread's or
+    /// knurl's too ([`crate::pmi_lowering::requirement_geometry`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cylinders: Vec<crate::pmi_lowering::Cylinder>,
     /// The one view a linear dimension's faces prove a witness in (`plan` or `side`), when only
@@ -409,6 +410,9 @@ pub fn report(
             Category::Datum => Some(datum_geometry(part, r)),
             Category::Dimension => Some(crate::pmi_lowering::dimension_geometry(part, r)),
             Category::SurfaceLabel => Some(crate::pmi_lowering::label_geometry(part, r)),
+            Category::ManufacturingRequirement if crate::pmi_lowering::owned_kind(&r.kind) => {
+                Some(crate::pmi_lowering::requirement_geometry(part, r))
+            }
             _ => None,
         };
     }

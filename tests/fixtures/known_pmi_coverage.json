@@ -177,7 +177,16 @@
   "rust": null,
   "source": "manufacturing_requirement:#1526",
   "verdict": "rust-correct",
-  "evidence": "draftwright cannot extract it ('thread presentation callouts have multiple distinct supports'); the port reads it (known_pmi.json's 'fields' difference: The port pairs the requirement in words #1526 with part 0's structured statement #1551 and carries its fields; draftwright leaves it unpaired. draftwright matches a part-owned requirement in words to the faces of presentation callouts name…). Neither draws it: draftwright leaves a raw fallback (pmi_not_lowered), the port reports it pmi_not_lowered as read but not drawn. draftwright: \"thread presentation callouts have multiple distinct supports\""
+  "evidence": "draftwright cannot extract it ('thread presentation callouts have multiple distinct supports'); the port reads it (known_pmi.json's 'fields' difference: The port pairs the requirement in words #1526 with part 0's structured statement #1551 and carries its fields; draftwright leaves it unpaired. draftwright matches a part-owned requirement in words to the faces of presentation callouts name…). draftwright leaves a raw fallback (pmi_not_lowered); the port draws it on the through hole its cylinder proves, f:hole:6, as draftwright's grammar would: '⌀4.2 M5 x 0.8-6H RH; THRU' (the through tap's THRU standing for the bore's). draftwright: \"thread presentation callouts have multiple distinct supports\""
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "assembly_plate_pin.step",
+  "python": "error",
+  "rust": null,
+  "source": "manufacturing_requirement:#1526",
+  "verdict": "rust-correct",
+  "evidence": "draftwright cannot extract it ('thread presentation callouts have multiple distinct supports', the pmi_not_extracted entry), so it never reaches lower_ap242_manufacturing_requirements and stays a raw fallback (pmi_not_lowered). The port reads it paired with part 0's structured statement #1551 (known_pmi.json) and gives it, as lower_ap242_manufacturing_requirements does, to the one feature its cylinder proves: the through hole f:hole:6 (⌀4.2, the tapping drill, through the plate), whose callout reads '⌀4.2 M5 x 0.8-6H RH; THRU' (hole_callout_spec: the through tap's suffix states THRU, so the bore's own is dropped). One requirement, so no table. draftwright: \"thread presentation callouts have multiple distinct supports\""
  },
  {
   "code": "pmi_not_extracted",
@@ -414,24 +423,6 @@
   "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
  },
  {
-  "code": "pmi_not_lowered",
-  "file": "bolt_thread_knurl.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#444",
-  "verdict": "equivalent",
-  "evidence": "Neither drawing states it and both lints say so: draftwright lowers it to a typed feature its renderer does not draw (pmi_not_rendered); the port has no lowering for it yet (pmi_not_lowered, 'read but not drawn'). port: \"PMI external thread manufacturing_requirement:#444 (M10 x 1.5-6g RH, full available length on nominal DIA 10 region) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bolt_thread_knurl.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#475",
-  "verdict": "equivalent",
-  "evidence": "Neither drawing states it and both lints say so: draftwright lowers it to a typed feature its renderer does not draw (pmi_not_rendered); the port has no lowering for it yet (pmi_not_lowered, 'read but not drawn'). port: \"PMI knurl manufacturing_requirement:#475 (Straight knurl, 1 mm pitch, DIA 6.25 mm maximum after knurling; cut or formed process permitted) is read but not drawn: drawing it is not ported yet.\""
- },
- {
   "code": "pmi_not_rendered",
   "file": "bolt_thread_knurl.step",
   "python": {
@@ -449,8 +440,8 @@
   "python": "error",
   "rust": null,
   "source": "manufacturing_requirement:#444",
-  "verdict": "equivalent",
-  "evidence": "Neither drawing states it and both lints say so: draftwright lowers it to a typed feature its renderer does not draw (pmi_not_rendered); the port has no lowering for it yet (pmi_not_lowered, 'read but not drawn'). draftwright: \"AP242 source manufacturing_requirement:#444 reached typed drafting IR but produced no annotation\""
+  "verdict": "rust-correct",
+  "evidence": "Both lower it to the same owner, turned step f:turned_step:1 (ø10, the band the overall diameter states) (lower_ap242_manufacturing_requirements: its one cylinder, of the stated size, within the step's span), and both plan the manufacturing requirements table (two requirements, the knurl's suffix 56 characters) with draftwright's rows; but draftwright's renderer draws no diameter for that step (its overall diameter prints no thread, its step diameters are not drawn), so its own lint finds the requirement not drawn, while the port's callout d:envelope/od.diameter@front reads 'ø10 SEE MFG 1' and its table MFG 1 'M10 x 1.5-6g RH, FULL AVAILABLE LENGTH'. The port states the requirement where draftwright's drawing loses it (stream d-pmi-thread-knurl-owner-callouts). draftwright: \"AP242 source manufacturing_requirement:#444 reached typed drafting IR but produced no annotation\""
  },
  {
   "code": "pmi_not_rendered",
@@ -458,8 +449,8 @@
   "python": "error",
   "rust": null,
   "source": "manufacturing_requirement:#468",
-  "verdict": "equivalent",
-  "evidence": "#468 is the structured statement of the requirement the port reads as manufacturing_requirement:#444 (#468 is among its instances); draftwright's typed feature carries it as a second source ID and its lint reports each ID not rendered, the port reports the one record pmi_not_lowered. Neither drawing states it. draftwright: \"AP242 source manufacturing_requirement:#468 reached typed drafting IR but produced no annotation\""
+  "verdict": "rust-correct",
+  "evidence": "#468 is the structured statement of the requirement the port reads as manufacturing_requirement:#444 (among its instances); draftwright's typed feature carries it as a second source ID and its lint reports each ID. Both lower it to the same owner, turned step f:turned_step:1 (ø10, the band the overall diameter states) (lower_ap242_manufacturing_requirements: its one cylinder, of the stated size, within the step's span), and both plan the manufacturing requirements table (two requirements, the knurl's suffix 56 characters) with draftwright's rows; but draftwright's renderer draws no diameter for that step (its overall diameter prints no thread, its step diameters are not drawn), so its own lint finds the requirement not drawn, while the port's callout d:envelope/od.diameter@front reads 'ø10 SEE MFG 1' and its table MFG 1 'M10 x 1.5-6g RH, FULL AVAILABLE LENGTH'. The port states the requirement where draftwright's drawing loses it (stream d-pmi-thread-knurl-owner-callouts). draftwright: \"AP242 source manufacturing_requirement:#468 reached typed drafting IR but produced no annotation\""
  },
  {
   "code": "pmi_not_rendered",
@@ -467,8 +458,8 @@
   "python": "error",
   "rust": null,
   "source": "manufacturing_requirement:#475",
-  "verdict": "equivalent",
-  "evidence": "Neither drawing states it and both lints say so: draftwright lowers it to a typed feature its renderer does not draw (pmi_not_rendered); the port has no lowering for it yet (pmi_not_lowered, 'read but not drawn'). draftwright: \"AP242 source manufacturing_requirement:#475 reached typed drafting IR but produced no annotation\""
+  "verdict": "rust-correct",
+  "evidence": "Both lower it to the same owner, turned step f:turned_step:2 (ø6.25) (lower_ap242_manufacturing_requirements: its one cylinder, of the stated size, within the step's span), and both plan the manufacturing requirements table (two requirements, the knurl's suffix 56 characters) with draftwright's rows; but draftwright's renderer draws no diameter for that step (its overall diameter prints no thread, its step diameters are not drawn), so its own lint finds the requirement not drawn, while the port's callout d:f:turned_step:2/step.diameter@front reads 'ø6.2 SEE MFG 2' and its table MFG 2 'ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1; CUT/FORMED PERMITTED'. The port states the requirement where draftwright's drawing loses it (stream d-pmi-thread-knurl-owner-callouts). draftwright: \"AP242 source manufacturing_requirement:#475 reached typed drafting IR but produced no annotation\""
  },
  {
   "code": "pmi_not_rendered",
@@ -476,8 +467,8 @@
   "python": "error",
   "rust": null,
   "source": "manufacturing_requirement:#495",
-  "verdict": "equivalent",
-  "evidence": "#495 is the structured statement of the requirement the port reads as manufacturing_requirement:#475 (#495 is among its instances); draftwright's typed feature carries it as a second source ID and its lint reports each ID not rendered, the port reports the one record pmi_not_lowered. Neither drawing states it. draftwright: \"AP242 source manufacturing_requirement:#495 reached typed drafting IR but produced no annotation\""
+  "verdict": "rust-correct",
+  "evidence": "#495 is the structured statement of the requirement the port reads as manufacturing_requirement:#475 (among its instances); draftwright's typed feature carries it as a second source ID and its lint reports each ID. Both lower it to the same owner, turned step f:turned_step:2 (ø6.25) (lower_ap242_manufacturing_requirements: its one cylinder, of the stated size, within the step's span), and both plan the manufacturing requirements table (two requirements, the knurl's suffix 56 characters) with draftwright's rows; but draftwright's renderer draws no diameter for that step (its overall diameter prints no thread, its step diameters are not drawn), so its own lint finds the requirement not drawn, while the port's callout d:f:turned_step:2/step.diameter@front reads 'ø6.2 SEE MFG 2' and its table MFG 2 'ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1; CUT/FORMED PERMITTED'. The port states the requirement where draftwright's drawing loses it (stream d-pmi-thread-knurl-owner-callouts). draftwright: \"AP242 source manufacturing_requirement:#495 reached typed drafting IR but produced no annotation\""
  },
  {
   "code": "pmi_not_extracted",
@@ -12513,15 +12504,6 @@
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness'. port: \"linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness\""
  },
  {
-  "code": "pmi_not_lowered",
-  "file": "string_post_tapped.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#3157",
-  "verdict": "rust-wrong",
-  "evidence": "Still not drawn by the port (a drawing gap, not the lint's). draftwright does not draw it as a leader note: `lower_ap242_manufacturing_requirements` attaches it as a typed thread aspect to the one recognised hole whose feature its source cylinder proves (text checked against the cylinder's diameter and the drill depth against its axial length), and that feature's own callout prints the requirement's `callout_suffix` after its size; with two or more imported requirements and one suffix longer than 52 characters (`manufacturing_schedule`) the callout prints `SEE MFG n` instead and a MANUFACTURING REQUIREMENTS table (REF, MANUFACTURING REQUIREMENT) carries `callout_text`. draftwright origin/main 4dfc63f on this file: the plan view's hole callout hc_plan0 reads '⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD' (one requirement: no schedule). Porting it means suffixing the port's hole and turned-diameter callouts (src/dims, `pmi_dimensions` owner matching) and the schedule table. tests/fixtures/pmi_drawings/ records nothing for it (`capture_pmi_drawings.py` reads `dimension_sources()`, which does not cite thread or knurl sources). port: \"PMI internal thread manufacturing_requirement:#3157 (M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth) is read but not drawn: drawing it is not ported yet.\""
- },
- {
   "code": "pmi_not_extracted",
   "file": "thumbwheel_thread_knurl.step",
   "python": {
@@ -12541,32 +12523,5 @@
   "source": "finding:#825",
   "verdict": "rust-correct",
   "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "thumbwheel_thread_knurl.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#689",
-  "verdict": "rust-wrong",
-  "evidence": "Still not drawn by the port (a drawing gap, not the lint's). draftwright does not draw it as a leader note: `lower_ap242_manufacturing_requirements` attaches it as a typed thread aspect to the one recognised hole whose feature its source cylinder proves (text checked against the cylinder's diameter and the drill depth against its axial length), and that feature's own callout prints the requirement's `callout_suffix` after its size; with two or more imported requirements and one suffix longer than 52 characters (`manufacturing_schedule`) the callout prints `SEE MFG n` instead and a MANUFACTURING REQUIREMENTS table (REF, MANUFACTURING REQUIREMENT) carries `callout_text`. draftwright origin/main 4dfc63f on this file: three requirements, the knurl's suffix 55 characters, so a schedule: the side view's hole callout hc_side0 reads '⌀1.6 ↧ 3.8 SEE MFG 1', MFG 1 = 'M2 x 0.4-6H RH; 2.5 MIN FULL THREAD'. Porting it means suffixing the port's hole and turned-diameter callouts (src/dims, `pmi_dimensions` owner matching) and the schedule table. tests/fixtures/pmi_drawings/ records nothing for it (`capture_pmi_drawings.py` reads `dimension_sources()`, which does not cite thread or knurl sources). port: \"PMI internal thread manufacturing_requirement:#689 (M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 3.8 mm full-diameter depth) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "thumbwheel_thread_knurl.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#722",
-  "verdict": "rust-wrong",
-  "evidence": "Still not drawn by the port (a drawing gap, not the lint's). draftwright does not draw it as a leader note: `lower_ap242_manufacturing_requirements` attaches it as a typed knurl aspect to the one recognised turned step whose feature its source cylinder proves (text checked against the cylinder's diameter), and that feature's own callout prints the requirement's `callout_suffix` after its size; with two or more imported requirements and one suffix longer than 52 characters (`manufacturing_schedule`) the callout prints `SEE MFG n` instead and a MANUFACTURING REQUIREMENTS table (REF, MANUFACTURING REQUIREMENT) carries `callout_text`. draftwright origin/main 4dfc63f on this file: the front view's diameter callout m_dia_x0 reads 'ø6 SEE MFG 2', MFG 2 = 'ø6 MAX AFTER KNURL; DIAMOND KNURL P1; CUT/FORMED PERMITTED'. Porting it means suffixing the port's hole and turned-diameter callouts (src/dims, `pmi_dimensions` owner matching) and the schedule table. tests/fixtures/pmi_drawings/ records nothing for it (`capture_pmi_drawings.py` reads `dimension_sources()`, which does not cite thread or knurl sources). port: \"PMI knurl manufacturing_requirement:#722 (Diamond knurl, 1 mm pitch, DIA 6 mm maximum after knurling; cut or formed process permitted) is read but not drawn: drawing it is not ported yet.\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "thumbwheel_thread_knurl.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#749",
-  "verdict": "rust-wrong",
-  "evidence": "Still not drawn by the port (a drawing gap, not the lint's). draftwright does not draw it as a leader note: `lower_ap242_manufacturing_requirements` attaches it as a typed thread aspect to the one recognised turned step whose feature its source cylinder proves (text checked against the cylinder's diameter), and that feature's own callout prints the requirement's `callout_suffix` after its size; with two or more imported requirements and one suffix longer than 52 characters (`manufacturing_schedule`) the callout prints `SEE MFG n` instead and a MANUFACTURING REQUIREMENTS table (REF, MANUFACTURING REQUIREMENT) carries `callout_text`. draftwright origin/main 4dfc63f on this file: the front view's diameter callout m_dia_x2 reads 'ø5 SEE MFG 3', MFG 3 = 'M5 x 0.8-6g RH, FULL AVAILABLE LENGTH'. Porting it means suffixing the port's hole and turned-diameter callouts (src/dims, `pmi_dimensions` owner matching) and the schedule table. tests/fixtures/pmi_drawings/ records nothing for it (`capture_pmi_drawings.py` reads `dimension_sources()`, which does not cite thread or knurl sources). port: \"PMI external thread manufacturing_requirement:#749 (M5 x 0.8-6g RH, full available length on nominal DIA 5 region) is read but not drawn: drawing it is not ported yet.\""
  }
 ]

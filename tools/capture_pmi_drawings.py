@@ -16,6 +16,8 @@ angle) made of it:
     parameter it rides on (``None`` for a standalone PMI dimension, ``bore.diameter`` and the
     like when the requirement went to a recognised feature's callout), and ``boxed`` (a basic
     record drawn standalone: draftwright boxes it, or refuses it, ``_basic_unboxed_producer``);
+    a thread or knurl, which no dimension source cites, as the annotation measuring its owner
+    that prints its ``callout_suffix`` or ``SEE MFG n``, the same way;
   - a GD&T glyph (``m_gdt<i>``: the ``i``-th control frame, datum symbol, finish or note of the
     part model, the order ``render_gdt`` names them in): the glyph's text tokens
     (``_gdt_pdf_text_specs``: zone sign, value, material letter, datum letters; a datum's
@@ -28,7 +30,9 @@ angle) made of it:
 - ``issues``: the codes of every lint issue naming it (``pmi_dropped``, ``callout_dropped``,
   ``pmi_unsupported`` and the like).
 
-Positions are not recorded: the check compares what the drawing states, not where. Or
+The file's ``manufacturing_table`` is the manufacturing requirements table's rows, when the
+drawing places one (``manufacturing_schedule``). Positions are not recorded: the check compares
+what the drawing states, not where. Or
 ``error``: why draftwright could not draw the part. ``sha256`` is the STEP text's
 (decompressed). Values are draftwright's, as returned.
 """
@@ -49,6 +53,12 @@ sys.path.insert(0, sys.argv[1])
 from draftwright.annotations._gdt import _GDT_KINDS  # noqa: E402
 from draftwright.annotations._pmi_dimensions import _pmi_source_ids  # noqa: E402
 from draftwright.builder import build_drawing  # noqa: E402
+from draftwright.model.manufacturing_schedule import manufacturing_schedule  # noqa: E402
+from draftwright.model.ir import (  # noqa: E402
+    KnurlRequirement,
+    PatternFeature,
+    ThreadRequirement,
+)
 from draftwright.pmi import extract_pmi_report  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -87,6 +97,49 @@ def drawing(path: Path, records) -> dict:
                     "boxed": sid in basic and row["parameter_id"] is None,
                 },
             )
+    # Typed AP242 threads and knurls (``lower_ap242_manufacturing_requirements``): no dimension
+    # source cites them, so each placed annotation measuring their owner (a hole callout, a
+    # diameter leader) that prints the requirement, its ``callout_suffix`` or the ``SEE MFG n``
+    # of the manufacturing requirements table placed with it, states it, riding on the owner's
+    # diameter.
+    table = anns.get("manufacturing_requirements")
+    tags = {
+        sid: tag
+        for tag, sids in (getattr(table, "manufacturing_source_ids", None) or {}).items()
+        for sid in sids
+    }
+    registry = d._registry
+    for name in sorted(registry.names()):
+        label = getattr(anns.get(name), "label", None)
+        if not label:
+            continue
+        for identity in registry.measurement_of(name):
+            # The callout states the requirement once, riding on its owner's size.
+            if not identity.parameter.endswith(".diameter"):
+                continue
+            feature = identity.feature
+            owner = feature.member if isinstance(feature, PatternFeature) else feature
+            for requirement in (getattr(owner, "thread", None), getattr(owner, "knurl", None)):
+                if not isinstance(requirement, ThreadRequirement | KnurlRequirement):
+                    continue
+                if requirement.source != "ap242_pmi":
+                    continue
+                for sid in requirement.source_ids:
+                    tag = tags.get(sid)
+                    printed = f"SEE {tag}" if tag else requirement.callout_suffix
+                    if printed not in label:
+                        continue
+                    add(
+                        sid,
+                        {
+                            "kind": "dimension",
+                            "annotation": name,
+                            "view": d.view_of(name),
+                            "parameter": identity.parameter,
+                            "text": label,
+                            "boxed": False,
+                        },
+                    )
     # render_gdt's items, in its order: every control frame, datum symbol, finish and note of
     # the part model (in annotate mode none is filtered out), named m_gdt<i>.
     items = [f for f in d._part_model.features if f.kind in _GDT_KINDS]
@@ -148,7 +201,12 @@ def drawing(path: Path, records) -> dict:
     for i in d.lint():
         for sid in set(i.source_ids) & ids:
             issues.setdefault(sid, set()).add(i.code)
-    return {"drawn": drawn, "issues": {k: sorted(v) for k, v in issues.items()}}
+    out = {"drawn": drawn, "issues": {k: sorted(v) for k, v in issues.items()}}
+    # The placed table's rows: the schedule its placement committed (the part model's).
+    schedule = manufacturing_schedule(d._part_model, include_source_pmi=True)
+    if table is not None and schedule is not None:
+        out["manufacturing_table"] = [list(r) for r in schedule.rows]
+    return out
 
 
 def capture(path: Path) -> dict:
@@ -169,6 +227,8 @@ def capture(path: Path) -> dict:
             item["issues"] = out["issues"].get(r.source_id, [])
         items.append(item)
     result = {"file": path.name, "sha256": hashlib.sha256(data).hexdigest(), "items": items}
+    if "manufacturing_table" in out:
+        result["manufacturing_table"] = out["manufacturing_table"]
     if "error" in out:
         result["error"] = out["error"]
     return result
