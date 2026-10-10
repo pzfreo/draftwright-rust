@@ -2128,3 +2128,90 @@ improvement plan and questions are the current work. Still open from before it:
     exactly? Also disclosed, not gated: native GRM-03 goes A4 2:1 to A4 1:1 (draftwright 5:1;
     cause a leader label on an extension line in `leaders.rs`), and ftc07 A1 1:1 (draftwright
     A2 1:2; its A2 1:2 try fails on three ink-placement findings).
+
+## Thin slice S3: placement as intent (2026-10-10)
+
+Implemented in this worktree, without commits: dimension and semantic PMI `place` (`view`,
+`side`, zero-based `lane`, fractional/named `along`, `pinned`), and view `place`
+(`relative_to`, `side`, paper `gap`, `align`, `pinned`). The model reference documents the
+schema and anchor resolution. Fixed annotations participate in linear, leader, PMI and view
+packing; pinned hole items cannot be dropped or replaced by a hole table. Unavailable anchors,
+covered pins, collisions and sheet overruns are reported while their Spec entries are retained.
+S4 sessions and S5 editor migration/fork retirement are outside this change.
+
+Overturnable judgement calls made unattended:
+
+- Retain the S1 `dimensions/<id>/view` spelling for compatibility; `place.view` wins. The
+  editor's old `keep` spelling is not introduced: `omit: false` still follows consolidation.
+- A view's relative anchor is another view name or `sheet` (the drawing area's lower left).
+  Gaps use paper mm (default 10); alignment is start/middle/end. Lane and gap inputs are bounded
+  at 1000 to keep layout searches finite. A pin without a lane uses lane zero.
+- A pin fixes its carrier and the carrier's view-anchor chain for automatic packing. The
+  canonical frames and automatic sheet choice come from the part's default recovered plan,
+  with explicit sheet and scale choices applied. Recovery does not change sheet or scale under
+  pins in response to unrelated edits. Editing an anchor's own intent is a related edit and
+  intentionally re-resolves its dependants; sheet and scale edits also re-resolve them. These
+  rules require no hidden session or page coordinates and replay from the Spec alone.
+- Fixed ink bounds reserve conservative rectangles. Free views use deterministic edge-aligned
+  candidates around these obstacles and the title block. An unpinned isometric may shrink;
+  principal views keep their sheet scale. An infeasible placement is retained and reported.
+- Existing angular PMI keeps its measured sector; lane adjusts its radius and along its arc.
+  A side request is reported with a fix removing that field, rather than changing the sector.
+- A placement fix on a pin resets the annotation's `place` to `{}` or removes the view's
+  `place`, returning it to automatic placement. Free-item fixes suggest another strip/label
+  position; callers must re-plan to assess them. If tabulation would replace a pinned hole
+  item, keep that pin and report the original drops instead of duplicating its measurements.
+
+Six S3 regression tests in `tests/placement_intent.rs` were run before implementation: all six
+failed on the unchanged model's refusal of `place`/`annotations`. They were then strengthened
+with seeded sequences (two seeds, 16 edits per seed, random N=1–4) on the editor plate, corpus
+10127, GRM-03 and CTC-01, plus semantic AP242 CTC-01. They cover omission, tolerance and relative
+placement edits of other annotations and views, sheet/scale re-resolution, collision and
+missing-anchor reports, executable placement fixes, and SVG/DXF/PDF/PNG Spec extraction and exact
+re-rendering. Existing test expectations were not weakened; two `ViewSpec` literals only gained
+the new field's default.
+
+Seeded pin distribution (before the other-item edits; all pins retain byte-identical geometry
+after 16 edits per configuration). The corpus CTC-01 is presentation PMI; the AP242 fixture
+adds semantic frames and datum symbols. This is a report, not a zero-collision gate:
+
+| Part | Seed | Pins | Off sheet | View pin overlap | Label / line over view | Label / ink overlap | Leader crossing | Outside area | Fit uncertain | Dropped free items |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| plate | 1379 | 3 | 0 | 1 | 2 / 4 | 0 / 0 | 0 | 7 | 1 | 1 |
+| plate | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 1 | 4 | 1 | 0 |
+| 10127 | 1379 | 3 | 0 | 0 | 0 / 0 | 0 / 0 | 0 | 3 | 0 | 0 |
+| 10127 | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 0 | 1 | 0 | 0 |
+| GRM-03 | 1379 | 3 | 0 | 1 | 0 / 0 | 0 / 0 | 0 | 3 | 0 | 0 |
+| GRM-03 | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 0 | 4 | 0 | 0 |
+| CTC-01 | 1379 | 3 | 0 | 0 | 0 / 0 | 0 / 2 | 3 | 9 | 0 | 0 |
+| CTC-01 | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 3 | 8 | 0 | 0 |
+| CTC-01 AP242 | 1379 | 3 | 0 | 0 | 0 / 0 | 1 / 1 | 19 | 11 | 1 | 0 |
+| CTC-01 AP242 | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 23 | 10 | 1 | 0 |
+
+The supplied, deliberately conflicting pins can leave collisions. They remain drawn and their
+IDs are reported. Source/recognition/PMI coverage findings are excluded from this layout table.
+
+
+Final validation on the completed S3 code (2026-10-10, `CARGO_BUILD_JOBS=4`,
+`RUST_TEST_THREADS=4`; one Cargo command at a time):
+
+- `cargo fmt --check`: passed.
+- `cargo clippy --all-targets --release -- -D warnings`: passed.
+- `DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`:
+  571 passed, 0 failed, 0 ignored, across 63 result groups (including doc tests).
+  The six S3 tests also passed separately on the final code: 6 passed, 0 failed.
+- `cargo build --release`: passed. No process was killed by the memory guard.
+- The requested `sed`/`tr`/`xargs` invocation of `python3 -I tools/quality.py` ran on all 30
+  `tools/quality_parts.txt` parts, with no pins. Compared every part and every quality column,
+  including the five individual ink codes, against the latest values in
+  `docs/quality-2026-10-09.md` (including its final CTC-02 correction): no regressions.
+  FTC-10 measured four leader crossings instead of the table's five; all other cells matched.
+  Results are in `target/quality-s3/baseline.json` and the rendered SVGs in that directory.
+
+```text
+                              off_sheet repeated_lab repeated_mea views_overla view_on_titl          ink
+TOTAL                                   0           18            0            0            0          282
+parts affected                          0            9            0            0            0           21 of 30
+```
+
+`git diff --check` passed. No commits or pushes were made.

@@ -401,8 +401,13 @@ fn a_dimensions_chosen_view_names_why_it_is_not_shown() {
         let mut spec: Spec =
             serde_json::from_value(json!({ "dimensions": { id: { "view": "side" } } })).unwrap();
         if omitted {
-            spec.views
-                .insert("side".into(), model::ViewSpec { omit: true });
+            spec.views.insert(
+                "side".into(),
+                model::ViewSpec {
+                    omit: true,
+                    ..Default::default()
+                },
+            );
         }
         let plan = model::plan(&a, &spec).unwrap();
         let p = plan

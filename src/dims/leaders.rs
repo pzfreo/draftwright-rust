@@ -66,6 +66,7 @@
 
 use std::collections::BTreeMap;
 
+use super::PlannedDimension;
 use super::placement::{Frame, Page, Side, arrow, boxes_overlap, crosses, label_box};
 use super::{CAP, P2, Placed, SHOULDER, Shape, Want, font, label_ink};
 use crate::model::Problem;
@@ -386,13 +387,33 @@ pub(super) fn place(
     placed: &mut [Option<Placed>],
     page: &Page,
 ) -> Vec<Problem> {
+    place_with_obstacles(frames, items, views_of, sides, placed, page, &[])
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn place_with_obstacles(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    obstacles: &[PlannedDimension],
+) -> Vec<Problem> {
     let on = || {
         placed
             .iter()
             .enumerate()
             .filter_map(|(i, p)| Some((i, p.as_ref()?)))
     };
-    let fixed = Fixed::new(on());
+    let fixed = Fixed::new(
+        on().chain(
+            obstacles
+                .iter()
+                .enumerate()
+                .filter_map(|(i, d)| Some((items.len() + i, d.placed.as_ref()?))),
+        ),
+    );
     // How far each view's strips reach with dimension ink, past the view's edges.
     let mut reach: BTreeMap<(&str, usize), f64> = BTreeMap::new();
     for i in 0..items.len() {

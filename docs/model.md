@@ -122,33 +122,81 @@ mention takes its default.
 ```json
 {
   "schema": "draftwright.spec/2",
-  "binding": { "source_sha256": "…" },
-  "sheet": { "size": "A3", "scale": "2:1", "projection": "first-angle",
+  "sheet": { "size": "A3", "scale": "2:1",
              "title": { "title": "BRACKET", "number": "DWG-001", "material": "6082-T6" } },
-  "views": { "front": {}, "plan": {}, "side": { "omit": true }, "iso": {},
-             "sections": [ { "id": "A", "through": "f:hole:3" } ] },
-  "features": { "f:hole:3": { "anchor": { "…": "fingerprint" }, "fit": "H7", "note": "REAM" } },
+  "views": {
+    "plan": { "place": { "relative_to": "front", "side": "above",
+                         "gap": 10, "align": "middle", "pinned": true } },
+    "side": { "omit": true }
+  },
+  "features": { "f:hole:3": { "fit": "H7" } },
   "dimensions": {
-    "d:f:hole:3/diameter": { "tolerance": "±0.05" },
-    "d:envelope/width": { "view": "plan", "place": { "side": "below", "offset": 8 } },
-    "d:f:pocket:1/depth": { "omit": true }
+    "d:f:hole:3/bore.diameter": { "tolerance": "±0.05" },
+    "d:envelope/width.length": {
+      "place": { "view": "front", "side": "above", "lane": 1,
+                 "along": "middle", "pinned": true }
+    }
+  },
+  "annotations": {
+    "pmi:datum.A:f12:t=A": { "place": { "view": "front", "side": "left",
+                                      "lane": 0, "pinned": true } }
   },
   "notes": [ { "id": "n:1", "text": "BREAK ALL SHARP EDGES" } ]
 }
 ```
 
-- **Fields read so far:** `sheet` (`size`, `scale`, `title`), `views/<name>/omit`,
-  `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`, `view`), `features/<id>/fit` (see
-  Dimensions below) and `notes` (see General notes below). `anchor`, `note` and `place` above
-  are the design, not yet read: an unknown field is refused. All are optional, so a spec
-  written before a field existed reads unchanged.
-- **The spec stores intent, never geometry.** An entry says "this hole's fit is H7" or "this
-  dimension sits 8 mm below its feature". It never says "Ø8.1 at x = 41.2". Every value is
-  measured again from the part when the plan is made, so a revised part flows through by
-  itself.
-- **Placement is relative to an anchor** (a side, an offset, an order in a stack). Placements
-  therefore move with their features, and a collision becomes an ordinary problem, never a
-  silent overlap.
+- **Fields read:** `sheet` (`size`, `scale`, `title`), `views/<name>` (`omit`, `place`),
+  `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
+  spelling), `annotations/<id>` (`omit`, `place`), `features/<id>/fit`, `notes` and `tables`.
+  Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
+- **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
+  resolved against the part and its anchors on every plan. Measured values and resolved paper
+  coordinates occur only in the Analysis and Plan.
+
+#### Placement (`place`, S3)
+
+Dimensions (linear dimensions and callouts, including holes, fillets and chamfers) and PMI
+frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`:
+
+| Field | Meaning |
+| --- | --- |
+| `view` | `front`, `plan` or `side`; a dimension must be visible across that view. `place.view` takes precedence over the earlier `dimensions/<id>/view`. |
+| `side` | `above`, `below`, `left` or `right` of the carrying view's projected envelope. A linear dimension uses the two sides parallel to its measured span; incompatible sides are refused with the choices. |
+| `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; PMI tiers use their glyph's size and clearance. A pin without a lane uses lane zero. |
+| `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
+| `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; a free item can be adjusted around obstacles. |
+
+Existing angular PMI keeps its measured sector: `lane` increases the radius in paper steps and
+`along` selects a fraction of its arc. A requested `side` is reported as
+`placement_side_not_applicable`, with a fix removing that field; it cannot change the sector.
+
+Views use `{relative_to, side, gap?, align?, pinned?}`. `relative_to` names another shown view
+(`front`, `plan`, `side`, `iso`, `section_aa`) or `sheet`, the drawing area's lower left.
+`gap` is the clear paper distance between view footprints (default 10 mm, 0–1000);
+`align` is `start`, `middle` (default) or `end` along the other axis (`outside` also aligns
+ends). Dependencies resolve before packing; cycles and self-anchors are refused. Missing anchors
+are reported, with the entry retained. Unpinned views fit around fixed footprints; an automatic
+isometric may be reduced to fit the space left.
+
+A pin also fixes its carrying view and the view-anchor dependency chain for automatic packing.
+Those frames and the automatic sheet/scale are resolved from the part's default plan and the
+explicit sheet/scale choices, independent of unrelated text, omission and placement edits.
+Recovery cannot change them to repair another item's collision. Editing the pin's own anchor
+intent, sheet or scale deliberately re-resolves it. All original `place` entries remain in the
+embedded Spec, including entries that are covered, omitted, or cannot fit.
+
+Pinned annotations are obstacles to the free linear, leader and PMI solvers. A collision or
+sheet overrun remains a problem against the pinned ID; its geometry is kept, including pinned
+hole items that ordinary drop-and-escalate would withdraw. A covered measurement stays covered:
+`omit: false` and a pin do not bypass consolidation or repeat information. A pin that cannot be
+drawn has `pinned_item_not_drawn`, alongside the reason in its typed state. Pinned view collisions
+and overruns have `pinned_view_overlap` and `pinned_view_off_sheet`.
+
+Placement problems provide `edit` operations addressing `place`. Resetting an annotation's
+`place` to `{}` releases it to automatic placement; removing a view's `place` restores automatic
+packing. Suggestions for free annotations choose another strip or label position and must be
+reviewed by re-planning. Exports embed these entries, so extracting the Spec and re-rendering
+reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG).
 
 ### Plan: what the sheet will say
 
@@ -209,7 +257,7 @@ mention takes its default.
   `view_plan_incomplete`, `pmi_not_drawn`, `section_not_shown`) or the omitted dimension
   stating a PMI dimension brought back (`pmi_not_drawn`); a section with no plane un-asked
   (`section_not_shown`); an empty isometric omitted (`iso_projection_empty`); another revision's entries removed (`spec_entries_inactive`). Placement
-  problems get theirs with `place` (S3). Each fix is applied and re-planned in
+  problems use `place` (above). Non-placement fixes are applied and re-planned in
   `tests/items.rs` (the isometric's in `tests/views.rs`), and the problem is gone. Where the
   turned-part rule, not the spec, dropped a view, the message says so and gives no fix (restoring
   an omission the spec never made would fail).
@@ -576,7 +624,8 @@ requirement a boss owns is refused too, as the boss callout prints none yet
 **IDs and views.** A dimension's ID names what it measures, never the view that carries it
 (`draftwright.spec/2`; version 1 added `@<view>`). The view is the item's `view`. Omitting that
 view moves the dimension to its next view under the same ID (the basis says so), and so does a
-change of sheet or scale. The spec may choose the view, `dimensions/<id>/view` (`front`,
+change of sheet or scale. The spec may choose the view, `dimensions/<id>/place/view` (the earlier
+`dimensions/<id>/view` is still read) (`front`,
 `plan` or `side`): it must be one that can carry the dimension (one of its views that does not
 look along it), else the plan is refused with those that can; one the spec omits leaves the
 dimension in its default view, with a warning (`dimension_view_not_shown`). The item then lists
@@ -602,7 +651,7 @@ calls.
 | `analyse` | STEP file | Analysis |
 | `plan` | Analysis, Spec | Plan (with problems); rebinds first if the spec's binding differs |
 | `edit` | Spec, ops | Spec, or a validation error |
-| `render` | Plan, formats, dpi | SVG, DXF and PDF by default, and PNG at `dpi` (150) when asked, each with the spec embedded |
+| `render` | Plan, formats, dpi | SVG, DXF, PDF and PNG by default, and PNG at `dpi` (150) when asked, each with the spec embedded |
 | `review` | Plan | a rendered image, the problems and lint's findings on the drawing, for a check |
 
 **`edit` operations** are small and addressed by path:

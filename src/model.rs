@@ -173,6 +173,9 @@ pub struct Spec {
     /// Per dimension, by its ID (`d:<feature>/<parameter>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub dimensions: BTreeMap<String, DimensionSpec>,
+    /// Placement and omission of semantic PMI frames, datums and labels, by stable ID.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub annotations: BTreeMap<String, crate::placement_intent::AnnotationSpec>,
     /// Per feature, by its ID (`f:<kind>:<n>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub features: BTreeMap<String, FeatureSpec>,
@@ -217,6 +220,9 @@ pub struct DimensionSpec {
     /// refused; one that is omitted leaves it in its default view, with a warning.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub view: Option<String>,
+    /// Position relative to its feature and carrying view; never page coordinates.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub place: Option<crate::placement_intent::Place>,
 }
 
 /// What the author decided of a feature.
@@ -239,6 +245,7 @@ impl Default for Spec {
             dimension_source: DimensionSource::Auto,
             dimensions: BTreeMap::new(),
             features: BTreeMap::new(),
+            annotations: BTreeMap::new(),
             notes: Vec::new(),
             tables: Vec::new(),
         }
@@ -263,6 +270,8 @@ pub struct SheetSpec {
 pub struct ViewSpec {
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub omit: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub place: Option<crate::placement_intent::ViewPlace>,
 }
 
 /// What the sheet will say.
@@ -841,7 +850,7 @@ fn said(f: layout::Findings, dropped: usize) -> String {
 /// hole items it has no place for dropped and escalated ([`plan_escalated`]), never a recovered
 /// one, as *first* should be.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
-    if spec.sheet.scale.is_some() {
+    if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
         return Ok(first);
     }
     let found = findings(&first);
@@ -991,7 +1000,7 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     };
     let first = escalated(false)?;
     let misplaced = gdt_misplaced(&first);
-    if misplaced == 0 {
+    if misplaced == 0 || crate::placement_intent::has_pins(spec) {
         return Ok(first);
     }
     let mut again = escalated(true)?;
@@ -1054,12 +1063,48 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     }
     let spec = &migrate(spec, analysis)?;
     crate::dims::check_views(spec)?;
+    crate::placement_intent::check(spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
+    let canonical = if crate::placement_intent::has_pins(spec) {
+        let mut base = Spec::default();
+        base.sheet.size = spec.sheet.size.clone();
+        base.sheet.scale = spec.sheet.scale.clone();
+        Some(plan_recovered(analysis, &base)?)
+    } else {
+        None
+    };
     let mut effective = spec.clone();
+    if let Some(base) = &canonical {
+        effective.sheet.size = Some(base.sheet.size.clone());
+        effective.sheet.scale = Some(base.sheet.scale.clone());
+        for (id, d) in &mut effective.dimensions {
+            if let Some(p) = d.place.as_mut()
+                && p.pinned
+                && p.view.is_none()
+            {
+                p.view = d.view.clone().or_else(|| {
+                    crate::placement_intent::carrier(base, id)
+                        .map(|v| v.trim_start_matches("v:").into())
+                });
+            }
+        }
+        for (id, d) in &mut effective.annotations {
+            if let Some(p) = d.place.as_mut()
+                && p.pinned
+                && p.view.is_none()
+            {
+                p.view = base
+                    .gdt
+                    .iter()
+                    .find(|d| d.id == *id)
+                    .map(|d| d.view.trim_start_matches("v:").into());
+            }
+        }
+    }
     let mut inactive = Vec::new();
     if let Some(b) = &spec.binding
         && b.source_sha256 != analysis.binding.source_sha256
@@ -1143,6 +1188,19 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 .collect(),
             ..Default::default()
         });
+    }
+    let annotation_ids: Vec<String> = crate::pmi_lowering::lower(analysis, &|_| true)
+        .0
+        .into_iter()
+        .map(|i| i.id)
+        .collect();
+    for id in effective.annotations.keys() {
+        if !annotation_ids.contains(id) {
+            return Err(Invalid {
+                message: format!("There is no PMI annotation {id:?} on this part."),
+                choices: annotation_ids.clone(),
+            });
+        }
     }
     let given = spec;
     let spec = &effective;
@@ -1509,20 +1567,80 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     problems.extend(more);
     let title_cells = title_block::cells(g.title_block, &title, &size);
     problems.extend(title_block::problems(&title_cells, pick.page));
-    let sheet = PlannedSheet {
+    let mut sheet = PlannedSheet {
         size,
         page: pick.page,
         scale,
         scale_factor: pick.scale,
         arrangement: pick.arrangement.name().into(),
         title_block: g.title_block,
-        default: spec.sheet.size.is_none() || spec.sheet.scale.is_none(),
+        default: given.sheet.size.is_none() || given.sheet.scale.is_none(),
         basis,
         state: ItemState::Shown,
         title,
         title_cells,
     };
-    let (dimensions, mut omitted, more) = crate::dims::plan(analysis, spec, &sheet, &views)?;
+    if let Some(base) = &canonical {
+        sheet.page = base.sheet.page;
+        sheet.scale_factor = base.sheet.scale_factor;
+        sheet.title_block = base.sheet.title_block;
+        sheet.basis = base.sheet.basis.clone()
+            + "; anchor frames and sheet choice kept fixed for placement pins";
+        sheet.title_cells = title_block::cells(sheet.title_block, &sheet.title, &sheet.size);
+    }
+    if canonical.is_some() || spec.views.values().any(|v| v.place.is_some()) {
+        crate::placement_intent::views(
+            spec,
+            &mut views,
+            canonical.as_ref(),
+            &sheet,
+            &[],
+            &mut problems,
+        );
+    }
+    let mut fixed_spec = spec.clone();
+    fixed_spec
+        .annotations
+        .retain(|_, a| a.place.as_ref().is_some_and(|p| p.pinned));
+    let fixed = if fixed_spec.annotations.is_empty() {
+        Vec::new()
+    } else {
+        crate::dims::gdt::plan(analysis, &fixed_spec, &sheet, &views, &[])
+            .0
+            .iter()
+            .filter(|g| fixed_spec.annotations.contains_key(&g.id))
+            .filter_map(crate::dims::gdt::proxy)
+            .collect()
+    };
+    let (mut dimensions, mut omitted, mut more) =
+        crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed)?;
+    let obstacles = crate::placement_intent::obstacles(spec, &dimensions, &fixed);
+    if !obstacles.is_empty() {
+        let before: Vec<_> = views.iter().map(|v| (v.at, v.area, v.scale)).collect();
+        problems.retain(|p| {
+            !matches!(
+                p.code.as_str(),
+                "pinned_view_overlap" | "pinned_view_off_sheet" | "placement_anchor_not_shown"
+            )
+        });
+        crate::placement_intent::views(
+            spec,
+            &mut views,
+            canonical.as_ref(),
+            &sheet,
+            &obstacles,
+            &mut problems,
+        );
+        if before
+            != views
+                .iter()
+                .map(|v| (v.at, v.area, v.scale))
+                .collect::<Vec<_>>()
+        {
+            (dimensions, omitted, more) =
+                crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed)?;
+        }
+    }
     problems.extend(more);
     // The part's PMI, placed beyond the dimensions; the notes and tables keep clear of both.
     let (gdt, more) = crate::dims::gdt::plan(analysis, spec, &sheet, &views, &dimensions);
@@ -1570,7 +1688,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     if inactive.is_empty() {
         spec.binding = Some(analysis.binding.clone());
     }
-    Ok(Plan {
+    let mut plan = Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
         sheet,
@@ -1586,7 +1704,9 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         balloons: Vec::new(),
         problems,
         spec,
-    })
+    };
+    crate::placement_intent::finish(&mut plan, analysis);
+    Ok(plan)
 }
 
 /// *spec* as this version reads it (`draftwright.spec/2`): a version 2 spec as it is; a version
@@ -1744,6 +1864,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::dims::check_tolerances(&spec)?;
     crate::dims::check_views(&spec)?;
+    crate::placement_intent::check(&spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;

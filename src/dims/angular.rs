@@ -307,10 +307,20 @@ impl Ink {
     /// of the label, an arrowhead at each end, the label centred on the bisector; none when the
     /// arc's pieces are too short for their arrowheads.
     fn placed(&self, radius: f64, terms: &[String]) -> Option<Placed> {
+        self.placed_at(radius, terms, false)
+    }
+
+    fn placed_at(&self, radius: f64, terms: &[String], literal: bool) -> Option<Placed> {
         let end = self.start + self.sweep;
         let gap = (self.tangent_half + PAD).atan2(radius - self.radial_half - PAD);
-        let pieces = [(self.start, self.middle - gap), (self.middle + gap, end)];
-        if pieces.iter().any(|(a, b)| (b - a) * radius <= ARROW) {
+        let pieces = [(self.start, self.middle - gap), (self.middle + gap, end)].map(|(a, b)| {
+            if literal {
+                (a.clamp(self.start, end), b.clamp(self.start, end))
+            } else {
+                (a, b)
+            }
+        });
+        if !literal && pieces.iter().any(|(a, b)| (b - a) * radius <= ARROW) {
             return None;
         }
         let mut lines = Vec::new();
@@ -320,7 +330,7 @@ impl Ink {
                 self.point(radius + OVERSHOOT, angle),
             ]);
         }
-        for (a, b) in pieces {
+        for (a, b) in pieces.into_iter().filter(|(a, b)| a < b) {
             let count = ((b - a) * (radius / SAMPLING).sqrt()).ceil().max(1.0) as usize;
             let at = |i: usize| self.point(radius, a + (b - a) * i as f64 / count as f64);
             lines.extend((0..count).map(|i| [at(i), at(i + 1)]));
@@ -355,6 +365,37 @@ impl Ink {
     }
 }
 
+pub(super) fn intent(
+    frame: &Frame,
+    angle: &Angle,
+    terms: &[String],
+    p: &crate::placement_intent::Place,
+) -> Option<Placed> {
+    let ink = label_ink(terms, font());
+    let mut geometry = Ink::new(
+        frame,
+        angle,
+        [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]],
+    )?;
+    if let Some(a) = p.along {
+        geometry.middle = geometry.start + geometry.sweep * a.fraction();
+        let tangent =
+            (geometry.middle + std::f64::consts::FRAC_PI_2).rem_euclid(std::f64::consts::TAU);
+        geometry.text_angle = if std::f64::consts::FRAC_PI_2 < tangent
+            && tangent <= 3.0 * std::f64::consts::FRAC_PI_2
+        {
+            tangent - std::f64::consts::PI
+        } else {
+            tangent
+        };
+    }
+    geometry.placed_at(
+        geometry.minimum + p.lane.unwrap_or(0) as f64 * STEP,
+        terms,
+        true,
+    )
+}
+
 /// Places each angular item of *items* in its carrying view (*views_of*) about its vertex (see
 /// the module's notes), clear of what *placed* already holds where it can be; *placed* takes
 /// its ink.
@@ -366,6 +407,9 @@ pub(super) fn place(
     page: &Page,
 ) {
     for i in 0..items.len() {
+        if placed[i].is_some() {
+            continue;
+        }
         let (Shape::Angular { angle }, Some(view)) = (&items[i].shape, views_of[i]) else {
             continue;
         };

@@ -88,7 +88,11 @@ pub(crate) use tolerance::check as check_tolerances;
 /// dimension can be carried by: the form, never the part (that is [`plan`]'s).
 pub(crate) fn check_views(spec: &Spec) -> Result<(), Invalid> {
     for (id, entry) in &spec.dimensions {
-        if let Some(v) = &entry.view
+        if let Some(v) = entry
+            .place
+            .as_ref()
+            .and_then(|p| p.view.as_ref())
+            .or(entry.view.as_ref())
             && !NAMES.contains(&v.as_str())
         {
             return Err(Invalid {
@@ -130,7 +134,12 @@ fn chosen_views(
 ) -> Result<Vec<Problem>, Invalid> {
     let mut problems = Vec::new();
     for w in wants.iter_mut() {
-        let Some(v) = spec.dimensions.get(&w.id).and_then(|e| e.view.as_deref()) else {
+        let Some(v) = spec.dimensions.get(&w.id).and_then(|e| {
+            e.place
+                .as_ref()
+                .and_then(|p| p.view.as_deref())
+                .or(e.view.as_deref())
+        }) else {
             continue;
         };
         let able: Vec<&'static str> = w.views.iter().copied().filter(|c| carries(w, c)).collect();
@@ -149,6 +158,14 @@ fn chosen_views(
             w.views.insert(0, v);
             w.basis += &format!("; the spec places it in the {v} view");
         } else {
+            let pinned = spec
+                .dimensions
+                .get(&w.id)
+                .and_then(|e| e.place.as_ref())
+                .is_some_and(|p| p.pinned);
+            if pinned {
+                w.views.retain(|c| *c == v);
+            }
             let (why, how, fix) = if spec.views.get(v).is_some_and(|s| s.omit) {
                 (
                     "omitted",
@@ -166,12 +183,17 @@ fn chosen_views(
                     Vec::new(),
                 )
             };
+            let outcome = if pinned {
+                "its pinned placement is retained unplaced"
+            } else {
+                "it is drawn in its default view instead"
+            };
             problems.push(Problem {
                 id: format!("p:dimension_view_not_shown:{}", w.id),
                 code: "dimension_view_not_shown".into(),
                 severity: "warning".into(),
                 message: format!(
-                    "The spec places {} in the {v} view, which is {why}, so it is drawn in its default view instead. {how}",
+                    "The spec places {} in the {v} view, which is {why}, so {outcome}. {how}",
                     w.id
                 ),
                 subjects: vec![w.id.clone()],
@@ -249,6 +271,26 @@ pub struct Measurement {
     /// draftwright's role vocabulary, `role.kind[.discriminator]`.
     pub parameter: String,
     pub value: f64,
+}
+
+pub(crate) fn ink_box(d: &PlannedDimension) -> Option<[f64; 4]> {
+    let p = d.placed.as_ref()?;
+    Some(placement::ink_points(p).fold(
+        [
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ],
+        |b, q| {
+            [
+                b[0].min(q[0]),
+                b[1].min(q[1]),
+                b[2].max(q[0]),
+                b[3].max(q[1]),
+            ]
+        },
+    ))
 }
 
 /// A dimension's ink, mm on the page.
@@ -645,6 +687,16 @@ pub fn plan(
     sheet: &PlannedSheet,
     views: &[PlannedView],
 ) -> Result<Planned, Invalid> {
+    plan_with_obstacles(analysis, spec, sheet, views, &[])
+}
+
+pub(crate) fn plan_with_obstacles(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    obstacles: &[PlannedDimension],
+) -> Result<Planned, Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -746,6 +798,48 @@ pub fn plan(
         .collect();
     let (mut sides, mut lane) =
         placement::lanes(&frames, all.iter().zip(chosen.iter().copied()), &owner);
+    for (i, w) in all.iter().enumerate() {
+        if matches!(w.shape, Shape::Angular { .. })
+            && spec
+                .dimensions
+                .get(&w.id)
+                .and_then(|e| e.place.as_ref())
+                .is_some_and(|p| p.side.is_some())
+        {
+            problems.push(Problem {id:format!("p:placement_side_not_applicable:{}",w.id),code:"placement_side_not_applicable".into(),severity:"warning".into(),message:format!("{} keeps its measured angular sector; place it with lane and along, without a side.",w.id),subjects:vec![w.id.clone()],fix:vec![Op::remove(format!("dimensions/{}/place/side",crate::items::key(&w.id)))],..Default::default()});
+        }
+        if let Some(p) = spec.dimensions.get(&w.id).and_then(|e| e.place.as_ref())
+            && let (Shape::Linear { axis, .. }, Some(side), Some(v)) = (&w.shape, p.side, chosen[i])
+            && placement::across(&frames[v], *axis).is_some_and(|h| {
+                h != matches!(
+                    side,
+                    crate::placement_intent::Side::Above | crate::placement_intent::Side::Below
+                )
+            })
+        {
+            let horizontal = placement::across(&frames[v], *axis) == Some(true);
+            return Err(Invalid {
+                message: format!(
+                    "The side of {} must be parallel to its dimension line in {v}.",
+                    w.id
+                ),
+                choices: if horizontal {
+                    vec!["above".into(), "below".into()]
+                } else {
+                    vec!["left".into(), "right".into()]
+                },
+            });
+        }
+    }
+    let intended: Vec<Option<Placed>> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            let p = spec.dimensions.get(&w.id)?.place.as_ref()?;
+            let v = chosen[i]?;
+            placement::intent(&frames[v], w, p, sides[i]?, lane[i])
+        })
+        .collect();
     placement::fall_through(
         &frames, &all, &chosen, &owner, &mut sides, &mut lane, analysis, sheet, views,
     );
@@ -765,10 +859,47 @@ pub fn plan(
                 .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
         })
         .collect();
-    placement::settle(&mut placed, analysis, sheet, views);
+    for (i, p) in intended.iter().enumerate() {
+        if p.is_some() {
+            placed[i] = p.clone();
+        }
+    }
+    let fixed: Vec<bool> = all
+        .iter()
+        .map(|w| {
+            spec.dimensions
+                .get(&w.id)
+                .and_then(|e| e.place.as_ref())
+                .is_some_and(|p| p.pinned)
+        })
+        .collect();
     let page = placement::Page::new(analysis, sheet, views);
+    placement::avoid_fixed(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &lane,
+        &fixed,
+        &mut placed,
+        obstacles,
+        &page,
+    );
+    placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
     angular::place(&frames, &all, &chosen, &mut placed, &page);
-    let leader_problems = leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page);
+    let leader_problems = if obstacles.is_empty() {
+        leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page)
+    } else {
+        leaders::place_with_obstacles(
+            &frames,
+            &all,
+            &chosen,
+            &sides,
+            &mut placed,
+            &page,
+            obstacles,
+        )
+    };
     placement::place_merged(
         &frames,
         &all,
@@ -780,6 +911,11 @@ pub fn plan(
         &mut placed,
         &page,
     );
+    for i in 0..all.len() {
+        if fixed[i] && intended[i].is_some() {
+            placed[i] = intended[i].clone();
+        }
+    }
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
@@ -793,6 +929,13 @@ pub fn plan(
             && chosen == Some(v)
         {
             from_spec.push("view".into());
+        }
+        if spec
+            .dimensions
+            .get(&w.id)
+            .is_some_and(|e| e.place.is_some())
+        {
+            from_spec.push("place".into());
         }
         let view = chosen.unwrap_or(w.views[0]);
         if placed.is_none() {

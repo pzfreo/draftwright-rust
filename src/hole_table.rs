@@ -301,6 +301,14 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
         .iter()
         .enumerate()
         .filter(|(_, d)| d.placed.is_some() && off.contains(&d.id))
+        .filter(|(_, d)| {
+            !plan
+                .spec
+                .dimensions
+                .get(&d.id)
+                .and_then(|e| e.place.as_ref())
+                .is_some_and(|p| p.pinned)
+        })
         .filter_map(|(i, d)| Some((i, hole_item(d)?)))
         .collect();
     for &(i, kind) in &drops {
@@ -361,6 +369,26 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
     let mut table = None;
     let mut replaced: Vec<usize> = Vec::new();
     let mut table_failure = None;
+    if tabulate
+        && plan.dimensions.iter().any(|d| {
+            hole_item(d).is_some()
+                && plan
+                    .spec
+                    .dimensions
+                    .get(&d.id)
+                    .and_then(|e| e.place.as_ref())
+                    .is_some_and(|p| p.pinned)
+        })
+    {
+        for &(i, _) in &drops {
+            say(
+                plan,
+                i,
+                " No hole table: it would replace a pinned hole item.",
+            );
+        }
+        return;
+    }
     if tabulate {
         let (rows, replace) = rows(analysis, plan, &loose, row_tags);
         for &i in &replace {
