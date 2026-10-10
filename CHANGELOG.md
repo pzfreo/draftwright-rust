@@ -24,6 +24,8 @@ The first alpha. Its gates and their state are in `docs/alpha1.md`.
 - AP242 semantic PMI: read through haecceity; feature control frames, datum feature symbols,
   and toleranced and basic dimensions drawn; surface and common labels drawn with leaders, and
   the general tolerance, default surface finish and edge-condition notes on the sheet.
+- The title block's material from the STEP file's one usable material property when the spec
+  states none, as draftwright does.
 - SVG, DXF, PDF (subset fonts, searchable text) and PNG output, each carrying its Spec;
   deterministic to the byte in every time zone.
 

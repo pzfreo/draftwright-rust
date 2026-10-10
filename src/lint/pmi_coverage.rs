@@ -13,7 +13,7 @@
 //!   source was not read or read in part (`partially_extracted`: a record with blockers). An
 //!   error, as Python's `annotate` mode makes it; a source of no draftwright category (a shape
 //!   aspect, property or standard haecceity reports, which draftwright's census does not hold)
-//!   is info, as the plan reports it.
+//!   is info, as the plan reports it. A material the title block states is drawn, not reported.
 //! - `pmi_not_lowered`: a record that is not drawn and that [`lower`] does not lower: its
 //!   reading's blockers, its modifiers or its attachment stop it, or it is a manufacturing
 //!   requirement or surface label (read, not drawn yet); a dimension that does not lower
@@ -130,11 +130,13 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         None => return unreconciled(&on_sheet),
     };
     let mut out = Vec::new();
+    // A material the title block states (its cell's run named `pmi:material:<part>:0`) is on the
+    // drawing, as draftwright's title block accounts for its material fact.
     for s in report.sources.iter().filter(|s| {
         matches!(
             s.outcome,
             Outcome::NotExtracted | Outcome::PartiallyExtracted
-        )
+        ) && !(s.id.starts_with("material:") && on_sheet.contains(s.id.as_str()))
     }) {
         let severity = if s.category == Category::Other {
             Severity::Info
@@ -308,7 +310,7 @@ fn materials(report: &Report) -> Vec<LintIssue> {
                 report.parts.len()
             ),
         )],
-        [m] if m.designation.is_empty() => vec![sourced(
+        [m] if m.designation.trim().is_empty() => vec![sourced(
             "step_material_unavailable",
             &m.source_id,
             Severity::Warning,

@@ -1350,6 +1350,15 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     title
         .entry("number".into())
         .or_insert_with(|| "DWG-001".into());
+    // The file's one usable material, unless the spec states one, even blank (draftwright's
+    // `_resolve_title_document_defaults`).
+    if let Some(crate::pmi::Reading::Read(r)) = &analysis.pmi
+        && let Some(m) = r.title_material()
+    {
+        title
+            .entry("material".into())
+            .or_insert_with(|| m.designation.trim().to_string());
+    }
     let (requirements, more) = crate::pmi_lowering::plan_sheet(
         &requirements,
         &spec.sheet.title,
@@ -1851,6 +1860,10 @@ pub fn render_with(
     let title_from = dims.len();
     // The runs that state the sheet's PMI requirements, by requirement ID.
     let mut stated: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    let title_material = match &analysis.pmi {
+        Some(crate::pmi::Reading::Read(r)) => r.title_material(),
+        _ => None,
+    };
     for c in &plan.sheet.title_cells {
         let [x0, y0, x1, y1] = c.cell;
         if x0 > tx0 {
@@ -1879,6 +1892,16 @@ pub fn render_with(
                 if r.carrier == "title_block" && c.field == "general_tolerance" {
                     stated.entry(r.id.clone()).or_default().extend(at);
                 }
+            }
+            // A material cell that says the file's material states its source.
+            if c.field == "material"
+                && let Some(m) = &title_material
+                && v.as_str() == m.designation.trim()
+            {
+                stated
+                    .entry(format!("pmi:{}", m.census_id()))
+                    .or_default()
+                    .extend(at);
             }
             if let Some(ink) = items_bbox(&dims[from..]) {
                 sheet.fields.push(DrawnField {

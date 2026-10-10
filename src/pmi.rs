@@ -224,6 +224,26 @@ pub struct Material {
     pub name: Option<String>,
 }
 
+impl Material {
+    /// The reading's census source that accounts for it (`material:<part>:0`).
+    pub fn census_id(&self) -> String {
+        format!("material:{}:0", self.part)
+    }
+}
+
+impl Report {
+    /// The material the title block states when the caller gives none (draftwright's
+    /// `_resolve_title_document_defaults`): the file's one material, if usable. Several are
+    /// ambiguous; one of a file of several parts is not the drawing's part's (draftwright's 'not
+    /// owned by the single shaped source product definition'); an empty designation is unusable.
+    pub fn title_material(&self) -> Option<&Material> {
+        match self.materials.as_slice() {
+            [m] if self.parts.len() == 1 && !m.designation.trim().is_empty() => Some(m),
+            _ => None,
+        }
+    }
+}
+
 /// Where a geometric tolerance or datum attaches to the part, in the drawing's frame (the
 /// file's), as draftwright measures it from the record's faces (`_datum_geometry_from_shapes`,
 /// `_datum_reference_normal` and `_common_principal_cylinder_axis`), and where a dimension does.

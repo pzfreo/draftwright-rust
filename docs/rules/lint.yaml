@@ -1985,7 +1985,7 @@
     tests: [tests/test_title_block_units_format.py]
   status: pending
   port_note: "Keep."
-  rust_note: "Not ported: the reading carries each part's material (`pmi::Report::materials`) and the title block's material cell is on the drawing, but which code applies, and whether an empty cell is a finding, turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port also does not fill the title block from the file yet (draftwright's `_resolve_title_document_defaults`)."
+  rust_note: "Not ported: the reading carries each part's material (`pmi::Report::materials`) and the title block's material cell is on the drawing, but which code applies, and whether an empty cell is a finding, turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The title block does take the file's one usable material when the spec states none (draftwright's `_resolve_title_document_defaults`, tests/title_block_material.rs), and the cell's run then states its source (`pmi:material:<part>:0`), so the coverage lint does not report the material as not drawn; a title that does not state it (the spec gave another, or none was usable) is left to the reading's `pmi_not_extracted` (info)."
 
 - id: LINT-code-step_material_disagreement
   statement: "A caller-overridden title-block material that differs from the STEP material is reported."
@@ -1997,7 +1997,7 @@
     tests: [tests/test_title_block_units_format.py]
   status: pending
   port_note: "Keep."
-  rust_note: "Not ported: as step_material_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port also does not fill the title block from the file yet (draftwright's `_resolve_title_document_defaults`)."
+  rust_note: "Not ported: as step_material_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port fills the title block's material from the file as draftwright does, a spec's material winning (tests/title_block_material.rs)."
 
 - id: LINT-code-step_material_unavailable
   statement: "An unreadable or unusable STEP material is reported."
