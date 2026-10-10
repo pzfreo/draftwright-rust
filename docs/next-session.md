@@ -2128,3 +2128,28 @@ improvement plan and questions are the current work. Still open from before it:
     exactly? Also disclosed, not gated: native GRM-03 goes A4 2:1 to A4 1:1 (draftwright 5:1;
     cause a leader label on an extension line in `leaders.rs`), and ftc07 A1 1:1 (draftwright
     A2 1:2; its A2 1:2 try fails on three ink-placement findings).
+
+## S4 part A: render split and caches (2026-10-10)
+
+Implemented the render split, placed geometry/view-bounds cache and single-report PMI reader.
+See `docs/model.md`, "Rendering caches", and the measurements/checks in
+`docs/status-2026-10-10.md`. No Session, operations, deltas or placement changes are included.
+
+Overturnable judgement calls:
+
+- Keep the latest placement/scale per projection, rather than every page origin visited during
+  a drag. Include centre and origin in that key: translating previously measured bounds could
+  change floating-point rounding relative to a fresh render. Moving a view rebuilds its placed
+  curves/bounds while keeping HLR; unchanged views rebuild neither. Part B may change the cache
+  policy if it can preserve byte equality and bounded memory.
+- Expose independent fragments for the slice's dimensions/callouts and PMI frames/datums/labels.
+  Whole-sheet furniture remains in the annotation assembly path; independent note/table edits
+  are outside the slice's item vocabulary and would need their own fragment entry points.
+- Keep a `pmi::Reader` per immutable geometry, retaining only the latest report (including empty
+  and refused reports). Its owner replaces it on geometry replacement. Byte changes trigger one
+  semantic read, even if the resulting requirements are identical. The kernel's separate STEP
+  geometry/part inventory parser is unchanged; "one parse" means one semantic PMI parser feeding
+  all three consumers, not eliminating the geometry loader.
+- Timings are native warm-render samples, excluding planning and export. They show the cache's
+  measured effect, not the complete S4 p90 or WASM latency gate; those belong to the session and
+  editor streams.

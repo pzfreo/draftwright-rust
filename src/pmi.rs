@@ -71,6 +71,7 @@ use haecceity::pmi::{
 };
 use haecceity::step::{PartDefinition, read_part_definitions};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 pub const PMI_SCHEMA: &str = "draftwright.pmi/1";
 
@@ -453,11 +454,44 @@ const SEMANTIC: [&str; 6] = [
     "DATUM_SYSTEM",
 ];
 
+/// A single part's latest PMI reading. Material, manufacturing requirements (including threads)
+/// and frames all consume this one report. Keeping the reader across edits also retains empty
+/// and refused readings; changed bytes replace the reading rather than accumulate documents.
+#[derive(Default)]
+pub struct Reader {
+    source: Option<[u8; 32]>,
+    reading: Option<Reading>,
+    reads: usize,
+}
+
+impl Reader {
+    /// The number of semantic reading attempts actually made, including refusals.
+    pub fn reads(&self) -> usize {
+        self.reads
+    }
+
+    /// The reading to put in `Analysis::pmi`. Identical bytes do not parse again.
+    /// Keep one reader per immutable part; replace it when the geometry changes.
+    pub fn attach(&mut self, bytes: &[u8], part: &Part) -> Option<Reading> {
+        let source = Sha256::digest(bytes).into();
+        if self.source != Some(source) {
+            self.reads += 1;
+            self.reading = attached(bytes, part);
+            self.source = Some(source);
+        }
+        self.reading.clone()
+    }
+}
+
 /// What the Analysis carries of the STEP file *bytes*' PMI, read on the drawing's *part*: the
 /// report when the file has any PMI to account for (a record, a source, or a counted instance),
 /// none when it has none. A file that cannot be read is refused with the reason when its text
 /// names a semantic PMI entity, so PMI the reader loses is said, never dropped.
 pub fn attach(bytes: &[u8], part: &Part) -> Option<Reading> {
+    Reader::default().attach(bytes, part)
+}
+
+fn attached(bytes: &[u8], part: &Part) -> Option<Reading> {
     match read(bytes, part) {
         Ok(r) => {
             let a = &r.accounting;
