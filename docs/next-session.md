@@ -173,6 +173,15 @@ pushed):
 - ISSUE-1247-a: draftwright reports an angled step as an explicit unsupported completeness
   outcome; the port has no completeness report. Carry an `unsupported` Problem for each angled
   step (removing it from `dims::UNDRAFTED`), or wait for a completeness report?
+- Repeated labels (a1/repeated-labels, judgement call, overturnable): every repeated dimension
+  label on the 30 quality parts (16 groups, 18 repeats) has a verdict against draftwright's sheet
+  in `tests/fixtures/known_repeated_labels.json`, held by `tests/repeated_labels.rs`. None is a
+  quantity draftwright states once or identical features it counts `n×`, so no plan changed.
+  ftc10's front `12.5` (hole_pattern 7's z location and the h12.5 rung, one span) is the one
+  same-quantity repeat; it is kept as `draftwright-repeats` (draftwright states the span twice,
+  front rung and side location, and its rungs take no dedup against hole locations) rather than
+  merged, pending alpha 1 question 11 (merge, and which owns it). Answering "merge" removes that
+  entry.
 
 **Housekeeping:** clean leftover worktrees in quiddity-rust can be removed
 (`.claude/worktrees/agent-a461c0d2e1bd3494a`, `wf_7fc79fa8-4f8-162`, `wf_7ff99f80-ece-23`,
