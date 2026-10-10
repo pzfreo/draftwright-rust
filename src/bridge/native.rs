@@ -140,6 +140,8 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
         &["OrientedSlotGrid", "OrientedSlotArray"],
     ),
     ("pads", &["RaisedPad"]),
+    ("step_levels", &["FaceLevel"]),
+    ("risers", &["RiserEvidence"]),
 ];
 
 /// The families read here: each record is a feature, except an oriented slot pattern's, which is
