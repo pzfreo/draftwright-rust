@@ -660,8 +660,6 @@
   "evidence": "The file states no value for this dimension (haecceity's nonconformance finding); draftwright reads it as 0 through XCAF (known_pmi.json's rust-correct kind, label and value differences for it), the port reports it not read. port: \"the file states no nominal value (haecceity reads it without one); haecceity nonconformance on #25 (dimensional_location): a dimension without a dimensional_characteristic_representation: no value is…\""
  },
  {
- },
- {
   "code": "pmi_not_extracted",
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
   "python": null,
