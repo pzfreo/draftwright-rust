@@ -88,17 +88,45 @@ pushed):
     call has its own now. **assembly_plate_pin:** the port recovers to A0 2:1 (A3 1:1 hard ->
     A3 1:2, A3 2:1, A2 1:1, A1 2:1 each with a hard finding -> A0 2:1); draftwright takes A1
     1:1, incomplete (`pmi_dropped` '45', `scale_decision`). Pinned to A1 1:1 by a spec the port's
-    plan has no hard layout finding and drops nothing, so the recovery (its A1 retry is at 2:1;
-    1:1 on A1 is never tried, where draftwright's attempts try both) spends a larger sheet than
-    needed: rust-wrong, owner the layout recovery (`layout::recover`, the sheet
-    retry in `model.rs`; not this stream's files). Quality (`tools/quality.py`,
-    `tools/quality_parts.txt`, release): 475eefc (before the labels), origin/main ba0bd72 and
-    this head give byte-identical `baseline.json`; no part changes in any column:
+    plan has no hard layout finding and drops nothing: rust-wrong, but the cause is the first
+    sheet choice's bands, not the recovery (corrected by d-plate-pin-recovery, below).
+    Quality (`tools/quality.py`, `tools/quality_parts.txt`, release): 475eefc (before the labels),
+    origin/main ba0bd72 and this head give byte-identical `baseline.json`; no part changes in any
+    column:
 
     | part | off_sheet | repeated_label | repeated_measure | views_overlap | view_on_title_block | ink |
     |---|---|---|---|---|---|---|
     | TOTAL (30 parts, each column the same before and after) | 3 | 18 | 0 | 0 | 0 | 284 |
     | parts affected | 2 | 9 | 0 | 0 | 0 | 21 |
+  - assembly_plate_pin's sheet, diagnosed (d-plate-pin-recovery, no code change): the
+    recovery is not the cause and the "try both" claim above was wrong. draftwright's first build
+    is already A1 1:1 (its log: every build before the ladder is `page A1`); its tries
+    (`scale_decision.attempts`) are scale and view trials on A1 (2:1, 1:1 less the isometric,
+    2:1, 5:1) and one A0 2:1 without the isometric, all rejected, so it keeps A1 1:1 incomplete
+    (`pmi_dropped` '45'). The port's first plan is A3 1:1, and from there its ladder is
+    draftwright's (`try_validity_scales_on_selected_page`, then `try_larger_standard_pages` with
+    the scale automatic). First divergence: the bands `choose_scale` is given. draftwright's
+    `compose._reserve_authored_dimensions` reserves a tier on each side its route rule gives an
+    AP242 dimension; plate_pin has seven X and seven Y linear dimensions hinted to the plan (the
+    X ones take above and below, the Y ones left and right), so `_append_anno_corridor_bands`
+    makes `right`, `left`, `pv_authored_top` and `pv_bottom` 10 + 7 x 16.5 = 125.5 mm. The
+    port's `demand::strips` reserves nothing for PMI dimensions
+    (right 36.5, left 20, `pv_authored_top` and `pv_bottom` 0; `Strips::reserve` widens no plan
+    band from `dims::lanes`, which counts plan_above 14 and plan_left 9). Measured with the port's
+    `layout::choose`, those four bands widened to 10 + n x 16.5: n = 0, 3, 5, 7 give A3, A2, A2,
+    A1 at 1:1; the port's plan lanes as bands (top 105, left 70) give A2 1:1. Pinned A1 1:1 the
+    port's plan has no hard finding, nothing over a view and nothing dropped, so the over-view gate
+    is not involved and the same first choice gives the same sheet. Verdict rust-wrong, owner the
+    first choice's bands, not `model::recover`. The change, to follow d-gdt-band-space (it edits
+    `demand::size` and `layout::Strips`): port the authored-dimension corridor count
+    (`authored_dimension_target_view`, the sides rule of `_reserve_authored_dimensions`, and
+    `_append_anno_corridor_bands`: left as the deepest one-view count, front right on top of the
+    height ladder, plan right, side right and the six above/below bands at 10 + n x 16.5) as a
+    `Demand` field from the lowered PMI dimensions, widened in `demand::strips`, then re-verdict
+    the 14 AP242 fixtures' sheets and rerun `tools/quality.py`. **Question for the maintainer:**
+    the plan bands this widens are the ones d-quality-lanes' question (1) leaves unreserved for the
+    port's own lanes; reserve them for PMI dimensions by draftwright's count (parity, A1 1:1 here),
+    or by the port's lanes once that question is answered?
 - **Thread and knurl PMI (stream d-pmi-thread-knurl-callouts, not drawn yet):** draftwright does not draw them as leader notes. `lower_ap242_manufacturing_requirements` gives each to the one hole or turned step its cylinder proves (prose and structured fields reconciled, text checked against the cylinder), and that feature's callout prints the requirement's `callout_suffix` (string_post_tapped: `⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`); with two or more imported requirements and a suffix over 52 characters it prints `SEE MFG n` and a MANUFACTURING REQUIREMENTS table carries the text (thumbwheel_thread_knurl: `⌀1.6 ↧ 3.8 SEE MFG 1`, `ø6 SEE MFG 2`, `ø5 SEE MFG 3`). The port's work is therefore in `src/dims` (`pmi_dimensions`' owner matching, the hole and turned-diameter callouts) and a schedule table, outside that stream's files: the four rust-wrong `pmi_not_lowered` entries of `known_pmi_coverage.json` stay, with that evidence. `tools/capture_pmi_drawings.py` records none of these (it reads `dimension_sources()`, which does not cite thread or knurl sources); extend it when the port draws them.
 - **PMI stage 3 (streams d-pmi-coverage-lint, d-pmi-coverage-complete):** the coverage lint
   (`src/lint/pmi_coverage.rs`, `tests/pmi_coverage.rs`, `known_pmi_coverage.json`: 1362
