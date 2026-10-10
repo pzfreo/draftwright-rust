@@ -414,15 +414,6 @@
   "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
  },
  {
-  "code": "pmi_not_extracted",
-  "file": "bolt_thread_knurl.step",
-  "python": null,
-  "rust": "info",
-  "source": "material:0:0",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
- },
- {
   "code": "pmi_not_lowered",
   "file": "bolt_thread_knurl.step",
   "python": null,
@@ -496,15 +487,6 @@
   "source": "finding:#31570",
   "verdict": "rust-correct",
   "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "info",
-  "source": "material:0:0",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright cannot draw this part (its projection raises: \"project_to_viewport returned empty geometry for view 'plan'\"), so its lint has nothing; the file states one usable material (material property #31503 on the only product definition #5), which on the parts it draws draftwright states in the title block (builder._resolve_title_document_defaults). The port draws the part but does not fill the title's material from the file, so its reading reports the material as a source not projected to a record (info). A drawing gap, not the lint's; filling the title waits on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
  },
  {
   "code": "pmi_not_lowered",
@@ -685,15 +667,6 @@
   "source": "dimension:#25",
   "verdict": "rust-correct",
   "evidence": "The file states no value for this dimension (haecceity's nonconformance finding); draftwright reads it as 0 through XCAF (known_pmi.json's rust-correct kind, label and value differences for it), the port reports it not read. port: \"the file states no nominal value (haecceity reads it without one); haecceity nonconformance on #25 (dimensional_location): a dimension without a dimensional_characteristic_representation: no value is…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_ctc_01_merge.step",
-  "python": null,
-  "rust": "info",
-  "source": "material:0:0",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
  },
  {
   "code": "pmi_not_lowered",
@@ -12529,15 +12502,6 @@
  },
  {
   "code": "pmi_not_extracted",
-  "file": "spool_fits.step",
-  "python": null,
-  "rust": "info",
-  "source": "material:0:0",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
- },
- {
-  "code": "pmi_not_extracted",
   "file": "string_post_tapped.step",
   "python": {
    "id": "dimension:0:1:4:3",
@@ -12556,15 +12520,6 @@
   "source": "finding:#3221",
   "verdict": "rust-correct",
   "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "string_post_tapped.step",
-  "python": null,
-  "rust": "info",
-  "source": "material:0:0",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
  },
  {
   "code": "pmi_not_lowered",
@@ -12604,15 +12559,6 @@
   "source": "finding:#825",
   "verdict": "rust-correct",
   "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "thumbwheel_thread_knurl.step",
-  "python": null,
-  "rust": "info",
-  "source": "material:0:0",
-  "verdict": "rust-wrong",
-  "evidence": "draftwright states the STEP's single usable material in the title block (builder._resolve_title_document_defaults); the port does not fill the title from the file, so its reading reports the material as a source not projected to a record (info). The reading carries the materials (pmi::Report::materials) and the coverage lint ports step_material_ambiguous and step_material_unavailable; filling the title, and the lint's step_material_mismatch, wait on the drawing and on the recorded maintainer question about authored title fields (docs/next-session.md). port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (material)\""
  },
  {
   "code": "pmi_not_lowered",

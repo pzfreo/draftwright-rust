@@ -926,7 +926,7 @@
   status: ported
   port_note: "Keep: Analysis and reports state only recognised geometry and authored intent; manufacturing intent comes only from Spec or source PMI."
   rust_test: tests/trust_rules.rs::no_document_infers_manufacturing_intent
-  rust_note: "With the default spec, every plan of the fixture parts and the sampled corpus parts has a title of the part's name and a drawing number only (no material), and prints only counts, sizes, symbols and the callout grammar's words: no fit, tolerance, thread or finish. Such intent enters only through the spec (sheet/title, dimensions/<id>/tolerance, features/<id>/fit); with them, only the authored items change, by exactly the authored band (tests/tolerances.rs::only_the_authored_bands_appear). No PMI is read yet."
+  rust_note: "With the default spec, every plan of the fixture parts and the sampled corpus parts has a title of the part's name and a drawing number only (no material: a material comes only from the spec or the file's own AP242 material property, draftwright's `_resolve_title_document_defaults`, tests/title_block_material.rs), and prints only counts, sizes, symbols and the callout grammar's words: no fit, tolerance, thread or finish. Such intent enters only through the spec (sheet/title, dimensions/<id>/tolerance, features/<id>/fit); with them, only the authored items change, by exactly the authored band (tests/tolerances.rs::only_the_authored_bands_appear). No PMI is read yet."
 
 - id: ADR5-1
   statement: "Same input, same sheet, every platform."

@@ -111,6 +111,13 @@ pushed):
   double report, or drop the plan's? (2) `step_material_mismatch`/`_disagreement` and
   `step_general_tolerance_*` turn on whether the caller authored the title field, which lint cannot
   read (the Spec): record a field's origin on the drawing, or leave them unported?
+- **Title block material (d-title-block-material):** the plan's MATERIAL cell takes the file's one
+  usable material when the spec states none (`pmi::Report::title_material`, draftwright's
+  `_resolve_title_document_defaults`; a spec value, even blank, wins; several materials, or one of
+  several parts, fill nothing), and render names the cell's run `pmi:material:<part>:0`, so the
+  coverage lint no longer reports it (`tests/title_block_material.rs`; the text equals
+  draftwright's on the 14 AP242 fixtures and cgb203). The 6 `material:0:0` rust-wrong entries are
+  gone (1356 differences). The mismatch/disagreement codes still wait on question (2) above.
 - **Facts:** Python draftwright's sheets recorded for 13 parts (`tools/capture_sheet_facts.py`,
   `tests/fixtures/sheets/`, `docs/facts.md`).
 - **Rules:** ADRs R1–R4 accepted. `docs/rules/` has 515 rules learnt from Python; 89 ported

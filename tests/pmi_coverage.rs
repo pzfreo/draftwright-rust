@@ -330,7 +330,8 @@ fn severity(i: &LintIssue) -> String {
 
 /// The alpha 1 gate on *file*: every record of the reading is drawn (an annotation names or
 /// claims `pmi:<source>`) or reported by lint as not lowered or not rendered, never both; every
-/// source not read, or read in part, is reported as not extracted.
+/// source not read, or read in part, is reported as not extracted, unless it is drawn (a material
+/// the title block states), never both.
 fn gate(file: &str, a: &Analysis, drawing: &Drawing, found: &[LintIssue]) {
     let Some(Reading::Read(report)) = &a.pmi else {
         panic!("{file}: its PMI is read");
@@ -359,7 +360,13 @@ fn gate(file: &str, a: &Analysis, drawing: &Drawing, found: &[LintIssue]) {
             s.outcome,
             Outcome::NotExtracted | Outcome::PartiallyExtracted
         ) {
-            assert!(reported("pmi_not_extracted", &s.id), "{file}: {}", s.id);
+            let name = format!("pmi:{}", s.id);
+            let on_sheet = drawing.annotations.iter().any(|x| x.name == name);
+            assert!(
+                on_sheet != reported("pmi_not_extracted", &s.id),
+                "{file}: {} is drawn ({on_sheet}) or reported, not both",
+                s.id
+            );
         }
     }
 }
