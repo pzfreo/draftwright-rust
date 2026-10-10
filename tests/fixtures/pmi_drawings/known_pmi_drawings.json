@@ -5366,13 +5366,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "3× ⌀6.3 +0.0762 -0.0 THRU",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_dimensions.json (outcome, undetermined): draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#9866 (ø0.250 +0.003/0 INCH) is not drawn: haecceity not-modelled on #8626 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haeccei); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '3× ⌀6.3 +0.0762 -0.0 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5391,13 +5396,18 @@
    ]
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "3× ⌀6.3 +0.0762 -0.0 THRU",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: '⌀6.3 +0.0762 -0.0 THRU' (dimension, front view, on bore.diameter); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_dimensions.json (outcome, undetermined): draftwright gives it to '⌀6.3 +0.0762 -0.0 THRU'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#9889 (ø0.250 +0.003/0 INCH) is not drawn: haecceity not-modelled on #8378 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haeccei. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: '⌀6.3 +0.0762 -0.0 THRU' (dimension, front view, on bore.diameter); the port's: '3× ⌀6.3 +0.0762 -0.0 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, rust-correct): Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5412,13 +5422,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "4× ⌀6.3 ±0.2032 THRU",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_dimensions.json (outcome, undetermined): draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10063 (ø0.250 ±0.008 INCH) is not drawn: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '4× ⌀6.3 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5459,13 +5474,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "7× ⌀4.0 ±0.2032 THRU",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_dimensions.json (outcome, undetermined): draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10191 (ø0.156 ±0.008 INCH) is not drawn: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '7× ⌀4.0 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). The two ⌀4.0 records (dimension:#10191, 3 holes, and dimension:#10311, 4 holes) state the same tolerance, and the port calls out the seven identical holes once, the one callout carrying both records' tolerance (its plan's dimension measurements name both)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5484,13 +5504,18 @@
    ]
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "2× ⌀8.0 ±0.2032 THRU",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: '⌀8.0 ±0.2032 THRU' (dimension, front view, on bore.diameter); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_dimensions.json (outcome, undetermined): draftwright gives it to '⌀8.0 ±0.2032 THRU'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#10215 (ø0.315 ±0.008 INCH) is not drawn: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature.. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: '⌀8.0 ±0.2032 THRU' (dimension, front view, on bore.diameter); the port's: '2× ⌀8.0 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, rust-correct): Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5509,13 +5534,18 @@
    ]
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "3× ⌀7.1 ±0.2032 THRU",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: '⌀7.1 ±0.2032 THRU' (dimension, front view, on bore.diameter); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_dimensions.json (outcome, undetermined): draftwright gives it to '⌀7.1 ±0.2032 THRU'. The port does not lower it because its reading carries a haecceity finding: PMI dimension dimension:#10239 (ø0.281 ±0.008 INCH) is not drawn: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit. A record with reading blockers is never drawn (stage-1/2a policy); whether the finding changes the requirement is for the reader to settle."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: '⌀7.1 ±0.2032 THRU' (dimension, front view, on bore.diameter); the port's: '3× ⌀7.1 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, rust-correct): Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5530,13 +5560,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "2× ⌀5.6 ±0.2032 THRU",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_dimensions.json (outcome, undetermined): draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø5.6 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10287 (ø0.221 ±0.008 INCH) is not drawn: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature.); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '2× ⌀5.6 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.6 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5551,13 +5586,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "7× ⌀4.0 ±0.2032 THRU",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_dimensions.json (outcome, undetermined): draftwright gave it to a hole callout and then found no room for the callout (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)). The port does not lower it: its reading carries a haecceity finding on the feature occurrence it names (PMI dimension dimension:#10311 (ø0.156 ±0.008 INCH) is not drawn: haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature; haecceit); a record with reading blockers is never drawn (the stage-1/2a policy). Whether the finding affects the requirement waits on haecceity modelling the occurrence."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '7× ⌀4.0 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). The two ⌀4.0 records (dimension:#10191, 3 holes, and dimension:#10311, 4 holes) state the same tolerance, and the port calls out the seven identical holes once, the one callout carrying both records' tolerance (its plan's dimension measurements name both)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5636,31 +5676,6 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '⌓ 1.27 A B C' (control frame, plan view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:15",
-  "port": "geometric_tolerance:#9140",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "control_frame",
-     "rides_on": null,
-     "text": "⌖ ⌀0.762 A B C",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: '⌖ ⌀0.762 A B C' (control frame, front view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5793,31 +5808,6 @@
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:42",
-  "port": "geometric_tolerance:#9398",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "control_frame",
-     "rides_on": null,
-     "text": "⌖ ⌀0.508 A D B",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: '⌖ ⌀0.508 A D B' (control frame, front view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:46",
   "port": "geometric_tolerance:#9439",
   "field": "drawing",
@@ -5839,7 +5829,7 @@
    "outcome": "refused"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: '⌖ ⌀0.635Ⓜ A D E' (control frame, front view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, rust-correct): draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried; haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature )."
+  "evidence": "draftwright's drawing: '⌖ ⌀0.635Ⓜ A D E' (control frame, front view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, rust-correct): draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5880,13 +5870,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "⌖ ⌀0.762 A B C",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '⌖ ⌀0.762 A B C' (control frame, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5901,13 +5896,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "⌖ 0.508 A B C",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '⌖ 0.508 A B C' (control frame, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5922,13 +5922,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "⌖ 1.524 A B C",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '⌖ 1.524 A B C' (control frame, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5943,13 +5948,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "⟂ ⌀0.254 A",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '⟂ ⌀0.254 A' (control frame, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -5990,13 +6000,18 @@
    "outcome": "dropped"
   },
   "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "⌖ ⌀0.254 A G H",
+     "view": "front"
+    }
+   ]
   },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '⌖ ⌀0.254 A G H' (control frame, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
