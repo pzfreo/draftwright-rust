@@ -143,7 +143,8 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                 message: format!(
                     "The STEP file carries AP242 semantic PMI that could not be read ({why}); none of it is drawn."
                 ),
-                subjects: vec!["part".into()],
+                subjects: Vec::new(),
+                ..Default::default()
             });
             return (items, problems);
         }
@@ -165,7 +166,9 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                 "PMI source {} ({}) is not read, so it is not drawn: {}.",
                 s.id, s.entity, s.reason
             ),
-            subjects: vec![s.id.clone()],
+            subjects: Vec::new(),
+            refs: vec![s.id.clone()],
+            ..Default::default()
         });
     }
     if report.accounting.presentation > 0 {
@@ -177,7 +180,8 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                 "The STEP file carries {} instance(s) of PMI presentation (graphic annotation); presentation is counted, not read or drawn: only semantic PMI is.",
                 report.accounting.presentation
             ),
-            subjects: vec!["part".into()],
+            subjects: Vec::new(),
+            ..Default::default()
         });
     }
     let centre = {
@@ -226,7 +230,9 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                             r.label,
                             reasons.join("; ")
                         ),
-                        subjects: vec![r.source_id.clone()],
+                        subjects: Vec::new(),
+                        refs: vec![r.source_id.clone()],
+                        ..Default::default()
                     }),
                 }
             }
@@ -246,7 +252,7 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                 problems.extend(
                     m.refused
                         .iter()
-                        .filter(|p| p.subjects.first() == Some(&r.source_id))
+                        .filter(|p| p.refs.first() == Some(&r.source_id))
                         .cloned(),
                 );
             }
@@ -266,7 +272,9 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                         r.source_id,
                         r.label
                     ),
-                    subjects: vec![r.source_id.clone()],
+                    subjects: Vec::new(),
+                    refs: vec![r.source_id.clone()],
+                    ..Default::default()
                 });
             }
         }
@@ -316,7 +324,9 @@ fn labelled(
                 r.label,
                 reasons.join("; ")
             ),
-            subjects: vec![r.source_id.clone()],
+            subjects: Vec::new(),
+            refs: vec![r.source_id.clone()],
+            ..Default::default()
         }),
     }
 }
@@ -509,7 +519,9 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
                 r.source_id,
                 r.label
             ),
-            subjects: vec![r.source_id.clone()],
+            subjects: Vec::new(),
+            refs: vec![r.source_id.clone()],
+            ..Default::default()
         })
     };
     let records: Vec<&Record> = report
@@ -630,6 +642,8 @@ pub struct PlannedRequirement {
     /// block), or `notes` (the general note of the same ID).
     pub carrier: String,
     pub basis: String,
+    /// Shown, or not drawable as its carrier is not (a general note with no place).
+    pub state: crate::items::State,
     /// The default finish's symbol.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub placed: Option<crate::title_block::FinishPlaced>,
@@ -658,6 +672,8 @@ pub fn plan_sheet(
             text: r.value.clone(),
             carrier: "notes".into(),
             basis: r.basis.clone(),
+            // A general note's is its note's, set when the notes are placed.
+            state: crate::items::State::Shown,
             placed: None,
         };
         match r.kind {
@@ -680,7 +696,9 @@ pub fn plan_sheet(
                                 "The title block states the spec's general tolerance {v:?} (sheet/title/tolerance), which wins; the part's AP242 PMI {} states {:?}, which is not drawn.",
                                 r.source, r.value
                             ),
-                            subjects: vec![r.source.clone(), "sheet/title/tolerance".into()],
+                            subjects: vec!["sheet".into()],
+                            refs: vec![r.source.clone(), "sheet/title/tolerance".into()],
+                            ..Default::default()
                         });
                         continue;
                     }
@@ -2893,7 +2911,9 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                     r.source_id,
                     r.label
                 ),
-                subjects: vec![r.source_id.clone()],
+                subjects: Vec::new(),
+                refs: vec![r.source_id.clone()],
+                ..Default::default()
             });
         }
     }

@@ -75,6 +75,7 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::items::{Op, State};
 use crate::model::{Analysis, DimensionSource, Invalid, PlannedSheet, PlannedView, Problem, Spec};
 use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
@@ -157,6 +158,12 @@ fn chosen_views(
                     w.id
                 ),
                 subjects: vec![w.id.clone()],
+                fix: if spec.views.get(v).is_some_and(|s| s.omit) {
+                    vec![Op::remove(format!("views/{v}/omit"))]
+                } else {
+                    Vec::new()
+                },
+                ..Default::default()
             });
         }
     }
@@ -215,6 +222,8 @@ pub struct PlannedDimension {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub from_spec: Vec<String>,
     pub basis: String,
+    /// What became of it: shown, or why not ([`crate::items::State`]).
+    pub state: crate::items::State,
     /// Its ink on the page; absent when it cannot be drawn, and a problem says why.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub placed: Option<Placed>,
@@ -250,7 +259,12 @@ pub struct Placed {
 #[serde(deny_unknown_fields)]
 pub struct Omitted {
     pub id: String,
+    /// What it prints: its label as the plan had it when it was left out (one the spec omits,
+    /// its default label).
+    pub label: String,
     pub basis: String,
+    /// Why it is left out: by the spec, or stated by another item.
+    pub state: crate::items::State,
 }
 
 /// draftwright's number format (`_fmt`): a whole number bare, anything else to one decimal.
@@ -481,6 +495,7 @@ fn not_ported(analysis: &Analysis) -> Vec<Problem> {
                     f.id, f.kind
                 ),
                 subjects: vec![f.id.clone()],
+                ..Default::default()
             })
         })
         .collect()
@@ -508,6 +523,7 @@ fn unsupported(f: &crate::bridge::Feature) -> Option<Problem> {
             f.id
         ),
         subjects: vec![f.id.clone()],
+        ..Default::default()
     })
 }
 
@@ -674,13 +690,17 @@ pub fn plan(
         let entry = spec.dimensions.get(&w.id);
         match spec.dimension_source {
             DimensionSource::Auto if entry.is_some_and(|e| e.omit) => omitted.push(Omitted {
+                label: w.terms.join(" "),
                 id: w.id,
                 basis: "authored: the spec omits it".into(),
+                state: State::OmittedByUser,
             }),
             DimensionSource::Authored if entry.is_none() => omitted.push(Omitted {
+                label: w.terms.join(" "),
                 id: w.id,
                 basis: "authored: not in the spec's complete set (dimension_source authored)"
                     .into(),
+                state: State::NotAuthored,
             }),
             _ => kept.push((w, entry.is_none(), view, along)),
         }
@@ -789,6 +809,8 @@ pub fn plan(
             default: default && from_spec.is_empty(),
             from_spec,
             basis,
+            // Unplaced only when no shown view can carry it (reported below).
+            state: State::placed_or(placed.is_some(), "view_plan_incomplete"),
             placed,
         });
     }
@@ -834,6 +856,12 @@ pub fn plan(
                 why.join(" and ")
             ),
             subjects: ids,
+            fix: omitted
+                .iter()
+                .find(|v| spec.views.get(**v).is_some_and(|s| s.omit))
+                .map(|v| vec![Op::remove(format!("views/{v}/omit"))])
+                .unwrap_or_default(),
+            ..Default::default()
         });
     }
     // Only what the plan draws: the leaders were placed for every item the part would have.
@@ -924,10 +952,12 @@ fn share(
             let w = &kept[i].0;
             omitted.push(Omitted {
                 id: w.id.clone(),
+                label: w.terms.join(" "),
                 basis: format!(
                     "conveyed by {owner}: it states the same {} ({}) across the same span in {}, in the same view (one span, one dimension: ARCH0009-6)",
                     s.0, s.5, AXES[s.2]
                 ),
+                state: State::Covered { by: owner.clone() },
             });
             claims.extend(w.measurements.iter().cloned());
             gone.insert(i);

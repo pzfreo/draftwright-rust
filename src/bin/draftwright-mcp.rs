@@ -62,9 +62,14 @@ fn tools() -> Value {
             "description": "Plan the drawing of a STEP file under a spec, without drawing it: \
                 the sheet (size, page, scale, title block), each view (id, direction, centre on \
                 the page) and problems. Every item says whether it is a default and gives its \
-                basis, the reason it was chosen. The plan's \"spec\" is the spec bound to this \
-                STEP file; keep it for later calls. Give step (with features if any), or the \
-                analysis from the analyse tool, which needs no step.",
+                basis, the reason it was chosen, and its state: {\"kind\": \"shown\"}, \
+                \"omitted_by_user\", \"not_authored\", \"covered\" (with \"by\", the item that \
+                states it) or \"not_drawable\" (with \"reason_code\", the problem that says why). \
+                Each problem has a code, severity, subjects (item IDs), refs (what else it names) \
+                and, where one is known, a fix: edit operations to pass to the edit tool. The \
+                plan's \"spec\" is the spec bound to this STEP file; keep it for later calls. \
+                Give step (with features if any), or the analysis from the analyse tool, which \
+                needs no step.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

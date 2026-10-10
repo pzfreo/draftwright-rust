@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::dims::PlannedDimension;
+use crate::items::State;
 use crate::layout::{self, Corner, MARGIN, Rect};
 use crate::model::{Analysis, Invalid, PlannedSheet, PlannedView, Problem};
 
@@ -165,6 +166,8 @@ pub struct PlannedTable {
     pub rows: Vec<Vec<String>>,
     pub default: bool,
     pub basis: String,
+    /// What became of it: shown, or why not ([`crate::items::State`]).
+    pub state: crate::items::State,
     /// Where it is drawn; absent when it has no place, and a problem says so.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub placed: Option<PlacedTable>,
@@ -347,6 +350,7 @@ pub fn plan(
                         t.id
                     ),
                     subjects: vec![t.id.clone()],
+                    ..Default::default()
                 });
             }
             PlannedTable {
@@ -357,6 +361,7 @@ pub fn plan(
                     "authored: the spec's table {} (tables/{i}), towards the sheet's {prefer} corner as draftwright places a declared table",
                     t.id
                 ),
+                state: State::placed_or(placed.is_some(), "table_not_placed"),
                 placed,
             }
         })
@@ -454,8 +459,6 @@ pub fn manufacturing(
     let scheduled = m.scheduled();
     let mut problems = Vec::new();
     if placed.is_none() {
-        let mut subjects = vec![id.to_string()];
-        subjects.extend(scheduled);
         problems.push(Problem {
             id: format!("p:table_not_placed:{id}"),
             code: "table_not_placed".into(),
@@ -463,7 +466,10 @@ pub fn manufacturing(
             message: format!(
                 "The manufacturing requirements table ({w:.1} × {h:.1} mm) has no place on the sheet clear of the views, their dimensions and the title block; it stays in the plan undrawn, so the callouts' SEE MFG references point to no table. Choose a larger sheet (sheet/size) or a smaller scale (sheet/scale)."
             ),
-            subjects,
+            subjects: vec![id.to_string()],
+            // The threads and knurls it states, which are no items of their own.
+            refs: scheduled,
+            ..Default::default()
         });
     }
     let table = PlannedTable {
@@ -478,6 +484,7 @@ pub fn manufacturing(
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        state: State::placed_or(placed.is_some(), "table_not_placed"),
         placed,
     };
     (Some(table), problems)
@@ -497,6 +504,7 @@ pub fn proxy(t: &PlannedTable) -> Option<PlannedDimension> {
         default: t.default,
         from_spec: Vec::new(),
         basis: t.basis.clone(),
+        state: State::Shown,
         placed: Some(crate::dims::Placed {
             lines: Vec::new(),
             arrows: Vec::new(),

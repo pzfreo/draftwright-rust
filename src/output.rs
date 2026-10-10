@@ -1209,6 +1209,7 @@ pub fn undrawn(counts: &BTreeMap<String, usize>) -> Vec<Problem> {
                 if *n == 1 { "was" } else { "were" }
             ),
             subjects: vec![view.clone()],
+            ..Default::default()
         })
         .collect()
 }

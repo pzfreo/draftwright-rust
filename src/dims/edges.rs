@@ -186,6 +186,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 severity: "warning".into(),
                 message: format!("{} is not dimensioned: {why}.", f.id),
                 subjects: vec![f.id.clone()],
+                ..Default::default()
             }),
         }
     }

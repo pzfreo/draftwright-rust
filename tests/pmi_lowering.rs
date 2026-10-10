@@ -400,7 +400,7 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
         if item["lowered"] != outcome {
             let why = problems
                 .iter()
-                .find(|p| p.subjects.contains(&r.source_id))
+                .find(|p| p.refs.contains(&r.source_id))
                 .map_or(Value::Null, |p| json!(p.code));
             diff(
                 "lowered",
@@ -581,7 +581,7 @@ fn every_record_and_source_is_drawn_or_reported() {
         let named = |code: &str, subject: &str| {
             plan.problems
                 .iter()
-                .any(|p| p.code == code && p.subjects.iter().any(|s| s == subject))
+                .any(|p| p.code == code && p.subjects.iter().chain(&p.refs).any(|s| s == subject))
         };
         for r in &report.records {
             let drawn = plan.gdt.iter().any(|g| g.source == r.source_id);
@@ -694,7 +694,7 @@ fn what_lowering_cannot_prove_is_reported_not_guessed() {
         );
         problems
             .into_iter()
-            .find(|p| p.code == "pmi_not_lowered" && p.subjects == [source.to_string()])
+            .find(|p| p.code == "pmi_not_lowered" && p.refs == [source.to_string()])
             .map(|p| p.message)
             .unwrap_or_else(|| panic!("{source} reported"))
     };
@@ -779,7 +779,7 @@ fn a_part_placed_twice_is_not_annotated_on_one_placement_by_guess() {
         if matches!(r.category, Category::GeometricTolerance | Category::Datum) {
             assert!(plan.gdt.iter().all(|g| g.source != r.source_id));
             assert!(plan.problems.iter().any(|p| p.code == "pmi_not_lowered"
-                && p.subjects == [r.source_id.clone()]
+                && p.refs == [r.source_id.clone()]
                 && p.message.contains("placements of the part")));
         }
     }

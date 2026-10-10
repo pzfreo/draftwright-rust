@@ -20,6 +20,7 @@ use sha2::{Digest, Sha256};
 
 use crate::bridge::{Feature, Recognition};
 use crate::dims::{Omitted, PlannedDimension};
+use crate::items::State as ItemState;
 use crate::layout::{self, Corner, Fallback, MARGIN, Principals, Request, Scaled};
 use crate::notes::{NoteSpec, NotesBlock, PlannedNote};
 use crate::output::{
@@ -320,6 +321,8 @@ pub struct PlannedSheet {
     pub title_block: [f64; 4],
     pub default: bool,
     pub basis: String,
+    /// The sheet's state (its ID is `sheet`): always shown.
+    pub state: crate::items::State,
     pub title: BTreeMap<String, String>,
     /// The title block's cells, each with its box and the value drawn in it (ISSUE-1585-a: a
     /// supplied field is recorded as drawn, in its own cell).
@@ -342,6 +345,8 @@ pub struct PlannedView {
     pub area: [f64; 4],
     pub default: bool,
     pub basis: String,
+    /// Always shown: a view the plan does not draw is not among its views.
+    pub state: crate::items::State,
     /// A section view's cutting plane.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cut: Option<Cut>,
@@ -357,13 +362,25 @@ pub struct Cut {
     pub marked_in: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Problem {
     pub id: String,
     pub code: String,
+    /// `error`, `warning` or `info`.
     pub severity: String,
     pub message: String,
+    /// The items it is about, by their IDs: the plan's items ([`crate::items::items`], the sheet
+    /// as `sheet`) and the Analysis's features.
     pub subjects: Vec<String>,
+    /// What else it names that is no item of the plan or feature of the Analysis: a PMI
+    /// record's source (its Part 21 provenance, `geometric_tolerance:#123`), a source not read,
+    /// a family the recogniser does not give, a view the plan does not draw, a spec entry not
+    /// applied.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub refs: Vec<String>,
+    /// The edit that resolves it, as [`edit`] takes it, where there is one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fix: Vec<crate::items::Op>,
 }
 
 /// A request that cannot be met as asked: what was wrong, and what would be accepted.
@@ -926,6 +943,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
                     "The sheet was re-planned: {why}. Tried {tried}; {to} is used. Name a sheet and scale to keep another."
                 ),
                 subjects: vec!["sheet".into()],
+                ..Default::default()
             });
             Ok(p)
         }
@@ -939,6 +957,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
                     "{why}; re-planning ({order}) found nothing valid and complete: tried {tried}. The first choice is kept."
                 ),
                 subjects: vec!["sheet".into()],
+                ..Default::default()
             });
             Ok(p)
         }
@@ -1048,12 +1067,16 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         // Until rebinding (ADR R3) lands, a feature's ID is rank-based and may name another
         // feature in this revision: its entries are kept in the spec but inactive (R3 invariant
         // 3), and listed. The sheet, the views and the envelope's dimensions carry over.
-        inactive = spec
+        let inactive_entries: Vec<(&str, &String)> = spec
             .dimensions
             .keys()
             .filter(|id| id.starts_with("d:f:"))
-            .chain(spec.features.keys())
-            .cloned()
+            .map(|id| ("dimensions", id))
+            .chain(spec.features.keys().map(|id| ("features", id)))
+            .collect();
+        inactive = inactive_entries
+            .iter()
+            .map(|(_, id)| id.to_string())
             .collect::<Vec<_>>();
         effective.dimensions.retain(|id, _| !id.starts_with("d:f:"));
         effective.features.clear();
@@ -1066,6 +1089,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 b.part
             ),
             subjects: vec![],
+            ..Default::default()
         });
         if !inactive.is_empty() {
             problems.push(Problem {
@@ -1077,7 +1101,16 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                     b.part,
                     inactive.join(", ")
                 ),
-                subjects: inactive.clone(),
+                subjects: Vec::new(),
+                refs: inactive.clone(),
+                // The message's first remedy: the entries removed, the spec binds to this
+                // revision.
+                fix: inactive_entries
+                    .iter()
+                    .map(|(at, id)| {
+                        crate::items::Op::remove(format!("{at}/{}", crate::items::key(id)))
+                    })
+                    .collect(),
             });
         }
     }
@@ -1102,11 +1135,13 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 "The features come from {recogniser}, which does not give these families: {}. Features of them are not dimensioned, sectioned or linted; Python quiddity's recognition (tools/recognise.py) gives them.",
                 named.join(", ")
             ),
-            subjects: analysis
+            subjects: Vec::new(),
+            refs: analysis
                 .unrecognised
                 .iter()
                 .map(|u| u.family.clone())
                 .collect(),
+            ..Default::default()
         });
     }
     let given = spec;
@@ -1193,28 +1228,43 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         .filter(|_| shown(SECTION) && principals.plan && (principals.front || principals.side));
     // A section left out is said, with why and what would bring it back (draftwright records
     // every section decision: ISSUE-1190-b); one the author omits needs no saying.
-    let section_not_shown = |why: String| Problem {
+    let section_not_shown = |why: String, fix: Vec<crate::items::Op>| Problem {
         id: format!("p:section_not_shown:v:{SECTION}"),
         code: "section_not_shown".into(),
         severity: "warning".into(),
         message: format!("Section A\u{2013}A is not drawn: {why}."),
-        subjects: vec![format!("v:{SECTION}")],
+        subjects: Vec::new(),
+        refs: vec![format!("v:{SECTION}")],
+        fix,
     };
     match &demand.section {
-        Some(_) if section.is_none() && shown(SECTION) => problems.push(section_not_shown(if !principals.plan {
-            let how = if omitted("plan") {
-                "the spec omits it; remove views/plan/omit to show it"
+        Some(_) if section.is_none() && shown(SECTION) => problems.push(if !principals.plan {
+            let (how, fix) = if omitted("plan") {
+                (
+                    "the spec omits it; remove views/plan/omit to show it",
+                    vec![crate::items::Op::remove("views/plan/omit")],
+                )
             } else {
-                "it is left out as the turned part's repeated profile; set views/plan to {} to keep it"
+                (
+                    "it is left out as the turned part's repeated profile; set views/plan to {} to keep it",
+                    Vec::new(),
+                )
             };
-            format!(
-                "a z-axis hole with a counterbore, spotface or bottom needs it, but its cutting plane is marked on the plan view, and {how}"
+            section_not_shown(
+                format!(
+                    "a z-axis hole with a counterbore, spotface or bottom needs it, but its cutting plane is marked on the plan view, and {how}"
+                ),
+                fix,
             )
         } else {
-            "it sits in the row of the front and side views, and the spec omits both; remove views/front/omit or views/side/omit to show it".into()
-        })),
+            section_not_shown(
+                "it sits in the row of the front and side views, and the spec omits both; remove views/front/omit or views/side/omit to show it".into(),
+                vec![crate::items::Op::remove("views/front/omit")],
+            )
+        }),
         None if spec.views.get(SECTION).is_some_and(|v| !v.omit) => problems.push(section_not_shown(
             "the spec asks for it, but the part has no z-axis hole with a counterbore, spotface or bottom whose profile it would show, so there is no plane to cut; remove views/section_aa".into(),
+            vec![crate::items::Op::remove(format!("views/{SECTION}"))],
         )),
         _ => {}
     }
@@ -1280,6 +1330,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 "No standard scale fits the views on {size}; the largest that fits, {scale}, is used."
             ),
             subjects: vec!["sheet".into()],
+            ..Default::default()
         }),
         Some(Fallback::Overflow) => problems.push(Problem {
             id: "p:views_do_not_fit:sheet".into(),
@@ -1287,6 +1338,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             severity: "error".into(),
             message: format!("The views do not fit {size} at {scale}."),
             subjects: vec!["sheet".into()],
+            ..Default::default()
         }),
         Some(Fallback::Uncertain) => problems.push(Problem {
             id: "p:page_fit_uncertain:sheet".into(),
@@ -1294,6 +1346,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             severity: "warning".into(),
             message: format!("The views may not fit {size} at {scale}, as the spec asks."),
             subjects: vec!["sheet".into()],
+            ..Default::default()
         }),
         None => {}
     }
@@ -1340,6 +1393,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             severity: "warning".into(),
             message: "The isometric projection of the part has no edges, so the isometric cannot be fitted to its space: it is planned at the sheet's scale and draws nothing. Omit it with views/iso/omit.".into(),
             subjects: vec!["v:iso".into()],
+            ..Default::default()
         });
     }
     let turned = |name: &str| match &reduction {
@@ -1396,6 +1450,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 area,
                 default: !spec.views.contains_key(*name),
                 basis: basis + &turned(name),
+                state: ItemState::Shown,
                 cut: None,
             }
         })
@@ -1414,6 +1469,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 fmt_ratio(cut.cut_y),
                 cut.holes
             ),
+            state: ItemState::Shown,
             cut: Some(Cut {
                 label: "A".into(),
                 origin: [0.5 * (lo[0] + hi[0]), cut.cut_y, 0.5 * (lo[2] + hi[2])],
@@ -1424,6 +1480,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     } else if section.is_some() {
         problems.push(section_not_shown(
             "the layout made no place for it on the sheet".into(),
+            Vec::new(),
         ));
     }
     let mut title = spec.sheet.title.clone();
@@ -1442,7 +1499,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             .entry("material".into())
             .or_insert_with(|| m.designation.trim().to_string());
     }
-    let (requirements, more) = crate::pmi_lowering::plan_sheet(
+    let (mut requirements, more) = crate::pmi_lowering::plan_sheet(
         &requirements,
         &spec.sheet.title,
         &mut title,
@@ -1460,13 +1517,14 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         title_block: g.title_block,
         default: spec.sheet.size.is_none() || spec.sheet.scale.is_none(),
         basis,
+        state: ItemState::Shown,
         title,
         title_cells,
     };
     let (dimensions, mut omitted, more) = crate::dims::plan(analysis, spec, &sheet, &views)?;
     problems.extend(more);
     // The part's PMI, placed beyond the dimensions; the notes and tables keep clear of both.
-    let (gdt, more) = crate::dims::gdt::plan(analysis, &sheet, &views, &dimensions);
+    let (gdt, more) = crate::dims::gdt::plan(analysis, spec, &sheet, &views, &dimensions);
     problems.extend(more);
     let mut ink = dimensions.clone();
     ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
@@ -1494,6 +1552,12 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     );
     problems.extend(more);
     tables.extend(schedule);
+    // A drawing-wide requirement carried by a general note is drawn as that note is.
+    for r in requirements.iter_mut().filter(|r| r.carrier == "notes") {
+        if let Some(n) = notes.iter().find(|n| n.id == r.id) {
+            r.state = n.state.clone();
+        }
+    }
     for o in &mut omitted {
         if inactive.contains(&o.id) {
             o.basis =

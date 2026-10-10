@@ -74,7 +74,7 @@ fn runs<'a>(d: &'a draftwright::output::Drawing, name: &str) -> Vec<&'a str> {
 fn codes<'a>(plan: &'a Plan, subject: &str) -> Vec<&'a str> {
     plan.problems
         .iter()
-        .filter(|p| p.subjects.iter().any(|s| s == subject))
+        .filter(|p| p.subjects.iter().chain(&p.refs).any(|s| s == subject))
         .map(|p| p.code.as_str())
         .collect()
 }
@@ -229,7 +229,7 @@ fn two_defaults_of_one_kind_are_ambiguous_and_neither_is_drawn() {
         let p = plan
             .problems
             .iter()
-            .find(|p| p.code == "pmi_not_lowered" && p.subjects == [source])
+            .find(|p| p.code == "pmi_not_lowered" && p.refs == [source])
             .unwrap();
         assert!(p.message.contains("ambiguous document default"), "{p:?}");
     }

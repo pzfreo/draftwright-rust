@@ -357,6 +357,7 @@ fn an_info_or_view_box_finding_is_not_a_hard_failure() {
         severity: "warning".into(),
         message: format!("{id} lies over the v:side view."),
         subjects: vec![id.into(), "v:side".into()],
+        ..Default::default()
     });
     let kept = model::recover(&analysis, &Spec::default(), first).unwrap();
     assert_eq!(sheet(&kept), ("A4", "1:1"));

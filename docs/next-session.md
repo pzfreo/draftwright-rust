@@ -246,6 +246,44 @@ pushed):
   8. `edit` has no analysis, so it leaves a version 1 spec's version and keys as they are; `plan`
      migrates (and its embedded spec is version 2).
 
+- Typed state and problems (ts/s2-typed-state, the editor thin slice's S2; judgement calls,
+  overturnable; `docs/model.md`, "Plan"):
+  1. Built on S1 as the integrator merged it (`ts-int/s1`, 0c72672): `origin/main` did not yet
+     have S1 when S2 started.
+  2. A `fix` is a list of `edit` operations (`{op, path, value?}`), applied together, not the
+     plan's `{op: "place", …}` example: `place` is S3's, and a fix must be one `edit` accepts
+     today. Fixes are given only where the edit resolves the problem (each checked by applying it
+     and planning again); none for placement collisions until `place` exists, none where the
+     remedies are a matter of intent (`step_general_tolerance_disagreement`: the spec's
+     tolerance or the PMI's), and none for a turned part's left-out plan view (the message's
+     `set views/plan to {}` is not checked).
+  3. Where a message offers two remedies the fix takes the one that keeps the author's intent:
+     an omitted view restored rather than the dimension's chosen view removed
+     (`dimension_view_not_shown`, the message's first); an omitted dimension brought back
+     rather than its tolerance removed (`tolerance_not_shown`; a tolerance on a covered or
+     unauthored dimension is removed, there being no edit that shows it); a fit no callout
+     states is removed (the callout that would state it is not tracked there).
+  4. `subjects` hold only live item IDs: the plan's items, the sheet (`sheet`, its ID by
+     convention: `PlannedSheet` has no `id` field) and the Analysis's features and hole
+     patterns. Everything else moved to a new `refs`: PMI record sources (S1's decision 6),
+     sources not read, recogniser families, the undrawn section `v:section_aa`, the height
+     ladder `step_level`, title-block cells (`title_block/<field>`, whose problems now name
+     `sheet`), spec entries not applied, and a schedule's threads. A problem about the whole part
+     (`pmi_not_read`, `pmi_presentation_not_read`) has no subjects (as
+     `spec_from_other_revision` already had). Problem IDs are unchanged.
+  5. `severity` stays a string (`error`, `warning`, `info`): its JSON is the same as an enum's
+     would be, and some 70 sites and many tests compare it as text.
+  6. A view omitted by the spec is not added to the plan as an item (`views` lists drawn views,
+     which renderers draw); its absence is the state. The isometric that projects no edges is
+     `shown` (it is planned and drawn, empty) with its `iso_projection_empty` warning.
+  7. An item dropped from a spec entry for another revision (`inactive:` basis) is
+     `not_authored` in an authored set, as that is what happened to it; the editor's prose review
+     called it unplaced.
+  8. The label of an omitted dimension is its label when it was left out: a spec-omitted one's
+     default label (without the spec's tolerance, which `tolerance_not_shown` reports), a
+     covered one's as planned. A frame's label joins its compartments with ` | `, as the editor
+     shows it.
+
 **Housekeeping:** clean leftover worktrees in quiddity-rust can be removed
 (`.claude/worktrees/agent-a461c0d2e1bd3494a`, `wf_7fc79fa8-4f8-162`, `wf_7ff99f80-ece-23`,
 `wf_7ff99f80-ece-24`, and the scratchpad `wt-ap242`); their branches are merged or superseded.

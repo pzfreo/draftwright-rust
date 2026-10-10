@@ -106,10 +106,7 @@ fn without_features_the_command_line_recognises_with_rust_quiddity() {
         let p = not_recognised(&plan["problems"])
             .unwrap_or_else(|| panic!("{name}: the unrecognised families are not reported"));
         assert_eq!(p["severity"], "warning");
-        assert_eq!(
-            p["subjects"],
-            serde_json::to_value(unrecognised(&a)).unwrap()
-        );
+        assert_eq!(p["refs"], serde_json::to_value(unrecognised(&a)).unwrap());
         assert!(
             p["message"].as_str().unwrap().contains(recogniser(&a)),
             "{name}: {p}"
@@ -281,7 +278,7 @@ fn corpus_parts_render_natively_naming_what_is_not_recognised() {
         assert_eq!(code, Some(0), "{name}: {r}");
         assert_eq!(r["written"].as_array().unwrap().len(), 3, "{name}");
         let p = not_recognised(&r["problems"]).unwrap();
-        assert_eq!(p["subjects"], serde_json::to_value(&expected).unwrap());
+        assert_eq!(p["refs"], serde_json::to_value(&expected).unwrap());
 
         // With Python's JSON, its own features and no such problem.
         if let Some(json) = sheet_recognition(name) {

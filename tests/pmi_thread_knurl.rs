@@ -114,7 +114,7 @@ fn claimed<'a>(plan: &'a Plan, a: &Analysis, source: &str) -> Vec<(&'a str, &'a 
 fn refused(plan: &Plan, source: &str) -> Option<String> {
     plan.problems
         .iter()
-        .find(|p| p.code == "pmi_not_lowered" && p.subjects.first().is_some_and(|s| s == source))
+        .find(|p| p.code == "pmi_not_lowered" && p.refs.first().is_some_and(|s| s == source))
         .map(|p| p.message.clone())
 }
 

@@ -108,6 +108,8 @@ pub struct HoleTable {
     pub rows: Vec<HoleRow>,
     pub default: bool,
     pub basis: String,
+    /// Always shown: a table withdrawn is not in the plan.
+    pub state: crate::items::State,
     /// The blocks drawn, left to right: each the header and its share of the rows (the last
     /// padded with blank rows), placed.
     pub blocks: Vec<PlannedTable>,
@@ -143,6 +145,8 @@ pub struct Balloon {
     /// could not clear the hole.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub leader: Option<[[f64; 2]; 2]>,
+    /// Always shown: a balloon with no place is not in the plan.
+    pub state: crate::items::State,
 }
 
 /// What a dropped item was.
@@ -222,6 +226,7 @@ fn drop_item(plan: &mut Plan, i: usize, kind: Dropped) {
     } else {
         ""
     };
+    d.state = crate::items::State::not_drawable(code);
     let message = format!(
         "The {what} {id} ({}) is dropped from the {} view: placed, its ink ran off the sheet's drawing area, so it is not drawn{off_axis}. A larger sheet or a smaller scale may give it room.",
         d.label,
@@ -241,6 +246,7 @@ fn drop_item(plan: &mut Plan, i: usize, kind: Dropped) {
         severity: severity.into(),
         message,
         subjects,
+        ..Default::default()
     });
 }
 
@@ -359,6 +365,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
         let (rows, replace) = rows(analysis, plan, &loose, row_tags);
         for &i in &replace {
             attempt[i].placed = None;
+            attempt[i].state = crate::items::State::Covered { by: ID.into() };
         }
         match place_table(analysis, plan, &attempt, &rows) {
             Some(blocks) => {
@@ -366,6 +373,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
                     id: ID.into(),
                     rows,
                     default: true,
+                    state: crate::items::State::Shown,
                     basis: format!(
                         "draftwright's drop and escalate: a hole callout or location had no place on the sheet, and the plan view has {} holes outside a pattern (at least {MIN_HOLES}), so each is a row, tagged and ballooned, and the table replaces the plan view's plain callouts and the locations of its holes; towards the sheet's top right in {} block{}",
                         loose.len(),
@@ -455,7 +463,13 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
                 "The hole table ({} rows) that would replace the dropped hole items is not drawn: {why}. The drops stay reported.",
                 loose.len()
             ),
-            subjects: vec![ID.into()],
+            // The drops it would have stated; the table itself is not in the plan.
+            subjects: escalating
+                .iter()
+                .map(|&i| plan.dimensions[i].id.clone())
+                .collect(),
+            refs: vec![ID.into()],
+            ..Default::default()
         });
     }
     let unplaced: Vec<&Wanted> = specs
@@ -477,6 +491,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
                 names.join(", ")
             ),
             subjects: unplaced.iter().flat_map(|s| s.features.clone()).collect(),
+            ..Default::default()
         });
     }
     plan.balloons = landed.into_iter().flatten().collect();
@@ -523,6 +538,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
             subjects: std::iter::once(ID.to_string())
                 .chain(resolved.iter().cloned())
                 .collect(),
+            ..Default::default()
         });
         plan.hole_table = Some(t);
     }
@@ -759,6 +775,7 @@ fn place_table(
                 rows: b.clone(),
                 default: true,
                 basis: format!("block {} of {ncols} of the hole table", k + 1),
+                state: crate::items::State::Shown,
                 placed: Some(placed),
             });
         }
@@ -1135,6 +1152,7 @@ fn place_balloons(
             at,
             radius: r,
             leader,
+            state: crate::items::State::Shown,
         });
     };
     let mut left_over = Vec::new();

@@ -16,6 +16,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
   are refused. A `draftwright.spec/1` spec is migrated when planned; ambiguous keys are refused
   with their candidates (`docs/model.md`, "IDs").
 
+### Added
+
+- Typed state and problems: every plan item carries a `state` (`shown`, `omitted_by_user`,
+  `not_authored`, `covered` by another item, or `not_drawable` with the code of the problem that
+  says why), beside its basis sentence; every problem's `subjects` are live item IDs, with what
+  else it names in `refs`, and a machine-readable `fix` (edit operations) where one resolves it;
+  `items::items` and `items::label` list every item with the text it draws, an omitted
+  dimension's and a GD&T item's label included (`docs/model.md`, "Plan").
+
 ## 0.1.0-alpha.1 (2026-10-10)
 
 The first alpha. Its gates and their state are in `docs/alpha1.md`.

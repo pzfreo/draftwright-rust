@@ -440,7 +440,7 @@ fn fits_from_another_revision_are_kept_inactive() {
         "4× ⌀6 THRU (2×2)"
     );
     let p = problem(&plan, "p:spec_entries_inactive:part").unwrap();
-    assert!(p.subjects.contains(&"f:hole:1".to_string()));
+    assert!(p.refs.contains(&"f:hole:1".to_string()));
     assert_eq!(plan.spec.features, s.features);
 }
 

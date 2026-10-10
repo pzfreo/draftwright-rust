@@ -140,10 +140,11 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
     assert_eq!(d.measurements[0].feature, FEATURE);
     assert_eq!(d.measurements[0].parameter, "angular");
     assert!(
-        !plan
-            .problems
+        !plan.problems.iter().any(|p| p
+            .subjects
             .iter()
-            .any(|p| p.subjects.iter().any(|s| s == "dimension:#33")),
+            .chain(&p.refs)
+            .any(|s| s == "dimension:#33")),
         "the record is not refused"
     );
 

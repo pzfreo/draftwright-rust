@@ -389,6 +389,7 @@ fn stand_in_off_sheet(plan: &mut Plan, id: String) {
         severity: "error".into(),
         message: "stand-in".into(),
         subjects: vec![id],
+        ..Default::default()
     });
 }
 

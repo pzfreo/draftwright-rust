@@ -328,7 +328,9 @@ pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
                     c.field,
                     source(&c.field)
                 ),
-                subjects: vec![subject.clone()],
+                subjects: vec!["sheet".into()],
+                refs: vec![subject.clone()],
+                ..Default::default()
             });
         }
         let (cx, cy) = (0.5 * (x0 + x1), 0.5 * (y0 + y1));
@@ -344,7 +346,9 @@ pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
                     c.field,
                     source(&c.field)
                 ),
-                subjects: vec![subject],
+                subjects: vec!["sheet".into()],
+                refs: vec![subject],
+                ..Default::default()
             });
         }
     }

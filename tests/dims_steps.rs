@@ -119,10 +119,11 @@ fn strs(v: &[(&str, &str, &str)]) -> Vec<(String, String, String)> {
         .collect()
 }
 
+/// The codes of the problems naming *subject*, as a subject or a reference.
 fn codes<'a>(plan: &'a Plan, subject: &str) -> Vec<&'a str> {
     plan.problems
         .iter()
-        .filter(|p| p.subjects.iter().any(|s| s == subject))
+        .filter(|p| p.subjects.iter().chain(&p.refs).any(|s| s == subject))
         .map(|p| p.code.as_str())
         .collect()
 }
