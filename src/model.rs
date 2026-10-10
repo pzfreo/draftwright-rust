@@ -1000,7 +1000,7 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     };
     let first = escalated(false)?;
     let misplaced = gdt_misplaced(&first);
-    if misplaced == 0 || crate::placement_intent::has_pins(spec) {
+    if misplaced == 0 {
         return Ok(first);
     }
     let mut again = escalated(true)?;
@@ -1115,15 +1115,19 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         let inactive_entries: Vec<(&str, &String)> = spec
             .dimensions
             .keys()
-            .filter(|id| id.starts_with("d:f:"))
+            .filter(|id| id.starts_with("d:f:") || id.starts_with("d:pmi:"))
             .map(|id| ("dimensions", id))
             .chain(spec.features.keys().map(|id| ("features", id)))
+            .chain(spec.annotations.keys().map(|id| ("annotations", id)))
             .collect();
         inactive = inactive_entries
             .iter()
             .map(|(_, id)| id.to_string())
             .collect::<Vec<_>>();
-        effective.dimensions.retain(|id, _| !id.starts_with("d:f:"));
+        effective
+            .dimensions
+            .retain(|id, _| !id.starts_with("d:f:") && !id.starts_with("d:pmi:"));
+        effective.annotations.clear();
         effective.features.clear();
         problems.push(Problem {
             id: "p:rebind:part".into(),
@@ -1142,7 +1146,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 code: "spec_entries_inactive".into(),
                 severity: "warning".into(),
                 message: format!(
-                    "The spec was made for a different revision of {}, and its entries for features ({}) cannot be matched to this one's until revisions are rebound: they are kept in the spec but not applied, and the spec stays bound to its revision while they remain. Remove them (then set what is wanted by this revision's IDs), or edit the spec's binding to this revision's to apply them as they are.",
+                    "The spec was made for a different revision of {}, and its entries for features and PMI ({}) cannot be matched to this one's until revisions are rebound: they are kept in the spec but not applied, and the spec stays bound to its revision while they remain. Remove them (then set what is wanted by this revision's IDs), or edit the spec's binding to this revision's to apply them as they are.",
                     b.part,
                     inactive.join(", ")
                 ),
@@ -1189,17 +1193,19 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             ..Default::default()
         });
     }
-    let annotation_ids: Vec<String> = crate::pmi_lowering::lower(analysis, &|_| true)
-        .0
-        .into_iter()
-        .map(|i| i.id)
-        .collect();
-    for id in effective.annotations.keys() {
-        if !annotation_ids.contains(id) {
-            return Err(Invalid {
-                message: format!("There is no PMI annotation {id:?} on this part."),
-                choices: annotation_ids.clone(),
-            });
+    if !effective.annotations.is_empty() {
+        let annotation_ids: Vec<String> = crate::pmi_lowering::lower(analysis, &|_| true)
+            .0
+            .into_iter()
+            .map(|i| i.id)
+            .collect();
+        for id in effective.annotations.keys() {
+            if !annotation_ids.contains(id) {
+                return Err(Invalid {
+                    message: format!("There is no PMI annotation {id:?} on this part."),
+                    choices: annotation_ids.clone(),
+                });
+            }
         }
     }
     let given = spec;
@@ -1598,6 +1604,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             &mut problems,
         );
     }
+    let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
     let mut fixed_spec = spec.clone();
     fixed_spec
         .annotations
@@ -1605,15 +1612,22 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     let fixed = if fixed_spec.annotations.is_empty() {
         Vec::new()
     } else {
-        crate::dims::gdt::plan(analysis, &fixed_spec, &sheet, &views, &[])
-            .0
-            .iter()
-            .filter(|g| fixed_spec.annotations.contains_key(&g.id))
-            .filter_map(crate::dims::gdt::proxy)
-            .collect()
+        crate::dims::gdt::plan_anchored(
+            analysis,
+            &fixed_spec,
+            &sheet,
+            &views,
+            &[],
+            canonical.as_ref(),
+        )
+        .0
+        .iter()
+        .filter(|g| fixed_spec.annotations.contains_key(&g.id))
+        .filter_map(crate::dims::gdt::proxy)
+        .collect()
     };
     let (mut dimensions, mut omitted, mut more) =
-        crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed)?;
+        crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed, &held)?;
     let obstacles = crate::placement_intent::obstacles(spec, &dimensions, &fixed);
     if !obstacles.is_empty() {
         let before: Vec<_> = views.iter().map(|v| (v.at, v.area, v.scale)).collect();
@@ -1638,12 +1652,19 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 .collect::<Vec<_>>()
         {
             (dimensions, omitted, more) =
-                crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed)?;
+                crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed, &held)?;
         }
     }
     problems.extend(more);
     // The part's PMI, placed beyond the dimensions; the notes and tables keep clear of both.
-    let (gdt, more) = crate::dims::gdt::plan(analysis, spec, &sheet, &views, &dimensions);
+    let (gdt, more) = crate::dims::gdt::plan_anchored(
+        analysis,
+        spec,
+        &sheet,
+        &views,
+        &dimensions,
+        canonical.as_ref(),
+    );
     problems.extend(more);
     let mut ink = dimensions.clone();
     ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));

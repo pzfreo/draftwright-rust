@@ -647,6 +647,17 @@ pub fn plan(
     views: &[PlannedView],
     dims: &[PlannedDimension],
 ) -> (Vec<PlannedGdt>, Vec<Problem>) {
+    plan_anchored(analysis, spec, sheet, views, dims, None)
+}
+
+pub(crate) fn plan_anchored(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    dims: &[PlannedDimension],
+    canonical: Option<&crate::model::Plan>,
+) -> (Vec<PlannedGdt>, Vec<Problem>) {
     let shown = |name: &str| views.iter().any(|v| v.id == format!("v:{name}"));
     let (mut items, mut problems) = crate::pmi_lowering::lower(analysis, &shown);
     if items.is_empty() {
@@ -808,6 +819,50 @@ pub fn plan(
             out.push(planned);
             continue;
         };
+        if intent.is_some_and(crate::placement_intent::automatic_pin)
+            && let Some(base) = canonical
+            && let Some(g) = base
+                .gdt
+                .iter()
+                .find(|g| g.id == item.id && g.view == planned.view)
+            && let Some(delta) = crate::placement_intent::anchor_delta(base, views, &g.view)
+            && let Some(mut p) = g.placed.clone()
+        {
+            use crate::placement_intent::{move_box, move_point};
+            move_point(&mut p.tip, delta);
+            move_box(&mut p.label_box, delta);
+            for line in p
+                .lines
+                .iter_mut()
+                .chain(&mut p.arrows)
+                .chain(&mut p.strokes)
+            {
+                for q in line {
+                    move_point(q, delta);
+                }
+            }
+            for arc in &mut p.arcs {
+                if delta != [0.0, 0.0] {
+                    arc[0] += delta[0];
+                    arc[1] += delta[1];
+                }
+            }
+            for fill in &mut p.fills {
+                for q in fill {
+                    move_point(q, delta);
+                }
+            }
+            for t in p.letters.iter_mut().chain(&mut p.runs) {
+                move_point(&mut t.at, delta);
+            }
+            labels.push(p.label_box);
+            lines.extend(p.lines.iter().copied());
+            planned.side = g.side.clone();
+            planned.state = State::Shown;
+            planned.placed = Some(p);
+            out.push(planned);
+            continue;
+        }
         let own = format!("v:{}", item.view);
         let ink: Vec<[P2; 2]> = dims
             .iter()

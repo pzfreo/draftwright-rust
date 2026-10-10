@@ -369,28 +369,24 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
     let mut table = None;
     let mut replaced: Vec<usize> = Vec::new();
     let mut table_failure = None;
-    if tabulate
-        && plan.dimensions.iter().any(|d| {
-            hole_item(d).is_some()
-                && plan
-                    .spec
-                    .dimensions
-                    .get(&d.id)
-                    .and_then(|e| e.place.as_ref())
-                    .is_some_and(|p| p.pinned)
-        })
-    {
-        for &(i, _) in &drops {
-            say(
-                plan,
-                i,
-                " No hole table: it would replace a pinned hole item.",
-            );
-        }
-        return;
-    }
     if tabulate {
         let (rows, replace) = rows(analysis, plan, &loose, row_tags);
+        if replace.iter().any(|&i| {
+            plan.spec
+                .dimensions
+                .get(&plan.dimensions[i].id)
+                .and_then(|e| e.place.as_ref())
+                .is_some_and(|p| p.pinned)
+        }) {
+            for &(i, _) in &drops {
+                say(
+                    plan,
+                    i,
+                    " No hole table: it would replace a pinned hole item.",
+                );
+            }
+            return;
+        }
         for &i in &replace {
             attempt[i].placed = None;
             attempt[i].state = crate::items::State::Covered { by: ID.into() };

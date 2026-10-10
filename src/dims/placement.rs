@@ -911,7 +911,7 @@ pub(super) fn intent(
         Some(crate::placement_intent::Side::Right) => Side::Right,
         None => side,
     };
-    let lane = p.lane.unwrap_or(if p.pinned { 0 } else { lane });
+    let lane = p.lane.unwrap_or(lane);
     let mut placed = match &w.shape {
         Shape::Linear { axis, .. } => {
             let horizontal = across(frame, *axis)?;

@@ -246,6 +246,43 @@ fn placement_vocabulary_is_validated_without_page_coordinates() {
 }
 
 #[test]
+fn pinning_without_offsets_keeps_automatic_geometry() {
+    for (name, a) in slice()
+        .into_iter()
+        .chain(std::iter::once(("AP242".into(), pmi())))
+    {
+        let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+        for id in base
+            .dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .map(|d| &d.id)
+            .chain(
+                base.gdt
+                    .iter()
+                    .filter(|g| g.placed.is_some())
+                    .map(|g| &g.id),
+            )
+        {
+            let s = set(&Spec::default(), id, "place", json!({"pinned":true}));
+            let p = model::plan_recovered(&a, &s).unwrap();
+            assert_eq!(
+                serde_json::to_vec(&geometry(&base, id)).unwrap(),
+                serde_json::to_vec(&geometry(&p, id)).unwrap(),
+                "{name} {id}"
+            );
+            let other = base.dimensions.iter().find(|d| d.id != *id).unwrap();
+            let changed = set(&s, &other.id, "omit", json!(true));
+            assert_eq!(
+                geometry(&p, id),
+                geometry(&model::plan_recovered(&a, &changed).unwrap(), id),
+                "{name} {id}"
+            );
+        }
+    }
+}
+
+#[test]
 fn seeded_edits_on_slice_parts_preserve_pinned_geometry() {
     let mut parts = slice();
     parts.push(("CTC-01 AP242".into(), pmi()));
@@ -293,7 +330,33 @@ fn seeded_edits_on_slice_parts_preserve_pinned_geometry() {
             for problem in &pinned.problems {
                 *distribution.entry(problem.code.clone()).or_insert(0) += 1;
             }
-            eprintln!("pins {name} seed={seed} N={n}: {distribution:?}");
+            let mut baseline = BTreeMap::new();
+            for problem in &base.problems {
+                *baseline.entry(problem.code.clone()).or_insert(0) += 1;
+            }
+            let ink_codes = [
+                "annotation_ink_overlap",
+                "annotation_over_view",
+                "annotation_line_over_view",
+                "annotation_leader_crossing",
+                "annotation_outside_area",
+            ];
+            let ink = |codes: &BTreeMap<String, usize>| {
+                ink_codes
+                    .iter()
+                    .map(|c| codes.get(*c).copied().unwrap_or(0))
+                    .sum::<usize>()
+            };
+            eprintln!(
+                "pins {name} seed={seed} N={n}: off-sheet {} -> {}, ink {} -> {}; {distribution:?}",
+                baseline.get("annotation_off_sheet").copied().unwrap_or(0),
+                distribution
+                    .get("annotation_off_sheet")
+                    .copied()
+                    .unwrap_or(0),
+                ink(&baseline),
+                ink(&distribution)
+            );
             let anchors: BTreeSet<_> = draftwright::items::items(&pinned)
                 .into_iter()
                 .filter(|i| pins.contains(&i.id))
@@ -393,13 +456,81 @@ fn sheet_and_scale_changes_keep_or_report_every_pin() {
                 );
                 assert!(
                     !geometry(&p, id).is_null()
-                        || p.problems
-                            .iter()
-                            .any(|p| p.subjects.contains(id) || p.refs.contains(id)),
+                        || p.problems.iter().any(|p| {
+                            [
+                                "pinned_item_not_drawn",
+                                "placement_anchor_not_shown",
+                                "pmi_not_drawn",
+                            ]
+                            .contains(&p.code.as_str())
+                                && (p.subjects.contains(id) || p.refs.contains(id))
+                        }),
                     "{name} {id}"
                 );
+                let ink = geometry(&p, id);
+                if let Some(b) = ink.get("label_box").and_then(Value::as_array) {
+                    let mut points = vec![
+                        [b[0].as_f64().unwrap(), b[1].as_f64().unwrap()],
+                        [b[2].as_f64().unwrap(), b[3].as_f64().unwrap()],
+                    ];
+                    for field in ["lines", "arrows"] {
+                        for line in ink[field].as_array().unwrap() {
+                            for q in line.as_array().unwrap() {
+                                points.push([q[0].as_f64().unwrap(), q[1].as_f64().unwrap()]);
+                            }
+                        }
+                    }
+                    if points.iter().any(|q| {
+                        q[0] < 10.0 - 1e-9
+                            || q[1] < 10.0 - 1e-9
+                            || q[0] > p.sheet.page[0] - 10.0 + 1e-9
+                            || q[1] > p.sheet.page[1] - 10.0 + 1e-9
+                    }) {
+                        assert!(
+                            p.problems.iter().any(
+                                |p| p.code == "annotation_off_sheet" && p.subjects.contains(id)
+                            ),
+                            "{name} {size} {scale} {id}: off-sheet ink needs its own problem"
+                        );
+                    }
+                }
             }
         }
+        let large: Spec = serde_json::from_value(json!({"sheet":{"size":"A0","scale":"1:5"},"views":{"front":{"place":{"relative_to":"sheet","side":"above","gap":220,"align":"start","pinned":true}}}})).unwrap();
+        let before = model::plan_recovered(&a, &large).unwrap();
+        assert!(
+            !before.problems.iter().any(
+                |p| p.code == "pinned_view_off_sheet" && p.subjects.contains(&"v:front".into())
+            ),
+            "{name}"
+        );
+        let small = model::edit(
+            &large,
+            &json!([{"op":"set","path":"sheet/size","value":"A4"}]),
+        )
+        .unwrap();
+        let after = model::plan_recovered(&a, &small).unwrap();
+        let large_view = before.views.iter().find(|v| v.id == "v:front").unwrap();
+        let small_view = after.views.iter().find(|v| v.id == "v:front").unwrap();
+        // Sheet edits re-resolve anchors; box subtraction may round differently.
+        assert!(
+            large_view
+                .area
+                .iter()
+                .zip(small_view.area)
+                .all(|(a, b)| (a - b).abs() < 1e-9),
+            "{name}: the anchored footprint must survive the smaller sheet"
+        );
+        assert_eq!(&small_view.area[..2], &[10.0, 230.0]);
+        assert!(
+            after
+                .problems
+                .iter()
+                .any(|p| p.code == "pinned_view_off_sheet"
+                    && p.subjects.contains(&"v:front".into())
+                    && !p.fix.is_empty()),
+            "{name}: a smaller sheet must report the overrun"
+        );
     }
 }
 
@@ -608,4 +739,32 @@ fn exported_spec_with_place_renders_identically() {
             assert_eq!(first.png(25.0).unwrap(), drawn.png(25.0).unwrap());
         }
     }
+}
+
+#[test]
+fn missing_pmi_placement_on_a_revision_is_inactive() {
+    let mut a = pmi();
+    let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let g = base.gdt.iter().find(|g| g.placed.is_some()).unwrap();
+    let mut s = set(&Spec::default(), &g.id, "place", json!({"pinned":true}));
+    s.binding = Some(a.binding.clone());
+    a.binding.source_sha256 = "revised-part".into();
+    a.pmi = None;
+    let p = model::plan_recovered(&a, &s).unwrap();
+    assert_eq!(p.spec.annotations, s.annotations);
+    assert_eq!(p.spec.binding, s.binding);
+    let problem = p
+        .problems
+        .iter()
+        .find(|p| p.code == "spec_entries_inactive" && p.refs.contains(&g.id))
+        .unwrap();
+    assert!(
+        problem
+            .fix
+            .iter()
+            .any(|op| op.path == format!("annotations/{}", draftwright::items::key(&g.id)))
+    );
+    let clean = model::edit(&s, &serde_json::to_value(&problem.fix).unwrap()).unwrap();
+    assert!(clean.annotations.is_empty());
+    assert!(model::plan_recovered(&a, &clean).is_ok());
 }

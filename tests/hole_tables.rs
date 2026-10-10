@@ -526,3 +526,39 @@ fn the_escalation_and_its_drawing_are_deterministic() {
     assert_eq!(a.svg(), b.svg());
     assert!(a.text.iter().any(|r| r.text == "TAG") && a.text.iter().any(|r| r.text == "A"));
 }
+
+#[test]
+fn an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt() {
+    let Some((_, analysis)) = part("ctc02") else {
+        return;
+    };
+    let mut p = model::plan(analysis, &Spec::default()).unwrap();
+    let held = p
+        .dimensions
+        .iter()
+        .find(|d| d.view != "v:plan" && hole_item(d) && d.placed.is_some())
+        .unwrap()
+        .clone();
+    p.spec = model::edit(&p.spec, &serde_json::json!([{"op":"set", "path":format!("dimensions/{}/place", draftwright::items::key(&held.id)), "value":{"pinned":true}}])).unwrap();
+    let dropped = p
+        .dimensions
+        .iter()
+        .find(|d| d.view == "v:plan" && d.kind == "callout" && d.id.starts_with("d:f:hole:"))
+        .unwrap()
+        .id
+        .clone();
+    stand_in_off_sheet(&mut p, dropped);
+    hole_table::escalate(analysis, &mut p);
+    assert!(
+        p.problems.iter().any(|p| p.code == "table_dropped"),
+        "the table must be attempted before its balloon failure is reported"
+    );
+    assert_eq!(
+        p.dimensions
+            .iter()
+            .find(|d| d.id == held.id)
+            .unwrap()
+            .placed,
+        held.placed
+    );
+}

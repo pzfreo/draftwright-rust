@@ -122,6 +122,7 @@ mention takes its default.
 ```json
 {
   "schema": "draftwright.spec/2",
+  "binding": { "source_sha256": "…" },
   "sheet": { "size": "A3", "scale": "2:1",
              "title": { "title": "BRACKET", "number": "DWG-001", "material": "6082-T6" } },
   "views": {
@@ -145,6 +146,11 @@ mention takes its default.
 }
 ```
 
+The design also includes `sheet/projection`, `views/sections` and feature `anchor`/`note`
+(as in the original example: `"projection": "first-angle"`,
+`"sections": [{"id": "A", "through": "f:hole:3"}]`,
+`"anchor": {"…": "fingerprint"}`, `"note": "REAM"`). These fields are not yet read.
+
 - **Fields read:** `sheet` (`size`, `scale`, `title`), `views/<name>` (`omit`, `place`),
   `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>/fit`, `notes` and `tables`.
@@ -162,9 +168,9 @@ frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`:
 | --- | --- |
 | `view` | `front`, `plan` or `side`; a dimension must be visible across that view. `place.view` takes precedence over the earlier `dimensions/<id>/view`. |
 | `side` | `above`, `below`, `left` or `right` of the carrying view's projected envelope. A linear dimension uses the two sides parallel to its measured span; incompatible sides are refused with the choices. |
-| `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; PMI tiers use their glyph's size and clearance. A pin without a lane uses lane zero. |
+| `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
-| `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; a free item can be adjusted around obstacles. |
+| `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink; a free item can be adjusted around obstacles. |
 
 Existing angular PMI keeps its measured sector: `lane` increases the radius in paper steps and
 `along` selects a fraction of its arc. A requested `side` is reported as
@@ -651,7 +657,7 @@ calls.
 | `analyse` | STEP file | Analysis |
 | `plan` | Analysis, Spec | Plan (with problems); rebinds first if the spec's binding differs |
 | `edit` | Spec, ops | Spec, or a validation error |
-| `render` | Plan, formats, dpi | SVG, DXF, PDF and PNG by default, and PNG at `dpi` (150) when asked, each with the spec embedded |
+| `render` | Plan, formats, dpi | SVG, DXF and PDF by default, and PNG at `dpi` (150) when asked, each with the spec embedded |
 | `review` | Plan | a rendered image, the problems and lint's findings on the drawing, for a check |
 
 **`edit` operations** are small and addressed by path:

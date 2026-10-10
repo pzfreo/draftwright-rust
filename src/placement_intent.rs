@@ -562,3 +562,53 @@ pub(crate) fn finish(plan: &mut Plan, _analysis: &Analysis) {
         }
     }
 }
+
+pub(crate) fn automatic_pin(p: &Place) -> bool {
+    p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none()
+}
+
+pub(crate) fn anchor_delta(base: &Plan, views: &[PlannedView], view: &str) -> Option<[f64; 2]> {
+    let before = base.views.iter().find(|v| v.id == view)?;
+    let after = views.iter().find(|v| v.id == view)?;
+    Some([after.at[0] - before.at[0], after.at[1] - before.at[1]])
+}
+
+pub(crate) fn move_point(p: &mut [f64; 2], delta: [f64; 2]) {
+    if delta != [0.0, 0.0] {
+        p[0] += delta[0];
+        p[1] += delta[1];
+    }
+}
+pub(crate) fn move_box(b: &mut [f64; 4], delta: [f64; 2]) {
+    if delta != [0.0, 0.0] {
+        for k in 0..4 {
+            b[k] += delta[k % 2];
+        }
+    }
+}
+
+pub(crate) fn held_dimensions(
+    base: Option<&Plan>,
+    views: &[PlannedView],
+) -> Vec<crate::dims::PlannedDimension> {
+    let Some(base) = base else {
+        return Vec::new();
+    };
+    base.dimensions
+        .iter()
+        .filter_map(|d| {
+            let delta = anchor_delta(base, views, &d.view)?;
+            let mut d = d.clone();
+            if let Some(p) = &mut d.placed {
+                for line in p.lines.iter_mut().chain(&mut p.arrows) {
+                    for q in line {
+                        move_point(q, delta);
+                    }
+                }
+                move_point(&mut p.label_at, delta);
+                move_box(&mut p.label_box, delta);
+            }
+            Some(d)
+        })
+        .collect()
+}

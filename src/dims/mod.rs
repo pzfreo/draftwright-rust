@@ -687,7 +687,7 @@ pub fn plan(
     sheet: &PlannedSheet,
     views: &[PlannedView],
 ) -> Result<Planned, Invalid> {
-    plan_with_obstacles(analysis, spec, sheet, views, &[])
+    plan_with_obstacles(analysis, spec, sheet, views, &[], &[])
 }
 
 pub(crate) fn plan_with_obstacles(
@@ -696,6 +696,7 @@ pub(crate) fn plan_with_obstacles(
     sheet: &PlannedSheet,
     views: &[PlannedView],
     obstacles: &[PlannedDimension],
+    held: &[PlannedDimension],
 ) -> Result<Planned, Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
@@ -837,6 +838,13 @@ pub(crate) fn plan_with_obstacles(
         .map(|(i, w)| {
             let p = spec.dimensions.get(&w.id)?.place.as_ref()?;
             let v = chosen[i]?;
+            if crate::placement_intent::automatic_pin(p)
+                && let Some(d) = held
+                    .iter()
+                    .find(|d| d.id == w.id && d.view == format!("v:{v}"))
+            {
+                return d.placed.clone();
+            }
             placement::intent(&frames[v], w, p, sides[i]?, lane[i])
         })
         .collect();
@@ -911,11 +919,6 @@ pub(crate) fn plan_with_obstacles(
         &mut placed,
         &page,
     );
-    for i in 0..all.len() {
-        if fixed[i] && intended[i].is_some() {
-            placed[i] = intended[i].clone();
-        }
-    }
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
