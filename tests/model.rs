@@ -315,7 +315,7 @@ fn feature_entries_from_another_revision_are_kept_inactive() {
         .collect();
     assert_eq!(inactive.len(), 1, "{:?}", plan.problems);
     assert_eq!(inactive[0].severity, "warning");
-    assert_eq!(inactive[0].subjects, [gone, hole]);
+    assert_eq!(inactive[0].refs, [gone, hole]);
     assert!(codes(&plan.problems).contains(&"spec_from_other_revision"));
     // Kept, and still bound to the revision they were made for.
     assert_eq!(plan.spec.dimensions.len(), 3);

@@ -161,6 +161,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                             bottom.unwrap_or("none given")
                         ),
                         subjects: vec![f.id.clone()],
+                        ..Default::default()
                     });
                 }
                 holes.push(h);
@@ -171,6 +172,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 severity: "warning".into(),
                 message: format!("{} is not dimensioned: {why}.", f.id),
                 subjects: vec![f.id.clone()],
+                ..Default::default()
             }),
         }
     }
@@ -494,6 +496,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     AXES[k]
                 ),
                 subjects: vec![owner],
+                ..Default::default()
             });
             continue;
         }
@@ -782,10 +785,14 @@ fn merge(
             };
             omitted.push(Omitted {
                 id: w.id.clone(),
+                label: w.terms.join(" "),
                 basis: format!(
                     "conveyed by {owner}: it locates the same span in {} ({}) from the part's box, in the same view, and {why} (one span, one dimension: ARCH0009-6)",
                     AXES[s.1], s.4
                 ),
+                state: crate::items::State::Covered {
+                    by: owner.clone(),
+                },
             });
             conveyed.push(w.id.clone());
             gone.insert(i);

@@ -163,20 +163,54 @@ mention takes its default.
   "dimensions": [
     { "id": "d:f:hole:3/diameter", "view": "v:plan", "value": 8.1, "label": "ø8.1 H7",
       "from_spec": ["fit"], "default": false, "basis": "a hole's size is called out where it is seen end-on",
-      "rebind": "carried" }
+      "state": { "kind": "shown" }, "rebind": "carried" }
+  ],
+  "omitted": [
+    { "id": "d:f:pocket:1/depth", "label": "↧ 5", "basis": "authored: the spec omits it",
+      "state": { "kind": "omitted_by_user" } }
   ],
   "problems": [
-    { "id": "p:overlap:d:…", "code": "annotation_overlap", "severity": "warning",
-      "message": "ø8.1 H7 overlaps the plan view's outline",
-      "subjects": ["d:f:hole:3/diameter"],
-      "fix": { "op": "set", "path": "dimensions/d:f:hole:3~1diameter/place/side", "value": "left" } }
+    { "id": "p:tolerance_withheld:d:envelope/width.length", "code": "tolerance_withheld",
+      "severity": "warning", "message": "±0 is not printed on d:envelope/width.length: …",
+      "subjects": ["d:envelope/width.length"],
+      "fix": [ { "op": "remove", "path": "dimensions/d:envelope~1width.length/tolerance" } ] }
   ]
 }
 ```
 
 - **Every item has a stable ID**, its resolved value, whether it is a default, and a `basis`
   sentence saying why it is there.
+- **Every item has a typed `state`** (`src/items.rs`; the editor thin slice's S2), set where the
+  plan decides it, so a caller never reads it from the `basis`: `{"kind": "shown"}`;
+  `omitted_by_user` (the spec's `omit`) or `not_authored` (not listed in an authored set), in
+  `omitted`; `covered` with `by`, the item that states it instead (a coincident location, a
+  shared size, a boss height the overall extent states: `omitted`; a hole callout or location
+  the hole table states: `dimensions`, unplaced); or `not_drawable` with `reason_code`, the code
+  of the problem on its ID that says why it is kept undrawn (`view_plan_incomplete`,
+  `callout_dropped`, `location_ref_dropped`, `off_axis_location_dropped`, `pmi_not_drawn`,
+  `notes_not_placed`, `table_not_placed`). The sheet (its ID is `sheet`), the views, the hole
+  table and the balloons are in the plan only when drawn, so always `shown`; a drawing-wide
+  requirement carried by a general note is drawn as that note is. `tests/items.rs` checks every
+  item's state against what the plan did with it, on the slice parts, every AP242 fixture and
+  the quality parts.
+- **One label formatter**: `items::items(plan)` lists every item once, with its kind, view, state
+  and the text draftwright draws for it (`items::label`): a dimension's label, an omitted one's
+  as it would print (`omitted[].label`), a frame's compartments joined by ` | ` (`gdt[].label`),
+  a datum's letter, a requirement's text, a note's rows, a balloon's tag.
 - **Every problem names its subjects** and, where one exists, an edit that would fix it.
+  `subjects` are live item IDs only: the plan's items (the sheet as `sheet`) and the Analysis's
+  features. What else a problem names is in `refs`: a PMI record's source (its Part 21
+  provenance), a source not read, a recogniser family, a view not drawn (`v:section_aa`), the
+  height ladder (`step_level`), a title-block cell (`title_block/<field>`, the sheet its
+  subject), a spec entry not applied, a thread a schedule states. `fix` is a list of `edit`
+  operations that resolve the problem, given only where one does: a band of nothing removed
+  (`tolerance_withheld`); an omitted dimension brought back, else its tolerance or fit removed
+  (`tolerance_not_shown`); an omitted view restored (`dimension_view_not_shown`,
+  `view_plan_incomplete`, `pmi_not_drawn`, `section_not_shown`) or the omitted dimension
+  stating a PMI dimension brought back (`pmi_not_drawn`); a section with no plane un-asked
+  (`section_not_shown`); another revision's entries removed (`spec_entries_inactive`). Placement
+  problems get theirs with `place` (S3). Each fix is applied and re-planned in
+  `tests/items.rs`, and the problem is gone.
 - **Nothing the plan approves vanishes silently.** An item that can't be drawn is reported
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.
@@ -635,6 +669,7 @@ reads it back from any of the three.
 | --- | --- | --- |
 | Feature | `f:<kind>:<n>`, derived from its faces | the same file |
 | Dimension | `d:<feature>/<parameter>`; never the view, which is the item's `view` | the same file, whichever view carries it and whatever the sheet or scale; carried to revisions through its feature |
+| Sheet | `sheet` | always |
 | View | `v:<name>` | always |
 | Note, table, section | `n:<k>`, `t:<k>`, `s:<letter>` | always (set in the spec) |
 | PMI frame, symbol, label, drawing-wide requirement, thread or knurl (and the feature of a PMI dimension's claim) | `pmi:<identity>`: the record's semantic identity, below; never its Part 21 instance (that is the item's `source`, e.g. `geometric_tolerance:#123`) | the same requirements on the same faces: the intent written again (new Part 21 numbers) keeps it |

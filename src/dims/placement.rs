@@ -1178,6 +1178,7 @@ pub(super) fn collisions(
             severity: severity.into(),
             message,
             subjects,
+            ..Default::default()
         });
     };
     for (d, p) in &placed {
@@ -1366,7 +1367,7 @@ mod tests {
         let sheet: PlannedSheet = serde_json::from_value(serde_json::json!({
             "size": "A4", "page": [297.0, 210.0], "scale": "1:1", "scale_factor": 1.0,
             "arrangement": "columns", "title_block": [200.0, 10.0, 287.0, 40.0],
-            "default": true, "basis": "", "title": {}
+            "default": true, "basis": "", "state": { "kind": "shown" }, "title": {}
         }))
         .unwrap();
         let item = |id: &str, kind: &str, placed: Placed| PlannedDimension {
@@ -1380,6 +1381,7 @@ mod tests {
             default: true,
             from_spec: vec![],
             basis: String::new(),
+            state: crate::items::State::Shown,
             placed: Some(placed),
         };
         // A dimension line ending in an arrowhead whose tip lies in the label at x 50..60.

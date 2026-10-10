@@ -429,7 +429,7 @@ fn records_that_cannot_be_told_apart_are_refused_not_guessed() {
         let p = plan
             .problems
             .iter()
-            .find(|p| p.code == "pmi_not_lowered" && p.subjects == [s.clone()])
+            .find(|p| p.code == "pmi_not_lowered" && p.refs == [s.clone()])
             .unwrap_or_else(|| panic!("{s}: {:#?}", plan.problems));
         assert!(
             p.message.contains("could not be told from"),
@@ -464,7 +464,7 @@ fn no_pmi_item_is_named_by_a_part_21_instance() {
 /// (`tests/fixtures/identity/<part>.spec1.json`, `<part>.plan1.json.gz`): the spec migrates
 /// (`draftwright.spec/2`) and plans identically, every ID read as it now is (its `@<view>`
 /// dropped, a PMI source named by its record's identity) and the GD&T items in the order of
-/// their new IDs.
+/// their new IDs. What the thin slice's stream S2 added is set aside ([`without_typed_state`]).
 #[test]
 fn version_1_specs_migrate_and_plan_identically() {
     // As the command line planned them: the plate with its recognition (`--features`), the AP242
@@ -507,8 +507,16 @@ fn version_1_specs_migrate_and_plan_identically() {
         };
         let mut expected = renamed(&old, &ids);
         expected["spec"]["schema"] = model::SPEC_SCHEMA.into();
-        let mut got = serde_json::to_value(&plan).unwrap();
+        let mut got = without_typed_state(serde_json::to_value(&plan).unwrap());
         for p in [&mut expected, &mut got] {
+            // A problem's subjects and its references (S2) are what 0.1.0-alpha.1's subjects
+            // were, in some order.
+            for q in p["problems"].as_array_mut().unwrap() {
+                q["subjects"]
+                    .as_array_mut()
+                    .unwrap()
+                    .sort_by(|a, b| a.as_str().cmp(&b.as_str()));
+            }
             // The GD&T items, and so the problems about them, follow their IDs' order.
             for list in ["gdt", "requirements", "problems"] {
                 if let Some(items) = p[list].as_array_mut() {
@@ -522,6 +530,57 @@ fn version_1_specs_migrate_and_plan_identically() {
             first_difference(&expected, &got, "")
         );
     }
+}
+
+/// *plan* as 0.1.0-alpha.1 wrote it, without what the thin slice's stream S2 added: each item's
+/// `state`, an omitted dimension's and a GD&T item's `label`, a problem's `fix`, and a problem's
+/// `refs`, put back among its subjects (a title-block cell's or the general tolerance's problem
+/// names the sheet as its subject and the cell as a reference; a problem about the whole part's
+/// PMI no longer names `part`).
+fn without_typed_state(mut plan: Value) -> Value {
+    plan["sheet"].as_object_mut().unwrap().remove("state");
+    for list in [
+        "views",
+        "dimensions",
+        "omitted",
+        "notes",
+        "tables",
+        "gdt",
+        "requirements",
+        "balloons",
+    ] {
+        let items = plan.get_mut(list).and_then(Value::as_array_mut);
+        for item in items.into_iter().flatten() {
+            let item = item.as_object_mut().unwrap();
+            item.remove("state");
+            if list == "omitted" || list == "gdt" {
+                item.remove("label");
+            }
+        }
+    }
+    if let Some(t) = plan.get_mut("hole_table").and_then(Value::as_object_mut) {
+        t.remove("state");
+    }
+    for p in plan["problems"].as_array_mut().unwrap() {
+        let p = p.as_object_mut().unwrap();
+        p.remove("fix");
+        let whole =
+            ["pmi_not_read", "pmi_presentation_not_read"].contains(&p["code"].as_str().unwrap());
+        let refs = p.remove("refs").unwrap_or(json!([]));
+        let refs = refs.as_array().unwrap();
+        let subjects = p["subjects"].as_array_mut().unwrap();
+        if refs.iter().any(|r| {
+            r.as_str()
+                .is_some_and(|r| r.starts_with("title_block/") || r == "sheet/title/tolerance")
+        }) {
+            subjects.retain(|s| s != "sheet");
+        }
+        subjects.extend(refs.iter().cloned());
+        if whole {
+            subjects.push(json!("part"));
+        }
+    }
+    plan
 }
 
 /// The 0.1.0-alpha.1 IDs in *v* as they read now: `d:…@<view>` without its view, `pmi:<source>`

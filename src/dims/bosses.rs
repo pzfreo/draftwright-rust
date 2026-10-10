@@ -216,6 +216,7 @@ pub(super) fn not_dimensioned(f: &Feature, why: &str) -> Problem {
         severity: "warning".into(),
         message: format!("{} is not dimensioned: {why}.", f.id),
         subjects: vec![f.id.clone()],
+        ..Default::default()
     }
 }
 
@@ -331,6 +332,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                                 AXES[a]
                             ),
                             subjects: vec![id.clone()],
+                            ..Default::default()
                         });
                         continue;
                     }
@@ -570,10 +572,14 @@ pub(super) fn consolidate(
         gone.insert(i);
         omitted.push(Omitted {
             id: w.id.clone(),
+            label: w.terms.join(" "),
             basis: format!(
                 "conveyed by {owner}: the boss spans the part's full {} extent, between the same two support planes, so the overall extent states its height (one measurement, one owner)",
                 AXES[k]
             ),
+            state: crate::items::State::Covered {
+                by: owner.to_string(),
+            },
         });
     }
     let mut i = 0;

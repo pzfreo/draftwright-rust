@@ -26,6 +26,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Omitted, Want, fmt, levenshtein};
+use crate::items::{Op, State, key};
 use crate::model::{Analysis, Invalid, Problem, Spec};
 
 /// A kept item, as [`super::plan`] holds it: the want, whether it is a default, its view and the
@@ -156,10 +157,7 @@ fn value_term(terms: &[String]) -> Option<usize> {
 
 /// The edit path of a dimension's tolerance: a `/` inside the ID is written `~1`.
 fn path(id: &str) -> String {
-    format!(
-        "dimensions/{}/tolerance",
-        id.replace('~', "~0").replace('/', "~1")
-    )
+    format!("dimensions/{}/tolerance", key(id))
 }
 
 fn problem(code: &str, subject: &str, message: String, subjects: Vec<String>) -> Problem {
@@ -169,6 +167,7 @@ fn problem(code: &str, subject: &str, message: String, subjects: Vec<String>) ->
         severity: "warning".into(),
         message,
         subjects,
+        ..Default::default()
     }
 }
 
@@ -301,17 +300,20 @@ pub(super) fn apply(
         let band = if let Some(t) = authored {
             let (text, nothing) = tolerance(&t).expect("checked");
             if nothing {
-                problems.push(problem(
-                    "tolerance_withheld",
-                    &w.id,
-                    format!(
-                        "{} is not printed on {}: a band of nothing ({text}) states no tolerance (ARCH0019-2). Give it a band, or remove {}.",
-                        t.trim(),
-                        w.id,
-                        path(&w.id)
-                    ),
-                    vec![w.id.clone()],
-                ));
+                problems.push(Problem {
+                    fix: vec![Op::remove(path(&w.id))],
+                    ..problem(
+                        "tolerance_withheld",
+                        &w.id,
+                        format!(
+                            "{} is not printed on {}: a band of nothing ({text}) states no tolerance (ARCH0019-2). Give it a band, or remove {}.",
+                            t.trim(),
+                            w.id,
+                            path(&w.id)
+                        ),
+                        vec![w.id.clone()],
+                    )
+                });
                 None
             } else {
                 given.push("tolerance".to_string());
@@ -376,28 +378,39 @@ pub(super) fn apply(
         if entry.tolerance.is_some()
             && let Some(o) = omitted.iter().find(|o| o.id == *id)
         {
-            problems.push(problem(
-                "tolerance_not_shown",
-                id,
-                format!(
-                    "The tolerance of {id} is not printed: the plan leaves the dimension out ({}). Remove {} or bring the dimension back.",
-                    o.basis,
-                    path(id)
-                ),
-                vec![id.clone()],
-            ));
+            // Brought back when the spec left it out; else the tolerance goes.
+            let fix = match o.state {
+                State::OmittedByUser => Op::remove(format!("dimensions/{}/omit", key(id))),
+                _ => Op::remove(path(id)),
+            };
+            problems.push(Problem {
+                fix: vec![fix],
+                ..problem(
+                    "tolerance_not_shown",
+                    id,
+                    format!(
+                        "The tolerance of {id} is not printed: the plan leaves the dimension out ({}). Remove {} or bring the dimension back.",
+                        o.basis,
+                        path(id)
+                    ),
+                    vec![id.clone()],
+                )
+            });
         }
     }
     for (id, code) in &fits {
         if !stated.contains(id) {
-            problems.push(problem(
-                "tolerance_not_shown",
-                id,
-                format!(
-                    "The fit {code} of {id} is not printed: no dimension in the plan states its size."
-                ),
-                vec![id.to_string()],
-            ));
+            problems.push(Problem {
+                fix: vec![Op::remove(format!("features/{}/fit", key(id)))],
+                ..problem(
+                    "tolerance_not_shown",
+                    id,
+                    format!(
+                        "The fit {code} of {id} is not printed: no dimension in the plan states its size."
+                    ),
+                    vec![id.to_string()],
+                )
+            });
         }
     }
     Ok(from_spec)

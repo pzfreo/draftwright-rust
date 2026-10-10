@@ -333,7 +333,7 @@ fn a_field_crossing_cells_inside_the_page_is_reported() {
             .problems
             .iter()
             .any(|p| p.code == "annotation_off_sheet"
-                && p.subjects.iter().any(|s| s.starts_with("title_block/"))),
+                && p.refs.iter().any(|s| s.starts_with("title_block/"))),
         "{:?}",
         plan.problems
     );
@@ -341,7 +341,8 @@ fn a_field_crossing_cells_inside_the_page_is_reported() {
     assert_eq!(found.len(), 1, "{found:?}");
     let p = found[0];
     assert_eq!(p.severity, "warning");
-    assert_eq!(p.subjects, ["title_block/designed_by"]);
+    assert_eq!(p.subjects, ["sheet"]);
+    assert_eq!(p.refs, ["title_block/designed_by"]);
     assert!(p.message.contains("'designed_by'"));
     assert!(p.message.contains(&format!("{w:.2}")));
     assert!(p.message.contains(&format!("{:.2}", x1 - x0)));
@@ -392,10 +393,9 @@ fn all_rendered_fields_and_multiline_heights_are_checked() {
         assert!(w > x1 - x0 || h > y1 - y0, "{field}");
         let subject = format!("title_block/{field}");
         assert!(
-            overflows(&plan)
-                .iter()
-                .any(|p| p.subjects == [subject.as_str()]
-                    && p.message.contains(&format!("'{field}'"))),
+            overflows(&plan).iter().any(|p| p.subjects == ["sheet"]
+                && p.refs == [subject.as_str()]
+                && p.message.contains(&format!("'{field}'"))),
             "{field}: {:?}",
             plan.problems
         );
@@ -406,7 +406,7 @@ fn all_rendered_fields_and_multiline_heights_are_checked() {
         let off: Vec<_> = plan
             .problems
             .iter()
-            .filter(|p| p.code == "annotation_off_sheet" && p.subjects == [subject.as_str()])
+            .filter(|p| p.code == "annotation_off_sheet" && p.refs == [subject.as_str()])
             .collect();
         let cx = 0.5 * (x0 + x1);
         let past = cx - w / 2.0 < 10.0 || cx + w / 2.0 > plan.sheet.page[0] - 10.0;

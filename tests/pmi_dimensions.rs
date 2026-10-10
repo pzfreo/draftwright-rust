@@ -234,7 +234,7 @@ fn rust_outcome(plan: &Plan, a: &Analysis, r: &Record) -> (String, Value, Value)
     let codes: BTreeSet<&str> = plan
         .problems
         .iter()
-        .filter(|p| p.subjects.contains(&r.source_id))
+        .filter(|p| p.refs.contains(&r.source_id))
         .map(|p| p.code.as_str())
         .collect();
     (
@@ -477,7 +477,7 @@ fn every_dimension_is_drawn_or_reported_never_both() {
             let reported = plan
                 .problems
                 .iter()
-                .any(|p| REFUSALS.contains(&p.code.as_str()) && p.subjects.contains(&r.source_id));
+                .any(|p| REFUSALS.contains(&p.code.as_str()) && p.refs.contains(&r.source_id));
             assert!(
                 stated.is_some() != reported,
                 "{file}: {} is stated ({}) or reported ({reported}), exactly one",
@@ -532,7 +532,7 @@ fn the_open_questions_stay_refused() {
             let p = plan
                 .problems
                 .iter()
-                .find(|p| p.code == "pmi_not_lowered" && p.subjects == [r.source_id.clone()])
+                .find(|p| p.code == "pmi_not_lowered" && p.refs == [r.source_id.clone()])
                 .unwrap();
             assert!(
                 p.message.contains("open question for the maintainer"),
@@ -595,7 +595,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         c.basis
     );
     assert!(edited.problems.iter().any(|p| p.code == "pmi_not_lowered"
-        && p.subjects.contains(&source)
+        && p.refs.contains(&source)
         && p.message.contains("wins over an imported one")));
 
     // A fit on every hole wins the same way, and only the fit is printed.
@@ -626,7 +626,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
     let (c, problems) = fitted(&holes);
     assert_eq!(c.label, "6× ⌀10 H7 THRU EQ SP ON ø90 BC");
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
-        && p.subjects.contains(&source)
+        && p.refs.contains(&source)
         && p.message.contains("its own fit")
         && !p.message.contains("withheld")));
     // A fit on some of them is withheld: the label states neither, and the report says so.
@@ -634,7 +634,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
     assert_eq!(c.label, "6× ⌀10 THRU EQ SP ON ø90 BC");
     assert!(problems.iter().any(|p| p.code == "tolerance_withheld"));
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
-        && p.subjects.contains(&source)
+        && p.refs.contains(&source)
         && p.message.contains("withheld")));
 }
 
@@ -696,7 +696,7 @@ fn an_omitted_standalone_dimension_is_said_not_drawn() {
         edited
             .problems
             .iter()
-            .any(|p| p.code == "pmi_not_drawn" && p.subjects.iter().any(|s| s == source))
+            .any(|p| p.code == "pmi_not_drawn" && p.refs.iter().any(|s| s == source))
     );
 }
 
@@ -766,7 +766,7 @@ fn what_the_faces_do_not_prove_is_reported_not_guessed() {
     let reason = |plan: &Plan| {
         plan.problems
             .iter()
-            .find(|p| p.subjects == [source.clone()])
+            .find(|p| p.refs == [source.clone()])
             .map(|p| (p.code.clone(), p.message.clone()))
             .unwrap()
     };

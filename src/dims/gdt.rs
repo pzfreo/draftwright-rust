@@ -50,7 +50,8 @@ use serde::{Deserialize, Serialize};
 
 use super::placement::{self, Frame, Page, boxes_overlap, crosses};
 use super::{ARROW, ARROW_HALF, FONT, P2, Placed, PlannedDimension, TEXT, font};
-use crate::model::{Analysis, PlannedSheet, PlannedView, Problem};
+use crate::items::{Op, State};
+use crate::model::{Analysis, PlannedSheet, PlannedView, Problem, Spec};
 use crate::output::{Annotation, Curve, HAlign, Item, TextRun, VAlign};
 use crate::pmi_lowering::{Glyph, Lowered};
 use crate::text::Segment;
@@ -78,8 +79,12 @@ pub struct PlannedGdt {
     /// `all_around` or `all_over`, drawn at the leader's bend.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub modifiers: Vec<String>,
+    /// What it states as one line ([`crate::items::frame_label`]).
+    pub label: String,
     pub default: bool,
     pub basis: String,
+    /// What became of it: shown, or why not ([`crate::items::State`]).
+    pub state: crate::items::State,
     /// Its ink on the page; absent when it cannot be drawn, and a problem says why.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub placed: Option<GdtPlaced>,
@@ -633,9 +638,11 @@ pub fn demand(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> Vec<crate::l
 }
 
 /// The part's PMI lowered and placed around *views* on *sheet*, after the dimensions *dims*:
-/// the items, and the problems met (lowering's, and what the placed items collide with).
+/// the items, and the problems met (lowering's, and what the placed items collide with). An
+/// item whose view *spec* omits is fixed by restoring it.
 pub fn plan(
     analysis: &Analysis,
+    spec: &Spec,
     sheet: &PlannedSheet,
     views: &[PlannedView],
     dims: &[PlannedDimension],
@@ -722,10 +729,13 @@ pub fn plan(
             side: item.side.into(),
             source: item.source.clone(),
             faces: item.faces.clone(),
+            label: crate::items::frame_label(&cells),
             cells,
             modifiers,
             default: true,
             basis: item.basis.clone(),
+            // Shown once placed; else its view is not drawn.
+            state: State::not_drawable("pmi_not_drawn"),
             placed: None,
         };
         let Some(frame) = frames.get(item.view) else {
@@ -741,6 +751,12 @@ pub fn plan(
                     item.view
                 ),
                 subjects: vec![item.id.clone()],
+                fix: if spec.views.get(item.view).is_some_and(|v| v.omit) {
+                    vec![Op::remove(format!("views/{}/omit", item.view))]
+                } else {
+                    Vec::new()
+                },
+                ..Default::default()
             });
             out.push(planned);
             continue;
@@ -838,6 +854,7 @@ pub fn plan(
         }
         labels.push(chosen.label_box);
         lines.extend(chosen.lines.iter().copied());
+        planned.state = State::Shown;
         planned.placed = Some(GdtPlaced {
             tip,
             lines: chosen.lines,
@@ -883,6 +900,7 @@ pub fn proxy(g: &PlannedGdt) -> Option<PlannedDimension> {
         default: true,
         from_spec: Vec::new(),
         basis: g.basis.clone(),
+        state: State::Shown,
         placed: Some(Placed {
             lines: p.lines.clone(),
             arrows: p.arrows.clone(),
@@ -909,6 +927,7 @@ pub fn finish_proxy(r: &crate::pmi_lowering::PlannedRequirement) -> Option<Plann
         default: true,
         from_spec: Vec::new(),
         basis: r.basis.clone(),
+        state: State::Shown,
         placed: Some(Placed {
             lines: p.strokes.clone(),
             arrows: Vec::new(),

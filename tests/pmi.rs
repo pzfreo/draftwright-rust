@@ -795,7 +795,7 @@ fn a_requirement_or_label_record_is_lowered_or_reported() {
         }) {
             let said: Vec<_> = problems
                 .iter()
-                .filter(|p| p.subjects == [r.source_id.clone()])
+                .filter(|p| p.refs == [r.source_id.clone()])
                 .collect();
             let label = items.iter().any(|i| i.source == r.source_id);
             let carried = sheet.iter().any(|q| q.source == r.source_id);

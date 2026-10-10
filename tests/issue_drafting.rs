@@ -729,7 +729,8 @@ fn a_title_block_value_that_overflows_is_reported() {
         .filter(|p| p.code == "title_field_overflow")
         .collect();
     assert_eq!(overflow.len(), 1, "{:?}", codes(&plan));
-    assert_eq!(overflow[0].subjects, ["title_block/title"]);
+    assert_eq!(overflow[0].subjects, ["sheet"]);
+    assert_eq!(overflow[0].refs, ["title_block/title"]);
     assert_eq!(overflow[0].severity, "warning");
     assert!(overflow[0].message.contains(long));
     assert_eq!(drawing.text.iter().filter(|t| t.text == long).count(), 1);
@@ -1947,7 +1948,7 @@ fn a_shoulder_on_the_box_is_reported_not_drawn() {
             plan.problems
                 .iter()
                 .all(|p| p.code == "step_position_coincident_with_datum"
-                    || !p.subjects.iter().any(|s| s == "step_level")),
+                    || !p.refs.iter().any(|s| s == "step_level")),
             "{axis}: {:#?}",
             plan.problems
         );

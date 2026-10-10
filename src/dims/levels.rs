@@ -538,6 +538,7 @@ pub(super) fn ownership<'a>(cx: &Context<'a>) -> Ownership<'a> {
             f.id
         ),
         subjects: vec![f.id.clone()],
+        ..Default::default()
     };
     let of = |kind: &'a str| a.features.iter().filter(move |f| f.kind == kind);
     // A part with turned steps has their chain, not a ladder.
@@ -582,6 +583,7 @@ pub(super) fn ownership<'a>(cx: &Context<'a>) -> Ownership<'a> {
                 severity: "warning".into(),
                 message: format!("{} is not dimensioned: {why}.", f.id),
                 subjects: vec![f.id.clone()],
+                ..Default::default()
             }),
         }
     }
@@ -755,7 +757,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     "No support is recorded for the face level {} above the base, so its height's witnesses stand on the part's box.",
                     fmt(z - base)
                 ),
-                subjects: vec![FEATURE.into()],
+                subjects: Vec::new(),
+                refs: vec![FEATURE.into()],
+                ..Default::default()
             });
         }
     }
@@ -823,7 +827,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     AXES[k].to_uppercase(),
                     fmt(at)
                 ),
-                subjects: vec![FEATURE.into()],
+                subjects: Vec::new(),
+                refs: vec![FEATURE.into()],
+                ..Default::default()
             });
             continue;
         }
@@ -862,7 +868,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             code: "dimensions_not_ported".into(),
             severity: "info".into(),
             message: "The analysis (draftwright.analysis/3) records no step risers, so no step position is dimensioned and a through step along x or y is dimensioned as one; analyse the STEP file again.".into(),
-            subjects: vec![FEATURE.into()],
+            subjects: Vec::new(),
+            refs: vec![FEATURE.into()],
+            ..Default::default()
         });
     }
     (out, problems)

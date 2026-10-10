@@ -35,6 +35,7 @@ pub(super) fn not_dimensioned(f: &Feature, why: &str) -> Problem {
         severity: "warning".into(),
         message: format!("{} is not dimensioned: {why}.", f.id),
         subjects: vec![f.id.clone()],
+        ..Default::default()
     }
 }
 

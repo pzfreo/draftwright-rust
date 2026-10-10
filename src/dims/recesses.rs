@@ -67,6 +67,7 @@ fn not_dimensioned(f: &Feature, why: &str) -> Problem {
         severity: "warning".into(),
         message: format!("{} is not dimensioned: {why}.", f.id),
         subjects: vec![f.id.clone()],
+        ..Default::default()
     }
 }
 
@@ -81,6 +82,7 @@ fn on_datum(owner: &str, k: usize) -> Problem {
             AXES[k]
         ),
         subjects: vec![owner.into()],
+        ..Default::default()
     }
 }
 

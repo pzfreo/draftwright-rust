@@ -228,6 +228,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     p.id
                 ),
                 subjects: vec![p.id.clone()],
+                ..Default::default()
             }),
         }
     }
@@ -244,6 +245,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 severity: "warning".into(),
                 message: format!("{} is not dimensioned: {why}.", f.id),
                 subjects: vec![f.id.clone()],
+                ..Default::default()
             }),
         }
     }
@@ -368,6 +370,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     AXES[s.long]
                 ),
                 subjects: vec![id.clone()],
+                ..Default::default()
             });
             continue;
         }
@@ -436,6 +439,7 @@ fn located_across(
                     AXES[k]
                 ),
                 subjects: vec![owner],
+                ..Default::default()
             });
             continue;
         }
@@ -703,6 +707,7 @@ fn pattern<'a>(cx: &Context<'a>, p: &'a Feature) -> Result<Grouped<'a>, String> 
                     AXES[k]
                 ),
                 subjects: vec![p.id.clone()],
+                ..Default::default()
             });
             continue;
         }

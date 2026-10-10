@@ -23,6 +23,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::dims::PlannedDimension;
+use crate::items::State;
 use crate::layout::Corner;
 use crate::model::{Analysis, Invalid, PlannedSheet, PlannedView, Problem};
 use crate::tables;
@@ -56,6 +57,8 @@ pub struct PlannedNote {
     pub rows: Vec<String>,
     pub default: bool,
     pub basis: String,
+    /// What became of it: shown, or why not ([`crate::items::State`]).
+    pub state: crate::items::State,
     /// Where it is drawn; absent when the block has no place, and a problem says so.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub placed: Option<PlacedNote>,
@@ -308,6 +311,7 @@ pub fn plan(
                 "The general notes block ({w:.1} × {h:.1} mm) has no place on the sheet clear of the views, their dimensions and the title block; its notes stay in the plan undrawn. Shorten or remove notes, or choose a larger sheet (sheet/size) or a smaller scale (sheet/scale)."
             ),
             subjects: notes.iter().map(|n| n.id.clone()).collect(),
+            ..Default::default()
         });
     }
     let mut first = 1;
@@ -356,6 +360,7 @@ pub fn plan(
                         i + 1
                     ),
                 },
+                state: State::placed_or(placed.is_some(), "notes_not_placed"),
                 placed,
             }
         })

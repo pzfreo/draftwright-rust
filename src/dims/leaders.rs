@@ -463,6 +463,7 @@ pub(super) fn place(
                     named(*i)
                 ),
                 subjects,
+                ..Default::default()
             });
         }
         let length = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
@@ -477,6 +478,7 @@ pub(super) fn place(
                     named(*i)
                 ),
                 subjects,
+                ..Default::default()
             });
         }
     }
@@ -491,6 +493,7 @@ pub(super) fn place(
                 subjects.len()
             ),
             subjects,
+            ..Default::default()
         });
     }
     problems

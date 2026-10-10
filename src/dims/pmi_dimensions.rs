@@ -659,7 +659,9 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
                 &r.label
             }
         ),
-        subjects: vec![r.source_id.clone()],
+        subjects: Vec::new(),
+        refs: vec![r.source_id.clone()],
+        ..Default::default()
     }
 }
 
@@ -990,7 +992,9 @@ pub(super) fn yield_to_spec(
                     "PMI dimension {s} ({band} on {}) is not drawn: the spec gives that size its own {what}, and a requirement already authored on a size wins over an imported one (draftwright's lower_ap242_hole_tolerances){label}.",
                     w.id
                 ),
-                subjects: vec![s.clone(), w.id.clone()],
+                subjects: vec![w.id.clone()],
+                refs: vec![s.clone()],
+                ..Default::default()
             });
         }
     }
@@ -1034,7 +1038,16 @@ pub(super) fn omitted(
                     "PMI dimension {source} is not drawn: the plan leaves out {}, which states it ({}).",
                     o.id, o.basis
                 ),
-                subjects: vec![source.to_string(), o.id.clone()],
+                subjects: vec![o.id.clone()],
+                refs: vec![source.to_string()],
+                // Shown again, the item states it.
+                fix: match o.state {
+                    crate::items::State::OmittedByUser => vec![crate::items::Op::remove(format!(
+                        "dimensions/{}/omit",
+                        crate::items::key(&o.id)
+                    ))],
+                    _ => Vec::new(),
+                },
             });
         }
     }

@@ -196,7 +196,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             Err(why) if r.category == Category::Dimension && r.kind != "common_label" => why,
             _ => why_not
                 .iter()
-                .find(|p| p.subjects.first().is_some_and(|s| s == id))
+                .find(|p| p.refs.first().is_some_and(|s| s == id))
                 .map_or_else(
                     || {
                         if r.blockers.is_empty() {

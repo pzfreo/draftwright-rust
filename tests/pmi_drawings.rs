@@ -513,6 +513,7 @@ fn rust_projection(
         .filter(|p| {
             p.subjects
                 .iter()
+                .chain(&p.refs)
                 .any(|s| *s == r.source_id || items.contains(&s.as_str()))
         })
         .map(|p| p.code.as_str())
