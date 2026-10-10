@@ -187,6 +187,259 @@
   "evidence": "draftwright cannot draw this part at all (its projection of the plan view raises), so nothing of its PMI reaches its sheet; the port draws the part and places every frame and symbol it lowers. Its lowering (build_pmi_features) is still compared item by item."
  },
  {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "geometric_tolerance:0:1:4:26",
+  "port": "geometric_tolerance:#1534",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "The pin is placed twice in the assembly; draftwright annotates XCAF's one shape, the port refuses rather than choose (pmi_not_lowered: its 1 faces are drawn in 2 placements of the part; which placement to annotate is an open question). Which placement a drawing should annotate is an open maintainer question (docs/next-session.md); the same cause as assembly_plate_pin.step's geometric_tolerance:0:1:4:26 (undetermined)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "geometric_tolerance:0:1:4:29",
+  "port": "geometric_tolerance:#1538",
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
+  "verdict": "undetermined",
+  "evidence": "The pin is placed twice in the assembly; draftwright annotates XCAF's one shape, the port refuses rather than choose (pmi_not_lowered: its 1 faces are drawn in 2 placements of the part; which placement to annotate is an open question). Which placement a drawing should annotate is an open maintainer question (docs/next-session.md); the same cause as assembly_plate_pin.step's geometric_tolerance:0:1:4:29 (undetermined)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:17",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum A (face #239, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1272 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:18 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:18",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum B (face #163, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1274 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:19 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:19",
+  "port": "datum:#1276",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves datum C raw because it cannot find its face (\"Part21 representation item #43 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the face, proves the attachment and draws the symbol (port datum:#1276). The same cause as assembly_plate_pin.step's datum:0:1:4:20 (rust-correct)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:21",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum A (face #239, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1272 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:22 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:22",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum B (face #163, the plate (part 0)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1274 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:23 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:27",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum A (face #1252, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1479 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:27 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:28",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum B (face #980, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1481 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:28 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:30",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum A (face #1252, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'A': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1479 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:30 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum:0:1:4:31",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum B (face #980, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1481 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:31 (rust-correct), whose datums specify-core wrote the same way."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum_definition:#1299",
+  "port": "datum:#1272",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves datum A raw because it cannot find its face (\"Part21 representation item #239 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the face, proves the attachment and draws the symbol (port datum:#1272). The same cause as assembly_plate_pin.step's datum_definition:#1274 (rust-correct)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "datum_definition:#1301",
+  "port": "datum:#1274",
+  "field": "lowered",
+  "python": "raw",
+  "rust": {
+   "lowered": "datum_ref",
+   "problem": null
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright leaves datum B raw because it cannot find its face (\"Part21 representation item #163 is not a face in the imported topology\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the face, proves the attachment and draws the symbol (port datum:#1274). The same cause as assembly_plate_pin.step's datum_definition:#1278 (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:9",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:14",
+  "port": "datum:#6517",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops datum D (plan_incomplete, pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B). The same cause as string_post_tapped.step's datum:0:1:4:5 (known_pmi_lowering.json, drawn) (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:15",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:19",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:24",
+  "port": null,
+  "field": "record",
+  "python": {
+   "category": "datum",
+   "kind": "datum",
+   "lowered": "raw"
+  },
+  "rust": null,
+  "verdict": "rust-correct",
+  "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
+ },
+ {
+  "file": "hw_string_post_tapped_intent.step",
+  "record": "datum:0:1:4:5",
+  "port": "datum:#3082",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops datum A (plan_incomplete, pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B). The same cause as string_post_tapped.step's datum:0:1:4:5 (known_pmi_lowering.json, drawn; specify-core's datum:#3086) (rust-correct)."
+ },
+ {
   "file": "nist_ctc_01_asme1_ap242-e1.stp",
   "record": "datum:0:1:4:2",
   "port": "datum:#34",

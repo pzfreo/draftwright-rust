@@ -23,22 +23,20 @@ The first alpha. Its gates and their state are in `docs/alpha1.md`.
 - Lint of the drawing against the recognised features, independent of the Plan.
 - AP242 semantic PMI: read through haecceity; feature control frames, datum feature symbols,
   and toleranced and basic dimensions drawn; surface and common labels drawn with leaders, and
-  the general tolerance, default surface finish and edge-condition notes on the sheet; thread
-  and knurl requirements on their owning hole's or turned step's callout, or `SEE MFG n` with a
-  manufacturing requirements table.
+  the general tolerance, default surface finish and edge-condition notes on the sheet.
 - The title block's material from the STEP file's one usable material property when the spec
   states none, as draftwright does.
 - Angular PMI dimensions between two planar faces, drawn about their vertex in the view that
   shows the angle true (nist_ctc_01's `60 ±0.5` in the plan); one no view shows true is refused.
-- PMI on hole occurrences (AP242 edition 4 `basic_round_hole`), now that haecceity reads them:
-  nist_stc_09's hole callouts and their position frames are drawn, counted over the pattern.
+- The AP242 files haecceity's PMI writer writes (8, from quiddity-rust's written fixtures) in the
+  PMI reading, drawing and coverage comparisons against draftwright, every difference verdicted.
 - SVG, DXF, PDF (subset fonts, searchable text) and PNG output, each carrying its Spec;
   deterministic to the byte in every time zone.
 
 ### Known limitations
 
-- Oblique PMI lengths, angles not between two planar faces (a cone's), face-finish requirements
-  and a thread or knurl on a boss are read and reported, not drawn; the PMI coverage lint is in
+- Oblique PMI lengths, angles not between two planar faces (a cone's), and PMI thread, knurl
+  and face-finish requirements, are read and reported, not drawn; the PMI coverage lint is in
   progress.
 - Section recesses and some other families are not read from quiddity-rust's document
   (`features_not_recognised`); an angled step is reported unsupported.

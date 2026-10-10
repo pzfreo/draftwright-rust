@@ -10,10 +10,21 @@ The files `tests/pmi.rs` reads AP242 semantic PMI from, and draftwright's readin
   provenance (NIST release and sha256, specify-core commit and answers) is quiddity-rust's
   `tests/fixtures/ap242/README.md`. Copied, not referenced, so the test needs neither a
   quiddity-rust checkout nor the cargo git checkout of it (CI runs archived test binaries).
+- `step/hw_*.step.gz`: byte-for-byte copies of the 8 files haecceity's PMI writer wrote,
+  quiddity-rust `tests/fixtures/ap242/write/<name>.step.gz` at 694dc17 (where this repository
+  pins haecceity), stem `hw_<name>`: `every_kind` (every kind of item the writer makes, on a
+  specify-core part), the intents specify-core wrote written again by haecceity
+  (`assembly_plate_pin_intent`, `spool_fits_intent`, `string_post_tapped_intent`,
+  `thumbwheel_thread_knurl_intent`), a written thread replaced and removed (`thread_replaced`,
+  `thread_removed`, U14) and an add beside specify-core's notes on faces
+  (`thumbwheel_notes_add`, U10). Their provenance and OpenCascade cross-check (`.occt.json.gz`)
+  are quiddity-rust's `docs/step-ap242.md` and `crates/haecceity/tests/pmi_write.rs`.
 - `<stem>.json.gz`: draftwright's `extract_pmi_report` on each of them and on the corpus's NIST
   parts (`nist/*.stp`, geometry only, read from `DRAFTWRIGHT_CORPUS`), written by
   `tools/capture_pmi.py` from draftwright `origin/main` 4dfc63f (OCP's OpenCascade, as
   draftwright's venv has it). `sha256` is that of the STEP text.
+  The `hw_*` captures (and those below and in `pmi_drawings/` and `pmi_coverage/`) were added
+  later from the same draftwright commit, 4dfc63f.
 
 Regenerate with
 `~/repos/draftwright/.venv/bin/python tools/capture_pmi.py <draftwright>/src <quiddity>/tests/corpus`.
