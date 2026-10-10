@@ -41,7 +41,8 @@
 //!
 //! The jobs are then assigned jointly (ISSUE-740-a, `_assign_by_view`): each takes one candidate,
 //! minimising first the hard blockers, then the crossings (with the fixed ink and between the
-//! chosen leaders), then the text touched, then the ink out of its area, then the total length.
+//! chosen leaders, where one leader's ink on another's label counts two: [`conflict`]), then the
+//! text touched, then the ink out of its area, then the total length.
 //! The jobs split into independent groups that could conflict; each group is solved exactly by a
 //! branch and bound whose work is bounded ([`NODE_BUDGET`]), from a greedy start that is its
 //! floor when the budget runs out. Nothing is dropped: a job whose every candidate is blocked
@@ -1057,9 +1058,11 @@ pub(super) fn segments_cross(a: [P2; 2], b: [P2; 2]) -> bool {
         && ((d3 > eps && d4 < -eps) || (d3 < -eps && d4 > eps))
 }
 
-/// Whether two candidates' ink cannot coexist (`_candidate_conflict`): labels within
-/// [`LABEL_PAD`] of each other, a line of one through the other's label, or their lines crossing.
-fn conflict(a: &Candidate, b: &Candidate) -> bool {
+/// How badly two candidates' ink conflicts (`_candidate_conflict`), in crossings: two when it
+/// touches text (labels within [`LABEL_PAD`] of each other, or a line of one through the other's
+/// label: a hard finding, `annotation_ink_overlap`), one when only their lines cross (Policy B
+/// keeps that, `annotation_leader_crossing`), none when they are clear.
+fn conflict(a: &Candidate, b: &Candidate) -> u32 {
     let grow = |x: [f64; 4]| {
         [
             x[0] - LABEL_PAD,
@@ -1069,28 +1072,38 @@ fn conflict(a: &Candidate, b: &Candidate) -> bool {
         ]
     };
     if !boxes_overlap(grow(a.bounds), grow(b.bounds)) {
-        return false;
+        return 0;
     }
     if boxes_overlap(grow(a.label_box), b.label_box) {
-        return true;
+        return TEXT_CONFLICT;
     }
     let (sa, sb) = (a.segments(), b.segments());
-    sa.iter().any(|s| crosses(*s, b.label_box))
-        || sb.iter().any(|s| crosses(*s, a.label_box))
-        || sa.iter().any(|s| sb.iter().any(|t| lines_meet(*s, *t)))
+    if sa.iter().any(|s| crosses(*s, b.label_box)) || sb.iter().any(|s| crosses(*s, a.label_box)) {
+        TEXT_CONFLICT
+    } else {
+        u32::from(sa.iter().any(|s| sb.iter().any(|t| lines_meet(*s, *t))))
+    }
 }
 
+/// The crossings a conflict that touches text counts (see [`conflict`]): two, so two leaders
+/// cross rather than one runs through the other's label, as draftwright ranks them (a text
+/// contact is in `_HARD_LAYOUT_CODES`, a leader crossing is Policy B info). Only between two
+/// leaders, which can both move: weighing the fixed ink's text the same was measured and moves
+/// more leaders across lines than it clears off labels (`docs/quality-2026-10-09.md`, "Accepted
+/// regressions").
+const TEXT_CONFLICT: u32 = 2;
+
 /// The joint assignment: one candidate index per inventory (none for an empty one), minimising the
-/// sum of the chosen candidates' scores plus [`CROSSING`] per conflicting pair. Jobs are grouped
-/// by possible conflicts; each group starts from its greedy assignment (jobs in order, each the
-/// best given those before it) and is then searched exactly, best first, up to [`NODE_BUDGET`]
-/// nodes; the best found is kept, and the groups whose search hit that bound are returned too
-/// (their members' job indices). Deterministic: ties keep the earlier job's and candidate's
+/// sum of the chosen candidates' scores plus [`CROSSING`] per crossing between the chosen
+/// ([`conflict`]). Jobs are grouped by possible conflicts; each group starts from its greedy
+/// assignment (jobs in order, each the best given those before it) and is then searched exactly,
+/// best first, up to [`NODE_BUDGET`] nodes; the best found is kept, and the groups whose search
+/// hit that bound are returned too (their members' job indices). Deterministic: ties keep the earlier job's and candidate's
 /// order.
 fn assign(inventories: &[Vec<Candidate>]) -> (Vec<usize>, Vec<Vec<usize>>) {
     let n = inventories.len();
     // Pairwise conflicts, per pair of jobs that have any.
-    let mut pairs: BTreeMap<(usize, usize), Vec<Vec<bool>>> = BTreeMap::new();
+    let mut pairs: BTreeMap<(usize, usize), Vec<Vec<u32>>> = BTreeMap::new();
     let mut parent: Vec<usize> = (0..n).collect();
     fn root(parent: &mut [usize], i: usize) -> usize {
         let mut r = i;
@@ -1102,11 +1115,11 @@ fn assign(inventories: &[Vec<Candidate>]) -> (Vec<usize>, Vec<Vec<usize>>) {
     }
     for a in 0..n {
         for b in a + 1..n {
-            let m: Vec<Vec<bool>> = inventories[a]
+            let m: Vec<Vec<u32>> = inventories[a]
                 .iter()
                 .map(|ca| inventories[b].iter().map(|cb| conflict(ca, cb)).collect())
                 .collect();
-            if m.iter().flatten().any(|x| *x) {
+            if m.iter().flatten().any(|x| *x > 0) {
                 pairs.insert((a, b), m);
                 let (ra, rb) = (root(&mut parent, a), root(&mut parent, b));
                 parent[ra.max(rb)] = ra.min(rb);
@@ -1133,12 +1146,13 @@ fn assign(inventories: &[Vec<Candidate>]) -> (Vec<usize>, Vec<Vec<usize>>) {
 }
 
 /// The conflicts between a group's jobs, dense: for jobs *k* and *l* of the group (local
-/// indices), `of[k * m + l][c]` holds, bit *d*, whether candidate *c* of *k* and candidate *d* of
-/// *l* conflict; none for a pair that never does. Inventories hold at most [`KEEP`] candidates,
-/// so one word covers each.
+/// indices), `of[k * m + l][w][c]` holds, bit *d*, whether candidate *c* of *k* and candidate *d*
+/// of *l* conflict by more than *w* crossings, one layer per crossing up to the pair's most;
+/// none for a pair that never does. Inventories hold at most [`KEEP`] candidates, so one word
+/// covers each.
 struct Conflicts {
     m: usize,
-    of: Vec<Option<Vec<u64>>>,
+    of: Vec<Option<Vec<Vec<u64>>>>,
 }
 
 const _: () = assert!(KEEP <= 64);
@@ -1147,7 +1161,7 @@ impl Conflicts {
     fn new(
         members: &[usize],
         sizes: &[usize],
-        pairs: &BTreeMap<(usize, usize), Vec<Vec<bool>>>,
+        pairs: &BTreeMap<(usize, usize), Vec<Vec<u32>>>,
     ) -> Conflicts {
         let m = members.len();
         let mut of = vec![None; m * m];
@@ -1158,12 +1172,17 @@ impl Conflicts {
                     continue;
                 };
                 let met = |c: usize, d: usize| if a < b { matrix[c][d] } else { matrix[d][c] };
+                let most = matrix.iter().flatten().copied().max().unwrap_or(0);
                 of[k * m + l] = Some(
-                    (0..sizes[k])
-                        .map(|c| {
-                            (0..sizes[l])
-                                .filter(|&d| met(c, d))
-                                .fold(0, |w, d| w | 1 << d)
+                    (0..most)
+                        .map(|layer| {
+                            (0..sizes[k])
+                                .map(|c| {
+                                    (0..sizes[l])
+                                        .filter(|&d| met(c, d) > layer)
+                                        .fold(0, |w, d| w | 1 << d)
+                                })
+                                .collect()
                         })
                         .collect(),
                 );
@@ -1176,11 +1195,14 @@ impl Conflicts {
         self.of[k * self.m + l].is_some()
     }
 
-    /// [`CROSSING`] when candidate *c* of job *k* and candidate *d* of job *l* conflict.
+    /// [`CROSSING`] per crossing by which candidate *c* of job *k* and candidate *d* of job *l*
+    /// conflict.
     fn cost(&self, k: usize, c: usize, l: usize, d: usize) -> i64 {
         match &self.of[k * self.m + l] {
-            Some(rows) if rows[c] >> d & 1 == 1 => CROSSING,
-            _ => 0,
+            Some(layers) => {
+                layers.iter().filter(|rows| rows[c] >> d & 1 == 1).count() as i64 * CROSSING
+            }
+            None => 0,
         }
     }
 }
@@ -1188,7 +1210,7 @@ impl Conflicts {
 fn solve_group(
     members: &[usize],
     inventories: &[Vec<Candidate>],
-    pairs: &BTreeMap<(usize, usize), Vec<Vec<bool>>>,
+    pairs: &BTreeMap<(usize, usize), Vec<Vec<u32>>>,
 ) -> (Vec<usize>, bool) {
     let m = members.len();
     let scores: Vec<Vec<i64>> = members
@@ -1282,16 +1304,17 @@ fn solve_group(
 }
 
 /// The joint assignment's exact search, best first and bounded by [`NODE_BUDGET`] nodes. At each
-/// job its candidates are taken in order of their score plus [`CROSSING`] per conflict with the
+/// job its candidates are taken in order of their score plus [`CROSSING`] per crossing with the
 /// candidates chosen before (ties by index), generated lazily: the candidates with the same
-/// number of conflicts are in their ranked order already, so the next is the least of each
+/// number of crossings are in their ranked order already, so the next is the least of each
 /// count's first, and a job whose bound fails after a few never orders the rest.
 struct Search {
     /// Per job, its candidates' indices in order of (score, index), and their scores so.
     ranked: Vec<Vec<usize>>,
     ranked_scores: Vec<Vec<i64>>,
-    /// Per job, each earlier job it can conflict with, and per candidate of that job, the ranks
-    /// of this job's candidates it conflicts with.
+    /// Per job, each earlier job it can conflict with, once per layer of [`Conflicts`], and per
+    /// candidate of that job, the ranks of this job's candidates it conflicts with by more than
+    /// that layer.
     before: Vec<Vec<(usize, Vec<u64>)>>,
     /// The remaining jobs' best scores, from each job on.
     rest: Vec<i64>,
@@ -1335,20 +1358,22 @@ impl Search {
                 r
             })
             .collect();
+        let (sizes, ranked_ref) = (&sizes, &ranked);
         let before: Vec<Vec<(usize, Vec<u64>)>> = (0..m)
             .map(|k| {
                 (0..k)
-                    .filter(|&j| conflicts.any(j, k))
-                    .map(|j| {
-                        let words = (0..sizes[j])
-                            .map(|cj| {
-                                let w = conflicts.of[j * m + k].as_ref().expect("a conflict")[cj];
-                                (0..sizes[k])
-                                    .filter(|&r| w >> ranked[k][r] & 1 == 1)
-                                    .fold(0, |x, r| x | 1 << r)
-                            })
-                            .collect();
-                        (j, words)
+                    .filter_map(|j| conflicts.of[j * m + k].as_ref().map(|layers| (j, layers)))
+                    .flat_map(|(j, layers)| {
+                        layers.iter().map(move |rows| {
+                            let words = (0..sizes[j])
+                                .map(|cj| {
+                                    (0..sizes[k])
+                                        .filter(|&r| rows[cj] >> ranked_ref[k][r] & 1 == 1)
+                                        .fold(0, |x, r| x | 1 << r)
+                                })
+                                .collect();
+                            (j, words)
+                        })
                     })
                     .collect()
             })
@@ -1386,7 +1411,7 @@ impl Search {
             self.current.pop();
             return;
         }
-        // The ranks with at least n conflicts, then with exactly n.
+        // The ranks with at least n crossings, then with exactly n.
         let rem = &mut self.rem[k];
         rem.fill(0);
         rem[0] = u64::MAX >> (64 - size);
@@ -1505,8 +1530,24 @@ mod tests {
             cand([0.0, 5.0], [20.0, 5.0], 20_000),
             cand([0.0, 5.0], [-20.0, 5.0], 30_000),
         ];
-        assert!(conflict(&a[0], &b[0]));
-        assert!(!conflict(&a[1], &b[0]));
+        assert_eq!(conflict(&a[0], &b[0]), 1);
+        assert_eq!(conflict(&a[1], &b[0]), 0);
+        assert_eq!(assign(&[a, b]), (vec![1, 0], vec![]));
+    }
+
+    /// A leader through another's label weighs two crossings, so the assignment takes a leader
+    /// crossing a leader before one through a label, though it is longer.
+    #[test]
+    fn a_leader_through_a_label_weighs_two_crossings() {
+        // Job 1's leader runs right, its label at x 18 to 27 on y 5.
+        let b = vec![cand([0.0, 5.0], [15.0, 5.0], 20_000)];
+        // Job 0's cheapest runs up through that label; its second crosses job 1's leader.
+        let a = vec![
+            cand([20.0, -5.0], [20.0, 15.0], 20_000),
+            cand([10.0, -5.0], [10.0, 15.0], 21_000),
+        ];
+        assert_eq!(conflict(&a[0], &b[0]), TEXT_CONFLICT);
+        assert_eq!(conflict(&a[1], &b[0]), 1);
         assert_eq!(assign(&[a, b]), (vec![1, 0], vec![]));
     }
 
@@ -1546,9 +1587,10 @@ mod tests {
             .sum();
         for a in 0..choice.len() {
             for b in a + 1..choice.len() {
-                if conflict(&inventories[a][choice[a]], &inventories[b][choice[b]]) {
-                    t += CROSSING;
-                }
+                t += i64::from(conflict(
+                    &inventories[a][choice[a]],
+                    &inventories[b][choice[b]],
+                )) * CROSSING;
             }
         }
         t
@@ -1588,8 +1630,8 @@ mod tests {
                 .min_by_key(|&c| {
                     inv[k][c].score()
                         + (0..k)
-                            .filter(|&j| conflict(&inv[k][c], &inv[j][greedy[j]]))
-                            .count() as i64
+                            .map(|j| i64::from(conflict(&inv[k][c], &inv[j][greedy[j]])))
+                            .sum::<i64>()
                             * CROSSING
                 })
                 .unwrap();
@@ -1704,10 +1746,18 @@ mod tests {
                     if lcg(&mut seed) < 0.3 {
                         continue;
                     }
-                    let matrix: Vec<Vec<bool>> = (0..sizes[a])
-                        .map(|_| (0..sizes[b]).map(|_| lcg(&mut seed) < density).collect())
+                    // Conflicts of one crossing and of two (text touched).
+                    let matrix: Vec<Vec<u32>> = (0..sizes[a])
+                        .map(|_| {
+                            (0..sizes[b])
+                                .map(|_| {
+                                    let x = lcg(&mut seed);
+                                    u32::from(x < density) + u32::from(x < density / 3.0)
+                                })
+                                .collect()
+                        })
                         .collect();
-                    if matrix.iter().flatten().any(|x| *x) {
+                    if matrix.iter().flatten().any(|x| *x > 0) {
                         pairs.insert((a, b), matrix);
                     }
                 }
