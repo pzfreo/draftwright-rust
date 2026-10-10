@@ -475,26 +475,26 @@ non-principal cylinders (`pmi_dimensions_not_ported`). The open questions (suppl
 an ISO 286 class without limits) stay refused. Compared record by record on the 14 AP242 files
 (`tests/pmi_dimensions.rs`, `tests/fixtures/known_pmi_dimensions.json`).
 
-**PMI coverage lint** (`src/lint/pmi_coverage.rs`, draftwright's `linting/pmi_coverage.py`):
-lint checks the finished drawing against the Analysis's PMI, never the Plan. A record is drawn
-when an annotation is named `pmi:<source>` (a frame, symbol, label or sheet requirement) or claims
-a measurement of feature `pmi:<source>` (a dimension, hole callout or turned size stating a PMI
-dimension); otherwise it is `pmi_not_lowered` or `pmi_not_rendered`. A record lowers when `pmi_lowering::lower` (a function of
-the Analysis alone) lowers it, a frame, symbol or label, when `pmi_lowering::sheet_requirements`
-lowers it to the sheet (a general tolerance, default finish or document note), or when it is a
-dimension of a kind stage 2b draws (a length along x, y or z, a diameter or radius seen end-on)
-whose reading and faces prove it; a thread, knurl, face finish or angle does not yet. Not lowered,
-it is `pmi_not_lowered` with the reason; lowered and not drawn, `pmi_not_rendered` (reported even
-when the plan already says why, as lint cannot read it: an open question). A source not read, or
-read in part, is `pmi_not_extracted` (error; info for a source of no draftwright category); a
-refused reading is `pmi_not_extracted` on the part. A drawn frame whose text runs do not state
-its source's magnitude, zone and datum letters is `pmi_value_mismatch`; an annotation claiming a
-source the reading does not hold is `pmi_source_unknown`, and one claiming a source on a part
-with no reading `pmi_unreconciled` (warning). The parts' materials (`pmi::Report::materials`)
-give `step_material_ambiguous` (several) and `step_material_unavailable` (one part's of several).
-Compared with draftwright's lint on the 14 AP242 files, each drawn as the command line draws it
-(Rust quiddity's features, the default spec) (`tests/pmi_coverage.rs`,
-`tests/fixtures/known_pmi_coverage.json`).
+**PMI coverage lint** (`src/lint/pmi_coverage.rs`, draftwright's `linting/pmi_coverage.py`): lint
+checks the finished drawing against the Analysis's PMI, never the Plan. A record is drawn when an
+annotation is named `pmi:<source>` (a frame, symbol, label or sheet requirement) or claims a
+measurement of feature `pmi:<source>` (a dimension, hole callout or turned size stating a PMI
+dimension); otherwise it is `pmi_not_lowered` or `pmi_not_rendered`. A record lowers when
+`pmi_lowering::lower` (a function of the Analysis alone) lowers it, a frame, symbol or label, when
+`pmi_lowering::sheet_requirements` lowers it to the sheet (a general tolerance, default finish or
+document note), or when it is a dimension of a kind stage 2b draws (a length along x, y or z, a
+diameter or radius seen end-on) whose reading and faces prove it; a thread, knurl, face finish or
+angle does not yet. Not lowered, it is `pmi_not_lowered` with the reason; lowered and not drawn,
+`pmi_not_rendered` (reported even when the plan already says why, as lint cannot read it: an open
+question). A source not read, or read in part, is `pmi_not_extracted` (error; info for a source of
+no draftwright category); a refused reading is `pmi_not_extracted` on the part. A drawn frame
+whose text runs do not state its source's magnitude, zone and datum letters is
+`pmi_value_mismatch`; an annotation claiming a source the reading does not hold is
+`pmi_source_unknown`, and one claiming a source on a part with no reading `pmi_unreconciled`
+(warning). The parts' materials (`pmi::Report::materials`) give `step_material_ambiguous`
+(several) and `step_material_unavailable` (one part's of several). Compared with draftwright's
+lint on the 14 AP242 files, each drawn as the command line draws it (Rust quiddity's features, the
+default spec) (`tests/pmi_coverage.rs`, `tests/fixtures/known_pmi_coverage.json`).
 
 ### PMI labels and drawing-wide requirements
 
