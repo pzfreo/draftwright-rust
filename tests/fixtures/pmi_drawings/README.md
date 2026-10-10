@@ -6,10 +6,12 @@ What draftwright's drawing shows of each AP242 file's PMI (`tests/fixtures/pmi/s
 - `<stem>.json.gz`: `build_drawing(..., pmi="annotate")` on the file (default build, A-series
   sheet, third angle), one item per record of `extract_pmi_report` (its `source_id` joins
   draftwright's reading in `tests/fixtures/pmi/<stem>.json.gz`): what the drawing states of it
-  (a dimension term citing it with its label, view, parameter and box; a frame's or datum
-  symbol's text tokens and view; a general note; the title block's general tolerance or the
-  default surface finish) and the codes of the lint issues naming it; or `error`, why
-  draftwright could not draw the part. No positions. `sha256` is the STEP text's. Written by
+  (a dimension term citing it with its label, view, parameter and box, or, for a thread or
+  knurl, the callout of its owner that prints it; a frame's or datum symbol's text tokens and
+  view; a general note; the title block's general tolerance or the default surface finish) and
+  the codes of the lint issues naming it; `manufacturing_table`, the manufacturing requirements
+  table's rows when the drawing places one; or `error`, why draftwright could not draw the
+  part. No positions. `sha256` is the STEP text's. Written by
   `tools/capture_pmi_drawings.py` from draftwright `origin/main` 4dfc63f. Regenerate with
   `~/repos/draftwright/.venv/bin/python tools/capture_pmi_drawings.py <draftwright>/src`.
 - `known_pmi_drawings.json`: every difference between draftwright's drawing and the port's, with

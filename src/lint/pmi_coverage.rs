@@ -18,10 +18,12 @@
 //! - `pmi_not_lowered`: a record that is not drawn and that [`lower`] does not lower: its reading's
 //!   blockers, its modifiers or its attachment stop it, a surface or common label has no proven
 //!   site, a drawing-wide requirement ([`sheet_requirements`]) is ambiguous or not a supported
-//!   default, or it is a manufacturing requirement of a face (a thread, knurl or face finish: read,
-//!   not drawn yet); a dimension that does not lower ([`dimension`]). Error; a manufacturing
-//!   requirement of a kind draftwright does not support is a warning.
-//! - `pmi_not_rendered`: a record [`lower`] or [`sheet_requirements`] lowers, or a dimension that
+//!   default, a thread or knurl no one feature owns ([`manufacturing`]: its text disagrees with
+//!   its cylinder, or no feature or several prove it), or it is a face finish (read, not drawn
+//!   yet); a dimension that does not lower ([`dimension`]). Error; a manufacturing requirement of
+//!   a kind draftwright does not support is a warning.
+//! - `pmi_not_rendered`: a record [`lower`] or [`sheet_requirements`] lowers, a thread or knurl
+//!   [`manufacturing`] gives to its owner (its owner's callout claims it), or a dimension that
 //!   lowers, that no annotation draws or states. Error.
 //! - `pmi_value_mismatch`: a frame whose text runs do not state its source's magnitude (one
 //!   number, within half the display's 13th significant digit, as Python allows), its zone
@@ -38,8 +40,9 @@
 //! Python's `pmi_present_but_ignored` is not-applicable: the port has no switch that ignores a
 //! part's PMI. Its other codes wait on the drawing or on a decision: of the manufacturing notes,
 //! finish symbols and requirement table that `pmi_source_text_mismatch`, `pmi_source_site_mismatch`
-//! and `manufacturing_reference_unresolved` check, the port draws only the drawing-wide notes and
-//! default finish (a face's finish, thread or knurl is not drawn); and the title block's material
+//! and `manufacturing_reference_unresolved` check, the port draws the drawing-wide notes, the
+//! default finish and the threads and knurls (on their callouts or in their table), not a face's
+//! finish, and checks none of their text yet; and the title block's material
 //! and general tolerance against the file (`step_material_mismatch` and `_disagreement`,
 //! `step_general_tolerance_*`) turn on whether the caller authored the field, which only the Spec
 //! says.
@@ -49,7 +52,7 @@ use std::collections::BTreeSet;
 use super::{LintIssue, Mark, Severity};
 use crate::model::Analysis;
 use crate::pmi::{Category, Outcome, Reading, Record, Report};
-use crate::pmi_lowering::{lower, sheet_requirements};
+use crate::pmi_lowering::{lower, manufacturing, sheet_requirements};
 
 /// Python's `_SUPPORTED_MANUFACTURING_REQUIREMENTS`.
 const MANUFACTURING: [&str; 5] = [
@@ -165,6 +168,9 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     why_not.extend(more);
     let mut lowered: BTreeSet<&str> = items.iter().map(|l| l.source.as_str()).collect();
     lowered.extend(sheet.iter().map(|r| r.source.as_str()));
+    // A thread or knurl given to its owner lowers to that owner's callout.
+    let manufacturing = manufacturing(analysis);
+    lowered.extend(manufacturing.owned.iter().map(|o| o.source.as_str()));
     lowered.extend(
         report
             .records

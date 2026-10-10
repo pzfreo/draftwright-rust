@@ -24,6 +24,12 @@
 //!   the face's box centre, [`label_geometry`]) in the front view, or the side view when its
 //!   references' box is longest along y, above or below by whether the site is above the part's
 //!   centre (`build_pmi_features`' label branch, drawn as `render_gdt` draws a `Note`).
+//! - **A thread or knurl** ([`manufacturing`], `lower_ap242_manufacturing_requirements`) is no
+//!   item of its own: it is given to the one hole or turned step its cylinder proves, its words
+//!   and structured statement reconciled and its text checked against the cylinder, and that
+//!   feature's callout prints its suffix (`⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`), or,
+//!   with two or more and one suffix over 52 characters, `SEE MFG n` and the manufacturing
+//!   requirements table states it ([`crate::tables::manufacturing`]).
 //! - **Drawing-wide requirements** ([`sheet_requirements`], `lower_ap242_document_requirements`):
 //!   the one general tolerance fills the title block's tolerance cell, the one default surface
 //!   texture (`Ra 3.2 µm unless otherwise specified`) is drawn beside the title block, and each
@@ -33,18 +39,18 @@
 //! What is not lowered is said, never guessed: a record whose reading left blockers (datum
 //! targets, composite relations, projected or non-uniform zones, datum modifiers, common
 //! datums, …), a modifier draftwright has no drawing for (only all-around, all-over, the zone's
-//! form and the material condition are drawn, as in draftwright), or an attachment its faces do
-//! not prove (`pmi_not_lowered`); a source the reading did not read (`pmi_not_extracted`); a file
-//! whose PMI could not be read (`pmi_not_read`); presentation, which is counted, not read
-//! (`pmi_presentation_not_read`). Toleranced and basic dimensions are lowered with the other
-//! dimensions ([`crate::dims`]' PMI dimensions, stage 2b), from where their faces put them
-//! ([`dimension_geometry`], here).
+//! form and the material condition are drawn, as in draftwright), an attachment its faces do
+//! not prove, or a thread or knurl no one feature owns (`pmi_not_lowered`); a source the reading
+//! did not read (`pmi_not_extracted`); a file whose PMI could not be read (`pmi_not_read`);
+//! presentation, which is counted, not read (`pmi_presentation_not_read`). Toleranced and basic
+//! dimensions are lowered with the other dimensions ([`crate::dims`]' PMI dimensions, stage 2b),
+//! from where their faces put them ([`dimension_geometry`], here).
 //!
 //! draftwright draws its PMI only when asked (`pmi="annotate"`; its default is off). The port has
 //! no such option: a part's PMI is drawn whenever it has some (a question for the maintainer in
 //! the stream's report).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use haecceity::Part;
 use haecceity::geom::Surface;
@@ -177,6 +183,7 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
         let [lo, hi] = analysis.envelope;
         [0, 1, 2].map(|k| 0.5 * (lo[k] + hi[k]))
     };
+    let mut owned: Option<Manufacturing> = None;
     for r in &report.records {
         match r.category {
             Category::GeometricTolerance | Category::Datum => {
@@ -229,20 +236,23 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
             Category::Dimension => {}
             // A drawing-wide requirement is the sheet's ([`sheet_requirements`]).
             Category::ManufacturingRequirement if sheet_kind(&r.kind) => {}
+            // A thread or knurl is printed on the callout of the one feature its cylinder proves,
+            // or refused with draftwright's reason ([`manufacturing`]).
+            Category::ManufacturingRequirement if owned_kind(&r.kind) => {
+                let m = owned.get_or_insert_with(|| manufacturing(analysis));
+                problems.extend(
+                    m.refused
+                        .iter()
+                        .filter(|p| p.subjects.first() == Some(&r.source_id))
+                        .cloned(),
+                );
+            }
             // Other manufacturing requirements are read, not drawn yet: said with draftwright's
             // code for a record that produced no feature, never dropped. A face's requirement is
-            // a warning; a part's note is information. draftwright draws no leader note for a
-            // thread or knurl: `lower_ap242_manufacturing_requirements` gives it to the one hole
-            // or turned step its cylinder proves, and that feature's callout prints its
-            // `callout_suffix` (`⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`), or `SEE MFG n`
-            // with a manufacturing requirements table (`manufacturing_schedule`): the port's
-            // hole and diameter callouts (`dims`) would carry it. Face finishes are not drawn
-            // either (`lower_ap242_face_finishes`).
+            // a warning; a part's note is information. Face finishes are not drawn
+            // (`lower_ap242_face_finishes`).
             _ => {
-                let face = r.kind.ends_with("_thread")
-                    || r.kind == "knurl"
-                    || !r.faces.is_empty()
-                    || !r.edges.is_empty();
+                let face = !r.faces.is_empty() || !r.edges.is_empty();
                 problems.push(Problem {
                     id: format!("p:pmi_not_lowered:{}", r.source_id),
                     code: "pmi_not_lowered".into(),
@@ -1490,6 +1500,1372 @@ fn g6(v: f64) -> String {
     }
 }
 
+// ---- Thread and knurl requirements on their owners' callouts (stage 2c) ----
+
+/// The manufacturing requirement kinds draftwright gives to the feature their cylinder proves
+/// (`lower_ap242_manufacturing_requirements`).
+const OWNED_KINDS: [&str; 3] = ["internal_thread", "external_thread", "knurl"];
+
+/// Whether a manufacturing requirement's kind is a thread or knurl ([`manufacturing`]'s).
+pub fn owned_kind(kind: &str) -> bool {
+    OWNED_KINDS.contains(&kind)
+}
+
+/// A suffix longer than this, with two or more requirements imported, moves them all into the
+/// manufacturing requirements table (draftwright's `manufacturing_schedule` threshold).
+const SCHEDULE_SUFFIX: usize = 52;
+
+/// The width a table row's requirement text wraps at (`_wrap_requirement`).
+const SCHEDULE_WRAP: usize = 44;
+
+/// The manufacturing requirements table's ID on the plan (draftwright's annotation name).
+pub const SCHEDULE_ID: &str = "manufacturing_requirements";
+
+/// A thread or knurl requirement given to the one feature its cylinder proves.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Owned {
+    /// The record's `source_id`.
+    pub source: String,
+    /// The feature that carries it (`f:hole:2`, `f:turned_step:4`).
+    pub owner: String,
+    /// `thread` or `knurl`.
+    pub aspect: &'static str,
+    /// The terms after the owner's size (`callout_suffix`): `M2 x 0.4-6H RH; 2.5 MIN FULL
+    /// THREAD`.
+    pub suffix: String,
+    /// The whole requirement, as a table row states it (`callout_text`): a knurl's maximum
+    /// diameter leads (`ø6 MAX AFTER KNURL; …`).
+    pub text: String,
+    /// A through tap: its suffix states `THRU`, so the hole callout's own `THRU` is not
+    /// repeated.
+    pub through: bool,
+}
+
+/// What the part's thread and knurl requirements come to ([`manufacturing`]).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Manufacturing {
+    /// Each requirement given to its owner, in the reading's order.
+    pub owned: Vec<Owned>,
+    /// Each requirement not given to one, and why (`pmi_not_lowered`).
+    pub refused: Vec<Problem>,
+    /// Each owned requirement's table reference (`MFG 1`, by source), when the table is used.
+    pub tags: Vec<(String, String)>,
+}
+
+impl Manufacturing {
+    /// What *o*'s owner's callout prints for it: its suffix, or `SEE MFG n` when the table
+    /// states it (`manufacturing_callout_suffix`).
+    pub fn printed(&self, o: &Owned) -> String {
+        self.tags
+            .iter()
+            .find(|(s, _)| *s == o.source)
+            .map_or_else(|| o.suffix.clone(), |(_, tag)| format!("SEE {tag}"))
+    }
+
+    /// The requirements feature *id* carries, its thread before its knurl (`_manufacturing_suffix`).
+    pub fn on(&self, id: &str) -> Vec<&Owned> {
+        let mut out: Vec<&Owned> = self.owned.iter().filter(|o| o.owner == id).collect();
+        out.sort_by_key(|o| o.aspect != "thread");
+        out
+    }
+
+    /// The terms feature *id*'s callout adds after its size, the requirements' printed text
+    /// joined by `; ` and split at its spaces, and whether a through tap's suffix states the
+    /// callout's `THRU` (draftwright then drops the bore's own).
+    pub fn terms(&self, id: &str) -> (Vec<String>, bool) {
+        let on = self.on(id);
+        let printed: Vec<String> = on.iter().map(|o| self.printed(o)).collect();
+        let through = on
+            .iter()
+            .zip(&printed)
+            .any(|(o, p)| o.through && *p == o.suffix);
+        let text = printed.join("; ");
+        (
+            text.split_whitespace().map(str::to_string).collect(),
+            through,
+        )
+    }
+
+    /// The manufacturing requirements table's rows, the header first (`ManufacturingSchedule.rows`:
+    /// `REF | MANUFACTURING REQUIREMENT`, each requirement's text wrapped at its words, its tag on
+    /// its first line), or none when the callouts print the requirements themselves.
+    pub fn rows(&self) -> Vec<Vec<String>> {
+        if self.tags.is_empty() {
+            return Vec::new();
+        }
+        let mut rows = vec![vec![
+            "REF".to_string(),
+            "MANUFACTURING REQUIREMENT".to_string(),
+        ]];
+        for (source, tag) in &self.tags {
+            let Some(o) = self.owned.iter().find(|o| o.source == *source) else {
+                continue;
+            };
+            for (i, line) in wrap(&o.text, SCHEDULE_WRAP).into_iter().enumerate() {
+                rows.push(vec![if i == 0 { tag.clone() } else { String::new() }, line]);
+            }
+        }
+        rows
+    }
+
+    /// The sources the table states, in its order.
+    pub fn scheduled(&self) -> Vec<String> {
+        self.tags.iter().map(|(s, _)| s.clone()).collect()
+    }
+}
+
+/// *text* broken at its words into lines of at most *width* characters, a longer word alone on
+/// its line (`_wrap_requirement`).
+fn wrap(text: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        let n = current.chars().count();
+        if n > 0 && n + word.chars().count() + 1 > width {
+            lines.push(std::mem::take(&mut current));
+            current.push_str(word);
+        } else {
+            if n > 0 {
+                current.push(' ');
+            }
+            current.push_str(word);
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
+}
+
+/// A thread requirement (draftwright's `ThreadRequirement`), from its words, its structured
+/// statement, or both reconciled.
+#[derive(Clone, Debug, PartialEq)]
+struct Thread {
+    internal: bool,
+    designation: String,
+    nominal: f64,
+    pitch: f64,
+    class: String,
+    hand: String,
+    full_available_length: bool,
+    minimum_full_thread: Option<f64>,
+    drill_diameter: Option<f64>,
+    drill_depth: Option<f64>,
+    drill_point_angle: Option<f64>,
+    through: bool,
+}
+
+impl Thread {
+    /// `ThreadRequirement.__post_init__`'s refusals.
+    fn check(self) -> Result<Self, String> {
+        for (name, v) in [("nominal_diameter", self.nominal), ("pitch", self.pitch)] {
+            if !(v.is_finite() && v > 0.0) {
+                return Err(format!("thread {name} must be finite and positive"));
+            }
+        }
+        for (name, v) in [
+            ("minimum_full_thread", self.minimum_full_thread),
+            ("drill_diameter", self.drill_diameter),
+            ("drill_depth", self.drill_depth),
+            ("drill_point_angle", self.drill_point_angle),
+        ] {
+            if v.is_some_and(|v| !(v.is_finite() && v > 0.0)) {
+                return Err(format!("thread {name} must be finite and positive"));
+            }
+        }
+        if self.internal
+            && let (Some(full), Some(depth)) = (self.minimum_full_thread, self.drill_depth)
+            && full > depth
+        {
+            return Err("thread minimum full thread cannot exceed drill depth".into());
+        }
+        if self.through
+            && (!self.internal || self.drill_depth.is_some() || self.drill_point_angle.is_some())
+        {
+            return Err("through thread must be internal without drill depth or point".into());
+        }
+        Ok(self)
+    }
+
+    /// `callout_suffix`: the terms the owner's own dimensions do not state.
+    fn suffix(&self) -> String {
+        if !self.internal {
+            let length = if self.full_available_length {
+                ", FULL AVAILABLE LENGTH"
+            } else {
+                ""
+            };
+            return format!("{}{length}", self.designation);
+        }
+        let mut terms = vec![self.designation.clone()];
+        if self.through {
+            terms.push("THRU".into());
+        }
+        if let Some(full) = self.minimum_full_thread {
+            terms.push(format!("{} MIN FULL THREAD", crate::dims::fmt(full)));
+        }
+        if let Some(angle) = self.drill_point_angle {
+            terms.push(format!(
+                "{}° CONVENTIONAL DRILL POINT",
+                crate::dims::fmt(angle)
+            ));
+        }
+        terms.join("; ")
+    }
+}
+
+/// A knurl requirement (draftwright's `KnurlRequirement`).
+#[derive(Clone, Debug, PartialEq)]
+struct Knurl {
+    /// `straight` or `diamond`.
+    pattern: String,
+    pitch: f64,
+    full_width: bool,
+    edge_chamfer: Option<f64>,
+    maximum_diameter: Option<f64>,
+    /// `cut`, `formed`: the processes permitted.
+    processes: Vec<&'static str>,
+}
+
+impl Knurl {
+    fn check(self) -> Result<Self, String> {
+        if !(self.pitch.is_finite() && self.pitch > 0.0) {
+            return Err("knurl pitch must be finite and positive".into());
+        }
+        for (name, v) in [
+            ("edge_chamfer", self.edge_chamfer),
+            ("maximum_diameter", self.maximum_diameter),
+        ] {
+            if v.is_some_and(|v| !(v.is_finite() && v > 0.0)) {
+                return Err(format!("knurl {name} must be finite and positive"));
+            }
+        }
+        Ok(self)
+    }
+
+    /// `callout_suffix`: compact terms after the owner's diameter.
+    fn suffix(&self) -> String {
+        let magnitude = |v: f64| crate::pmi::fmt_magnitude(v, None);
+        let mut terms = Vec::new();
+        if self.maximum_diameter.is_some() {
+            terms.push("MAX AFTER KNURL".to_string());
+        }
+        let mut knurl = format!(
+            "{} KNURL P{}",
+            self.pattern.to_uppercase(),
+            magnitude(self.pitch)
+        );
+        if self.full_width {
+            knurl += " FULL WIDTH";
+            if let Some(c) = self.edge_chamfer {
+                knurl += &format!(" TO C{} CHAMFERS", magnitude(c));
+            }
+        }
+        terms.push(knurl);
+        if !self.processes.is_empty() {
+            let p: Vec<String> = self.processes.iter().map(|p| p.to_uppercase()).collect();
+            terms.push(format!("{} PERMITTED", p.join("/")));
+        }
+        terms.join("; ")
+    }
+
+    /// `callout_text`: the whole requirement, its maximum diameter leading.
+    fn text(&self) -> String {
+        match self.maximum_diameter {
+            None => self.suffix(),
+            Some(d) => format!("ø{} {}", crate::pmi::fmt_magnitude(d, None), self.suffix()),
+        }
+    }
+}
+
+/// A position in a requirement's words, matched as draftwright's patterns match them
+/// (case-insensitive, `\s` runs where they allow them).
+struct Words<'a> {
+    s: &'a str,
+    at: usize,
+}
+
+impl<'a> Words<'a> {
+    /// Whitespace skipped; how much.
+    fn spaces(&mut self) -> usize {
+        let rest = &self.s[self.at..];
+        let n = rest.len() - rest.trim_start().len();
+        self.at += n;
+        n
+    }
+
+    /// At least one whitespace character (`\s+`).
+    fn space(&mut self) -> bool {
+        self.spaces() > 0
+    }
+
+    /// *word* exactly, letters in either case.
+    fn lit(&mut self, word: &str) -> bool {
+        let rest = &self.s[self.at..];
+        let ok = rest.len() >= word.len()
+            && rest.is_char_boundary(word.len())
+            && rest[..word.len()].eq_ignore_ascii_case(word);
+        if ok {
+            self.at += word.len();
+        }
+        ok
+    }
+
+    /// `\d+(?:\.\d+)?`.
+    fn number(&mut self) -> Option<f64> {
+        let rest = &self.s[self.at..];
+        let int = rest
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(rest.len());
+        if int == 0 {
+            return None;
+        }
+        let frac = rest[int..]
+            .strip_prefix('.')
+            .map(|f| f.find(|c: char| !c.is_ascii_digit()).unwrap_or(f.len()))
+            .filter(|&n| n > 0)
+            .map_or(0, |n| n + 1);
+        let v = rest[..int + frac].parse().ok()?;
+        self.at += int + frac;
+        Some(v)
+    }
+
+    /// `[A-Za-z0-9]+`.
+    fn alnum(&mut self) -> Option<&'a str> {
+        let rest = &self.s[self.at..];
+        let n = rest
+            .find(|c: char| !c.is_ascii_alphanumeric())
+            .unwrap_or(rest.len());
+        (n > 0).then(|| {
+            self.at += n;
+            &rest[..n]
+        })
+    }
+
+    fn end(&self) -> bool {
+        self.at == self.s.len()
+    }
+}
+
+/// A thread designation at the start of the words (`M<nominal>\s*x\s*<pitch>-<class>\s+RH|LH`):
+/// the designation as written, its nominal size, pitch, class and hand.
+fn thread_designation(w: &mut Words) -> Option<(String, f64, f64, String, String)> {
+    let start = w.at;
+    if !w.lit("M") {
+        return None;
+    }
+    let nominal = w.number()?;
+    w.spaces();
+    if !w.lit("x") {
+        return None;
+    }
+    w.spaces();
+    let pitch = w.number()?;
+    if !w.lit("-") {
+        return None;
+    }
+    let class = w.alnum()?.to_string();
+    if !w.space() {
+        return None;
+    }
+    let hand = if w.lit("RH") {
+        "RH"
+    } else if w.lit("LH") {
+        "LH"
+    } else {
+        return None;
+    };
+    Some((
+        w.s[start..w.at].to_string(),
+        nominal,
+        pitch,
+        class,
+        hand.to_string(),
+    ))
+}
+
+/// A thread from its words (`_text_thread_requirement`, `_EXTERNAL_THREAD`, `_INTERNAL_THREAD`).
+fn prose_thread(kind: &str, label: &str) -> Result<Thread, String> {
+    let internal = kind == "internal_thread";
+    let syntax = || format!("unsupported {} syntax", kind.replace('_', " "));
+    let text = label.trim();
+    let mut w = Words { s: text, at: 0 };
+    let (designation, nominal, pitch, class, hand) =
+        thread_designation(&mut w).ok_or_else(syntax)?;
+    if !w.lit(",") {
+        return Err(syntax());
+    }
+    w.spaces();
+    let mut t = Thread {
+        internal,
+        designation,
+        nominal,
+        pitch,
+        class,
+        hand,
+        full_available_length: !internal,
+        minimum_full_thread: None,
+        drill_diameter: None,
+        drill_depth: None,
+        drill_point_angle: None,
+        through: false,
+    };
+    if !internal {
+        let region = (|| {
+            if !w.lit("full available length on nominal DIA") || !w.space() {
+                return None;
+            }
+            let region = w.number()?;
+            (w.space() && w.lit("region") && w.end()).then_some(region)
+        })()
+        .ok_or_else(syntax)?;
+        if !same_number(nominal, region, 1e-6) {
+            return Err("external thread designation and nominal region disagree".into());
+        }
+        return t.check();
+    }
+    let after = w.at;
+    // `<full> mm minimum full thread; DIA <drill> tapping drill x <depth> mm full-diameter
+    // depth[; conventional <angle> degree drill point]`.
+    let blind = (|| {
+        let full = w.number()?;
+        w.spaces();
+        if !w.lit("mm minimum full thread;") {
+            return None;
+        }
+        w.spaces();
+        if !(w.lit("DIA") && w.space()) {
+            return None;
+        }
+        let drill = w.number()?;
+        if !(w.space() && w.lit("tapping drill") && w.space() && w.lit("x") && w.space()) {
+            return None;
+        }
+        let depth = w.number()?;
+        w.spaces();
+        if !w.lit("mm full-diameter depth") {
+            return None;
+        }
+        let before = w.at;
+        let angle = (|| {
+            if !w.lit(";") {
+                return None;
+            }
+            w.spaces();
+            if !(w.lit("conventional") && w.space()) {
+                return None;
+            }
+            let angle = w.number()?;
+            (w.space() && w.lit("degree drill point")).then_some(angle)
+        })();
+        if angle.is_none() {
+            w.at = before;
+        }
+        w.end().then_some((full, drill, depth, angle))
+    })();
+    if let Some((full, drill, depth, angle)) = blind {
+        t.minimum_full_thread = Some(full);
+        t.drill_diameter = Some(drill);
+        t.drill_depth = Some(depth);
+        t.drill_point_angle = angle;
+        return t.check();
+    }
+    w.at = after;
+    // `full thread through; DIA <drill> tapping drill through`.
+    let through = (|| {
+        if !w.lit("full thread through;") {
+            return None;
+        }
+        w.spaces();
+        if !(w.lit("DIA") && w.space()) {
+            return None;
+        }
+        let drill = w.number()?;
+        (w.space() && w.lit("tapping drill through") && w.end()).then_some(drill)
+    })();
+    let drill = through.ok_or_else(syntax)?;
+    t.drill_diameter = Some(drill);
+    t.through = true;
+    t.check()
+}
+
+/// A knurl from its words (`_text_knurl_requirement`, `_KNURL`).
+fn prose_knurl(label: &str) -> Result<Knurl, String> {
+    let text = label.trim();
+    let mut w = Words { s: text, at: 0 };
+    let parsed = (|| {
+        let pattern = if w.lit("Straight") {
+            "straight"
+        } else if w.lit("Diamond") {
+            "diamond"
+        } else {
+            return None;
+        };
+        if !w.lit(" knurl,") {
+            return None;
+        }
+        w.spaces();
+        let pitch = w.number()?;
+        w.spaces();
+        if !w.lit("mm pitch,") {
+            return None;
+        }
+        w.spaces();
+        let before = w.at;
+        let chamfer = (|| {
+            if !w.lit("full width between C") {
+                return None;
+            }
+            let c = w.number()?;
+            if !w.lit(" chamfers,") {
+                return None;
+            }
+            w.spaces();
+            Some(c)
+        })();
+        if chamfer.is_none() {
+            w.at = before;
+        }
+        if !(w.lit("DIA") && w.space()) {
+            return None;
+        }
+        let diameter = w.number()?;
+        w.spaces();
+        if !w.lit("mm maximum after knurling;") {
+            return None;
+        }
+        w.spaces();
+        (w.lit("cut or formed process permitted") && w.end())
+            .then_some((pattern, pitch, chamfer, diameter))
+    })();
+    let (pattern, pitch, chamfer, diameter) =
+        parsed.ok_or("unsupported knurl requirement syntax")?;
+    Knurl {
+        pattern: pattern.into(),
+        pitch,
+        full_width: chamfer.is_some(),
+        edge_chamfer: chamfer,
+        maximum_diameter: Some(diameter),
+        processes: vec!["cut", "formed"],
+    }
+    .check()
+}
+
+/// `_same_number`: within *tol*, or a millionth of *b*.
+fn same_number(a: f64, b: f64, tol: f64) -> bool {
+    (a - b).abs() <= tol.max(b.abs() * 1e-6)
+}
+
+/// The structured field names draftwright reads for each kind
+/// (`_STRUCTURED_MANUFACTURING_FIELDS`).
+fn structured_names(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "internal_thread" => &[
+            "thread side",
+            "designation",
+            "nominal size",
+            "pitch",
+            "fit class",
+            "hand",
+            "through",
+            "tapping drill diameter",
+            "tapping drill depth",
+            "minimum full thread",
+            "full thread length",
+            "drill diameter",
+            "drill depth",
+        ],
+        "external_thread" => &[
+            "thread side",
+            "designation",
+            "nominal size",
+            "pitch",
+            "fit class",
+            "hand",
+            "thread length",
+        ],
+        _ => &[
+            "pattern",
+            "diametral pitch",
+            "major diameter",
+            "pitch",
+            "maximum diameter",
+        ],
+    }
+}
+
+/// A requirement's structured fields, checked (`_structured_fields`, `_structured_number`,
+/// `_structured_text`).
+struct Fields<'a>(&'a [(String, crate::pmi::Field)]);
+
+impl<'a> Fields<'a> {
+    fn checked(r: &'a Record) -> Result<Self, String> {
+        let names: Vec<&str> = r.fields.iter().map(|(n, _)| n.as_str()).collect();
+        let distinct: BTreeSet<&str> = names.iter().copied().collect();
+        if distinct.len() != names.len() || names.iter().any(|n| n.is_empty()) {
+            return Err("structured manufacturing fields have duplicate or empty names".into());
+        }
+        let known = structured_names(&r.kind);
+        let unknown: Vec<&str> = distinct
+            .iter()
+            .copied()
+            .filter(|n| !known.contains(n))
+            .collect();
+        if !unknown.is_empty() {
+            return Err(format!(
+                "unsupported structured manufacturing fields: {}",
+                unknown.join(", ")
+            ));
+        }
+        Ok(Fields(&r.fields))
+    }
+
+    fn get(&self, name: &str) -> Option<&'a crate::pmi::Field> {
+        self.0.iter().find(|(n, _)| n == name).map(|(_, v)| v)
+    }
+
+    fn has(&self, name: &str) -> bool {
+        self.get(name).is_some()
+    }
+
+    fn number(&self, name: &str) -> Result<f64, String> {
+        match self.get(name) {
+            Some(crate::pmi::Field::Length(v)) if v.is_finite() && *v > 0.0 => Ok(*v),
+            _ => Err(format!(
+                "structured manufacturing {name} needs a positive length measure"
+            )),
+        }
+    }
+
+    fn alias(&self, name: &str, alias: &str) -> Result<f64, String> {
+        if self.has(name) && self.has(alias) {
+            return Err(format!(
+                "structured manufacturing has both {name} and {alias}"
+            ));
+        }
+        self.number(if self.has(name) { name } else { alias })
+    }
+
+    fn text(&self, name: &str) -> Result<String, String> {
+        match self.get(name) {
+            Some(crate::pmi::Field::Text(s)) if !s.trim().is_empty() => Ok(s.trim().to_string()),
+            _ => Err(format!(
+                "structured manufacturing {name} needs descriptive text"
+            )),
+        }
+    }
+}
+
+/// `M<nominal>\s*x\s*<pitch>` as the whole of *s*.
+fn metric_size(s: &str) -> Option<(f64, f64)> {
+    let mut w = Words { s, at: 0 };
+    if !w.lit("M") {
+        return None;
+    }
+    let nominal = w.number()?;
+    w.spaces();
+    if !w.lit("x") {
+        return None;
+    }
+    w.spaces();
+    let pitch = w.number()?;
+    w.end().then_some((nominal, pitch))
+}
+
+/// A thread from its structured statement (`_structured_thread_requirement` with
+/// `_structured_thread_extent`), *prose* its words' reading when they have one.
+fn structured_thread(
+    r: &Record,
+    prose: Option<&Thread>,
+    cylinders: &[Cylinder],
+) -> Result<Thread, String> {
+    let f = Fields::checked(r)?;
+    let side = f.text("thread side")?.to_lowercase();
+    if !matches!(side.as_str(), "internal" | "external") || r.kind != format!("{side}_thread") {
+        return Err("structured thread side disagrees with requirement kind".into());
+    }
+    let internal = side == "internal";
+    let (nominal, pitch) = metric_size(&f.text("designation")?)
+        .ok_or("structured thread designation or nominal size is unsupported")?;
+    let disagree = "structured thread designation disagrees with nominal size or pitch";
+    if f.has("nominal size") {
+        let size = f.text("nominal size")?;
+        let mut w = Words { s: &size, at: 0 };
+        let stated = w.lit("M").then(|| w.number()).flatten().filter(|_| w.end());
+        if !stated.is_some_and(|n| same_number(nominal, n, 1e-6)) {
+            return Err(disagree.into());
+        }
+    }
+    if f.has("pitch") && !same_number(pitch, f.number("pitch")?, 1e-6) {
+        return Err(disagree.into());
+    }
+    let class = f.text("fit class")?;
+    if !class.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err("structured thread fit class is unsupported".into());
+    }
+    let hand = match f.text("hand")?.to_lowercase().as_str() {
+        "right" | "rh" => "RH",
+        "left" | "lh" => "LH",
+        _ => return Err("structured thread hand is unsupported".into()),
+    };
+    let through = match f.get("through") {
+        None => false,
+        Some(crate::pmi::Field::Text(s)) if matches!(s.to_lowercase().as_str(), "true" | "yes") => {
+            true
+        }
+        Some(crate::pmi::Field::Text(s)) if matches!(s.to_lowercase().as_str(), "false" | "no") => {
+            false
+        }
+        Some(_) => return Err("structured thread through flag is unsupported".into()),
+    };
+    let designation = format!("M{} x {}-{class} {hand}", g6(nominal), g6(pitch));
+    let (mut drill, mut depth, mut full) = (None, None, None);
+    let full_available_length = if internal {
+        drill = Some(f.alias("tapping drill diameter", "drill diameter")?);
+        depth = if through {
+            None
+        } else {
+            Some(f.alias("tapping drill depth", "drill depth")?)
+        };
+        if through && (f.has("tapping drill depth") || f.has("drill depth")) {
+            return Err("structured through tap cannot declare a blind drill depth".into());
+        }
+        full = if f.has("full thread length") {
+            if !prose.is_some_and(|p| p.minimum_full_thread.is_some()) {
+                return Err("structured full thread length needs a matching minimum-full-thread prose requirement".into());
+            }
+            Some(f.alias("minimum full thread", "full thread length")?)
+        } else if f.has("minimum full thread") {
+            Some(f.number("minimum full thread")?)
+        } else {
+            None
+        };
+        if through && let Some(full) = full {
+            let fits = match cylinders {
+                [c] => full <= c.interval[1] - c.interval[0] + 0.01,
+                _ => false,
+            };
+            if !fits {
+                return Err("structured minimum full thread exceeds source cylinder".into());
+            }
+        }
+        false
+    } else {
+        if through {
+            return Err("structured external thread cannot be a through tap".into());
+        }
+        if f.has("thread length") {
+            // A tip chamfer can shorten the source face: its owner's span is checked once the
+            // owner is known ([`manufacturing`]).
+            f.number("thread length")?;
+        } else if !prose.is_some_and(|p| p.full_available_length) {
+            return Err("structured external thread has no length requirement".into());
+        }
+        true
+    };
+    Thread {
+        internal,
+        designation,
+        nominal,
+        pitch,
+        class,
+        hand: hand.into(),
+        full_available_length,
+        minimum_full_thread: full,
+        drill_diameter: drill,
+        drill_depth: depth,
+        drill_point_angle: None,
+        through,
+    }
+    .check()
+}
+
+/// Whether record *r* pairs a requirement in words with its structured statement (draftwright's
+/// two source IDs): it has fields, and its label is its words, not its kind (an unpaired
+/// structured statement is labelled with its kind, [`crate::pmi`]).
+fn paired(r: &Record) -> bool {
+    !r.fields.is_empty() && r.label != r.kind.replace('_', " ")
+}
+
+/// A thread from its record (`_thread_requirement`): its words and its structured statement
+/// reconciled, value by value.
+fn thread(r: &Record, cylinders: &[Cylinder]) -> Result<Thread, String> {
+    if r.fields.is_empty() {
+        return prose_thread(&r.kind, &r.label);
+    }
+    let prose = match prose_thread(&r.kind, &r.label) {
+        Ok(t) => Some(t),
+        Err(_) if paired(r) => return Err("structured thread cannot reconcile with prose".into()),
+        Err(_) => None,
+    };
+    let structured = structured_thread(r, prose.as_ref(), cylinders)?;
+    let Some(prose) = prose else {
+        return Ok(structured);
+    };
+    let num = |a: Option<f64>, b: Option<f64>| match (a, b) {
+        (Some(a), Some(b)) => same_number(a, b, 1e-6),
+        (a, b) => a == b,
+    };
+    let s = &structured;
+    let agree = s.internal == prose.internal
+        && same_number(s.nominal, prose.nominal, 1e-6)
+        && same_number(s.pitch, prose.pitch, 1e-6)
+        && s.class == prose.class
+        && s.hand == prose.hand
+        && num(s.minimum_full_thread, prose.minimum_full_thread)
+        && num(s.drill_diameter, prose.drill_diameter)
+        && num(s.drill_depth, prose.drill_depth)
+        && s.through == prose.through
+        && s.full_available_length == prose.full_available_length;
+    if !agree {
+        return Err("structured thread values disagree with prose".into());
+    }
+    Thread {
+        drill_point_angle: prose.drill_point_angle,
+        ..structured
+    }
+    .check()
+}
+
+/// A knurl from its record (`_knurl_requirement`, `_structured_knurl_requirement`).
+fn knurl(r: &Record) -> Result<Knurl, String> {
+    if r.fields.is_empty() {
+        return prose_knurl(&r.label);
+    }
+    let prose = match prose_knurl(&r.label) {
+        Ok(k) => Some(k),
+        Err(_) if paired(r) => return Err("structured knurl cannot reconcile with prose".into()),
+        Err(_) => None,
+    };
+    let f = Fields::checked(r)?;
+    let pattern = f.text("pattern")?.to_lowercase();
+    if !matches!(pattern.as_str(), "straight" | "diamond") {
+        return Err("structured knurl pattern is unsupported".into());
+    }
+    if prose.is_none() && (f.has("diametral pitch") || f.has("major diameter")) {
+        // These labels alone do not establish a linear pitch or a maximum after knurling.
+        return Err("structured knurl aliases need a matching prose requirement".into());
+    }
+    let structured = Knurl {
+        pattern,
+        pitch: f.alias("diametral pitch", "pitch")?,
+        full_width: false,
+        edge_chamfer: None,
+        maximum_diameter: Some(f.alias("major diameter", "maximum diameter")?),
+        processes: Vec::new(),
+    }
+    .check()?;
+    let Some(prose) = prose else {
+        return Ok(structured);
+    };
+    let agree = structured.pattern == prose.pattern
+        && same_number(structured.pitch, prose.pitch, 1e-6)
+        && match (structured.maximum_diameter, prose.maximum_diameter) {
+            (Some(a), Some(b)) => same_number(a, b, 1e-6),
+            _ => false,
+        };
+    if !agree {
+        return Err("structured knurl values disagree with prose".into());
+    }
+    Ok(Knurl {
+        full_width: prose.full_width,
+        edge_chamfer: prose.edge_chamfer,
+        processes: prose.processes,
+        ..structured
+    })
+}
+
+/// Where a thread or knurl requirement applies (draftwright's `_manufacturing_requirement_topology`
+/// with `_cylindrical_references_from_shapes`): its faces' exact cylinders, identical ones once,
+/// and the reasons a face is none. A requirement on an edge, or on no face, has none.
+pub fn requirement_geometry(part: &Part, r: &Record) -> Geometry {
+    let mut g = Geometry::default();
+    let noun = "manufacturing requirement";
+    if !r.edges.is_empty() {
+        g.reasons
+            .push(format!("one {noun} reference is not a face"));
+    }
+    for &f in &r.faces {
+        match cylinder(part, f) {
+            Ok(c) => {
+                if !g.cylinders.iter().any(|d| same_cylinder(d, &c)) {
+                    g.cylinders.push(c);
+                }
+            }
+            Err(why) => g.reasons.push(
+                why.replace("one diameter reference", &format!("one {noun} reference"))
+                    .replace(
+                        "one cylindrical reference",
+                        &format!("one {noun} reference"),
+                    ),
+            ),
+        }
+    }
+    if g.cylinders.is_empty() && g.reasons.is_empty() {
+        g.reasons
+            .push(format!("{noun} reference geometry is unavailable"));
+    }
+    g.reasons = dedup(g.reasons);
+    g
+}
+
+/// A feature a thread or knurl may belong to (draftwright's `StepFeature`, `BossFeature`,
+/// `HoleFeature`), read in the drawing's frame.
+struct Owner {
+    id: String,
+    /// `hole`, `step` or `boss`.
+    kind: &'static str,
+    axis: usize,
+    diameter: f64,
+    /// A hole's opening (its member station); a point on a step's or boss's axis.
+    at: [f64; 3],
+    /// A step's or boss's span along its axis; a hole's none.
+    span: Option<[f64; 2]>,
+    through: bool,
+    depth: Option<f64>,
+}
+
+/// The features that may own a thread or knurl: each hole the callouts state on its own (a
+/// member of a hole pattern the callouts state as a pattern is not one: draftwright's pattern
+/// owns a thread only when it has one member), each turned step that is a band of its own, and
+/// each cylindrical boss that is neither a groove's floor nor a turned step's band (as
+/// [`crate::dims`] reads them).
+fn owners(analysis: &Analysis) -> Vec<Owner> {
+    use crate::bridge::holes;
+    let frame = holes::frame(analysis);
+    let mut out = Vec::new();
+    let readable: Vec<holes::Hole> = holes::read(analysis)
+        .into_iter()
+        .filter_map(|(_, h)| h.ok())
+        .filter(|h| h.principal.is_some() && (h.through || h.depth.is_some()))
+        .collect();
+    let reads: Vec<&holes::Hole> = readable.iter().collect();
+    let bosses = holes::bosses(analysis);
+    let mut taken: BTreeSet<usize> = BTreeSet::new();
+    for p in analysis
+        .recognition
+        .as_ref()
+        .map_or(&[][..], |r| r.patterns.as_slice())
+    {
+        if let Ok(members) = holes::established_with(p, &reads, &bosses)
+            && !members.iter().any(|m| taken.contains(m))
+        {
+            taken.extend(members);
+        }
+    }
+    for (i, h) in readable.iter().enumerate() {
+        if taken.contains(&i) {
+            continue;
+        }
+        out.push(Owner {
+            id: h.feature.id.clone(),
+            kind: "hole",
+            axis: h.principal.expect("a principal hole").0,
+            diameter: h.diameter,
+            at: h.at,
+            span: None,
+            through: h.through,
+            depth: h.depth,
+        });
+    }
+    if let Ok(steps) = crate::lint::turned::bands(analysis) {
+        for f in steps {
+            if let Ok(b) = crate::lint::turned::band(&frame, f) {
+                out.push(Owner {
+                    id: f.id.clone(),
+                    kind: "step",
+                    axis: b.axis,
+                    diameter: b.diameter,
+                    at: b.on,
+                    span: Some([b.lo, b.hi]),
+                    through: false,
+                    depth: None,
+                });
+            }
+        }
+    }
+    for f in analysis.features.iter().filter(|f| f.kind == "boss") {
+        if crate::lint::bosses::groove_floor(analysis, f)
+            || crate::lint::bosses::turned_band(analysis, f)
+        {
+            continue;
+        }
+        let p = &f.parameters;
+        let (Some(top), Some(dir), Some(diameter)) = (
+            holes::point(p.get("location")),
+            holes::point(p.get("axis")),
+            p.get("diameter").and_then(serde_json::Value::as_f64),
+        ) else {
+            continue;
+        };
+        let top = holes::to_part(&frame, top);
+        let dir = holes::dir_to_part(&frame, dir);
+        let Some(k) = holes::principal(dir) else {
+            continue;
+        };
+        let height = p
+            .get("height")
+            .and_then(serde_json::Value::as_f64)
+            .filter(|h| *h > 0.0);
+        let span = height.map(|h| {
+            let base = top[k] - dir[k].signum() * h;
+            [base.min(top[k]), base.max(top[k])]
+        });
+        out.push(Owner {
+            id: f.id.clone(),
+            kind: "boss",
+            axis: k,
+            diameter,
+            at: top,
+            span,
+            through: false,
+            depth: None,
+        });
+    }
+    out
+}
+
+/// Whether *c*'s axis is the line along world axis *k* through *p* (`_same_axis_line`, 0.01 mm).
+fn same_axis_line(c: &Cylinder, p: [f64; 3], k: usize) -> bool {
+    (0..3).all(|i| i == k || (c.origin[i] - p[i]).abs() <= 0.01)
+}
+
+/// `_external_owner_matches`: an external cylinder on the step's or boss's axis, of its
+/// diameter, within its span.
+fn external_owner(c: &Cylinder, o: &Owner) -> bool {
+    if c.internal || c.principal() != Some(o.axis) {
+        return false;
+    }
+    if !same_number(2.0 * c.radius, o.diameter, 0.01) || !same_axis_line(c, o.at, o.axis) {
+        return false;
+    }
+    let Some([lo, hi]) = o.span else {
+        return false;
+    };
+    let [a, b] = c.interval;
+    lo - 0.01 <= a && a < b && b <= hi + 0.01
+}
+
+/// `_internal_member_matches`: an internal cylinder on the hole's axis, of its diameter, running
+/// from its opening its depth (a through hole's within the part's box).
+fn internal_owner(c: &Cylinder, o: &Owner, envelope: [[f64; 3]; 2]) -> bool {
+    if !c.internal || c.principal() != Some(o.axis) {
+        return false;
+    }
+    if !same_number(2.0 * c.radius, o.diameter, 0.01) || !same_axis_line(c, o.at, o.axis) {
+        return false;
+    }
+    let k = o.axis;
+    let [lo, hi] = c.interval;
+    let station = o.at[k];
+    if o.through {
+        let [box_lo, box_hi] = [envelope[0][k], envelope[1][k]];
+        if !(lo - 0.01 <= station && station <= hi + 0.01) {
+            return false;
+        }
+        if lo < box_lo - 0.01 || hi > box_hi + 0.01 || hi.min(box_hi) - lo.max(box_lo) <= 0.01 {
+            return false;
+        }
+        return o.depth.is_none_or(|d| same_number(hi - lo, d, 0.01));
+    }
+    let Some(depth) = o.depth else {
+        return false;
+    };
+    same_number(hi - lo, depth, 0.01) && (lo - station).abs().min((hi - station).abs()) <= 0.01
+}
+
+/// A requirement read from its record.
+enum Aspect {
+    Thread(Thread),
+    Knurl(Knurl),
+}
+
+/// `_manufacturing_owner_matches`: whether *o* owns requirement *a* on cylinder *c*.
+fn owns(a: &Aspect, c: &Cylinder, o: &Owner, envelope: [[f64; 3]; 2]) -> bool {
+    match a {
+        Aspect::Thread(t) if t.internal => {
+            o.kind == "hole"
+                && if t.through {
+                    o.through && internal_owner(c, o, envelope)
+                } else {
+                    !o.through
+                        && o.depth.is_some_and(|d| {
+                            t.drill_depth.is_some_and(|dd| same_number(dd, d, 0.01))
+                        })
+                        && internal_owner(c, o, envelope)
+                }
+        }
+        _ => matches!(o.kind, "step" | "boss") && external_owner(c, o),
+    }
+}
+
+/// The part's turned chamfers as `_turned_tip_chamfers_cover_gap` reads them: axis, legs, angle
+/// and centre, in the drawing's frame.
+fn turned_chamfers(analysis: &Analysis) -> Vec<(usize, f64, f64, f64, [f64; 3])> {
+    use crate::bridge::holes;
+    let frame = holes::frame(analysis);
+    analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "chamfer")
+        .filter_map(|f| {
+            let p = &f.parameters;
+            if p.get("turned").and_then(serde_json::Value::as_bool) != Some(true) {
+                return None;
+            }
+            let letter = p.get("axis")?.as_str()?;
+            let q = ["x", "y", "z"].iter().position(|a| *a == letter)?;
+            let mut d = [0.0; 3];
+            d[q] = 1.0;
+            let k = holes::principal(holes::dir_to_part(&frame, d))?;
+            let at = holes::to_part(&frame, holes::point(p.get("at"))?);
+            let n = |name: &str| p.get(name).and_then(serde_json::Value::as_f64);
+            Some((k, n("leg1")?, n("leg2")?, n("angle")?, at))
+        })
+        .collect()
+}
+
+/// `_turned_tip_chamfers_cover_gap`: the owner's span runs past the thread's cylinder only where
+/// a recognised equal-leg 45° end chamfer fills the gap.
+fn tip_chamfers_cover(
+    c: &Cylinder,
+    o: &Owner,
+    chamfers: &[(usize, f64, f64, f64, [f64; 3])],
+) -> bool {
+    let Some([owner_lo, owner_hi]) = o.span else {
+        return false;
+    };
+    let k = o.axis;
+    let [source_lo, source_hi] = c.interval;
+    let mut found = false;
+    for (lo, hi) in [(owner_lo, source_lo), (source_hi, owner_hi)] {
+        let gap = hi - lo;
+        if gap <= 0.01 {
+            continue;
+        }
+        found = true;
+        let station = 0.5 * (lo + hi);
+        let covered = chamfers.iter().any(|&(axis, leg1, leg2, angle, at)| {
+            let radial = (0..3)
+                .filter(|&i| i != k)
+                .map(|i| (at[i] - c.origin[i]).powi(2))
+                .sum::<f64>()
+                .sqrt();
+            axis == k
+                && same_number(leg1, gap, 0.01)
+                && same_number(leg2, gap, 0.01)
+                && same_number(angle, 45.0, 0.01)
+                && same_number(at[k], station, 0.01)
+                && same_number(radial, c.radius - gap / 2.0, 0.01)
+        });
+        if !covered {
+            return false;
+        }
+    }
+    found
+}
+
+/// The part's thread and knurl requirements given to their owners, as draftwright's
+/// `lower_ap242_manufacturing_requirements` and `manufacturing_schedule` decide it:
+///
+/// - each record of kind `internal_thread`, `external_thread` or `knurl` is read from its words
+///   and its structured statement, reconciled value by value (`_thread_requirement`,
+///   `_knurl_requirement`); its one cylinder must be the size its text states (a tap's drill
+///   diameter and drill depth, an external thread's nominal size, a knurl's maximum diameter);
+/// - its owner is the one feature that cylinder proves: a blind hole of the drill depth or a
+///   through hole whose bore it is (an internal thread), a turned step or boss whose diameter
+///   and span hold it (an external thread or knurl; a structured thread length is the cylinder's,
+///   or the owner's when recognised 45° tip chamfers fill the difference);
+/// - two requirements of one aspect on one owner are both refused;
+/// - with two or more requirements owned and one suffix longer than 52 characters, each owner's
+///   callout prints `SEE MFG n` and the manufacturing requirements table states them, in the
+///   order of their source IDs.
+///
+/// What is not owned is refused with draftwright's reason, never dropped: a record a face of
+/// which another requirement already claims, whose reading left blockers, whose faces are not
+/// one exact cylinder, whose text disagrees with its cylinder, or that no feature or several
+/// own. A requirement a boss owns is refused too: the port prints none on a boss's diameter yet.
+pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
+    let mut out = Manufacturing::default();
+    let Some(Reading::Read(report)) = &analysis.pmi else {
+        return out;
+    };
+    let records: Vec<&Record> = report
+        .records
+        .iter()
+        .filter(|r| r.category == Category::ManufacturingRequirement && owned_kind(&r.kind))
+        .collect();
+    if records.is_empty() {
+        return out;
+    }
+    let candidates = owners(analysis);
+    let chamfers = turned_chamfers(analysis);
+    let mut claimed: Vec<(usize, u64)> = Vec::new();
+    // Each record's proposal: its owner's index and its aspect, or why it has none.
+    let mut proposals: Vec<Result<(usize, Aspect), String>> = Vec::new();
+    for r in &records {
+        let proposal = (|| {
+            let mut reasons = blockers(r);
+            let g = r.geometry.clone().unwrap_or_default();
+            if reasons.is_empty() {
+                // draftwright's topology resolver gives each imported face to one requirement.
+                let held: Vec<u64> = r
+                    .faces
+                    .iter()
+                    .filter_map(|f| claimed.iter().find(|(c, _)| c == f).map(|(_, by)| *by))
+                    .filter(|by| *by != r.part21_id)
+                    .collect();
+                for by in held {
+                    reasons.push(format!(
+                        "one imported face is already claimed by manufacturing requirement #{by}"
+                    ));
+                }
+                if reasons.is_empty() {
+                    claimed.extend(r.faces.iter().map(|&f| (f, r.part21_id)));
+                }
+            }
+            if !reasons.is_empty() {
+                return Err(dedup(reasons).join("; "));
+            }
+            let aspect = if r.kind == "knurl" {
+                Aspect::Knurl(knurl(r)?)
+            } else {
+                Aspect::Thread(thread(r, &g.cylinders)?)
+            };
+            let disagree =
+                || "manufacturing requirement text disagrees with source cylinder".to_string();
+            let c = g.cylinders.first().ok_or_else(disagree)?;
+            let expected = match &aspect {
+                Aspect::Knurl(k) => k.maximum_diameter,
+                Aspect::Thread(t) if t.internal => t.drill_diameter,
+                Aspect::Thread(t) => Some(t.nominal),
+            };
+            if !expected.is_some_and(|d| same_number(2.0 * c.radius, d, 0.01)) {
+                return Err(disagree());
+            }
+            if let Aspect::Thread(t) = &aspect
+                && t.internal
+                && !t.through
+                && !t
+                    .drill_depth
+                    .is_some_and(|d| same_number(c.interval[1] - c.interval[0], d, 0.01))
+            {
+                return Err(disagree());
+            }
+            let matches: Vec<usize> = if g.cylinders.len() == 1 {
+                (0..candidates.len())
+                    .filter(|&i| owns(&aspect, c, &candidates[i], analysis.envelope))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            let owner = match matches[..] {
+                [i] => i,
+                [] => {
+                    return Err(
+                        "unmatched manufacturing requirement: no canonical feature matches source topology"
+                            .into(),
+                    );
+                }
+                _ => {
+                    return Err(format!(
+                        "ambiguous manufacturing requirement: source topology matches {} canonical features",
+                        matches.len()
+                    ));
+                }
+            };
+            let o = &candidates[owner];
+            if let Aspect::Thread(t) = &aspect
+                && !t.internal
+                && let Ok(length) = Fields(&r.fields).number("thread length")
+            {
+                let span = o.span.ok_or("external thread owner has no axial span")?;
+                let source = c.interval[1] - c.interval[0];
+                if !(same_number(source, length, 0.01)
+                    || (same_number(span[1] - span[0], length, 0.01)
+                        && tip_chamfers_cover(c, o, &chamfers)))
+                {
+                    return Err("structured thread length disagrees with source cylinder or evidenced owner span".into());
+                }
+            }
+            Ok((owner, aspect))
+        })();
+        proposals.push(proposal);
+    }
+    // One requirement of each aspect per owner.
+    let aspect_name = |a: &Aspect| match a {
+        Aspect::Thread(_) => "thread",
+        Aspect::Knurl(_) => "knurl",
+    };
+    let mut claims: BTreeMap<(usize, &'static str), usize> = BTreeMap::new();
+    for p in proposals.iter().flatten() {
+        *claims.entry((p.0, aspect_name(&p.1))).or_default() += 1;
+    }
+    for (r, p) in records.iter().zip(proposals) {
+        let refusal = match p {
+            Err(why) => Some(why),
+            Ok((owner, aspect)) => {
+                let name = aspect_name(&aspect);
+                let o = &candidates[owner];
+                if claims[&(owner, name)] > 1 {
+                    Some(format!(
+                        "ambiguous {name} ownership: multiple manufacturing requirements claim canonical feature"
+                    ))
+                } else if o.kind == "boss" {
+                    Some(format!(
+                        "it belongs to boss {} (draftwright prints it on the boss's diameter), and the port prints no thread or knurl on a boss's callout yet",
+                        o.id
+                    ))
+                } else {
+                    let (suffix, text, through) = match &aspect {
+                        Aspect::Thread(t) => (t.suffix(), t.suffix(), t.through),
+                        Aspect::Knurl(k) => (k.suffix(), k.text(), false),
+                    };
+                    out.owned.push(Owned {
+                        source: r.source_id.clone(),
+                        owner: o.id.clone(),
+                        aspect: name,
+                        suffix,
+                        text,
+                        through,
+                    });
+                    None
+                }
+            }
+        };
+        if let Some(why) = refusal {
+            out.refused.push(Problem {
+                id: format!("p:pmi_not_lowered:{}", r.source_id),
+                code: "pmi_not_lowered".into(),
+                severity: "error".into(),
+                message: format!(
+                    "PMI {} {} ({}) is not drawn: {why}.",
+                    r.kind.replace('_', " "),
+                    r.source_id,
+                    r.label
+                ),
+                subjects: vec![r.source_id.clone()],
+            });
+        }
+    }
+    // The table, for two or more requirements one of which is too long for its callout.
+    if out.owned.len() >= 2
+        && out
+            .owned
+            .iter()
+            .any(|o| o.suffix.chars().count() > SCHEDULE_SUFFIX)
+    {
+        let mut sources: Vec<&str> = out.owned.iter().map(|o| o.source.as_str()).collect();
+        sources.sort();
+        out.tags = sources
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.to_string(), format!("MFG {}", i + 1)))
+            .collect();
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1510,5 +2886,121 @@ mod tests {
         ] {
             assert_eq!(default_ra(label).as_deref(), ra, "{label:?}");
         }
+    }
+
+    /// draftwright's thread and knurl grammars (`_INTERNAL_THREAD`, `_EXTERNAL_THREAD`, `_KNURL`)
+    /// and their `callout_suffix` and `callout_text`, against draftwright's own output
+    /// (`_thread_requirement`, `_knurl_requirement` on these labels, origin/main 4dfc63f).
+    #[test]
+    fn requirements_in_words_read_and_print_as_draftwrights() {
+        let thread = |kind: &str, label: &str| prose_thread(kind, label).map(|t| t.suffix());
+        let cases = [
+            (
+                "internal_thread",
+                "M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth",
+                Ok("M2 x 0.4-6H RH; 2.5 MIN FULL THREAD"),
+            ),
+            (
+                "internal_thread",
+                "M2 x 0.4-6H RH, 2.5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth; conventional 118 degree drill point",
+                Ok("M2 x 0.4-6H RH; 2.5 MIN FULL THREAD; 118° CONVENTIONAL DRILL POINT"),
+            ),
+            (
+                "internal_thread",
+                "M5 x 0.8-6H RH, full thread through; DIA 4.2 tapping drill through",
+                Ok("M5 x 0.8-6H RH; THRU"),
+            ),
+            (
+                "internal_thread",
+                "  m2x0.4-6h lh,2.5mm minimum full thread;dia 1.6 tapping drill x 4mm full-diameter depth ",
+                Ok("m2x0.4-6h lh; 2.5 MIN FULL THREAD"),
+            ),
+            (
+                "internal_thread",
+                "M2 x 0.4-6H RH, 5 mm minimum full thread; DIA 1.6 tapping drill x 4 mm full-diameter depth",
+                Err("thread minimum full thread cannot exceed drill depth"),
+            ),
+            (
+                "internal_thread",
+                "M5 thread",
+                Err("unsupported internal thread syntax"),
+            ),
+            (
+                "external_thread",
+                "M5 x 0.8-6g RH, full available length on nominal DIA 5 region",
+                Ok("M5 x 0.8-6g RH, FULL AVAILABLE LENGTH"),
+            ),
+            (
+                "external_thread",
+                "M5 x 0.8-6g RH, full available length on nominal DIA 6 region",
+                Err("external thread designation and nominal region disagree"),
+            ),
+        ];
+        for (kind, label, want) in cases {
+            assert_eq!(
+                thread(kind, label),
+                want.map(str::to_string).map_err(str::to_string),
+                "{label:?}"
+            );
+        }
+        let k = prose_knurl(
+            "Straight knurl, 1 mm pitch, full width between C0.3 chamfers, DIA 6.25 mm maximum after knurling; cut or formed process permitted",
+        )
+        .unwrap();
+        assert_eq!(
+            k.suffix(),
+            "MAX AFTER KNURL; STRAIGHT KNURL P1 FULL WIDTH TO C0.3 CHAMFERS; CUT/FORMED PERMITTED"
+        );
+        assert_eq!(
+            k.text(),
+            "ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1 FULL WIDTH TO C0.3 CHAMFERS; CUT/FORMED PERMITTED"
+        );
+        assert_eq!(
+            wrap(&k.text(), SCHEDULE_WRAP),
+            [
+                "ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1",
+                "FULL WIDTH TO C0.3 CHAMFERS; CUT/FORMED",
+                "PERMITTED"
+            ]
+        );
+        assert_eq!(
+            prose_knurl("Diamond knurl, 1 mm pitch, DIA 6 mm maximum after knurling"),
+            Err("unsupported knurl requirement syntax".to_string())
+        );
+    }
+
+    /// The table is used for two or more requirements one of whose suffixes is over 52
+    /// characters, tagged in their source IDs' order; a callout then prints its tag.
+    #[test]
+    fn long_requirements_go_to_the_table_in_source_order() {
+        let owned = |source: &str, suffix: &str| Owned {
+            source: source.into(),
+            owner: format!("f:{source}"),
+            aspect: "thread",
+            suffix: suffix.into(),
+            text: suffix.into(),
+            through: false,
+        };
+        let mut m = Manufacturing {
+            owned: vec![
+                owned("manufacturing_requirement:#9", "M2 x 0.4-6H RH"),
+                owned("manufacturing_requirement:#10", &"X".repeat(53)),
+            ],
+            ..Default::default()
+        };
+        assert!(m.rows().is_empty());
+        assert_eq!(m.printed(&m.owned[0].clone()), "M2 x 0.4-6H RH");
+        // As draftwright sorts them: by source ID, as text.
+        m.tags = vec![
+            ("manufacturing_requirement:#10".into(), "MFG 1".into()),
+            ("manufacturing_requirement:#9".into(), "MFG 2".into()),
+        ];
+        assert_eq!(m.printed(&m.owned[0].clone()), "SEE MFG 2");
+        assert_eq!(
+            m.terms("f:manufacturing_requirement:#9").0,
+            ["SEE", "MFG", "2"]
+        );
+        assert_eq!(m.rows()[0], ["REF", "MANUFACTURING REQUIREMENT"]);
+        assert_eq!(m.rows()[1][0], "MFG 1");
     }
 }

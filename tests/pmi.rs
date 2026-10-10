@@ -757,12 +757,14 @@ fn a_thread_pairs_with_the_structured_statement_on_its_callouts_faces() {
 
 #[test]
 fn a_requirement_or_label_record_is_lowered_or_reported() {
-    // What each lowers to: a label, the sheet's (a general tolerance), or a report.
+    // What each lowers to: a label, the sheet's (a general tolerance), its owner's callout (a
+    // thread or knurl), or a report. Read with no recognised features, the bolt's thread has no
+    // owner: an error with draftwright's reason.
     for (name, outcomes) in [
         (
             BOLT,
             [
-                ("external_thread", "warning"),
+                ("external_thread", "error"),
                 ("general_tolerances", "sheet"),
             ],
         ),
@@ -784,6 +786,7 @@ fn a_requirement_or_label_record_is_lowered_or_reported() {
         let (items, mut problems) = draftwright::pmi_lowering::lower(&a, &|_| true);
         let (sheet, more) = draftwright::pmi_lowering::sheet_requirements(&a);
         problems.extend(more);
+        let owned = draftwright::pmi_lowering::manufacturing(&a).owned;
         for r in report.records.iter().filter(|r| {
             matches!(
                 r.category,
@@ -796,8 +799,10 @@ fn a_requirement_or_label_record_is_lowered_or_reported() {
                 .collect();
             let label = items.iter().any(|i| i.source == r.source_id);
             let carried = sheet.iter().any(|q| q.source == r.source_id);
-            let outcome = match (label, carried, said.as_slice()) {
+            let owner = owned.iter().any(|o| o.source == r.source_id);
+            let outcome = match (label, carried || owner, said.as_slice()) {
                 (true, false, []) => "label",
+                (false, true, []) if owner => "owner",
                 (false, true, []) => "sheet",
                 (false, false, [p]) if p.code == "pmi_not_lowered" => p.severity.as_str(),
                 _ => panic!("{name}: {} is lowered once or said once", r.source_id),

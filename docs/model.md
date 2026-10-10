@@ -81,8 +81,9 @@ edited.
   read with none. Manufacturing requirements (threads and knurls with their structured fields
   and faces, general tolerances, surface texture and edge notes), surface labels and common
   labels are records too; a surface or common label carries its proven sites (`geometry`, below)
-  and is drawn as a label; the drawing-wide requirements are the sheet's (below); threads and
-  knurls are reported as read but not drawn yet (`pmi_not_lowered`).
+  and is drawn as a label; the drawing-wide requirements are the sheet's (below); a thread or
+  knurl carries its cylinders (`geometry.cylinders`) and is printed on its owner's callout
+  (below).
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.
@@ -483,7 +484,8 @@ dimension); otherwise it is `pmi_not_lowered` or `pmi_not_rendered`. A record lo
 `pmi_lowering::lower` (a function of the Analysis alone) lowers it, a frame, symbol or label, when
 `pmi_lowering::sheet_requirements` lowers it to the sheet (a general tolerance, default finish or
 document note), or when it is a dimension of a kind stage 2b draws (a length along x, y or z, a
-diameter or radius seen end-on) whose reading and faces prove it; a thread, knurl, face finish or
+diameter or radius seen end-on) whose reading and faces prove it, or when it is a thread or knurl
+`pmi_lowering::manufacturing` gives to its owner (whose callout then claims it); a face finish or
 angle does not yet. Not lowered, it is `pmi_not_lowered` with the reason; lowered and not drawn,
 `pmi_not_rendered` (reported even when the plan already says why, as lint cannot read it: an open
 question). A source not read, or read in part, is `pmi_not_extracted` (error; info for a source of
@@ -515,6 +517,24 @@ note `pmi:<source>` after the spec's notes (`notes`). Two of one default are amb
 neither is drawn (`pmi_not_lowered`). Each is an annotation of the drawing by its ID, over the
 runs that state it. A turned part keeps a view a PMI item is drawn in (draftwright's
 `annotation_view_required`). Compared with draftwright's drawings by `tests/pmi_drawings.rs`.
+
+### Threads and knurls (PMI)
+
+An AP242 thread or knurl is no item of its own (`pmi_lowering::manufacturing`, draftwright's
+`lower_ap242_manufacturing_requirements` and `manufacturing_schedule`): read from its words and its
+structured statement, reconciled, its one cylinder the size its text states, it is given to the one
+hole (blind to the drill depth, or through) or turned step that cylinder proves, and that
+feature's callout prints its suffix after the size (`⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL
+THREAD`; a through tap's `THRU` stands for the bore's) and claims it (feature `pmi:<source>`,
+parameter `thread` or `knurl`). With two or more owned and one suffix over 52 characters, each
+callout prints `SEE MFG n` instead and the plan's table `manufacturing_requirements` (`default:
+true`, `REF | MANUFACTURING REQUIREMENT`, the text wrapped at 44 characters, the second column
+left-aligned) states them in their source IDs' order, reserved when the sheet is chosen and placed
+before the notes; with no place it is `table_not_placed` (draftwright prints the suffixes in full
+instead: an open question). A threaded owner keeps a callout of its own. No owner, several owners,
+or text that disagrees with the cylinder is `pmi_not_lowered` (error) with draftwright's reason; a
+requirement a boss owns is refused too, as the boss callout prints none yet
+(`tests/pmi_thread_knurl.rs`).
 
 **IDs and views.** The `@<view>` in an ID is the view that carries the dimension. Omitting that
 view moves the dimension to its next view and renames it (the basis says so); a spec still keyed

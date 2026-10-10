@@ -1166,6 +1166,12 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     );
     let notes_size = crate::notes::size(&notes_given);
     request.required_tables = crate::tables::sizes(&spec.tables);
+    // The part's manufacturing requirements table, when its threads and knurls are referred to
+    // one (crate::pmi_lowering::manufacturing), before the notes, as draftwright reserves it.
+    request.required_tables.extend(
+        crate::tables::manufacturing_size(&crate::pmi_lowering::manufacturing(analysis).rows())
+            .map(|s| (s, Corner::TopRight)),
+    );
     request
         .required_tables
         .extend(notes_size.map(|s| (s, Corner::TopRight)));
@@ -1394,10 +1400,14 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         ));
         ink.extend(crate::dims::gdt::finish_proxy(r));
     }
+    // The manufacturing requirements table goes before the notes, which keep clear of it.
+    let (schedule, more) = crate::tables::manufacturing(analysis, &sheet, &views, &ink);
+    problems.extend(more);
+    ink.extend(schedule.iter().filter_map(crate::tables::proxy));
     let (notes, notes_block, more) =
         crate::notes::plan(&notes_given, analysis, &sheet, &views, &ink);
     problems.extend(more);
-    let (tables, more) = crate::tables::plan(
+    let (mut tables, more) = crate::tables::plan(
         &spec.tables,
         analysis,
         &sheet,
@@ -1406,6 +1416,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         notes_block.as_ref().map(|b| b.cells),
     );
     problems.extend(more);
+    tables.extend(schedule);
     for o in &mut omitted {
         if inactive.contains(&o.id) {
             o.basis =
