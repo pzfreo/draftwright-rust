@@ -78,10 +78,6 @@ pub struct Demand {
     /// reserves for them ([`Strips::reserve_gdt`]): with every principal view shown, and with
     /// the side view not shown (where a datum on a y-normal plane moves to the plan).
     pub gdt: [Vec<layout::Gdt>; 2],
-    /// Whether the GD&T's room starts beyond its strips' full lane counts
-    /// ([`Strips::reserve_gdt`]'s *beyond_lanes*): unset from [`read`]; the plan's second try
-    /// sets it (`model::plan_escalated`).
-    pub gdt_beyond_lanes: bool,
 }
 
 /// The part frame's point for quiddity's local *l*.
@@ -503,10 +499,9 @@ pub fn size(
         .cloned()
         .collect();
     if !gdt.is_empty() {
-        let base = strips.clone();
         for _ in 0..=layout::SCALES.len() * layout::PAGES.len() {
             let mut wider = strips.clone();
-            wider.reserve_gdt(&base, &d.lanes, d.gdt_beyond_lanes, &gdt, pick.scale);
+            wider.reserve_gdt(&d.lanes, &gdt, pick.scale);
             if wider == strips {
                 break;
             }

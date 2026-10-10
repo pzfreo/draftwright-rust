@@ -2485,19 +2485,14 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:15",
   "port": "geometric_tolerance:#9140",
-  "field": "site",
-  "python": [
-   -57.15,
-   1.5189,
-   -101.6
-  ],
-  "rust": [
-   -28.65,
-   1.5189,
-   -31.6
-  ],
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
   "verdict": "undetermined",
-  "evidence": "Both sites are the centre of the frame's faces' box (draftwright's ref_bbox); the port's faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record), draftwright's one member, so the port's centre lies between the members. Whether a leader from that centre lands on a member of the pattern is not checked; the site follows the faces, which are right."
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -2556,19 +2551,14 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:42",
   "port": "geometric_tolerance:#9398",
-  "field": "site",
-  "python": [
-   -50.8,
-   1.5189,
-   91.44
-  ],
-  "rust": [
-   -31.75,
-   1.5189,
-   91.44
-  ],
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
   "verdict": "undetermined",
-  "evidence": "Both sites are the centre of the frame's faces' box (draftwright's ref_bbox); the port's faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record), draftwright's one member, so the port's centre lies between the members. Whether a leader from that centre lands on a member of the pattern is not checked; the site follows the faces, which are right."
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -2581,7 +2571,7 @@
    "problem": "pmi_not_lowered"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.)."
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried; haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature )."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -2597,113 +2587,53 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:54",
   "port": "geometric_tolerance:#9493",
-  "field": "site",
-  "python": [
-   38.1,
-   1.5189,
-   57.15
-  ],
-  "rust": [
-   47.625,
-   1.5189,
-   57.15
-  ],
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
   "verdict": "undetermined",
-  "evidence": "Both sites are the centre of the frame's faces' box (draftwright's ref_bbox); the port's faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record), draftwright's one member, so the port's centre lies between the members. Whether a leader from that centre lands on a member of the pattern is not checked; the site follows the faces, which are right."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:54",
-  "port": "geometric_tolerance:#9493",
-  "field": "drawn",
-  "python": false,
-  "rust": true,
-  "verdict": "rust-correct",
-  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:74",
   "port": "geometric_tolerance:#9652",
-  "field": "site",
-  "python": [
-   27.9374,
-   1.5189,
-   91.44
-  ],
-  "rust": [
-   46.9874,
-   1.5189,
-   91.44
-  ],
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
   "verdict": "undetermined",
-  "evidence": "Both sites are the centre of the frame's faces' box (draftwright's ref_bbox); the port's faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record), draftwright's one member, so the port's centre lies between the members. Whether a leader from that centre lands on a member of the pattern is not checked; the site follows the faces, which are right."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:74",
-  "port": "geometric_tolerance:#9652",
-  "field": "drawn",
-  "python": false,
-  "rust": true,
-  "verdict": "rust-correct",
-  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:78",
   "port": "geometric_tolerance:#9670",
-  "field": "site",
-  "python": [
-   27.9374,
-   1.5189,
-   91.44
-  ],
-  "rust": [
-   46.9874,
-   1.5189,
-   91.44
-  ],
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
   "verdict": "undetermined",
-  "evidence": "Both sites are the centre of the frame's faces' box (draftwright's ref_bbox); the port's faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record), draftwright's one member, so the port's centre lies between the members. Whether a leader from that centre lands on a member of the pattern is not checked; the site follows the faces, which are right."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:78",
-  "port": "geometric_tolerance:#9670",
-  "field": "drawn",
-  "python": false,
-  "rust": true,
-  "verdict": "rust-correct",
-  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:82",
   "port": "geometric_tolerance:#9688",
-  "field": "site",
-  "python": [
-   27.9374,
-   1.5189,
-   91.44
-  ],
-  "rust": [
-   46.9874,
-   1.5189,
-   91.44
-  ],
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
   "verdict": "undetermined",
-  "evidence": "Both sites are the centre of the frame's faces' box (draftwright's ref_bbox); the port's faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record), draftwright's one member, so the port's centre lies between the members. Whether a leader from that centre lands on a member of the pattern is not checked; the site follows the faces, which are right."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:82",
-  "port": "geometric_tolerance:#9688",
-  "field": "drawn",
-  "python": false,
-  "rust": true,
-  "verdict": "rust-correct",
-  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -2719,29 +2649,14 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:88",
   "port": "geometric_tolerance:#9775",
-  "field": "site",
-  "python": [
-   50.8,
-   1.5189,
-   -15.24
-  ],
-  "rust": [
-   64.77,
-   1.5189,
-   -1.27
-  ],
+  "field": "lowered",
+  "python": "control_frame",
+  "rust": {
+   "lowered": "raw",
+   "problem": "pmi_not_lowered"
+  },
   "verdict": "undetermined",
-  "evidence": "Both sites are the centre of the frame's faces' box (draftwright's ref_bbox); the port's faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record), draftwright's one member, so the port's centre lies between the members. Whether a leader from that centre lands on a member of the pattern is not checked; the site follows the faces, which are right."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:88",
-  "port": "geometric_tolerance:#9775",
-  "field": "drawn",
-  "python": false,
-  "rust": true,
-  "verdict": "rust-correct",
-  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). It is lowered since haecceity models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17)."
+  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
