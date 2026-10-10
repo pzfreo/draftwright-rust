@@ -207,7 +207,7 @@ fn ctc02_has_no_hole_item_off_the_sheet_to_drop() {
     check_part("ctc02", false);
 }
 
-/// Its one off-sheet hole location (`d:f:hole_pattern:2/location.length.x@plan`, 480) has had
+/// Its one off-sheet hole location (`d:f:hole_pattern:2/location.length.x`, 480) has had
 /// a place since the items merged away stopped holding lanes of their own: two x locations that
 /// fell through below the plan now fit above it, and it takes the first lane below. Nothing of
 /// ctc04's is dropped either.
@@ -359,7 +359,7 @@ fn a_table_without_every_balloon_is_withdrawn_whole() {
 
 /// The scattered-holes plate (`tests/fixtures/parts/scattered_holes.step`, written by
 /// `tools/make_scattered_holes.py`: 18 through holes of three sizes in no pattern), its plan-view
-/// location `d:f:hole:1/location.length.x@plan` reported off the sheet as a stand-in: the plate
+/// location `d:f:hole:1/location.length.x` reported off the sheet as a stand-in: the plate
 /// has room, so the table is kept whole.
 fn forced() -> (&'static (Part, Analysis), Plan) {
     static READ: OnceLock<(Part, Analysis)> = OnceLock::new();
@@ -372,7 +372,7 @@ fn forced() -> (&'static (Part, Analysis), Plan) {
     let id = p
         .dimensions
         .iter()
-        .find(|d| d.view == "v:plan" && d.id.ends_with("/location.length.x@plan"))
+        .find(|d| d.view == "v:plan" && d.id.ends_with("/location.length.x"))
         .unwrap()
         .id
         .clone();
@@ -471,11 +471,7 @@ fn an_escalated_table_is_whole_on_the_sheet_with_a_balloon_per_row() {
         .filter(|d| d.basis.contains(hole_table::ID))
         .map(|d| d.id.as_str())
         .collect();
-    assert!(
-        replaced
-            .iter()
-            .any(|d| d.ends_with("/location.length.x@plan"))
-    );
+    assert!(replaced.iter().any(|d| d.ends_with("/location.length.x")));
     assert!(
         p.dimensions
             .iter()

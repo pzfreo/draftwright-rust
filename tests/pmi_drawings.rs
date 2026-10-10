@@ -349,18 +349,27 @@ fn gdt_kind(kind: &str) -> &'static str {
     }
 }
 
-/// The parameter a model item's ID names: `d:f:hole:1/bore.diameter@plan` → `bore.diameter`.
+/// The parameter a model item's ID names: `d:f:hole:1/bore.diameter` → `bore.diameter`.
 fn parameter_of(id: &str) -> Option<&str> {
-    let (_, rest) = id.rsplit_once('/')?;
-    Some(rest.split('@').next().unwrap())
+    id.rsplit_once('/').map(|(_, p)| p)
 }
 
 /// The port's projection of its record *r*: what the rendered drawing's annotations state of it,
 /// or, when none does, whether placement dropped it (planned, not placed) or the planner
 /// refused it (its problems' codes).
-fn rust_projection(drawing: Option<&Drawing>, plan: &Plan, r: &Record) -> Value {
-    let feature = format!("pmi:{}", r.source_id);
-    let own = format!("d:pmi:{}/", r.source_id);
+fn rust_projection(
+    drawing: Option<&Drawing>,
+    plan: &Plan,
+    analysis: &Analysis,
+    r: &Record,
+) -> Value {
+    // Its items are named by its item ID, `pmi:<identity>` (none when another record shares it).
+    let feature = match &analysis.pmi {
+        Some(Reading::Read(report)) => report.identities().ids.get(&r.source_id).cloned(),
+        _ => None,
+    }
+    .unwrap_or_default();
+    let own = format!("d:{feature}/");
     let mut drawn = Vec::new();
     if let Some(drawing) = drawing {
         for a in &drawing.annotations {
@@ -609,7 +618,7 @@ fn compare(
     if let Some(e) = failed {
         let n = rust
             .iter()
-            .filter(|r| rust_projection(drawing, plan, r).get("drawn").is_some())
+            .filter(|r| rust_projection(drawing, plan, a, r).get("drawn").is_some())
             .count();
         file_diff("drawing", json!(e), json!(format!("{n} records drawn")));
     }
@@ -643,7 +652,10 @@ fn compare(
         if failed.is_some() {
             continue;
         }
-        let (p, q) = (python_projection(item), rust_projection(drawing, plan, r));
+        let (p, q) = (
+            python_projection(item),
+            rust_projection(drawing, plan, a, r),
+        );
         if !same(&p, &q) {
             diff("drawing", p, q);
         }
@@ -658,7 +670,7 @@ fn compare(
                 python: Value::Null,
                 rust: json!({
                     "record": {"kind": r.kind, "label": r.label},
-                    "drawing": rust_projection(drawing, plan, r),
+                    "drawing": rust_projection(drawing, plan, a, r),
                 }),
             });
         }
@@ -700,7 +712,7 @@ fn one(file: &str, stem: &str, bytes: &[u8]) -> (Vec<Diff>, usize, String) {
     let rust_drawn = records(&a)
         .iter()
         .filter(|r| {
-            rust_projection(drawing.as_ref().ok(), &plan, r)
+            rust_projection(drawing.as_ref().ok(), &plan, &a, r)
                 .get("drawn")
                 .is_some()
         })

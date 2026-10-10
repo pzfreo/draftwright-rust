@@ -57,12 +57,13 @@ use haecceity::geom::Surface;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Analysis, Problem};
-use crate::pmi::{Category, Geometry, Outcome, Reading, Record};
+use crate::pmi::{Category, Geometry, Identities, Outcome, Reading, Record};
 
 /// A record lowered to a drawing item, before placement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Lowered {
-    /// `pmi:<source_id>`, e.g. `pmi:geometric_tolerance:#123`.
+    /// The record's item ID, `pmi:<identity>` ([`crate::pmi::identity`]), e.g.
+    /// `pmi:geometric_tolerance.flatness:f12`; never its Part 21 instance, which is `source`.
     pub id: String,
     pub source: String,
     pub glyph: Glyph,
@@ -184,6 +185,7 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
         [0, 1, 2].map(|k| 0.5 * (lo[k] + hi[k]))
     };
     let mut owned: Option<Manufacturing> = None;
+    let ids = report.identities();
     for r in &report.records {
         match r.category {
             Category::GeometricTolerance | Category::Datum => {
@@ -192,6 +194,7 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                 } else {
                     control_frame(r, centre)
                 };
+                let lowered = identified(lowered, &ids, r);
                 match lowered {
                     Ok(mut item) => {
                         // draftwright's `_datum_alternate_view`: a y-normal plane whose side
@@ -228,9 +231,9 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                 }
             }
             // A surface label, and a common label (read as a dimension), is drawn as its text.
-            Category::SurfaceLabel => labelled(&mut items, &mut problems, r, centre),
+            Category::SurfaceLabel => labelled(&mut items, &mut problems, &ids, r, centre),
             Category::Dimension if r.kind == "common_label" => {
-                labelled(&mut items, &mut problems, r, centre)
+                labelled(&mut items, &mut problems, &ids, r, centre)
             }
             // A dimension is stated or refused by stage 2b (`dims::pmi_dimensions`), never here.
             Category::Dimension => {}
@@ -271,9 +274,36 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
     (items, problems)
 }
 
+/// *lowered* with its record's item ID, or refused when the record has none: its identity is
+/// another record's too (ADR R1 invariant 5), said beside any other reason.
+fn identified(
+    lowered: Result<Lowered, Vec<String>>,
+    ids: &Identities,
+    r: &Record,
+) -> Result<Lowered, Vec<String>> {
+    match (lowered, ids.id(&r.source_id)) {
+        (Ok(mut item), Ok(id)) => {
+            item.id = id.to_string();
+            Ok(item)
+        }
+        (Ok(_), Err(why)) => Err(vec![why]),
+        (Err(mut reasons), Err(why)) => {
+            reasons.push(why);
+            Err(reasons)
+        }
+        (Err(reasons), Ok(_)) => Err(reasons),
+    }
+}
+
 /// A surface or common label lowered into *items*, or its refusal into *problems*.
-fn labelled(items: &mut Vec<Lowered>, problems: &mut Vec<Problem>, r: &Record, centre: [f64; 3]) {
-    match label(r, centre) {
+fn labelled(
+    items: &mut Vec<Lowered>,
+    problems: &mut Vec<Problem>,
+    ids: &Identities,
+    r: &Record,
+    centre: [f64; 3],
+) {
+    match identified(label(r, centre), ids, r) {
         Ok(item) => items.push(item),
         Err(reasons) => problems.push(Problem {
             id: format!("p:pmi_not_lowered:{}", r.source_id),
@@ -321,7 +351,7 @@ fn label(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
         "common label"
     };
     Ok(Lowered {
-        id: format!("pmi:{}", r.source_id),
+        id: String::new(),
         source: r.source_id.clone(),
         glyph: Glyph::Label {
             text: r.label.clone(),
@@ -442,6 +472,8 @@ pub fn sheet_kind(kind: &str) -> bool {
 /// A drawing-wide requirement the sheet states.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SheetRequirement {
+    /// The record's item ID, `pmi:<identity>`.
+    pub id: String,
     pub source: String,
     /// `general_tolerance` (the title block's tolerance cell), `default_surface_finish` (a
     /// surface texture symbol beside the title block) or `document_note` (a general note).
@@ -485,14 +517,20 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
         .iter()
         .filter(|r| r.category == Category::ManufacturingRequirement && sheet_kind(&r.kind))
         .collect();
-    for r in records.iter().filter(|r| !r.blockers.is_empty()) {
-        refuse(&mut problems, r, &dedup(r.blockers.clone()).join("; "));
+    let ids = report.identities();
+    for r in &records {
+        let mut why = dedup(r.blockers.clone());
+        why.extend(ids.id(&r.source_id).err());
+        if !why.is_empty() {
+            refuse(&mut problems, r, &why.join("; "));
+        }
     }
     let open: Vec<&Record> = records
         .iter()
         .copied()
-        .filter(|r| r.blockers.is_empty())
+        .filter(|r| r.blockers.is_empty() && ids.ids.contains_key(&r.source_id))
         .collect();
+    let id = |r: &Record| ids.ids[&r.source_id].clone();
     let of =
         |kind: &str| -> Vec<&Record> { open.iter().copied().filter(|r| r.kind == kind).collect() };
     let tolerances = of("general_tolerances");
@@ -500,6 +538,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
         [] => {}
         [r] => match designation(r) {
             Ok(d) => out.push(SheetRequirement {
+                id: id(r),
                 source: r.source_id.clone(),
                 kind: "general_tolerance",
                 basis: format!(
@@ -525,6 +564,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
         [] => {}
         [r] => match default_ra(&r.label) {
             Some(ra) => out.push(SheetRequirement {
+                id: id(r),
                 source: r.source_id.clone(),
                 kind: "default_surface_finish",
                 basis: format!(
@@ -560,6 +600,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
             );
         } else {
             out.push(SheetRequirement {
+                id: id(r),
                 source: r.source_id.clone(),
                 kind: "document_note",
                 value: r.label.trim().to_string(),
@@ -578,7 +619,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlannedRequirement {
-    /// `pmi:<source>`.
+    /// The record's item ID, `pmi:<identity>`; `source` is its Part 21 provenance.
     pub id: String,
     /// `general_tolerance`, `default_surface_finish` or `document_note`.
     pub kind: String,
@@ -609,7 +650,7 @@ pub fn plan_sheet(
     let mut out = Vec::new();
     let mut problems = Vec::new();
     for r in requirements {
-        let id = format!("pmi:{}", r.source);
+        let id = r.id.clone();
         let mut planned = PlannedRequirement {
             id: id.clone(),
             kind: r.kind.into(),
@@ -777,7 +818,7 @@ fn control_frame(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
         }
     }
     Ok(Lowered {
-        id: format!("pmi:{}", r.source_id),
+        id: String::new(),
         source: r.source_id.clone(),
         glyph: Glyph::ControlFrame {
             characteristic: r.kind.clone(),
@@ -877,7 +918,7 @@ fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
         "its site on the profile lies on"
     };
     Ok(Lowered {
-        id: format!("pmi:{}", r.source_id),
+        id: String::new(),
         source: r.source_id.clone(),
         glyph: Glyph::Datum {
             letter: r.label.trim().to_string(),
@@ -1524,6 +1565,8 @@ pub const SCHEDULE_ID: &str = "manufacturing_requirements";
 /// A thread or knurl requirement given to the one feature its cylinder proves.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Owned {
+    /// The record's item ID, `pmi:<identity>`: what its owner's callout claims.
+    pub id: String,
     /// The record's `source_id`.
     pub source: String,
     /// The feature that carries it (`f:hole:2`, `f:turned_step:4`).
@@ -1608,9 +1651,13 @@ impl Manufacturing {
         rows
     }
 
-    /// The sources the table states, in its order.
+    /// The item IDs of the requirements the table states, in its order.
     pub fn scheduled(&self) -> Vec<String> {
-        self.tags.iter().map(|(s, _)| s.clone()).collect()
+        self.tags
+            .iter()
+            .filter_map(|(s, _)| self.owned.iter().find(|o| o.source == *s))
+            .map(|o| o.id.clone())
+            .collect()
     }
 }
 
@@ -2801,10 +2848,11 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     for p in proposals.iter().flatten() {
         *claims.entry((p.0, aspect_name(&p.1))).or_default() += 1;
     }
+    let ids = report.identities();
     for (r, p) in records.iter().zip(proposals) {
-        let refusal = match p {
-            Err(why) => Some(why),
-            Ok((owner, aspect)) => {
+        let refusal = match (p, ids.id(&r.source_id)) {
+            (Err(why), _) | (Ok(_), Err(why)) => Some(why),
+            (Ok((owner, aspect)), Ok(id)) => {
                 let name = aspect_name(&aspect);
                 let o = &candidates[owner];
                 if claims[&(owner, name)] > 1 {
@@ -2822,6 +2870,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                         Aspect::Knurl(k) => (k.suffix(), k.text(), false),
                     };
                     out.owned.push(Owned {
+                        id: id.to_string(),
                         source: r.source_id.clone(),
                         owner: o.id.clone(),
                         aspect: name,
@@ -2974,6 +3023,7 @@ mod tests {
     #[test]
     fn long_requirements_go_to_the_table_in_source_order() {
         let owned = |source: &str, suffix: &str| Owned {
+            id: format!("pmi:manufacturing_requirement.internal_thread:t={source}"),
             source: source.into(),
             owner: format!("f:{source}"),
             aspect: "thread",

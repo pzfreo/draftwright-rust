@@ -23,8 +23,8 @@ const SPEC: &str = "The spec: the author's decisions, keyed by stable IDs. Omit 
 for all defaults. Use the spec from the plan or the edit tool's result. Shape: {\"sheet\": \
 {\"size\": \"A3\", \"scale\": \"2:1\", \"title\": {\"title\": \"BRACKET\", \"number\": \
 \"DWG-001\", \"material\": \"6082-T6\"}}, \"views\": {\"iso\": {\"omit\": true}}, \
-\"dimension_source\": \"auto\", \"dimensions\": {\"d:envelope/width.length@front\": {\"omit\": \
-true}, \"d:envelope/height.length@front\": {\"tolerance\": \"±0.05\"}}, \"features\": \
+\"dimension_source\": \"auto\", \"dimensions\": {\"d:envelope/width.length\": {\"omit\": \
+true}, \"d:envelope/height.length\": {\"tolerance\": \"±0.05\"}}, \"features\": \
 {\"f:hole:1\": {\"fit\": \"H7\"}}, \"notes\": [{\"id\": \"n:1\", \"text\": \"BREAK ALL SHARP \
 EDGES\"}], \"tables\": [{\"id\": \"t:1\", \"rows\": [[\"REV\", \"DESCRIPTION\"], [\"A\", \
 \"INITIAL RELEASE\"]], \"prefer\": \"tr\"}]} (a table's row 0 is its header; prefer is the corner \
@@ -88,13 +88,15 @@ fn tools() -> Value {
                 1:2), sheet/title/<field> (title, number, material, …), views/<front|plan|side|iso>/omit \
                 (true leaves the view out), dimension_source (auto: the defaults less what is \
                 omitted; authored: exactly the dimensions listed), dimensions/<id>/omit (true \
-                leaves that dimension out; IDs are the plan's, d:<feature>/<parameter>@<view>, \
+                leaves that dimension out; IDs are the plan's, d:<feature>/<parameter>, \
                 with each / inside the ID written ~1, e.g. \
-                dimensions/d:envelope~1width.length@front/omit), dimensions/<id>/tolerance \
+                dimensions/d:envelope~1width.length/omit), dimensions/<id>/tolerance \
                 (printed after its value: \"±0.05\", or \"+0.1 -0.02\" for an upper and a lower \
                 deviation), features/<id>/fit (an ISO 286 class on a hole, H7, G7, F8, or a \
-                cylindrical boss, h6, g6, js6, k6, n6, p6; grades 5 to 11). A dimension's ID names the view \
-                that carries it, so omitting that view renames it: take IDs from the latest plan. \
+                cylindrical boss, h6, g6, js6, k6, n6, p6; grades 5 to 11), dimensions/<id>/view (front, \
+                plan or side: the view that carries it, among those that can). An ID never names \
+                a view, so it stays when the dimension moves to another view or the sheet or \
+                scale changes; a PMI item's ID is its record's identity (pmi:<category>.<kind>:…). \
                 A refused edit says why and, where it chose from a list, the choices; plan \
                 validates the values against the part.",
             "inputSchema": {

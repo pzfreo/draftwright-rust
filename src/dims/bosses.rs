@@ -275,7 +275,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             a[j] -= r;
             c[j] += r;
             out.push(Want {
-                id: want_id(&b.feature.id, "boss.diameter", views[0]),
+                id: want_id(&b.feature.id, "boss.diameter"),
                 views: vec![views[0]],
                 value: diameter,
                 terms: vec![format!("ø{}", fmt(diameter))],
@@ -355,7 +355,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             p
         };
         out.push(Want {
-            id: want_id(&b.feature.id, "boss_height.length", views[0]),
+            id: want_id(&b.feature.id, "boss_height.length"),
             views,
             value: h,
             terms: vec![fmt(h)],
@@ -444,7 +444,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             }
         };
         out.push(Want {
-            id: want_id(&first.feature.id, parameter, view),
+            id: want_id(&first.feature.id, parameter),
             views: vec![view],
             value,
             terms,
@@ -473,7 +473,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let mut from = first.top;
         from[a] = lo[a];
         out.push(Want {
-            id: want_id(&first.feature.id, &parameter, view),
+            id: want_id(&first.feature.id, &parameter),
             views: vec![view],
             value: d,
             terms: vec![fmt(d)],

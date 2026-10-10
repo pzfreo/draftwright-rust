@@ -4,6 +4,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Stable identity (`draftwright.spec/2`): a dimension's ID is `d:<feature>/<parameter>`, never
+  its view, so moving it to another view, omitting a view or changing the sheet or scale keeps
+  it; the view is the item's `view` and may be chosen in the spec (`dimensions/<id>/view`). A
+  PMI item's ID is its record's semantic identity (`pmi:<category>.<kind>:f…:ref=…`), never its
+  Part 21 instance, so the same intent written again keeps it; records that cannot be told apart
+  are refused. A `draftwright.spec/1` spec is migrated when planned; ambiguous keys are refused
+  with their candidates (`docs/model.md`, "IDs").
+
 ## 0.1.0-alpha.1 (2026-10-10)
 
 The first alpha. Its gates and their state are in `docs/alpha1.md`.

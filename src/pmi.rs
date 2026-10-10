@@ -231,7 +231,146 @@ impl Material {
     }
 }
 
+/// The drawing item IDs of a part's PMI records: each record's semantic identity, never its
+/// Part 21 instance, so a file whose intent is written again (new instance numbers, the same
+/// requirements on the same faces) keeps every item's ID ([`Report::identities`]).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Identities {
+    /// `pmi:<identity>` by the record's `source_id`, for every record whose identity no other
+    /// record shares.
+    pub ids: BTreeMap<String, String>,
+    /// The records whose identity another shares, by `source_id`: the identity and the other
+    /// records' `source_id`s. None of them has an ID (ADR R1 invariant 5: refused, not guessed).
+    pub shared: BTreeMap<String, (String, Vec<String>)>,
+}
+
+impl Identities {
+    /// The item ID of the record *source*, or why it has none: its identity is shared, or the
+    /// reading has no such record.
+    pub fn id(&self, source: &str) -> Result<&str, String> {
+        if let Some(id) = self.ids.get(source) {
+            return Ok(id);
+        }
+        match self.shared.get(source) {
+            Some((identity, others)) => Err(format!(
+                "its identity (pmi:{identity}: what it requires, of which faces, against which datums) is also {}'s, so its drawing item could not be told from theirs and none of them is drawn",
+                others.join(", ")
+            )),
+            None => Err(format!("the reading has no record {source}")),
+        }
+    }
+
+    /// The `source_id` of the record whose item ID is *id*.
+    pub fn source(&self, id: &str) -> Option<&str> {
+        self.ids
+            .iter()
+            .find(|(_, i)| i.as_str() == id)
+            .map(|(s, _)| s.as_str())
+    }
+}
+
+/// *text* with every character but ASCII letters, digits, `_`, `.` and `-` written `%XX` (its
+/// UTF-8 bytes), so an identity's fields never contain its separators (`:`, `,`, `=`) or a `/`.
+fn escaped(text: &str) -> String {
+    let mut out = String::new();
+    for b in text.bytes() {
+        if b.is_ascii_alphanumeric() || b"_.-".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// A record's semantic identity (the editor's `gdt::editor_key`, upstreamed): its category and
+/// kind (`.basic` for a basic dimension), its part in a file of several, the drawing faces and
+/// edges it applies to, its datum references and modifiers, and, for a datum or a label, its
+/// letter or text. Each field after the first is tagged (`p`, `f`, `e`, `ref=`, `mod=`, `t=`) and
+/// left out when empty: `geometric_tolerance.position:f12,13:ref=A,B:mod=maximum_material_requirement`.
+/// No Part 21 instance enters it, and neither does a value: a rewrite of the same intent keeps
+/// it, and a changed magnitude is the same item with another label.
+pub fn identity(r: &Record, parts: usize) -> String {
+    let join = |v: &[String]| v.iter().map(|x| escaped(x)).collect::<Vec<_>>().join(",");
+    let numbers = |v: &[usize]| {
+        v.iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    let mut out = format!("{}.{}", category_name(r.category), escaped(&r.kind));
+    if r.basic {
+        out += ".basic";
+    }
+    if parts > 1 {
+        out += &format!(":p{}", r.part);
+    }
+    if !r.faces.is_empty() {
+        out += &format!(":f{}", numbers(&r.faces));
+    }
+    if !r.edges.is_empty() {
+        out += &format!(":e{}", numbers(&r.edges));
+    }
+    if !r.datum_refs.is_empty() {
+        out += &format!(":ref={}", join(&r.datum_refs));
+    }
+    if !r.gtol_modifiers.is_empty() {
+        out += &format!(":mod={}", join(&r.gtol_modifiers));
+    }
+    let labelled = r.category == Category::Datum
+        || r.category == Category::SurfaceLabel
+        || r.kind == "common_label";
+    if labelled {
+        out += &format!(":t={}", escaped(&r.label));
+    }
+    out
+}
+
 impl Report {
+    /// Every record's drawing item ID, `pmi:<identity>` ([`identity`]). Records that share an
+    /// identity (a composite frame's two segments: one requirement's faces and datums, two
+    /// magnitudes) are told apart by their labels, `:t=<label>` on each of them, a discriminator
+    /// from what they state, never from their order; those whose labels are the same too get
+    /// none ([`Identities::shared`]).
+    pub fn identities(&self) -> Identities {
+        fn group<'a>(
+            records: Vec<&'a Record>,
+            key: &dyn Fn(&Record) -> String,
+        ) -> BTreeMap<String, Vec<&'a Record>> {
+            let mut by: BTreeMap<String, Vec<&Record>> = BTreeMap::new();
+            for r in records {
+                by.entry(key(r)).or_default().push(r);
+            }
+            by
+        }
+        let parts = self.parts.len();
+        let mut out = Identities::default();
+        for (base, records) in group(self.records.iter().collect(), &|r| identity(r, parts)) {
+            let labelled = records.len() > 1 && !base.contains(":t=");
+            let by = if labelled {
+                group(records, &|r| format!("{base}:t={}", escaped(&r.label)))
+            } else {
+                BTreeMap::from([(base, records)])
+            };
+            for (identity, records) in by {
+                if let [one] = records.as_slice() {
+                    out.ids
+                        .insert(one.source_id.clone(), format!("pmi:{identity}"));
+                    continue;
+                }
+                for r in &records {
+                    let others = records
+                        .iter()
+                        .filter(|o| o.source_id != r.source_id)
+                        .map(|o| o.source_id.clone());
+                    out.shared
+                        .insert(r.source_id.clone(), (identity.clone(), others.collect()));
+                }
+            }
+        }
+        out
+    }
+
     /// The material the title block states when the caller gives none (draftwright's
     /// `_resolve_title_document_defaults`): the file's one material, if usable. Several are
     /// ambiguous; one of a file of several parts is not the drawing's part's (draftwright's 'not

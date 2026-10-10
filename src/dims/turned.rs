@@ -279,7 +279,7 @@ fn diameters(
             let views = diameter_views(b.axis);
             let n = members.len();
             Want {
-                id: want_id(&f.id, "step.diameter", views[0]),
+                id: want_id(&f.id, "step.diameter"),
                 views,
                 value: b.diameter,
                 measurements: members
@@ -333,7 +333,7 @@ fn length(first: &Feature, members: &[&Banded], terms: Vec<String>, basis: Strin
         .fold(f64::NEG_INFINITY, f64::max);
     let views = profile_views(k);
     Want {
-        id: want_id(&first.id, "step.length", views[0]),
+        id: want_id(&first.id, "step.length"),
         views,
         value: if members.len() == 1 {
             hi - lo
@@ -374,7 +374,7 @@ fn claims<'a>(
             .on(&f.id)
             .into_iter()
             .map(move |o| Measurement {
-                feature: format!("pmi:{}", o.source),
+                feature: o.id.clone(),
                 parameter: o.aspect.into(),
                 value,
             })
@@ -605,7 +605,7 @@ fn overall(
         _ => "",
     };
     out.push(Want {
-        id: want_id("envelope", "od.diameter", views[0]),
+        id: want_id("envelope", "od.diameter"),
         views: views.clone(),
         value: t.diameter,
         terms,
@@ -631,7 +631,7 @@ fn overall(
     let k = t.axis;
     let name = super::envelope::NAMES[k];
     out.push(Want {
-        id: want_id("envelope", &format!("{name}.length"), views[0]),
+        id: want_id("envelope", &format!("{name}.length")),
         views,
         value: hi[k] - lo[k],
         terms: vec![fmt(hi[k] - lo[k])],

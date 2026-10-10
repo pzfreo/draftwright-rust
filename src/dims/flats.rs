@@ -227,7 +227,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         terms.extend([text(first.across), "A/F".into()]);
         let faces = members.len();
         out.push(Want {
-            id: super::want_id(&first.feature.id, "flat.length", view),
+            id: super::want_id(&first.feature.id, "flat.length"),
             views: vec![view],
             value: first.across,
             terms,

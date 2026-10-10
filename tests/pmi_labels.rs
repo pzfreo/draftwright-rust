@@ -156,7 +156,7 @@ fn sheet_requirements_are_on_the_title_block_beside_it_and_in_the_notes() {
     let note = plan
         .notes
         .iter()
-        .find(|n| n.id == "pmi:manufacturing_requirement:#6471")
+        .find(|n| n.id == "pmi:manufacturing_requirement.edge_condition")
         .unwrap();
     assert!(note.placed.is_some() && note.default);
     // The finish sits on the band above the title block, from its left end.

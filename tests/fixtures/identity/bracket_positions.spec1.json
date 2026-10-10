@@ -1,0 +1,9 @@
+{
+  "schema": "draftwright.spec/1",
+  "views": { "side": { "omit": true } },
+  "dimensions": {
+    "d:envelope/depth.length@plan": { "tolerance": "±0.1" },
+    "d:pmi:dimension:#31409/linear.basic@plan": { "omit": true },
+    "d:f:fillet:1/fillet.radius@front": { "omit": true }
+  }
+}

@@ -152,14 +152,20 @@ fn a_document_of_an_unknown_version_is_refused() {
     older.schema = "draftwright.analysis/2".into();
     assert!(model::plan(&older, &Spec::default()).is_ok());
 
-    let spec: Spec = serde_json::from_value(json!({ "schema": "draftwright.spec/2" })).unwrap();
+    let spec: Spec = serde_json::from_value(json!({ "schema": "draftwright.spec/3" })).unwrap();
     let e = model::plan(&analysis, &spec).unwrap_err();
-    assert!(e.message.contains("draftwright.spec/2"), "{e}");
-    assert_eq!(e.choices, [model::SPEC_SCHEMA]);
+    assert!(e.message.contains("draftwright.spec/3"), "{e}");
+    assert_eq!(e.choices, model::SPEC_SCHEMAS);
+    // Version 1 is read, through the migration.
+    let spec: Spec = serde_json::from_value(json!({ "schema": "draftwright.spec/1" })).unwrap();
+    assert_eq!(
+        model::plan(&analysis, &spec).unwrap().spec.schema,
+        model::SPEC_SCHEMA
+    );
     // Through the adapters' one entry point, it is the caller's to fix.
     let e = api::call(
         "plan",
-        &json!({ "step": fixture("parts/plate.step"), "spec": { "schema": "draftwright.spec/2" } }),
+        &json!({ "step": fixture("parts/plate.step"), "spec": { "schema": "draftwright.spec/3" } }),
     )
     .unwrap_err();
     assert_eq!(e.code, "invalid", "{e}");
@@ -361,7 +367,7 @@ fn planning_never_writes_its_outcomes_into_the_spec() {
     let given: Spec = serde_json::from_value(json!({
         "sheet": { "size": "A4", "scale": "10:1", "title": { "material": "6082-T6" } },
         "views": { "plan": { "omit": true } },
-        "dimensions": { "d:envelope/height.length@front": { "omit": true } },
+        "dimensions": { "d:envelope/height.length": { "omit": true } },
     }))
     .unwrap();
     let plan = model::plan(&analysis, &given).unwrap();
@@ -427,18 +433,18 @@ fn an_authored_constraint_is_kept_and_its_infeasibility_reported() {
     assert!(codes(&plan).contains(&"view_plan_incomplete"));
 }
 
-/// The parts of a dimension's ID: its feature, its parameter and the view that carries it.
-fn id_parts(id: &str) -> (&str, &str, &str) {
+/// The parts of a dimension's ID: its feature and its parameter. It never names the view that
+/// carries it (`draftwright.spec/2`).
+fn id_parts(id: &str) -> (&str, &str) {
     let rest = id.strip_prefix("d:").unwrap_or_else(|| panic!("{id}"));
-    let (feature, rest) = rest.split_once('/').unwrap_or_else(|| panic!("{id}"));
-    let (parameter, view) = rest.split_once('@').unwrap_or_else(|| panic!("{id}"));
-    (feature, parameter, view)
+    assert!(!rest.contains('@'), "an ID never names its view: {id}");
+    rest.split_once('/').unwrap_or_else(|| panic!("{id}"))
 }
 
 /// ADR4-6 (R1 invariant 5): a dimension's ID is derived, never positional: its feature (the
 /// envelope, the height ladder `step_level`, a recognised feature or pattern), its parameter in
-/// the role vocabulary (`role.kind[.discriminator]`, the kind always present) and its view; IDs
-/// are unique and do not change with the order recognition reports features in. A bare role is refused, with the IDs
+/// the role vocabulary (`role.kind[.discriminator]`, the kind always present), never its view
+/// (a field of the item, a principal view's); IDs are unique and do not change with the order recognition reports features in. A bare role is refused, with the IDs
 /// it could mean.
 #[test]
 fn dimension_ids_are_derived_and_a_bare_role_is_refused() {
@@ -456,7 +462,7 @@ fn dimension_ids_are_derived_and_a_bare_role_is_refused() {
         features.insert("step_level");
         let mut seen = BTreeSet::new();
         for d in &plan.dimensions {
-            let (feature, parameter, view) = id_parts(&d.id);
+            let (feature, parameter) = id_parts(&d.id);
             assert!(features.contains(feature), "{name}: {}", d.id);
             let words: Vec<&str> = parameter.split('.').collect();
             assert!(
@@ -469,7 +475,12 @@ fn dimension_ids_are_derived_and_a_bare_role_is_refused() {
                 "{name}: {}",
                 d.id
             );
-            assert_eq!(d.view, format!("v:{view}"), "{name}: {}", d.id);
+            assert!(
+                ["v:front", "v:plan", "v:side"].contains(&d.view.as_str()),
+                "{name}: {} in {}",
+                d.id,
+                d.view
+            );
             assert!(seen.insert(d.id.clone()), "{name}: {} twice", d.id);
         }
     }
@@ -489,11 +500,11 @@ fn dimension_ids_are_derived_and_a_bare_role_is_refused() {
     );
 
     let (_, analysis) = analysed_with("plate", &json);
-    let e = model::plan(&analysis, &omitting(&["d:f:hole_pattern:1/bore@plan"])).unwrap_err();
+    let e = model::plan(&analysis, &omitting(&["d:f:hole_pattern:1/bore"])).unwrap_err();
     assert!(
         e.choices
             .iter()
-            .any(|c| c == "d:f:hole_pattern:1/bore.diameter@plan"),
+            .any(|c| c == "d:f:hole_pattern:1/bore.diameter"),
         "{e}"
     );
 }
@@ -504,7 +515,7 @@ fn dimension_ids_are_derived_and_a_bare_role_is_refused() {
 #[test]
 fn an_omission_is_never_reported_as_a_drop() {
     let (_, analysis) = analysed_with("plate", &recognition("plate"));
-    let width = "d:envelope/width.length@front";
+    let width = "d:envelope/width.length";
     let mut spec = omitting(&[width]);
     spec.views.entry("plan".into()).or_default().omit = true;
     let plan = model::plan(&analysis, &spec).unwrap();

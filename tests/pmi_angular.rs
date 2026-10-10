@@ -17,7 +17,10 @@ use draftwright::haecceity::hlr::View;
 use draftwright::model::{self, Analysis, Plan, PlannedView, Spec};
 use draftwright::pmi::{Reading, Record};
 
-const ID: &str = "d:pmi:dimension:#33/angular@plan";
+/// The angle's item: record `dimension:#33`, named by its identity (an angular dimension on
+/// faces 15 and 17).
+const ID: &str = "d:pmi:dimension.angular:f15,17/angular";
+const FEATURE: &str = "pmi:dimension.angular:f15,17";
 const VERTEX: [f64; 3] = [110.0, -75.0, -25.0];
 const FIRST: [f64; 3] = [128.76388374866252, -107.5, -25.0];
 const SECOND: [f64; 3] = [91.23611625133717, -107.49999999999974, -25.0];
@@ -134,7 +137,7 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
     assert_eq!(d.terms, ["60", "±0.5"]);
     assert_eq!(d.value, 60.0);
     assert_eq!(d.measurements.len(), 1);
-    assert_eq!(d.measurements[0].feature, "pmi:dimension:#33");
+    assert_eq!(d.measurements[0].feature, FEATURE);
     assert_eq!(d.measurements[0].parameter, "angular");
     assert!(
         !plan
@@ -265,7 +268,7 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
         annotation
             .claims
             .iter()
-            .any(|c| c.feature == "pmi:dimension:#33" && c.parameter == "angular")
+            .any(|c| c.feature == FEATURE && c.parameter == "angular")
     );
 
     // Deterministic to the byte.

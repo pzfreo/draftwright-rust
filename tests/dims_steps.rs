@@ -57,8 +57,8 @@ fn sheet_part(corpus: &Path, name: &str) -> Analysis {
 fn items(plan: &Plan, prefixes: &[&str]) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
     for d in &plan.dimensions {
-        let (_, rest) = d.id.split_once('/').unwrap();
-        let (parameter, view) = rest.split_once('@').unwrap();
+        let (_, parameter) = d.id.split_once('/').unwrap();
+        let view = d.view.trim_start_matches("v:");
         if prefixes.iter().any(|p| parameter.starts_with(p)) {
             assert!(
                 d.placed.is_some(),
@@ -151,7 +151,7 @@ fn golden_rectangular_through_step_states_both_legs_along_its_run() {
     let leg = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:through_step:1/through_step_leg.length.x@plan")
+        .find(|d| d.id == "d:f:through_step:1/through_step_leg.length.x")
         .unwrap();
     assert_eq!(leg.measurements.len(), 1);
     assert_eq!(leg.measurements[0].feature, "f:through_step:1");
@@ -320,7 +320,7 @@ fn a_uniform_staircase_is_one_counted_rise() {
     let d = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:step_level/step_height.length@front")
+        .find(|d| d.id == "d:step_level/step_height.length")
         .unwrap();
     assert_eq!(d.terms, ["4×", "5"]);
     assert!((d.value - 5.0).abs() < 1e-9);
@@ -401,7 +401,7 @@ fn an_unreadable_step_is_reported() {
 fn a_rungs_id_names_its_height_not_its_rank() {
     let mut a = fixture("plates_pads_levels_and_slanted_steps");
     let spec: Spec = serde_json::from_value(serde_json::json!({
-        "dimensions": { "d:step_level/step_height.length.h16@front": { "omit": true } }
+        "dimensions": { "d:step_level/step_height.length.h16": { "omit": true } }
     }))
     .unwrap();
     let plan = model::plan(&a, &spec).unwrap();
@@ -412,7 +412,7 @@ fn a_rungs_id_names_its_height_not_its_rank() {
     assert!(
         plan.omitted
             .iter()
-            .any(|o| o.id == "d:step_level/step_height.length.h16@front")
+            .any(|o| o.id == "d:step_level/step_height.length.h16")
     );
 
     // Without the lower level the upper rung keeps its ID; omitting the lost one is refused.
@@ -427,7 +427,7 @@ fn a_rungs_id_names_its_height_not_its_rank() {
     assert!(
         e.choices
             .iter()
-            .any(|c| c == "d:step_level/step_height.length.h32@front"),
+            .any(|c| c == "d:step_level/step_height.length.h32"),
         "{e}"
     );
 }

@@ -773,7 +773,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     // Each rung is its own measurement, discriminated by its height, as its ID is.
     let height =
         |parameter: String, value: f64, terms: Vec<String>, shape: Shape, basis: String| Want {
-            id: super::want_id(FEATURE, &parameter, "front"),
+            id: super::want_id(FEATURE, &parameter),
             views: vec!["front"],
             value,
             terms,
@@ -831,7 +831,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         b[k] = at;
         let parameter = format!("step_position.length.{}{}", AXES[k], word(value));
         out.push(Want {
-            id: super::want_id(FEATURE, &parameter, view),
+            id: super::want_id(FEATURE, &parameter),
             views: vec![view],
             value,
             terms: vec![fmt(value)],

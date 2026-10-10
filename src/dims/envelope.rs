@@ -39,7 +39,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
         let views = profile_views(k);
         out.push(Want {
-            id: want_id("envelope", &format!("{name}.length"), views[0]),
+            id: want_id("envelope", &format!("{name}.length")),
             views: views.clone(),
             value: v,
             terms: vec![fmt(v)],

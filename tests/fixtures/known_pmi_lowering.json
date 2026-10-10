@@ -1904,7 +1904,7 @@
   "field": "record",
   "python": null,
   "rust": {
-   "lowered": "pmi:geometric_tolerance:#13917",
+   "lowered": "pmi:geometric_tolerance.profile_surface:ref=A,B,C:mod=all_over",
    "text": "profile_surface 1.524 A B C"
   },
   "verdict": "rust-correct",
@@ -2256,7 +2256,7 @@
   "field": "record",
   "python": null,
   "rust": {
-   "lowered": "pmi:geometric_tolerance:#18511",
+   "lowered": "pmi:geometric_tolerance.profile_surface:ref=A,B,C:mod=all_over",
    "text": "profile_surface 1.5 A B C"
   },
   "verdict": "rust-correct",

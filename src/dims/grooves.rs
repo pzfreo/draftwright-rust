@@ -74,7 +74,7 @@ fn want(cx: &Context, f: &Feature) -> Result<Want, String> {
         .collect();
     let views = profile_views(k);
     Ok(Want {
-        id: want_id(&f.id, "groove.length", views[0]),
+        id: want_id(&f.id, "groove.length"),
         views,
         value: width,
         terms: vec![

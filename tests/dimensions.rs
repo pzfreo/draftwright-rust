@@ -144,13 +144,7 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
 }
 
 fn rust_family(d: &PlannedDimension) -> String {
-    let parameter =
-        d.id.split('/')
-            .nth(1)
-            .unwrap_or("")
-            .split('@')
-            .next()
-            .unwrap_or("");
+    let parameter = d.id.split('/').nth(1).unwrap_or("");
     if d.id.starts_with("d:envelope/") {
         "envelope".into()
     } else if parameter == "step.diameter" || parameter == "step.length" {

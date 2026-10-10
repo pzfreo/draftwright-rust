@@ -192,7 +192,7 @@ fn mark(text: &str, claims: &[(&str, &str)]) -> Mark {
 #[test]
 fn the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them() {
     let (part, analysis) = analysed("plate");
-    let callout = "d:f:hole_pattern:1/bore.diameter@plan";
+    let callout = "d:f:hole_pattern:1/bore.diameter";
     let lint_of = |plan: &Plan| holes_only(lint::lint(&analysis, &drawn(&part, &analysis, plan)));
 
     let full = model::plan(&analysis, &Spec::default()).unwrap();
@@ -666,7 +666,7 @@ fn the_spec_read_back_from_a_drawing_gives_the_same_drawing() {
         (
             "plate",
             json!([
-                { "op": "set", "path": "dimensions/d:envelope~1height.length@front/omit", "value": true },
+                { "op": "set", "path": "dimensions/d:envelope~1height.length/omit", "value": true },
                 { "op": "set", "path": "sheet/title/material", "value": "6082-T6" },
                 { "op": "set", "path": "views/iso/omit", "value": true },
             ]),

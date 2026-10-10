@@ -59,7 +59,8 @@ use crate::text::Segment;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlannedGdt {
-    /// `pmi:<source>`.
+    /// `pmi:<identity>`, the record's semantic identity ([`crate::pmi::identity`]), never its
+    /// Part 21 instance (that is `source`).
     pub id: String,
     /// `control_frame`, `datum_feature` or `label`.
     pub kind: String,
@@ -666,7 +667,9 @@ pub fn plan(
         })
     };
     // A frame above or below its view runs right of its leader, so the rightmost leader takes
-    // the nearest tier and no shaft runs through a frame placed before it.
+    // the nearest tier and no shaft runs through a frame placed before it. Leaders that stand
+    // together keep the reading's order (its sources, as text), as before items were named by
+    // their identity.
     items.sort_by(|a, b| {
         let order = if outward(a.side)[0] == 0.0 {
             across(b).total_cmp(&across(a))
@@ -676,7 +679,7 @@ pub fn plan(
         (a.view, a.side)
             .cmp(&(b.view, b.side))
             .then(order)
-            .then(a.id.cmp(&b.id))
+            .then(a.source.cmp(&b.source))
     });
     let mut labels: Vec<[f64; 4]> = dims
         .iter()

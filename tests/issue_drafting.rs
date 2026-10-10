@@ -277,8 +277,8 @@ fn each_axis_of_a_location_is_its_own_measurement() {
     let plan = model::plan(analysis, &Spec::default()).unwrap();
     let full = ids(&plan);
     for gone in [
-        "d:f:hole:5/location.length.x@plan",
-        "d:f:hole_pattern:1/location.length.y@plan",
+        "d:f:hole:5/location.length.x",
+        "d:f:hole_pattern:1/location.length.y",
     ] {
         let left = ids(&model::plan(analysis, &omitting(&[gone])).unwrap());
         let mut expected = full.clone();
@@ -591,7 +591,7 @@ fn equal_diameters_on_different_features_are_stated_apart() {
         let d = plan
             .dimensions
             .iter()
-            .find(|d| d.id == "d:envelope/od.diameter@front")
+            .find(|d| d.id == "d:envelope/od.diameter")
             .unwrap();
         d.measurements
             .iter()
@@ -638,7 +638,7 @@ fn equal_diameters_on_different_features_are_stated_apart() {
     let d = twin_plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:turned_step:1/step.diameter@front")
+        .find(|d| d.id == "d:f:turned_step:1/step.diameter")
         .unwrap();
     assert_eq!(d.label, "2× ø30");
     let members: Vec<&str> = d.measurements.iter().map(|m| m.feature.as_str()).collect();
@@ -976,7 +976,7 @@ fn the_parts_extents_never_leave_the_drawing_silently() {
             "height.length Placed"
         ]
     );
-    let width = "d:envelope/width.length@front";
+    let width = "d:envelope/width.length";
     let less = model::plan(&analysis, &omitting(&[width])).unwrap();
     assert!(
         less.omitted
@@ -1009,7 +1009,7 @@ fn the_parts_extents_never_leave_the_drawing_silently() {
         let stated: Vec<Mark> = plan
             .dimensions
             .iter()
-            .filter(|d| d.id.starts_with("d:envelope/") || d.id.contains("/step.length@"))
+            .filter(|d| d.id.starts_with("d:envelope/") || d.id.ends_with("/step.length"))
             .map(|d| Mark {
                 name: d.id.clone(),
                 view: Some(d.view.clone()),
@@ -1108,7 +1108,7 @@ fn eccentric_cylinders_are_not_one_turned_profile() {
     assert!(
         plan.dimensions
             .iter()
-            .any(|d| d.id == "d:f:turned_step:1/step.diameter@front")
+            .any(|d| d.id == "d:f:turned_step:1/step.diameter")
     );
 }
 
@@ -1140,9 +1140,9 @@ fn dimension<'a>(plan: &'a Plan, id: &str) -> &'a PlannedDimension {
 }
 
 const EXTENTS: [(&str, &str); 3] = [
-    ("d:envelope/width.length@front", "60"),
-    ("d:envelope/depth.length@side", "40"),
-    ("d:envelope/height.length@front", "5"),
+    ("d:envelope/width.length", "60"),
+    ("d:envelope/depth.length", "40"),
+    ("d:envelope/height.length", "5"),
 ];
 
 /// ISSUE-1215-a, in part: an authored envelope tolerance prints in the label of the extent it is
@@ -1174,10 +1174,10 @@ fn an_envelope_tolerance_prints_on_its_own_extent() {
     }
     let plan = fixture_plan(
         "plate",
-        &tolerances(&[("d:envelope/height.length@front", "+0.2 -0.1")]),
+        &tolerances(&[("d:envelope/height.length", "+0.2 -0.1")]),
     );
     assert_eq!(
-        dimension(&plan, "d:envelope/height.length@front").label,
+        dimension(&plan, "d:envelope/height.length").label,
         "5 +0.2 -0.1"
     );
 }
@@ -1218,8 +1218,8 @@ fn a_toleranced_label_grows_along_its_line_and_its_box_holds_it() {
     let font = font();
     let bare = fixture_plan("plate", &Spec::default());
     for (id, along) in [
-        ("d:envelope/height.length@front", 1),
-        ("d:envelope/width.length@front", 0),
+        ("d:envelope/height.length", 1),
+        ("d:envelope/width.length", 0),
     ] {
         let plan = fixture_plan("plate", &tolerances(&[(id, "±0.05")]));
         let (b0, b1) = (
@@ -1340,7 +1340,7 @@ fn every_authored_tolerance_reaches_the_label_that_claims_it() {
 /// port dimensions no step levels on main).
 #[test]
 fn a_jittered_pattern_claims_no_pitch_tolerance() {
-    let pitch = "d:f:hole_pattern:1/pitch.length@plan";
+    let pitch = "d:f:hole_pattern:1/pitch.length";
     let even = fixture_plan("two_grids", &tolerances(&[(pitch, "±0.05")]));
     assert_eq!(dimension(&even, pitch).label, "2× 10 ±0.05");
 
@@ -1460,14 +1460,14 @@ fn a_toleranced_height_is_not_handed_to_an_untoleranced_extent() {
     let height = flush
         .omitted
         .iter()
-        .find(|o| o.id.contains("/boss_height.length@"))
+        .find(|o| o.id.ends_with("/boss_height.length"))
         .expect("the flush boss height is conveyed")
         .id
         .clone();
     let depth = flush
         .dimensions
         .iter()
-        .find(|d| d.id.starts_with("d:envelope/depth.length@"))
+        .find(|d| d.id.starts_with("d:envelope/depth.length"))
         .unwrap();
     let (depth, bare) = (depth.id.clone(), depth.label.clone());
     let labels = |bands: &[(&str, &str)]| -> Vec<String> {
@@ -1507,7 +1507,7 @@ fn a_toleranced_height_is_not_handed_to_an_untoleranced_extent() {
 #[test]
 fn a_callouts_room_is_measured_from_the_text_it_draws() {
     let font = font();
-    let id = "d:f:hole_pattern:1/bore.diameter@plan";
+    let id = "d:f:hole_pattern:1/bore.diameter";
     let width = |plan: &Plan| {
         let d = dimension(plan, id);
         let b = d.placed.as_ref().unwrap().label_box;
@@ -1534,7 +1534,7 @@ fn a_callouts_room_is_measured_from_the_text_it_draws() {
 #[test]
 fn an_authored_magnitude_is_never_rounded() {
     let font = font();
-    let id = "d:f:hole_pattern:1/bore.diameter@plan";
+    let id = "d:f:hole_pattern:1/bore.diameter";
     let bare = fixture_plan("plate", &Spec::default());
     for (authored, printed) in [
         ("±0.02", "±0.02"),
@@ -1816,13 +1816,13 @@ fn a_rungs_witnesses_stand_on_its_levels_support() {
         let [lo, hi] = analysis.envelope;
         let front = plan.views.iter().find(|v| v.id == "v:front");
         for d in &plan.dimensions {
-            let Some(height) = d.id.strip_prefix("d:step_level/step_height.length.h") else {
+            if !d.id.starts_with("d:step_level/step_height.length.h") {
                 continue;
-            };
+            }
             let (Some(p), Some(v)) = (&d.placed, front) else {
                 continue;
             };
-            assert!(height.ends_with("@front"), "{name}: {}", d.id);
+            assert_eq!(d.view, "v:front", "{name}: {}", d.id);
             seen += 1;
             let z = lo[2] + d.value;
             let key = |z: f64| (z * 1e3).round() as i64;
@@ -1914,7 +1914,7 @@ fn a_shoulder_on_the_box_is_reported_not_drawn() {
     assert_eq!(
         shoulders(&plan),
         [(
-            "d:step_level/step_position.length.x20@plan".to_string(),
+            "d:step_level/step_position.length.x20".to_string(),
             "20".to_string()
         )]
     );
@@ -1936,7 +1936,7 @@ fn a_shoulder_on_the_box_is_reported_not_drawn() {
         .filter(|n| n.name.contains("/step_position."))
         .map(|n| n.name.as_str())
         .collect();
-    assert_eq!(drawn, ["d:step_level/step_position.length.x20@plan"]);
+    assert_eq!(drawn, ["d:step_level/step_position.length.x20"]);
 
     for (axis, at, view) in [("x", lo[0], "plan"), ("y", lo[1], "side")] {
         a.risers = vec![on_box(axis, at)];
@@ -1978,7 +1978,7 @@ fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
     let ours: BTreeSet<&str> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/step.length@") && d.placed.is_some())
+        .filter(|d| d.id.ends_with("/step.length") && d.placed.is_some())
         .map(|d| d.label.as_str())
         .collect();
     assert_eq!(ours, theirs);

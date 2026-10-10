@@ -214,7 +214,7 @@ fn parallel_rows_on_the_same_stations_show_one_pitch() {
         let d = claiming(&plan, one, "pitch.length");
         assert_eq!(d.label, label);
         assert_eq!(claiming(&plan, other, "pitch.length").id, d.id);
-        let gone = format!("d:{other}/pitch.length@plan");
+        let gone = format!("d:{other}/pitch.length");
         let o = plan
             .omitted
             .iter()

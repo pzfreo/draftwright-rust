@@ -126,13 +126,13 @@ fn grooves_and_flats_match_draftwrights_sheets() {
             .collect();
         let want: &[&str] = if name == "connector109" {
             &[
-                "d:f:groove:1/groove.length@front",
-                "d:f:groove:2/groove.length@front",
-                "d:f:groove:3/groove.length@front",
-                "d:f:flat:1/flat.length@plan",
+                "d:f:groove:1/groove.length",
+                "d:f:groove:2/groove.length",
+                "d:f:groove:3/groove.length",
+                "d:f:flat:1/flat.length",
             ]
         } else {
-            &["d:f:flat:1/flat.length@plan"]
+            &["d:f:flat:1/flat.length"]
         };
         assert_eq!(ours, want, "{name}");
         for code in ["dimensions_not_ported", "feature_not_dimensioned"] {

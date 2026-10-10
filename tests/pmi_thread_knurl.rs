@@ -97,9 +97,12 @@ fn edit(a: &Analysis, source: &str, f: impl Fn(&mut Record)) -> Analysis {
     b
 }
 
-/// The plan's item claiming *source*, with its label.
-fn claimed<'a>(plan: &'a Plan, source: &str) -> Vec<(&'a str, &'a str)> {
-    let feature = format!("pmi:{source}");
+/// The plan's item claiming *source* of *a* (by its item ID, `pmi:<identity>`), with its label.
+fn claimed<'a>(plan: &'a Plan, a: &Analysis, source: &str) -> Vec<(&'a str, &'a str)> {
+    let Some(Reading::Read(report)) = &a.pmi else {
+        panic!("its PMI is read")
+    };
+    let feature = report.identities().ids[source].clone();
     plan.dimensions
         .iter()
         .filter(|d| d.measurements.iter().any(|m| m.feature == feature))
@@ -123,8 +126,8 @@ fn a_single_thread_prints_its_suffix_on_its_holes_callout() {
     let python = python_label(&captured("string_post_tapped"), source);
     assert_eq!(python, "⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD");
     assert_eq!(
-        claimed(&plan, source),
-        [("d:f:hole:2/bore.diameter@plan", python.as_str())]
+        claimed(&plan, &a, source),
+        [("d:f:hole:2/bore.diameter", python.as_str())]
     );
     assert_eq!(refused(&plan, source), None);
     // One requirement: no table, in draftwright's drawing or the port's.
@@ -149,21 +152,22 @@ fn several_long_requirements_refer_to_the_manufacturing_requirements_table() {
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let drawing_py = captured("thumbwheel_thread_knurl");
     for (source, id) in [
-        (
-            "manufacturing_requirement:#689",
-            "d:f:hole:1/bore.diameter@side",
-        ),
+        ("manufacturing_requirement:#689", "d:f:hole:1/bore.diameter"),
         (
             "manufacturing_requirement:#722",
-            "d:f:turned_step:4/step.diameter@front",
+            "d:f:turned_step:4/step.diameter",
         ),
         (
             "manufacturing_requirement:#749",
-            "d:f:turned_step:1/step.diameter@front",
+            "d:f:turned_step:1/step.diameter",
         ),
     ] {
         let python = python_label(&drawing_py, source);
-        assert_eq!(claimed(&plan, source), [(id, python.as_str())], "{source}");
+        assert_eq!(
+            claimed(&plan, &a, source),
+            [(id, python.as_str())],
+            "{source}"
+        );
         assert_eq!(refused(&plan, source), None);
     }
     let rows: Vec<Vec<String>> =
@@ -238,7 +242,7 @@ fn a_requirement_no_one_feature_owns_is_reported_with_draftwrights_reason() {
         ),
         "{why}"
     );
-    assert!(claimed(&plan, source).is_empty());
+    assert!(claimed(&plan, &b, source).is_empty());
     assert!(lint.iter().any(|i| i.code == "pmi_not_lowered"
         && i.sources == [source]
         && i.message.contains("no canonical feature matches")));

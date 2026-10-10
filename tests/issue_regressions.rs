@@ -198,12 +198,7 @@ fn a_pocket_leader_starts_on_its_rim_on_the_matching_axis() {
         let callout = plan
             .dimensions
             .iter()
-            .find(|d| {
-                d.id.ends_with(&format!(
-                    "/pocket_width.length@{}",
-                    &view_of[p.depth_axis][2..]
-                ))
-            })
+            .find(|d| d.id.ends_with("/pocket_width.length") && d.view == view_of[p.depth_axis])
             .unwrap_or_else(|| panic!("{}: no pocket callout", p.part));
         assert_eq!(callout.view, view_of[p.depth_axis], "{}", p.part);
         // A curved pocket's depth is checked in a_cylindrical_mouth_states_its_greatest_depth.
@@ -404,7 +399,7 @@ fn an_open_channel_is_one_feature_with_one_width() {
         let widths: Vec<_> = plan
             .dimensions
             .iter()
-            .filter(|d| d.id.contains("/channel_width.length@"))
+            .filter(|d| d.id.ends_with("/channel_width.length"))
             .collect();
         assert_eq!(widths.len(), 1, "{part}");
         assert_eq!(widths[0].label, "25", "{part}");
@@ -415,7 +410,7 @@ fn an_open_channel_is_one_feature_with_one_width() {
             .dimensions
             .iter()
             .filter(|d| {
-                d.id.ends_with("/bore.diameter@front") || d.id.ends_with("/bore.diameter@plan")
+                d.id.ends_with("/bore.diameter") && (d.view == "v:front" || d.view == "v:plan")
             })
             .map(|d| d.label.as_str())
             .collect();
@@ -457,7 +452,7 @@ fn an_open_channel_is_one_feature_with_one_width() {
     let pocket = planned("bounded_pocket", &Spec::default());
     assert!(pocket.dimensions.iter().all(|d| !d.id.contains("channel")));
     assert_eq!(
-        labels(&pocket, "/pocket_width.length@"),
+        labels(&pocket, "/pocket_width.length"),
         ["20 × 30 × 8 DEEP"]
     );
 
@@ -525,7 +520,7 @@ fn the_title_block_keeps_dimensions_out_without_dropping_them() {
             let d = plan
                 .dimensions
                 .iter()
-                .find(|d| d.id == "d:envelope/depth.length@side")
+                .find(|d| d.id == "d:envelope/depth.length")
                 .unwrap();
             assert_eq!(d.label, depth, "{part}");
             assert!(
@@ -541,7 +536,7 @@ fn the_title_block_keeps_dimensions_out_without_dropping_them() {
         "tb_tall_box",
         &spec(json!({ "sheet": { "size": "A4", "scale": "2:1" } })),
     );
-    let depth = "d:envelope/depth.length@side";
+    let depth = "d:envelope/depth.length";
     assert!(
         crowded
             .dimensions
@@ -599,7 +594,7 @@ fn a_hex_pocket_needs_a_regular_hexagon_and_keeps_each_claim() {
     let callouts: Vec<_> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/polygon_across_flats.length@"))
+        .filter(|d| d.id.ends_with("/polygon_across_flats.length"))
         .collect();
     assert_eq!(callouts.len(), 1);
     assert_eq!(callouts[0].label, "6× HEX 4.3 A/F × 1.9 DEEP");
@@ -702,7 +697,7 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
     let callout = plan
         .dimensions
         .iter()
-        .find(|d| d.id.contains("/seat_diameter.diameter@"))
+        .find(|d| d.id.ends_with("/seat_diameter.diameter"))
         .unwrap();
     assert_eq!(callout.label, "3× ø14.3 × 6 LONG × 62.9° ARC");
     assert_eq!(callout.measurements.len(), 9);
@@ -757,13 +752,13 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
     }
     let z = locations
         .iter()
-        .find(|d| d.id.ends_with("/seat_location.location.z@front"))
+        .find(|d| d.id.ends_with("/seat_location.location.z") && d.view == "v:front")
         .unwrap();
     assert_eq!((z.label.as_str(), z.measurements.len()), ("11.1", 3));
     assert!((z.measurements[0].value - 11.1).abs() < 3e-4);
     let x = locations
         .iter()
-        .find(|d| d.id.contains("/seat_location.location.x@"))
+        .find(|d| d.id.ends_with("/seat_location.location.x"))
         .unwrap();
     assert_eq!((x.label.as_str(), x.measurements.len()), ("15.6", 3));
 }
@@ -811,8 +806,8 @@ fn omitting(omit: &[&str]) -> Spec {
 #[test]
 fn removing_a_hole_location_or_its_callout_is_reported() {
     let (part, analysis) = analysed("single_hole");
-    let callout = "d:f:hole:1/bore.diameter@plan";
-    let [x, y] = ["x", "y"].map(|k| format!("d:f:hole:1/location.length.{k}@plan"));
+    let callout = "d:f:hole:1/bore.diameter";
+    let [x, y] = ["x", "y"].map(|k| format!("d:f:hole:1/location.length.{k}"));
     let full = model::plan(&analysis, &Spec::default()).unwrap();
     let labels: BTreeSet<(&str, &str)> = full
         .dimensions
@@ -888,7 +883,7 @@ fn removing_a_hole_location_or_its_callout_is_reported() {
 #[test]
 fn prose_and_descriptive_tables_cannot_silence_coverage() {
     let (part, analysis) = analysed("counterbored_block");
-    let callout = "d:f:hole:1/bore.diameter@plan";
+    let callout = "d:f:hole:1/bore.diameter";
     let full = model::plan(&analysis, &Spec::default()).unwrap();
     assert_eq!(
         full.dimensions
@@ -981,7 +976,7 @@ fn a_planar_reading_cannot_certify_a_curved_pocket() {
         .iter_mut()
         .find(|a| {
             a.name
-                .starts_with("d:f:section_recess:1/pocket_width.length@")
+                .starts_with("d:f:section_recess:1/pocket_width.length")
         })
         .unwrap();
     let max = a

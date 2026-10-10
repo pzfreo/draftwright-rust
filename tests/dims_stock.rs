@@ -52,8 +52,7 @@ fn items(plan: &Plan) -> Vec<(String, String, String, f64)> {
         .dimensions
         .iter()
         .map(|d| {
-            let (_, rest) = d.id.split_once('/').unwrap();
-            let (parameter, _) = rest.split_once('@').unwrap();
+            let (_, parameter) = d.id.split_once('/').unwrap();
             (
                 parameter.to_string(),
                 d.view.trim_start_matches("v:").to_string(),
@@ -221,7 +220,7 @@ fn a_stock_record_that_cannot_be_read_is_reported_and_the_extents_stay() {
 #[test]
 fn omitting_the_stock_length_does_not_restore_the_overall_height() {
     let a = fixture("plain", |_| {});
-    let id = format!("d:{}/stock_length.length@front", stock_id(&a));
+    let id = format!("d:{}/stock_length.length", stock_id(&a));
     let mut spec = Spec::default();
     spec.dimensions.insert(
         id.clone(),
@@ -320,11 +319,7 @@ fn lint_finds_the_stock_stated() {
         );
         let mut spec = Spec::default();
         spec.dimensions.insert(
-            format!(
-                "d:{}/stock_length.length@{}",
-                stock_id(&a),
-                if name == "y" { "side" } else { "front" }
-            ),
+            format!("d:{}/stock_length.length", stock_id(&a)),
             DimensionSpec {
                 omit: true,
                 ..Default::default()

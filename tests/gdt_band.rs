@@ -80,8 +80,8 @@ fn ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet() {
     assert!(outside.is_empty(), "past their areas: {outside:?}");
     // E and J stand left of the front view, inside the sheet's drawing area.
     let drawable = 10.0;
-    for id in ["pmi:datum:#75", "pmi:datum:#78"] {
-        let g = plan.gdt.iter().find(|g| g.id == id).unwrap();
+    for id in ["datum:#75", "datum:#78"] {
+        let g = plan.gdt.iter().find(|g| g.source == id).unwrap();
         assert_eq!((g.view.as_str(), g.side.as_str()), ("v:front", "left"));
         let b = g.placed.as_ref().unwrap().label_box;
         assert!(b[0] >= drawable, "{id} at {b:?}");

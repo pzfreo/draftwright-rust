@@ -81,7 +81,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let view = end_on(k);
         let parameter = "polygon_across_flats.length";
         out.push(Want {
-            id: want_id(&f.id, parameter, view),
+            id: want_id(&f.id, parameter),
             views: vec![view],
             value: *across_flats,
             terms: vec![
@@ -118,7 +118,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         };
         let parameter = "stock_length.length";
         out.push(Want {
-            id: want_id(&f.id, parameter, views[0]),
+            id: want_id(&f.id, parameter),
             views,
             value: length,
             terms: vec![fmt(length)],

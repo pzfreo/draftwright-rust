@@ -84,11 +84,11 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
     // 11 h6 (of four), 15 and 16 g6, 17 h6 and 18 h7.
     let s = spec(json!({
         "dimensions": {
-            "d:envelope/width.length@front": { "tolerance": "±0.02" },
-            "d:envelope/height.length@front": { "tolerance": "±0" },
-            "d:envelope/depth.length@side": { "tolerance": "+0.1 -0.02" },
-            "d:f:hole_pattern:2/bore.diameter@plan": { "tolerance": "±0.03" },
-            "d:f:hole_pattern:1/grid_pitch.length.row@front": { "tolerance": "±0.1" }
+            "d:envelope/width.length": { "tolerance": "±0.02" },
+            "d:envelope/height.length": { "tolerance": "±0" },
+            "d:envelope/depth.length": { "tolerance": "+0.1 -0.02" },
+            "d:f:hole_pattern:2/bore.diameter": { "tolerance": "±0.03" },
+            "d:f:hole_pattern:1/grid_pitch.length.row": { "tolerance": "±0.1" }
         },
         "features": {
             "f:hole:11": { "fit": "H7" }, "f:hole:12": { "fit": "H7" },
@@ -100,15 +100,15 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
     let plan = model::plan(&a, &s).unwrap();
     // Equal to draftwright's labels.
     for (id, python) in [
-        ("d:envelope/width.length@front", "304.8 ±0.02"),
-        ("d:envelope/depth.length@side", "97.8 +0.1 -0.02"),
+        ("d:envelope/width.length", "304.8 ±0.02"),
+        ("d:envelope/depth.length", "97.8 +0.1 -0.02"),
         (
-            "d:f:hole_pattern:2/bore.diameter@plan",
+            "d:f:hole_pattern:2/bore.diameter",
             "4× ⌀7.1 ±0.03 THRU ⌴ ⌀10.2 ↧ 7.9",
         ),
-        ("d:f:hole_pattern:1/grid_pitch.length.row@front", "127 ±0.1"),
-        ("d:f:hole:11/bore.diameter@front", "2× ⌀6.3 H7 ↧ 12.7"),
-        ("d:f:boss:5/boss.diameter@front", "2× ø31.8 g6"),
+        ("d:f:hole_pattern:1/grid_pitch.length.row", "127 ±0.1"),
+        ("d:f:hole:11/bore.diameter", "2× ⌀6.3 H7 ↧ 12.7"),
+        ("d:f:boss:5/boss.diameter", "2× ø31.8 g6"),
     ] {
         assert_eq!(label(&plan, id), python, "{id}");
     }
@@ -116,7 +116,7 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
         // ARCH0019-2: draftwright prints the band of nothing as "±0.0", a tolerance that states
         // none; the port withholds it and says so.
         Differs {
-            id: "d:envelope/height.length@front",
+            id: "d:envelope/height.length",
             python: "247.7 ±0.0",
             rust: "247.7",
             verdict: "rust-correct",
@@ -126,13 +126,13 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
         // port keeps the collapsed mark, prints no fit on it and reports the fits it withholds.
         // Splitting needs the boss and hole planners to group by fit.
         Differs {
-            id: "d:f:boss:1/boss.diameter@plan",
+            id: "d:f:boss:1/boss.diameter",
             python: "3× ø44.5 | ø44.5 h6",
             rust: "4× ø44.5",
             verdict: "rust-wrong",
         },
         Differs {
-            id: "d:f:boss:6/boss.diameter@front",
+            id: "d:f:boss:6/boss.diameter",
             python: "ø22.9 h6 | ø22.9 h7",
             rust: "2× ø22.9",
             verdict: "rust-wrong",
@@ -148,21 +148,21 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
         assert_eq!(p.subjects[0], d.id);
     }
     assert_eq!(codes(&plan, "tolerance_withheld").len(), differs.len());
-    let unequal = problem(&plan, "p:tolerance_withheld:d:f:boss:6/boss.diameter@front").unwrap();
+    let unequal = problem(&plan, "p:tolerance_withheld:d:f:boss:6/boss.diameter").unwrap();
     assert_eq!(
         unequal.subjects,
-        ["d:f:boss:6/boss.diameter@front", "f:boss:6", "f:boss:8"]
+        ["d:f:boss:6/boss.diameter", "f:boss:6", "f:boss:8"]
     );
     assert!(
         unequal.message.contains("f:boss:6 h6, f:boss:8 h7"),
         "{}",
         unequal.message
     );
-    let nothing = problem(&plan, "p:tolerance_withheld:d:envelope/height.length@front").unwrap();
+    let nothing = problem(&plan, "p:tolerance_withheld:d:envelope/height.length").unwrap();
     assert!(
         nothing
             .message
-            .contains("dimensions/d:envelope~1height.length@front/tolerance"),
+            .contains("dimensions/d:envelope~1height.length/tolerance"),
         "{}",
         nothing.message
     );
@@ -184,38 +184,30 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
     // on="polygon_across_flats.length"); envelope().tolerance(1, on="height").
     let s = spec(json!({
         "dimensions": {
-            "d:f:hole_pattern:1/bore.diameter@plan": { "tolerance": "±0.05" },
-            "d:f:fillet:6/fillet.radius@plan": { "tolerance": "±0.5" },
-            "d:f:slot:1/slot_width.length@plan": { "tolerance": "+0.1 -0" },
-            "d:f:polygonal_boss:1/polygon_across_flats.length@plan": { "tolerance": "±0.2" },
-            "d:envelope/height.length@front": { "tolerance": "±1" }
+            "d:f:hole_pattern:1/bore.diameter": { "tolerance": "±0.05" },
+            "d:f:fillet:6/fillet.radius": { "tolerance": "±0.5" },
+            "d:f:slot:1/slot_width.length": { "tolerance": "+0.1 -0" },
+            "d:f:polygonal_boss:1/polygon_across_flats.length": { "tolerance": "±0.2" },
+            "d:envelope/height.length": { "tolerance": "±1" }
         },
         "features": { "f:hole:1": { "fit": "H7" }, "f:hole:2": { "fit": "H7" } }
     }));
     let plan = model::plan(&a, &s).unwrap();
     for (id, python, given) in [
-        ("d:f:hole:1/bore.diameter@front", "2× ⌀20 H7 ↧ 45", "fit"),
+        ("d:f:hole:1/bore.diameter", "2× ⌀20 H7 ↧ 45", "fit"),
         (
-            "d:f:hole_pattern:1/bore.diameter@plan",
+            "d:f:hole_pattern:1/bore.diameter",
             "4× ⌀35 ±0.05 THRU (2×2)",
             "tolerance",
         ),
+        ("d:f:fillet:6/fillet.radius", "7× R50 ±0.5", "tolerance"),
+        ("d:f:slot:1/slot_width.length", "40 +0.1 -0.0", "tolerance"),
         (
-            "d:f:fillet:6/fillet.radius@plan",
-            "7× R50 ±0.5",
-            "tolerance",
-        ),
-        (
-            "d:f:slot:1/slot_width.length@plan",
-            "40 +0.1 -0.0",
-            "tolerance",
-        ),
-        (
-            "d:f:polygonal_boss:1/polygon_across_flats.length@plan",
+            "d:f:polygonal_boss:1/polygon_across_flats.length",
             "HEX 100 ±0.2 A/F",
             "tolerance",
         ),
-        ("d:envelope/height.length@front", "150 ±1.0", "tolerance"),
+        ("d:envelope/height.length", "150 ±1.0", "tolerance"),
     ] {
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
         assert_eq!(d.label, python, "{id}");
@@ -229,7 +221,7 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
     // past the plan's reserved area with its longer label 7× R50 ±0.5; its leader now stands
     // where either label fits.)
     let bare = model::plan(&a, &Spec::default()).unwrap();
-    let added = "p:annotation_outside_area:d:f:fillet:6/fillet.radius@plan|v:plan";
+    let added = "p:annotation_outside_area:d:f:fillet:6/fillet.radius|v:plan";
     assert_eq!(
         bare.problems
             .iter()
@@ -251,23 +243,17 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
         "features": { "f:hole:1": { "fit": "H7" }, "f:hole:2": { "fit": "H8" } }
     }));
     let plan = model::plan(&a, &mixed).unwrap();
-    assert_eq!(
-        label(&plan, "d:f:hole:1/bore.diameter@front"),
-        "2× ⌀20 ↧ 45"
-    );
-    let p = problem(&plan, "p:tolerance_withheld:d:f:hole:1/bore.diameter@front").unwrap();
+    assert_eq!(label(&plan, "d:f:hole:1/bore.diameter"), "2× ⌀20 ↧ 45");
+    let p = problem(&plan, "p:tolerance_withheld:d:f:hole:1/bore.diameter").unwrap();
     assert_eq!(
         p.subjects,
-        ["d:f:hole:1/bore.diameter@front", "f:hole:1", "f:hole:2"]
+        ["d:f:hole:1/bore.diameter", "f:hole:1", "f:hole:2"]
     );
     // One member with a fit and one without: also withheld.
     let one = spec(json!({ "features": { "f:hole:2": { "fit": "H7" } } }));
     let plan = model::plan(&a, &one).unwrap();
-    assert_eq!(
-        label(&plan, "d:f:hole:1/bore.diameter@front"),
-        "2× ⌀20 ↧ 45"
-    );
-    assert!(problem(&plan, "p:tolerance_withheld:d:f:hole:1/bore.diameter@front").is_some());
+    assert_eq!(label(&plan, "d:f:hole:1/bore.diameter"), "2× ⌀20 ↧ 45");
+    assert!(problem(&plan, "p:tolerance_withheld:d:f:hole:1/bore.diameter").is_some());
 }
 
 /// A pattern's members with one fit state it on the pattern's callout; a pitch takes a
@@ -282,15 +268,15 @@ fn a_patterns_callout_and_pitch_state_their_bands() {
     }
     let s = spec(json!({
         "features": features,
-        "dimensions": { format!("d:{}/pitch.length@plan", pattern.id): { "tolerance": "±0.05" } }
+        "dimensions": { format!("d:{}/pitch.length", pattern.id): { "tolerance": "±0.05" } }
     }));
     let plan = model::plan(&a, &s).unwrap();
     assert_eq!(
-        label(&plan, &format!("d:{}/bore.diameter@plan", pattern.id)),
+        label(&plan, &format!("d:{}/bore.diameter", pattern.id)),
         "3× ⌀6 G7 THRU"
     );
     assert_eq!(
-        label(&plan, &format!("d:{}/pitch.length@plan", pattern.id)),
+        label(&plan, &format!("d:{}/pitch.length", pattern.id)),
         "2× 10 ±0.05"
     );
     // A fit is set on holes, not on their pattern.
@@ -312,18 +298,15 @@ fn a_band_that_cannot_be_read_or_applied_is_refused() {
     // The forms: ± and a pair of deviations; a close spelling says what it reads as.
     let e = model::edit(
         &Spec::default(),
-        &json!([{ "op": "set", "path": "dimensions/d:envelope~1width.length@front/tolerance", "value": "+-0.1" }]),
+        &json!([{ "op": "set", "path": "dimensions/d:envelope~1width.length/tolerance", "value": "+-0.1" }]),
     )
     .unwrap_err();
     assert!(
-        e.message.contains("d:envelope/width.length@front")
-            && e.message.contains("reads as \"±0.1\""),
+        e.message.contains("d:envelope/width.length") && e.message.contains("reads as \"±0.1\""),
         "{e}"
     );
-    let e = refused(
-        json!({ "dimensions": { "d:envelope/width.length@front": { "tolerance": "0.1" } } }),
-    );
-    assert!(e.message.contains("d:envelope/width.length@front"), "{e}");
+    let e = refused(json!({ "dimensions": { "d:envelope/width.length": { "tolerance": "0.1" } } }));
+    assert!(e.message.contains("d:envelope/width.length"), "{e}");
     assert_eq!(e.choices, ["±0.05", "+0.1 -0.02"]);
     // A fit from outside draftwright's table, of the wrong case, or on a feature that takes none.
     let hole = "f:hole:1";
@@ -340,7 +323,7 @@ fn a_band_that_cannot_be_read_or_applied_is_refused() {
     assert!(e.choices.contains(&hole.to_string()), "{e}");
     // A size that has a tolerance and a fit is told to take one.
     let e = refused(json!({
-        "dimensions": { "d:f:hole_pattern:1/bore.diameter@plan": { "tolerance": "±0.1" } },
+        "dimensions": { "d:f:hole_pattern:1/bore.diameter": { "tolerance": "±0.1" } },
         "features": { hole: { "fit": "H7" } }
     }));
     assert!(e.message.contains("one or the other"), "{e}");
@@ -370,7 +353,7 @@ fn a_band_that_cannot_be_read_or_applied_is_refused() {
         &spec(json!({ "features": { "f:boss:1": { "fit": "h7" } } })),
     )
     .unwrap();
-    assert_eq!(label(&plan, "d:f:boss:1/boss.diameter@plan"), "ø12 h7");
+    assert_eq!(label(&plan, "d:f:boss:1/boss.diameter"), "ø12 h7");
 }
 
 /// Nothing the spec authors is dropped in silence: a tolerance on a dimension the plan leaves
@@ -378,10 +361,10 @@ fn a_band_that_cannot_be_read_or_applied_is_refused() {
 #[test]
 fn a_band_on_what_the_plan_leaves_out_is_reported() {
     let (_, a) = analysed("plate");
-    let callout = "d:f:hole_pattern:1/bore.diameter@plan";
+    let callout = "d:f:hole_pattern:1/bore.diameter";
     let s = spec(json!({
         "dimensions": {
-            "d:envelope/width.length@front": { "omit": true, "tolerance": "±0.1" },
+            "d:envelope/width.length": { "omit": true, "tolerance": "±0.1" },
             (callout): { "omit": true }
         },
         "features": { "f:hole:1": { "fit": "H7" } }
@@ -390,18 +373,18 @@ fn a_band_on_what_the_plan_leaves_out_is_reported() {
     assert_eq!(
         codes(&plan, "tolerance_not_shown"),
         [
-            "p:tolerance_not_shown:d:envelope/width.length@front",
+            "p:tolerance_not_shown:d:envelope/width.length",
             "p:tolerance_not_shown:f:hole:1"
         ]
     );
     // An authored set that does not list the callout leaves the fit unstated too.
     let s = spec(json!({
         "dimension_source": "authored",
-        "dimensions": { "d:envelope/width.length@front": { "tolerance": "±0.1" } },
+        "dimensions": { "d:envelope/width.length": { "tolerance": "±0.1" } },
         "features": { "f:hole:1": { "fit": "H7" } }
     }));
     let plan = model::plan(&a, &s).unwrap();
-    assert_eq!(label(&plan, "d:envelope/width.length@front"), "60 ±0.1");
+    assert_eq!(label(&plan, "d:envelope/width.length"), "60 ±0.1");
     assert_eq!(
         codes(&plan, "tolerance_not_shown"),
         ["p:tolerance_not_shown:f:hole:1"]
@@ -414,7 +397,7 @@ fn a_band_on_what_the_plan_leaves_out_is_reported() {
 fn only_the_authored_bands_appear() {
     let (_, a) = analysed("plate");
     let s = spec(json!({
-        "dimensions": { "d:envelope/height.length@front": { "tolerance": "+0.2 -0.1" } },
+        "dimensions": { "d:envelope/height.length": { "tolerance": "+0.2 -0.1" } },
         "features": {
             "f:hole:1": { "fit": "H7" }, "f:hole:2": { "fit": "H7" },
             "f:hole:3": { "fit": "H7" }, "f:hole:4": { "fit": "H7" }
@@ -427,8 +410,8 @@ fn only_the_authored_bands_appear() {
         assert_eq!(b.id, d.id);
         let mut terms = b.terms.clone();
         match d.id.as_str() {
-            "d:envelope/height.length@front" => terms.insert(1, "+0.2 -0.1".into()),
-            "d:f:hole_pattern:1/bore.diameter@plan" => terms.insert(2, "H7".into()),
+            "d:envelope/height.length" => terms.insert(1, "+0.2 -0.1".into()),
+            "d:f:hole_pattern:1/bore.diameter" => terms.insert(2, "H7".into()),
             _ => {
                 assert!(b.default && d.default && d.from_spec.is_empty(), "{}", d.id);
                 assert_eq!(b.basis, d.basis);
@@ -438,7 +421,7 @@ fn only_the_authored_bands_appear() {
         assert_eq!(b.measurements, d.measurements);
     }
     assert_eq!(
-        label(&plan, "d:f:hole_pattern:1/bore.diameter@plan"),
+        label(&plan, "d:f:hole_pattern:1/bore.diameter"),
         "4× ⌀6 H7 THRU (2×2)"
     );
 }
@@ -453,7 +436,7 @@ fn fits_from_another_revision_are_kept_inactive() {
     s.binding = Some(other.binding.clone());
     let plan = model::plan(&a, &s).unwrap();
     assert_eq!(
-        label(&plan, "d:f:hole_pattern:1/bore.diameter@plan"),
+        label(&plan, "d:f:hole_pattern:1/bore.diameter"),
         "4× ⌀6 THRU (2×2)"
     );
     let p = problem(&plan, "p:spec_entries_inactive:part").unwrap();
@@ -469,7 +452,7 @@ fn an_edited_band_survives_the_round_trip_through_every_format() {
     let edited = model::edit(
         &Spec::default(),
         &json!([
-            { "op": "set", "path": "dimensions/d:envelope~1width.length@front/tolerance", "value": "±0.05" },
+            { "op": "set", "path": "dimensions/d:envelope~1width.length/tolerance", "value": "±0.05" },
             { "op": "set", "path": "features/f:hole:1/fit", "value": "H7" },
             { "op": "set", "path": "features/f:hole:2/fit", "value": "H7" },
             { "op": "set", "path": "features/f:hole:3/fit", "value": "H7" },
@@ -478,9 +461,9 @@ fn an_edited_band_survives_the_round_trip_through_every_format() {
     )
     .unwrap();
     let plan = model::plan(&a, &edited).unwrap();
-    assert_eq!(label(&plan, "d:envelope/width.length@front"), "60 ±0.05");
+    assert_eq!(label(&plan, "d:envelope/width.length"), "60 ±0.05");
     assert_eq!(
-        label(&plan, "d:f:hole_pattern:1/bore.diameter@plan"),
+        label(&plan, "d:f:hole_pattern:1/bore.diameter"),
         "4× ⌀6 H7 THRU (2×2)"
     );
     let drawing = model::render(&p, &a, &plan, &font()).unwrap();
@@ -496,7 +479,7 @@ fn an_edited_band_survives_the_round_trip_through_every_format() {
         let back = model::embedded_spec(&bytes).unwrap().unwrap();
         assert_eq!(back, plan.spec);
         assert_eq!(
-            back.dimensions["d:envelope/width.length@front"]
+            back.dimensions["d:envelope/width.length"]
                 .tolerance
                 .as_deref(),
             Some("±0.05")
@@ -510,11 +493,11 @@ fn an_edited_band_survives_the_round_trip_through_every_format() {
     // Removing it takes it off again.
     let removed = model::edit(
         &edited,
-        &json!([{ "op": "remove", "path": "dimensions/d:envelope~1width.length@front/tolerance" }]),
+        &json!([{ "op": "remove", "path": "dimensions/d:envelope~1width.length/tolerance" }]),
     )
     .unwrap();
     let plan = model::plan(&a, &removed).unwrap();
-    assert_eq!(label(&plan, "d:envelope/width.length@front"), "60");
+    assert_eq!(label(&plan, "d:envelope/width.length"), "60");
 }
 
 /// ISSUE-1154-a's tolerance clause: a toleranced boss height is not handed to an untoleranced
@@ -543,11 +526,11 @@ fn a_toleranced_height_keeps_its_own_dimension() {
     }
     b.parameters.insert("location".into(), top.into());
     b.parameters.insert("height".into(), (hi[1] - lo[1]).into());
-    let id = "d:f:boss:1/boss_height.length@side";
+    let id = "d:f:boss:1/boss_height.length";
     let heights = |plan: &Plan| {
         plan.dimensions
             .iter()
-            .filter(|d| d.id.contains("/boss_height.length@"))
+            .filter(|d| d.id.ends_with("/boss_height.length"))
             .map(|d| d.label.clone())
             .collect::<Vec<_>>()
     };
@@ -558,9 +541,9 @@ fn a_toleranced_height_keeps_its_own_dimension() {
         ["32.3 ±0.1"]
     );
     let extent = spec(json!({
-        "dimensions": { "d:envelope/depth.length@side": { "tolerance": "±0.1" } }
+        "dimensions": { "d:envelope/depth.length": { "tolerance": "±0.1" } }
     }));
     let plan = model::plan(&a, &extent).unwrap();
     assert!(heights(&plan).is_empty());
-    assert_eq!(label(&plan, "d:envelope/depth.length@side"), "32.3 ±0.1");
+    assert_eq!(label(&plan, "d:envelope/depth.length"), "32.3 ±0.1");
 }

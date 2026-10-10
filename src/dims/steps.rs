@@ -72,7 +72,7 @@ fn through_wants(s: &Through) -> Vec<Want> {
             let value = (b[k] - a[k]).abs();
             let parameter = format!("through_step_leg.length.{}", AXES[k]);
             Want {
-                id: super::want_id(id, &parameter, view),
+                id: super::want_id(id, &parameter),
                 views: vec![view],
                 value,
                 terms: vec![fmt(value)],
@@ -125,7 +125,7 @@ fn circular(f: &Feature, frame: &QFrame) -> Result<Want, String> {
         "DEEP".into(),
     ];
     Ok(Want {
-        id: super::want_id(&f.id, "circular_step_radius.radius", view),
+        id: super::want_id(&f.id, "circular_step_radius.radius"),
         views: vec![view],
         value: r,
         terms,
@@ -167,7 +167,7 @@ fn ramp(f: &Feature, frame: &QFrame) -> Result<Want, String> {
         "RUN".into(),
     ];
     Ok(Want {
-        id: super::want_id(&f.id, "ramp_angle.angle", view),
+        id: super::want_id(&f.id, "ramp_angle.angle"),
         views: vec![view],
         value: angle,
         terms,
