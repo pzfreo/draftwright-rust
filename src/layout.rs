@@ -281,11 +281,13 @@ impl Strips {
     }
 
     /// Reserves room at *scale* for the feature control frames, datum feature symbols and labels
-    /// *items* (`dims::gdt::demand`): each strip that holds any is at least its dimension lanes'
-    /// band ([`lane_band`]) and the tiers its items stack in beyond it, as `dims::gdt` places
-    /// them. A strip's items are packed in placement's order (above and below a view, the
-    /// rightmost leader first; left and right, the lowest first), each into the nearest tier
-    /// where its extent across the strip, leader included, is clear of the items already there.
+    /// *items* (`dims::gdt::demand`): each strip that holds any is at least the room its
+    /// dimensions take (below; *base* is the bands before any GD&T: draftwright's estimates,
+    /// widened by [`Strips::reserve`] where the port reserves its dimension lanes) and the tiers
+    /// its items stack in beyond it, as `dims::gdt` places them. A strip's items are packed in placement's order (above and below
+    /// a view, the rightmost leader first; left and right, the lowest first), each into the
+    /// nearest tier where its extent across the strip, leader included, is clear of the items
+    /// already there.
     ///
     /// draftwright reserves no band for GD&T: its frames and symbols compete for the strips the
     /// dimensions' estimates leave (`annotations/_gdt.py`, `_GDT_SUBCHAIN`) and are dropped
@@ -295,12 +297,31 @@ impl Strips {
     /// reports every item (the maintainer's escalate-never-lose directive), so it reserves the
     /// room they take. A part with none reserves nothing.
     ///
+    /// The tiers start beyond the lesser of *base*'s band and the band of the strip's dimension
+    /// lanes ([`lane_band`]), or, with *beyond_lanes*, beyond the lanes' band whatever *base* is.
+    /// The lane count is an upper bound: it counts callouts, which take no lane, and every item
+    /// in a lane of its own, where placement shares lanes; so [`Strips::reserve`] keeps the bands
+    /// that face open paper (below the front, above and left of the plan) at draftwright's
+    /// estimates, and the GD&T's room starts within them too (nist_stc_09 e4: 45 lanes, 322 mm,
+    /// below a front whose dimensions take 173 mm at 1:1 on A1; tiers beyond the count drove its
+    /// scale down the ladder to 1:5). Where the dimensions then run past that start and leave an
+    /// item no place on the sheet off the other views, the plan is made again with
+    /// *beyond_lanes* (`model::plan_escalated`).
+    ///
     /// The bands are those `geometry` reads: the front's above and below, the column's left and
     /// right (shared by the front and the plan), the plan's above and below, the side's four. An
     /// item that runs past the view's end along its strip (a frame hung right of a leader near
     /// the right end) widens the band beyond that end as far. As in [`Strips::reserve`], the
-    /// front's lower band is then at least the side's.
-    pub fn reserve_gdt(&mut self, lanes: &Lanes, items: &[Gdt], scale: f64) {
+    /// front's lower band is then at least the side's. Bands only widen.
+    pub fn reserve_gdt(
+        &mut self,
+        base: &Strips,
+        lanes: &Lanes,
+        beyond_lanes: bool,
+        items: &[Gdt],
+        scale: f64,
+    ) {
+        let mut base = base.clone();
         let strips: [(&str, &str, usize); 12] = [
             ("front", "below", lanes.front_below),
             ("front", "above", 0),
@@ -323,7 +344,12 @@ impl Strips {
             if mine.is_empty() {
                 continue;
             }
-            let depth = gdt_band(&mine, lane_band(n), scale);
+            let start = if beyond_lanes {
+                lane_band(n)
+            } else {
+                base.band(view, side).min(lane_band(n))
+            };
+            let depth = gdt_band(&mine, start, scale);
             let band = self.band(view, side);
             *band = band.max(depth);
             // A frame hung beside its leader near the view's end runs past the end: the band
@@ -392,7 +418,7 @@ pub struct Gdt {
 }
 
 /// The band, page mm from the outline, that *items* of one strip need beyond *base* (the
-/// strip's dimension lanes) at *scale*: their tiers packed first fit.
+/// strip's dimensions' band) at *scale*: their tiers packed first fit.
 fn gdt_band(items: &[&Gdt], base: f64, scale: f64) -> f64 {
     let horizontal = matches!(items[0].side, "above" | "below");
     let mut order: Vec<&Gdt> = items.to_vec();

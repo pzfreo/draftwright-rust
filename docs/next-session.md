@@ -148,20 +148,24 @@ pushed):
   draftwright's on the 14 AP242 fixtures and cgb203). The 6 `material:0:0` rust-wrong entries are
   gone (1356 differences). The mismatch/disagreement codes still wait on question (2) above.
 - **GD&T band space (d-gdt-band-space):** the layout reserves room for the lowered PMI
-  (`layout::Strips::reserve_gdt`, `dims::gdt::demand`: each strip's lanes plus its frames',
-  datum symbols' and labels' tiers packed first fit at the chosen scale, `demand::size`
-  re-choosing until they hold; a new `sv_left` band), and `dims::gdt` stands an item beyond the
-  dimensions across from it and prefers a clear place inside its view's area. draftwright
-  reserves none (it drops what its strips cannot hold). On the 14 AP242 fixtures GD&T items past
-  their areas 144 → 15 (frames 103 → 15, datum symbols 31 → 0, labels 10 → 0), ctc_02's datum
-  symbols E and J back on the sheet (off the sheet 2 → 0), ink 1534 → 1343; the 15 left are
-  frames whose own strip has no clear tier, retried into a strip not reserved for them
-  (`tests/gdt_band.rs`; `docs/quality-2026-10-09.md`, "GD&T band space"). The 30 quality parts
-  are byte-identical. Eight fixtures change sheet or scale (ctc_01 e1 and string_post_tapped now
-  as draftwright; bolt_thread_knurl, ftc_07 and stc_09 at a smaller scale than draftwright's).
+  (`layout::Strips::reserve_gdt`, `dims::gdt::demand`: each strip's dimensions' room plus its
+  frames', datum symbols' and labels' tiers packed first fit at the chosen scale,
+  `demand::size` re-choosing until they hold; a new `sv_left` band), and `dims::gdt` stands an
+  item beyond the dimensions across from it and prefers a clear place inside its view's area.
+  The dimensions' room is the lesser of the band before GD&T and the lane count's band (the
+  count overstates the bands facing open paper, which `Strips::reserve` keeps at draftwright's
+  estimate); a plan that still leaves an item off the sheet or over another view is made again
+  with the tiers beyond the full lane count (`model::plan_escalated`; assembly_plate_pin,
+  bracket_positions, stc_09). draftwright reserves none (it drops what its strips cannot hold).
+  On the 14 AP242 fixtures against origin/main 50be9ac: GD&T off the sheet 6 → 0, over a view
+  15 → 0, past their areas 150 → 41; `tools/quality.py` off the sheet 7 → 0, ink 1692 → 1627,
+  every fixture lower but stc_09 (403 → 524, at 1:5 where draftwright keeps 1:1)
+  (`tests/gdt_band.rs`; `docs/quality-2026-10-09.md`, "GD&T band space" and "Finished
+  (alpha 1)"). The 30 quality parts are byte-identical.
   **Question for the maintainer:** should GD&T room cost scale (draftwright's ladder, reducing on
   the same sheet first, as now) or paper (keep the scale chosen without GD&T and take a larger
-  sheet)?
+  sheet)? stc_09 pinned to A0 at 1:1 is clean of off-sheet and over-view items too, at no less
+  ink.
 - **Facts:** Python draftwright's sheets recorded for 13 parts (`tools/capture_sheet_facts.py`,
   `tests/fixtures/sheets/`, `docs/facts.md`).
 - **Rules:** ADRs R1–R4 accepted. `docs/rules/` has 515 rules learnt from Python; 89 ported
@@ -185,6 +189,12 @@ pushed):
   location and escalate (`orchestrator.py` `_prepare_hole_table_run`). The port never drops: it
   places everything and records collisions as rust-wrong. Adopt drop-and-escalate, make hole
   tables spec-driven (a `t:<k>` of kind holes), or leave them out?
+- GD&T room (d-gdt-band-space, judgement call, overturnable): the first plan starts the GD&T's
+  tiers within draftwright's band estimate where the port's lane count is larger, and only a
+  plan that leaves a frame, datum symbol or label off the sheet or over a view is made again
+  with them beyond the full count. Taking whichever of the two has less ink instead would lower
+  the fixtures' ink 1627 → about 1582 (ftc_10 450 → 413) at twice the planning time for every
+  part with PMI; not done.
 - ISSUE-1247-a: draftwright reports an angled step as an explicit unsupported completeness
   outcome; the port has no completeness report. Carry an `unsupported` Problem for each angled
   step (removing it from `dims::UNDRAFTED`), or wait for a completeness report?
