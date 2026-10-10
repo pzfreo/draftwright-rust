@@ -60,6 +60,16 @@ Until every gate below is met, the rolling run dispatches **only alpha 1 work** 
   Rust-written file; multi-face tolerances cross; notes and surface finish written.
 - CI green, including the Linux-only cross-engine test.
 
+## Decisions at the cut (2026-10-10)
+
+- quiddity-rust's CI passes on Linux and macOS but takes about 11-16 and 23-29 minutes; accepted
+  for alpha 1 and listed as a known limitation (the maintainer).
+- Section recesses stay out of the recognition document for alpha 1, documented as a known
+  limitation; the document's shape (question 5) is decided later (the maintainer).
+- Added for a browser editor: haecceity's hidden lines on one thread where none can be spawned,
+  and draftwright's analysis from STEP bytes (the maintainer's request).
+- The releases were cut without a separate approval step, at the maintainer's word.
+
 ## 4. Cutting the releases
 
 Done by the main session, in dependency order, once 1-3 are met:

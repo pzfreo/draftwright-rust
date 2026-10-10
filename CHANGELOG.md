@@ -4,7 +4,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.1.0-alpha.1 (unreleased)
+## 0.1.0-alpha.1 (2026-10-10)
 
 The first alpha. Its gates and their state are in `docs/alpha1.md`.
 
@@ -36,6 +36,9 @@ The first alpha. Its gates and their state are in `docs/alpha1.md`.
   symbols and PMI labels, and places them inside their views' bands (draftwright reserves none).
 - PMI on hole occurrences (AP242 edition 4 `basic_round_hole`), now that haecceity reads them:
   nist_stc_09's hole callouts and their position frames are drawn, counted over the pattern.
+- For callers with no file system, such as a browser build: `model::analyse_step` and
+  `analyse_native_step` analyse a STEP file from its bytes, and the bundled font is public
+  (`api::MONO`); haecceity runs hidden lines on one thread where none can be spawned.
 - SVG, DXF, PDF (subset fonts, searchable text) and PNG output, each carrying its Spec;
   deterministic to the byte in every time zone.
 - The PMI coverage lint: every PMI item is on the drawing or reported.

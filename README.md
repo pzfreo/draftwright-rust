@@ -225,9 +225,10 @@ every corpus-backed test; without it they are skipped.
 
 ## Taking a new haecceity
 
-haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust` (`Cargo.toml`, branch
-`prototype/rust-port`) and are pinned to one commit in `Cargo.lock`. To move the pin to what is
-pushed on that branch:
+haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. Alpha 1 pins them to the
+tag `v0.1.0-alpha.1` (`Cargo.toml`), one commit in `Cargo.lock`. To follow the development
+branch again, set `branch = "prototype/rust-port"` in place of the tag in `Cargo.toml`; then, to
+move the pin to what is pushed on that branch:
 
 1. `cargo update -p haecceity -p quiddity`. Both must name the same commit (the `source` lines
    in `Cargo.lock`); `tests/native.rs` (`quiddity_and_haecceity_are_pinned_together`) fails if
