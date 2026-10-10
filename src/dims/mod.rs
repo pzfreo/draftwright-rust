@@ -843,7 +843,10 @@ pub(crate) fn plan_with_obstacles(
                     .iter()
                     .find(|d| d.id == w.id && d.view == format!("v:{v}"))
             {
-                return d.placed.clone();
+                return d
+                    .placed
+                    .as_ref()
+                    .map(|held| placement::relabel(held, &d.terms, w));
             }
             placement::intent(&frames[v], w, p, sides[i]?, lane[i])
         })

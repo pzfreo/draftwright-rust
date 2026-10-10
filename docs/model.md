@@ -170,14 +170,15 @@ frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`:
 | `side` | `above`, `below`, `left` or `right` of the carrying view's projected envelope. A linear dimension uses the two sides parallel to its measured span; incompatible sides are refused with the choices. |
 | `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
-| `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink; a free item can be adjusted around obstacles. |
+| `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
 
 Existing angular PMI keeps its measured sector: `lane` increases the radius in paper steps and
 `along` selects a fraction of its arc. A requested `side` is reported as
 `placement_side_not_applicable`, with a fix removing that field; it cannot change the sector.
 
-Views use `{relative_to, side, gap?, align?, pinned?}`. `relative_to` names another shown view
-(`front`, `plan`, `side`, `iso`, `section_aa`) or `sheet`, the drawing area's lower left.
+Views use `{relative_to, side, gap?, align?, pinned?}`. `relative_to` names another view
+(`front`, `plan`, `side`, `iso`, `section_aa`); the page is never an anchor, so a view's place
+is always relative to another view (ADR R1 invariant 1), typically its projection partner.
 `gap` is the clear paper distance between view footprints (default 10 mm, 0–1000);
 `align` is `start`, `middle` (default) or `end` along the other axis (`outside` also aligns
 ends). Dependencies resolve before packing; cycles and self-anchors are refused. Missing anchors

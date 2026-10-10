@@ -112,9 +112,31 @@ fn random(seed: &mut u64, n: usize) -> usize {
         .wrapping_add(1442695040888963407);
     (*seed >> 32) as usize % n
 }
+/// A view's place beside another view (never the page): its projection partner `front`, or for
+/// the front view `plan` or `side`, on the side it already lies.
+fn beside(p: &Plan, id: &str, gap: usize) -> Value {
+    let me = p.views.iter().find(|v| v.id == id).unwrap();
+    let anchor = ["v:front", "v:plan", "v:side"]
+        .into_iter()
+        .filter(|a| *a != id)
+        .find_map(|a| p.views.iter().find(|v| v.id == a))
+        .unwrap();
+    let c = |b: [f64; 4]| [0.5 * (b[0] + b[2]), 0.5 * (b[1] + b[3])];
+    let (m, o) = (c(me.area), c(anchor.area));
+    let side = if (m[0] - o[0]).abs() > (m[1] - o[1]).abs() {
+        if m[0] > o[0] { "right" } else { "left" }
+    } else if m[1] > o[1] {
+        "above"
+    } else {
+        "below"
+    };
+    json!({"relative_to":anchor.id.trim_start_matches("v:"),"side":side,"gap":gap,"align":"middle"})
+}
 fn pin(s: &Spec, p: &Plan, id: &str, lane: usize) -> Spec {
     let place = if p.views.iter().any(|v| v.id == id) {
-        json!({"relative_to":"sheet","side":"above","gap":10+lane*5,"align":"start","pinned":true})
+        let mut place = beside(p, id, 10 + lane * 5);
+        place["pinned"] = json!(true);
+        place
     } else {
         let view = draftwright::items::items(p)
             .into_iter()
@@ -357,11 +379,23 @@ fn seeded_edits_on_slice_parts_preserve_pinned_geometry() {
                 ink(&baseline),
                 ink(&distribution)
             );
-            let anchors: BTreeSet<_> = draftwright::items::items(&pinned)
+            let mut anchors: BTreeSet<_> = draftwright::items::items(&pinned)
                 .into_iter()
                 .filter(|i| pins.contains(&i.id))
                 .filter_map(|i| i.view)
                 .collect();
+            // A pinned view sits relative to its anchor view: editing the anchor is editing the
+            // pin's own intent, so the anchor chain is not one of the "other" items.
+            for _ in 0..8 {
+                for (name, v) in &s.views {
+                    if let Some(place) = &v.place
+                        && (pins.contains(&format!("v:{name}"))
+                            || anchors.contains(&format!("v:{name}")))
+                    {
+                        anchors.insert(format!("v:{}", place.relative_to));
+                    }
+                }
+            }
             let mut free: Vec<String> = eligible
                 .iter()
                 .filter(|id| !pins.contains(*id) && !id.starts_with("v:"))
@@ -376,12 +410,14 @@ fn seeded_edits_on_slice_parts_preserve_pinned_geometry() {
             for _ in 0..16 {
                 let id = &free[random(&mut rng, free.len())];
                 s = if id.starts_with("v:") {
-                    set(
+                    let mut place = beside(&base, id, random(&mut rng, 40));
+                    place["align"] = json!("end");
+                    // An edit that would close an anchor cycle is refused; the Spec stays.
+                    model::edit(
                         &s,
-                        id,
-                        "place",
-                        json!({"relative_to":"sheet","side":"above","gap":random(&mut rng,40),"align":"end"}),
+                        &json!([{"op":"set","path":format!("{}/place",path(id)),"value":place}]),
                     )
+                    .unwrap_or(s)
                 } else {
                     match random(&mut rng, 3) {
                         0 => set(&s, id, "omit", json!(random(&mut rng, 2) == 0)),
@@ -496,12 +532,20 @@ fn sheet_and_scale_changes_keep_or_report_every_pin() {
                 }
             }
         }
-        let large: Spec = serde_json::from_value(json!({"sheet":{"size":"A0","scale":"1:5"},"views":{"front":{"place":{"relative_to":"sheet","side":"above","gap":220,"align":"start","pinned":true}}}})).unwrap();
+        // A view pinned beside another is re-resolved against its anchor on every sheet: the
+        // same relation holds, and a sheet too small for it reports the overrun.
+        let moved = ["v:plan", "v:side", "v:iso"]
+            .into_iter()
+            .find(|v| base.views.iter().any(|b| b.id == *v))
+            .unwrap();
+        let name_of = moved.trim_start_matches("v:");
+        let large: Spec = serde_json::from_value(json!({"sheet":{"size":"A0","scale":"1:5"},"views":{name_of:{"place":{"relative_to":"front","side":"above","gap":300,"align":"start","pinned":true}}}})).unwrap();
         let before = model::plan_recovered(&a, &large).unwrap();
         assert!(
-            !before.problems.iter().any(
-                |p| p.code == "pinned_view_off_sheet" && p.subjects.contains(&"v:front".into())
-            ),
+            !before
+                .problems
+                .iter()
+                .any(|p| p.code == "pinned_view_off_sheet" && p.subjects.contains(&moved.into())),
             "{name}"
         );
         let small = model::edit(
@@ -510,24 +554,22 @@ fn sheet_and_scale_changes_keep_or_report_every_pin() {
         )
         .unwrap();
         let after = model::plan_recovered(&a, &small).unwrap();
-        let large_view = before.views.iter().find(|v| v.id == "v:front").unwrap();
-        let small_view = after.views.iter().find(|v| v.id == "v:front").unwrap();
-        // Sheet edits re-resolve anchors; box subtraction may round differently.
-        assert!(
-            large_view
-                .area
-                .iter()
-                .zip(small_view.area)
-                .all(|(a, b)| (a - b).abs() < 1e-9),
-            "{name}: the anchored footprint must survive the smaller sheet"
-        );
-        assert_eq!(&small_view.area[..2], &[10.0, 230.0]);
+        for p in [&before, &after] {
+            let front = p.views.iter().find(|v| v.id == "v:front").unwrap();
+            let view = p.views.iter().find(|v| v.id == moved).unwrap();
+            assert!(
+                (view.area[1] - front.area[3] - 300.0).abs() < 1e-9,
+                "{name}"
+            );
+            assert!((view.area[0] - front.area[0]).abs() < 1e-9, "{name}");
+        }
+        assert_eq!(after.spec.views, small.views);
         assert!(
             after
                 .problems
                 .iter()
                 .any(|p| p.code == "pinned_view_off_sheet"
-                    && p.subjects.contains(&"v:front".into())
+                    && p.subjects.contains(&moved.into())
                     && !p.fix.is_empty()),
             "{name}: a smaller sheet must report the overrun"
         );
@@ -594,17 +636,22 @@ fn colliding_and_off_sheet_pins_are_reported_and_never_dropped() {
             assert!(p.problems.iter().any(|p| p.subjects.contains(&covered.id)));
         }
     }
+    // Two views pinned to the same place beside the front view collide with each other.
+    let other = ["v:side", "v:iso"]
+        .into_iter()
+        .find(|v| base.views.iter().any(|b| b.id == *v))
+        .unwrap();
     let mut s = Spec::default();
-    for name in ["front", "plan"] {
+    for id in ["v:plan", other] {
         s = set(
             &s,
-            &format!("v:{name}"),
+            id,
             "place",
-            json!({"relative_to":"sheet","side":"above","gap":10,"align":"start","pinned":true}),
+            json!({"relative_to":"front","side":"above","gap":10,"align":"start","pinned":true}),
         );
     }
     let p = model::plan_recovered(&a, &s).unwrap();
-    for id in ["v:front", "v:plan"] {
+    for id in ["v:plan", other] {
         assert!(p.problems.iter().any(|p| p.code == "pinned_view_overlap"
             && p.subjects.contains(&id.to_string())
             && !p.fix.is_empty()));
@@ -616,14 +663,22 @@ fn colliding_and_off_sheet_pins_are_reported_and_never_dropped() {
     {
         model::edit(&p.spec, &serde_json::to_value(&problem.fix).unwrap()).unwrap();
     }
-    let s = set(&s, "v:front", "place/gap", json!(1000));
+    let s = set(&s, "v:plan", "place/gap", json!(1000));
     let p = model::plan_recovered(&a, &s).unwrap();
     assert!(
         p.problems
             .iter()
-            .any(|p| p.code == "pinned_view_off_sheet" && p.subjects.contains(&"v:front".into()))
+            .any(|p| p.code == "pinned_view_off_sheet" && p.subjects.contains(&"v:plan".into()))
     );
-    assert!(p.views.iter().find(|v| v.id == "v:front").unwrap().at[1] > 1000.0);
+    assert!(p.views.iter().find(|v| v.id == "v:plan").unwrap().at[1] > 1000.0);
+    // The page is not an anchor: a view is placed only beside another view.
+    assert!(
+        model::edit(
+            &Spec::default(),
+            &json!([{"op":"set","path":"views/front/place","value":{"relative_to":"sheet","side":"above"}}]),
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -661,18 +716,18 @@ fn views_and_pmi_have_relative_placement() {
     let base = model::plan_recovered(&a, &Spec::default()).unwrap();
     let s = set(
         &Spec::default(),
-        "v:front",
+        "v:plan",
         "place",
-        json!({"relative_to":"sheet","side":"above","gap":100,"align":"start","pinned":true}),
+        json!({"relative_to":"front","side":"right","gap":20,"align":"start","pinned":true}),
     );
     let p = model::plan_recovered(&a, &s).unwrap();
-    assert_ne!(geometry(&base, "v:front"), geometry(&p, "v:front"));
-    let front = p.views.iter().find(|v| v.id == "v:front").unwrap();
+    assert_ne!(geometry(&base, "v:plan"), geometry(&p, "v:plan"));
+    let held = p.views.iter().find(|v| v.id == "v:plan").unwrap();
     assert!(
         p.views
             .iter()
-            .filter(|v| v.id != "v:front")
-            .all(|v| !overlap(v.area, front.area)),
+            .filter(|v| v.id != "v:plan")
+            .all(|v| !overlap(v.area, held.area)),
         "views: {:?}",
         p.views.iter().map(|v| (&v.id, v.area)).collect::<Vec<_>>()
     );
@@ -767,4 +822,75 @@ fn missing_pmi_placement_on_a_revision_is_inactive() {
     let clean = model::edit(&s, &serde_json::to_value(&problem.fix).unwrap()).unwrap();
     assert!(clean.annotations.is_empty());
     assert!(model::plan_recovered(&a, &clean).is_ok());
+}
+
+#[test]
+fn a_bare_pin_relays_its_own_label_when_its_text_changes() {
+    let mut checked = BTreeMap::<String, usize>::new();
+    for (name, a) in slice() {
+        let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+        for d in base
+            .dimensions
+            .iter()
+            .filter(|d| d.placed.is_some() && d.kind != "angular")
+        {
+            let pinned = set(&Spec::default(), &d.id, "place", json!({"pinned":true}));
+            let held = model::plan_recovered(&a, &pinned).unwrap();
+            let Ok(toleranced) = model::edit(
+                &pinned,
+                &json!([{"op":"set","path":format!("{}/tolerance",path(&d.id)),"value":"±0.25"}]),
+            ) else {
+                continue;
+            };
+            let Ok(p) = model::plan_recovered(&a, &toleranced) else {
+                continue;
+            };
+            let free = model::plan_recovered(
+                &a,
+                &model::edit(
+                    &Spec::default(),
+                    &json!([{"op":"set","path":format!("{}/tolerance",path(&d.id)),"value":"±0.25"}]),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let get = |p: &Plan| p.dimensions.iter().find(|i| i.id == d.id).cloned();
+            let (Some(was), Some(now), Some(free)) = (get(&held), get(&p), get(&free)) else {
+                continue;
+            };
+            if now.label == was.label {
+                continue;
+            }
+            let (was, now, free) = (
+                was.placed.unwrap(),
+                now.placed.unwrap(),
+                free.placed.unwrap(),
+            );
+            let size = |b: [f64; 4]| [b[2] - b[0], b[3] - b[1]];
+            // The box is the drawn label's, not the default label's.
+            for k in 0..2 {
+                assert!(
+                    (size(now.label_box)[k] - size(free.label_box)[k]).abs() < 1e-9,
+                    "{name} {}: {:?} vs {:?}",
+                    d.id,
+                    now.label_box,
+                    free.label_box
+                );
+            }
+            assert_ne!(size(now.label_box), size(was.label_box), "{name} {}", d.id);
+            // The pinned anchor holds: arrows and the dimension's lines do not move (a callout's
+            // shoulder may lengthen under a longer label).
+            assert_eq!(now.arrows, was.arrows, "{name} {}", d.id);
+            assert_eq!(now.rotation, was.rotation, "{name} {}", d.id);
+            let n = if d.kind == "callout" {
+                was.lines.len() - 1
+            } else {
+                was.lines.len()
+            };
+            assert_eq!(now.lines[..n], was.lines[..n], "{name} {}", d.id);
+            *checked.entry(d.kind.clone()).or_default() += 1;
+        }
+    }
+    eprintln!("re-laid pinned labels: {checked:?}");
+    assert!(checked.get("linear").is_some_and(|n| *n > 0), "{checked:?}");
 }

@@ -2294,3 +2294,41 @@ parts affected                          0            9            0            0
 ```
 
 `git diff --check` passed. No commits or pushes in this fix round.
+
+## S3 review fix round 2 (2026-10-11, Claude)
+
+The two major review items are fixed; the two minor items are left as recorded below.
+
+- **A bare pin's own label edits:** a bare pin (`place: {pinned:true}`) kept the canonical
+  plan's ink, including the label box sized for the default text, so a tolerance added to the
+  pinned item itself was drawn outside its box. `dims::placement::relabel` now re-sets the label
+  from the item's current terms when they differ from the held terms (unchanged terms keep the
+  held ink byte for byte). The lines and arrows stay; a linear or angular label keeps its centre
+  along its direction, a callout's label keeps the edge at its shoulder and a shoulder that ran
+  under the label follows the new width. On the editor's plate.step,
+  `d:envelope/width.length = {tolerance:'±0.25', place:{pinned:true}}` now gives the box
+  [72.305, 55.964, 87.695, 58.13], the same as unpinned. Regression test
+  `a_bare_pin_relays_its_own_label_when_its_text_changes` (46 linear and 22 callout items on
+  the slice parts; it fails without the fix). **Judgement call (overturnable):** a re-laid
+  linear label is not moved outside its arrows if the longer text no longer fits between them;
+  the held dimension line is kept, and any collision is reported as usual.
+- **No sheet anchor for views:** `views/<name>/place.relative_to` accepts only another view
+  (`front`, `plan`, `side`, `iso`, `section_aa`); `sheet` was a page coordinate in disguise
+  (ADR R1 invariant 1, maintainer decision 2) and is now refused. The tests that pinned views to
+  the sheet now pin them beside another view; the sheet-change test checks that the relation to
+  the anchor holds on A0 and on A4 and that A4 reports `pinned_view_off_sheet`. In the seeded
+  property test, the anchor chain of a pinned view is excluded from the "other items" edits,
+  as a pinned dimension's carrying view already was (editing the anchor is editing the pin's
+  own intent). docs/model.md updated.
+- **Left (minor):** tools/quality.py has no random-pin mode (the distribution is still the
+  cargo test's eprintln on the slice parts), and recovery stays off for the whole drawing while
+  any pin exists, with the canonical plan recomputed on each `plan_with` (S4 latency).
+
+Validation (`CARGO_BUILD_JOBS=4`, `RUST_TEST_THREADS=4`, one at a time): `cargo fmt --check`
+passed; `cargo clippy --all-targets --release -- -D warnings` passed; required full-corpus
+`cargo test --release`: **575 passed, 0 failed, 0 ignored** (63 result groups; log
+`target/s3-fix2-full-tests.log`); `tools/quality.py` on the 30 parts: TOTAL off_sheet 0,
+repeated_label 18, repeated_measure 0, views_overlap 0, view_on_title_block 0, ink 282, and
+`baseline.json` byte-identical to the previous round's, so no part is worse than the latest
+table in `docs/quality-2026-10-09.md` (per part, against the gate audit's "after" column, ftc10
+ink 22 against 23 after the accepted leader-label weighting).

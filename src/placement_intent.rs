@@ -76,7 +76,8 @@ pub struct AnnotationSpec {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ViewPlace {
-    /// A view name; `sheet` means the drawing area's lower left, never a page coordinate.
+    /// Another view's name: a view is placed only relative to another view, never to the page
+    /// (ADR R1 invariant 1).
     pub relative_to: String,
     pub side: Side,
     /// Clear space between the two view footprints, in paper mm.
@@ -172,12 +173,11 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
                 ));
             }
             if p.relative_to == *name
-                || !["sheet", "front", "plan", "side", "iso", "section_aa"]
-                    .contains(&p.relative_to.as_str())
+                || !["front", "plan", "side", "iso", "section_aa"].contains(&p.relative_to.as_str())
             {
                 return Err(error(
-                    format!("The placement anchor of {name} is not another view or the sheet."),
-                    ["sheet", "front", "plan", "side", "iso"]
+                    format!("The placement anchor of {name} is not another view."),
+                    ["front", "plan", "side", "iso", "section_aa"]
                         .into_iter()
                         .filter(|v| *v != name)
                         .map(String::from)
@@ -189,8 +189,10 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
             while let Some(p) = s.views.get(at).and_then(|v| v.place.as_ref()) {
                 if !seen.insert(at) {
                     return Err(error(
-                        format!("View placement anchors form a cycle at {name}."),
-                        vec!["sheet".into()],
+                        format!(
+                            "View placement anchors form a cycle at {name}; anchor one of them to a view outside the cycle."
+                        ),
+                        vec![],
                     ));
                 }
                 at = &p.relative_to;
@@ -259,24 +261,20 @@ pub(crate) fn views(
             if resolved.contains(&name) {
                 continue;
             }
-            let b = if p.relative_to == "sheet" {
-                [crate::layout::MARGIN; 4]
-            } else {
-                if s.views
-                    .get(&p.relative_to)
-                    .is_some_and(|v| v.place.is_some())
-                    && !resolved.contains(&p.relative_to)
-                {
-                    continue;
-                }
-                let Some(anchor) = views
-                    .iter()
-                    .find(|v| v.id == format!("v:{}", p.relative_to))
-                else {
-                    continue;
-                };
-                anchor.area
+            if s.views
+                .get(&p.relative_to)
+                .is_some_and(|v| v.place.is_some())
+                && !resolved.contains(&p.relative_to)
+            {
+                continue;
+            }
+            let Some(anchor) = views
+                .iter()
+                .find(|v| v.id == format!("v:{}", p.relative_to))
+            else {
+                continue;
             };
+            let b = anchor.area;
             let a = views[i].area;
             let horizontal = matches!(p.side, Side::Left | Side::Right);
             let k = usize::from(horizontal);
@@ -361,7 +359,6 @@ pub(crate) fn views(
                 .views
                 .get(v.id.trim_start_matches("v:"))
                 .and_then(|v| v.place.as_ref())
-                && p.relative_to != "sheet"
             {
                 fixed.insert(format!("v:{}", p.relative_to));
             }
