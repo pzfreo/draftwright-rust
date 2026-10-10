@@ -159,8 +159,10 @@ annotation is off the sheet. What remains is reported on the plan, never hidden:
 - **Worse than the first quality baseline** on a few parts and codes (ctc03's ink 21 to 24,
   more leader crossings on cgb245, ctc04 and ftc08, two more ink overlaps on ctc02), each
   traced to its merge and waiting on an open maintainer question.
-- **Off the sheet on the AP242 fixtures:** two datum feature symbols on NIST CTC 02 (AP242);
-  none on the 30 measured parts.
+- **Off the sheet on the AP242 fixtures:** none since d-gdt-band-space (the two datum feature
+  symbols on NIST CTC 02 now stand in a reserved band); none on the 30 measured parts. 15 feature
+  control frames on five fixtures still stand past their view's area, in a strip their own could
+  not hold (`docs/quality-2026-10-09.md`, "GD&T band space").
 - **Hole tables** are drawn only by drop-and-escalate: a hole callout or location whose ink runs
   off the sheet is dropped and reported, and a plan-view drop escalates to a hole table with
   balloons. On the 30 parts, ftc08 drops 3 plan-view locations and ftc09 a callout and 13

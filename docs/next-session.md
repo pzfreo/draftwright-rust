@@ -119,6 +119,21 @@ pushed):
   coverage lint no longer reports it (`tests/title_block_material.rs`; the text equals
   draftwright's on the 14 AP242 fixtures and cgb203). The 6 `material:0:0` rust-wrong entries are
   gone (1356 differences). The mismatch/disagreement codes still wait on question (2) above.
+- **GD&T band space (d-gdt-band-space):** the layout reserves room for the lowered PMI
+  (`layout::Strips::reserve_gdt`, `dims::gdt::demand`: each strip's lanes plus its frames',
+  datum symbols' and labels' tiers packed first fit at the chosen scale, `demand::size`
+  re-choosing until they hold; a new `sv_left` band), and `dims::gdt` stands an item beyond the
+  dimensions across from it and prefers a clear place inside its view's area. draftwright
+  reserves none (it drops what its strips cannot hold). On the 14 AP242 fixtures GD&T items past
+  their areas 144 → 15 (frames 103 → 15, datum symbols 31 → 0, labels 10 → 0), ctc_02's datum
+  symbols E and J back on the sheet (off the sheet 2 → 0), ink 1534 → 1343; the 15 left are
+  frames whose own strip has no clear tier, retried into a strip not reserved for them
+  (`tests/gdt_band.rs`; `docs/quality-2026-10-09.md`, "GD&T band space"). The 30 quality parts
+  are byte-identical. Eight fixtures change sheet or scale (ctc_01 e1 and string_post_tapped now
+  as draftwright; bolt_thread_knurl, ftc_07 and stc_09 at a smaller scale than draftwright's).
+  **Question for the maintainer:** should GD&T room cost scale (draftwright's ladder, reducing on
+  the same sheet first, as now) or paper (keep the scale chosen without GD&T and take a larger
+  sheet)?
 - **Facts:** Python draftwright's sheets recorded for 13 parts (`tools/capture_sheet_facts.py`,
   `tests/fixtures/sheets/`, `docs/facts.md`).
 - **Rules:** ADRs R1–R4 accepted. `docs/rules/` has 515 rules learnt from Python; 89 ported

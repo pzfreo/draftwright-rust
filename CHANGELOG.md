@@ -28,6 +28,8 @@ The first alpha. Its gates and their state are in `docs/alpha1.md`.
   states none, as draftwright does.
 - Angular PMI dimensions between two planar faces, drawn about their vertex in the view that
   shows the angle true (nist_ctc_01's `60 ±0.5` in the plan); one no view shows true is refused.
+- Band space for GD&T: the layout reserves room for feature control frames, datum feature
+  symbols and PMI labels, and places them inside their views' bands (draftwright reserves none).
 - SVG, DXF, PDF (subset fonts, searchable text) and PNG output, each carrying its Spec;
   deterministic to the byte in every time zone.
 
