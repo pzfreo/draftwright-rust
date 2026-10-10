@@ -149,20 +149,33 @@ fn chosen_views(
             w.views.insert(0, v);
             w.basis += &format!("; the spec places it in the {v} view");
         } else {
+            let (why, how, fix) = if spec.views.get(v).is_some_and(|s| s.omit) {
+                (
+                    "omitted",
+                    format!(
+                        "Restore the view (remove views/{v}/omit) or remove the dimension's view."
+                    ),
+                    vec![Op::remove(format!("views/{v}/omit"))],
+                )
+            } else {
+                (
+                    "left out as the turned part's repeated profile",
+                    format!(
+                        "Keep the view (set views/{v} to {{}}) or remove the dimension's view."
+                    ),
+                    Vec::new(),
+                )
+            };
             problems.push(Problem {
                 id: format!("p:dimension_view_not_shown:{}", w.id),
                 code: "dimension_view_not_shown".into(),
                 severity: "warning".into(),
                 message: format!(
-                    "The spec places {} in the {v} view, which is omitted, so it is drawn in its default view instead. Restore the view (remove views/{v}/omit) or remove the dimension's view.",
+                    "The spec places {} in the {v} view, which is {why}, so it is drawn in its default view instead. {how}",
                     w.id
                 ),
                 subjects: vec![w.id.clone()],
-                fix: if spec.views.get(v).is_some_and(|s| s.omit) {
-                    vec![Op::remove(format!("views/{v}/omit"))]
-                } else {
-                    Vec::new()
-                },
+                fix,
                 ..Default::default()
             });
         }
@@ -818,17 +831,23 @@ pub fn plan(
         let n = ids.len();
         let s = if n == 1 { "" } else { "s" };
         let named = |v: &[&str]| v.join(" or ");
-        let omitted: Vec<&str> = candidates
+        let (omitted, dropped): (Vec<&str>, Vec<&str>) = candidates
             .iter()
             .copied()
             .filter(|v| !along.contains(v))
-            .collect();
+            .partition(|v| spec.views.get(*v).is_some_and(|s| s.omit));
         let mut why = Vec::new();
         if !omitted.is_empty() {
             why.push(format!(
                 "the {} view{} omitted",
                 named(&omitted),
                 if omitted.len() == 1 { " is" } else { "s are" }
+            ));
+        }
+        if !dropped.is_empty() {
+            why.push(format!(
+                "the {} view is left out as the turned part's repeated profile",
+                named(&dropped)
             ));
         }
         if !along.is_empty() {
@@ -838,12 +857,20 @@ pub fn plan(
                 if n == 1 { "it" } else { "them" }
             ));
         }
-        let fix = if omitted.is_empty() {
-            "Omit them, or show a view across them.".to_string()
+        let (how, fix) = if let Some(v) = omitted.first() {
+            (
+                format!("Restore the view (remove views/{v}/omit) or omit them."),
+                vec![Op::remove(format!("views/{v}/omit"))],
+            )
+        } else if let Some(v) = dropped.first() {
+            (
+                format!("Keep the view (set views/{v} to {{}}) or omit them."),
+                Vec::new(),
+            )
         } else {
-            format!(
-                "Restore the view (remove views/{}/omit) or omit them.",
-                omitted[0]
+            (
+                "Omit them, or show a view across them.".to_string(),
+                Vec::new(),
             )
         };
         problems.push(Problem {
@@ -851,16 +878,12 @@ pub fn plan(
             code: "view_plan_incomplete".into(),
             severity: "error".into(),
             message: format!(
-                "{n} dimension{s} can only be drawn in the {} view, but {}; they stay in the plan undrawn. {fix}",
+                "{n} dimension{s} can only be drawn in the {} view, but {}; they stay in the plan undrawn. {how}",
                 named(&candidates),
                 why.join(" and ")
             ),
             subjects: ids,
-            fix: omitted
-                .iter()
-                .find(|v| spec.views.get(**v).is_some_and(|s| s.omit))
-                .map(|v| vec![Op::remove(format!("views/{v}/omit"))])
-                .unwrap_or_default(),
+            fix,
             ..Default::default()
         });
     }

@@ -270,6 +270,15 @@ fn an_empty_isometric_projection_is_reported() {
         .find(|p| p.code == "iso_projection_empty")
         .expect("reported");
     assert_eq!(p.subjects, ["v:iso"]);
+    let ops = serde_json::to_value(&p.fix).unwrap();
+    assert_eq!(
+        ops,
+        serde_json::json!([{ "op": "set", "path": "views/iso/omit", "value": true }])
+    );
+    let fixed = model::edit(&Spec::default(), &ops).unwrap();
+    let after = model::plan(&analysis, &fixed).unwrap();
+    assert!(after.problems.iter().all(|q| q.id != p.id));
+    assert!(after.views.iter().all(|v| v.id != "v:iso"));
     let spec: Spec =
         serde_json::from_value(serde_json::json!({ "views": { "iso": { "omit": true } } }))
             .unwrap();

@@ -535,8 +535,7 @@ fn version_1_specs_migrate_and_plan_identically() {
 /// *plan* as 0.1.0-alpha.1 wrote it, without what the thin slice's stream S2 added: each item's
 /// `state`, an omitted dimension's and a GD&T item's `label`, a problem's `fix`, and a problem's
 /// `refs`, put back among its subjects (a title-block cell's or the general tolerance's problem
-/// names the sheet as its subject and the cell as a reference; a problem about the whole part's
-/// PMI no longer names `part`).
+/// names the sheet as its subject and the cell as a reference).
 fn without_typed_state(mut plan: Value) -> Value {
     plan["sheet"].as_object_mut().unwrap().remove("state");
     for list in [
@@ -564,8 +563,6 @@ fn without_typed_state(mut plan: Value) -> Value {
     for p in plan["problems"].as_array_mut().unwrap() {
         let p = p.as_object_mut().unwrap();
         p.remove("fix");
-        let whole =
-            ["pmi_not_read", "pmi_presentation_not_read"].contains(&p["code"].as_str().unwrap());
         let refs = p.remove("refs").unwrap_or(json!([]));
         let refs = refs.as_array().unwrap();
         let subjects = p["subjects"].as_array_mut().unwrap();
@@ -576,9 +573,6 @@ fn without_typed_state(mut plan: Value) -> Value {
             subjects.retain(|s| s != "sheet");
         }
         subjects.extend(refs.iter().cloned());
-        if whole {
-            subjects.push(json!("part"));
-        }
     }
     plan
 }

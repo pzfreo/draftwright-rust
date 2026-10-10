@@ -144,6 +144,7 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                     "The STEP file carries AP242 semantic PMI that could not be read ({why}); none of it is drawn."
                 ),
                 subjects: Vec::new(),
+                refs: vec!["part".into()],
                 ..Default::default()
             });
             return (items, problems);
@@ -181,6 +182,7 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                 report.accounting.presentation
             ),
             subjects: Vec::new(),
+            refs: vec!["part".into()],
             ..Default::default()
         });
     }

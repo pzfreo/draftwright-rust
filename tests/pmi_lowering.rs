@@ -765,6 +765,9 @@ fn what_lowering_cannot_prove_is_reported_not_guessed() {
             .iter()
             .any(|p| p.code == "pmi_not_read" && p.severity == "error")
     );
+    let p = problems.iter().find(|p| p.code == "pmi_not_read").unwrap();
+    assert!(p.subjects.is_empty());
+    assert_eq!(p.refs, ["part"]);
 }
 
 #[test]
@@ -945,6 +948,13 @@ fn the_corpus_nist_parts_carry_presentation_only() {
                 .iter()
                 .any(|p| p.code == "pmi_presentation_not_read")
         );
+        let problem = plan
+            .problems
+            .iter()
+            .find(|p| p.code == "pmi_presentation_not_read")
+            .unwrap();
+        assert!(problem.subjects.is_empty(), "{}", p.display());
+        assert_eq!(problem.refs, ["part"], "{}", p.display());
     }
 }
 

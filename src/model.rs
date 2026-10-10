@@ -1393,6 +1393,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             severity: "warning".into(),
             message: "The isometric projection of the part has no edges, so the isometric cannot be fitted to its space: it is planned at the sheet's scale and draws nothing. Omit it with views/iso/omit.".into(),
             subjects: vec!["v:iso".into()],
+            fix: vec![crate::items::Op::set("views/iso/omit", serde_json::json!(true))],
             ..Default::default()
         });
     }

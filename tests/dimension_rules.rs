@@ -392,6 +392,126 @@ fn a_turned_parts_diameter_follows_its_view() {
     );
 }
 
+/// A view left out as a turned part's repeated profile has no spec omission to remove.
+#[test]
+fn a_dimensions_chosen_view_names_why_it_is_not_shown() {
+    let (_, a) = analysed_with("turned", &recognition("turned"));
+    let id = "d:f:turned_step:1/step.length";
+    for omitted in [false, true] {
+        let mut spec: Spec =
+            serde_json::from_value(json!({ "dimensions": { id: { "view": "side" } } })).unwrap();
+        if omitted {
+            spec.views
+                .insert("side".into(), model::ViewSpec { omit: true });
+        }
+        let plan = model::plan(&a, &spec).unwrap();
+        let p = plan
+            .problems
+            .iter()
+            .find(|p| p.code == "dimension_view_not_shown" && p.subjects == [id])
+            .expect("the chosen side view is not shown");
+        assert!(find(&plan, id).placed.is_some());
+        if omitted {
+            assert!(
+                p.message.contains("remove views/side/omit"),
+                "{}",
+                p.message
+            );
+            assert_eq!(p.fix, [draftwright::items::Op::remove("views/side/omit")]);
+            let fixed = model::edit(&spec, &serde_json::to_value(&p.fix).unwrap()).unwrap();
+            let after = model::plan(&a, &fixed).unwrap();
+            assert!(after.problems.iter().all(|q| q.id != p.id));
+            assert_eq!(find(&after, id).view, "v:side");
+        } else {
+            assert!(
+                p.message.contains("turned part's repeated profile"),
+                "{}",
+                p.message
+            );
+            assert!(
+                !p.message.contains("remove views/side/omit"),
+                "{}",
+                p.message
+            );
+            assert!(p.fix.is_empty());
+            let kept = model::edit(
+                &spec,
+                &json!([{ "op": "set", "path": "views/side", "value": {} }]),
+            )
+            .unwrap();
+            let after = model::plan(&a, &kept).unwrap();
+            assert!(after.problems.iter().all(|q| q.id != p.id));
+            assert_eq!(find(&after, id).view, "v:side");
+        }
+    }
+}
+
+/// An edge treatment that needs the dropped view stays undrawn, with the actual reason.
+#[test]
+fn an_incomplete_view_plan_names_why_the_view_is_not_shown() {
+    let mut json = recognition("turned");
+    for f in json["quiddity"]["features"].as_array_mut().unwrap() {
+        if f["family"] == "fillets" {
+            f["record"]["turned"] = json!(false);
+            f["record"]["axis"] = json!("y");
+        }
+    }
+    let (_, a) = analysed_with("turned", &json);
+    for omitted in [false, true] {
+        let spec: Spec = if omitted {
+            serde_json::from_value(json!({ "views": { "side": { "omit": true } } })).unwrap()
+        } else {
+            Spec::default()
+        };
+        let plan = model::plan(&a, &spec).unwrap();
+        let p = plan
+            .problems
+            .iter()
+            .find(|p| p.code == "view_plan_incomplete" && p.id.ends_with("v:side"))
+            .expect("the fillets need the side view");
+        assert!(!p.subjects.is_empty());
+        for id in &p.subjects {
+            assert!(find(&plan, id).placed.is_none());
+        }
+        if omitted {
+            assert!(
+                p.message.contains("remove views/side/omit"),
+                "{}",
+                p.message
+            );
+            assert_eq!(p.fix, [draftwright::items::Op::remove("views/side/omit")]);
+            let fixed = model::edit(&spec, &serde_json::to_value(&p.fix).unwrap()).unwrap();
+            let after = model::plan(&a, &fixed).unwrap();
+            assert!(after.problems.iter().all(|q| q.id != p.id));
+            for id in &p.subjects {
+                assert!(find(&after, id).placed.is_some());
+            }
+        } else {
+            assert!(
+                p.message.contains("turned part's repeated profile"),
+                "{}",
+                p.message
+            );
+            assert!(
+                !p.message.contains("remove views/side/omit"),
+                "{}",
+                p.message
+            );
+            assert!(p.fix.is_empty());
+            let kept = model::edit(
+                &spec,
+                &json!([{ "op": "set", "path": "views/side", "value": {} }]),
+            )
+            .unwrap();
+            let after = model::plan(&a, &kept).unwrap();
+            assert!(after.problems.iter().all(|q| q.id != p.id));
+            for id in &p.subjects {
+                assert!(find(&after, id).placed.is_some());
+            }
+        }
+    }
+}
+
 /// Review M8, and ARCH0017-1 in part: a recognised feature of a kind no planner dimensions yet is
 /// reported once, as info, in the Analysis's feature order; a record type draftwright itself
 /// leaves undimensioned (here a freeform surface) is no gap in the port and is not reported, and
