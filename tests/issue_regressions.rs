@@ -1010,7 +1010,8 @@ fn a_planar_reading_cannot_certify_a_curved_pocket() {
 mod corpus;
 
 /// ISSUE-1187-a (draftwright's `test_the_retained_crossings_have_no_clear_alternative`, on
-/// nist_ctc_04, the one corpus part here): a callout keeps a leader that crosses other ink or is
+/// nist_ctc_04, and on cgb245, whose two crossings the alpha 1 quality gate accepts on this
+/// ground: `docs/quality-2026-10-09.md`, "Accepted regressions"): a callout keeps a leader that crosses other ink or is
 /// blocked (Policy B) only when no route is clear of the views, the sheet's furniture and every
 /// committed annotation. Measured, not asserted: for each callout the plan reports crossing,
 /// laid over, or blocked, the clear-route sweep (`dims::clear_routes`, after draftwright's test
@@ -1025,7 +1026,16 @@ fn issue_1187_a_retained_leader_crossings_have_no_clear_route() {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };
-    let (_, analysis) = model::analyse_native(&dir.join("nist/nist_ctc_04_asme1_rd.stp")).unwrap();
+    for part in [
+        "nist/nist_ctc_04_asme1_rd.stp",
+        "cadgenbench_inputs/cgb245.step",
+    ] {
+        retained_leader_crossings_have_no_clear_route(&dir.join(part));
+    }
+}
+
+fn retained_leader_crossings_have_no_clear_route(path: &Path) {
+    let (_, analysis) = model::analyse_native(path).unwrap();
     let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
     let callouts: BTreeSet<&str> = plan
         .dimensions
@@ -1053,7 +1063,8 @@ fn issue_1187_a_retained_leader_crossings_have_no_clear_route() {
     // The part keeps crossings (its strips are full), so the check is not vacuous.
     assert!(
         !retained.is_empty(),
-        "ctc04 no longer keeps a crossing leader"
+        "{} no longer keeps a crossing leader",
+        path.display()
     );
     let free: Vec<(&str, usize)> = retained
         .iter()
@@ -1072,6 +1083,7 @@ fn issue_1187_a_retained_leader_crossings_have_no_clear_route() {
         .collect();
     assert!(
         free.is_empty(),
-        "callouts keep a crossing though clear routes exist: {free:?}"
+        "{}: callouts keep a crossing though clear routes exist: {free:?}",
+        path.display()
     );
 }

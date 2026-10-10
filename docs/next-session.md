@@ -171,14 +171,17 @@ pushed):
   places everything and records collisions as rust-wrong. Adopt drop-and-escalate, make hole
   tables spec-driven (a `t:<k>` of kind holes), or leave them out?
 - Accepted regressions (a1/baseline-regressions, `docs/quality-2026-10-09.md`, "Accepted
-  regressions"): of the seven cells worse than the 86ffcbc baseline, ctc03's three cells, ftc08's
-  crossings and ctc04's crossings are judged better drafting (labels and locations traded for
-  crossings, or a valid sheet). Two are accepted only on the part's balance, and are overturnable:
-  cgb245's crossing with `d:f:slot:3/slot_width.length@plan`'s lines (7.0 left of the plan, where
-  draftwright puts it right), and ctc02's text contacts, two more net (⌀120 THRU with hole_pattern:10,
-  and hole_pattern:5 with hole_pattern:4). Overturning either reopens questions 7 and 9 of the
-  alpha 1 readiness record (`docs/alpha1.md` section 6, branch r/d-alpha1-readiness), and the gate
-  is not met.
+  regressions"): of the seven cells worse than the 86ffcbc baseline, ctc02's ink overlaps are back
+  at the baseline (a leader through another leader's label now weighs two crossings), and ctc03's
+  three cells, ftc08's crossings and ctc04's crossings are judged better drafting (labels and
+  locations traded for crossings, or a valid sheet). One is accepted as a judgement, and is
+  overturnable: cgb245's crossing between `d:f:slot:2`'s 2× R3 leader and
+  `d:f:slot:3/slot_width.length@plan`'s lines (7.0 left of the plan, where draftwright puts it
+  right). It has no clear route (tested), and it follows from merged-away lanes (question 9 of the
+  alpha 1 readiness record, `docs/alpha1.md` section 6, branch r/d-alpha1-readiness), whose revert
+  drops three hole items; draftwright's right-first slot widths keep two crossings on cgb245 and
+  make ctc04 worse. Overturning it means the gate is not met on that cell until a rule moves the
+  7.0 alone.
 - ISSUE-1247-a: draftwright reports an angled step as an explicit unsupported completeness
   outcome; the port has no completeness report. Carry an `unsupported` Problem for each angled
   step (removing it from `dims::UNDRAFTED`), or wait for a completeness report?
