@@ -9144,6 +9144,30 @@
   "code": "pmi_not_extracted",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": {
+   "id": "datum:0:1:4:49",
+   "severity": "error"
+  },
+  "rust": null,
+  "source": "datum:#8807",
+  "verdict": "rust-correct",
+  "evidence": "draftwright reads datum E only in part: its Part 21 overlay looks for geometric_item_specific_usages on the datum feature itself and finds none ('datum feature #8807 has no representation items'). The datum feature #8807 is a 'pattern of features' composite group whose members are a 'unified geometric item' (whose shape aspects carry the usages) and one basic_round_hole_occurrence (#8506); haecceity reads its faces through those members (2 holes), and since quiddity-rust 694dc17 holds the occurrences' definitions, so the port reads it whole. Before that pin both reported it (the port for the occurrence's finding). Neither draws it: both report pmi_not_lowered (the port: datum reference faces are not coaxial; a pattern of holes as a datum is not drawn)."
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": {
+   "id": "datum:0:1:4:21",
+   "severity": "error"
+  },
+  "rust": null,
+  "source": "datum:#8839",
+  "verdict": "rust-correct",
+  "evidence": "draftwright reads datum F only in part: its Part 21 overlay looks for geometric_item_specific_usages on the datum feature itself and finds none ('datum feature #8839 has no representation items'). The datum feature #8839 is a 'pattern of features' composite group whose members are a 'unified geometric item' (whose shape aspects carry the usages) and three basic_round_hole_occurrences (#8415, #8424, #8433); haecceity reads its faces through those members (4 holes), and since quiddity-rust 694dc17 holds the occurrences' definitions, so the port reads it whole. Before that pin both reported it (the port for the occurrence's finding). Neither draws it: both report pmi_not_lowered (the port: datum reference faces are not coaxial; a pattern of holes as a datum is not drawn)."
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": {
    "id": "datum_definition:#8893",
    "severity": "error"
   },
@@ -9197,15 +9221,6 @@
  {
   "code": "pmi_not_extracted",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10063",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": {
    "id": "dimension:0:1:4:101",
    "severity": "error"
@@ -9214,51 +9229,6 @@
   "source": "dimension:#10115",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 33.3375 mm differs from nominal 38.1 mm'. draftwright: \"linear reference-station span 33.3375 mm differs from nominal 38.1 mm\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10191",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10215",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10239",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10287",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10311",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
  },
  {
   "code": "pmi_not_extracted",
@@ -9275,119 +9245,11 @@
  {
   "code": "pmi_not_extracted",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#9866",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8626 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#9889",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8378 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": "error",
   "rust": null,
   "source": "dimension:0:1:4:112",
   "verdict": "rust-correct",
   "evidence": "XCAF lists a common label (a note) among the part's dimensions and draftwright, finding no such label in Part 21, reports it not extracted; it is no dimension: the port reads Part 21's dimensions, and haecceity's reading of the note is a source of its own. draftwright: \"Part21 has no common label named 'Text.1'\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8369",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8406",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8497",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8525",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8544",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8581",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8617",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8654",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#8700",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's faces are read as the feature\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9140",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:15 (port geometric_tolerance:#9140): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
  },
  {
   "code": "pmi_not_extracted",
@@ -9403,63 +9265,234 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
   "rust": "error",
-  "source": "geometric_tolerance:#9398",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:42 (port geometric_tolerance:#9398): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
   "source": "geometric_tolerance:#9439",
   "verdict": "rust-correct",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:46 (port geometric_tolerance:#9439): draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried; haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature ). port: \"datum compartment modifiers are not carried; haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and …\""
+  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:46 (port geometric_tolerance:#9439): draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried). port: \"datum compartment modifiers are not carried\""
  },
  {
   "code": "pmi_not_extracted",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9493",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:54 (port geometric_tolerance:#9493): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
+  "rust": "info",
+  "source": "hole:0:0",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.4\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
  },
  {
   "code": "pmi_not_extracted",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9652",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:74 (port geometric_tolerance:#9652): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
+  "rust": "info",
+  "source": "hole:0:1",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.3\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
  },
  {
   "code": "pmi_not_extracted",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9670",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:78 (port geometric_tolerance:#9670): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
+  "rust": "info",
+  "source": "hole:0:10",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.10\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
  },
  {
   "code": "pmi_not_extracted",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9688",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:82 (port geometric_tolerance:#9688): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
+  "rust": "info",
+  "source": "hole:0:11",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.6\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
  },
  {
   "code": "pmi_not_extracted",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9775",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:88 (port geometric_tolerance:#9775): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
+  "rust": "info",
+  "source": "hole:0:12",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.6\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:13",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.9\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:14",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.9\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:15",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.9\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:16",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.2\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:17",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.3\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:18",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.4\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:19",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.5\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:2",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.3\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:20",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.6\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:21",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.7\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:22",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.2\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:23",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.9\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:24",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.10\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:3",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.3\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:4",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.2\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:5",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.2\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:6",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.2\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:7",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.2\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:8",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.7\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "info",
+  "source": "hole:0:9",
+  "verdict": "rust-correct",
+  "evidence": "A hole occurrence's definition (basic_round_hole \"Hole.7\": its diameter, tolerances, depth and placement), which haecceity holds since quiddity-rust 694dc17. draftwright does not read it (OpenCascade's XCAF reads no hole definition), so its census does not hold it; the port projects no record from it (the dimensions and frames on the holes are records of their own) and reports it as info, as the plan does, rather than drop it. port: \"read by haecceity; not projected to a draftwright record (the port projects dimensions, geometric tolerances, datums, manufacturing requirements, surface labels and common labels) (hole definition \\\"H…\""
  },
  {
   "code": "pmi_not_extracted",
@@ -9529,63 +9562,9 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#10063",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#10115",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 33.3375 mm differs from nominal 38.1 mm'. port: \"linear reference-station span 33.3375 mm differs from nominal 38.1 mm\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10191",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10215",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10239",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10287",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#10311",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
  },
  {
   "code": "pmi_not_lowered",
@@ -9601,33 +9580,6 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#9866",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8626 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#9889",
-  "verdict": "rust-wrong",
-  "evidence": "haecceity does not model the feature definition of a hole occurrence (basic_round_hole) and reports it on this dimension, so the reading refuses it; draftwright reads it through XCAF (known_pmi.json's faces difference for it: the port's faces are the right ones). A reader gap, not a defect of the file. port: \"haecceity not-modelled on #8378 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placement) is not held; the occurrence's face…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9140",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:15 (port geometric_tolerance:#9140): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"PMI geometric_tolerance:#9140 (position 0.762) is not drawn: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters,…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
   "source": "geometric_tolerance:#9230",
   "verdict": "rust-correct",
   "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:19 (port geometric_tolerance:#9230): draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.). port: \"PMI geometric_tolerance:#9230 (profile_surface 0.508) is not drawn: datum compartment modifiers are not carried.\""
@@ -9637,63 +9589,9 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
   "rust": "error",
-  "source": "geometric_tolerance:#9398",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:42 (port geometric_tolerance:#9398): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"PMI geometric_tolerance:#9398 (position 0.508) is not drawn: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters,…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
   "source": "geometric_tolerance:#9439",
   "verdict": "rust-correct",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:46 (port geometric_tolerance:#9439): draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried; haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature ). port: \"PMI geometric_tolerance:#9439 (position 0.635) is not drawn: datum compartment modifiers are not carried; haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature definition of the …\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9493",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:54 (port geometric_tolerance:#9493): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"PMI geometric_tolerance:#9493 (position 0.762) is not drawn: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters,…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9652",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:74 (port geometric_tolerance:#9652): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"PMI geometric_tolerance:#9652 (position 0.508) is not drawn: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters,…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9670",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:78 (port geometric_tolerance:#9670): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"PMI geometric_tolerance:#9670 (position 1.52) is not drawn: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, …\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9688",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:82 (port geometric_tolerance:#9688): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"PMI geometric_tolerance:#9688 (perpendicularity 0.254) is not drawn: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its par…\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "python": null,
-  "rust": "error",
-  "source": "geometric_tolerance:#9775",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:88 (port geometric_tolerance:#9775): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"PMI geometric_tolerance:#9775 (position 0.254) is not drawn: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters,…\""
+  "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:46 (port geometric_tolerance:#9439): draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried). port: \"PMI geometric_tolerance:#9439 (position 0.635) is not drawn: datum compartment modifiers are not carried\""
  },
  {
   "code": "pmi_not_extracted",

@@ -28,6 +28,8 @@ The first alpha. Its gates and their state are in `docs/alpha1.md`.
   states none, as draftwright does.
 - Angular PMI dimensions between two planar faces, drawn about their vertex in the view that
   shows the angle true (nist_ctc_01's `60 ±0.5` in the plan); one no view shows true is refused.
+- PMI on AP242 edition 4 hole occurrences (nist_stc_09): dimensions and frames on a pattern of
+  holes are read on every hole and drawn; each hole definition is reported as not projected.
 - SVG, DXF, PDF (subset fonts, searchable text) and PNG output, each carrying its Spec;
   deterministic to the byte in every time zone.
 

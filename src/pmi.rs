@@ -45,8 +45,9 @@
 //!   blockers). Not read: every haecceity finding not on a record's instances; every item
 //!   haecceity reads that the port does not project (attribute sets that are no label or
 //!   structured requirement, general tolerance tables, AP242 `thread` and `turned_knurl`
-//!   features and ISO 1302 surface textures, which draftwright does not read, material,
-//!   standards, datum targets, tolerance relations); and every record whose face or edge does
+//!   features, ISO 1302 surface textures and edition 4 hole occurrences' definitions
+//!   (`basic_round_hole`), which draftwright does not read, material, standards, datum targets,
+//!   tolerance relations); and every record whose face or edge does
 //!   not resolve to the drawing's part, which is never guessed. Presentation is counted
 //!   ([`Accounting`]), as draftwright's `presentation_only` dimensions are, not read.
 //!
@@ -706,6 +707,26 @@ impl PartReader<'_> {
                     reason: format!("{NOT_PROJECTED} ({})", item.replace('_', " ")),
                 });
             }
+        }
+        // A hole occurrence's definition (XCAF reads none, so draftwright does not either): its
+        // instances are its feature's provenance; the dimensions and tolerances on the feature
+        // are records of their own.
+        for (i, h) in pmi.holes.iter().enumerate() {
+            let instances = prov.features.get(h.feature.0).cloned().unwrap_or_default();
+            let entity = instances
+                .iter()
+                .map(|&id| entity_name(self.doc, id))
+                .find(|e| e.contains("hole_occurrence"))
+                .or_else(|| instances.first().map(|&id| entity_name(self.doc, id)))
+                .unwrap_or_default();
+            sources.push(Source {
+                id: format!("hole:{}:{i}", self.p),
+                category: Category::Other,
+                entity,
+                instances,
+                outcome: Outcome::NotExtracted,
+                reason: format!("{NOT_PROJECTED} (hole definition {:?})", h.definition.name),
+            });
         }
         if pmi.material.is_some() {
             sources.push(Source {

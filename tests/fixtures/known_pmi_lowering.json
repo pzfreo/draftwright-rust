@@ -2485,14 +2485,177 @@
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:15",
   "port": "geometric_tolerance:#9140",
-  "field": "lowered",
-  "python": "control_frame",
-  "rust": {
-   "lowered": "raw",
-   "problem": "pmi_not_lowered"
-  },
-  "verdict": "undetermined",
-  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8415 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+  "field": "site",
+  "python": [
+   -57.15,
+   1.5189,
+   -101.6
+  ],
+  "rust": [
+   -28.65,
+   1.5189,
+   -31.6
+  ],
+  "verdict": "rust-correct",
+  "evidence": "A tolerance's site is its faces' box centre. Its toleranced feature is a 'pattern of features' composite group (#8839 'Simple Datum.4 (datum F)'): a 'unified geometric item' (one hole) and the pattern's basic_round_hole_occurrences, 4 holes in all; haecceity holds the occurrences' definitions since quiddity-rust 694dc17 and reads the members, so the port's box is the 4 holes' and the frame is lowered. draftwright takes XCAF's shapes, the unified item's one hole, so its site is that hole's. The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:42",
+  "port": "geometric_tolerance:#9398",
+  "field": "site",
+  "python": [
+   -50.8,
+   1.5189,
+   91.44
+  ],
+  "rust": [
+   -31.75,
+   1.5189,
+   91.44
+  ],
+  "verdict": "rust-correct",
+  "evidence": "A tolerance's site is its faces' box centre. Its toleranced feature is a 'pattern of features' composite group (#8807 'Simple Datum.8 (datum E)'): a 'unified geometric item' (one hole) and the pattern's basic_round_hole_occurrences, 2 holes in all; haecceity holds the occurrences' definitions since quiddity-rust 694dc17 and reads the members, so the port's box is the 2 holes' and the frame is lowered. draftwright takes XCAF's shapes, the unified item's one hole, so its site is that hole's. The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:54",
+  "port": "geometric_tolerance:#9493",
+  "field": "site",
+  "python": [
+   38.1,
+   1.5189,
+   57.15
+  ],
+  "rust": [
+   47.625,
+   1.5189,
+   57.15
+  ],
+  "verdict": "rust-correct",
+  "evidence": "A tolerance's site is its faces' box centre. Its toleranced feature is a 'pattern of features' composite group (#9478 'Position.36'): a 'unified geometric item' (one hole) and the pattern's basic_round_hole_occurrences, 2 holes in all; haecceity holds the occurrences' definitions since quiddity-rust 694dc17 and reads the members, so the port's box is the 2 holes' and the frame is lowered. draftwright takes XCAF's shapes, the unified item's one hole, so its site is that hole's. The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:54",
+  "port": "geometric_tolerance:#9493",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:74",
+  "port": "geometric_tolerance:#9652",
+  "field": "site",
+  "python": [
+   27.9374,
+   1.5189,
+   91.44
+  ],
+  "rust": [
+   46.9874,
+   1.5189,
+   91.44
+  ],
+  "verdict": "rust-correct",
+  "evidence": "A tolerance's site is its faces' box centre. Its toleranced feature is a 'pattern of features' composite group (#9636 'Position.40'): a 'unified geometric item' (one hole) and the pattern's basic_round_hole_occurrences, 3 holes in all; haecceity holds the occurrences' definitions since quiddity-rust 694dc17 and reads the members, so the port's box is the 3 holes' and the frame is lowered. draftwright takes XCAF's shapes, the unified item's one hole, so its site is that hole's. The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:74",
+  "port": "geometric_tolerance:#9652",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:78",
+  "port": "geometric_tolerance:#9670",
+  "field": "site",
+  "python": [
+   27.9374,
+   1.5189,
+   91.44
+  ],
+  "rust": [
+   46.9874,
+   1.5189,
+   91.44
+  ],
+  "verdict": "rust-correct",
+  "evidence": "A tolerance's site is its faces' box centre. Its toleranced feature is a 'pattern of features' composite group (#9636 'Position.40'): a 'unified geometric item' (one hole) and the pattern's basic_round_hole_occurrences, 3 holes in all; haecceity holds the occurrences' definitions since quiddity-rust 694dc17 and reads the members, so the port's box is the 3 holes' and the frame is lowered. draftwright takes XCAF's shapes, the unified item's one hole, so its site is that hole's. The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:78",
+  "port": "geometric_tolerance:#9670",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:82",
+  "port": "geometric_tolerance:#9688",
+  "field": "site",
+  "python": [
+   27.9374,
+   1.5189,
+   91.44
+  ],
+  "rust": [
+   46.9874,
+   1.5189,
+   91.44
+  ],
+  "verdict": "rust-correct",
+  "evidence": "A tolerance's site is its faces' box centre. Its toleranced feature is a 'pattern of features' composite group (#9636 'Position.40'): a 'unified geometric item' (one hole) and the pattern's basic_round_hole_occurrences, 3 holes in all; haecceity holds the occurrences' definitions since quiddity-rust 694dc17 and reads the members, so the port's box is the 3 holes' and the frame is lowered. draftwright takes XCAF's shapes, the unified item's one hole, so its site is that hole's. The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:82",
+  "port": "geometric_tolerance:#9688",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:88",
+  "port": "geometric_tolerance:#9775",
+  "field": "site",
+  "python": [
+   50.8,
+   1.5189,
+   -15.24
+  ],
+  "rust": [
+   64.77,
+   1.5189,
+   -1.27
+  ],
+  "verdict": "rust-correct",
+  "evidence": "A tolerance's site is its faces' box centre. Its toleranced feature is a 'pattern of features' composite group (#9759 'Position.43'): a 'unified geometric item' (one hole) and the pattern's basic_round_hole_occurrences, 3 holes in all; haecceity holds the occurrences' definitions since quiddity-rust 694dc17 and reads the members, so the port's box is the 3 holes' and the frame is lowered. draftwright takes XCAF's shapes, the unified item's one hole, so its site is that hole's. The view and side agree."
+ },
+ {
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "geometric_tolerance:0:1:4:88",
+  "port": "geometric_tolerance:#9775",
+  "field": "drawn",
+  "python": false,
+  "rust": true,
+  "verdict": "rust-correct",
+  "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -2549,19 +2712,6 @@
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:42",
-  "port": "geometric_tolerance:#9398",
-  "field": "lowered",
-  "python": "control_frame",
-  "rust": {
-   "lowered": "raw",
-   "problem": "pmi_not_lowered"
-  },
-  "verdict": "undetermined",
-  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8506 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:46",
   "port": "geometric_tolerance:#9439",
   "field": "lowered",
@@ -2571,7 +2721,7 @@
    "problem": "pmi_not_lowered"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried; haecceity not-modelled on #8663 (basic_round_hole_occurrence): the feature )."
+  "evidence": "draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -2585,58 +2735,6 @@
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:54",
-  "port": "geometric_tolerance:#9493",
-  "field": "lowered",
-  "python": "control_frame",
-  "rust": {
-   "lowered": "raw",
-   "problem": "pmi_not_lowered"
-  },
-  "verdict": "undetermined",
-  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8709 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:74",
-  "port": "geometric_tolerance:#9652",
-  "field": "lowered",
-  "python": "control_frame",
-  "rust": {
-   "lowered": "raw",
-   "problem": "pmi_not_lowered"
-  },
-  "verdict": "undetermined",
-  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:78",
-  "port": "geometric_tolerance:#9670",
-  "field": "lowered",
-  "python": "control_frame",
-  "rust": {
-   "lowered": "raw",
-   "problem": "pmi_not_lowered"
-  },
-  "verdict": "undetermined",
-  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:82",
-  "port": "geometric_tolerance:#9688",
-  "field": "lowered",
-  "python": "control_frame",
-  "rust": {
-   "lowered": "raw",
-   "problem": "pmi_not_lowered"
-  },
-  "verdict": "undetermined",
-  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8553 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "geometric_tolerance:0:1:4:84",
   "port": "geometric_tolerance:#9742",
   "field": "drawn",
@@ -2644,19 +2742,6 @@
   "rust": true,
   "verdict": "rust-correct",
   "evidence": "draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
- },
- {
-  "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "record": "geometric_tolerance:0:1:4:88",
-  "port": "geometric_tolerance:#9775",
-  "field": "lowered",
-  "python": "control_frame",
-  "rust": {
-   "lowered": "raw",
-   "problem": "pmi_not_lowered"
-  },
-  "verdict": "undetermined",
-  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity not-modelled on #8590 (basic_round_hole_occurrence): the feature definition of the occurrence (basic_round_hole: its parameters, tolerances and placem); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",

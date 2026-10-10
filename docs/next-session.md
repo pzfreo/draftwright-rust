@@ -147,6 +147,25 @@ pushed):
   coverage lint no longer reports it (`tests/title_block_material.rs`; the text equals
   draftwright's on the 14 AP242 fixtures and cgb203). The 6 `material:0:0` rust-wrong entries are
   gone (1356 differences). The mismatch/disagreement codes still wait on question (2) above.
+- **stc_09 hole occurrences re-verdicted (d-pmi-hole-occurrences-reverdict, haecceity at
+  quiddity-rust 694dc17):** haecceity now holds each `basic_round_hole` definition, so the 8
+  diameters and 7 frames on stc_09's hole patterns lose their reading blocker and are lowered and
+  drawn with no code change in `src/dims` (each dimension's feature is a 'pattern of features'
+  group: the unified item's hole and the occurrences, so its callout states all its holes, `3× ⌀7.1
+  ±0.2032 THRU`; draftwright, through XCAF, takes the unified item's one hole and splits it off:
+  rust-correct). `src/pmi.rs` reports each hole definition as a source not projected
+  (`hole:<part>:<i>`, info; `tests/pmi_hole_occurrences.rs`). Datums E and F (#8807, #8839) are
+  now read whole (draftwright: 'no representation items'; rust-correct). Counts:
+  `known_pmi_coverage.json` 1354 -> 1342 (rust-wrong 20 -> 4, the thread/knurl ones; undetermined
+  82 -> 68), `known_pmi_lowering.json` 244 -> 249 (undetermined 18 -> 11),
+  `known_pmi_dimensions.json` 59 (undetermined 22 -> 14), `known_pmi_drawings.json` 297 -> 295
+  (undetermined 40 -> 25), `known_pmi.json` unchanged; no stc_09 entry is undetermined or
+  rust-wrong. Only stc_09's plan changes (quality parts and the other 13 fixtures
+  byte-identical): its 7 new frames and the callout no longer dropped (a callout stating a PMI
+  tolerance is kept) leave 5 annotations off the A2 sheet and one label overlap (crossings 193 ->
+  314): for d-gdt-band-space's band reservation. `PartReader::labels` still reads raw Part 21:
+  `AttributeSet.description` is the property's description, not the aspect's 'NOTE', and
+  attribute sets carry no callouts, so nothing there is replaced.
 - **Facts:** Python draftwright's sheets recorded for 13 parts (`tools/capture_sheet_facts.py`,
   `tests/fixtures/sheets/`, `docs/facts.md`).
 - **Rules:** ADRs R1–R4 accepted. `docs/rules/` has 515 rules learnt from Python; 89 ported
