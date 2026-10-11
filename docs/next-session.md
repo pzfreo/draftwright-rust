@@ -3256,3 +3256,11 @@ sessions **8/8**, including the 150 ms NIST gate. The final repeated quality SVG
 are byte-identical to all thirty reviewed raster inputs; pin/MCP runs used the
 exact final executable. Evidence and SHA are in the S2 fix-round status entry
 and `target/s2-fix-*`. No commit or push was made.
+
+## Stage F integration judgement calls (2026-10-11, overturnable)
+
+- `tools/check_quality_table.py` keeps S1's header-driven checker; a quality table
+  header is now any `part` row containing `ink` or `off_sheet` (S1 keyed on `ink`,
+  S2's test table has no `ink`). Columns absent from the baseline are skipped.
+- S1's mocked crossing test in `tools/test_quality.py` writes an empty `part.svg`
+  so S2's SVG metric can read it; the assertion is unchanged.
