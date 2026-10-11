@@ -2686,8 +2686,9 @@ report must not be used to claim relocation quality. A second sampling policy
 and full measured grid would be a separate instrument change, not a cheap
 reporting fix. The observed NO-GO already requires the lane redesign.
 
-The earlier implementation is driver-committed as `9b7ee2b`. This fix round
-does not commit, push or write the index. No editor or draftwright-io files
+The earlier implementation is driver-committed as `9b7ee2b`. The fix-round
+agent did not commit, push or write the index; the driver recorded the round
+as `e605d3a`. No editor or draftwright-io files
 are changed. The existing geometry-backed diagnosis of the plate task stands;
 no scripted conditions or quality thresholds are weakened.
 
