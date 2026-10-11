@@ -213,6 +213,39 @@ fn the_specs_tolerance_wins_and_a_different_pmi_one_is_reported() {
 }
 
 #[test]
+fn pmi_supplies_the_general_tolerance_but_a_spec_blank_still_needs_attention() {
+    let (_, a) = analysed("spool_fits");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "general_tolerance_missing")
+    );
+    let mut spec = Spec::default();
+    spec.sheet.title.insert("tolerance".into(), "".into());
+    let plan = model::plan(&a, &spec).unwrap();
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "general_tolerance_missing")
+    );
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "step_general_tolerance_disagreement")
+    );
+    let (_, a) = analysed("assembly_plate_pin");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "general_tolerance_missing"),
+        "ambiguous PMI must not silently supply a tolerance"
+    );
+}
+
+#[test]
 fn two_defaults_of_one_kind_are_ambiguous_and_neither_is_drawn() {
     let (_, a) = analysed("assembly_plate_pin");
     let plan = model::plan(&a, &Spec::default()).unwrap();

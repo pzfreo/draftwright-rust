@@ -40,7 +40,14 @@ fn every_default_says_why_and_the_views_fit_the_sheet_apart() {
         assert!(plan.sheet.default && !plan.sheet.basis.is_empty());
         assert_eq!(plan.views.len(), 4);
         assert!(plan.views.iter().all(|v| v.default && !v.basis.is_empty()));
-        assert!(plan.problems.is_empty(), "{:?}", plan.problems);
+        assert_eq!(
+            plan.problems
+                .iter()
+                .map(|p| (p.code.as_str(), p.severity.as_str()))
+                .collect::<Vec<_>>(),
+            [("general_tolerance_missing", "warning")],
+            "a default Spec supplies no manufacturing tolerance"
+        );
         // Every view's ink lies inside the border, and no two views' boxes meet.
         let drawing =
             model::render(&model::analyse(&part(name)).unwrap().0, &a, &plan, &font()).unwrap();

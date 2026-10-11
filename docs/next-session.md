@@ -3264,3 +3264,78 @@ and `target/s2-fix-*`. No commit or push was made.
   S2's test table has no `ink`). Columns absent from the baseline are skipped.
 - S1's mocked crossing test in `tools/test_quality.py` writes an empty `part.svg`
   so S2's SVG metric can read it; the assertion is unchanged.
+
+## Stage G / G5: title furniture and requirements (2026-10-11)
+
+Maintainer decisions implemented: draw the projection symbol; retain a blank GEN. TOL.
+cell when neither the Spec nor usable PMI supplies its value, with a warning; warn
+when Spec material differs from the model while retaining the Spec value. Rules:
+ARCH0018-1 (symbol portion), ISSUE-1157-a (translated by the new decision), and
+LINT-code-step_material_disagreement (planning, where Spec intent is available).
+Catalogue YAML is deliberately unchanged. Python comparison verdicts and source
+locations are in `tests/fixtures/known_title_block.json`.
+
+Overturnable judgements made unattended:
+
+- Native planning supports only third angle (`layout.rs`, default principal-view
+  arrangement). The symbol records that convention, with Python's cone/circle
+  proportions and 3 mm large diameter, inside the existing 16 mm reserved band.
+  A separate black 0.15 mm export layer keeps its drafting weight independent of
+  the blue dimension layer. Its resolved curves belong to the Plan; rendering
+  does not infer the convention or geometry. Older plans read without the optional
+  symbol field and render their original furniture.
+- `general_tolerance_missing` is warning: an absent manufacturing requirement needs
+  author attention, but the engine must not supply one. The cell stays blank and
+  its sheet problem has `sheet/title/tolerance` in refs and a set fix. No magnitude
+  or standard is safe to guess, so the offered value is `UNSPECIFIED`, an explicit
+  acknowledgement that fills the blank without asserting limits. The message says
+  to supply the intended requirement. Applying this fix clears the blank-cell
+  warning; it does **not** establish manufacturing completeness. A Spec blank,
+  including whitespace, is still flagged even if it suppresses a PMI tolerance.
+- Material comparison is exact after trimming surrounding whitespace. No alloy
+  synonym/case equivalence is inferred. A blank Spec override is also a disagreement
+  against a unique usable source material; Python intentionally exempts blank
+  overrides. Multiple source materials do not prove one material and are not called
+  a contradiction. The warning has both values and source/path refs. No automatic
+  material fix chooses between two author requirements.
+
+Not done: first-angle planning and enforcement of authored principal-view relations
+are the remaining portions of ARCH0018-1. The Spec currently refuses a projection
+field; view placement can still author an unconventional relation. This change
+identifies the supported default convention and does not redesign view placement.
+Other missing title fields still need author data. No dimension planner, centreline,
+MCP task condition, or rule YAML was changed.
+
+Evidence/check results and the complete before/after quality table are appended to
+`docs/status-2026-10-10.md`. Red evidence lives in `target/g5-evidence/red-*.log`:
+all four new Rust regressions and the independent title-block export checker fail
+on the original b999b13 implementation/sheets.
+
+The full-gate run exposed the service test's obsolete expectation of no problems
+on a drawing whose general tolerance is blank. It now asserts exactly one warning,
+its sheet subject, and its complete set fix. The model default test likewise asserts
+exactly the new warning; the migration oracle adds golden data for the new furniture
+while keeping every original alpha-plan field under comparison. No finding is
+filtered out to retain an obsolete empty-list expectation.
+
+One preliminary Session tail run hit the unchanged 150 ms NIST gate: nine samples
+were 24.0–162.6 ms, with only the last sorted sample above the gate. The immediate
+unchanged-code rerun passed all eight Session tests. The cause of the outlier was
+not established; no threshold, skip, or timing-test implementation was changed.
+The complete final gate is reported separately in the status entry.
+
+A full-gate retry also reached the unchanged stateless transport test, which
+failed reading an HTTP response with OS error 54, `Connection reset by peer`.
+Its immediate unchanged-code rerun passed all eight stateless tests. The cause
+was not established; no transport code, test assertion, retry logic, or test limit
+was changed. The failing log is retained as `target/g5-evidence/final-tests-http-reset.log`.
+
+Finished G5 checks: fmt, strict release clippy, required-corpus release tests
+668/668 (71 groups, none ignored), release build, 30 parts / 300 quality cells
+no worse (all baseline JSON values identical), full random-pin grid 270/270 GO
+with --require-go, scripted MCP 7/7 (16 calls), Python 20/20, Node 8/8. The final
+Session and stateless suites both pass, without altered limits or assertions.
+All 30 title bands and three whole sheets were visually reviewed after resvg
+rasterization; all other SVG content is unchanged. The independent export check
+also passes all 270 pinned sheets (300/300 exports total). Full tables, source
+verdicts, binary SHA and evidence paths are in the G5 status entry.

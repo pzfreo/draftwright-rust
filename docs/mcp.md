@@ -195,3 +195,12 @@ The message identifies the replaced zero-based `ops[index]`; the correction is
 previewed through Session and corresponds to the reported refusal. A batch with multiple
 invalid operations can still require another retry. Review and resubmit the correction. Ambiguous feature ownership and missing engineering
 magnitudes are not guessed. Batch all edits for one request in `apply_ops.ops`.
+
+Title-block requirement warnings are returned by the same problem queries:
+`general_tolerance_missing` names `sheet` and offers a `set` operation at
+`sheet/title/tolerance` with value `UNSPECIFIED`. This is an explicit acknowledgement
+of a blank requirement, not manufacturing limits; clients can replace the offered
+value with the author's intended general tolerance. `step_material_disagreement`
+names `sheet`, includes both the authored and STEP material in its detail message,
+and retains the Spec value. Both warnings use source/Spec paths in `refs`; neither
+is attached to an unrelated feature.

@@ -303,6 +303,18 @@ reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG
   records each row as an annotation claiming what its cells state, so lint credits the rows as
   it credits callouts, never reading the plan.
 
+The title block also carries the resolved third-angle projection symbol in
+`sheet.projection_symbol` (method and paper curves). Native view planning uses third
+angle; first-angle planning remains unsupported. Rendering draws these planned curves
+in the reserved band beside the scale note. Older plans may omit this optional field.
+A blank GEN. TOL. cell is `general_tolerance_missing` (warning, subject `sheet`), with
+a set fix at `sheet/title/tolerance`. The offered `UNSPECIFIED` explicitly acknowledges
+the absence without asserting manufacturing limits; supply the intended requirement
+to state limits. A nonblank Spec tolerance or the unique usable PMI tolerance fills
+the cell. A Spec material different from the unique usable STEP material is
+`step_material_disagreement` (warning, both values and source/path refs); the Spec
+value still wins, including an explicit blank.
+
 ### Dimensions (first cut)
 
 `src/dims/` plans the dimensions draftwright's defaults would state for the families ported

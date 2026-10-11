@@ -161,3 +161,51 @@ fn several_materials_fill_nothing() {
     let plan = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(material(&plan), None);
 }
+
+#[test]
+fn a_spec_material_contradiction_warns_with_both_values_and_keeps_the_spec() {
+    let (file, bytes) = fixtures().remove("bolt_thread_knurl").unwrap();
+    let (_, a) = analysed(&file, &bytes);
+    for value in ["Brass CW614N", "", "  "] {
+        let plan = model::plan(&a, &spec_with_material(value)).unwrap();
+        let p = plan
+            .problems
+            .iter()
+            .find(|p| p.code == "step_material_disagreement")
+            .expect("the Spec cannot silently contradict the STEP material");
+        assert_eq!(p.severity, "warning");
+        assert_eq!(p.subjects, ["sheet"]);
+        assert!(p.refs.iter().any(|r| r == "sheet/title/material"));
+        assert!(
+            p.message.contains("Steel C45") && p.message.contains(value),
+            "{p:?}"
+        );
+        assert_eq!(
+            material(&plan).as_deref(),
+            (!value.trim().is_empty()).then_some(value.trim())
+        );
+    }
+    for spec in [
+        Spec::default(),
+        spec_with_material("Steel C45"),
+        spec_with_material(" Steel C45 "),
+    ] {
+        let plan = model::plan(&a, &spec).unwrap();
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| p.code == "step_material_disagreement")
+        );
+    }
+    let (file, bytes) = fixtures().remove("assembly_plate_pin").unwrap();
+    let (_, a) = analysed(&file, &bytes);
+    let plan = model::plan(&a, &spec_with_material("Steel C45")).unwrap();
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "step_material_disagreement"),
+        "several parts do not prove one contradictory material"
+    );
+}

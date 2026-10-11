@@ -1,0 +1,21 @@
+[
+  {
+    "rule": "ARCH0018-1",
+    "verdict": "equivalent",
+    "evidence": "Python origin/main:annotations/_sheet_furniture.py::_add_projection_symbol places build123d_drafting.helpers.ProjectionSymbol at the right end of the reserved 16 mm band. The helper uses large diameter h, small diameter 0.6h, cone length 1.3h, gap 0.5h and a horizontal centre stroke extending 0.25h past each end; the narrow cone end faces the circles for third angle. Rust's native layout supports only third angle (src/layout.rs; model::STANDARD_VIEWS and the principal views' bases). Rust records this geometry in the Plan and draws it at h=3 mm, with a 0.15 mm stroke and half-stroke inset so the ink stays inside the band. tests/title_block.rs and tools/check_title_block.py check the convention, proportions, band and export. First-angle planning and contradictory authored principal-view relations are outside this title-furniture port; ARCH0018-1 is only partially implemented.",
+    "python_revision": "4dfc63f0693bffa0e0e2836d254f53e15cce6f9f",
+    "helper_revision": "577ed47ca68f0d61a39d26ca33ce2c35117f21eb"
+  },
+  {
+    "rule": "ISSUE-1157-a",
+    "verdict": "rust-correct",
+    "evidence": "Maintainer decision 2026-10-11: leave GEN. TOL. blank unless the Spec or usable PMI states one, and flag the blank. Python origin/main:annotations/_sheet_furniture.py::_make_title_block inserts UNSPECIFIED for an unauthored tolerance (tests/test_issue_1157_no_implicit_general_tolerance.py). Rust instead leaves the cell blank and reports general_tolerance_missing at warning, with sheet subject and sheet/title/tolerance fix path. Its offered set UNSPECIFIED is an explicit author acknowledgement, never an inferred manufacturing standard; the warning message says to replace it with the intended requirement. Authored nonblank values or the part's unique usable PMI tolerance fill the cell; a Spec blank or ambiguous PMI still gives the warning. tests/title_block.rs and tests/pmi_labels.rs fail on b999b13 before this change.",
+    "python_revision": "4dfc63f0693bffa0e0e2836d254f53e15cce6f9f"
+  },
+  {
+    "rule": "LINT-code-step_material_disagreement",
+    "verdict": "rust-correct",
+    "evidence": "Maintainer decision 2026-10-11: warn when Spec material contradicts model material, while the Spec wins. Python origin/main:linting/pmi_coverage.py::_document_default_issues warns on a nonempty authored value different from the source, and exempts explicit empty values. Rust emits the warning during planning, where both Spec intent and the Analysis material are available, preserving the invariant that lint never reads the Spec. It compares trimmed designations exactly and includes both original values and the source identity. A blank override also differs and is warned (overturnable conservative choice); no warning claims a contradiction when the STEP has no unique usable title material, including assemblies with multiple materials. tests/title_block_material.rs fails on b999b13 before this change.",
+    "python_revision": "4dfc63f0693bffa0e0e2836d254f53e15cce6f9f"
+  }
+]

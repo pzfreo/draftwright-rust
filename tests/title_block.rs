@@ -63,6 +63,131 @@ fn overflows(plan: &Plan) -> Vec<&Problem> {
         .collect()
 }
 
+#[test]
+fn projection_symbol_states_third_angle_and_clears_the_reserved_band() {
+    use draftwright::output::{Curve, Item};
+    for size in ["A4", "A3"] {
+        let (plan, drawing) = sheet(size, json!({}));
+        let view = |id: &str| plan.views.iter().find(|v| v.id == id).unwrap();
+        assert!(view("v:plan").at[1] > view("v:front").at[1]);
+        assert!(view("v:side").at[0] > view("v:front").at[0]);
+        let symbol = drawing
+            .sheet
+            .items
+            .iter()
+            .find(|i| i.name == "projection_symbol")
+            .expect("a finished sheet states its projection convention");
+        let block = plan.sheet.title_block;
+        let band = [
+            block[2] - 3.0 - 16.0,
+            title_block::top(block),
+            block[2] - 3.0,
+            block[3],
+        ];
+        assert!(symbol.ink[0] > band[0] && symbol.ink[1] > band[1]);
+        assert!(symbol.ink[2] <= band[2] && symbol.ink[3] < band[3]);
+        let scale = drawing
+            .sheet
+            .items
+            .iter()
+            .find(|i| i.name == "scale_note")
+            .unwrap();
+        assert!(scale.ink[2] < symbol.ink[0]);
+        let curves: Vec<_> = drawing
+            .layers
+            .iter()
+            .flat_map(|l| &l.items)
+            .filter_map(|i| {
+                let Item::Edge(c) = i else { return None };
+                let b = c.bbox();
+                (b[0] >= symbol.ink[0]
+                    && b[1] >= symbol.ink[1]
+                    && b[2] <= symbol.ink[2]
+                    && b[3] <= symbol.ink[3])
+                    .then_some(c)
+            })
+            .collect();
+        let circles: Vec<_> = curves
+            .iter()
+            .filter_map(|c| match c {
+                Curve::Conic {
+                    centre,
+                    radii,
+                    t0,
+                    t1,
+                    ..
+                } => {
+                    assert_eq!(radii[0], radii[1]);
+                    assert!((t1 - t0 - std::f64::consts::TAU).abs() < 1e-9);
+                    Some((*centre, radii[0]))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(circles.len(), 2);
+        assert_eq!(circles[0].0, circles[1].0);
+        assert!((circles[1].1 / circles[0].1 - 0.6).abs() < 1e-9);
+        let mut ends: Vec<_> = symbol.lines.iter().filter(|[a, b]| a[0] == b[0]).collect();
+        ends.sort_by(|a, b| a[0][0].total_cmp(&b[0][0]));
+        assert_eq!(symbol.lines.len(), 5);
+        assert_eq!(ends.len(), 2);
+        let far = (ends[0][1][1] - ends[0][0][1]).abs();
+        let near = (ends[1][1][1] - ends[1][0][1]).abs();
+        assert!(
+            (near / far - 0.6).abs() < 1e-9,
+            "third-angle: narrow end faces circles"
+        );
+        assert!((far - 2.0 * circles[0].1).abs() < 1e-9);
+        assert!((ends[1][0][0] - ends[0][0][0] - 1.3 * far).abs() < 1e-9);
+        assert!((circles[0].0[0] - circles[0].1 - ends[1][0][0] - 0.5 * far).abs() < 1e-9);
+        let round_trip: Plan =
+            serde_json::from_value(serde_json::to_value(&plan).unwrap()).unwrap();
+        let (part, a) = plate();
+        assert_eq!(
+            drawing.svg(),
+            model::render(part, a, &round_trip, &font()).unwrap().svg()
+        );
+    }
+}
+
+#[test]
+fn a_blank_general_tolerance_is_flagged_with_an_explicit_acknowledgement_fix() {
+    for title in [
+        json!({}),
+        json!({"tolerance":""}),
+        json!({"tolerance":"  "}),
+    ] {
+        let (plan, _) = sheet("A4", title);
+        assert_eq!(cell(&plan, "general_tolerance").value, None);
+        let p = plan
+            .problems
+            .iter()
+            .find(|p| p.code == "general_tolerance_missing")
+            .expect("a blank GEN. TOL. cell needs the author's attention");
+        assert_eq!(p.severity, "warning");
+        assert_eq!(p.subjects, ["sheet"]);
+        assert!(p.refs.iter().any(|r| r == "sheet/title/tolerance"));
+        assert_eq!(p.fix.len(), 1);
+        assert_eq!(p.fix[0].op, "set");
+        assert_eq!(p.fix[0].path, "sheet/title/tolerance");
+        assert_eq!(p.fix[0].value, Some(json!("UNSPECIFIED")));
+        let edited = model::edit(&plan.spec, &serde_json::to_value(&p.fix).unwrap()).unwrap();
+        let after = model::plan(&plate().1, &edited).unwrap();
+        assert!(!after.problems.iter().any(|q| q.code == p.code));
+        assert_eq!(
+            cell(&after, "general_tolerance").value.as_deref(),
+            Some("UNSPECIFIED")
+        );
+    }
+    let (plan, _) = sheet("A4", json!({"tolerance":"ISO 2768-m"}));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "general_tolerance_missing")
+    );
+}
+
 /// draftwright's cells (`TitleBlock(layout=draftwright_title_block_layout(), width=…)`'s
 /// `cell_bbox`, build frame) on A4's 120 mm block and A3's and larger's 150 mm one.
 const CELLS: [(&str, [f64; 4], [f64; 4]); 13] = [

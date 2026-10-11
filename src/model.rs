@@ -341,6 +341,9 @@ pub struct PlannedSheet {
     /// supplied field is recorded as drawn, in its own cell).
     #[serde(default)]
     pub title_cells: Vec<TitleCell>,
+    /// Resolved projection furniture; absent in plans written before the symbol was ported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projection_symbol: Option<title_block::ProjectionPlaced>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1564,6 +1567,22 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     if let Some(crate::pmi::Reading::Read(r)) = &analysis.pmi
         && let Some(m) = r.title_material()
     {
+        if let Some(v) = spec.sheet.title.get("material")
+            && v.trim() != m.designation.trim()
+        {
+            problems.push(Problem {
+                id: format!("p:step_material_disagreement:{}", m.source_id),
+                code: "step_material_disagreement".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The title block uses the Spec's material {v:?} (sheet/title/material), which wins; the STEP material {} states {:?}. The two values disagree.",
+                    m.source_id, m.designation
+                ),
+                subjects: vec!["sheet".into()],
+                refs: vec![m.source_id.clone(), "sheet/title/material".into()],
+                ..Default::default()
+            });
+        }
         title
             .entry("material".into())
             .or_insert_with(|| m.designation.trim().to_string());
@@ -1589,6 +1608,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         state: ItemState::Shown,
         title,
         title_cells,
+        projection_symbol: Some(title_block::projection(g.title_block)),
     };
     if let Some(base) = &canonical {
         sheet.page = base.sheet.page;
@@ -1597,6 +1617,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         sheet.basis = base.sheet.basis.clone()
             + "; anchor frames and sheet choice kept fixed for placement pins";
         sheet.title_cells = title_block::cells(sheet.title_block, &sheet.title, &sheet.size);
+        sheet.projection_symbol = Some(title_block::projection(sheet.title_block));
     }
     if canonical.is_some() || spec.views.values().any(|v| v.place.is_some()) {
         crate::placement_intent::views(
@@ -2784,6 +2805,35 @@ pub fn render_annotations_with_items(
         runs,
         claims: Vec::new(),
     }));
+    if let Some(symbol) = &plan.sheet.projection_symbol {
+        let ink: Vec<Item> = symbol.curves.iter().cloned().map(Item::Edge).collect();
+        if let Some(bbox) = items_bbox(&ink) {
+            sheet.items.push(Drawn {
+                name: "projection_symbol".into(),
+                kind: Kind::ProjectionSymbol,
+                ink: bbox,
+                label: None,
+                lines: symbol
+                    .curves
+                    .iter()
+                    .filter_map(|c| match c {
+                        Curve::Line(a, b) => Some([*a, *b]),
+                        _ => None,
+                    })
+                    .collect(),
+                elbow: None,
+                interior: false,
+            });
+        }
+        let mut style = layer_styles()[0].1.clone();
+        style.width = title_block::PROJECTION_LINE;
+        style.weight = 15;
+        layers.push(Layer {
+            name: "projection_symbol".into(),
+            style,
+            items: ink,
+        });
+    }
     Ok(Drawing {
         page: plan.sheet.page,
         layers,

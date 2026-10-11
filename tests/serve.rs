@@ -113,7 +113,15 @@ fn the_service_answers_each_line() {
             .unwrap()
             .starts_with("<?xml")
     );
-    assert_eq!(replies[1]["result"]["problems"], json!([]));
+    let problems = replies[1]["result"]["problems"].as_array().unwrap();
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0]["code"], "general_tolerance_missing");
+    assert_eq!(problems[0]["severity"], "warning");
+    assert_eq!(problems[0]["subjects"], json!(["sheet"]));
+    assert_eq!(
+        problems[0]["fix"],
+        json!([{ "op": "set", "path": "sheet/title/tolerance", "value": "UNSPECIFIED" }])
+    );
     // No features were given, so lint has no requirements to find unmet.
     assert_eq!(replies[1]["result"]["lint"], json!([]));
     assert_eq!(

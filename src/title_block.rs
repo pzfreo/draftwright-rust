@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::layout::MARGIN;
 use crate::model::{Invalid, Problem};
+use crate::output::Curve;
 use crate::text::{Font, Laid, P, Segment};
 
 /// The face the title block is measured and drawn with, by file name and data.
@@ -32,6 +33,7 @@ pub const LABEL_TEXT: f64 = 1.5;
 pub const LABEL_PAD: f64 = 0.8;
 const FURNITURE_GAP: f64 = 3.0;
 const PROJECTION_BAND_W: f64 = 16.0;
+pub const PROJECTION_LINE: f64 = 0.15;
 
 /// One cell: the field it holds, its share of the block's width, its label.
 pub struct Cell {
@@ -245,6 +247,52 @@ pub fn scale_note(block: [f64; 4], text: &str) -> [f64; 2] {
     [right - w / 2.0, top(block) + FURNITURE_GAP + h / 2.0]
 }
 
+/// The projection-method symbol's resolved paper geometry. The native planner uses third
+/// angle: plan above front and right side to the right. This is sheet furniture, not a view.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionPlaced {
+    pub method: String,
+    pub curves: Vec<Curve>,
+}
+
+/// ISO 5456-2's cone elevation and concentric end view, as build123d_drafting's
+/// `ProjectionSymbol`: large diameter h, small diameter 0.6h, length 1.3h and gap 0.5h.
+/// Third angle puts the small end next to the circles. The 3 mm symbol and its 0.15 mm
+/// stroke fit inside the reserved band, right of the scale note, as Python places them.
+pub fn projection(block: [f64; 4]) -> ProjectionPlaced {
+    let h = TEXT;
+    let (big, small, len) = (0.5 * h, 0.3 * h, 1.3 * h);
+    let cx = len + 0.5 * h + big;
+    let at = [
+        block[2] - 3.0 - PROJECTION_LINE / 2.0 - (cx + big + 0.25 * h),
+        top(block) + FURNITURE_GAP + PROJECTION_LINE / 2.0 + big,
+    ];
+    let m = |p: P| [p[0] + at[0], p[1] + at[1]];
+    let mut curves: Vec<Curve> = [
+        [[0.0, -big], [0.0, big]],
+        [[len, -small], [len, small]],
+        [[0.0, big], [len, small]],
+        [[0.0, -big], [len, -small]],
+        [[-0.25 * h, 0.0], [cx + big + 0.25 * h, 0.0]],
+    ]
+    .into_iter()
+    .map(|[a, b]| Curve::Line(m(a), m(b)))
+    .collect();
+    curves.extend([big, small].map(|r| Curve::Conic {
+        centre: m([cx, 0.0]),
+        radii: [r, r],
+        x_axis: [1.0, 0.0],
+        y_axis: [0.0, 1.0],
+        t0: 0.0,
+        t1: std::f64::consts::TAU,
+    }));
+    ProjectionPlaced {
+        method: "third-angle".into(),
+        curves,
+    }
+}
+
 /// A part's default surface finish as drawn beside the title block: ISO 1302's complete
 /// graphical symbol, its short and long legs at 60° to a tip (1.4 and 3 text heights tall, the
 /// proportions ISO 1302 gives a text height), the bar from the long leg's top, and the
@@ -313,6 +361,17 @@ fn source(field: &str) -> String {
 pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
     let mut out = Vec::new();
     for c in cells {
+        if c.field == "general_tolerance" && c.value.is_none() {
+            out.push(Problem {
+                id: "p:general_tolerance_missing:sheet".into(),
+                code: "general_tolerance_missing".into(),
+                severity: "warning".into(),
+                message: "GEN. TOL. is blank: no general tolerance is drawn from the Spec or usable PMI. Set sheet/title/tolerance to the intended requirement. The offered fix explicitly states UNSPECIFIED; it acknowledges the missing requirement without inventing a manufacturing tolerance.".into(),
+                subjects: vec!["sheet".into()],
+                refs: vec!["title_block/general_tolerance".into(), "sheet/title/tolerance".into()],
+                fix: vec![crate::items::Op::set("sheet/title/tolerance", serde_json::json!("UNSPECIFIED"))],
+            });
+        }
         let Some(v) = &c.value else { continue };
         let [w, h] = measure(v);
         let [x0, y0, x1, y1] = c.cell;

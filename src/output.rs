@@ -363,6 +363,8 @@ pub enum Kind {
     TitleBlock,
     /// The `SCALE` note beside the title block (ISO 7200 §4).
     ScaleNote,
+    /// ISO 5456-2's projection-method symbol beside the scale note.
+    ProjectionSymbol,
     /// The general notes block.
     Notes,
     /// A spec table (`t:<k>`), by its whole ink.
