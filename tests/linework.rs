@@ -190,3 +190,38 @@ fn string_post_section_bores_are_unhatched() {
 fn ftc06_section_bores_are_unhatched() {
     section("nist/nist_ftc_06_asme1_rd.stp", true);
 }
+
+#[test]
+fn m10063_side_hidden_verticals_are_continuous_dash_runs() {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = model::analyse_native(&dir.join("mfcadpp/10063.step")).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let geometry =
+        model::render_geometry(&part, &a, &plan, &mut model::Projections::default()).unwrap();
+    let side = &geometry
+        .views
+        .iter()
+        .find(|(id, _)| id == "v:side")
+        .unwrap()
+        .1;
+    let mut verticals = Vec::new();
+    for item in &side.hidden {
+        let Item::Edge(c) = item else { continue };
+        let (a, b) = (c.start(), c.end());
+        if (a[0] - b[0]).abs() < 1e-6 && (c.at(0.5)[0] - a[0]).abs() < 1e-6 {
+            verticals.push((a[0], a[1].min(b[1]), a[1].max(b[1])));
+        }
+    }
+    assert!(
+        verticals.iter().filter(|(_, lo, hi)| hi - lo > 20.).count() >= 2,
+        "the long hidden side-channel verticals must each span multiple dashes"
+    );
+    for (i, &(x, lo, hi)) in verticals.iter().enumerate() {
+        for &(other_x, other_lo, other_hi) in &verticals[i + 1..] {
+            assert!(
+                (x - other_x).abs() > 1e-6 || other_lo > hi + 0.0081 || lo > other_hi + 0.0081,
+                "touching collinear hidden paths restart dashes: {x}, {lo}..{hi}, {other_lo}..{other_hi}"
+            );
+        }
+    }
+}

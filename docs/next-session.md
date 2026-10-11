@@ -3076,5 +3076,51 @@ lengths once before sorting fixes it (isolated maximum 85.251 ms; unchanged
 150 ms gate passes in the final full run). Every final-build SVG is byte-identical
 to the thirty reviewed rasters' SVGs. Before/after tables, model verdicts, failure
 proof and final artifact locations are in the S2 status entry; deliberate Python
-reference differences are `rust-correct` in `tests/fixtures/known_linework.json`.
+reference differences have `rust-correct` verdicts in the S2 status entry
+(the unused known_linework.json ledger was removed in the fix round).
 No commit or push was made.
+
+## Stage F S2 fix round: dash continuity (2026-10-11)
+
+Overturnable unattended judgement: join raw hidden curves at endpoints within
+1e-7 page mm, before visible subtraction and duplicate trimming. Normalize
+collinear linear Bézier pieces (deviation <1e-8 mm) to their exact union
+between extrema, including backtracking and closed edge-on polylines. Straight
+joins collapse to a single line only within 1e-6 mm of the same support.
+Within the established 0.004 mm duplicate tolerance, retain both source lines
+and an explicit connector in one Bézier path rather than flattening their small
+offset (the SVG gate found two CTC-02 joins differing by 2–4e-6 mm). Curved
+joins require matching
+endpoint tangent direction within 0.001 radians, and conics additionally require
+identical ellipse support. Preserve spline poles, reversing their order where
+needed. Endpoint indexing and source-order candidates make joins deterministic.
+The final straight merge accepts at most 2×0.004 mm. A final endpoint pass
+allows 2×(0.004+0.001) = 0.010 mm, recovering capsule trims and chord
+error on both sides; spline runs insert an explicit straight connector across
+that gap so their original poles and stretches stay exact. Conics join only
+on identical ellipse support. Visible precedence cuts are much wider, so remain
+separated. The thirty-part SVG gate exposed backtracking straight polylines
+and trim gaps beyond exactly 2×0.004 mm; neither is silently waived.
+
+The reviewer correctly identified an unresolved solid-grey sub-defect. The
+line-only merge also missed straight Bézier fragments emitted by HLR. The new
+unit chains and 10063 corpus regression fail on the prior implementation;
+`tools/check_hidden_runs.py` independently rejects its rendered SVGs. This check
+is separate from the original two quality columns, which cannot detect dash
+phase resets. Isometrics remain untouched. The unused known_linework.json
+ledger is removed: no capture differs, and the ISO/material verdicts now live
+in the S2 status entry. Keep the existing header-driven quality checker version
+when merging S1; this fix round does not modify that shared file or its columns.
+Closed curves are excluded from endpoint joining, and a run stops when it closes;
+this prevents coincident circles from joining into a twice-traced loop. The
+curved-chain unit also checks duplicate full ellipses.
+
+Final fix-round checks pass on the finished source: fmt, strict release clippy,
+required-corpus release tests **651/651 (70 groups, none ignored)**, release
+build, **30 parts / 270 quality cells no worse**, both rendered linework gates
+(**zero touching short-path pairs**), random-pin grid **270/270 GO**, scripted
+MCP **7/7**, Python **18/18**, Node **7/7**. Render caches remain **12/12** and
+sessions **8/8**, including the 150 ms NIST gate. The final repeated quality SVGs
+are byte-identical to all thirty reviewed raster inputs; pin/MCP runs used the
+exact final executable. Evidence and SHA are in the S2 fix-round status entry
+and `target/s2-fix-*`. No commit or push was made.
