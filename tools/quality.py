@@ -6,9 +6,13 @@ in <out dir> and prints a table with totals. Random pins: --seed S --pins N;
 The maintainer's priority (2026-10-09) is to drive these to zero before adding features; see
 docs/quality-2026-10-09.md for the baseline and the parts it is measured on.
 
+Repeated spans use placed linear arrow tips, model-mm tolerance 1e-6 for ends and values,
+and ignore lane and label. PMI face-pair near misses are included. Use
+--require-no-repeated-span to enforce zero; baseline.json retains the groups' item IDs.
+
 Usage: python3 -I tools/quality.py <draftwright binary> <out dir> <step files...>
 (the parts: tools/quality_parts.txt, paths relative to $DRAFTWRIGHT_CORPUS)"""
-import argparse, collections, hashlib, json, subprocess, sys, os
+import argparse, collections, hashlib, json, subprocess, sys, os, re
 from concurrent.futures import ThreadPoolExecutor
 
 INK = {"annotation_ink_overlap", "annotation_over_view", "annotation_line_over_view",
@@ -17,6 +21,59 @@ INK = {"annotation_ink_overlap", "annotation_over_view", "annotation_line_over_v
 
 def overlap(a, b):
     return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
+
+
+def repeated_spans(plan):
+    """Placed linear statements, independent of lane and label, in model millimetres.
+
+    Arrow tips retain the witness stations even with outside arrows or a broken line.
+    PMI identities also prove a face pair: equal values on that pair at different
+    stations are reported separately for review, never inferred from equal labels.
+    """
+    numerator, denominator = map(float, plan['sheet']['scale'].split(':'))
+    scale = numerator / denominator
+    spans = []
+    for d in sorted(plan['dimensions'], key=lambda d: d['id']):
+        placed = d.get('placed')
+        if d.get('kind') != 'linear' or not placed or len(placed.get('arrows', [])) != 2:
+            continue
+        axis = 0 if placed['rotation'] % 180 == 0 else 1
+        ends = sorted(a[0][axis] / scale for a in placed['arrows'])
+        faces = set()
+        for m in d.get('measurements', []):
+            if m['feature'].startswith('pmi:'):
+                match = re.search(r':f([0-9,]+)(?=:|$)', m['feature'])
+                if match:
+                    pair = tuple(sorted(map(int, match[1].split(','))))
+                    if len(pair) == 2:
+                        part = re.search(r':p([0-9]+)(?=:|$)', m['feature'])
+                        faces.add((part[1] if part else None, pair))
+        spans.append((d, axis, ends, faces))
+    groups = []
+    for d, axis, ends, faces in spans:
+        matches = []
+        for i, group in enumerate(groups):
+            for other, k, stations, pair in group['members']:
+                if d['view'] != other['view'] or axis != k or abs(d['value'] - other['value']) > 1e-6:
+                    continue
+                same = all(abs(a - b) <= 1e-6 for a, b in zip(ends, stations))
+                if same or faces & pair:
+                    matches.append((i, 'span' if same else 'feature_pair'))
+                    break
+        if matches:
+            first, kind = matches[0]
+            groups[first]['members'].append((d, axis, ends, faces))
+            if kind == 'feature_pair':
+                groups[first]['kind'] = kind
+            for i, kind in reversed(matches[1:]):
+                groups[first]['members'].extend(groups[i]['members'])
+                if kind == 'feature_pair' or groups[i]['kind'] == 'feature_pair':
+                    groups[first]['kind'] = 'feature_pair'
+                del groups[i]
+        else:
+            groups.append({'kind': 'span', 'members': [(d, axis, ends, faces)]})
+    return sorted(({'kind': g['kind'], 'items': sorted(d['id'] for d, *_ in g['members'])}
+                   for g in groups if len(g['members']) > 1), key=lambda g: g['items'])
 
 
 def one(f, dw, out, spec=None):
@@ -31,6 +88,8 @@ def one(f, dw, out, spec=None):
         return name, {"error": (r.stdout + r.stderr)[:200]}
     if r.returncode or p.returncode or "dimensions" not in plan or "error" in rend:
         return name, {"error": json.dumps(plan.get("error", plan))[:200]}
+    with open(f"{out}/{name}.plan.json", "w") as output:
+        json.dump(plan, output, indent=1, sort_keys=True)
     codes = collections.Counter(x["code"] for x in rend.get("problems", []))
     # Repeated dimensions: the same measured quantity (feature, parameter) stated more than once,
     # and, separately, the same label on the same span in the same view (a drawn duplicate).
@@ -51,6 +110,7 @@ def one(f, dw, out, spec=None):
     rep_label = sum(n - 1 for n in labels.values() if n > 1)
     rep_meas = sum(n - 1 for n in meas.values() if n > 1)
     rep_span = sum(n - 1 for n in spans.values() if n > 1)
+    repeated = repeated_spans(plan)
     views = [v["area"] for v in plan["views"] if v.get("area")]
     tb = plan["sheet"].get("title_block")
     view_over = sum(overlap(views[i], views[j]) for i in range(len(views)) for j in range(i + 1, len(views)))
@@ -61,6 +121,8 @@ def one(f, dw, out, spec=None):
                                    if problem["code"] in {"annotation_off_sheet", "pinned_view_off_sheet"}
                                    for subject in problem.get("subjects", [])}),
         "repeated_measure": rep_meas, "repeated_drawn": rep_span, "repeated_label": rep_label,
+        "repeated_span": sum(len(g['items']) - 1 for g in repeated),
+        "repeated_span_groups": repeated,
         "views_overlap": view_over, "view_on_title_block": view_tb,
         "ink": sum(codes[c] for c in INK), "ink_by_code": {c: codes[c] for c in INK if codes[c]},
         "dimensions": len(plan["dimensions"]),
@@ -68,7 +130,7 @@ def one(f, dw, out, spec=None):
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):
@@ -166,6 +228,7 @@ def main():
     parser.add_argument("--pins", type=int)
     parser.add_argument("--baseline", help="Reuse this unpinned baseline JSON (same binary and parts)")
     parser.add_argument("--require-go", action="store_true", help="Exit 1 if any part fails the pin bar")
+    parser.add_argument("--require-no-repeated-span", action="store_true", help="Exit 1 if any placed linear span repeats")
     parser.add_argument("dw")
     parser.add_argument("out")
     parser.add_argument("files", nargs="+")
@@ -191,7 +254,8 @@ def main():
             json.dump(report, output, indent=1, sort_keys=True)
         return int(any("error" in p for p in parts.values()) or (args.require_go and not report["go"]))
     table(res)
-    return int(any("error" in v for v in res.values()))
+    return int(any("error" in v for v in res.values())
+               or (args.require_no_repeated_span and any(v['repeated_span'] for v in res.values())))
 
 
 if __name__ == "__main__":

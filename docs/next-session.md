@@ -2752,3 +2752,82 @@ Logs are in `target/d1-fix-logs/`.
   the survivor, which claims its measurement. 15 records per PMI oracle are verdicted
   rust-correct (draftwright draws them all). Judgement call: a default dimension the spec has
   toleranced keeps its own line beside the PMI one.
+
+
+## E3: repeated spans across the corpus (2026-10-11)
+
+The survey adds `repeated_span` and `repeated_span_groups` to `tools/quality.py`.
+It measures placed linear arrow-tip stations along their axis, divided by sheet
+scale, ignoring the dimension lane and label. Endpoint and nominal-value identity
+use 1e-6 mm; unlike the old `repeated_drawn`, no rounding bucket or witness-line
+position decides identity. Equal values on the same PMI face pair in the same
+part and view, through different stations, are reported as `feature_pair` near
+misses. This is conservative evidence: equal labels alone prove no shared
+features. Callouts, angles, unplaced dimensions and different axes/views are
+excluded. The eight instrument regressions all fail against the original tool.
+
+The 42 corpus parts in `tools/repeated_span_parts.txt` include all thirty quality
+parts, literal test inputs and captured sheet bindings. The survey script checks
+that those test inputs remain covered and unpacks all 22 AP242 fixtures. Run:
+
+```sh
+DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus python3 -I tools/survey_repeated_spans.py target/release/draftwright "$PWD/target/e3-survey"
+```
+
+The before/after tables and verification are in `docs/status-2026-10-10.md`.
+Each of the eight before patterns has a rust-correct verdict with numerical and
+Python evidence in `tests/fixtures/known_repeated_spans.json`. Optional
+`--before <baseline.json>` checks that this historical ledger exactly describes
+the before groups. The script fails on any remaining repeated span or failed
+part; `quality.py --require-no-repeated-span` provides the same zero gate for
+an arbitrary measured set. Plans and SVGs are saved beside the baseline.
+
+Overturnable judgement calls made unattended:
+
+- A plain hole location and a face-level datum distance on identical stations
+  are one statement. The listed item wins over a default, then the smaller ID.
+  It claims both measurements; omission promotes the surviving independent
+  statement. This settles the earlier FTC-10 repeat question within this stream's
+  authorized scope. Different bands, basic status or values stay separate.
+- A counted boss height on the face level it states conveys the rung too.
+  Only boss-height claims enter the count: FTC-06 stays `4× 38.1`, with five
+  claims including the level. A level is not a fifth boss. Other families'
+  coincident sizes still keep their own statements under the existing tests.
+- A turned boss whose linear diameter equals the overall diameter across
+  identical radial stations gives way to that extent. Separate axial lengths,
+  smaller diameters and different tolerance bands remain meaningful statements.
+- PMI/default value equality uses the same 1e-6 mm tolerance as their endpoints.
+  AP242 304.79999999999995 mm and geometry 304.8 mm are one nominal size;
+  98.816351 versus 98.81635164398 mm is also within that identity tolerance.
+  The PMI requirement, including its basic box or inch units/band, wins over
+  an untouched default. No Spec-authored tolerance is withdrawn.
+
+- Near-miss feature identity requires a proven two-face PMI pair. Ordinary
+  measurement claims identify the quantity's owner, not both witness features;
+  treating two equal claims or labels as an endpoint pair would flag distinct
+  chain stations without evidence. The metric records exact station repeats for
+  those dimensions and uses the AP242 pair for shifted stations. If the Plan later
+  exposes witness-feature identities, extend this check to those identities.
+
+New cross-family merges retain their original lane reservations, so the consolidation
+removes ink without moving unrelated items. This preserves edit locality and the
+quality baseline; the old same-family sharing still determines lane ownership.
+
+No pin/lane-placement or MCP implementation file is changed. No commit or push
+was made; the driver owns version control.
+
+Final checks: fmt, release clippy, required-corpus release tests (**626 passed,
+68 groups, 0 failed/ignored**) and release build passed. Python instrument tests
+13/13; the focused Rust run 32/32. The post-build thirty-part quality run passes
+all 180 cells against the prior status table: ink 282 unchanged, labels 18→17,
+repeated spans 2→0. All sixty-four survey rows have no worsened metric or ink
+problem code; repeated spans 8→0, ink 2007→1978, labels 47→41. Both before
+rejection and after acceptance are checked by the CLI zero gate.
+
+Scripted MCP remains **6/7** (exit 1), 16 calls / 4,298 estimated tool tokens,
+plus 10,905 fixed-context estimated tokens. `plate-callouts-right-pinned` has
+the same three band overruns (25.8/13.7/24.3 mm) and two leader crossings recorded
+in Stage D. The all-tasks gate is unmet; fixing the existing pin/lane placement
+is E1's scope, excluded from E3. No task/checker condition was weakened.
+Logs, plans and SVGs are under `target/e3-*`; the full table and verdict evidence
+are recorded in the status document and known-differences ledgers.

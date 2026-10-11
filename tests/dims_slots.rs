@@ -198,9 +198,26 @@ fn ftc06_bosses_are_counted_called_out_and_their_heights_stated() {
         .dimensions
         .iter()
         .filter(|d| d.id.ends_with("/boss_height.length"))
-        .map(|d| d.measurements.len())
+        .map(|d| {
+            d.measurements
+                .iter()
+                .filter(|m| m.parameter == "boss_height.length")
+                .count()
+        })
         .sum();
     assert_eq!(heights, 8);
+    let shared = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label == "4× 38.1")
+        .unwrap();
+    assert_eq!(shared.measurements.len(), 5);
+    assert!(
+        shared
+            .measurements
+            .iter()
+            .any(|m| m.feature == "step_level" && m.parameter == "step_height.length.h38_1")
+    );
     let bosses = of_kind(&a, "boss");
     for d in plan.dimensions.iter().filter(|d| {
         d.measurements
@@ -228,13 +245,27 @@ fn a_turned_parts_coaxial_bosses_are_profile_bands_and_a_groove_floor_is_the_gro
             ("boss.diameter", "front", "ø110"),
             ("boss.diameter", "front", "ø118"),
             ("boss.diameter", "front", "ø122"),
-            ("boss.diameter", "front", "ø130.9"),
             ("boss_height.length", "front", "199.7"),
             ("boss_height.length", "front", "20"),
             ("boss_height.length", "front", "4.8"),
             ("boss_height.length", "front", "6.4"),
         ])
     );
+    let overall = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:envelope/od.diameter")
+        .unwrap();
+    assert_eq!(overall.label, "ø130.9");
+    assert_eq!(
+        overall
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "boss.diameter" && (m.value - 130.94).abs() < 1e-6)
+            .count(),
+        1
+    );
+    drawn(&plan, overall);
     let bosses = of_kind(&a, "boss");
     assert!(plan.dimensions.iter().all(|d| {
         !d.id.contains("/location")

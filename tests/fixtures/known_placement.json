@@ -16,16 +16,16 @@
  {
   "part": "connector109",
   "code": "annotation_leader_crossing",
-  "count": 8,
+  "count": 5,
   "verdict": "rust-wrong",
-  "reason": "A check stream d-callout-leaders adds. The turned bosses' diameters ø118, ø122 and ø130.9 (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette, so the leaders of the grooves (d:f:groove:1, :2, :3), the fillet R1 and the chamfer 4.5 × 42.1°, leaving the profile beside it, cross them where they leave the outline; the leader solver found no route clear of them within its bounds (the left column holds the step diameters, and rows above or below the 420 mm profile are longer than its 75 mm limit). draftwright states those boss diameters as callouts in its column left of the front, so its sheet has no such extension lines. The cause is the bosses' presentation, not the leaders."
+  "reason": "A check stream d-callout-leaders adds. The turned bosses' diameters ø118, ø122 and ø130.9 (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette, so the leaders of the grooves (d:f:groove:1, :2, :3), the fillet R1 and the chamfer 4.5 × 42.1°, leaving the profile beside it, cross them where they leave the outline; the leader solver found no route clear of them within its bounds (the left column holds the step diameters, and rows above or below the 420 mm profile are longer than its 75 mm limit). draftwright states those boss diameters as callouts in its column left of the front, so its sheet has no such extension lines. The cause is the bosses' presentation, not the leaders. E3 consolidates boss:4's ø130.9 into the overall diameter at the same radial stations. The three crossings against its removed extension line (fillet:1, groove:1, groove:3) disappear; known_leaders.json still requires all five remaining crossings against boss:2 and boss:3."
  },
  {
   "part": "connector109",
   "code": "annotation_outside_area",
-  "count": 3,
+  "count": 2,
   "verdict": "rust-wrong",
-  "reason": "The front's lower band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): three front diameters below the front run past it. 8 before stream d-placement-fit, which passed the outer lanes below the front (the callouts and grooves that ran off the sheet) to the strip above it. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e); since stream d-callout-leaders callouts take no lanes (src/dims/leaders.rs places them beside the view)."
+  "reason": "The front's lower band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): three front diameters below the front run past it. 8 before stream d-placement-fit, which passed the outer lanes below the front (the callouts and grooves that ran off the sheet) to the strip above it. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e); since stream d-callout-leaders callouts take no lanes (src/dims/leaders.rs places them beside the view). E3 consolidates boss:4's ø130.9 into the overall diameter; its redundant line and band overrun disappear. The overall ø130.9 still overruns by 20.0 mm and boss:3's ø122 by 6.0 mm; both remaining findings are required. No placement rule changed."
  },
  {
   "part": "ctc01",

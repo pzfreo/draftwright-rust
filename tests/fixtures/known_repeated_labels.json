@@ -185,19 +185,6 @@
   {
     "part": "nist/nist_ftc_10_asme1_rb.stp",
     "view": "front",
-    "label": "12.5",
-    "rotation": 90,
-    "items": [
-      "d:f:hole_pattern:7/location.length.z",
-      "d:step_level/step_height.length.h12_5"
-    ],
-    "verdict": "draftwright-repeats",
-    "draftwright": "dim_step_0 '12.5' (the rung, base z -37.5 to the level at -25) in the front and dim_loc_side_z1250 '12.5' (the same pattern's z location, at -25) in the side: it states the span twice, in two views. Its rungs register their corridor candidates with no dedup key (`_height_ladder.py`; `_axial_render.py`: 'No cross-dedup against hole locations'), so it would keep both in one view too.",
-    "reason": "The same span (the part's base to z = -25) stated by the hole row's z location and by the ladder rung to the face level the holes sit on. The port states the location in the front, the view that looks along the holes (the maintainer's decision of 2026-10-08), so both are in one view. Merging them, and which owns the span, is maintainer question 11 (docs/alpha1.md); until it is answered the port keeps draftwright's behaviour of stating both."
-  },
-  {
-    "part": "nist/nist_ftc_10_asme1_rb.stp",
-    "view": "front",
     "label": "2× 11",
     "rotation": 0,
     "items": [

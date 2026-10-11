@@ -886,3 +886,72 @@ fn a_span_the_pmi_states_is_drawn_once() {
         );
     }
 }
+
+/// Geometry and AP242 values can differ below a micrometre. The PMI states the requirement;
+/// one line carries it and the default measurement, even when one is basic or in inches.
+#[test]
+fn a_basic_pmi_span_covers_defaults_despite_geometric_roundoff() {
+    let (_, a, plan) = planned("bracket_positions");
+    for feature in ["f:hole:2", "f:hole:4"] {
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| {
+                d.measurements
+                    .iter()
+                    .any(|m| m.feature == feature && m.parameter == "location.length.x")
+            })
+            .unwrap();
+        assert!(d.id.starts_with("d:pmi:"), "{d:?}");
+        assert!(d.measurements.iter().any(|m| m.parameter == "linear.basic"));
+        assert!(
+            !plan
+                .dimensions
+                .iter()
+                .any(|other| other.id == format!("d:{feature}/location.length.x"))
+        );
+    }
+    for r in records(&a).iter().filter(|r| {
+        r.kind == "linear"
+            && r.basic
+            && [[234, 262], [235, 262], [236, 262]]
+                .iter()
+                .any(|faces| r.face_ids == *faces)
+    }) {
+        assert!(stating(&plan, &a, r).is_some(), "{}", r.source_id);
+    }
+}
+
+#[test]
+fn an_inch_pmi_span_covers_the_default_extent_despite_geometric_roundoff() {
+    let (_, a, plan) = planned("nist_stc_06_asme1_ap242-e3");
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == "envelope" && m.parameter == "depth.length")
+        })
+        .unwrap();
+    assert!(d.id.starts_with("d:pmi:"), "{d:?}");
+    assert_eq!(d.label, "12.00 ±0.01 INCH");
+    let mut spec = Spec::default();
+    spec.dimensions.insert(
+        "d:envelope/depth.length".into(),
+        serde_json::from_value(json!({"tolerance": "±0.1"})).unwrap(),
+    );
+    let separate = model::plan(&a, &spec).unwrap();
+    assert!(
+        separate
+            .dimensions
+            .iter()
+            .any(|d| d.id == "d:envelope/depth.length" && d.label == "304.8 ±0.1")
+    );
+    assert!(
+        separate
+            .dimensions
+            .iter()
+            .any(|d| d.label == "12.00 ±0.01 INCH")
+    );
+}
