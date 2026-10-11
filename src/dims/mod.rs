@@ -850,7 +850,13 @@ pub(crate) fn plan_with_obstacles(
                     .as_ref()
                     .map(|held| placement::relabel(held, &d.terms, w));
             }
-            placement::intent(&frames[v], w, p, sides[i]?, lane[i])
+            let callout_width = held
+                .iter()
+                .filter(|d| d.kind == "callout" && d.view == format!("v:{v}"))
+                .filter_map(|d| d.placed.as_ref())
+                .map(|p| p.label_box[2] - p.label_box[0])
+                .fold(0.0, f64::max);
+            placement::intent(&frames[v], w, p, sides[i]?, lane[i], callout_width)
         })
         .collect();
     placement::fall_through(
@@ -875,6 +881,16 @@ pub(crate) fn plan_with_obstacles(
     for (i, p) in intended.iter().enumerate() {
         if p.is_some() {
             placed[i] = p.clone();
+        } else if owner[i].is_none()
+            && matches!(all[i].shape, Shape::Linear { .. })
+            && let Some(d) = held.iter().find(|d| {
+                d.id == all[i].id && chosen[i].is_some_and(|v| d.view == format!("v:{v}"))
+            })
+            && let Some(p) = &d.placed
+        {
+            // Start around pins from the settled layout, rather than reintroducing collisions
+            // that the canonical label slides already removed.
+            placed[i] = Some(placement::relabel(p, &d.terms, &all[i]));
         }
     }
     let fixed: Vec<bool> = all
@@ -891,8 +907,8 @@ pub(crate) fn plan_with_obstacles(
         &frames,
         &all,
         &chosen,
-        &sides,
-        &lane,
+        &mut sides,
+        &mut lane,
         &fixed,
         &mut placed,
         obstacles,
