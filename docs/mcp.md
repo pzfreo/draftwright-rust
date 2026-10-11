@@ -21,7 +21,10 @@ into a fixed-capacity buffer; exhausting it before the final blank line returns 
 including input without a newline. A complete head of exactly 16 KiB is accepted.
 One absolute 10-second deadline covers reading the head and body after the connection
 is accepted for handling; incremental delivery does not reset it. Expiry returns 408
-and releases the adapter for the next connection. This read deadline excludes tool
+and releases the adapter for the next connection. Refusals half-close the write side
+and drain unread input for at most 100 ms before closing, to preserve the status
+on Linux without an unbounded wait. Bare-LF blank lines terminate reading promptly
+and are refused by header parsing with 400. This read deadline excludes tool
 computation. Cold computation runs synchronously here; production jobs are below.
 
 ## Tools and documents
@@ -159,6 +162,9 @@ here covers the complete shared S4B S0 op sequence on all four slice parts.
 
 ## Reproducible acceptance
 
+- `cargo test --release --test stateless http_` runs the HTTP byte-limit, absolute
+  head/body deadline, bare-LF refusal and queued-ping regressions. These tests also
+  run in the existing Linux CI nextest shards; the Python probe below is optional.
 - `python3 tools/check_http_limits.py target/release/draftwright --report target/http-limits.json`
   checks oversized request lines/headers, aggregate overflow, newline-free input, head/body
   trickles and a queued valid ping after each refusal. It also checks the exact head-budget

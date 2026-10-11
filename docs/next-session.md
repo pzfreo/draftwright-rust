@@ -3369,5 +3369,59 @@ Final checks on the finished source, Cargo commands serial with
   **500/500**. Exact-cap heads/bodies, Origins, chunking, loopback binding and
   valid JSON-RPC behavior are preserved.
 
-No commit or push was made. The source-review findings still held on the Stage F
-baseline; none had already been fixed before this stream.
+The driver subsequently committed the earlier attempt as `dd082df`. The original
+source-review findings held on the Stage F baseline and were addressed in that
+commit; the fix-round review below supersedes its close-path and coverage claims.
+
+## Stage H issue #4 fix round (2026-10-11)
+
+Verified the review against `dd082df`: the reader was already bounded and used
+one absolute head/body deadline, but its Python regressions were not run by Cargo
+or CI, bare-LF heads waited for the deadline, and refusals used `shutdown(Both)`
+with unread input. No planner, layout or rendering changes are needed.
+
+`tests/stateless.rs` now exercises all six hostile-input cases through the real
+`mcp-http` executable and requires a queued valid JSON-RPC ping after each refusal
+while the hostile socket stays open. Head-limit cases share one server; slow head
+and body tests run independently in parallel under Cargo/nextest, costing about
+10 seconds each. The body test spends six seconds reading its head first to prove
+that the body shares the original deadline. Tests require complete response bytes
+and clean EOF, including a 128 KiB unread-input case, so Linux CI covers response
+integrity too. Controls cover exact 16 KiB UTF-8 head boundaries, split CRLF,
+exact 8 MiB bodies, excessive bodies, Origins, chunking and loopback binding.
+
+Bare-LF blank lines now end the bounded read, letting the existing parser return
+400 promptly. Responses half-close the write side; refusals drain input with a
+fixed 8 KiB buffer and an absolute 100 ms deadline before close. Successful
+requests avoid that drain delay. No dependencies were added.
+
+Overturnable unattended judgement calls:
+
+- Keep the production 10-second read deadline rather than add a test-only CLI or
+  environment override. Two parallel slow tests give normal Cargo and Linux CI
+  coverage with about 10 seconds of wall time and no configuration surface.
+- Limit refusal draining to 100 ms. This consumes completed hostile writes and
+  lets the response/FIN reach the client, while keeping sequential recovery
+  bounded even if a sender continues indefinitely. The read deadline still
+  applies to the request; cleanup can add at most 100 ms before the next accept.
+- Retain the prior 750 ms prompt-refusal gate and 12-second slow-request ceiling.
+
+Final validation on the finished source, Cargo commands serial with
+`CARGO_BUILD_JOBS=8` and `RUST_TEST_THREADS=8`:
+
+- `cargo fmt --check`: pass.
+- `cargo clippy --all-targets --release -- -D warnings`: pass.
+- `DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus
+  DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`: **669 passed,
+  0 failed, 0 ignored, 71 result groups**. All 13 stateless tests and the
+  unchanged NIST session performance gate passed on this full run.
+  Log: `target/http-fix-round-tests.log`.
+- Independent Python HTTP probe: **7/7 groups**, including all six refusals and
+  queued-ping recovery. Report: `target/http-fix-round-probe.json`.
+
+The checks ran on macOS; Linux response integrity is now asserted by the same
+Rust TCP tests in the existing CI nextest shards. The original unbounded-read
+and resetting-timeout findings no longer held at the start of this fix round:
+`dd082df` had already fixed them. The review's coverage, bare-LF and close-path
+findings still applied and are addressed above.
+No commit or push is made by this fix-round agent; the driver owns committing.

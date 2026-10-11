@@ -740,7 +740,25 @@ fn send(stream: &mut TcpStream, status: &str, body: &[u8]) -> std::io::Result<()
     );
     stream.write_all(head.as_bytes())?;
     stream.write_all(body)?;
-    stream.shutdown(Shutdown::Both)
+    stream.shutdown(Shutdown::Write)?;
+    if !status.starts_with('4') {
+        return Ok(());
+    }
+    // Drain unread input before close to preserve refusals on Linux too.
+    let deadline = Instant::now() + Duration::from_millis(100);
+    let mut discarded = [0; 8192];
+    while Instant::now() < deadline {
+        stream.set_read_timeout(Some(
+            deadline
+                .saturating_duration_since(Instant::now())
+                .max(Duration::from_micros(1)),
+        ))?;
+        match stream.read(&mut discarded) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {}
+        }
+    }
+    Ok(())
 }
 const HTTP_HEAD_BYTES: usize = 16 * 1024;
 const HTTP_READ_DEADLINE: Duration = Duration::from_secs(10);
@@ -772,7 +790,7 @@ fn read_head(reader: &mut BufReader<TcpStream>, deadline: Instant) -> std::io::R
         head.extend_from_slice(&bounded[..n]);
         reader.consume(n);
         if head.last() == Some(&b'\n') {
-            if line_start != 0 && &head[line_start..] == b"\r\n" {
+            if line_start != 0 && matches!(&head[line_start..], b"\r\n" | b"\n") {
                 return String::from_utf8(head)
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e));
             }
