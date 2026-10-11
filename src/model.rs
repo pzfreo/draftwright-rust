@@ -1904,14 +1904,47 @@ pub fn render(
     render_with(part, analysis, plan, font, &mut Projections::default())
 }
 
-/// What renders of one part share: each view's hidden-line projection and each section's cut,
-/// by the view's direction and up and the cutting plane. Neither depends on the scale, the
-/// sheet or the annotation, so an editor that keeps one across a part's edits projects each
-/// view once.
+/// What renders share: hidden-line projections and cuts, and the latest placed edges and
+/// visible-ink bounds per projection. A different part binding discards the cached geometry.
 #[derive(Default)]
 pub struct Projections {
+    binding: Option<String>,
     views: HashMap<Vec<u64>, Vec<Projected>>,
     cuts: HashMap<Vec<u64>, Vec<Vec<[f64; 3]>>>,
+    geometry: HashMap<Vec<u64>, (Vec<u64>, ViewGeometry)>,
+    stats: ProjectionStats,
+}
+
+/// Expensive passes actually performed by a kept cache, including unsuccessful projections.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProjectionStats {
+    pub projections: usize,
+    pub bounds: usize,
+}
+
+/// One view's projected edges on the page, with the bounds of its visible ink.
+#[derive(Clone, Debug)]
+pub struct ViewGeometry {
+    pub visible: Vec<Item>,
+    pub hidden: Vec<Item>,
+    pub bbox: Option<[f64; 4]>,
+    pub undrawn: usize,
+}
+
+/// The geometry layer, in plan view order. Sheet furniture belongs to the annotation layer.
+#[derive(Clone, Debug, Default)]
+pub struct GeometryLayer {
+    pub views: Vec<(String, ViewGeometry)>,
+}
+
+fn projection_key(v: &PlannedView) -> Vec<u64> {
+    let cut = v.cut.as_ref();
+    bits(&[
+        &v.direction,
+        &v.up,
+        cut.map_or(&[], |c| &c.origin[..]),
+        cut.map_or(&[], |c| &c.normal[..]),
+    ])
 }
 
 /// Numbers as a map key, by their bits.
@@ -1923,18 +1956,79 @@ fn bits(numbers: &[&[f64]]) -> Vec<u64> {
 }
 
 impl Projections {
+    pub fn stats(&self) -> ProjectionStats {
+        self.stats
+    }
+
+    fn bind(&mut self, analysis: &Analysis) {
+        if self.binding.as_ref() != Some(&analysis.binding.source_sha256) {
+            self.views.clear();
+            self.cuts.clear();
+            self.geometry.clear();
+            self.binding = Some(analysis.binding.source_sha256.clone());
+        }
+    }
+
+    fn geometry(
+        &mut self,
+        part: &Part,
+        analysis: &Analysis,
+        v: &PlannedView,
+    ) -> Result<ViewGeometry, Unresolved> {
+        let view = View::new(v.direction, v.up).expect("a planned view");
+        let centre = extent(analysis, &view).1;
+        let key = projection_key(v);
+        let placement = bits(&[&[v.scale], &centre, &v.at]);
+        if let Some((previous, geometry)) = self.geometry.get(&key)
+            && *previous == placement
+        {
+            return Ok(geometry.clone());
+        }
+        let mut geometry = ViewGeometry {
+            visible: Vec::new(),
+            hidden: Vec::new(),
+            bbox: None,
+            undrawn: 0,
+        };
+        let place = |q: [f64; 2]| {
+            [
+                v.at[0] + v.scale * (q[0] - centre[0]),
+                v.at[1] + v.scale * (q[1] - centre[1]),
+            ]
+        };
+        for piece in self.view(part, v)? {
+            let mut moved = piece.clone();
+            moved.points = piece.points.iter().map(|q| place(*q)).collect();
+            moved.exact = piece
+                .exact
+                .as_ref()
+                .map(|e| placed(e, v.scale, centre, v.at));
+            match projected(&moved) {
+                Some(curve) => {
+                    let items = if piece.visible {
+                        &mut geometry.visible
+                    } else {
+                        &mut geometry.hidden
+                    };
+                    items.push(Item::Edge(curve));
+                }
+                None => geometry.undrawn += 1,
+            }
+        }
+        self.stats.bounds += 1;
+        geometry.bbox = items_bbox(&geometry.visible);
+        self.geometry.insert(key, (placement, geometry.clone()));
+        Ok(geometry)
+    }
+
     fn view(&mut self, part: &Part, v: &PlannedView) -> Result<Vec<Projected>, Unresolved> {
         let cut = v.cut.as_ref();
-        let key = bits(&[
-            &v.direction,
-            &v.up,
-            cut.map_or(&[], |c| &c.origin[..]),
-            cut.map_or(&[], |c| &c.normal[..]),
-        ]);
+        let key = projection_key(v);
         if let Some(pieces) = self.views.get(&key) {
             return Ok(pieces.clone());
         }
         let view = View::new(v.direction, v.up).expect("a planned view");
+        self.stats.projections += 1;
         let pieces = match cut.and_then(|c| Plane::new(c.origin, c.normal)) {
             Some(plane) => project_section(part, &view, &plane),
             None => project(part, &view),
@@ -1959,6 +2053,102 @@ impl Projections {
     }
 }
 
+/// Draws only the views' edges, reusing projections, placed curves and visible bounds.
+pub fn render_geometry(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    projections: &mut Projections,
+) -> Result<GeometryLayer, Unresolved> {
+    projections.bind(analysis);
+    let views = plan
+        .views
+        .iter()
+        .map(|v| Ok((v.id.clone(), projections.geometry(part, analysis, v)?)))
+        .collect::<Result<_, Unresolved>>()?;
+    Ok(GeometryLayer { views })
+}
+
+/// An annotation that can be rendered independently from every other item and the geometry.
+pub enum AnnotationItem<'a> {
+    Dimension(&'a PlannedDimension),
+    Gdt(&'a crate::dims::gdt::PlannedGdt),
+}
+
+/// One item's ink and provenance. Run indices are local until appended to a drawing.
+#[derive(Clone, Debug, Default)]
+pub struct RenderedItem {
+    pub items: Vec<Item>,
+    pub text: Vec<TextRun>,
+    pub annotations: Vec<Annotation>,
+    pub drawn: Vec<Drawn>,
+}
+
+impl RenderedItem {
+    /// Appends an item to the annotation layer, rebasing its searchable text's run indices.
+    pub fn append(
+        self,
+        items: &mut Vec<Item>,
+        text: &mut Vec<TextRun>,
+        annotations: &mut Vec<Annotation>,
+        sheet: &mut Sheet,
+    ) {
+        let offset = text.len();
+        items.extend(self.items);
+        text.extend(self.text);
+        annotations.extend(self.annotations.into_iter().map(|mut a| {
+            for run in &mut a.runs {
+                *run += offset;
+            }
+            a
+        }));
+        sheet.items.extend(self.drawn);
+    }
+}
+
+/// Draws a dimension, callout, feature control frame, datum symbol or PMI label from the plan.
+pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
+    let mut out = RenderedItem::default();
+    let (kind, label, lines, elbow) = match item {
+        AnnotationItem::Dimension(d) => {
+            out.annotations =
+                crate::dims::render(std::slice::from_ref(d), &mut out.items, &mut out.text);
+            let p = d.placed.as_ref();
+            (
+                Kind::Dimension,
+                p.map(|p| p.label_box),
+                p.map(|p| p.lines.clone()).unwrap_or_default(),
+                p.filter(|_| d.kind == "callout")
+                    .and_then(|p| p.lines.first())
+                    .map(|l| l[1]),
+            )
+        }
+        AnnotationItem::Gdt(g) => {
+            out.annotations
+                .extend(crate::dims::gdt::render(g, &mut out.items, &mut out.text));
+            let p = g.placed.as_ref();
+            (
+                Kind::Gdt,
+                p.map(|p| p.label_box),
+                p.map(|p| p.lines.clone()).unwrap_or_default(),
+                p.and_then(|p| p.lines.first()).map(|l| l[1]),
+            )
+        }
+    };
+    if let (Some(a), Some(ink)) = (out.annotations.first(), items_bbox(&out.items)) {
+        out.drawn.push(Drawn {
+            name: a.name.clone(),
+            kind,
+            ink,
+            label,
+            lines,
+            elbow,
+            interior: false,
+        });
+    }
+    out
+}
+
 /// [`render`], projecting each view through *projections*: one kept across a part's renders
 /// draws the same drawing without projecting a view again.
 pub fn render_with(
@@ -1966,6 +2156,20 @@ pub fn render_with(
     analysis: &Analysis,
     plan: &Plan,
     font: &Font,
+    projections: &mut Projections,
+) -> Result<Drawing, Unresolved> {
+    let geometry = render_geometry(part, analysis, plan, projections)?;
+    render_annotations(part, analysis, plan, font, geometry, projections)
+}
+
+/// Assembles a geometry layer with the plan's annotations and sheet furniture. Each dimension
+/// and PMI item uses [`render_item`], so a caller can draw a changed item alone.
+pub fn render_annotations(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+    geometry: GeometryLayer,
     projections: &mut Projections,
 ) -> Result<Drawing, Unresolved> {
     // Section furniture (hatch, cutting plane), and its text: what, where.
@@ -1983,36 +2187,23 @@ pub fn render_with(
         })
         .collect();
     let mut undrawn = BTreeMap::new();
-    for v in &plan.views {
-        let view = View::new(v.direction, v.up).expect("a planned view");
-        let s = v.scale;
-        let centre = extent(analysis, &view).1;
-        let place = |q: [f64; 2]| {
-            [
-                v.at[0] + s * (q[0] - centre[0]),
-                v.at[1] + s * (q[1] - centre[1]),
-            ]
-        };
+    assert_eq!(
+        plan.views.len(),
+        geometry.views.len(),
+        "geometry covers every planned view"
+    );
+    for (v, (name, geometry)) in plan.views.iter().zip(geometry.views) {
+        assert_eq!(v.id, name, "geometry follows plan view order");
         let plane = v.cut.as_ref().and_then(|c| Plane::new(c.origin, c.normal));
-        let pieces = projections.view(part, v)?;
-        let visible_from = layers[0].items.len();
-        for piece in pieces {
-            let mut moved = piece.clone();
-            moved.points = piece.points.iter().map(|q| place(*q)).collect();
-            moved.exact = piece.exact.as_ref().map(|e| placed(e, s, centre, v.at));
-            match projected(&moved) {
-                Some(curve) => layers[usize::from(!piece.visible)]
-                    .items
-                    .push(Item::Edge(curve)),
-                None => *undrawn.entry(v.id.clone()).or_default() += 1,
-            }
+        if geometry.undrawn > 0 {
+            undrawn.insert(v.id.clone(), geometry.undrawn);
         }
-        let visible = &layers[0].items[visible_from..];
-        if let Some(bbox) = items_bbox(visible) {
+        if let Some(bbox) = geometry.bbox {
             sheet.views.push(DrawnView {
                 name: v.id.clone(),
                 bbox,
-                edges: visible
+                edges: geometry
+                    .visible
                     .iter()
                     .filter_map(|i| match i {
                         Item::Edge(c) => Some(c.clone()),
@@ -2021,6 +2212,8 @@ pub fn render_with(
                     .collect(),
             });
         }
+        layers[0].items.extend(geometry.visible);
+        layers[1].items.extend(geometry.hidden);
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
             let f = section_furniture(part, analysis, plan, v, (plane, cut), projections)?;
             // draftwright's pieces, each by its ink: the hatch, the chain line by its line, and
@@ -2105,46 +2298,21 @@ pub fn render_with(
     // is measured.
     let mut annotations = Vec::new();
     for d in &plan.dimensions {
-        let from = layers[2].items.len();
-        let drawn = crate::dims::render(std::slice::from_ref(d), &mut layers[2].items, &mut text);
-        if let (Some(a), Some(ink)) = (drawn.first(), items_bbox(&layers[2].items[from..])) {
-            let placed = d.placed.as_ref();
-            sheet.items.push(Drawn {
-                name: a.name.clone(),
-                kind: Kind::Dimension,
-                ink,
-                label: placed.map(|p| p.label_box),
-                lines: placed.map(|p| p.lines.clone()).unwrap_or_default(),
-                // A callout's leader runs from its tip to its elbow, then along its shoulder.
-                elbow: placed
-                    .filter(|_| d.kind == "callout")
-                    .and_then(|p| p.lines.first())
-                    .map(|l| l[1]),
-                interior: false,
-            });
-        }
-        annotations.extend(drawn);
+        render_item(AnnotationItem::Dimension(d)).append(
+            &mut layers[2].items,
+            &mut text,
+            &mut annotations,
+            &mut sheet,
+        );
     }
     // The feature control frames and datum feature symbols, likewise.
     for g in &plan.gdt {
-        let from = layers[2].items.len();
-        let drawn = crate::dims::gdt::render(g, &mut layers[2].items, &mut text);
-        if let (Some(a), Some(ink), Some(p)) = (
-            drawn,
-            items_bbox(&layers[2].items[from..]),
-            g.placed.as_ref(),
-        ) {
-            sheet.items.push(Drawn {
-                name: a.name.clone(),
-                kind: Kind::Gdt,
-                ink,
-                label: Some(p.label_box),
-                lines: p.lines.clone(),
-                elbow: p.lines.first().map(|l| l[1]),
-                interior: false,
-            });
-            annotations.push(a);
-        }
+        render_item(AnnotationItem::Gdt(g)).append(
+            &mut layers[2].items,
+            &mut text,
+            &mut annotations,
+            &mut sheet,
+        );
     }
     // Glyphs *laid* out drawn moved to *at*, and the *run* (text, font file, size), if any, as
     // invisible text centred there; the run's index in the drawing's text.

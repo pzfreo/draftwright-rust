@@ -223,7 +223,7 @@ pub fn items_bbox<'a>(items: impl IntoIterator<Item = &'a Item>) -> Option<[f64;
 }
 
 /// What a layer holds: a curve stroked, or a face (its outer boundary and holes) filled.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Item {
     Edge(Curve),
     Face(Vec<Vec<Curve>>),

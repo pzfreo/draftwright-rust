@@ -2332,3 +2332,28 @@ repeated_label 18, repeated_measure 0, views_overlap 0, view_on_title_block 0, i
 `baseline.json` byte-identical to the previous round's, so no part is worse than the latest
 table in `docs/quality-2026-10-09.md` (per part, against the gate audit's "after" column, ftc10
 ink 22 against 23 after the accepted leader-label weighting).
+
+## S4 part A: render split and caches (2026-10-10)
+
+Implemented the render split, placed geometry/view-bounds cache and single-report PMI reader.
+See `docs/model.md`, "Rendering caches", and the measurements/checks in
+`docs/status-2026-10-10.md`. No Session, operations, deltas or placement changes are included.
+
+Overturnable judgement calls:
+
+- Keep the latest placement/scale per projection, rather than every page origin visited during
+  a drag. Include centre and origin in that key: translating previously measured bounds could
+  change floating-point rounding relative to a fresh render. Moving a view rebuilds its placed
+  curves/bounds while keeping HLR; unchanged views rebuild neither. Part B may change the cache
+  policy if it can preserve byte equality and bounded memory.
+- Expose independent fragments for the slice's dimensions/callouts and PMI frames/datums/labels.
+  Whole-sheet furniture remains in the annotation assembly path; independent note/table edits
+  are outside the slice's item vocabulary and would need their own fragment entry points.
+- Keep a `pmi::Reader` per immutable geometry, retaining only the latest report (including empty
+  and refused reports). Its owner replaces it on geometry replacement. Byte changes trigger one
+  semantic read, even if the resulting requirements are identical. The kernel's separate STEP
+  geometry/part inventory parser is unchanged; "one parse" means one semantic PMI parser feeding
+  all three consumers, not eliminating the geometry loader.
+- Timings are native warm-render samples, excluding planning and export. They show the cache's
+  measured effect, not the complete S4 p90 or WASM latency gate; those belong to the session and
+  editor streams.

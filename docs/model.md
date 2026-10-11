@@ -797,3 +797,30 @@ Every plan item records which of these it is, so nothing changes without a trace
   requirements, evidence and a fix). `tests/lint.rs` runs them on Python's captured sheets and
   lists every difference from Python's own lint, with a verdict, in
   `tests/fixtures/known_lint.json`.
+
+## Rendering caches (thin slice S4 part A)
+
+`model::render` remains a fresh deterministic render. A caller that keeps
+`model::Projections` and uses `model::render_with` shares each hidden-line projection (direction,
+up and cut), and its latest placed curves and visible-ink bounds (scale, projected centre and page
+origin). Changing the part's source binding clears these caches. `Projections::stats` counts the
+actual projection and view-bounds passes, so an annotation edit can demonstrate that neither ran.
+
+The same path is available in two steps: `model::render_geometry` produces the views' visible and
+hidden edges and bounds; `model::render_annotations` assembles that geometry with annotations and
+sheet furniture. Pass the geometry of the same planned views, in the same order and at the same
+placement and scale. For a slice item's own drawing, `model::render_item` takes
+`AnnotationItem::Dimension` (including callouts) or `AnnotationItem::Gdt` (frames, datums and PMI
+labels). Its `RenderedItem` holds only that item's ink, searchable text and lint provenance, with
+local run indices. `RenderedItem::append` rebases those indices when combining fragments. The
+whole-sheet renderer uses these same item functions; planning and placement are unchanged. Sheet
+furniture (border, title, notes, tables and section furniture) is assembled in the whole-sheet path.
+
+`pmi::Reader::default()` keeps the latest reading for one immutable part. Assign
+`analysis.pmi = reader.attach(pmi_bytes, &part)` when PMI changes, and plan from that Analysis:
+material, threads/knurls, dimensions, frames and datums consume the one report. Identical bytes
+(including an empty or refused reading) do not read again; changed bytes replace the report.
+`Reader::reads` counts reading attempts. Replace the reader when replacing the geometry. The
+ordinary analysis API still attaches PMI once and carries the report in the Analysis; there are
+no separate material, thread or frame reads in planning or rendering. Haecceity's geometry/part
+inventory reader remains separate from its semantic PMI parser.
