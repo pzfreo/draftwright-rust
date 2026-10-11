@@ -11,13 +11,13 @@
           "items": {
             "anyOf": [
               {
-                "$ref": "#/$defs/compact"
+                "$ref": "#/$defs/c"
               },
               {
-                "$ref": "#/$defs/item"
+                "$ref": "#/$defs/i"
               },
               {
-                "$ref": "#/$defs/stub"
+                "$ref": "#/$defs/u"
               }
             ]
           }
@@ -49,7 +49,7 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/error"
+          "$ref": "#/$defs/e"
         }
       },
       "required": [
@@ -59,7 +59,7 @@
     }
   ],
   "$defs": {
-    "compact": {
+    "c": {
       "type": "object",
       "properties": {
         "id": {
@@ -69,13 +69,19 @@
           "type": "string"
         },
         "label": {
-          "$ref": "#/$defs/shared0"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "view": {
-          "$ref": "#/$defs/shared0"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "state": {
-          "$ref": "#/$defs/state"
+          "$ref": "#/$defs/t"
         }
       },
       "required": [
@@ -87,7 +93,7 @@
       ],
       "additionalProperties": false
     },
-    "state": {
+    "t": {
       "anyOf": [
         {
           "type": "object",
@@ -139,46 +145,41 @@
         }
       ]
     },
-    "item": {
+    "i": {
       "type": "object",
       "properties": {
         "item": {
           "type": "object"
         },
         "value": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "number",
+            "null"
           ]
         },
         "dimension_kind": {
-          "$ref": "#/$defs/shared0"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "placement": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "object",
+            "null"
           ]
         },
         "anchors": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/A"
         },
         "features": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/A"
         },
         "basis": {
           "type": "string"
         },
         "operations": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -193,11 +194,14 @@
       ],
       "additionalProperties": false
     },
-    "stub": {
+    "u": {
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/$defs/shared0"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "detail_ref": {
           "type": "string"
@@ -209,7 +213,7 @@
       ],
       "additionalProperties": false
     },
-    "error": {
+    "e": {
       "type": "object",
       "properties": {
         "code": {
@@ -222,7 +226,7 @@
           "type": "string"
         },
         "choices": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -231,17 +235,7 @@
       ],
       "additionalProperties": false
     },
-    "shared0": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "shared1": {
+    "A": {
       "items": {
         "type": "string"
       },

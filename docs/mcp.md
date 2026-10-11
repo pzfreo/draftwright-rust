@@ -26,11 +26,11 @@ Use different drawing references for independent branches/tasks.
 
 | Tool | Input beyond the part/Spec | Output |
 | --- | --- | --- |
-| `inspect_part` | `step` and optional `features` to register, or `part_ref`; `detail` | Compact sheet summary, counts, default/current input Spec hash; detail adds a lossless Plan artifact |
+| `inspect_part` | `step` and optional `features` to register, or `part_ref`; `detail`, `problem_filter` | Compact sheet summary, bounded key item IDs/labels, counts, default/current input Spec hash; optional `problem_filter` adds a paged corrective answer; detail adds a lossless Plan artifact |
 | `list_items` | `filter`, `cursor`, `limit`, `detail` | Paged IDs, labels, kind, view, typed state; detail adds Session item answers |
 | `get_item` | `id`, `detail` | Label, state, value, basis and allowed operations; detail adds resolved placement/anchors/features |
-| `list_problems` | `filter`, `cursor`, `limit`, `detail` | Paged ID, code, severity and subjects; detail adds message and corrective ops |
-| `item_options` | `id` | Operations, relative placements, compatible view anchors and scales |
+| `list_problems` | `filter`, `cursor`, `limit`, `detail` | Paged ID, code, severity and subjects; default includes corrective ops; detail adds message |
+| `item_options` | `id` | Operations, relative placements, compatible view anchors and scales, plus every settable escaped Spec path and its choices/forms/ranges |
 | `preview_ops` | `ops`, `cursor`, `limit`, `detail` | Paged delta events, planner count and lossless delta artifact; no Spec version/head is kept |
 | `apply_ops` | `parent`, `ops`, `drawing_ref`, `limit`, `detail` | Immutable new Spec hash and paged delta; stale parent refuses with current head in message and choices |
 | `view_sheet` | `region`, `overlay_ids`, `dpi` | PNG artifact metadata plus MCP image content for vision clients |
@@ -171,4 +171,27 @@ D1 adds the real-model call client and finished-task checker; see
 calling, logging bytes/tokens and scoring. Served descriptions explain each tool without
 requiring source access. Schemas factor repeated shapes through local `$defs` while
 remaining standalone. `cargo test --release --test engine_version` checks the source hash,
-cache namespace, tool descriptions and a 38,500-byte per-session schema budget.
+cache namespace, tool descriptions and a 39,500-byte per-session schema budget.
+
+`inspect_part.key_items` is a deterministic, 700-byte index: envelope dimensions and
+representative feature sizes/dimensions. Use `list_items` for the complete list.
+`inspect_part.problem_filter` batches opening and a problem query; its `problem_page`
+has the same paging contract as `list_problems`. A problem filter's `feature` matches
+all associated item subjects and the feature itself; `subject` remains exact and all
+filter fields combine. Default problem rows now carry `fix` ops.
+
+`item_options.settable` maps escaped Spec paths to accepted `choices`, numeric `range`
+(inclusive, with `integer` where needed), tolerance `forms`, or title `fields`. A
+fit descriptor with `paths` applies to all listed feature paths. Fits list only classes
+valid for the feature kind and recognised size in the engine's ISO 286 table. Tolerances
+are strings (`±T` or `+U -L`); fits use `features/<id>/fit`. View keys are bare (`iso`)
+and the drawing number is `sheet/title/number`. Compatible view/side pairs remain in
+`placements`; candidates require preview/apply, and a view relation needs both
+`relative_to` and `side`. Set several subfields by setting their complete `place` object.
+
+Common unambiguous vocabulary errors include valid choices and an explicit
+`Corrected op: {JSON}` in the refusal message. They keep the invalid edit unapplied;
+The message identifies the replaced zero-based `ops[index]`; the correction is
+previewed through Session and corresponds to the reported refusal. A batch with multiple
+invalid operations can still require another retry. Review and resubmit the correction. Ambiguous feature ownership and missing engineering
+magnitudes are not guessed. Batch all edits for one request in `apply_ops.ops`.

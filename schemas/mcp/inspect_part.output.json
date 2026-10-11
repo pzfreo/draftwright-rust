@@ -55,10 +55,7 @@
           "additionalProperties": false
         },
         "views": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/A"
         },
         "items": {
           "type": "integer",
@@ -73,6 +70,67 @@
         },
         "plan_ref": {
           "type": "string"
+        },
+        "key_items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "problem_page": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/r"
+                  },
+                  {
+                    "$ref": "#/$defs/u"
+                  }
+                ]
+              }
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "items",
+            "total",
+            "next_cursor"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -92,7 +150,7 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/error"
+          "$ref": "#/$defs/e"
         }
       },
       "required": [
@@ -102,7 +160,97 @@
     }
   ],
   "$defs": {
-    "error": {
+    "r": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "subjects": {
+          "$ref": "#/$defs/A"
+        },
+        "fix": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/op"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "severity",
+        "subjects"
+      ],
+      "additionalProperties": false
+    },
+    "op": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "enum": [
+                "set",
+                "add"
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "op",
+            "path",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "remove"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "u": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detail_ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "detail_ref"
+      ],
+      "additionalProperties": false
+    },
+    "e": {
       "type": "object",
       "properties": {
         "code": {
@@ -115,10 +263,7 @@
           "type": "string"
         },
         "choices": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -126,6 +271,12 @@
         "message"
       ],
       "additionalProperties": false
+    },
+    "A": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     }
   }
 }

@@ -876,9 +876,13 @@ anchors, features, basis and allowed edit fields. Item filters combine view (wit
 `v:`), kind (including linear/callout/angular), exact typed state, feature, region (page millimetres) and proximity to another
 item's ink (`near`, optional `radius`, default 10 mm). PMI feature associations follow overlap with the feature's drawing faces; their anchors also
 name those faces. Problem filters combine code, severity
-and subject ID. Unknown item IDs give the five nearest IDs. Options conservatively offer
-placements on the item's current carrier, compatible view anchors, and the ISO scale series
-for the sheet; collisions are reported by preview/apply. They do not run trial plans.
+and subject ID or feature ID (all associated item subjects, plus the feature itself).
+Unknown item IDs give the five nearest IDs. Options conservatively offer compatible view/side
+placements, view anchors and the ISO scale series for the sheet. `settable` maps escaped Spec
+paths to choices, ranges or forms, including tolerance strings, bare view keys, title fields,
+and fit classes valid for each associated hole/boss's nominal size. A descriptor's `paths`
+shares its choices across all listed member paths. Collisions are reported by preview/apply;
+queries do not run trial plans.
 
 `draftwright serve` keeps one Session per connection, behind `api::Service`. The additional
 operations advertised by `hello` are:

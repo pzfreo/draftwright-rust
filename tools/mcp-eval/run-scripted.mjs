@@ -1,12 +1,13 @@
 // S0's unchanged task conditions, driven only through the stateless HTTP MCP tools.
 // node tools/mcp-eval/run-scripted.mjs [--binary target/release/draftwright] [--url URL] [--out FILE]
 import { spawn } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { check, loadTasks } from './check.mjs';
 import { localParts, featureNames } from './parts.mjs';
 import { serverUrl } from './client.mjs';
+import { pinCallouts, keepIntent } from './scripted-ops.mjs';
 const args=process.argv.slice(2);
 const option=(key,fallback)=>args.includes(key)?args[args.indexOf(key)+1]:fallback;
 const tokens=bytes=>Math.ceil(bytes/4);
@@ -35,29 +36,36 @@ try {
     const call=async(name,args)=>{const result=await invoke(name,args);calls.push({tool:name,isError:result.isError,request_bytes:size(args),response_bytes:Buffer.byteLength(result.content[0].text)});if(result.isError)throw new Error(result.content[0].text);return result.structuredContent;};
     let initial, current, part_ref, failure;
     try {
-      initial=await call('inspect_part',{step:localParts[task.part],features:resolve('tools/mcp-eval/features',featureNames[task.part]+'.features.json'),drawing_ref:task.id});
+      initial=await call('inspect_part',{step:localParts[task.part],features:resolve('tools/mcp-eval/features',featureNames[task.part]+'.features.json'),drawing_ref:task.id,...(task.id==='ctc01-fix-problems-near-slot'&&!args.includes('--separate-problems')?{problem_filter:{feature:'f:slot:1'}}:{})});
       part_ref=initial.part_ref;current=initial.spec_version;
       const apply=async ops=>{const r=await call('apply_ops',{part_ref,drawing_ref:task.id,parent:current,ops});current=r.spec_version;return r;};
       const dimension=(q,field,v)=>set(`dimensions/${segment('d:'+q)}/${field}`,v);
+      const keyItem = predicate => { const found=initial.key_items.find(predicate); if(!found)throw new Error('summary has no matching key item'); return found; };
+      const width = () => keyItem(i=>i.id==='d:envelope/width.length').id.slice(2);
       switch(task.id){
         case 'plate-callouts-right-pinned':
-          await apply(['f:hole_pattern:1/bore.diameter','f:hole:4/bore.diameter','f:hole:7/bore.diameter'].map((q,i)=>dimension(q,'place',{view:'plan',side:'right',lane:i,along:['start','middle','end'][i],pinned:true})));break;
-        case 'm10127-hide-width':await apply([dimension('envelope/width.length','omit',true)]);break;
+          await apply(pinCallouts(task,initial.key_items));break;
+        case 'm10127-hide-width':await apply([dimension(width(),'omit',true)]);break;
         case 'ctc01-fix-problems-near-slot':{
-          let problems=await call('list_problems',{part_ref,spec_version:current,filter:{subject:'d:f:slot:1/location_slot.length'}});
-          const near=p=>p.items.filter(p=>(p.subjects??[]).some(s=>s.startsWith('d:f:slot:1/')));
-          if(near(problems).length){
-            // Use the relative placement vocabulary to clear the reported location bands.
-            await apply([dimension('f:slot:1/slot_length.length','place',{side:'above',lane:0,along:'middle'}),dimension('f:slot:1/location_slot.length','place',{side:'above',lane:0,along:'middle'})]);
+          // Opening and the feature's complete corrective answer share one bounded call.
+          let problems=initial.problem_page??await call('list_problems',{part_ref,spec_version:current,filter:{feature:'f:slot:1'}});
+          const fixes=problems.items.flatMap(p=>p.fix??[]);
+          while(problems.next_cursor!==null){
+            problems=await call('list_problems',{part_ref,spec_version:current,filter:{feature:'f:slot:1'},cursor:problems.next_cursor});
+            fixes.push(...problems.items.flatMap(p=>p.fix??[]));
           }
+          if(fixes.length)await apply(fixes);
           break;
         }
         case 'grm03-sheet-scale-keep-intent':
-          await apply([dimension('f:turned_step:1/step.diameter','tolerance','±0.02'),set('views/iso/omit',true)]);
-          await apply([set('sheet/size','A3'),set('sheet/scale','5:1')]);break;
-        case 'm10127-fit-through-hole':await apply([set('features/f:hole:1/fit','H7')]);break;
+          await keepIntent(apply,keyItem(i=>i.label?.includes('5')&&i.id.endsWith('/step.diameter')).id);break;
+        case 'm10127-fit-through-hole':{
+          const hole=keyItem(i=>i.id.endsWith('/bore.diameter')&&i.label?.includes('8.1'));
+          // H7 is requested by the task, as in the pre-E2 instrument.
+          await apply([set(`features/${segment(hole.id.slice(2).split('/')[0])}/fit`,'H7')]);break;
+        }
         case 'plate-a4-title-no-iso':await apply([set('views/iso/omit',true),set('sheet/size','A4'),set('sheet/scale','1:1'),set('sheet/title/title','MOUNTING PLATE'),set('sheet/title/number','DW-0001')]);break;
-        case 'plate-width-in-plan':await apply([dimension('envelope/width.length','place',{view:'plan',side:'above'})]);break;
+        case 'plate-width-in-plan':await apply([dimension(width(),'place',{view:'plan',side:'above'})]);break;
         default:throw new Error(`no script for ${task.id}`);
       }
     } catch(error){failure=error.message;}

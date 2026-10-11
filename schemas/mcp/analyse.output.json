@@ -74,7 +74,7 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/error"
+          "$ref": "#/$defs/e"
         }
       },
       "required": [
@@ -84,7 +84,7 @@
     }
   ],
   "$defs": {
-    "error": {
+    "e": {
       "type": "object",
       "properties": {
         "code": {

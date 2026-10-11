@@ -45,6 +45,20 @@ const LARGEST: f64 = 250.0;
 /// The accepted forms, as the refusal names them.
 const FORMS: [&str; 2] = ["±0.05", "+0.1 -0.02"];
 
+/// Supported classes at this feature's size, from the same table used by validation.
+pub(crate) fn choices(kind: &str, nominal: f64) -> Vec<String> {
+    let letters: &[&str] = match kind {
+        "hole" => &HOLE_CLASSES,
+        "boss" => &SHAFT_CLASSES,
+        _ => return Vec::new(),
+    };
+    letters
+        .iter()
+        .flat_map(|letter| GRADES.map(move |grade| format!("{letter}{grade}")))
+        .filter(|code| deviations(code, nominal).is_some())
+        .collect()
+}
+
 /// A magnitude as authored (`0.05`, `1`): digits with an optional fraction, no sign.
 fn magnitude(s: &str) -> Option<&str> {
     let (whole, frac) = s.split_once('.').unwrap_or((s, "0"));

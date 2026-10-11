@@ -1,3 +1,4 @@
+import { checkEfficiency } from './check-efficiency.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -134,5 +135,54 @@ test('real HTTP adapter accepts a call and checker scores final and initial vers
       const ended = new Promise(done => child.once('exit', done)); child.kill(); await ended;
     }
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+
+test('efficiency gate requires fewer calls and retains every previous success', () => {
+  const before = JSON.parse(readFileSync('tools/mcp-eval/s7-result.json', 'utf8'));
+  assert.equal(checkEfficiency(before, before).pass, false);
+  const after = structuredClone(before);
+  const edited = after.results.find(result => result.success && result.tool_calls > 1);
+  edited.calls.pop(); edited.tool_calls--;
+  assert.equal(checkEfficiency(before, after).pass, true);
+  const sequential = after.results.find(result => result.task === 'grm03-sheet-scale-keep-intent');
+  const applyIndex = sequential.calls.findIndex(call => call.tool === 'apply_ops');
+  const removed = sequential.calls.splice(applyIndex, 1)[0]; sequential.tool_calls--;
+  assert.equal(checkEfficiency(before, after).pass, false, 'batching must not weaken keep-intent');
+  sequential.calls.splice(applyIndex, 0, removed); sequential.tool_calls++;
+  edited.success = false;
+  assert.equal(checkEfficiency(before, after).pass, false);
+  edited.success = true;
+  after.results.push(structuredClone(edited));
+  assert.equal(checkEfficiency(before, after).pass, false);
+});
+
+test('scripted sheet change follows the committed tolerance and omission', async () => {
+  const { keepIntent } = await import('./scripted-ops.mjs');
+  const batches = [];
+  let committed = false;
+  await keepIntent(async ops => {
+    if (batches.length) assert.equal(committed, true);
+    batches.push(ops);
+    await Promise.resolve();
+    committed = true;
+  }, 'd:f:turned_step:1/step.diameter');
+  assert.deepEqual(batches.map(ops => ops.map(op => op.path)), [
+    ['dimensions/d:f:turned_step:1~1step.diameter/tolerance', 'views/iso/omit'],
+    ['sheet/size', 'sheet/scale'],
+  ]);
+  await assert.rejects(keepIntent(async () => { throw new Error('first commit refused'); }, 'd:test'), /first commit refused/);
+});
+
+test('scripted plate request requires every task callout despite a shortened index', async () => {
+  const { pinCallouts } = await import('./scripted-ops.mjs');
+  const task = JSON.parse(readFileSync('tools/mcp-eval/tasks.json', 'utf8')).tasks[0];
+  const items = task.success.filter(c => c.type === 'placed').map(c => ({ id: 'd:' + c.quantity }));
+  const ops = pinCallouts(task, items);
+  assert.equal(ops.length, 3);
+  assert.deepEqual(ops.map(op => op.value.lane), [0, 1, 2]);
+  for (let i = 0; i < items.length; i++) {
+    assert.throws(() => pinCallouts(task, items.filter((_, n) => n !== i)), /missing required callout/);
   }
 });

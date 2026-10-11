@@ -73,6 +73,7 @@ pub struct ProblemFilter {
     pub code: Option<String>,
     pub severity: Option<String>,
     pub subject: Option<String>,
+    pub feature: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -83,6 +84,8 @@ pub struct Options {
     pub placements: Vec<Place>,
     pub view_anchors: Vec<String>,
     pub scales: Vec<String>,
+    /// Escaped Spec paths and accepted values/forms; candidates require preview/apply.
+    pub settable: BTreeMap<String, Value>,
 }
 
 /// An ordered collection's changed records, keyed by stable ID. An absent order keeps it.
@@ -751,6 +754,20 @@ impl Session {
             .collect()
     }
     pub fn problems(&self, filter: &ProblemFilter) -> Vec<model::Problem> {
+        let subjects: Vec<_> = filter
+            .feature
+            .as_ref()
+            .map(|feature| {
+                self.items(&ItemFilter {
+                    feature: Some(feature.clone()),
+                    ..ItemFilter::default()
+                })
+                .into_iter()
+                .map(|i| i.item.id)
+                .chain(std::iter::once(feature.clone()))
+                .collect()
+            })
+            .unwrap_or_default();
         self.state
             .problems
             .iter()
@@ -761,6 +778,7 @@ impl Session {
                         .subject
                         .as_ref()
                         .is_none_or(|s| p.subjects.contains(s))
+                    && (filter.feature.is_none() || p.subjects.iter().any(|s| subjects.contains(s)))
             })
             .cloned()
             .collect()
@@ -786,7 +804,7 @@ impl Session {
     }
     fn options_for(&self, item: ItemAnswer, choices: &BTreeMap<String, Value>) -> Options {
         let id = item.item.id.as_str();
-        let placements = choices
+        let placements: Vec<Place> = choices
             .get(id)
             .into_iter()
             .flat_map(|c| {
@@ -807,20 +825,22 @@ impl Session {
                 })
             })
             .collect();
+        let view_anchors: Vec<String> = if item.item.kind == "view" {
+            self.plan()
+                .views
+                .iter()
+                .filter(|v| v.id != id && !depends_on(self.spec(), &v.id, id))
+                .map(|v| v.id.clone())
+                .collect()
+        } else {
+            Vec::new()
+        };
         Options {
+            settable: settable(self, &item, &placements, &view_anchors),
             id: id.into(),
             operations: item.operations,
             placements,
-            view_anchors: if item.item.kind == "view" {
-                self.plan()
-                    .views
-                    .iter()
-                    .filter(|v| v.id != id && !depends_on(self.spec(), &v.id, id))
-                    .map(|v| v.id.clone())
-                    .collect()
-            } else {
-                Vec::new()
-            },
+            view_anchors,
             scales: if id == "sheet" {
                 crate::layout::SCALES.map(model::scale_name).to_vec()
             } else {
@@ -829,6 +849,124 @@ impl Session {
         }
     }
 }
+fn settable(
+    session: &Session,
+    item: &ItemAnswer,
+    placements: &[Place],
+    view_anchors: &[String],
+) -> BTreeMap<String, Value> {
+    use serde_json::json;
+    let mut fields = BTreeMap::new();
+    let id = &item.item.id;
+    let base = match item.item.kind.as_str() {
+        "dimension" => format!("dimensions/{}", items::key(id)),
+        "view" => format!("views/{}", items::key(id.trim_start_matches("v:"))),
+        "control_frame" | "datum_feature" | "label" => format!("annotations/{}", items::key(id)),
+        _ => String::new(),
+    };
+    let choices = |values: Value| json!({"choices":values});
+    if !base.is_empty() {
+        fields.insert(format!("{base}/omit"), choices(json!([false, true])));
+        if item.item.kind == "view" {
+            fields.insert(
+                format!("{base}/place/relative_to"),
+                choices(json!(
+                    view_anchors
+                        .iter()
+                        .map(|v| v.trim_start_matches("v:"))
+                        .collect::<Vec<_>>()
+                )),
+            );
+            fields.insert(
+                format!("{base}/place/side"),
+                choices(json!(["above", "below", "left", "right"])),
+            );
+            fields.insert(format!("{base}/place/gap"), json!({"range":[0,1000]}));
+            fields.insert(
+                format!("{base}/place/align"),
+                choices(json!(["start", "middle", "end", "outside"])),
+            );
+        } else {
+            let mut views: Vec<_> = placements.iter().filter_map(|p| p.view.clone()).collect();
+            views.sort();
+            views.dedup();
+            let mut sides: Vec<_> = placements
+                .iter()
+                .filter_map(|p| p.side.map(|s| s.name()))
+                .collect();
+            sides.sort();
+            sides.dedup();
+            fields.insert(format!("{base}/place/view"), choices(json!(views)));
+            fields.insert(format!("{base}/place/side"), choices(json!(sides)));
+            fields.insert(
+                format!("{base}/place/lane"),
+                json!({"range":[0,1000],"integer":true}),
+            );
+            fields.insert(
+                format!("{base}/place/along"),
+                json!({"choices":["start","middle","end","outside"],"range":[0,1]}),
+            );
+        }
+        fields.insert(
+            format!("{base}/place/pinned"),
+            choices(json!([false, true])),
+        );
+        if item.item.kind == "dimension" {
+            fields.insert(
+                format!("{base}/view"),
+                fields[&format!("{base}/place/view")].clone(),
+            );
+            fields.insert(format!("{base}/tolerance"), json!({"forms":["±T","+U -L"]}));
+        }
+    }
+    // A fit qualifies a feature, including each member of a consolidated hole mark.
+    let mut fits: BTreeMap<Vec<String>, Vec<String>> = BTreeMap::new();
+    for feature in &item.features {
+        if let Some(f) = session
+            .analysis()
+            .features
+            .iter()
+            .find(|f| &f.id == feature)
+        {
+            let classes = crate::dims::fit_choices(
+                &f.kind,
+                f.parameters
+                    .get("diameter")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0),
+            );
+            if !classes.is_empty() {
+                fits.entry(classes)
+                    .or_default()
+                    .push(format!("features/{}/fit", items::key(feature)));
+            }
+        }
+    }
+    for (classes, paths) in fits {
+        let mut descriptor = choices(json!(classes));
+        if paths.len() > 1 {
+            descriptor["paths"] = json!(paths);
+        }
+        fields.insert(paths[0].clone(), descriptor);
+    }
+    if id == "sheet" {
+        fields.insert(
+            "sheet/size".into(),
+            choices(json!(crate::layout::PAGES.map(|p| p.0))),
+        );
+        fields.insert(
+            "sheet/scale".into(),
+            choices(json!(crate::layout::SCALES.map(model::scale_name))),
+        );
+        fields.insert(
+            "sheet/title".into(),
+            json!({"fields":crate::title_block::KEYS.map(|k|k.0),"forms":["text"]}),
+        );
+        fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
+    }
+    fields
+}
+
 fn depends_on(spec: &Spec, view: &str, id: &str) -> bool {
     let mut at = view.trim_start_matches("v:");
     for _ in 0..spec.views.len() {

@@ -112,6 +112,24 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
         assert!(!description.contains("see docs/"), "{description}");
         assert!(description.len() >= 80, "{description}");
     }
+    let description = |name: &str| {
+        tools.iter().find(|tool| tool["name"] == name).unwrap()["description"]
+            .as_str()
+            .unwrap()
+    };
+    for term in [
+        "features/f:hole:1/fit",
+        "±T",
+        "views/iso/omit",
+        "sheet/title/number",
+        "Batch",
+    ] {
+        assert!(description("apply_ops").contains(term), "{term}");
+    }
+    assert!(description("inspect_part").contains("key_items"));
+    assert!(description("inspect_part").contains("problem_filter"));
+    assert!(description("list_problems").contains("filter.feature"));
+    assert!(description("item_options").contains("diameter"));
     let schema_bytes: usize = tools
         .iter()
         .map(|tool| {

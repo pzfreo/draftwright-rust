@@ -9,7 +9,7 @@
         "item": {
           "anyOf": [
             {
-              "$ref": "#/$defs/item"
+              "$ref": "#/$defs/i"
             },
             {
               "type": "object",
@@ -21,29 +21,31 @@
                   "type": "string"
                 },
                 "label": {
-                  "$ref": "#/$defs/shared1"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "view": {
-                  "$ref": "#/$defs/shared1"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "state": {
-                  "$ref": "#/$defs/state"
+                  "$ref": "#/$defs/t"
                 },
                 "basis": {
                   "type": "string"
                 },
                 "value": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
+                  "type": [
+                    "number",
+                    "null"
                   ]
                 },
                 "operations": {
-                  "$ref": "#/$defs/shared0"
+                  "$ref": "#/$defs/A"
                 }
               },
               "required": [
@@ -70,7 +72,7 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/error"
+          "$ref": "#/$defs/e"
         }
       },
       "required": [
@@ -80,46 +82,41 @@
     }
   ],
   "$defs": {
-    "item": {
+    "i": {
       "type": "object",
       "properties": {
         "item": {
           "type": "object"
         },
         "value": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "number",
+            "null"
           ]
         },
         "dimension_kind": {
-          "$ref": "#/$defs/shared1"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "placement": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "object",
+            "null"
           ]
         },
         "anchors": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "features": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "basis": {
           "type": "string"
         },
         "operations": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -134,7 +131,7 @@
       ],
       "additionalProperties": false
     },
-    "state": {
+    "t": {
       "anyOf": [
         {
           "type": "object",
@@ -186,7 +183,7 @@
         }
       ]
     },
-    "error": {
+    "e": {
       "type": "object",
       "properties": {
         "code": {
@@ -199,7 +196,7 @@
           "type": "string"
         },
         "choices": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -208,21 +205,11 @@
       ],
       "additionalProperties": false
     },
-    "shared0": {
+    "A": {
       "items": {
         "type": "string"
       },
       "type": "array"
-    },
-    "shared1": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   }
 }

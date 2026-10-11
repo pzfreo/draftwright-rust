@@ -7,7 +7,7 @@
       "type": "string"
     },
     "spec": {
-      "$ref": "#/$defs/spec"
+      "$ref": "#/$defs/s"
     },
     "spec_version": {
       "type": "string"
@@ -28,7 +28,7 @@
   ],
   "additionalProperties": false,
   "$defs": {
-    "spec": {
+    "s": {
       "type": "object",
       "properties": {
         "schema": {
@@ -38,36 +38,24 @@
           ]
         },
         "binding": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "object",
+            "null"
           ]
         },
         "sheet": {
           "type": "object",
           "properties": {
             "size": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "scale": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "title": {
@@ -77,30 +65,25 @@
               }
             },
             "fit_limits": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "boolean",
+                "null"
               ]
             }
           },
-          "required": [],
           "additionalProperties": false
         },
         "views": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "dimensions": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "annotations": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "features": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "dimension_source": {
           "enum": [
@@ -121,10 +104,9 @@
           }
         }
       },
-      "required": [],
       "additionalProperties": false
     },
-    "shared0": {
+    "A": {
       "additionalProperties": {
         "type": "object"
       },

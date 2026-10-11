@@ -29,7 +29,7 @@ pub const INSTRUCTIONS: &str = "Register STEP with inspect_part {step}; keep par
 fn description(tool: &str) -> &'static str {
     match tool {
         "inspect_part" => {
-            "Register a local STEP path (optional recognition JSON in features) and obtain part_ref and initial spec_version. With part_ref, summarize the Spec's sheet, views, item/problem counts. detail=true adds a lossless plan_ref readable with resources/read."
+            "Register a local STEP path (optional recognition JSON in features) and obtain part_ref and initial spec_version. Summary includes key_items (envelope sizes and a size/representative item per feature, bounded; list_items finds the rest). problem_filter optionally returns a paged problem_page with fixes in this same call. With part_ref, summarize the Spec's sheet, views, item/problem counts. detail=true adds a lossless plan_ref readable with resources/read."
         }
         "list_items" => {
             "List stable item IDs, labels, views, kinds and typed states for part_ref plus spec or spec_version. Filter by view/kind/state/feature or near an ID/region. Follow next_cursor with the same input. detail=true adds placement and anchors; default omits geometry."
@@ -38,16 +38,16 @@ fn description(tool: &str) -> &'static str {
             "Read one stable item id: label, state, value, explanation (basis) and allowed operations. Supply part_ref plus spec or spec_version. detail=true includes resolved geometry, anchors and features. Unknown IDs return nearest valid IDs."
         }
         "list_problems" => {
-            "List drawing problems by code, severity or subject item ID for part_ref plus spec or spec_version. Follow next_cursor for all problems. detail=true includes explanations and corrective Spec ops; inspect these before previewing a fix."
+            "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Default rows include corrective Spec ops; detail=true adds explanations. Use filter.feature for one query covering a whole feature."
         }
         "item_options" => {
-            "Get allowed operations, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. Linear dimensions accept only sides parallel to their span. Options are candidates; preview_ops checks their effects."
+            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Options are candidates; preview_ops checks their effects."
         }
         "preview_ops" => {
             "Try up to 100 Spec ops without saving or changing the drawing head. Supply part_ref and spec or spec_version. Ops are set/add {path,value} or remove {path}, with RFC6901 escaping (~1 for a slash inside an ID). Returns paged change/problem events and lossless delta_ref."
         }
         "apply_ops" => {
-            "Commit Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
+            "Commit Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Batch all edits for one request in ops. Tolerances are strings \"±T\" or \"+U -L\"; fits use features/f:hole:1/fit (e.g. H7). View paths use bare names, views/iso/omit; title drawing number is sheet/title/number. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
         }
         "view_sheet" => {
             "Render a PNG for visual review of part_ref plus spec or spec_version. Optional region is paper millimetres [left,bottom,right,top], y up; overlay_ids labels items for reference. dpi defaults to 150, maximum 400. Returns image content and artifact_ref; exports embed the Spec."
@@ -103,8 +103,8 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
         {
             return Err(bad());
         }
-        if let Some(t) = s["type"].as_str() {
-            let valid = match t {
+        if let Some(types) = s.get("type") {
+            let accepts = |t: &str| match t {
                 "object" => v.is_object(),
                 "array" => v.is_array(),
                 "string" => v.is_string(),
@@ -114,6 +114,10 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
                 "null" => v.is_null(),
                 _ => false,
             };
+            let valid = types.as_str().is_some_and(accepts)
+                || types
+                    .as_array()
+                    .is_some_and(|ts| ts.iter().any(|t| t.as_str().is_some_and(accepts)));
             if !valid {
                 return Err(bad());
             }
@@ -248,6 +252,9 @@ pub fn page(cache: &Cache, rows: Vec<Value>, args: &Value) -> Result<Value, Erro
         json!({"items":selected,"total":rows.len(),"next_cursor":if end<rows.len(){Some(end)}else{None}}),
     )
 }
+fn problem_summary(p: &crate::model::Problem) -> Value {
+    json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects,"fix":p.fix})
+}
 fn delta_page(cache: &Cache, delta: &Delta, args: &Value) -> Result<Value, Error> {
     let detail = args["detail"].as_bool().unwrap_or(false);
     let mut rows = Vec::new();
@@ -285,7 +292,122 @@ pub fn call(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
                 "engine stopped; retry with a valid STEP and Spec",
             ))
         })
+        .map_err(|e| corrective_error(cache, tool, args, e))
 }
+fn corrective_error(cache: &Cache, tool: &str, args: &Value, mut error: Error) -> Error {
+    if error.code != "invalid"
+        || error.message.starts_with("stale parent")
+        || !["preview_ops", "apply_ops"].contains(&tool)
+    {
+        return error;
+    }
+    let attempt = || -> Option<(usize, Value, Vec<String>)> {
+        let given = if tool == "apply_ops" {
+            cache.get_version(args["parent"].as_str()?).ok()?
+        } else {
+            spec(cache, args).ok()?
+        };
+        let mut session = cache.session(args["part_ref"].as_str()?, &given).ok()?;
+        for (index, op) in args["ops"].as_array()?.iter().enumerate() {
+            let operation = serde_json::from_value(op.clone()).ok()?;
+            let refused = session.apply(&[operation], false).err();
+            if !refused.is_some_and(|e| e.message == error.message) {
+                continue;
+            }
+            if op["op"] != "set" {
+                continue;
+            }
+            let path = op["path"].as_str()?;
+            let parts: Vec<_> = path
+                .split('/')
+                .map(|s| s.replace("~1", "/").replace("~0", "~"))
+                .collect();
+            let mut corrected = op.clone();
+            let mut choices = Vec::new();
+            match parts.as_slice() {
+                [section, id, field] if section == "views" && id.starts_with("v:") => {
+                    choices = session
+                        .plan()
+                        .views
+                        .iter()
+                        .map(|v| v.id.trim_start_matches("v:").to_string())
+                        .collect();
+                    if choices.iter().any(|v| v == id.trim_start_matches("v:")) {
+                        corrected["path"] = json!(format!(
+                            "views/{}/{field}",
+                            crate::items::key(id.trim_start_matches("v:"))
+                        ));
+                    }
+                }
+                [sheet, title, field] if sheet == "sheet" && title == "title" => {
+                    choices = crate::title_block::KEYS.map(|k| k.0.to_string()).to_vec();
+                    if let Some((key, _)) = crate::title_block::KEYS
+                        .iter()
+                        .find(|(key, cell)| cell == field && key != cell)
+                    {
+                        corrected["path"] = json!(format!("sheet/title/{key}"));
+                    }
+                }
+                [section, id, field]
+                    if section == "dimensions"
+                        && ["fit", "tolerance"].contains(&field.as_str()) =>
+                {
+                    let options = session.options(id).ok()?;
+                    let fit_fields: Vec<_> = options
+                        .settable
+                        .iter()
+                        .filter(|(p, _)| p.starts_with("features/") && p.ends_with("/fit"))
+                        .collect();
+                    if fit_fields.len() == 1
+                        && fit_fields[0].1.get("paths").is_none()
+                        && op["value"].as_str().is_some_and(|v| {
+                            fit_fields[0].1["choices"]
+                                .as_array()
+                                .is_some_and(|a| a.contains(&json!(v)))
+                        })
+                    {
+                        corrected["path"] = json!(fit_fields[0].0);
+                        choices = fit_fields[0].1["choices"]
+                            .as_array()?
+                            .iter()
+                            .filter_map(|v| v.as_str().map(str::to_string))
+                            .collect();
+                    } else if field == "tolerance" {
+                        choices = vec!["±T".into(), "+U -L".into()];
+                        if let Some(object) = op["value"].as_object()
+                            && object.len() == 1
+                            && let Some(n) = object.get("symmetric").and_then(Value::as_f64)
+                            && n.is_finite()
+                            && n >= 0.0
+                        {
+                            corrected["value"] = json!(format!("±{n}"));
+                        } else if let Some(s) = op["value"].as_str() {
+                            corrected["value"] =
+                                json!(s.replace("+/-", "±").replace("+-", "±").replace('/', " "));
+                        }
+                    }
+                }
+                _ => {}
+            }
+            if corrected != *op
+                && session
+                    .apply(&[serde_json::from_value(corrected.clone()).ok()?], false)
+                    .is_ok()
+            {
+                return Some((index, corrected, choices));
+            }
+        }
+        None
+    };
+    if let Some((index, op, choices)) = attempt() {
+        error.choices = choices;
+        error
+            .message
+            .push_str(&format!(" Replace ops[{index}]. Corrected op: {op}"));
+    }
+    error
+}
+
 fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
     let registered;
     let part_ref = if let Some(step) = args["step"].as_str() {
@@ -318,6 +440,42 @@ fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
             if args["detail"] == true {
                 summary["plan_ref"] =
                     json!(cache.artifact(&serde_json::to_vec(session.plan()).unwrap(), "json")?);
+            }
+            if let Some(filter) = args.get("problem_filter") {
+                let filter: ProblemFilter = serde_json::from_value(filter.clone())
+                    .map_err(|e| Error::invalid(e.to_string()))?;
+                summary["problem_page"] = page(
+                    cache,
+                    session
+                        .problems(&filter)
+                        .iter()
+                        .map(problem_summary)
+                        .collect(),
+                    &json!({}),
+                )?;
+                // The summary and page share the complete MCP envelope's byte budget.
+                while value_bytes(
+                    &json!({"content":[{"type":"text","text":summary.to_string()}],"structuredContent":summary,"isError":false}),
+                ) + 128
+                    > PAGE_BYTES
+                {
+                    if summary["key_items"]
+                        .as_array_mut()
+                        .expect("key items")
+                        .pop()
+                        .is_some()
+                    {
+                        continue;
+                    }
+                    let rows = summary["problem_page"]["items"]
+                        .as_array_mut()
+                        .expect("page items");
+                    if rows.pop().is_none() {
+                        break;
+                    }
+                    let count = rows.len();
+                    summary["problem_page"]["next_cursor"] = json!(count);
+                }
             }
             Ok(summary)
         }
@@ -374,7 +532,21 @@ fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
             let filter: ProblemFilter =
                 serde_json::from_value(args.get("filter").cloned().unwrap_or_else(|| json!({})))
                     .map_err(|e| Error::invalid(e.to_string()))?;
-            page(cache,cache.problems(part_ref,&given,&filter)?.iter().map(|p|if args["detail"]==true{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects})}).collect(),args)
+            page(
+                cache,
+                cache
+                    .problems(part_ref, &given, &filter)?
+                    .iter()
+                    .map(|p| {
+                        if args["detail"] == true {
+                            value(p)
+                        } else {
+                            problem_summary(p)
+                        }
+                    })
+                    .collect(),
+                args,
+            )
         }
         "item_options" => Ok(value(&cache.options(
             part_ref,
