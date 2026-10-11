@@ -520,6 +520,21 @@ fn version_1_specs_migrate_and_plan_identically() {
         } else {
             renamed(&old, &ids)
         };
+        if !REPLANNED.contains(&part) {
+            // The historical geometry oracle is intact; G1's new bounded report has its own
+            // literal expectation, rather than being dropped from the comparison.
+            let report: Value = serde_json::from_str(
+                &std::fs::read_to_string(fixture(&format!("identity/{part}.reporting.json")))
+                    .unwrap(),
+            )
+            .unwrap();
+            expected["status"] = report["status"].clone();
+            expected["completeness"] = report["completeness"].clone();
+            expected["problems"]
+                .as_array_mut()
+                .unwrap()
+                .extend(report["problems"].as_array().unwrap().iter().cloned());
+        }
         expected["spec"]["schema"] = model::SPEC_SCHEMA.into();
         if REPLANNED.contains(&part) {
             expected = without_typed_state(expected);

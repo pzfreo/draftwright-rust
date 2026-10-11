@@ -74,6 +74,9 @@ pub struct Analysis {
     pub binding: Binding,
     /// The part's box in its own frame, mm.
     pub envelope: [[f64; 3]; 2],
+    /// Absent in older analyses; several solids make completeness findings informational.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub solid_count: Option<usize>,
     /// Where the features came from; absent when none were recognised.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recognition: Option<Recognition>,
@@ -283,6 +286,10 @@ pub struct ViewSpec {
 pub struct Plan {
     pub schema: String,
     pub binding: Binding,
+    #[serde(default)]
+    pub status: crate::completeness::Status,
+    #[serde(default)]
+    pub completeness: crate::completeness::Completeness,
     pub sheet: PlannedSheet,
     pub views: Vec<PlannedView>,
     /// Dimensions and callouts, each with its ID, value, label, default flag and basis.
@@ -543,6 +550,7 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
             loader: LOADER.into(),
         },
         envelope: [b.min, b.max],
+        solid_count: Some(part.solids.len()),
         recognition: None,
         features: Vec::new(),
         iso_bounds: [0.0; 4],
@@ -999,6 +1007,7 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     let escalated = |beyond_lanes: bool| {
         plan_with(analysis, spec, beyond_lanes).map(|mut p| {
             crate::hole_table::escalate(analysis, &mut p);
+            crate::completeness::report(analysis, &mut p);
             p
         })
     };
@@ -1766,6 +1775,8 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     let mut plan = Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
+        status: crate::completeness::Status::NeedsAttention,
+        completeness: crate::completeness::Completeness::default(),
         sheet,
         views,
         dimensions,
@@ -1781,6 +1792,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         spec,
     };
     crate::placement_intent::finish(&mut plan, analysis);
+    crate::completeness::report(analysis, &mut plan);
     Ok(plan)
 }
 

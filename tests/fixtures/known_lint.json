@@ -373,6 +373,13 @@
       "count": 1,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part, message for message (tests/lint_coverage.rs::backstop_on_the_ports_own_drawings_is_known): the opening through m10127's face at y 32.268 is a three-edge loop (a triangle, box x 4.117..12.874, z 19.370..27.307), neither a circle, rectangle, obround or rounded rectangle nor the end of a section recess, so no feature of the drawing vocabulary states it (src/lint/profiles.rs; the loop's verdicts equal draftwright's, pythons_principal_profile_scan_is_reproduced). It is left for definition by hand."
+    },
+    {
+      "part": "spool132",
+      "code": "hole_pattern_requirement_missing",
+      "count": 6,
+      "verdict": "undetermined",
+      "reason": "Three physical bolt circles have no numerical centre-coordinate marks: the six new per-axis location checks find them missing. The default sheet looks concentric with the turned stock and states its PCDs, but the current mark inventory does not carry a certified pattern-centreline witness. Python structured pattern locations also require the physical centre; its singleton turned-hole centreline witness is separate. Retain warning evidence without asserting these are six independent machining defects. G2/G3 may add a proved concentricity carrier; scope and uncertainty are recorded in next-session and known_completeness.json."
     }
   ],
   "ledgers": [
@@ -467,6 +474,29 @@
       "count": 2,
       "verdict": "undetermined",
       "reason": "The three slots are the members of one oriented slot array (quiddity 0.3.9's derived oriented_slot_patterns: one OrientedSlotArray of all three, as draftwright's own recognition finds). Python's lint judges only standalone slots (oriented_slot_contract.standalone_oriented_slots consumes each pattern's members) and its quality report lists oriented_slot_patterns as an undecided family (linting/quality.py, #1430), so it reports nothing; neither sheet states the slots' widths or lengths. The Analysis does not record the patterns (src/bridge.rs reads their members one by one, as oriented slots, and DERIVED_NOT_READ drops the patterns), so lint cannot tell a member from a lone slot and reports both sizes of each missing. Undetermined until draftwright decides #1430 and the maintainer decides whether the Analysis should carry oriented slot pattern membership (docs/rules/lint.yaml, LINT-oriented_slot_coverage-width_length)."
+    }
+  ],
+  "completeness_findings": [
+    {
+      "rule": "LINT-envelope_coverage-overall_extents",
+      "python": "quality ledger only; no envelope lint findings",
+      "rust": "missing_principal_dimension for each missing non-zero axis",
+      "verdict": "rust-correct",
+      "reason": "G1 explicitly authorises running the existing ledger as findings. Python linting/envelope_coverage.py uses physical bbox intervals for quality; Rust src/lint/envelope.rs already judges those intervals. tests/completeness.rs::omitted_overall_extents_are_lint_findings proves a sheet stating only Y still owes X and Z. No dimension planner is changed; existing ledger parity differences remain in ledgers."
+    },
+    {
+      "rule": "LINT-turned_step_coverage-length_and_od",
+      "python": "turned-step quality ledger; axial coverage checked separately",
+      "rust": "axial_length_missing, turned_step_requirement_missing or turned_step_requirement_unverifiable per uncovered band requirement",
+      "verdict": "rust-correct",
+      "reason": "G1 explicitly authorises findings for the existing turned ledger. It excludes groove-owned bands and preserves exact band ownership and overall-OD credit. tests/completeness.rs::unstated_turned_band_length_and_diameter_are_lint_findings proves a band with neither length nor diameter stated owes both. Existing Python ledger comparison remains unchanged."
+    },
+    {
+      "rule": "LINT-hole_coverage-pattern_location / LINT-hole_coverage-pattern_spacing",
+      "python": "hole_requirement_missing against a physical pattern requirement ledger",
+      "rust": "hole_pattern_requirement_missing or hole_pattern_requirement_unverifiable against the exact pattern owner",
+      "verdict": "equivalent",
+      "reason": "Separate pattern-owner codes preserve the existing machining-size group findings. Locations and spacing are additional assessed predicates, with exact pattern claims and truthful printed values. A physical axis-aligned lattice proves its centre; other arrays require a member anchor. Python hole_coverage.py::_structured_locations_placed and _grid_has_physical_centre supply that drafting policy. Off-axis/declared-grid correspondence and turned-centreline exemptions remain limited; see known_completeness.json and next-session."
     }
   ]
 }

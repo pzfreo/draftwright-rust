@@ -2,10 +2,8 @@
 //! band of a turned profile states its axial length and its diameter
 //! (LINT-turned_step_coverage-length_and_od).
 //!
-//! Python's lint reports no finding for this rule: it is a completeness ledger, read by the
-//! quality report (and `axial_length_missing` covers the chain). So the port gives the ledger,
-//! [`outcomes`], and [`super::check`] does not run it; whether the port's lint should report an
-//! uncovered band is a question for the maintainer.
+//! Python uses this ledger in its quality report. The port also reports each uncovered band
+//! requirement, retaining `axial_length_missing` for missing lengths.
 //!
 //! Each of the Analysis's `turned_step` features (quiddity's `TurnedStep`: its `axis`, the band's
 //! `lo` and `hi` along it, its `diameter`, and its `profile`: the turned body's `axis_origin` and
@@ -311,6 +309,42 @@ fn overall(read: &[(&Feature, Result<Band, String>)], f: &Feature, b: &Band) -> 
         .count()
         == 1;
     unique_max && alone
+}
+
+/// Band requirements the printed drawing does not prove.
+pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<super::LintIssue> {
+    outcomes(analysis, marks)
+        .into_iter()
+        .filter(|o| o.state != State::Placed)
+        .map(|o| {
+            let code = if o.state == State::Unverifiable {
+                "turned_step_requirement_unverifiable"
+            } else if o.parameter == "step.length" {
+                "axial_length_missing"
+            } else {
+                "turned_step_requirement_missing"
+            };
+            let mut issue = super::uncovered(
+                analysis,
+                code,
+                &o.feature,
+                &o.parameter,
+                format!(
+                    "{}: {} is {} on the drawing.",
+                    o.feature,
+                    o.parameter,
+                    if o.state == State::Missing {
+                        "missing"
+                    } else {
+                        "unverifiable"
+                    }
+                ),
+            );
+            issue.annotation = o.annotation;
+            issue.evidence = o.evidence;
+            issue
+        })
+        .collect()
 }
 
 #[cfg(test)]

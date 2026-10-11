@@ -224,6 +224,7 @@ fn drawn(step: &Path, given: Given, spec: &Spec) -> Result<(Analysis, Plan, Draw
         ))
     })?;
     plan.problems.extend(drawing.problems.iter().cloned());
+    plan.status = crate::completeness::status(&plan.problems);
     Ok((analysis, plan, drawing))
 }
 

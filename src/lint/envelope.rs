@@ -2,10 +2,8 @@
 //! of the part, its width (x), depth (y) and height (z), is stated on the drawing
 //! (LINT-envelope_coverage-overall_extents).
 //!
-//! Python's lint reports no finding for this rule: it feeds the quality report's completeness
-//! (`envelope_axes`). So the port gives the ledger, [`outcomes`], and [`super::check`] does not
-//! run it; whether the port's lint should report an unstated extent is a question for the
-//! maintainer.
+//! Python uses this ledger only in its quality report. The port also reports missing axes as
+//! `missing_principal_dimension`, so an omitted extent cannot buy silence.
 //!
 //! The denominator is the part's box (the Analysis's `envelope`), not any recognised feature. An
 //! axis is **placed** when the marks prove its whole interval (within 1e-3 mm), by:
@@ -237,6 +235,14 @@ pub fn outcomes(analysis: &Analysis, marks: &[Mark]) -> Vec<Outcome> {
             }
         })
         .collect()
+}
+
+/// Missing overall extents, independently judged from the drawing's marks.
+pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<super::LintIssue> {
+    outcomes(analysis, marks).into_iter().filter(|o| o.state == State::Missing).map(|o| {
+        super::uncovered(analysis, "missing_principal_dimension", "envelope", o.parameter,
+            format!("The overall {} extent ({}) is not stated by a full span, centred diameter or contiguous turned-length chain.", o.axis, super::parameters::fmt(o.extent)))
+    }).collect()
 }
 
 #[cfg(test)]

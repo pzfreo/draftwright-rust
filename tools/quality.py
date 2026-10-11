@@ -251,6 +251,8 @@ def one(f, dw, out, spec=None):
         return name, {"error": (r.stdout + r.stderr)[:200]}
     if r.returncode or p.returncode or "dimensions" not in plan or "error" in rend:
         return name, {"error": json.dumps(plan.get("error", plan))[:200]}
+    if "completeness" not in plan:
+        return name, {"error": "Plan has no completeness counts; rebuild draftwright before measuring quality"}
     with open(f"{out}/{name}.plan.json", "w") as output:
         json.dump(plan, output, indent=1, sort_keys=True)
     codes = collections.Counter(x["code"] for x in rend.get("problems", []))
@@ -290,12 +292,14 @@ def one(f, dw, out, spec=None):
         "ink": sum(codes[c] for c in INK), "ink_by_code": {c: codes[c] for c in INK if codes[c]},
         "line_through_feature": line_through_features(plan),
         "dimensions": len(plan["dimensions"]),
+        **{key: plan["completeness"][key]
+           for key in ("claimed_faces", "faces", "unplanned_features")},
         **svg_linework(f"{out}/{name}.svg", plan),
     }
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):

@@ -113,8 +113,15 @@ fn the_service_answers_each_line() {
             .unwrap()
             .starts_with("<?xml")
     );
-    assert_eq!(replies[1]["result"]["problems"], json!([]));
-    // No features were given, so lint has no requirements to find unmet.
+    assert_eq!(
+        replies[1]["result"]["problems"],
+        json!([{
+            "id": "p:unclaimed_geometry:sheet", "code": "unclaimed_geometry", "severity": "warning",
+            "message": "Analysis features claim 0 of 10 faces; 10 faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.",
+            "subjects": ["sheet"]
+        }])
+    );
+    // No feature-size requirements; the sheet still proves every overall extent.
     assert_eq!(replies[1]["result"]["lint"], json!([]));
     assert_eq!(
         replies[2]["error"]["choices"],

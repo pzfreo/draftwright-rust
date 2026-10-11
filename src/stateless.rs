@@ -304,6 +304,7 @@ impl Cache {
             json!({"part_ref":part_ref,"part":s.analysis().binding.part,"face_count":s.analysis().binding.face_count,
             "envelope":s.analysis().envelope,"sheet":{"size":s.plan().sheet.size,"scale":s.plan().sheet.scale,"page":s.plan().sheet.page},
             "views":s.plan().views.iter().map(|v|&v.id).collect::<Vec<_>>(),"items":s.items(&ItemFilter::default()).len(),
+            "status":crate::completeness::status(&s.state().problems),"completeness":s.plan().completeness,
             "key_items":keys,"problems":s.state().problems.len(),"spec_version":spec_hash(s.spec())}),
         )
     }

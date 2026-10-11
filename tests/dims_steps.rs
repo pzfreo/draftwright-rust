@@ -294,7 +294,7 @@ fn a_through_step_the_ladder_states_is_left_to_it() {
         .expect("the step is reported");
     assert_eq!(
         (p.code.as_str(), p.severity.as_str()),
-        ("dimensions_not_ported", "info")
+        ("dimensions_not_ported", "warning")
     );
     assert!(
         p.message.contains("the step ladder") && p.message.contains("the overall x extent"),

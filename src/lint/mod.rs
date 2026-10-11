@@ -36,8 +36,8 @@
 //! ([`coverage::counts`], [`coverage::centre_marks`]) are not run: draftwright's drawing lint
 //! leaves counts to hole coverage, and the port draws no centre marks yet. The families whose
 //! requirements are a feature's own sizes share [`parameters`]. The envelope's and turned steps'
-//! completeness ([`envelope`], [`turned`]) are ledgers, not findings: Python's lint reports nothing
-//! for them, so `check` does not run them.
+//! completeness ([`envelope`], [`turned`]) also report uncovered ledger requirements. This is a
+//! deliberate difference from Python, recorded in the completeness findings verdicts.
 
 use serde::Serialize;
 
@@ -57,6 +57,7 @@ pub mod fillets;
 pub mod flats;
 pub mod grooves;
 pub mod gussets;
+pub mod hole_patterns;
 pub mod holes;
 pub mod oriented_slots;
 pub mod pads;
@@ -211,5 +212,44 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(polygonal::stock_coverage(analysis, marks));
     issues.extend(pockets::coverage(analysis, marks));
     issues.extend(pmi_coverage::coverage(analysis, marks));
+    issues.extend(envelope::coverage(analysis, marks));
+    issues.extend(turned::coverage(analysis, marks));
+    issues.extend(hole_patterns::coverage(analysis, marks));
     issues
+}
+
+/// A bounded coverage finding; several solids retain Python's informational severity.
+fn uncovered(
+    analysis: &Analysis,
+    code: &str,
+    feature: &str,
+    parameter: &str,
+    message: String,
+) -> LintIssue {
+    LintIssue {
+        id: format!("l:{code}:{feature}/{parameter}"),
+        code: code.into(),
+        severity: if analysis.solid_count.is_some_and(|n| n > 1) {
+            Severity::Info
+        } else {
+            Severity::Warning
+        },
+        message,
+        at: None,
+        view: None,
+        subjects: vec![feature.into()],
+        requirements: vec![Requirement {
+            feature: feature.into(),
+            parameter: parameter.into(),
+        }],
+        measurements: vec![format!("{feature}/{parameter}")],
+        sources: Vec::new(),
+        stage: None,
+        annotation: None,
+        related: Vec::new(),
+        evidence: None,
+        fix: Some(format!(
+            "State {feature}/{parameter} in a view that shows its true size or location."
+        )),
+    }
 }

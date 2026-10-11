@@ -368,7 +368,7 @@ basis, placed}`:
 
 Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `slots`, `bosses`,
 `edges`), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised
-feature (blends, turned steps, …) gets one info problem, `dimensions_not_ported`, on its
+feature (blends, turned steps, …) gets one warning problem, `dimensions_not_ported`, on its
 ID: draftwright dimensions those kinds and the port does not yet, so this is a gap in the port,
 not in the part. Record types draftwright itself leaves undimensioned (freeform surfaces,
 thin-wall and sheet-metal bodies, …; `detect.py`'s unconsumed and orchestrated records) are not
@@ -377,6 +377,35 @@ reported, except an angled step: draftwright cannot dimension one, so it gets a 
 Problem is `p:angled_step_requirement_unsupported:<feature id>` (`src/dims/mod.rs`,
 `unsupported`), by the maintainer's decision of 2026-10-09 (stream d-angled-step-unsupported),
 until an angled step is dimensioned or the port has a completeness report.
+
+The Plan also carries `status` (`clear` or `needs_attention`) and `completeness`:
+`claimed_faces`, `faces` and `unplanned_features`. Face claims are the distinct valid
+face indices on Analysis features, measured against `binding.face_count`; they describe
+this Analysis's recognition inventory, not recognition recall. Ordinary stock faces can
+be unclaimed. An `unclaimed_geometry` warning names both counts and asks for review,
+without inventing missed features. A recognised feature with no drawn measurement is
+reported at warning; absorbed groove floors and bands, pattern members, dimensions
+carried by a hole table, and the existing deliberately undrafted record types retain
+their established dispositions. `unplanned_features` counts whole features, not each
+missing parameter; independent lint covers missing extents, band sizes and pattern
+locations/pitches.
+
+New analyses include optional `solid_count`. Several solids make these completeness
+findings informational, following Python's assembly coverage policy. Older analyses
+without the count are conservatively assessed at warning. `clear` means no assessed
+Plan problem needs attention (warning or error); it does not mean manufacturing readiness.
+The inspect summary additionally includes render problems in that status. Independent
+coverage lint still lives in `review.lint`, rather than being inferred from the Plan.
+
+`lint::check` now runs the envelope and turned-step ledgers as findings:
+`missing_principal_dimension`, `axial_length_missing`,
+`turned_step_requirement_missing` and `turned_step_requirement_unverifiable`.
+Pattern owners have `hole_pattern_requirement_missing` or
+`hole_pattern_requirement_unverifiable`, with each location axis or pitch named in
+`requirements`. These checks read Analysis geometry and printed drawing marks only.
+The ledger-to-finding extension is a deliberate Python difference, authorised for G1;
+its verdicts are in `tests/fixtures/known_lint.json` and
+`tests/fixtures/known_completeness.json`. No dimension planner changes for these checks.
 
 `placed` is the item's ink on the page (lines, arrowheads, the label's baseline origin, rotation
 and box); renderers draw it and the terms, and nothing else. Placement is simple: lanes outward

@@ -76,7 +76,8 @@ class RepeatedSpans(unittest.TestCase):
     def test_cli_can_enforce_zero_repeated_spans(self):
         metrics = {k: 0 for k in ('off_sheet', 'repeated_label', 'repeated_measure',
                                  'views_overlap', 'view_on_title_block', 'ink', 'repeated_span',
-                                 'line_through_feature', 'hidden_on_visible', 'section_hidden')}
+                                 'line_through_feature', 'hidden_on_visible', 'section_hidden',
+                                 'claimed_faces', 'faces', 'unplanned_features')}
         with tempfile.TemporaryDirectory() as out:
             baseline = pathlib.Path(out) / 'source.json'
             for repeated in (0, 1):
@@ -91,6 +92,7 @@ class RepeatedSpans(unittest.TestCase):
 class FeatureCrossings(unittest.TestCase):
     def test_counts_plan_feature_pairs_and_extension_lines(self):
         plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'views': [],
+                'completeness': {'claimed_faces': 0, 'faces': 0, 'unplanned_features': 0},
                 'problems': [{'code': 'leader_through_feature', 'subjects': ['d:a', 'f:b']},
                              {'code': 'leader_through_feature', 'subjects': ['d:a', 'f:c']},
                              {'code': 'extension_through_feature', 'id': 'p:d:e|f:b:line:0', 'subjects': ['d:e', 'f:b']},
@@ -168,6 +170,38 @@ class Linework(unittest.TestCase):
                                             str(baseline)], capture_output=True).returncode, 0)
 
 
+class Completeness(unittest.TestCase):
+    def test_quality_records_face_counts_and_unplanned_features(self):
+        plan = {'sheet': {'scale': '1:1'}, 'views': [], 'dimensions': [],
+                'completeness': {'claimed_faces': 3, 'faces': 52, 'unplanned_features': 7}}
+        replies = [subprocess.CompletedProcess([], 0, '{}', ''),
+                   subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'svg_linework', return_value={}):
+            _, result = quality.one('part.step', 'dw', out)
+        self.assertEqual(result['claimed_faces'], 3)
+        self.assertEqual(result['faces'], 52)
+        self.assertEqual(result['unplanned_features'], 7)
+
+    def test_missing_completeness_is_unavailable_instead_of_perfect(self):
+        plan = {'sheet': {'scale': '1:1'}, 'views': [], 'dimensions': []}
+        replies = [subprocess.CompletedProcess([], 0, '{}', ''),
+                   subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'svg_linework', return_value={}):
+            _, result = quality.one('part.step', 'dw', out)
+        self.assertIn('error', result)
+
+    def test_checker_rejects_less_coverage_more_unplanned_or_changed_denominator(self):
+        checker = Path(__file__).with_name('check_quality_table.py')
+        with tempfile.TemporaryDirectory() as out:
+            status, baseline = Path(out) / 'status.md', Path(out) / 'baseline.json'
+            status.write_text('part ink claimed_face faces unplanned_fe\np 0 3 52 7\nTOTAL 0 3 52 7\n')
+            for claimed, faces, unplanned, code in [(3,52,7,0),(4,52,6,0),(2,52,7,1),(3,52,8,1),(3,53,7,1)]:
+                baseline.write_text(json.dumps({'p': {'ink': 0, 'claimed_faces': claimed,
+                                                      'faces': faces, 'unplanned_features': unplanned}}))
+                result = subprocess.run([sys.executable, '-I', str(checker), str(status), str(baseline)], capture_output=True)
+                self.assertEqual(result.returncode, code, result.stderr.decode())
+
+
 class RandomPins(unittest.TestCase):
     def plan(self):
         return {'dimensions': [{'id': 'd:a/length', 'placed': {}, 'state': {'kind': 'shown'}},
@@ -202,6 +236,7 @@ class RandomPins(unittest.TestCase):
     def test_off_sheet_measurement_includes_pinned_views(self):
         plan = self.plan()
         plan['sheet'] = {'scale': '1:1'}
+        plan['completeness'] = {'claimed_faces': 0, 'faces': 0, 'unplanned_features': 0}
         plan['dimensions'] = []
         render = {'problems': [
             {'code': 'annotation_off_sheet', 'subjects': ['d:a/length']},

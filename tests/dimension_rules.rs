@@ -69,7 +69,7 @@ fn numbers_print_as_draftwright_prints_them() {
         (4.45, "4.5"),
         (72.39, "72.4"),
         (-0.0, "0"),
-        (-0.04, "-0.0"),
+        (-0.04, "0.0"),
         (276.25, "276.2"),
         (247.649_999_999_9, "247.7"),
         (5.000_000_1, "5"),
@@ -528,7 +528,7 @@ fn features_with_no_ported_dimensions_are_reported() {
             .iter()
             .filter(|p| p.code == "dimensions_not_ported")
             .map(|p| {
-                assert_eq!(p.severity, "info");
+                assert_eq!(p.severity, "warning");
                 assert_eq!(p.id, format!("p:dimensions_not_ported:{}", p.subjects[0]));
                 p.subjects.concat()
             })

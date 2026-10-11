@@ -331,7 +331,8 @@ pub fn fmt(v: f64) -> String {
     if (v - r).abs() < 1e-6 {
         format!("{}", if r == 0.0 { 0 } else { r as i64 })
     } else {
-        format!("{v:.1}")
+        let text = format!("{v:.1}");
+        if text == "-0.0" { "0.0".into() } else { text }
     }
 }
 
@@ -515,7 +516,7 @@ fn wants(
 /// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
 /// #1557). Leaving them undimensioned is no gap in the port, so they are not reported as one. An
 /// angled step (#1247) has no grammar either, but is reported as unsupported ([`unsupported`]).
-const UNDRAFTED: [&str; 10] = [
+pub(crate) const UNDRAFTED: [&str; 10] = [
     "CircularFacePattern",
     "CounterSink",
     "FreeformSurface",

@@ -3264,3 +3264,86 @@ and `target/s2-fix-*`. No commit or push was made.
   S2's test table has no `ink`). Columns absent from the baseline are skipped.
 - S1's mocked crossing test in `tools/test_quality.py` writes an empty `part.svg`
   so S2's SVG metric can read it; the assertion is unchanged.
+
+
+## Stage G1: honest completeness and muted lint ledgers (2026-10-11)
+
+Overturnable unattended judgement calls:
+
+- Keep the requested `clear` / `needs_attention` JSON vocabulary. Clear is bounded to
+  assessed Plan/render problems; independent finished-drawing lint remains in review.
+  Info-only multi-solid coverage does not change that status. This is not manufacturing
+  readiness and does not certify recognition recall.
+- Face claims are the union of Analysis feature faces, not all source recogniser
+  candidates or evidence records. This makes the bound reproducible even for old Analysis
+  documents. Stock/background faces are counted and may be unclaimed: warn for review,
+  never call each face a missed feature. Unknown solid count in an older Analysis warns;
+  new analyses record the actual solid count without a schema bump (optional field).
+- Unplanned features are whole recognised features without drawn measurement evidence,
+  including fully authored omissions. A partly dimensioned feature is not counted again
+  per missing parameter; independent lint assesses the parameters. Preserve the existing
+  undrafted-record exclusions and proven pattern/groove absorption. This count is not an
+  audited physical-requirement score. Four quality components/scoring and an independent
+  expected-feature denominator remain outside G1's authorised scope.
+- Extend Python's envelope/turned completeness ledgers into lint findings as explicitly
+  requested. Use `missing_principal_dimension` for overall axes, `axial_length_missing`
+  for missing band lengths, and typed missing/unverifiable codes for band diameters.
+  Multi-solid findings are info; single-solid missing/unverifiable requirements warn.
+- Give patterns their own `hole_pattern_requirement_*` code family: subjects are pattern
+  owners, requirements name exact parameters, related IDs list member holes. They are not
+  machining-size groups. A fully proven axis-aligned grid uses its physical centre;
+  other arrays need a physical member anchor. Zero datum distances need no ordinate.
+  Printed text must state the value; a claim alone is insufficient. Off-axis patterns are not assessed by this additional ledger; a principal-axis
+  declared grid whose physical lattice cannot be proved has unverifiable spacing.
+- Keep negative rounded zero as `0.0`, preserving the existing noninteger precision and
+  matching the reference's explicit-decimal suppression of a minus sign, while exact zero still prints `0`.
+
+No planners gain dimensions, no rule YAML changes, no task conditions change, no commit
+or push. Findings and table completeness expose work owed to G2/G3 rather than masking it.
+
+
+G1 assessment correction: GRM-03's default sheet proves its 23.5 mm axial
+extent with a contiguous 0.5 + 2 + 3 + 18 mm band chain. It does not owe a second
+label under the existing ledger. The controlled omission script breaks the chain
+and then correctly reports `missing_principal_dimension`; this judgement is
+recorded in `tests/fixtures/known_completeness.json` with visual evidence.
+
+Historical tests keep their original geometry oracles. The migration plate gains
+a separate literal reporting fixture; annotation-clearing lint tests additionally
+expect the envelope and pattern statements they explicitly removed. Default
+feature-free stock now expects its exact unclaimed warning rather than silence.
+Slot-array measurement ownership credits its physical member slots, preventing
+false whole-feature gaps. The old fixture geometry is unchanged.
+
+Spool132 (captured corpus recognition) newly reports six numerical centre-location
+requirements for its three bolt circles. By eye it looks concentric with the
+turned stock and its PCDs are stated. No certified pattern-centreline carrier is
+available in the mark inventory; the typed missing-location findings warn, while
+the draftsman verdict is **undetermined**, not six independent machining defects.
+This is recorded in known_lint.json / known_completeness.json `not_done`. A proved
+concentricity/centreline carrier is follow-up work for G2/G3; do not silence real
+pattern omissions to remove this uncertainty.
+
+Final-suite transport transient: one required full run failed the unchanged
+`streamable_http_and_stdio_publish_the_same_tools_and_obey_transport_rules` on
+`read_to_end` with OS 54 / ConnectionReset; its other seven stateless tests
+passed. The isolated transport recheck and an unchanged full stateless group
+then passed (1/1 and 8/8). The existing server can reject a header before draining
+its declared request body, a plausible timing cause; this is an inference, not
+a proved diagnosis. G1 changes no transport code or assertions. Preserve this
+case for follow-up; the required full suite is repeated on the same source.
+
+
+G1 final checks complete on the unchanged source: fmt, strict release clippy,
+required corpus release tests **673/673 (72 groups, none ignored)**, release
+build, **30 parts / 300 Stage F and 390 extended quality cells no worse**,
+random-pin grid **270/270 GO** with `--require-go`, unchanged scripted MCP
+**7/7 (16 calls)**, Python **23/23**, Node **8/8**, **12 MCP tools / 24 schemas**.
+All nine new Rust and three new Python regressions failed on the original
+implementation. Final default/omission SVGs and 2400-pixel PNGs are byte-identical
+to the inspected inputs. Final binary SHA-256 `77438e8f7c98521423a6979c982bbbae8d6d70424e4545e45ce4f966daf2f743`.
+The earlier transport ConnectionReset passed isolated and complete-group
+rechecks and the repeated required full suite; its cause remains an inference.
+No test was weakened, no planner gained dimensions, no catalogue/task JSON
+changed, no commit or push. Final counts and limitations are in the G1 status
+entry and known_completeness.json `not_done`; G2/G3 still own the dimensions owed.
