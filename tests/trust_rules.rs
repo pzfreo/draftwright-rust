@@ -650,8 +650,38 @@ fn annotations_carry_their_plan_items_provenance() {
             .iter()
             .filter(|d| d.placed.is_some())
             .collect();
-        assert_eq!(drawing.annotations.len(), placed.len(), "{name}");
-        for (a, d) in drawing.annotations.iter().zip(&placed) {
+        let notes: Vec<_> = plan
+            .notes
+            .iter()
+            .filter(|n| n.placed.is_some() && !n.measurements.is_empty())
+            .collect();
+        assert_eq!(
+            drawing.annotations.len(),
+            placed.len() + notes.len(),
+            "{name}"
+        );
+        for n in notes {
+            let a = drawing.annotations.iter().find(|a| a.name == n.id).unwrap();
+            assert!(a.claims.is_empty());
+            assert_eq!(a.runs.len(), n.rows.len());
+            let satisfies: Vec<_> = a
+                .satisfies
+                .iter()
+                .map(|c| (&c.feature, &c.parameter))
+                .collect();
+            let expected: Vec<_> = n
+                .measurements
+                .iter()
+                .map(|m| (&m.feature, &m.parameter))
+                .collect();
+            assert_eq!(satisfies, expected, "{name}: {}", n.id);
+        }
+        for (a, d) in drawing
+            .annotations
+            .iter()
+            .filter(|a| a.satisfies.is_empty())
+            .zip(&placed)
+        {
             assert_eq!(a.name, d.id, "{name}");
             assert_eq!(a.view.as_deref(), Some(d.view.as_str()), "{name}");
             let claims: Vec<(&str, &str)> = a

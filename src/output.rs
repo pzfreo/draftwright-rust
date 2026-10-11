@@ -353,6 +353,9 @@ pub struct Annotation {
     /// Its label's runs, as indices into [`Drawing::text`].
     pub runs: Vec<usize>,
     pub claims: Vec<Claim>,
+    /// Explicit structured-note authority; prose is never parsed to infer these identities.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub satisfies: Vec<Claim>,
 }
 
 /// What a thing drawn on the sheet is, to lint's sheet checks.

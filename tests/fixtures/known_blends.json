@@ -1,0 +1,26 @@
+[
+  {
+    "rule": "ISSUE-1433-a / ARCH0015-1",
+    "difference": "Dense blends use a general radius note for the most frequent displayed radius, with explicit exception leaders or located notes.",
+    "verdict": "rust-correct",
+    "reason": "The stream explicitly requests general notes instead of large counted radius leaders. Python origin/main annotations/_edge_callouts.py::radius_jobs still prints n× R for every displayed-radius group. CGB245 has 82 blends of four radii (R2:32, R3:33, R4:10, R5:7); one R3 default note retains 33 exact identities without claiming that the other 49 blends are R3. CTC-01 has 18 of its 31 blends at R10. The small string_post group keeps 2× R0.2. tests/dims_blends.rs checks the default, exact rendered coverage, deterministic output and loss of occurrence credit on omission. Four parts with unsupported exceptions use a scoped equal-radius note and explicit OTHER BLEND RADII UNSTATED, avoiding a blanket default that would visually assign the wrong radius. Hiding an exception scopes the surviving note as well; exact missing coverage remains."
+  },
+  {
+    "rule": "ISSUE-1450-a",
+    "difference": "Same-face ownership replaces only the boss diameter; its independently required height survives.",
+    "verdict": "rust-correct",
+    "reason": "Python origin/main recognition_ownership.py::boss_blend_owner_pairs absorbs the entire boss only when an emitted envelope carries its length. Rust's shared lint::bosses::boss_owner proves a unique nonempty exact face match, matching principal axis and diameter within 0.15 mm of twice the blend radius. The radius replaces the duplicate diameter, while existing boss-height planning and consolidation retain or cover its length. tests/dims_blends.rs checks both full-span and shorter bosses, equal unrelated bosses and absent face evidence."
+  },
+  {
+    "rule": "ISSUE-1351-a / LINT-_registry-structured_note_satisfaction",
+    "difference": "Automatic blend notes carry Annotation.satisfies identities rather than Python registry handles; authored prose carries none.",
+    "verdict": "equivalent",
+    "reason": "Python linting/_registry.py accepts explicit exact feature/parameter satisfaction only from placed notes. Rust render emits satisfies only for drawn automatic notes, and lint credits their exact blend.radius identities without parsing prose. Missing source values stay unverifiable. Tests hide and move the stable note ID, omit its carrying view, remove one identity, duplicate the remaining authority and add identical unstructured prose; an unrelated or unstated occurrence never borrows credit. This ports blend-note authority, not the general authored per-feature note API or synthetic hole count/THRU roles."
+  },
+  {
+    "rule": "G3 clutter-free exception fallback",
+    "difference": "A crossing free radius leader becomes a compact located note with the equal-radius group's count and one representative reference surface point.",
+    "verdict": "undetermined",
+    "reason": "Python origin/main annotations/_edge_callouts.py::radius_jobs uses only leader jobs and reports unsafe physical selection rather than this located-note fallback. Rust uses the same exact trimmed-face authority to sample surface points, keeps each occurrence's structured claim, and prints reference X/Y/Z offsets from the envelope's left/front/bottom faces. The general note applies only to the most frequent group; other radii are explicitly stated. Notes use 3 mm IBM Plex Mono on 5 mm rows and actual view/annotation obstacles, without repacking existing views. Quality gates reject any worse cell, and sheets are raster-reviewed. Whether representative point notes are the preferred manufacturing presentation for dense exceptions is an overturnable judgement; a future detail-view or interior-radius leader design could replace them. Explicit author placements and tolerances stay explicit rather than being converted."
+  }
+]

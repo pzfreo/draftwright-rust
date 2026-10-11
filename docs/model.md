@@ -973,3 +973,35 @@ successful `open` replaces the connection's part/history; a failed one preserves
 correlation ID. The original six operations and protocol/reply shapes are unchanged, and may
 be interleaved with session requests. `api::call` remains stateless; `api::Service::call` owns
 the connection state. Editor integration and MCP adapters belong to S5 and S7.
+
+### Blend radius notes (G3)
+
+The Analysis optionally carries `blend_sites`, exact trimmed-cylinder/torus points in the part
+frame, indexed by blend feature ID. Recognition derives them from the defining faces and checks
+the rolling radius; the rolling path itself is not a leader attachment. Older version-7 analyses
+read with no sites and cannot supply a new blend leader without that evidence.
+
+Blends with equal displayed radii share exact occurrence credit. Fewer than five recognised
+blends use compact `R` / `n× R` leaders. On a denser part, its most frequent repeated radius is
+one `ALL UNSPECIFIED BLEND RADII R…` note; all other radii remain explicit exceptions.
+If an exception is refused or omitted, the note states its exact group count and
+`OTHER BLEND RADII UNSTATED` instead. A blanket default is never drawn with an undrawn exception. A free
+exception leader that crosses ink or features becomes a located structured note, identifying
+the group by a representative surface point. Its `XYZ` coordinates are reference offsets from
+the model envelope's left/front/bottom faces, explained by the block's reference legend. The
+original dimension stays `covered` by the note. Explicit dimension placements and tolerances
+remain author choices and are reported when they collide.
+
+Automatic notes have stable IDs `n:f:blend:<id>/blend.radius` and accept
+`annotations/<escaped-id>/{omit,place}`. Session/MCP item answers expose the claimed features
+and the edit paths. Automatic radius-only blocks use the existing 3 mm font on compact 5 mm
+rows, clear of actual view outlines and placed annotation ink; authored/PMI notes keep the
+existing ruled table, with a separate optional `radius_notes_block` for automatic radii when
+both are present. An omitted or unplaced note grants no radius credit. The rendered
+annotation's `satisfies` list identifies the exact feature/parameter requirements; note prose
+is never parsed to infer authority. General authored notes still carry no satisfaction claims.
+
+Same-face boss/blend precedence uses one shared predicate for planning and lint. A uniquely
+proven blend radius replaces that face's duplicate boss diameter; the independent boss height
+remains required. Missing or ambiguous face evidence never deduplicates by scalar equality.
+The differences and verdicts are recorded in `tests/fixtures/known_blends.json`.

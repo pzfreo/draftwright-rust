@@ -48,6 +48,9 @@ pub struct NoteSpec {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlannedNote {
+    /// Exact requirements carried by an automatic note, never inferred from its prose.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub measurements: Vec<crate::dims::Measurement>,
     pub id: String,
     /// The note as the spec gives it, without surrounding whitespace.
     pub text: String,
@@ -79,12 +82,22 @@ pub struct PlacedNote {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NotesBlock {
+    /// Authored notes use a ruled table; automatic radius notes form a compact plain block.
+    #[serde(default = "ruled_default", skip_serializing_if = "is_ruled")]
+    pub ruled: bool,
     pub title: String,
     /// The heading's ink centre.
     pub title_at: [f64; 2],
     /// The whole table, `[x0, y0, x1, y1]`, a row of [`ROW`] per heading and note row.
     #[serde(rename = "box")]
     pub cells: [f64; 4],
+}
+
+fn ruled_default() -> bool {
+    true
+}
+fn is_ruled(ruled: &bool) -> bool {
+    *ruled
 }
 
 /// A note's ID is `n:` and a whole number from 1, written without leading zeros.
@@ -234,11 +247,23 @@ fn table(notes: &[NoteSpec]) -> (Vec<String>, Vec<Vec<String>>) {
     let per: Vec<Vec<String>> = notes
         .iter()
         .enumerate()
-        .map(|(i, n)| rows(i + 1, &n.text))
+        .map(|(i, n)| note_rows(n, i + 1))
         .collect();
     let mut all = vec![TITLE.to_string()];
     all.extend(per.iter().flatten().cloned());
     (all, per)
+}
+
+fn note_rows(note: &NoteSpec, number: usize) -> Vec<String> {
+    if note.id == "n:blend-sites/reference" {
+        // A coordinate legend is furniture, not a numbered manufacturing requirement.
+        wrap(&note.text)
+            .into_iter()
+            .map(|row| format!("   {row}"))
+            .collect()
+    } else {
+        rows(number, &note.text)
+    }
 }
 
 /// The block's width (its widest row's ink, the rows aligned on their pens, and the padding
@@ -273,6 +298,18 @@ pub fn plan(
     views: &[PlannedView],
     dims: &[PlannedDimension],
 ) -> Planned {
+    plan_with_rows(notes, analysis, sheet, views, dims, ROW, true)
+}
+
+fn plan_with_rows(
+    notes: &[NoteSpec],
+    analysis: &Analysis,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    dims: &[PlannedDimension],
+    row_height: f64,
+    ruled: bool,
+) -> Planned {
     if notes.is_empty() {
         return (Vec::new(), None, Vec::new());
     }
@@ -282,7 +319,7 @@ pub fn plan(
     };
     let (all, per) = table(notes);
     let (w, pen) = width(&all);
-    let h = ROW * all.len() as f64;
+    let h = row_height * all.len() as f64;
     let at = tables::place(
         [w, h],
         sheet,
@@ -293,11 +330,12 @@ pub fn plan(
     let font = crate::dims::font();
     let centre = |x0: f64, top: f64, i: usize, row: &str| {
         let laid = font.baseline(&ink(row), TEXT);
-        let mid = top - (i as f64 + 0.5) * ROW;
+        let mid = top - (i as f64 + 0.5) * row_height;
         [x0 + pen + 0.5 * (laid.min[0] + laid.max[0]), mid]
     };
     let mut problems = Vec::new();
     let block = at.map(|[x0, y0]| NotesBlock {
+        ruled,
         title: TITLE.into(),
         title_at: centre(x0, y0 + h, 0, TITLE),
         cells: [x0, y0, x0 + w, y0 + h],
@@ -330,9 +368,9 @@ pub fn plan(
                         .collect(),
                     cells: [
                         x0,
-                        top - (first + rows.len()) as f64 * ROW,
+                        top - (first + rows.len()) as f64 * row_height,
                         x0 + w,
-                        top - first as f64 * ROW,
+                        top - first as f64 * row_height,
                     ],
                 }
             });
@@ -344,6 +382,7 @@ pub fn plan(
                     .map_or_else(|| n.id.clone(), str::to_string)
             });
             PlannedNote {
+                measurements: Vec::new(),
                 id: n.id.clone(),
                 text: n.text.trim().into(),
                 number: i + 1,
@@ -370,6 +409,9 @@ pub fn plan(
 
 /// The block's rules: its outline and a line under each row, as `_build_table` rules a table.
 pub fn rules(block: &NotesBlock) -> Vec<[[f64; 2]; 2]> {
+    if !block.ruled {
+        return Vec::new();
+    }
     let [x0, _, x1, _] = block.cells;
     tables::ruling(block.cells, &[x0, x1])
 }
@@ -388,4 +430,183 @@ pub fn texts<'a>(block: &'a NotesBlock, notes: &'a [PlannedNote]) -> Vec<(&'a st
         }
     }
     out
+}
+
+/// Attach the automatic radius note's exact identities, retaining omitted notes as editable
+/// items. Explicit placement detaches its rows from the block and anchors them to a view.
+pub(crate) fn radius_notes(
+    notes: &mut Vec<PlannedNote>,
+    generated: &[(NoteSpec, Vec<crate::dims::Measurement>)],
+    spec: &crate::model::Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+) -> Vec<Problem> {
+    use crate::placement_intent::Side;
+    let mut problems = Vec::new();
+    for (given, measurements) in generated {
+        let index = notes
+            .iter()
+            .position(|n| n.id == given.id)
+            .unwrap_or_else(|| {
+                notes.push(PlannedNote {
+                    id: given.id.clone(),
+                    text: given.text.clone(),
+                    number: notes.len() + 1,
+                    rows: note_rows(given, notes.len() + 1),
+                    default: true,
+                    basis: String::new(),
+                    state: State::OmittedByUser,
+                    placed: None,
+                    measurements: Vec::new(),
+                });
+                notes.len() - 1
+            });
+        let n = &mut notes[index];
+        n.measurements = measurements.clone();
+        n.default = !spec.annotations.contains_key(&n.id);
+        n.basis = if n.text.contains("OTHER BLEND RADII UNSTATED") {
+            "this note states only its exact equal-radius group; no blanket default is asserted because another blend radius has no proven principal-view attachment"
+        } else if n.text.starts_with("ALL UNSPECIFIED") {
+            "the most frequent equal blend radius is stated once in a general note; other radii have explicit callouts or located notes, and each occurrence retains its exact measurement identity"
+        } else {
+            "a crossing radius leader is replaced by a structured note with a representative reference surface point for the equal-radius group, measured from the envelope's left/front/bottom faces"
+        }.into();
+        let entry = spec.annotations.get(&n.id);
+        if spec.dimension_source == crate::model::DimensionSource::Authored && entry.is_none() {
+            n.placed = None;
+            n.state = State::NotAuthored;
+            continue;
+        }
+        if entry.is_some_and(|e| e.omit) {
+            n.placed = None;
+            n.state = State::OmittedByUser;
+            continue;
+        }
+        let Some(place) = entry
+            .and_then(|e| e.place.as_ref())
+            .filter(|p| p.side.is_some() || p.lane.is_some() || p.along.is_some())
+        else {
+            continue;
+        };
+        let view_name = place.view.as_deref().unwrap_or("front");
+        let Some(v) = views.iter().find(|v| v.id == format!("v:{view_name}")) else {
+            n.placed = None;
+            n.state = State::NotDrawable {
+                reason_code: "notes_not_placed".into(),
+            };
+            problems.push(Problem {
+                id: format!("p:notes_not_placed:{}", n.id),
+                code: "notes_not_placed".into(),
+                severity: "error".into(),
+                message: format!(
+                    "{} cannot be placed relative to the omitted {view_name} view.",
+                    n.id
+                ),
+                subjects: vec![n.id.clone()],
+                ..Default::default()
+            });
+            continue;
+        };
+        let (w, pen) = width(&n.rows);
+        let h = ROW * n.rows.len() as f64;
+        let [x0, y0, x1, y1] = v.area;
+        let t = place.along.map_or(0.5, |a| a.fraction());
+        let gap = 6.0 + ROW * place.lane.unwrap_or(0) as f64;
+        let at = match place.side.unwrap_or(Side::Above) {
+            Side::Above => [x0 + t * (x1 - x0) - w / 2.0, y1 + gap],
+            Side::Below => [x0 + t * (x1 - x0) - w / 2.0, y0 - gap - h],
+            Side::Left => [x0 - gap - w, y0 + t * (y1 - y0) - h / 2.0],
+            Side::Right => [x1 + gap, y0 + t * (y1 - y0) - h / 2.0],
+        };
+        let [x, y] = at;
+        n.placed = Some(PlacedNote {
+            rows_at: n
+                .rows
+                .iter()
+                .enumerate()
+                .map(|(i, row)| {
+                    let laid = crate::dims::font().baseline(&ink(row), TEXT);
+                    [
+                        x + pen + 0.5 * (laid.min[0] + laid.max[0]),
+                        y + h - (i as f64 + 0.5) * ROW,
+                    ]
+                })
+                .collect(),
+            cells: [x, y, x + w, y + h],
+        });
+        n.state = State::Shown;
+        // Explicit placements remain visible, with impossible requests reported on their ID.
+        let cells = n.placed.as_ref().unwrap().cells;
+        if cells[0] < 0.0 || cells[1] < 0.0 || cells[2] > sheet.page[0] || cells[3] > sheet.page[1]
+        {
+            problems.push(Problem {
+                id: format!("p:annotation_off_sheet:{}", n.id),
+                code: "annotation_off_sheet".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "{} lies outside the sheet at its requested placement.",
+                    n.id
+                ),
+                subjects: vec![n.id.clone()],
+                ..Default::default()
+            });
+        }
+    }
+    problems
+}
+
+/// Automatic radius notes use the actual view outlines and placed annotation ink, so a free
+/// area of a reserved band remains usable without moving the established drawing.
+pub(crate) fn plan_radii(
+    notes: &[NoteSpec],
+    analysis: &Analysis,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    dims: &[PlannedDimension],
+    authored: Option<&NotesBlock>,
+) -> Planned {
+    let mut actual = views.to_vec();
+    for v in actual
+        .iter_mut()
+        .filter(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()))
+    {
+        let view =
+            crate::haecceity::hlr::View::new(v.direction, v.up).expect("planned principal view");
+        let (size, _) = crate::model::extent(analysis, &view);
+        v.area = [
+            v.at[0] - 0.5 * v.scale * size[0],
+            v.at[1] - 0.5 * v.scale * size[1],
+            v.at[0] + 0.5 * v.scale * size[0],
+            v.at[1] + 0.5 * v.scale * size[1],
+        ];
+    }
+    let mut ink = dims.to_vec();
+    if let Some(block) = authored {
+        ink.push(proxy(block));
+    }
+    plan_with_rows(notes, analysis, sheet, &actual, &ink, TEXT + 2.0, false)
+}
+
+/// A notes block is an obstacle to blocks placed after it, just as a table is.
+pub(crate) fn proxy(block: &NotesBlock) -> PlannedDimension {
+    PlannedDimension {
+        id: "notes".into(),
+        kind: "notes".into(),
+        view: String::new(),
+        value: 0.0,
+        label: String::new(),
+        terms: Vec::new(),
+        measurements: Vec::new(),
+        default: true,
+        from_spec: Vec::new(),
+        basis: String::new(),
+        state: State::Shown,
+        placed: Some(crate::dims::Placed {
+            lines: Vec::new(),
+            arrows: Vec::new(),
+            label_at: [block.cells[0], block.cells[1]],
+            rotation: 0.0,
+            label_box: block.cells,
+        }),
+    }
 }

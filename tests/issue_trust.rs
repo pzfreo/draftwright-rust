@@ -457,7 +457,8 @@ fn a_claim_is_credited_only_when_its_text_states_the_value() {
 }
 
 /// ISSUE-1217-b: every number the drawing prints about the part is claimed. Each annotation
-/// whose label prints a digit claims the measurements it states, and every other text run with
+/// whose label prints a digit claims the measurements it states (a structured radius note
+/// carries exact satisfaction identities), and every other text run with
 /// a digit is the title block's (the drawing number and the scale), not a fact about the part.
 #[test]
 fn every_number_on_the_sheet_carries_a_claim() {
@@ -487,7 +488,26 @@ fn every_number_on_the_sheet_carries_a_claim() {
                 .map(|&i| drawing.text[i].text.as_str())
                 .collect();
             if text.chars().any(|c| c.is_ascii_digit()) {
-                assert!(!a.claims.is_empty(), "{name}: {} prints {text:?}", a.name);
+                assert!(
+                    !a.claims.is_empty() || !a.satisfies.is_empty(),
+                    "{name}: {} prints {text:?}",
+                    a.name
+                );
+                for c in &a.satisfies {
+                    assert_eq!(c.parameter, "blend.radius");
+                    assert!(
+                        analysis.features.iter().any(|f| {
+                            f.id == c.feature
+                                && f.kind == "blend"
+                                && f.parameters
+                                    .get("radius")
+                                    .and_then(|r| r.as_f64())
+                                    .is_some()
+                        }),
+                        "{name}: {} carries an unknown radius identity",
+                        a.name
+                    );
+                }
             }
         }
         let [x0, y0, x1, y1] = plan.sheet.title_block;
@@ -759,7 +779,7 @@ const UNDRAFTED: [&str; 10] = [
 ];
 
 /// ISSUE-1392-a, in part: no recognised feature goes missing from the drawing without a trace.
-/// Every feature of the Analysis is stated by a planned dimension (a pattern's for its member
+/// Every feature of the Analysis is stated by a planned dimension or drawn structured note (a pattern's for its member
 /// holes, a groove's for the boss that is its floor and the turned band it owns) or is the
 /// subject of a problem, unless it is of a kind draftwright itself leaves undimensioned.
 #[test]
@@ -770,6 +790,12 @@ fn every_recognised_feature_is_dimensioned_or_reported() {
             .dimensions
             .iter()
             .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
+            .chain(
+                plan.notes
+                    .iter()
+                    .filter(|n| n.placed.is_some())
+                    .flat_map(|n| n.measurements.iter().map(|m| m.feature.as_str())),
+            )
             .chain(
                 plan.problems
                     .iter()

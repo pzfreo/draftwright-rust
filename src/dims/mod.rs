@@ -51,6 +51,7 @@
 //! [`placement`] places it. A new family is a new planner module and an entry in the list.
 
 pub mod angular;
+pub(crate) mod blends;
 mod bosses;
 mod edges;
 mod envelope;
@@ -462,6 +463,7 @@ const PLANNERS: [Planner; 13] = [
     slots::PLANNER,
     bosses::PLANNER,
     edges::PLANNER,
+    blends::PLANNER,
     grooves::PLANNER,
     flats::PLANNER,
     steps::PLANNER,
@@ -678,6 +680,12 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
         .collect();
     plates::prefer_readable(analysis, &mut wants, &frames, None);
     let (chosen, _) = route(&mut wants, &frames, analysis);
+    let wants: Vec<_> = wants
+        .into_iter()
+        .zip(chosen)
+        .filter(|(w, _)| !w.measurements.iter().any(|m| m.parameter == "blend.radius"))
+        .collect();
+    let (mut wants, chosen): (Vec<_>, Vec<_>) = wants.into_iter().unzip();
     let plate = |w: &Want| {
         w.measurements
             .iter()
@@ -1062,14 +1070,22 @@ pub(crate) fn plan_with_obstacles(
     );
     placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
     angular::place(&frames, &all, &chosen, &mut placed, &page);
-    let leader_problems = if obstacles.is_empty() {
+    // Radius exceptions are placed around the existing drawing ink. Their addition must not
+    // reroute unrelated approved callouts into clutter.
+    let mut prior = chosen.clone();
+    for (i, w) in all.iter().enumerate() {
+        if w.measurements.iter().any(|m| m.parameter == "blend.radius") {
+            prior[i] = None;
+        }
+    }
+    let mut leader_problems = if obstacles.is_empty() {
         leaders::place(
             analysis,
             cache,
             views,
             &frames,
             &all,
-            &chosen,
+            &prior,
             &sides,
             &mut placed,
             &page,
@@ -1081,13 +1097,27 @@ pub(crate) fn plan_with_obstacles(
             views,
             &frames,
             &all,
-            &chosen,
+            &prior,
             &sides,
             &mut placed,
             &page,
             obstacles,
         )
     };
+    if prior != chosen {
+        leader_problems.extend(leaders::place_with_obstacles(
+            analysis,
+            cache,
+            views,
+            &frames,
+            &all,
+            &chosen,
+            &sides,
+            &mut placed,
+            &page,
+            obstacles,
+        ));
+    }
     placement::place_merged(
         &frames,
         &all,
@@ -1574,6 +1604,7 @@ pub fn render(
             v_align: VAlign::Baseline,
         });
         annotations.push(Annotation {
+            satisfies: Vec::new(),
             name: d.id.clone(),
             view: Some(d.view.clone()),
             runs: (first..text.len()).collect(),

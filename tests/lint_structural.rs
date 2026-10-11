@@ -685,9 +685,34 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
                     );
                     assert_eq!(
                         kinds.iter().filter(|k| **k == Kind::Dimension).count(),
-                        drawing.annotations.len(),
+                        drawing
+                            .annotations
+                            .iter()
+                            .filter(|a| a.satisfies.is_empty())
+                            .count(),
                         "{name}: every annotation drawn is measured"
                     );
+                    for a in drawing
+                        .annotations
+                        .iter()
+                        .filter(|a| !a.satisfies.is_empty())
+                    {
+                        assert!(!a.runs.is_empty(), "{name}: {} has no drawn note", a.name);
+                        for &run in &a.runs {
+                            let [x, y] = drawing.text[run].at;
+                            assert!(
+                                drawing.sheet.items.iter().any(|d| {
+                                    d.kind == Kind::Notes
+                                        && d.ink[0] <= x
+                                        && x <= d.ink[2]
+                                        && d.ink[1] <= y
+                                        && y <= d.ink[3]
+                                }),
+                                "{name}: {} is outside measured note ink",
+                                a.name
+                            );
+                        }
+                    }
                     assert_eq!(drawing.sheet.views.len(), plan.views.len(), "{name}");
                     for v in &drawing.sheet.views {
                         assert!(!v.edges.is_empty(), "{name}: {} records its edges", v.name);
@@ -1151,6 +1176,7 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
         };
         if !i.label.is_empty() {
             annotations.push(draftwright::output::Annotation {
+                satisfies: Vec::new(),
                 name: item_name.clone(),
                 view: None,
                 runs: vec![text.len()],

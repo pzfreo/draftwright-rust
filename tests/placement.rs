@@ -549,6 +549,16 @@ fn a_merge_the_spec_breaks_draws_both_in_their_own_lanes() {
             .flat_map(|o| conveyed_owners(&o.basis))
             .collect();
         for survivor in survivors {
+            if let Some(note) = full.notes.iter().find(|n| n.id == survivor) {
+                assert!(note.placed.is_some());
+                let covered: Vec<_> = full.omitted.iter().filter(|d| {
+                    matches!(&d.state, draftwright::items::State::Covered { by } if by == survivor)
+                }).collect();
+                assert!(!covered.is_empty());
+                assert!(!note.measurements.is_empty());
+                // A note is not a linear merge whose tolerance separates two dimension lanes.
+                continue;
+            }
             let mut spec = Spec::default();
             spec.dimensions.insert(
                 survivor.to_string(),

@@ -1223,6 +1223,7 @@ pub fn render(
         });
     }
     Some(Annotation {
+        satisfies: Vec::new(),
         name: g.id.clone(),
         view: Some(g.view.clone()),
         runs: (first..text.len()).collect(),

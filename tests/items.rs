@@ -220,8 +220,12 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
                 o.id
             ),
             State::Covered { by } => assert!(
-                plan.dimensions.iter().any(|d| d.id == *by),
-                "{what}: {} is covered by {by}, no planned dimension",
+                plan.dimensions.iter().any(|d| d.id == *by)
+                    || plan
+                        .notes
+                        .iter()
+                        .any(|n| n.id == *by && !n.measurements.is_empty()),
+                "{what}: {} is covered by {by}, no planned dimension or structured note",
                 o.id
             ),
             s => panic!("{what}: {} is omitted as {s:?}", o.id),

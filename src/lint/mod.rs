@@ -179,7 +179,29 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 
 /// Every ported rule's findings on *drawing*, a drawing of the part *analysis* describes.
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
+    let satisfied: std::collections::BTreeSet<_> = drawing
+        .annotations
+        .iter()
+        .filter(|a| {
+            a.runs.iter().any(|&i| {
+                drawing
+                    .text
+                    .get(i)
+                    .is_some_and(|r| !r.text.trim().is_empty())
+            })
+        })
+        .flat_map(|a| a.satisfies.iter().map(|c| (&c.feature, &c.parameter)))
+        .collect();
     check(analysis, &marks(drawing))
+        .into_iter()
+        .filter(|i| {
+            i.code != "blend_requirement_missing"
+                || !i
+                    .requirements
+                    .iter()
+                    .all(|r| satisfied.contains(&(&r.feature, &r.parameter)))
+        })
+        .collect()
 }
 
 /// Every ported rule's findings on a drawing whose annotations are *marks*.

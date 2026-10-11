@@ -227,7 +227,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut bosses = Vec::new();
     for f in &analysis.features {
         let read = match f.kind.as_str() {
-            "boss" if groove_floor(analysis, f) || turned_band(analysis, f) => continue,
+            "boss" if groove_floor(analysis, f) || turned_band(analysis, f) => {
+                continue;
+            }
             "boss" => read(f, &cx.frame),
             "polygonal_boss" => read_polygon(f, &cx.frame),
             _ => continue,
@@ -258,24 +260,26 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut order = Vec::new();
     let mut located: BTreeMap<(&'static str, usize, i64), Vec<usize>> = BTreeMap::new();
     for (i, b) in bosses.iter().enumerate() {
-        if on_turning(b) {
-            let Section::Round(diameter) = b.section else {
-                unreachable!("a band of the profile is round")
-            };
-            let r = 0.5 * diameter;
-            let views = profile_views(b.axis);
-            let j = (0..3)
-                .find(|&j| j != b.axis && profile_views(j).contains(&views[0]))
-                .expect("a profile view shows a radial axis");
-            let at = match b.base {
-                Some(base) => scale3(add(base, b.top), 0.5),
-                None => b.top,
-            };
-            let mut a = at;
-            let mut c = at;
-            a[j] -= r;
-            c[j] += r;
-            out.push(Want {
+        // The blend's radius owns this same circle; its independent height is still stated.
+        if crate::lint::bosses::boss_owner(analysis, b.feature).is_none() {
+            if on_turning(b) {
+                let Section::Round(diameter) = b.section else {
+                    unreachable!("a band of the profile is round")
+                };
+                let r = 0.5 * diameter;
+                let views = profile_views(b.axis);
+                let j = (0..3)
+                    .find(|&j| j != b.axis && profile_views(j).contains(&views[0]))
+                    .expect("a profile view shows a radial axis");
+                let at = match b.base {
+                    Some(base) => scale3(add(base, b.top), 0.5),
+                    None => b.top,
+                };
+                let mut a = at;
+                let mut c = at;
+                a[j] -= r;
+                c[j] += r;
+                out.push(Want {
                 id: want_id(&b.feature.id, "boss.diameter"),
                 views: vec![views[0]],
                 value: diameter,
@@ -299,30 +303,30 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     order: 0,
                 },
             });
-        } else {
-            let k = match &b.section {
-                Section::Round(d) => (b.axis, 0, key(*d)),
-                Section::Polygon {
-                    sides,
-                    across_flats,
-                    ..
-                } => (b.axis, *sides, key(*across_flats)),
-            };
-            let members = circles.entry(k).or_default();
-            if members.is_empty() {
-                order.push(k);
-            }
-            members.push(i);
-            let view = end_on(b.axis);
-            let coaxial = drilled.iter().any(|(k, at)| {
-                *k == b.axis && (0..3).all(|j| j == b.axis || (at[j] - b.top[j]).abs() < 1e-3)
-            });
-            if !coaxial {
-                for a in (0..3).filter(|&a| a != b.axis) {
-                    let d = b.top[a] - lo[a];
-                    if d.abs() < 1e-6 {
-                        let id = &b.feature.id;
-                        problems.push(Problem {
+            } else {
+                let k = match &b.section {
+                    Section::Round(d) => (b.axis, 0, key(*d)),
+                    Section::Polygon {
+                        sides,
+                        across_flats,
+                        ..
+                    } => (b.axis, *sides, key(*across_flats)),
+                };
+                let members = circles.entry(k).or_default();
+                if members.is_empty() {
+                    order.push(k);
+                }
+                members.push(i);
+                let view = end_on(b.axis);
+                let coaxial = drilled.iter().any(|(k, at)| {
+                    *k == b.axis && (0..3).all(|j| j == b.axis || (at[j] - b.top[j]).abs() < 1e-3)
+                });
+                if !coaxial {
+                    for a in (0..3).filter(|&a| a != b.axis) {
+                        let d = b.top[a] - lo[a];
+                        if d.abs() < 1e-6 {
+                            let id = &b.feature.id;
+                            problems.push(Problem {
                             id: format!("p:location_on_datum:{id}/{}", AXES[a]),
                             code: "location_on_datum".into(),
                             severity: "info".into(),
@@ -334,9 +338,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                             subjects: vec![id.clone()],
                             ..Default::default()
                         });
-                        continue;
+                            continue;
+                        }
+                        located.entry((view, a, key(d))).or_default().push(i);
                     }
-                    located.entry((view, a, key(d))).or_default().push(i);
                 }
             }
         }
