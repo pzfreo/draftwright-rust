@@ -2357,3 +2357,33 @@ Overturnable judgement calls:
 - Timings are native warm-render samples, excluding planning and export. They show the cache's
   measured effect, not the complete S4 p90 or WASM latency gate; those belong to the session and
   editor streams.
+
+## Thin slice S4 part B: Session (2026-10-11)
+
+Overturnable judgement calls made unattended:
+
+- The editor checkout and `origin/main` both lack `bench/edits/*.json` (only the two existing
+  WASM bench scripts are present). Reproduce S0's sequence from thin-slice plan section 3.2:
+  move a view relative to front, move a linear label along its line, change side, omit, restore,
+  change tolerance, change scale. The two omission states are separate commits, so seven edits.
+  `tests/common/session_edits.rs` shares the sequence with `examples/session_latency.rs`.
+  Reconcile with the S0 stream's eventual files when available; no editor files were changed.
+- Count complete recovered-planner invocations, the same unit as the batch API/old editor's
+  multiple plans. One per apply/undo/redo, zero for queries. The existing global planner has no
+  safe partial-plan entry point, so use its full-plan fallback. Internal recovery candidates
+  and S3's canonical pin plan remain; the counter explicitly does not count those trials.
+  Removing those trials would alter fresh-plan equivalence and drafting behaviour. A future
+  planner-locality API can replace this fallback under the same replay oracle.
+- Keep one live part per JSON-lines connection, opened explicitly by `open`; a successful open
+  replaces its history. Continue answering all existing stateless requests alongside it.
+  No handles, persistence, paging or MCP transports are added (S7 owns that surface).
+- Send typed curve/ink fragments, including searchable text and lint provenance, rather than
+  add a second SVG-fragment formatter. Clients can replay a State and assemble/export with the
+  library renderer. Sheet furniture is still assembled from the patched Plan, as in S4 part A.
+- Options conservatively offer placements on the current carrier and compatible view anchors;
+  they are not an exhaustive enumeration of alternative dimensional/PMI projections. Collision
+  checks happen in preview/apply, without running extra plans from a query.
+- Latency gate covers native apply, complete sheet assembly, delta construction and JSON
+  encoding after open, ten repetitions of seven edits per part. Undo restores the starting
+  state between repetitions and is not timed. Opening (including HLR) is recorded separately.
+  WASM/UI display-rate drag checks remain in S5; no editor or MCP files were touched.

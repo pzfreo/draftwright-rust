@@ -12,11 +12,12 @@ use std::f64::consts::{FRAC_PI_2, PI};
 use std::fmt::Write as _;
 
 use crate::model::Problem;
+use serde::{Deserialize, Serialize};
 
 pub type P = [f64; 2];
 
 /// A curve as the exporters draw it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Curve {
     Line(P, P),
     /// An arc of an ellipse (or circle): `centre + radii[0] cos t x_axis + radii[1] sin t
@@ -223,7 +224,7 @@ pub fn items_bbox<'a>(items: impl IntoIterator<Item = &'a Item>) -> Option<[f64;
 }
 
 /// What a layer holds: a curve stroked, or a face (its outer boundary and holes) filled.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Item {
     Edge(Curve),
     Face(Vec<Vec<Curve>>),
@@ -249,21 +250,21 @@ pub struct Layer {
     pub items: Vec<Item>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HAlign {
     Left,
     Center,
     Right,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VAlign {
     Baseline,
     Middle,
 }
 
 /// A label's text, laid invisibly over its drawn glyphs in the PDF and the SVG.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TextRun {
     pub text: String,
     /// The anchor, mm.
@@ -280,7 +281,7 @@ pub struct TextRun {
 
 /// A measurement an annotation states: the feature (its Analysis ID) and the parameter, in the
 /// role vocabulary (`bore.diameter`, `counterbore.depth`, …).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Claim {
     pub feature: String,
     pub parameter: String,
@@ -290,7 +291,7 @@ pub struct Claim {
 /// from what it draws rather than from the plan it was drawn from: its label's text runs, the
 /// view it belongs to and the measurements it claims to state. The claims are provenance, as
 /// Python draftwright's registry is; lint still checks the label's text against the part.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Annotation {
     /// The plan item it draws, e.g. `d:f:hole:3/bore.diameter`.
     pub name: String,
@@ -302,7 +303,7 @@ pub struct Annotation {
 }
 
 /// What a thing drawn on the sheet is, to lint's sheet checks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Kind {
     /// A dimension or callout of [`Drawing::annotations`], by the same name.
     Dimension,
@@ -332,7 +333,7 @@ pub enum Kind {
 /// it draws by its ends (draftwright's `segments`: extension, dimension and leader lines, a
 /// block's rules; not its glyphs or arrowheads), and a callout's leader its elbow, where the
 /// shaft meets the shoulder.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Drawn {
     pub name: String,
     pub kind: Kind,

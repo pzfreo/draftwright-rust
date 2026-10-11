@@ -21,6 +21,8 @@ pub mod pmi;
 pub mod pmi_lowering;
 pub mod png;
 pub mod section;
+pub mod session;
+pub use session::Session;
 pub mod tables;
 pub mod text;
 pub mod title_block;

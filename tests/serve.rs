@@ -215,3 +215,26 @@ fn the_service_takes_an_analysis_in_place_of_analysing() {
         );
     }
 }
+
+#[test]
+fn the_service_keeps_a_session_and_answers_deltas_and_queries() {
+    let replies = serve(&[
+        json!({"op":"open", "step":part("plate.step"), "features":Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition/plate.json")}).to_string(),
+        json!({"op":"apply", "commit":false, "ops":[{"op":"set","path":"sheet/title/material","value":"Steel"}]}).to_string(),
+        json!({"op":"item","item":"sheet"}).to_string(),
+        json!({"op":"apply", "ops":[{"op":"set","path":"sheet/title/material","value":"Steel"}]}).to_string(),
+        json!({"op":"undo"}).to_string(),
+        json!({"op":"redo"}).to_string(),
+        json!({"op":"items","filter":{"kind":"dimension"}}).to_string(),
+        json!({"op":"options","item":"sheet"}).to_string(),
+        json!({"op":"problems","filter":{"severity":"error"}}).to_string(),
+        json!({"op":"plan","step":part("prismatic.step")}).to_string(),
+    ]);
+    for reply in &replies {
+        assert_eq!(reply["ok"], true, "{reply}");
+    }
+    assert_eq!(replies[1]["result"], replies[3]["result"]);
+    assert_eq!(replies[2]["result"]["item"]["kind"], "sheet");
+    assert!(!replies[6]["result"].as_array().unwrap().is_empty());
+    assert_eq!(replies[9]["result"]["schema"], "draftwright.plan/1");
+}
