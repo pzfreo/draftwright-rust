@@ -494,9 +494,9 @@
     {
       "rule": "LINT-hole_coverage-pattern_location / LINT-hole_coverage-pattern_spacing",
       "python": "hole_requirement_missing against a physical pattern requirement ledger",
-      "rust": "hole_pattern_requirement_missing or hole_pattern_requirement_unverifiable against the exact pattern owner",
-      "verdict": "equivalent",
-      "reason": "Separate pattern-owner codes preserve the existing machining-size group findings. Locations and spacing are additional assessed predicates, with exact pattern claims and truthful printed values. A physical axis-aligned lattice proves its centre; other arrays require a member anchor. Python hole_coverage.py::_structured_locations_placed and _grid_has_physical_centre supply that drafting policy. Off-axis/declared-grid correspondence and turned-centreline exemptions remain limited; see known_completeness.json and next-session."
+      "rust": "hole_pattern_requirement_missing or hole_pattern_requirement_unverifiable; exact pattern claims or exact member ordinate claims",
+      "verdict": "rust-correct",
+      "reason": "Python hole_coverage.py::_structured_locations_placed joins pattern-owned structured locations and _grid_has_physical_centre proves the lattice. Rust also credits every established member's truthful ordinates, which prove their locations and separations, or one fully located member plus printed pitches. This deliberate extension avoids twelve false warnings on default CTC02/CTC05: independent dimensions on the member holes state all required positions. Centre/PCD remains required for bolt circles. tests/completeness.rs covers grids, linear arrays, incorrect text, mixed anchors and both native NIST drawings; check_completeness.py inventories all thirty default reviews. Off-axis/centreline limits remain recorded."
     }
   ]
 }

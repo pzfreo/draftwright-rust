@@ -37,6 +37,24 @@ def review(name, case, omitted=()):
     return result
 
 
+# Inventory every default pattern finding so the visual ledger cannot omit false positives.
+default_patterns = {}
+for name in sorted(parts):
+    r = review(name, 'default')
+    found = [i for i in r['lint'] if i['code'].startswith('hole_pattern_requirement_')]
+    if found:
+        default_patterns[name] = found
+expected = {
+    'nist_ftc_08_asme1_rc': {('f:hole_pattern:2', 'location.length.y')},
+    'nist_ftc_09_asme1_rd': {('f:hole_pattern:2', 'location.length.x'),
+                            ('f:hole_pattern:3', 'location.length.x')},
+}
+actual = {name: {(i['subjects'][0], i['requirements'][0]['parameter']) for i in found}
+          for name, found in default_patterns.items()}
+assert actual == expected, actual
+assert sum(map(len, default_patterns.values())) == 3, default_patterns
+report['default-pattern-findings'] = default_patterns
+
 for name in ['1000', '10046', '10049']:
     p = plan(name)
     assert p['status'] == 'needs_attention', name

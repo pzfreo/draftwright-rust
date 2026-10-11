@@ -3347,3 +3347,38 @@ rechecks and the repeated required full suite; its cause remains an inference.
 No test was weakened, no planner gained dimensions, no catalogue/task JSON
 changed, no commit or push. Final counts and limitations are in the G1 status
 entry and known_completeness.json `not_done`; G2/G3 still own the dimensions owed.
+
+## Stage G1 fix round (2026-10-11)
+
+Overturnable unattended judgements:
+
+- Retain the brief's warning for every single-solid face outside the Analysis
+  feature inventory, including stock faces. Consequently all thirty quality parts
+  and a fully dimensioned feature-free box need attention. This is a conservative
+  recognition-review floor, not a discriminator of drawing completeness. Crediting
+  envelope dimensions to arbitrary faces would invent occurrence ownership; a future
+  stock-face disposition ledger should supply explicit evidence before changing this.
+- An established linear array or grid may be located by truthful
+  ordinates for all members, or one fully located physical member plus all printed
+  pitches (the anchor route requires a proved lattice for a grid). Fully located
+  members also prove spacing without redundant pitch labels, including rotated grids
+  in principal planes.
+  Claims must name the exact member and axis and print its distance from the datum.
+  Bolt circles keep their centre/PCD requirements; numerical member positions alone
+  do not certify that circular arrangement in this fix.
+- Keep GRM-03's existing chain-credit verdict: 0.5+2+3+18 proves 23.5 geometrically.
+  A draftsman would normally still want an overall length to control tolerance
+  stack-up; maintainer confirmation remains owed. This stream adds no dimensions.
+- Preserve the 150 ms session performance test and transport assertions unchanged.
+  Reviewer failures under load (~60) passed serial rechecks, suggesting pre-existing
+  load/timing sensitivity; this is evidence of flakiness, not a proved diagnosis.
+
+Fix-round timing evidence: an initial full run passed 677/677 before the final
+rotated-grid extension. On the final source, the required eight-thread suite hit
+`session::nist_benchmark_deltas` at **158.08625 ms** against its unchanged 150 ms
+threshold (other seven session tests passed). The unchanged complete session group
+then passed **8/8** with `--test-threads=1`. Session does not invoke the changed
+independent pattern lint. Preserve `target/g1-fix-checks/test-session-timing-failure.log`
+and `session-serial.log`; the repeated required eight-thread full run passes
+**678/678 in 72 groups, none ignored**, including NIST timing and HTTP/stdio
+transport, on the same final source. No assertion, threshold, transport or session code was changed.

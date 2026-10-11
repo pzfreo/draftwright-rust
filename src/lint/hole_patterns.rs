@@ -21,7 +21,7 @@ fn even(values: &[f64]) -> bool {
             .all(|w| ((w[1] - w[0]) - (values[1] - values[0])).abs() <= TOL)
 }
 
-/// Only marks on the exact pattern owner can satisfy its location or spacing requirements.
+/// Exact pattern claims or truthful physical-member ordinates prove location and spacing.
 pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let read: Vec<_> = geometry::read(analysis)
         .into_iter()
@@ -95,7 +95,41 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 requirements.push((format!("grid_pitch.length.{name}"), None));
             }
         }
-        for k in [u, v] {
+        let member_locations: Vec<_> = members
+            .iter()
+            .map(|&i| {
+                [u, v].map(|k| {
+                    let distance = read[i].at[k] - analysis.envelope[0][k];
+                    let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
+                    distance.abs() <= 1e-6
+                        || marks.iter().any(|m| {
+                            m.claims.iter().any(|c| {
+                                c.feature == read[i].feature.id && c.parameter == parameter
+                            }) && holes::states(&m.text, distance)
+                        })
+                })
+            })
+            .collect();
+        let all_members_located = member_locations.iter().all(|axes| axes.iter().all(|b| *b));
+        let member_anchor_with_pitch = member_locations.iter().any(|axes| axes.iter().all(|b| *b))
+            && requirements.iter().all(|(parameter, value)| {
+                value.is_some_and(|d| {
+                    marks.iter().any(|m| {
+                        m.claims
+                            .iter()
+                            .any(|c| c.feature == p.id && c.parameter == *parameter)
+                            && holes::states(&m.text, d)
+                    })
+                })
+            });
+        let member_spacing = p.arrangement == "linear" || p.arrangement == "grid";
+        for (position, k) in [u, v].into_iter().enumerate() {
+            if member_spacing
+                && (member_locations.iter().all(|axes| axes[position]) || member_anchor_with_pitch)
+            {
+                continue;
+            }
+
             let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
             let distances: Vec<_> = anchors
                 .iter()
@@ -139,6 +173,10 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             issues.push(issue);
         }
         for (parameter, value) in requirements {
+            // Fully located members state their separations without a redundant pitch label.
+            if member_spacing && all_members_located {
+                continue;
+            }
             let claiming: Vec<_> = marks
                 .iter()
                 .filter(|m| {

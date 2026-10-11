@@ -228,3 +228,117 @@ fn wholly_omitted_supported_feature_needs_attention() {
                 && p.subjects == ["f:turned_step:1"])
     );
 }
+
+fn member_locations(a: &Analysis) -> Vec<Mark> {
+    a.features
+        .iter()
+        .flat_map(|f| {
+            ["x", "y"].into_iter().enumerate().map(move |(k, axis)| {
+                mark(
+                    &f.id,
+                    &format!("location.length.{axis}"),
+                    &draftwright::dims::fmt(f.parameters["location"][k].as_f64().unwrap()),
+                )
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn member_ordinates_prove_pattern_location_and_spacing() {
+    let a = grid();
+    let marks = member_locations(&a);
+    assert!(draftwright::lint::hole_patterns::coverage(&a, &marks).is_empty());
+    for missing in 0..marks.len() {
+        let mut incomplete = marks.clone();
+        incomplete[missing].text = "999".into();
+        let issues = draftwright::lint::hole_patterns::coverage(&a, &incomplete);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.requirements[0].parameter.starts_with("grid_pitch."))
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.requirements[0].parameter == marks[missing].claims[0].parameter)
+        );
+    }
+}
+
+#[test]
+fn one_member_anchor_and_printed_pitches_locate_a_grid() {
+    let a = grid();
+    let mut marks = member_locations(&a)[..2].to_vec();
+    marks.extend([
+        mark("f:hole_pattern:1", "grid_pitch.length.col", "10"),
+        mark("f:hole_pattern:1", "grid_pitch.length.row", "10"),
+    ]);
+    assert!(draftwright::lint::hole_patterns::coverage(&a, &marks).is_empty());
+    marks[1].claims[0].feature = "f:hole:2".into();
+    assert!(!draftwright::lint::hole_patterns::coverage(&a, &marks).is_empty());
+}
+
+#[path = "common/corpus.rs"]
+mod corpus;
+
+#[test]
+fn nist_member_ordinates_leave_no_false_pattern_findings() {
+    let Some(dir) = corpus::dir() else { return };
+    let font = draftwright::text::Font::new(
+        std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    for name in ["nist_ctc_02_asme1_rc", "nist_ctc_05_asme1_rd"] {
+        let (part, a) = model::analyse_native(&dir.join(format!("nist/{name}.stp"))).unwrap();
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        let issues = lint::hole_patterns::coverage(&a, &lint::marks(&drawing));
+        assert!(issues.is_empty(), "{name}: {issues:?}");
+    }
+}
+
+#[test]
+fn member_ordinates_also_prove_linear_pattern_spacing() {
+    let mut a = grid();
+    a.features.truncate(2);
+    let p = &mut a.recognition.as_mut().unwrap().patterns[0];
+    p.arrangement = "linear".into();
+    p.members.truncate(2);
+    p.faces.truncate(2);
+    p.parameters.insert("pitch".into(), json!(10));
+    let mut marks = member_locations(&a);
+    assert!(lint::hole_patterns::coverage(&a, &marks).is_empty());
+    marks.truncate(2);
+    marks.push(mark("f:hole_pattern:1", "pitch.length", "10"));
+    assert!(lint::hole_patterns::coverage(&a, &marks).is_empty());
+    marks.last_mut().unwrap().text = "9".into();
+    assert!(
+        lint::hole_patterns::coverage(&a, &marks)
+            .iter()
+            .any(|i| i.requirements[0].parameter == "pitch.length")
+    );
+}
+
+#[test]
+fn member_ordinates_prove_a_grid_without_an_axis_aligned_lattice() {
+    let mut a = grid();
+    for (f, (x, y)) in a
+        .features
+        .iter_mut()
+        .zip([(10., 10.), (20., 12.), (8., 20.), (18., 22.)])
+    {
+        f.parameters.insert("location".into(), json!([x, y, 10]));
+    }
+    let marks = member_locations(&a);
+    assert!(lint::hole_patterns::coverage(&a, &marks).is_empty());
+    let incomplete = &marks[..marks.len() - 1];
+    assert!(
+        lint::hole_patterns::coverage(&a, incomplete)
+            .iter()
+            .any(|i| i.code == "hole_pattern_requirement_unverifiable")
+    );
+}

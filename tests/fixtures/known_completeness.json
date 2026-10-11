@@ -90,21 +90,30 @@
         "nist_ctc_01_asme1_rd"
       ],
       "verdict": "rust-correct",
-      "evidence": "Authored omission variants retain sizes/counts. FTC08: four outer mounting holes retain the 4x OD6 THRU (2x2) callout but no chosen-pattern location/pitch annotations. FTC09: outer mounting four-hole set retains 4x OD5.9 THRU (2x2); plate envelope and unrelated ordinates do not state its selected pattern. CTC01: outer four-hole grid retains 4x OD35 THRU (2x2), with its 650/350 pitches and centre ordinates missing; the 635/225 nearby dimensions relate to other features. Each full PNG inspected. Also inspected the unchanged default sheets: FTC08 pattern2 Y=167.0 is not drawn (location_ref_dropped); FTC09 pattern2 X=76.2 and pattern3 X=123.2 are not drawn (off_axis_location_dropped). New default review reports exactly these three location gaps."
+      "evidence": "Authored omission variants retain sizes/counts. FTC08: four outer mounting holes retain the 4x OD6 THRU (2x2) callout but no chosen-pattern location/pitch annotations. FTC09: outer mounting four-hole set retains 4x OD5.9 THRU (2x2); plate envelope and unrelated ordinates do not state its selected pattern. CTC01: outer four-hole grid retains 4x OD35 THRU (2x2), with its 650/350 pitches and centre ordinates missing; the 635/225 nearby dimensions relate to other features. Each full PNG inspected. Also inspected the unchanged default sheets: FTC08 pattern2 Y=167.0 is not drawn (location_ref_dropped); FTC09 pattern2 X=76.2 and pattern3 X=123.2 are not drawn (off_axis_location_dropped). The original G1 report incorrectly claimed exactly these three gaps and omitted twelve false member-pattern warnings on CTC02/CTC05. The fix-round inventory checks all thirty default sheets; see the member-ordinate verdict below."
+    },
+    {
+      "finding": "member ordinates satisfy pattern location and pitch",
+      "parts": [
+        "nist_ctc_02_asme1_rc",
+        "nist_ctc_05_asme1_rd"
+      ],
+      "verdict": "rust-correct",
+      "evidence": "Reviewer correctly identified twelve false pattern warnings, omitted by the original G1 evidence. CTC05 holes 11..16 carry y/z ordinates 230.7/238.4/246.2 and 171.4/206.4/241.3. CTC02 pattern9 holes 62/52/53 and pattern11 holes 59/60/70/69 carry x/y ordinates 265.4,266,315,365,414.6 and 168,492. Exact member claims and truthful printed numbers now prove the spacing. All thirty default reviews are inventoried by tools/check_completeness.py; final rasters under target/g1-fix-evidence. Both fresh release-rendered sheets inspected at width 2400: each stated ordinate terminates on its member-hole station, and every member is located in both in-plane axes. CTC02 remains crowded; this fix corrects reporting, not legibility. All thirty release SVGs are byte-identical to the reviewed G1 drawings (target/g1-fix-checks/svg-comparison.log)."
     }
   ],
   "not_done": [
     "A provider occurrence-disposition ledger and independent expected-feature denominator are not available in Analysis; face claims describe only imported features.",
     "The requested raw completeness counts do not implement the full four-component audited-score report; fidelity and restraint scoring remain unavailable.",
     "Existing envelope ledger cannot credit arbitrary other end-to-end measurements or declared profile-group chains; its parity verdicts remain in known_lint.json/ledgers.",
-    "Pattern lint currently establishes principal-axis patterns from recognition; off-axis patterns are unassessed, and unproved principal-axis lattice spacing is reported unverifiable. No centred-hole exemption is invented without drawn location evidence.",
+    "Pattern lint currently establishes principal-axis patterns from recognition; patterns with oblique drilling axes are unassessed, and unproved principal-axis lattice spacing is reported unverifiable unless every physical member is located by truthful ordinates. No centred-hole exemption is invented without drawn location evidence.",
     "spool132 default has six missing numerical pattern-centre coordinates. The sheet looks concentric with turned stock; no certified pattern-centreline carrier exists in the mark inventory. This visual ambiguity is undetermined in known_lint.json, rather than claimed as six separate machining defects."
   ],
   "assessment_corrections": [
     {
       "part": "GRM-03_thumbwheel_drive_screw",
       "verdict": "rust-correct",
-      "evidence": "Its default sheet has no separate overall-length dimension, but the complete contiguous turned-length chain 0.5+2+3+18=23.5 proves the physical axial extent under the existing ledger. Default review owes no overall axis. Breaking that chain yields missing_principal_dimension in the evidence script. Requiring an additional label would duplicate a proven measure."
+      "evidence": "Its default sheet has no separate overall-length dimension, but the complete contiguous turned-length chain 0.5+2+3+18=23.5 proves the physical axial extent under the existing ledger. Default review owes no overall axis. Breaking that chain yields missing_principal_dimension in the evidence script. Requiring an additional label would duplicate a proven measure. An overall label is still normally desirable for tolerance stack-up; maintainer confirmation is recorded in next-session."
     }
   ]
 }
