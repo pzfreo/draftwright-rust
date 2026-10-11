@@ -1,6 +1,8 @@
 """Regenerate the standalone MCP input/output JSON Schemas (draft 2020-12)."""
 import json
+import re
 from pathlib import Path
+MAX_OPS = int(re.search(r'pub const MAX_OPS: usize = (\d+);', (Path(__file__).resolve().parent.parent / 'src/stateless.rs').read_text())[1])
 S = {'type': 'string'}
 B = {'type': 'boolean'}
 N = {'type': 'number'}
@@ -40,8 +42,8 @@ tools={
 'get_item':(obj({**common,'id':S,'detail':B},['part_ref','id']),obj({'item':{'anyOf':[ref('item'), obj({**compact['properties'],'basis':S,'value':nullable(N),'operations':arr(S)},[*compact['required'],'basis','value','operations'])]}},['item'])),
 'list_problems':(obj({**common,**paging,'filter':problem_filter},['part_ref']),paged(row_problem)),
 'item_options':(obj({**common,'id':S},['part_ref','id']),obj({'id':S,'operations':arr(S),'placements':arr(place),'view_anchors':arr(S),'scales':arr(S),'settable':{'type':'object','additionalProperties':obj({'choices':arr({}),'range':arr(N,minItems=2,maxItems=2),'integer':B,'forms':arr(S),'fields':arr(S),'paths':arr(S)})}},['id','operations','placements','view_anchors','scales','settable'])),
-'preview_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=100)},['part_ref','ops']),delta),
-'apply_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=100),'parent':S},['part_ref','ops','parent']),obj({'spec_version':S,'delta':delta},['spec_version','delta'])),
+'preview_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=MAX_OPS)},['part_ref','ops']),delta),
+'apply_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=MAX_OPS),'parent':S},['part_ref','ops','parent']),obj({'spec_version':S,'delta':delta},['spec_version','delta'])),
 'view_sheet':(obj({**common,'region':rectangle,'overlay_ids':B,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}},['part_ref']),artifact),
 'render_pdf':(obj(common,['part_ref']),artifact),
 'get_spec':(obj(common,['part_ref']),obj({'spec_version':S,'spec':ref('spec')},['spec_version','spec'])),

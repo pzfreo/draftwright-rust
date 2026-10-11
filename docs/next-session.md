@@ -3264,3 +3264,67 @@ and `target/s2-fix-*`. No commit or push was made.
   S2's test table has no `ink`). Columns absent from the baseline are skipped.
 - S1's mocked crossing test in `tools/test_quality.py` writes an empty `part.svg`
   so S2's SVG metric can read it; the assertion is unchanged.
+
+## Stage H / issue #5: MCP batch and correction bounds (2026-10-11)
+
+Overturnable unattended judgements:
+
+- Reduce the existing MCP operation cap from 100 to 32 submitted operations, counting
+  duplicates and no-ops. Keep the same cap for the stateless library/lossless serve
+  adapters, and reject before part reconstruction or head lookup. Oversized input
+  takes precedence over stale-parent checking; ordinary stale-parent choices stay exact.
+  Thirty-two leaves room for ordinary multi-edit requests while bounding validation.
+- Corrective discovery may validate at most eight operations without planning and
+  preview at most one replacement. When either budget is exhausted, return the original
+  code, message and choices without a guessed correction. Long batches may need an
+  explicit retry using item_options; the limit is deterministic, not a wall-clock cutoff.
+- Reuse the original refused Session rather than reconstructing or replaying successful
+  edits through the planner. The unchanged Session/model API reports a whole-Spec
+  refusal without an operation index (validation occurs after all edits). Within this
+  stream's restriction against editing those modules, retain bounded, pure edit
+  validation to discover the index. Do not change transaction validation into per-op
+  acceptance: temporary invalid values overwritten in the same batch remain legal.
+  The correction preview includes the valid preceding edits and never installs them.
+  Options come from the original Session; if earlier edits make that insufficient,
+  omit the correction rather than planning a second state to derive options.
+- Planner counts mean complete recovered-planner invocations, including Session
+  reconstruction and noncommitting previews, not each internal recovery trial. The
+  test-only counter observes reconstruction and the edit/evaluate boundary; it also
+  counts attempted plans that refuse. The dense-part latency instrument uses the
+  same release path, with this counting overhead, a warm disk cache, native CTC-04
+  recognition and one sample for each tool/refusal position. It records observed
+  worst latency, not a timing assertion or a claimed hard wall-clock guarantee.
+
+See docs/mcp.md for measured limits, and tools/check_mcp_batches.py for the shared
+HTTP/stdio/serve boundary check. No planner, layout, rendering or task inputs changed.
+
+The independent schema check caught a planner-time vocabulary refusal: unknown
+`views/v:iso` keys pass pure edit validation and are rejected by model planning.
+Match that failure's exact original message/choices to the submitted view key
+without re-evaluating it. The additional regression covers indices 0, 7 and 31:
+three total plans when corrected, two on discovery exhaustion, with only one
+additional correction plan in either case. Original apply attempts and initial
+drawing-head creation are separate from the correction budget.
+
+Failure proofs: the seven new Rust regressions all fail with the original
+corrective implementation (five in `target/h5/h5-before-tests.log`, one each in
+`h5-before-planner-budget.log` and `before-view-context.log`). All six new Python
+transport checks fail on the separately rebuilt baseline executable, for the old
+100-op published limit or the absence of early count refusal. They pass on the
+final executable. The unchanged independent schema check validates 12 tools / 24
+served/file schemas and their refusals, including the ordinary view correction.
+The final dense instrument passes 7/7 regressions; worst observed latency is
+255,325.582 → 8,127.861 ms across 32/33-op probes (within the new 32-op cap:
+170,866.449 → 8,127.861 ms). Full tables and sampling limits are in docs/mcp.md.
+No dependency was added, no existing test was weakened, and tasks.json is unchanged.
+
+Final verification on the completed source (Cargo commands serial, jobs/threads 8):
+fmt check and strict all-target release Clippy pass. Required-corpus release tests
+pass **671/671**, **71 result groups**, zero failures/ignored. The transport checks
+pass **6/6** and independent schemas **24/24**. Scripted MCP with the unchanged seven
+tasks passes **7/7**, **16 calls**, **5,685 estimated tool tokens**, identical to the
+separately rebuilt baseline on this checkout. Fixed tools context is 43,125 →
+43,131 bytes (the descriptions now state both caps); these tokens are byte estimates,
+not a real-model evaluation. Logs and both reports are in `target/h5/`.
+No planner/layout/rendering files, dependencies or task inputs changed. No commit
+or push was made.

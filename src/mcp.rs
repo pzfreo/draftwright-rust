@@ -23,6 +23,8 @@ pub const TOOLS: [&str; 12] = [
     "analyse",
     "render",
 ];
+const CORRECTION_ATTEMPTS: usize = 8;
+
 pub const VERSIONS: [&str; 3] = ["2025-11-25", "2025-06-18", "2025-03-26"];
 pub const INSTRUCTIONS: &str = "Register STEP with inspect_part {step}; keep part_ref. The Spec is state: pass spec or immutable spec_version to each query. get_spec loads a drawing's current head; apply_ops requires that parent and returns a new version. preview_ops keeps no version. Lists and delta events are paged below 4096 bytes; follow next_cursor. Delta artifacts are lossless and readable with resources/read (events may be paged there without applying again). get_item explains basis and valid operations. view_sheet gives PNG, render_pdf delivery PDF. No live session or authentication; localhost development only.";
 
@@ -44,10 +46,10 @@ fn description(tool: &str) -> &'static str {
             "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Options are candidates; preview_ops checks their effects."
         }
         "preview_ops" => {
-            "Try up to 100 Spec ops without saving or changing the drawing head. Supply part_ref and spec or spec_version. Ops are set/add {path,value} or remove {path}, with RFC6901 escaping (~1 for a slash inside an ID). Returns paged change/problem events and lossless delta_ref."
+            "Try up to 32 Spec ops without saving or changing the drawing head. Supply part_ref and spec or spec_version. Ops are set/add {path,value} or remove {path}, with RFC6901 escaping (~1 for a slash inside an ID). Returns paged change/problem events and lossless delta_ref."
         }
         "apply_ops" => {
-            "Commit Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Batch all edits for one request in ops. Tolerances are strings \"±T\" or \"+U -L\"; fits use features/f:hole:1/fit (e.g. H7). View paths use bare names, views/iso/omit; title drawing number is sheet/title/number. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
+            "Commit up to 32 Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Batch all edits for one request in ops. Tolerances are strings \"±T\" or \"+U -L\"; fits use features/f:hole:1/fit (e.g. H7). View paths use bare names, views/iso/omit; title drawing number is sheet/title/number. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
         }
         "view_sheet" => {
             "Render a PNG for visual review of part_ref plus spec or spec_version. Optional region is paper millimetres [left,bottom,right,top], y up; overlay_ids labels items for reference. dpi defaults to 150, maximum 400. Returns image content and artifact_ref; exports embed the Spec."
@@ -285,6 +287,11 @@ pub fn call(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
             ..Error::invalid("choose a published tool")
         });
     };
+    if ["preview_ops", "apply_ops"].contains(&tool)
+        && let Some(ops) = args["ops"].as_array()
+    {
+        crate::stateless::check_operation_count(ops.len())?;
+    }
     validate(&input, args).map_err(Error::invalid)?;
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dispatch(cache, tool, args)))
         .unwrap_or_else(|_| {
@@ -292,36 +299,45 @@ pub fn call(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
                 "engine stopped; retry with a valid STEP and Spec",
             ))
         })
-        .map_err(|e| corrective_error(cache, tool, args, e))
 }
-fn corrective_error(cache: &Cache, tool: &str, args: &Value, mut error: Error) -> Error {
-    if error.code != "invalid"
-        || error.message.starts_with("stale parent")
-        || !["preview_ops", "apply_ops"].contains(&tool)
-    {
+fn corrective_error(
+    session: &mut crate::session::Session,
+    ops: &[crate::items::Op],
+    mut error: Error,
+) -> Error {
+    if error.code != "invalid" {
         return error;
     }
-    let attempt = || -> Option<(usize, Value, Vec<String>)> {
-        let given = if tool == "apply_ops" {
-            cache.get_version(args["parent"].as_str()?).ok()?
-        } else {
-            spec(cache, args).ok()?
-        };
-        let mut session = cache.session(args["part_ref"].as_str()?, &given).ok()?;
-        for (index, op) in args["ops"].as_array()?.iter().enumerate() {
-            let operation = serde_json::from_value(op.clone()).ok()?;
-            let refused = session.apply(&[operation], false).err();
-            if !refused.is_some_and(|e| e.message == error.message) {
-                continue;
+    let mut attempt = || -> Option<(usize, Value, Vec<String>)> {
+        let mut given = session.spec().clone();
+        let mut accepted = Vec::new();
+        // Discover only a bounded prefix, without planning or installing any edit.
+        for (index, operation) in ops.iter().take(CORRECTION_ATTEMPTS).enumerate() {
+            let op = value(operation);
+            let parts: Vec<_> = operation
+                .path
+                .split('/')
+                .map(|s| s.replace("~1", "/").replace("~0", "~"))
+                .collect();
+            // Unknown view keys are refused during planning, not edit validation.
+            let refused_view = operation.op == "set"
+                && matches!(parts.as_slice(), [section, id, _]
+                    if section == "views"
+                        && id.starts_with("v:")
+                        && error.message == format!("There is no view called {id:?}.")
+                        && error.choices.iter().any(|v| v == id.trim_start_matches("v:")));
+            match crate::model::edit(&given, &json!([op])) {
+                Ok(spec) if !refused_view => {
+                    given = spec;
+                    accepted.push(operation.clone());
+                    continue;
+                }
+                Err(refusal) if Error::from(refusal.clone()) != error => continue,
+                Ok(_) | Err(_) => {}
             }
             if op["op"] != "set" {
                 continue;
             }
-            let path = op["path"].as_str()?;
-            let parts: Vec<_> = path
-                .split('/')
-                .map(|s| s.replace("~1", "/").replace("~0", "~"))
-                .collect();
             let mut corrected = op.clone();
             let mut choices = Vec::new();
             match parts.as_slice() {
@@ -389,12 +405,12 @@ fn corrective_error(cache: &Cache, tool: &str, args: &Value, mut error: Error) -
                 }
                 _ => {}
             }
-            if corrected != *op
-                && session
-                    .apply(&[serde_json::from_value(corrected.clone()).ok()?], false)
-                    .is_ok()
-            {
-                return Some((index, corrected, choices));
+            if corrected != op {
+                accepted.push(serde_json::from_value(corrected.clone()).ok()?);
+                // One candidate preview is the independent corrective planner budget.
+                return crate::stateless::session_apply(session, &accepted, false)
+                    .ok()
+                    .map(|_| (index, corrected, choices));
             }
         }
         None
@@ -556,7 +572,10 @@ fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
         "preview_ops" => {
             let ops: Vec<crate::items::Op> = serde_json::from_value(args["ops"].clone())
                 .map_err(|e| Error::invalid(format!("valid ops: {e}")))?;
-            delta_page(cache, &cache.preview(part_ref, &given, &ops)?, args)
+            let applied = cache.apply_with_refusal(part_ref, &given, &ops, |session, error| {
+                corrective_error(session, &ops, error)
+            })?;
+            delta_page(cache, &applied.delta, args)
         }
         "apply_ops" => {
             if args.get("spec").is_some() || args.get("spec_version").is_some() {
@@ -571,11 +590,12 @@ fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
             }
             let ops: Vec<crate::items::Op> = serde_json::from_value(args["ops"].clone())
                 .map_err(|e| Error::invalid(format!("valid ops: {e}")))?;
-            let (version, applied) = cache.apply_version(
+            let (version, applied) = cache.apply_version_with_refusal(
                 part_ref,
                 args["drawing_ref"].as_str().unwrap_or("default"),
                 text(args, "parent")?,
                 &ops,
+                |session, error| corrective_error(session, &ops, error),
             )?;
             Ok(json!({"spec_version":version,"delta":delta_page(cache,&applied.delta,args)?}))
         }
@@ -850,5 +870,252 @@ pub fn run(args: &[String]) -> Result<(), Error> {
         _ => Err(Error::invalid(
             "choose mcp-stdio or mcp-http [127.0.0.1:8765]",
         )),
+    }
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::*;
+    use crate::stateless::{MAX_OPS, work};
+    use std::time::Instant;
+
+    const LIMIT: usize = 32;
+
+    fn open(name: &str, dense: bool) -> (Cache, String, String) {
+        let root = std::env::temp_dir().join(format!("h5-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let cache = Cache::new(root);
+        let step = if dense {
+            Path::new(&std::env::var("DRAFTWRIGHT_CORPUS").unwrap())
+                .join("nist/nist_ctc_04_asme1_rd.stp")
+        } else {
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/mounting_plate.step")
+        };
+        let key = cache.register(&step, None).unwrap();
+        let parent = cache.head(&key, "default").unwrap();
+        work::take();
+        (cache, key, parent)
+    }
+
+    fn invalid_batch(count: usize, index: usize) -> Value {
+        let mut ops = vec![json!({"op":"set","path":"sheet/title/title","value":"H5"}); count];
+        ops[index] = json!({"op":"set","path":"sheet/title/drawing_number","value":"H5-001"});
+        json!(ops)
+    }
+
+    fn batch_args(tool: &str, key: &str, parent: &str, ops: Value) -> Value {
+        let version = if tool == "apply_ops" {
+            "parent"
+        } else {
+            "spec_version"
+        };
+        json!({"part_ref":key,version:parent,"ops":ops})
+    }
+
+    fn refusal_work(name: &str, index: usize) {
+        let (cache, key, parent) = open(name, false);
+        for tool in ["preview_ops", "apply_ops"] {
+            let args = batch_args(tool, &key, &parent, invalid_batch(LIMIT, index));
+            let error = call(&cache, tool, &args).unwrap_err();
+            let plans = work::take();
+            assert_eq!(error.code, "invalid");
+            assert_eq!(cache.head(&key, "default").unwrap(), parent);
+            assert!(plans <= 2, "{tool}: refusal at {index} used {plans} plans");
+            if index == 0 {
+                assert!(error.message.contains("Replace ops[0]. Corrected op:"));
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_batch_beginning_bounds_plans() {
+        refusal_work("beginning", 0);
+    }
+
+    #[test]
+    fn invalid_batch_end_bounds_plans() {
+        refusal_work("end", LIMIT - 1);
+    }
+
+    #[test]
+    fn correction_budget_returns_original_refusal() {
+        let (cache, key, parent) = open("budget", false);
+        let ops = invalid_batch(9, 8);
+        let spec = cache.get_version(&parent).unwrap();
+        let original = Error::from(crate::model::edit(&spec, &ops).unwrap_err());
+        let error = call(
+            &cache,
+            "apply_ops",
+            &json!({"part_ref":key,"parent":parent,"ops":ops}),
+        )
+        .unwrap_err();
+        let plans = work::take();
+        assert_eq!(error, original);
+        assert_eq!(plans, 1);
+        assert_eq!(cache.head(&key, "default").unwrap(), parent);
+    }
+
+    #[test]
+    fn correction_planner_budget_returns_original_when_preview_refuses() {
+        let (cache, key, parent) = open("planner-budget", false);
+        let ops = json!([
+            {"op":"set","path":"sheet/scale","value":"invalid"},
+            {"op":"set","path":"sheet/title/drawing_number","value":"H5-001"}
+        ]);
+        let spec = cache.get_version(&parent).unwrap();
+        let original = Error::from(crate::model::edit(&spec, &ops).unwrap_err());
+        let error = call(
+            &cache,
+            "apply_ops",
+            &batch_args("apply_ops", &key, &parent, ops),
+        )
+        .unwrap_err();
+        let plans = work::take();
+        assert_eq!(error, original);
+        assert_eq!(plans, 2);
+        assert_eq!(cache.head(&key, "default").unwrap(), parent);
+    }
+
+    #[test]
+    fn planner_refusal_uses_original_view_context_without_replay() {
+        let (cache, key, parent) = open("view-context", false);
+        for index in [0, 7, LIMIT - 1] {
+            let mut ops = invalid_batch(LIMIT, index);
+            ops[index] = json!({"op":"set","path":"views/v:iso/omit","value":true});
+            for tool in ["preview_ops", "apply_ops"] {
+                let error =
+                    call(&cache, tool, &batch_args(tool, &key, &parent, ops.clone())).unwrap_err();
+                let plans = work::take();
+                assert_eq!(plans, if index < 8 { 3 } else { 2 }, "{tool}: {error}");
+                if index < 8 {
+                    assert!(
+                        error
+                            .message
+                            .contains(&format!("Replace ops[{index}]. Corrected op:"))
+                    );
+                    let corrected: Value =
+                        serde_json::from_str(error.message.split_once("Corrected op: ").unwrap().1)
+                            .unwrap();
+                    assert_eq!(corrected["path"], "views/iso/omit");
+                } else {
+                    assert_eq!(error.message, "There is no view called \"v:iso\".");
+                }
+                assert_eq!(cache.head(&key, "default").unwrap(), parent);
+            }
+        }
+    }
+
+    #[test]
+    fn batch_limit_schemas_transactions_and_stale_parent() {
+        let (cache, key, parent) = open("limit", false);
+        // Validate the whole transaction: a temporary bad value may be overwritten.
+        let result = call(
+            &cache,
+            "apply_ops",
+            &json!({"part_ref":key,"parent":parent,"ops":[
+                {"op":"set","path":"sheet/size","value":"invalid"},
+                {"op":"set","path":"sheet/size","value":"A3"}
+            ]}),
+        )
+        .unwrap();
+        let head = result["spec_version"].as_str().unwrap();
+        work::take();
+        let error = call(
+            &cache,
+            "apply_ops",
+            &json!({"part_ref":key,"parent":parent,"ops":invalid_batch(1,0)}),
+        )
+        .unwrap_err();
+        assert!(error.message.starts_with("stale parent"));
+        assert_eq!(error.choices, [head]);
+        assert_eq!(work::take(), 0);
+        for tool in ["preview_ops", "apply_ops"] {
+            let input = schema(tool, false).unwrap();
+            assert_eq!(MAX_OPS, LIMIT);
+            assert!(description(tool).contains(&format!("up to {MAX_OPS}")));
+            assert_eq!(input["properties"]["ops"]["maxItems"], MAX_OPS);
+            let args = batch_args(tool, &key, head, invalid_batch(LIMIT + 1, LIMIT));
+            assert!(validate(&input, &args).is_err());
+            assert!(
+                call(&cache, tool, &args)
+                    .unwrap_err()
+                    .message
+                    .contains("32")
+            );
+            assert_eq!(work::take(), 0);
+            assert_eq!(cache.head(&key, "default").unwrap(), head);
+        }
+        let ops = serde_json::from_value::<Vec<crate::items::Op>>(invalid_batch(LIMIT + 1, LIMIT))
+            .unwrap();
+        assert!(
+            cache
+                .apply(&key, &Spec::default(), &ops)
+                .err()
+                .unwrap()
+                .message
+                .contains("32")
+        );
+        assert!(
+            cache
+                .preview(&key, &Spec::default(), &ops)
+                .unwrap_err()
+                .message
+                .contains("32")
+        );
+        assert!(
+            cache
+                .apply_version(&key, "default", head, &ops)
+                .err()
+                .unwrap()
+                .message
+                .contains("32")
+        );
+        assert_eq!(work::take(), 0);
+    }
+
+    #[test]
+    fn dense_invalid_batch_latency_and_plans() {
+        if std::env::var_os("DRAFTWRIGHT_CORPUS").is_none() {
+            assert_ne!(
+                std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
+                Ok("1")
+            );
+            return;
+        }
+        let (cache, key, parent) = open("dense", true);
+        let mut maximum_plans = 0;
+        for (name, count, index) in [
+            ("beginning", LIMIT, 0),
+            ("budget_boundary", LIMIT, 7),
+            ("end", LIMIT, LIMIT - 1),
+            ("over_limit", LIMIT + 1, LIMIT),
+        ] {
+            for tool in ["preview_ops", "apply_ops"] {
+                let mut worst_ms = 0.0_f64;
+                let mut plans = 0;
+                for _ in 0..1 {
+                    work::take();
+                    let started = Instant::now();
+                    let error = call(
+                        &cache,
+                        tool,
+                        &batch_args(tool, &key, &parent, invalid_batch(count, index)),
+                    )
+                    .unwrap_err();
+                    worst_ms = worst_ms.max(started.elapsed().as_secs_f64() * 1000.0);
+                    plans = plans.max(work::take());
+                    assert_eq!(error.code, "invalid");
+                    assert_eq!(cache.head(&key, "default").unwrap(), parent);
+                }
+                eprintln!(
+                    "H5_METRIC {tool} {name} ops={count} index={index} plans={plans} worst_ms={worst_ms:.3}"
+                );
+                maximum_plans = maximum_plans.max(plans);
+            }
+        }
+        assert!(
+            maximum_plans <= 2,
+            "dense invalid batches used {maximum_plans} plans"
+        );
     }
 }
