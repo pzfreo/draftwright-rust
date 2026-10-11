@@ -923,3 +923,152 @@ fn a_bare_pin_relays_its_own_label_when_its_text_changes() {
     eprintln!("re-laid pinned labels: {checked:?}");
     assert!(checked.get("linear").is_some_and(|n| *n > 0), "{checked:?}");
 }
+
+#[test]
+fn bare_pins_do_not_restack_settled_linear_labels() {
+    let Some(c) = corpus::dir() else { return };
+    for (file, ids) in [
+        (
+            "gramel/GRM-03_thumbwheel_drive_screw.step",
+            vec!["d:f:turned_step:3/step.length"],
+        ),
+        (
+            "cadgenbench_inputs/cgb245.step",
+            vec![
+                "d:f:hole:12/location.length.x",
+                "d:step_level/step_height.length.h23_226",
+                "d:envelope/depth.length",
+            ],
+        ),
+    ] {
+        let (_, a) = model::analyse_native(&c.join(file)).unwrap();
+        let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let mut s = Spec::default();
+        for id in ids {
+            s = set(&s, id, "place", json!({"pinned":true}));
+        }
+        let pinned = model::plan_recovered(&a, &s).unwrap();
+        for d in base.dimensions.iter().filter(|d| d.kind == "linear") {
+            assert_eq!(
+                geometry(&base, &d.id),
+                geometry(&pinned, &d.id),
+                "{file}: {}",
+                d.id
+            );
+        }
+    }
+}
+
+#[test]
+fn relative_isometric_pins_fit_the_remaining_region() {
+    let Some(c) = corpus::dir() else { return };
+    for (file, gap, pins) in [
+        (
+            "gramel/GRM-03_thumbwheel_drive_screw.step",
+            40,
+            vec![
+                "d:f:turned_step:1/step.diameter",
+                "d:f:turned_step:1/step.length",
+            ],
+        ),
+        (
+            "ttt_inputs/sm-hanger.step",
+            0,
+            vec![
+                "d:f:hole:1/bore.diameter",
+                "d:f:hole:1/location.length.z",
+                "d:f:hole:1/location.length.y",
+                "d:envelope/depth.length",
+                "d:step_level/step_height.length.h65",
+                "d:envelope/width.length",
+            ],
+        ),
+    ] {
+        let (_, a) = model::analyse_native(&c.join(file)).unwrap();
+        let mut s = Spec::default();
+        for id in pins {
+            s = set(&s, id, "place", json!({"pinned":true}));
+        }
+        s = set(
+            &s,
+            "v:iso",
+            "place",
+            json!({"relative_to":"front","side":"right","gap":gap,"align":"start","pinned":true}),
+        );
+        if gap == 0 {
+            s = set(
+                &s,
+                "v:side",
+                "place",
+                json!({"relative_to":"front","side":"right","gap":0,"align":"start","pinned":true}),
+            );
+        }
+        let p = model::plan_recovered(&a, &s).unwrap();
+        assert!(
+            !p.problems.iter().any(|p| p.code == "pinned_view_off_sheet"
+                || (matches!(
+                    p.code.as_str(),
+                    "annotation_over_view" | "annotation_line_over_view"
+                ) && p.subjects.iter().any(|id| id == "v:iso"))),
+            "{file}: {:?}",
+            p.problems
+        );
+        assert!(p.views.iter().any(|v| v.id == "v:iso"));
+    }
+}
+
+#[test]
+fn right_pinned_callouts_have_clear_lanes_and_free_dimensions() {
+    let (part, mut a) = model::analyse(&fixture("parts/mounting_plate.step")).unwrap();
+    let features = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/mcp-eval/features/plate.features.json"),
+    )
+    .unwrap();
+    model::recognise(&part, &mut a, &features).unwrap();
+    let ids = [
+        "d:f:hole_pattern:1/bore.diameter",
+        "d:f:hole:4/bore.diameter",
+        "d:f:hole:7/bore.diameter",
+    ];
+    for alongs in [["start", "middle", "end"], ["middle"; 3]] {
+        let mut s = Spec::default();
+        for (lane, id) in ids.iter().enumerate() {
+            s = set(
+                &s,
+                id,
+                "place",
+                json!({"view":"plan","side":"right","lane":lane,"along":alongs[lane],"pinned":true}),
+            );
+        }
+        let p = model::plan_recovered(&a, &s).unwrap();
+        let problems: Vec<_> = p
+            .problems
+            .iter()
+            .filter(|p| p.subjects.iter().any(|id| ids.contains(&id.as_str())))
+            .collect();
+        if alongs == ["start", "middle", "end"] {
+            assert!(problems.is_empty(), "{alongs:?}: {problems:?}");
+        }
+        let boxes: Vec<_> = ids
+            .iter()
+            .map(|id| {
+                p.dimensions
+                    .iter()
+                    .find(|d| d.id == *id)
+                    .unwrap()
+                    .placed
+                    .as_ref()
+                    .unwrap()
+                    .label_box
+            })
+            .collect();
+        for (i, a) in boxes.iter().enumerate() {
+            for b in &boxes[i + 1..] {
+                assert!(
+                    a[0] >= b[2] || a[2] <= b[0] || a[1] >= b[3] || a[3] <= b[1],
+                    "{alongs:?}: overlapping pinned lanes {a:?} {b:?}"
+                );
+            }
+        }
+    }
+}

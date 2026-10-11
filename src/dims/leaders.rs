@@ -561,6 +561,11 @@ fn rim_tip(site: (P2, f64), elbow: P2) -> P2 {
     [c[0] + r * d[0] / n, c[1] + r * d[1] / n]
 }
 
+/// An explicit shoulder keeps its station; attach radially to its nearest proven feature site.
+pub(super) fn intent_tip(frame: &Frame, sites: &[(super::P3, f64)], elbow: P2) -> P2 {
+    rim_tip(nearest(&page_sites(frame, sites), elbow), elbow)
+}
+
 /// The candidate stations along one side: the natural one (clamped into `[lo, hi]`) first, then
 /// alternately past and before it, [`STEP`] apart, at most [`MAX_STATIONS`].
 fn stations(natural: f64, lo: f64, hi: f64) -> Vec<f64> {

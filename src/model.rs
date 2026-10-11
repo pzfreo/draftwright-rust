@@ -1642,10 +1642,36 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 "pinned_view_overlap" | "pinned_view_off_sheet" | "placement_anchor_not_shown"
             )
         });
+        // Reserve explicit pin ink before packing the free views around it. A pin's carrier
+        // keeps its origin and scale; the additional band is a real packing obstacle.
+        let mut reserved = canonical.clone();
+        for d in dimensions.iter().chain(&fixed) {
+            let place = spec
+                .dimensions
+                .get(&d.id)
+                .and_then(|d| d.place.as_ref())
+                .or_else(|| spec.annotations.get(&d.id).and_then(|a| a.place.as_ref()));
+            if place.is_some_and(|p| p.pinned && !crate::placement_intent::automatic_pin(p))
+                && let Some(b) = crate::dims::ink_box(d)
+            {
+                for v in views
+                    .iter_mut()
+                    .chain(reserved.iter_mut().flat_map(|p| &mut p.views))
+                    .filter(|v| v.id == d.view)
+                {
+                    v.area = [
+                        v.area[0].min(b[0]),
+                        v.area[1].min(b[1]),
+                        v.area[2].max(b[2]),
+                        v.area[3].max(b[3]),
+                    ];
+                }
+            }
+        }
         crate::placement_intent::views(
             spec,
             &mut views,
-            canonical.as_ref(),
+            reserved.as_ref(),
             &sheet,
             &obstacles,
             &mut problems,
@@ -1656,6 +1682,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 .map(|v| (v.at, v.area, v.scale))
                 .collect::<Vec<_>>()
         {
+            let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
             (dimensions, omitted, more) =
                 crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed, &held)?;
         }

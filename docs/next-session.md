@@ -2752,3 +2752,87 @@ Logs are in `target/d1-fix-logs/`.
   the survivor, which claims its measurement. 15 records per PMI oracle are verdicted
   rust-correct (draftwright draws them all). Judgement call: a default dimension the spec has
   toleranced keeps its own line beside the PMI one.
+
+
+## E1: layout around pins (2026-10-11)
+
+Reproduced the Stage D failures from freshly generated plans; the named saved report
+folders were absent in the main checkout. Before evidence is under
+`target/e1-before-pins/`, `target/e1-before-documents/` and
+`target/e1-logs/regressions-before.log`. No commit, push or git-index write was made.
+
+- GRM-03 and cgb245: restoring only the pinned labels while starting free linear
+  labels at their unsolved centres reintroduced collisions already removed by the
+  canonical slides. `avoid_fixed` then moved short lengths/rungs to outer lanes.
+  Start free linear items from their settled canonical candidate, relabel current
+  text, and adjust around obstacles only where needed. Recompute held translations
+  when a free view moves in the second packing pass.
+- GRM-03: the isometric's 13 mm overrun was real. Resolve its relative region, clip
+  it to the drawable sheet and fit its ink before fixing the resulting geometry.
+  sm-hanger had a different manifestation of the same missing fitting step: its
+  requested region covered the side view and pinned ink. Choose a free subrectangle
+  inside the region. Use canonical principal footprints even if an unrelated edit
+  omits a view, so that edit cannot change the pin's resolved position.
+- Plate: side callout lanes used the 7 mm linear pitch for labels up to 32.793 mm
+  wide. Use canonical measured width plus shoulder and clearance for separate
+  columns; explicit pin ink reserves real carrier bands before packing free views.
+  Free linear dimensions also avoid intersections with pinned callout shafts and
+  shoulders, trying slides, lanes on the same side, then the opposite side. The
+  original location-Y dimension could not clear the leaders by moving outward:
+  its witnesses still crossed them; an opposite-side candidate resolves it.
+  Attach the pinned leader radially to the nearest proven site, using the existing
+  automatic leader geometry. This also prevents the extra rim/arrow crossing
+  caused by attaching on the cardinal right edge while the shoulder is above it.
+
+Overturnable judgements made unattended:
+
+- A pinned isometric fixes a fitted orientation view in the requested relative
+  region. Gap/alignment describe that initial region; clipping or excluding another
+  footprint may trim the final reserved rectangle. Principal view pins still resolve
+  literal gap/alignment and retain/report impossible placements. This avoids moving
+  or shrinking a pin during subsequent automatic packing. It is a deliberate
+  extension of the existing automatic isometric policy, documented in `docs/model.md`
+  and `tests/fixtures/known_pin_layout.json`, with Python source evidence.
+- Explicit side callout columns use the widest canonical callout on their carrier,
+  independent of unrelated current text/omission edits. A pin's own longer text can
+  still require more room and is visibly reported when it cannot fit. Identical
+  along positions get disjoint label columns; conflicting requested leader paths
+  remain reported. The scripted task's requested start/middle/end paths are clear.
+- Keep the prescribed SHA-256 selection, named view alignment and bare annotation
+  sampling unchanged. The grid establishes pinning-in-place quality on the same
+  thirty native parts, not arbitrary manual relocation or a PMI pin distribution.
+  The existing canonical S3 PMI/property tests remain required.
+
+No constraint-based lane redesign, corpus/recognition change, problem filtering,
+threshold change or weakening of existing tests was used. Three new regressions
+failed on the original source, covering settled linear candidates (GRM-03/cgb245),
+relative isometric fitting (GRM-03/sm-hanger), and pinned callout columns plus the
+MCP task. Final measured tables and verification are appended to the status report.
+
+
+Additional manual-station diagnosis: `target/e1-plate-same-station.{spec,plan}.json`
+sets all three callouts to along=middle. Their labels now occupy disjoint columns
+`[143,175.793]`, `[185.793,199.512]`, `[228.586,245.905]` (x bounds in mm),
+so the reported real-model label-overlap cause is fixed. Their forced horizontal
+shoulders and straight shafts share y=125, however, producing six Policy B
+`annotation_leader_crossing` findings (both directions for each pair). These are
+kept visible; that manually conflicting Spec does not pass the task's no-problems
+condition. Avoiding such paths while keeping the three fixed label stations needs
+joint bent-leader routing, beyond the bounded linear lane/side fallback in this
+stream. No such routing redesign was attempted. The unchanged scripted task uses
+start/middle/end and passes; a new real-model evaluation is not claimed here.
+
+
+Final E1 verification: fmt, release Clippy and release build passed. The required-corpus
+full release suite passed **623 tests / 68 result groups**, zero failed/ignored,
+including the existing S3 pin invariance test. Unpinned quality: all 30 parts and
+180 cells identical to the prior status table; complete baseline JSON identical
+(off-sheet 0, repeated labels 18, repeated measures 0, view overlaps/title-block
+overlaps 0, ink 282). The complete unchanged random-pin grid with `--require-go`
+passes **270/270 experiments / 9/9 combinations**, zero off-sheet items. Pinned
+ink totals by seed/N: 1/1=273, 1/3=265, 1/8=265, 2/1=280, 2/3=236, 2/8=241, 3/1=282, 3/3=271, 3/8=246.
+Scripted MCP: **7/7**, 16 calls, 4,292 estimated tool tokens, no refusals; Python
+instrument tests 5/5 and Node client/checker tests 4/4. No real-model rerun is claimed.
+Reports are `target/e1-quality/`, `target/e1-pins-<seed>-<N>/`,
+`target/e1-mcp-eval.json`, `target/e1-eval-documents/` and `target/e1-logs/`.
+Full tables are in `docs/status-2026-10-10.md`. The agent did not commit or push.

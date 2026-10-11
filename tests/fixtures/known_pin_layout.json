@@ -1,0 +1,20 @@
+[
+  {
+    "part": "mounting_plate",
+    "fact": "pinned callout columns with the same along station",
+    "verdict": "rust-correct",
+    "reason": "Spec/2 pins fix view/side/lane/along. Rust uses the widest canonical callout label on the view plus shoulder and clearance as the left/right column pitch. Python origin/main 4dfc63f, src/draftwright/layout.py::_solve_strip_1d_pava, instead spreads automatically selected strip stations with per-pair gaps; tests/test_issue_563_placement_intent.py specifies view/side, without the Spec/2 pin contract. This is a deliberate contract extension, not a measured Python pin-drawing comparison. tests/placement_intent.rs::right_pinned_callouts_have_clear_lanes_and_free_dimensions checks nonoverlapping columns for identical middle stations and the unchanged MCP task's zero-problems condition for start/middle/end. Impossible path conflicts remain reported. Radial rim attachment follows Python annotations/holes.py::_rim_tip, and is shared with Rust automatic leaders."
+  },
+  {
+    "part": "GRM-03_thumbwheel_drive_screw, sm-hanger",
+    "fact": "fitting a pinned isometric within its relative region",
+    "verdict": "rust-correct",
+    "reason": "Python origin/main 4dfc63f, src/draftwright/projection.py::_fit_iso_view, fits the orientation-only isometric into an available region, shrinks overflow, and reports when no positive scale exists. Rust now clips a pinned isometric's requested region to the drawing area and takes its largest free rectangle before fixing its ink. This extends the region-fitting policy to Spec/2 pins; principal view relations remain literal. GRM-03 previously resolved [137,84,287,213] against allowed top 200 (13 mm overrun), and sm-hanger's isometric region intersected its side view and four pinned dimensions (eight ink findings). tests/placement_intent.rs::relative_isometric_pins_fit_the_remaining_region checks both. The exact nominal gap/alignment describes the pre-fit region rather than the final trimmed isometric rectangle: an overturnable judgement recorded in docs/next-session.md."
+  },
+  {
+    "part": "GRM-03_thumbwheel_drive_screw, cgb245",
+    "fact": "starting free linear annotations from settled canonical geometry around pins",
+    "verdict": "rust-correct",
+    "reason": "The Spec/2 pin contract keeps canonical resolved geometry. Restarting free labels at their initial centres recreated conflicts that the ordinary label slides had already removed; obstacle avoidance then re-stacked them farther out (GRM-03 2 to 4 ink; cgb245 6 to 10). Free items now start from the settled canonical candidate and move only as needed around fixed ink. Tests compare every surviving linear placement byte for byte when pinning in place. Python origin/main 4dfc63f has no matching Spec/2 pin operation, so this is contract evidence, not a claim of captured Python pin parity. Existing unpinned known_placement/known_leaders/known_views ledgers and their exhaustive tests are retained."
+  }
+]

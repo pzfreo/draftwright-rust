@@ -848,27 +848,45 @@ pub(super) fn avoid_fixed(
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
     chosen: &[Option<&str>],
-    sides: &[Option<Side>],
-    lanes: &[usize],
+    sides: &mut [Option<Side>],
+    lanes: &mut [usize],
     fixed: &[bool],
     placed: &mut [Option<Placed>],
     obstacles: &[PlannedDimension],
     page: &Page,
 ) {
-    let held: Vec<Placed> = placed
+    let held: Vec<(Placed, bool)> = placed
         .iter()
         .zip(fixed)
-        .filter_map(|(p, f)| if *f { p.clone() } else { None })
-        .chain(obstacles.iter().filter_map(|d| d.placed.clone()))
+        .zip(items)
+        .filter_map(|((p, f), w)| {
+            if *f {
+                Some((p.clone()?, matches!(w.shape, Shape::Callout { .. })))
+            } else {
+                None
+            }
+        })
+        .chain(
+            obstacles
+                .iter()
+                .filter_map(|d| Some((d.placed.clone()?, d.kind == "callout"))),
+        )
         .collect();
     if held.is_empty() {
         return;
     }
     let blocked = |p: &Placed| {
-        held.iter().any(|q| {
+        held.iter().any(|(q, leader)| {
             boxes_overlap(p.label_box, q.label_box)
                 || p.lines.iter().any(|l| crosses(*l, q.label_box))
                 || q.lines.iter().any(|l| crosses(*l, p.label_box))
+                || (*leader
+                    && q.lines.iter().any(|l| {
+                        p.lines
+                            .iter()
+                            .chain(&p.arrows)
+                            .any(|t| super::leaders::lines_meet(*l, *t))
+                    }))
         })
     };
     for i in 0..items.len() {
@@ -881,12 +899,28 @@ pub(super) fn avoid_fixed(
         if !blocked(p) {
             continue;
         }
-        for lane in lanes[i] + 1..lanes[i] + 65 {
+        let slid = slides(p, page.drawable).find(|p| page.fits(p, view) && !blocked(p));
+        if let Some(p) = slid {
+            placed[i] = Some(p);
+            continue;
+        }
+        let opposite = match side {
+            Side::Above => Side::Below,
+            Side::Below => Side::Above,
+            Side::Left => Side::Right,
+            Side::Right => Side::Left,
+        };
+        let candidates = (0..64)
+            .map(|n| (side, n))
+            .chain((0..64).map(|n| (opposite, n)));
+        for (side, lane) in candidates {
             if let Some(p) = place(&frames[view], &items[i], side, lane)
                 && page.fits(&p, view)
                 && !blocked(&p)
             {
                 placed[i] = Some(p);
+                sides[i] = Some(side);
+                lanes[i] = lane;
                 break;
             }
         }
@@ -953,6 +987,7 @@ pub(super) fn intent(
     p: &crate::placement_intent::Place,
     side: Side,
     lane: usize,
+    callout_width: f64,
 ) -> Option<Placed> {
     if !p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() {
         return None;
@@ -974,20 +1009,20 @@ pub(super) fn intent(
             place_linear(frame, &w.shape, &w.terms, side, lane)?
         }
         Shape::Callout { sites } => {
-            let (site, radius) = sites.first()?;
+            let (site, _) = sites.first()?;
             let c = frame.page(*site);
-            let d = match side {
-                Side::Above => [0.0, 1.0],
-                Side::Below => [0.0, -1.0],
-                Side::Left => [-1.0, 0.0],
-                Side::Right => [1.0, 0.0],
-            };
-            let tip = [
-                c[0] + d[0] * radius * frame.scale(),
-                c[1] + d[1] * radius * frame.scale(),
-            ];
             let o = frame.outline();
-            let (line, _) = lane_at(o, side, lane);
+            let (mut line, out) = lane_at(o, side, 0);
+            let ink = label_ink(&w.terms, font());
+            let width = ink.max[0] - ink.min[0];
+            // Horizontal callout labels need their measured width in a side column. Use the
+            // canonical width so editing another item's text cannot move a pin's lane.
+            let step = if matches!(side, Side::Left | Side::Right) {
+                callout_width.max(width) + super::SHOULDER + LANE
+            } else {
+                LANE
+            };
+            line += out * lane as f64 * step;
             let k = usize::from(matches!(side, Side::Above | Side::Below));
             let f = p
                 .along
@@ -996,8 +1031,7 @@ pub(super) fn intent(
             let mut elbow = c;
             elbow[k] = line;
             elbow[1 - k] = o[1 - k] + f * (o[3 - k] - o[1 - k]);
-            let ink = label_ink(&w.terms, font());
-            let width = ink.max[0] - ink.min[0];
+            let tip = super::leaders::intent_tip(frame, sites, elbow);
             let left = side == Side::Left;
             let end = [
                 elbow[0]

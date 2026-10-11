@@ -297,6 +297,60 @@ pub(crate) fn views(
                     [offset, out]
                 },
             );
+            // The isometric's area is a reserved region, not a dimensioned projection frame.
+            // Resolve its ink inside that region before fixing it, as the automatic fitter does.
+            if name == "iso"
+                && p.pinned
+                && let Some(c) = canonical
+            {
+                let a = views[i].area;
+                let margin = crate::layout::MARGIN;
+                let region = [
+                    a[0].max(margin),
+                    a[1].max(margin),
+                    a[2].min(page[0] - margin),
+                    a[3].min(page[1] - margin),
+                ];
+                let occupied: Vec<_> = c
+                    .views
+                    .iter()
+                    .filter(|v| v.id != "v:iso")
+                    .map(|v| {
+                        if s.views
+                            .get(v.id.trim_start_matches("v:"))
+                            .is_some_and(|v| v.place.as_ref().is_some_and(|p| p.pinned))
+                        {
+                            views
+                                .iter()
+                                .find(|p| p.id == v.id)
+                                .map_or(v.area, |p| p.area)
+                        } else {
+                            v.area
+                        }
+                    })
+                    .chain([sheet.title_block])
+                    .collect();
+                if region[0] < region[2]
+                    && region[1] < region[3]
+                    && (region != a || occupied.iter().any(|b| overlap(a, *b)))
+                {
+                    let size = [a[2] - a[0], a[3] - a[1]];
+                    let fit = crate::layout::largest_empty_rect(region, &occupied, size);
+                    if !occupied.iter().any(|b| overlap(fit, *b)) {
+                        let factor = ((fit[2] - fit[0]) / size[0])
+                            .min((fit[3] - fit[1]) / size[1])
+                            .min(1.0);
+                        let v = &mut views[i];
+                        v.at = [0, 1].map(|k| {
+                            0.5 * (fit[k] + fit[k + 2])
+                                + factor * (v.at[k] - 0.5 * (a[k] + a[k + 2]))
+                        });
+                        v.scale *= factor;
+                        v.area = fit;
+                        v.basis += "; isometric ink fitted inside its relative placement region";
+                    }
+                }
+            }
             views[i].default = false;
             views[i].basis += "; placed relative to its anchor by the spec";
             resolved.insert(name);
@@ -373,6 +427,26 @@ pub(crate) fn views(
     occupied.push(sheet.title_block);
     occupied.extend_from_slice(obstacles);
     for v in views.iter_mut().filter(|v| !fixed.contains(&v.id)) {
+        if v.id == "v:iso" && occupied.iter().any(|b| overlap(v.area, *b)) {
+            let a = v.area;
+            let size = [a[2] - a[0], a[3] - a[1]];
+            let fit = crate::layout::largest_empty_rect(
+                [margin, margin, page[0] - margin, page[1] - margin],
+                &occupied,
+                size,
+            );
+            if !occupied.iter().any(|b| overlap(fit, *b)) {
+                let factor = ((fit[2] - fit[0]) / size[0])
+                    .min((fit[3] - fit[1]) / size[1])
+                    .min(1.0);
+                v.at = [0, 1].map(|k| {
+                    0.5 * (fit[k] + fit[k + 2]) + factor * (v.at[k] - 0.5 * (a[k] + a[k + 2]))
+                });
+                v.scale *= factor;
+                v.area = fit;
+                v.basis += "; fitted around fixed placement obstacles";
+            }
+        }
         if occupied.iter().any(|b| overlap(v.area, *b)) {
             let base = v.clone();
             'search: for shrink in 0..if v.id == "v:iso" { 10 } else { 1 } {

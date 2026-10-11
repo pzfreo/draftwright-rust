@@ -168,7 +168,7 @@ frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`:
 | --- | --- |
 | `view` | `front`, `plan` or `side`; a dimension must be visible across that view. `place.view` takes precedence over the earlier `dimensions/<id>/view`. |
 | `side` | `above`, `below`, `left` or `right` of the carrying view's projected envelope. A linear dimension uses the two sides parallel to its measured span; incompatible sides are refused with the choices. |
-| `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
+| `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; callout columns on the left/right use the widest canonical label on that view plus shoulder and clearance, so labels at the same along position have distinct columns; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
 
@@ -183,7 +183,10 @@ is always relative to another view (ADR R1 invariant 1), typically its projectio
 `align` is `start`, `middle` (default) or `end` along the other axis (`outside` also aligns
 ends). Dependencies resolve before packing; cycles and self-anchors are refused. Missing anchors
 are reported, with the entry retained. Unpinned views fit around fixed footprints; an automatic
-isometric may be reduced to fit the space left.
+isometric may be reduced to fit the space left. A pinned isometric first resolves the requested
+relative region, clips it to the drawing area and fits its ink in the largest free rectangle
+inside that region. Its resulting position and scale are then fixed. Principal view pins keep
+the literal footprint relation and report any overrun.
 
 A pin also fixes its carrying view and the view-anchor dependency chain for automatic packing.
 Those frames and the automatic sheet/scale are resolved from the part's default plan and the
@@ -192,7 +195,11 @@ Recovery cannot change them to repair another item's collision. Editing the pin'
 intent, sheet or scale deliberately re-resolves it. All original `place` entries remain in the
 embedded Spec, including entries that are covered, omitted, or cannot fit.
 
-Pinned annotations are obstacles to the free linear, leader and PMI solvers. A collision or
+Pinned annotations are obstacles to the free linear, leader and PMI solvers. Explicit pin ink
+reserves additional carrier bands before free views are packed; the carrier origin and scale
+stay fixed. Free linear labels start from their canonical settled geometry, then try slides,
+other lanes and the opposite side when a pin blocks them. Pinned callout shafts attach radially
+to the nearest proven feature site, as automatic leaders do. A collision or
 sheet overrun remains a problem against the pinned ID; its geometry is kept, including pinned
 hole items that ordinary drop-and-escalate would withdraw. A covered measurement stays covered:
 `omit: false` and a pin do not bypass consolidation or repeat information. A pin that cannot be
