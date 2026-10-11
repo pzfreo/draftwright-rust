@@ -76,9 +76,13 @@ Tool subprocess requests may put fields inside `arguments` (e.g.
 `{"op":"mcp_get_item","arguments":{"part_ref":"...","id":"d:..."}}`) so the transport's
 request ID does not conflict with the item's ID. Existing live Session operations are preserved.
 
-`part_ref` is `<STEP SHA-256>-<engine SHA-256>`. The latter hashes `ENGINE_VERSION` plus the
-compiled Cargo.lock. Cache revisions must be bumped when engine behaviour changes; package and
-kernel versions alone do not identify unversioned source changes. Unknown keys, including keys
+`part_ref` is `<STEP SHA-256>-<engine SHA-256>`. `build.rs` derives `ENGINE_VERSION` from
+sorted, length-delimited relative paths and contents of `src/**/*.rs`, Cargo.lock, Cargo.toml,
+the build scripts, MCP `*.json` schemas and bundled `*.ttf`/`*.otf` fonts. Stray files
+(such as `.DS_Store`, swap files and backups) are excluded. Cargo watches files and
+directories, so edits, additions and removals of relevant inputs invalidate the key
+automatically; no manual suffix bump is needed.
+Absolute paths and timestamps are excluded, so identical checkouts share keys. Unknown keys, including keys
 from another engine, explain registration with `inspect_part {step: ...}`. Registration copies
 STEP bytes, their original basename, and optional recognition JSON. Cold keys compute Analysis,
 HLR and visible bounds on demand. Warm calls read Analysis and projections/bounds from disk;
@@ -161,3 +165,10 @@ here covers the complete shared S4B S0 op sequence on all four slice parts.
   and task-file location were adapted. Per-task bytes/tokens exclude judge calls as S0 did;
   tokens are `ceil(bytes/4)`, not actual model tokenizer counts. Fixed context is reported
   separately. Task IDs/quantities are known scripted inputs, not inferred model outputs.
+
+D1 adds the real-model call client and finished-task checker; see
+[`tools/mcp-eval/README.md`](../tools/mcp-eval/README.md) for starting HTTP, listing tools,
+calling, logging bytes/tokens and scoring. Served descriptions explain each tool without
+requiring source access. Schemas factor repeated shapes through local `$defs` while
+remaining standalone. `cargo test --release --test engine_version` checks the source hash,
+cache namespace, tool descriptions and a 38,500-byte per-session schema budget.

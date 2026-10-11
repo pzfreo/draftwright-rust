@@ -12,20 +12,21 @@ def nullable(s): return {'anyOf':[s, {'type':'null'}]}
 state={'anyOf':[obj({'kind':{'enum':['shown','omitted_by_user','not_authored']}},['kind']), obj({'kind':{'const':'covered'},'by':S},['kind','by']),obj({'kind':{'const':'not_drawable'},'reason_code':S},['kind','reason_code'])]}
 op={'anyOf':[obj({'op':{'enum':['set','add']},'path':S,'value':{}},['op','path','value']),obj({'op':{'const':'remove'},'path':S},['op','path'])]}
 place=obj({'view':{'enum':['front','plan','side']},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'pinned':B})
-compact=obj({'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':state},['id','kind','label','view','state'])
+compact=obj({'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':ref('state')},['id','kind','label','view','state'])
 item=obj({'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
-problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(op)},['id','code','severity','message','subjects'])
+problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(ref('op'))},['id','code','severity','message','subjects'])
 rectangle=arr(N,minItems=4,maxItems=4)
-filter_=obj({'view':nullable(S),'kind':nullable(S),'state':nullable(state),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
+filter_=obj({'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S)})
 spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S}}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'})})
-defs={'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
+defs={'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
 problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S)},['id','code','severity','subjects'])
-row_item={'anyOf':[ref('compact'),ref('item'),stub]}
-row_problem={'anyOf':[problem,problem_small,stub]}
+defs.update({'stub':stub, 'problem_small':problem_small})
+row_item={'anyOf':[ref('compact'),ref('item'),ref('stub')]}
+row_problem={'anyOf':[ref('problem'),ref('problem_small'),ref('stub')]}
 def paged(row):return obj({'items':arr(row),'total':I,'next_cursor':nullable(I)},['items','total','next_cursor'])
-page=paged({'anyOf':[obj({'change':{'enum':['changed','added']},'item':row_item},['change','item']),obj({'change':{'const':'removed'},'id':S},['change','id']),obj({'change':{'enum':['problem_added','problem_resolved']},'problem':row_problem},['change','problem']),stub]})
+page=paged({'anyOf':[obj({'change':{'enum':['changed','added']},'item':row_item},['change','item']),obj({'change':{'const':'removed'},'id':S},['change','id']),obj({'change':{'enum':['problem_added','problem_resolved']},'problem':row_problem},['change','problem']),ref('stub')]})
 delta=obj({'events':page,'delta_ref':S,'plans':I},['events','delta_ref','plans'])
 summary=obj({'part_ref':S,'part':S,'face_count':I,'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'sheet':obj({'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['size','scale','page']),'views':arr(S),'items':I,'problems':I,'spec_version':S,'plan_ref':S},['part_ref','part','face_count','envelope','sheet','views','items','problems','spec_version'])
 common={'part_ref':S,'spec':ref('spec'),'spec_version':S,'drawing_ref':S}
@@ -45,6 +46,39 @@ tools={
 'analyse':(obj({'step':S,'features':S},['step']),obj({'schema':{'const':'draftwright.analysis/7'},'binding':obj({'source_sha256':S,'part':S,'face_count':I,'loader':S},['source_sha256','part','face_count','loader']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'features':arr({'type':'object'}),'iso_bounds':rectangle},['schema','binding','envelope','iso_bounds'],True)),
 'render':(obj({**common,'step':S,'features':S,'format':{'enum':['png','pdf']},'region':rectangle,'overlay_ids':B,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}}),artifact),
 }
+def share_repeated(schema):
+    """Factor repeated shapes only when the complete standalone schema gets smaller."""
+    from collections import Counter
+    from copy import deepcopy
+    def encoded(value): return json.dumps(value, sort_keys=True, separators=(',', ':'))
+    for index in range(20):
+        counts = Counter()
+        def count(value):
+            if isinstance(value, dict):
+                counts[encoded(value)] += 1
+                for child in value.values(): count(child)
+            elif isinstance(value, list):
+                for child in value: count(child)
+        count(schema)
+        best = None
+        for shape, occurrences in counts.items():
+            if occurrences < 2 or len(shape) < 35: continue
+            name = 'shared' + str(index)
+            replacement = ref(name)
+            def replace(value):
+                if isinstance(value, dict):
+                    if encoded(value) == shape: return replacement
+                    return {k: replace(v) for k, v in value.items()}
+                if isinstance(value, list): return [replace(v) for v in value]
+                return value
+            trial = replace(deepcopy(schema))
+            trial['$defs'][name] = json.loads(shape)
+            saving = len(encoded(schema)) - len(encoded(trial))
+            if saving > 0 and (best is None or saving > best[0]): best = (saving, trial)
+        if best is None: break
+        schema = best[1]
+    return schema
+
 for tool,(inp,out) in tools.items():
     if tool in ['inspect_part','render']:
         inp['anyOf']=[{'required':['step']},{'required':['part_ref']}]
@@ -63,4 +97,4 @@ for tool,(inp,out) in tools.items():
                 for value in s: collect(value)
         collect(schema)
         schema={'$schema':'https://json-schema.org/draft/2020-12/schema','$id':f'https://draftwright.io/schemas/mcp/{tool}.{kind}.json',**schema,'$defs':used}
-        Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')
+        Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(share_repeated(schema),indent=2)+'\n')

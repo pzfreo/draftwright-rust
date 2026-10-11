@@ -37,27 +37,7 @@
                                 "$ref": "#/$defs/item"
                               },
                               {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "anyOf": [
-                                      {
-                                        "type": "string"
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "detail_ref": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "detail_ref"
-                                ],
-                                "additionalProperties": false
+                                "$ref": "#/$defs/stub"
                               }
                             ]
                           }
@@ -96,135 +76,13 @@
                           "problem": {
                             "anyOf": [
                               {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "code": {
-                                    "type": "string"
-                                  },
-                                  "severity": {
-                                    "type": "string"
-                                  },
-                                  "message": {
-                                    "type": "string"
-                                  },
-                                  "subjects": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "refs": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "fix": {
-                                    "type": "array",
-                                    "items": {
-                                      "anyOf": [
-                                        {
-                                          "type": "object",
-                                          "properties": {
-                                            "op": {
-                                              "enum": [
-                                                "set",
-                                                "add"
-                                              ]
-                                            },
-                                            "path": {
-                                              "type": "string"
-                                            },
-                                            "value": {}
-                                          },
-                                          "required": [
-                                            "op",
-                                            "path",
-                                            "value"
-                                          ],
-                                          "additionalProperties": false
-                                        },
-                                        {
-                                          "type": "object",
-                                          "properties": {
-                                            "op": {
-                                              "const": "remove"
-                                            },
-                                            "path": {
-                                              "type": "string"
-                                            }
-                                          },
-                                          "required": [
-                                            "op",
-                                            "path"
-                                          ],
-                                          "additionalProperties": false
-                                        }
-                                      ]
-                                    }
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "code",
-                                  "severity",
-                                  "message",
-                                  "subjects"
-                                ],
-                                "additionalProperties": false
+                                "$ref": "#/$defs/problem"
                               },
                               {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "code": {
-                                    "type": "string"
-                                  },
-                                  "severity": {
-                                    "type": "string"
-                                  },
-                                  "subjects": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string"
-                                    }
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "code",
-                                  "severity",
-                                  "subjects"
-                                ],
-                                "additionalProperties": false
+                                "$ref": "#/$defs/problem_small"
                               },
                               {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "anyOf": [
-                                      {
-                                        "type": "string"
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "detail_ref": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "detail_ref"
-                                ],
-                                "additionalProperties": false
+                                "$ref": "#/$defs/stub"
                               }
                             ]
                           }
@@ -236,27 +94,7 @@
                         "additionalProperties": false
                       },
                       {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "detail_ref": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "detail_ref"
-                        ],
-                        "additionalProperties": false
+                        "$ref": "#/$defs/stub"
                       }
                     ]
                   }
@@ -330,76 +168,13 @@
           "type": "string"
         },
         "label": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/shared1"
         },
         "view": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/shared1"
         },
         "state": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "kind": {
-                  "enum": [
-                    "shown",
-                    "omitted_by_user",
-                    "not_authored"
-                  ]
-                }
-              },
-              "required": [
-                "kind"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": {
-                  "const": "covered"
-                },
-                "by": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "by"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": {
-                  "const": "not_drawable"
-                },
-                "reason_code": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "reason_code"
-              ],
-              "additionalProperties": false
-            }
-          ]
+          "$ref": "#/$defs/state"
         }
       },
       "required": [
@@ -410,6 +185,58 @@
         "state"
       ],
       "additionalProperties": false
+    },
+    "state": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "shown",
+                "omitted_by_user",
+                "not_authored"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "covered"
+            },
+            "by": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "by"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "not_drawable"
+            },
+            "reason_code": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "reason_code"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "item": {
       "type": "object",
@@ -428,14 +255,7 @@
           ]
         },
         "dimension_kind": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/shared1"
         },
         "placement": {
           "anyOf": [
@@ -448,25 +268,16 @@
           ]
         },
         "anchors": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "features": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "basis": {
           "type": "string"
         },
         "operations": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         }
       },
       "required": [
@@ -478,6 +289,124 @@
         "features",
         "basis",
         "operations"
+      ],
+      "additionalProperties": false
+    },
+    "stub": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/shared1"
+        },
+        "detail_ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "detail_ref"
+      ],
+      "additionalProperties": false
+    },
+    "problem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "subjects": {
+          "$ref": "#/$defs/shared0"
+        },
+        "refs": {
+          "$ref": "#/$defs/shared0"
+        },
+        "fix": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/op"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "severity",
+        "message",
+        "subjects"
+      ],
+      "additionalProperties": false
+    },
+    "op": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "enum": [
+                "set",
+                "add"
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "op",
+            "path",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "remove"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "problem_small": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "subjects": {
+          "$ref": "#/$defs/shared0"
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "severity",
+        "subjects"
       ],
       "additionalProperties": false
     },
@@ -494,10 +423,7 @@
           "type": "string"
         },
         "choices": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         }
       },
       "required": [
@@ -505,6 +431,22 @@
         "message"
       ],
       "additionalProperties": false
+    },
+    "shared0": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "shared1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   }
 }

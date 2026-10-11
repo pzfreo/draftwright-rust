@@ -21,76 +21,13 @@
                   "type": "string"
                 },
                 "label": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
+                  "$ref": "#/$defs/shared1"
                 },
                 "view": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
+                  "$ref": "#/$defs/shared1"
                 },
                 "state": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "enum": [
-                            "shown",
-                            "omitted_by_user",
-                            "not_authored"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "kind"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "const": "covered"
-                        },
-                        "by": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "by"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "const": "not_drawable"
-                        },
-                        "reason_code": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "reason_code"
-                      ],
-                      "additionalProperties": false
-                    }
-                  ]
+                  "$ref": "#/$defs/state"
                 },
                 "basis": {
                   "type": "string"
@@ -106,10 +43,7 @@
                   ]
                 },
                 "operations": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
+                  "$ref": "#/$defs/shared0"
                 }
               },
               "required": [
@@ -163,14 +97,7 @@
           ]
         },
         "dimension_kind": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/shared1"
         },
         "placement": {
           "anyOf": [
@@ -183,25 +110,16 @@
           ]
         },
         "anchors": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "features": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "basis": {
           "type": "string"
         },
         "operations": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         }
       },
       "required": [
@@ -216,6 +134,58 @@
       ],
       "additionalProperties": false
     },
+    "state": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "shown",
+                "omitted_by_user",
+                "not_authored"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "covered"
+            },
+            "by": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "by"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "not_drawable"
+            },
+            "reason_code": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "reason_code"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "error": {
       "type": "object",
       "properties": {
@@ -229,10 +199,7 @@
           "type": "string"
         },
         "choices": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         }
       },
       "required": [
@@ -240,6 +207,22 @@
         "message"
       ],
       "additionalProperties": false
+    },
+    "shared0": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "shared1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   }
 }

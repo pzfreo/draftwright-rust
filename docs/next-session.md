@@ -2566,3 +2566,168 @@ Result: **605 passed, 0 failed, 0 ignored across 66 result groups**, including a
 nine new editor Session tests. The final exhaustive reading, coverage, dimensions,
 drawings and labels comparisons all pass with their original invariant assertions.
 Both worktrees also pass `git diff --check`, with empty staged diffs.
+
+## D1: go/no-go instruments and MCP gaps (2026-10-11)
+
+Overturnable judgement calls made unattended:
+
+- Random-pin sampling ranks drawable dimension, PMI annotation and non-root view IDs by
+  SHA-256 of `seed:part:item`. N selects a prefix, without replacement, so samples are
+  independent of Plan ordering and nested across N. A bare annotation `{pinned:true}`
+  retains canonical automatic geometry. View intent requires another view, a side and a
+  named alignment: retain `front` as the unpinned root (or the first ID if absent), use
+  the dominant side from footprint centres, a legal existing gap and the nearest named
+  alignment to that root, and exclude the root from sampling
+  to avoid cycles. This tests pinning existing placements, rather than random manual
+  relocation; it is an overturnable interpretation of section 6. IDs and complete Specs
+  are kept with every run. A missing part or insufficient candidates is an instrument
+  error, never a smaller silent sample. Zero baseline ink requires zero pinned ink.
+- `tools/quality.py` reports a measured no-go with exit 0 so all nine measurements can
+  complete; `--require-go` enforces failure on any part, including a zero-ink baseline
+  that acquires ink. Totals do not hide individual failures. Off-sheet subjects are
+  retained as well as counts, to detect replacement with a different off-sheet item.
+- The engine fingerprint includes `src/`, Cargo.lock, Cargo.toml, build scripts, schemas
+  and fonts, sorted by relative path with length-delimited contents. Directory watches
+  catch new/deleted files. Paths and mtimes do not affect identity. It conservatively
+  invalidates caches even for a source comment or schema-only change; this supersedes
+  S7's hand-bumped suffix judgement above. It describes the source and locked dependencies,
+  not external compiler/environment reproducibility. No production cache was migrated.
+- The real-model client targets the existing loopback JSON-response HTTP mode. It logs
+  exact UTF-8 JSON-RPC body bytes and S0-compatible argument/text bytes per call, with
+  `ceil(bytes/4)` estimates. Actual model tokens must be supplied by the evaluator.
+  Judge calls are excluded. The seven task conditions remain unchanged. CLI PNG calls
+  print the structured text metadata; `--image-out` saves MCP image content for a vision
+  model's image reader. D1 supplies instruments, not a claimed Claude run.
+
+### Diagnosis: plate-callouts-right-pinned remains a no-go
+
+Reproduced with the pre-D1 release binary, the unchanged scripted ops and S0 feature
+bridge. The A4 1:1 plan reserves plan-view area `[10,77,150,175]`. Its three right-pin
+shoulders end at x=175.793, 163.719 and 174.319 mm (lanes 0,1,2, along start/middle/end).
+They exceed the right band by **25.793, 13.719 and 24.319 mm**. The location-Y dimension
+`d:f:hole:4/location.length.y` has its dimension line at x=140, y=95..125 and witnesses
+at y=95 and y=125. The pattern pin's leader ends at `[140,95]`; hole-4's leader/shoulder
+runs along y=125 from x=84 to 163.719. Both intersect the location dimension's ink,
+reported as two `annotation_leader_crossing` problems. The pin geometry is retained,
+not dropped; all other task conditions pass.
+
+Evidence is reproducible with:
+
+```sh
+node tools/mcp-eval/run-scripted.mjs --out target/d1-mcp-eval.json --documents-dir target/d1-eval-documents
+tools/mcp-eval/check plate-callouts-right-pinned --spec target/d1-eval-documents/plate-callouts-right-pinned/spec.json --plan target/d1-eval-documents/plate-callouts-right-pinned/plan.json --baseline target/d1-eval-documents/plate-callouts-right-pinned/baseline.json
+```
+
+The first instrument and the task checker exit 1. Inspect the emitted Plan's placed
+lines and problems; the old-binary evidence is also in `target/d1-diagnosis-documents/`.
+
+Cause: `model::plan_with` computes demand/reservations before resolving explicit pin
+ink and restores canonical anchor areas for pins; `dims::placement::intent` uses the
+ordinary lane grid plus a full horizontal label shoulder regardless of available band
+width. `avoid_fixed` checks label/label and line/label collisions only, and searches
+larger lanes on the same side; it has no line/line constraints or alternate-side solve.
+The leader solver skips already placed pins. Moving the free location dimension to
+another lane on the right does not address every crossing; the witnesses still traverse
+that strip. A joint choice of its side and the callouts' reserved width is needed.
+Expanding the reported area after placement alone would hide the reservation finding,
+change areas used as pin anchors, and leave crossings. Therefore no layout patch was
+made: the small-change route cannot establish the unchanged pin-geometry and quality
+invariants. Carry forward section 6's constraint-based lane redesign. No task conditions,
+collision reporting, pins or quality bars were weakened to obtain a pass.
+
+Final measurements and verification are in `docs/status-2026-10-10.md`'s D1 entry.
+
+The 30 native-recognition quality parts produced no eligible PMI annotation IDs:
+across the nine runs, 895 selected pins are dimensions and 185 are views (1,080
+selected items in 270 experiments). The instrument supports PMI and tests that
+Spec path with a drawable PMI fixture shape; the existing S3 AP242 property tests
+also cover real PMI pins. The section 6 corpus measurement therefore establishes
+no new PMI-layout distribution. Adding an AP242 quality corpus is a future decision,
+not an excuse to replace the prescribed thirty parts here.
+
+One Node live-client test invocation reported `fetch failed` on its first registration
+request while the full corpus suite was running. An immediate unchanged-code rerun
+passed all three tests, including online checking and PNG export. The underlying
+connection failure was not identified; no retries, skips or weaker assertions were
+added. Keep this as a possible harness/host-load flake if it recurs.
+
+An initial source-mutation probe reused the working target directory. It was corrected
+to use a disposable isolated target. The working build script was forced to rerun,
+and the engine-version test verified the compiled identifier against the working
+source before the complete 615-test run. Final artifacts and measurements use the
+verified working engine; there was no layout code difference in the initial probe.
+
+
+## D1 review fix round (2026-10-11)
+
+The reported off-sheet plan views were false positives: a view at the 10 mm
+margin can resolve to `9.999999999999996`. The reporting comparison now allows
+**1e-9 mm** on each drawing-area boundary. This is an overturnable conservative numerical
+tolerance: it covers anchor arithmetic rounding while still reporting real
+overruns. Packing, resolved geometry, pin intent and collision checks are unchanged.
+A unit regression covers exact boundaries, 1e-12 mm rounding and 1e-4 mm real
+overruns on all four edges, retaining the geometry and checking problem subjects.
+A corpus regression verifies byte-identical unpinned/pinned plan-view geometry
+for 1000, 10000 and 1004 and no off-sheet finding. Both failed before this fix.
+
+The fingerprint now includes only Rust `*.rs` source, MCP `*.json` schemas,
+`*.ttf`/`*.otf` fonts and the four explicit build/manifest/lock files. Extension
+filtering instead of invoking git is an overturnable choice: release source
+archives must work without repository metadata. Directory watches remain, so
+new/deleted relevant inputs are detected. A regression fails before the fix
+when `.DS_Store`, swaps and backup files change the input set; it also checks
+that adding/removing Rust source changes/restores the fingerprint.
+
+The existing random selection and bare annotation pins are retained for an
+exact comparison with the reviewed grid. This measures random subsets of
+existing placements; it does not measure random relocation to option-selected
+placements. That narrower interpretation remains overturnable, and the new
+report must not be used to claim relocation quality. A second sampling policy
+and full measured grid would be a separate instrument change, not a cheap
+reporting fix. The observed NO-GO already requires the lane redesign.
+
+The earlier implementation is driver-committed as `9b7ee2b`. This fix round
+does not commit, push or write the index. No editor or draftwright-io files
+are changed. The existing geometry-backed diagnosis of the plate task stands;
+no scripted conditions or quality thresholds are weakened.
+
+
+The fix-round MCP runner initially failed before reaching any task with
+`EHOSTUNREACH 0.0.0.127:80`. Its stderr parser accepted a partial startup URL
+(`http://127`) before the rest of the host, port and `/mcp` arrived. The same
+pattern was present in the live-client test. Both now use a shared parser that
+requires the complete newline-terminated `/mcp` startup line. A Node regression
+checks every split point plus CRLF and subsequent logs; it failed against the
+old pattern (`http://1` returned from a prefix) and passes after the fix. No
+retries or relaxed assertions were added. This explains the reproduced startup
+failure; the earlier implementation's unspecified `fetch failed` may have had
+the same cause, but that historical attribution is not proven.
+
+
+The fresh grid disproves the reviewer's provisional GRM-03 diagnosis: its
+isometric right edge is exactly 287 mm, but the pin uses `align:start` to the
+front view, raising its area from `[137,71,287,200]` to `[137,84,287,213]`. On
+the 297×210 mm page, the drawing-area top is 200 mm, so this is a **real 13 mm
+overrun**, not rounding at the right edge. The bounds report correctly remains.
+Reproduce with `draftwright plan` on the corpus GRM-03 file and the saved
+`target/d1-fix-pins-1-3/pinned/GRM-03_thumbwheel_drive_screw.spec.json`; the
+comparison plans are `target/d1-fix-grm-{default,pinned}-plan.json`. Named view
+alignment is intentionally quantized by the existing sampler. Do not remove a
+real finding or alter that sampling policy to improve the measured bar.
+
+
+Final fix-round measurements: **270/270 completed**, **7/9 combinations fail**,
+**8/270 experiments fail**. Twelve plan-view false positives are removed; three
+real isometric overruns remain. Six experiments exceed the ink bar, with one
+also off-sheet. Selected IDs, complete Specs and every non-off-sheet metric
+match the original grid. The corrected full tables and review-count arithmetic
+are in `docs/status-2026-10-10.md`; raw comparison is
+`target/d1-fix-grid-comparison.json`. Unpinned quality is identical in all 180
+cells and in complete baseline JSON. `--require-go` accepts the corrected 1004
+case and rejects the real GRM-03 overrun.
+
+Fmt, release Clippy, release build and required-corpus tests pass: **618 tests**,
+**68 result groups**, zero failures/ignored. Python tests pass **5/5** and Node
+tests pass **4/4**. S7 still scores **6/7** (exit 1), with the documented plate
+failure; that all-tasks gate is not passed. No conditions or tests were weakened.
+Logs are in `target/d1-fix-logs/`.

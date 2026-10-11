@@ -31,78 +31,15 @@
       "type": "object",
       "properties": {
         "view": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/shared1"
         },
         "kind": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/shared1"
         },
         "state": {
           "anyOf": [
             {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "enum": [
-                        "shown",
-                        "omitted_by_user",
-                        "not_authored"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "const": "covered"
-                    },
-                    "by": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "by"
-                  ],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "const": "not_drawable"
-                    },
-                    "reason_code": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "reason_code"
-                  ],
-                  "additionalProperties": false
-                }
-              ]
+              "$ref": "#/$defs/state"
             },
             {
               "type": "null"
@@ -110,14 +47,7 @@
           ]
         },
         "feature": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/shared1"
         },
         "region": {
           "anyOf": [
@@ -135,14 +65,7 @@
           ]
         },
         "near": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/shared1"
         },
         "radius": {
           "anyOf": [
@@ -188,24 +111,10 @@
           "type": "object",
           "properties": {
             "size": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/$defs/shared1"
             },
             "scale": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/$defs/shared1"
             },
             "title": {
               "type": "object",
@@ -218,28 +127,16 @@
           "additionalProperties": false
         },
         "views": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "dimensions": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "annotations": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "features": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "dimension_source": {
           "enum": [
@@ -262,6 +159,74 @@
       },
       "required": [],
       "additionalProperties": false
+    },
+    "state": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "shown",
+                "omitted_by_user",
+                "not_authored"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "covered"
+            },
+            "by": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "by"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "not_drawable"
+            },
+            "reason_code": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "reason_code"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "shared0": {
+      "additionalProperties": {
+        "type": "object"
+      },
+      "type": "object"
+    },
+    "shared1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   }
 }

@@ -26,6 +26,48 @@ pub const TOOLS: [&str; 12] = [
 pub const VERSIONS: [&str; 3] = ["2025-11-25", "2025-06-18", "2025-03-26"];
 pub const INSTRUCTIONS: &str = "Register STEP with inspect_part {step}; keep part_ref. The Spec is state: pass spec or immutable spec_version to each query. get_spec loads a drawing's current head; apply_ops requires that parent and returns a new version. preview_ops keeps no version. Lists and delta events are paged below 4096 bytes; follow next_cursor. Delta artifacts are lossless and readable with resources/read (events may be paged there without applying again). get_item explains basis and valid operations. view_sheet gives PNG, render_pdf delivery PDF. No live session or authentication; localhost development only.";
 
+fn description(tool: &str) -> &'static str {
+    match tool {
+        "inspect_part" => {
+            "Register a local STEP path (optional recognition JSON in features) and obtain part_ref and initial spec_version. With part_ref, summarize the Spec's sheet, views, item/problem counts. detail=true adds a lossless plan_ref readable with resources/read."
+        }
+        "list_items" => {
+            "List stable item IDs, labels, views, kinds and typed states for part_ref plus spec or spec_version. Filter by view/kind/state/feature or near an ID/region. Follow next_cursor with the same input. detail=true adds placement and anchors; default omits geometry."
+        }
+        "get_item" => {
+            "Read one stable item id: label, state, value, explanation (basis) and allowed operations. Supply part_ref plus spec or spec_version. detail=true includes resolved geometry, anchors and features. Unknown IDs return nearest valid IDs."
+        }
+        "list_problems" => {
+            "List drawing problems by code, severity or subject item ID for part_ref plus spec or spec_version. Follow next_cursor for all problems. detail=true includes explanations and corrective Spec ops; inspect these before previewing a fix."
+        }
+        "item_options" => {
+            "Get allowed operations, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. Linear dimensions accept only sides parallel to their span. Options are candidates; preview_ops checks their effects."
+        }
+        "preview_ops" => {
+            "Try up to 100 Spec ops without saving or changing the drawing head. Supply part_ref and spec or spec_version. Ops are set/add {path,value} or remove {path}, with RFC6901 escaping (~1 for a slash inside an ID). Returns paged change/problem events and lossless delta_ref."
+        }
+        "apply_ops" => {
+            "Commit Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
+        }
+        "view_sheet" => {
+            "Render a PNG for visual review of part_ref plus spec or spec_version. Optional region is paper millimetres [left,bottom,right,top], y up; overlay_ids labels items for reference. dpi defaults to 150, maximum 400. Returns image content and artifact_ref; exports embed the Spec."
+        }
+        "render_pdf" => {
+            "Render the delivery PDF for part_ref plus spec or spec_version, returning artifact_ref, MIME type, byte size and Spec hash. Read bytes using resources/read {uri:draftwright:<artifact_ref>}. The PDF embeds the bound Spec for resuming the drawing."
+        }
+        "get_spec" => {
+            "Read the complete author Spec and immutable spec_version. Supply part_ref and a spec_version (or inline spec); without either, read drawing_ref's current head (default: default). Keep this version as apply_ops parent; queries otherwise use the default Spec when no version is supplied."
+        }
+        "analyse" => {
+            "One-shot recognition of a local STEP path, optionally using validated recognition JSON in features. Returns the full Analysis document including features and semantic PMI. Prefer inspect_part when editing: it registers the reusable content/cache handle."
+        }
+        "render" => {
+            "One-shot PNG or PDF render from a local STEP path (optional features) or registered part_ref, with optional spec/spec_version. format is png or pdf; PNG accepts region, overlay_ids and dpi. Returns artifact metadata; read it via resources/read or use view_sheet for MCP image content."
+        }
+        _ => unreachable!("published tool"),
+    }
+}
+
 pub fn schema(tool: &str, output: bool) -> Option<Value> {
     macro_rules! files { ($($name:literal),*) => {match (tool,output) {$(( $name, false) => Some(include_str!(concat!("../schemas/mcp/",$name,".input.json"))),($name,true)=>Some(include_str!(concat!("../schemas/mcp/",$name,".output.json"))),)* _=>None}}; }
     let text = files!(
@@ -432,7 +474,7 @@ pub fn reply(cache: &Cache, request: &Value) -> Option<Value> {
         }
         Some("ping") => json!({}),
         Some("tools/list") => {
-            json!({"tools":TOOLS.iter().map(|name|json!({"name":name,"description":format!("{name}: stateless drawing operation; see docs/mcp.md. {}",if *name=="apply_ops"{"Requires the current parent version; stale parents are refused."}else{"Pass part_ref and spec or spec_version; register with inspect_part first."}),"inputSchema":schema(name,false),"outputSchema":schema(name,true)})).collect::<Vec<_>>()})
+            json!({"tools":TOOLS.iter().map(|name|json!({"name":name,"description":description(name),"inputSchema":schema(name,false),"outputSchema":schema(name,true)})).collect::<Vec<_>>()})
         }
         Some("tools/call") => {
             let Some(tool) = params["name"].as_str().filter(|n| TOOLS.contains(n)) else {

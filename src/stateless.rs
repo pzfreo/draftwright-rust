@@ -12,8 +12,8 @@ use crate::items::Op;
 use crate::model::{Analysis, Projections, Spec};
 use crate::session::{Delta, ItemAnswer, ItemFilter, Options, ProblemFilter, Session};
 
-/// Bump the cache revision when engine behaviour changes; the lockfile also namespaces it.
-pub const ENGINE_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "-s7-cache1");
+/// Content fingerprint of the compiled engine source, lockfile and embedded assets.
+pub const ENGINE_VERSION: &str = env!("DRAFTWRIGHT_ENGINE_VERSION");
 pub const PAGE_BYTES: usize = 4096;
 static STAGED: AtomicU64 = AtomicU64::new(0);
 
@@ -95,7 +95,7 @@ impl Cache {
         )
     }
     fn dir(&self, part_ref: &str) -> Result<PathBuf, Error> {
-        let version = hash(format!("{ENGINE_VERSION}{}", include_str!("../Cargo.lock")).as_bytes());
+        let version = ENGINE_VERSION;
         let valid = part_ref.split_once('-').is_some_and(|(sha, engine)| {
             sha.len() == 64
                 && sha
@@ -134,7 +134,7 @@ impl Cache {
                 step.display()
             ))
         })?;
-        let version = hash(format!("{ENGINE_VERSION}{}", include_str!("../Cargo.lock")).as_bytes());
+        let version = ENGINE_VERSION;
         let key = format!("{}-{version}", hash(&bytes));
         let dir = self.root.join("parts").join(&key);
         fs::create_dir_all(&dir).map_err(io)?;

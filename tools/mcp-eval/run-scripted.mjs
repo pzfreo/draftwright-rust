@@ -5,11 +5,10 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'nod
 import { resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { check, loadTasks } from './check.mjs';
+import { localParts, featureNames } from './parts.mjs';
+import { serverUrl } from './client.mjs';
 const args=process.argv.slice(2);
 const option=(key,fallback)=>args.includes(key)?args[args.indexOf(key)+1]:fallback;
-const corpus=process.env.DRAFTWRIGHT_CORPUS ?? '/Users/paul/repos/quiddity/tests/corpus';
-const localParts={plate:resolve('tests/fixtures/parts/mounting_plate.step'),m10127:resolve(corpus,'mfcadpp/10127.step'),grm03:resolve(corpus,'gramel/GRM-03_thumbwheel_drive_screw.step'),ctc01:resolve(corpus,'nist/nist_ctc_01_asme1_rd.stp')};
-const featureNames={plate:'plate',m10127:'10127',grm03:'GRM-03_thumbwheel_drive_screw',ctc01:'nist_ctc_01_asme1_rd'};
 const tokens=bytes=>Math.ceil(bytes/4);
 const size=v=>Buffer.byteLength(JSON.stringify(v));
 const segment=id=>id.replaceAll('~','~0').replaceAll('/','~1');
@@ -19,7 +18,7 @@ try {
   if(!url){
     cache=mkdtempSync(resolve(tmpdir(),'draftwright-mcp-eval-'));
     child=spawn(resolve(option('--binary','target/release/draftwright')),['mcp-http','127.0.0.1:0'],{env:{...process.env,DRAFTWRIGHT_CACHE:cache},stdio:['ignore','ignore','pipe']});
-    url=await new Promise((done,fail)=>{let text='';child.stderr.on('data',chunk=>{text+=chunk;const found=text.match(/listening on (http:\/\/[^\s]+)/);if(found)done(found[1]);});child.on('error',fail);child.on('exit',code=>fail(new Error(`server exited ${code}: ${text}`)));});
+    url=await new Promise((done,fail)=>{let text='';child.stderr.on('data',chunk=>{text+=chunk;const found=serverUrl(text);if(found)done(found);});child.on('error',fail);child.on('exit',code=>fail(new Error(`server exited ${code}: ${text}`)));});
   }
   const rpc=async(method,params)=>{
     const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream','MCP-Protocol-Version':'2025-06-18'},body:JSON.stringify({jsonrpc:'2.0',id:++nextId,method,params})});
@@ -70,6 +69,11 @@ try {
       const baseline=await artifact(baselineRef.plan_ref),plan=await artifact(finalRef.plan_ref);
       const spec=(await tool('get_spec',{part_ref,spec_version:current})).spec;
       verdict=check(task,{spec,plan,baseline});
+      const documents=option('--documents-dir',null);
+      if(documents){
+        const dir=resolve(documents,task.id);mkdirSync(dir,{recursive:true});
+        for(const [name,document] of Object.entries({spec,plan,baseline}))writeFileSync(resolve(dir,name+'.json'),JSON.stringify(document,null,2)+'\n');
+      }
     }
     const request_bytes=calls.reduce((s,c)=>s+c.request_bytes,0),response_bytes=calls.reduce((s,c)=>s+c.response_bytes,0);
     const result={task:task.id,part:task.part,success:verdict.success&&!failure,tool_calls:calls.length,refused_calls:calls.filter(c=>c.isError).length,request_bytes,response_bytes,tokens_estimate:tokens(request_bytes)+tokens(response_bytes),failure,failed_conditions:verdict.conditions.filter(c=>!c.pass),calls};results.push(result);
