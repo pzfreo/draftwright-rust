@@ -77,21 +77,27 @@ impl Drawing {
             let q = |v: f64| ((v * 256.0).round() / 256.0) as f32;
             (q((p[0] - left) * k), q((page_h - p[1]) * k))
         };
-        for layer in &self.layers {
+        for layer in self.paint_layers() {
             let st = &layer.style;
             let mut paint = Paint::default();
             let [r, g, b] = st.colour;
             paint.set_color_rgba8(r, g, b, 255);
             paint.anti_alias = true;
-            let stroke = Stroke {
+            let mut stroke = Stroke {
                 width: (st.width * k) as f32,
                 line_cap: LineCap::Round,
-                dash: st.dash.and_then(|[on, off]| {
-                    StrokeDash::new(vec![(on * k) as f32, (off * k) as f32], 0.0)
+                dash: st.dash.and_then(|pattern| {
+                    StrokeDash::new(pattern.iter().map(|n| (n * k) as f32).collect(), 0.0)
                 }),
                 ..Stroke::default()
             };
             for item in &layer.items {
+                if layer.name == "centres" {
+                    stroke.dash = StrokeDash::new(
+                        st.dash.unwrap().iter().map(|n| (n * k) as f32).collect(),
+                        (crate::output::centre_phase(item) * k) as f32,
+                    );
+                }
                 let mut pb = PathBuilder::new();
                 let mut trace = |wire: &[Curve]| {
                     let (x, y) = at(wire[0].start());

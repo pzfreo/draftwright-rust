@@ -280,7 +280,8 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         said.message
     );
     for tried in [
-        "A2 at 1:1 (3 hard layout findings, 2 hole locations too close to read)",
+        // The four side-view hole axes also run off this rejected sheet (ISO 128 furniture).
+        "A2 at 1:1 (7 hard layout findings, 2 hole locations too close to read)",
         "A2 at 2:1 (",
         "A1 at 1:1 (",
         "A0 at 1:1 (",

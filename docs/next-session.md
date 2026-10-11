@@ -4204,3 +4204,98 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 - The CI quality baseline's `source_commit` is `fd08c1d` (the commit whose status
   table it copies), as the Stage F baseline named `b999b13`; its executable SHA is the
   merged-tree release build that reproduced the table.
+
+## Stage G / G6: centre lines and cutting-plane obstacles (2026-10-11)
+
+Unattended, overturnable judgement calls:
+
+- Centre furniture is `views[].line_work` in the Plan, with provenance IDs, never
+  dimensional intent or individually editable Spec items. Physical features, not
+  surviving dimensions, supply it. The optional field preserves older Plan reads.
+- Use ISO 128 thin black long-dash-dot ink, 0.15 mm, with paper pattern
+  8 / 1.5 / 0.2 / 1.5 mm. Centre a long dash on a cross. Extend crosses by
+  `max(clamp(paper_radius, 1, 3), paper_radius * 0.05)` mm each side;
+  extend local axes the same way and whole turning axes by 5 mm (Python's rule).
+  The maintainer's approximately 3 mm extension deliberately supersedes the
+  current Python `render_centermarks` loop's approximately 1 mm extension.
+- Native recognition sometimes supplies the holes without a bolt-circle record
+  (CTC-05: ten ø19.05 holes, z=25.4). For furniture alone, five or more equal,
+  coplanar bores whose entire group fits one circle establish a pitch circle.
+  Fit tolerance is max(0.01 model mm, radius * 1e-4), allowing the source STEP's
+  rounded stations. No equal-spacing claim or dimension is inferred. Three/four
+  holes without an established circle record, mixed groups and partial subgroup
+  fits are conservatively left alone. Revisit with recognition evidence.
+- Centre and cutting-plane ink use the existing fixed-ink placement hook.
+  Labels and travel along fixed ink are hard conflicts; transverse crossings
+  are a lower-priority routing cost, because a leader from inside a pitch circle
+  sometimes must cross it. Only a marked global turning axis exempts a transverse
+  shaft attachment within one arrow length; shelves and near-collinear travel
+  retain their conflicts. Principal dimension content and lane rules are unchanged.
+- The section test judges intersection with the finite cutting line and also
+  rejects collinear leader travel. Its first draft's y-only label predicate
+  incorrectly counted text beyond both ends of the line as touching actual ink.
+- Centre-mark lint reads the centres and transforms of the actual drawing; it
+  never reads the Plan or Spec. The geometry-free `lint::check` cannot judge
+  centres; `lint::lint` runs that additional drawing-dependent check.
+- `quality.py` now includes the existing `label_centerline_overlap` finding in
+  ink. It must count an actual label contact, not a hatch or other unlabelled
+  furniture's bounding box. The separate Python regression fails without it.
+- Retain the established placement floor using the same measured candidates with
+  furniture costs removed: adding fixed ink must not increase ordinary annotation
+  defects or any callout's feature crossings. The bounded joint solve still scores
+  furniture contacts, while its fallback keeps the previous assignment if pair
+  conflicts increase. This is a general obstacle-hook constraint, not part-specific
+  routing. New furniture IDs are diagnostic references; their view remains the
+  live problem subject. Off-sheet furniture is reported before recovery.
+- The ink instrument fetches `review` for centre furniture or a section, since
+  render's response contains planner diagnostics whereas `label_centerline_overlap`
+  belongs to drawing lint. It adds only those actual label-contact findings to ink,
+  preserves the other metrics, and saves the lint/structural review beside the SVG.
+  This also measures older render-time cutting planes under the same predicate.
+- CGB245's rejected A2 1:1 retry now has seven hard findings, not three: its four
+  side-view hole axes also run off sheet. Keep the exact retry-count test and the
+  default A2 1:2 outcome; the before/after Plans establish the four extra IDs.
+- Recognised three/four-hole circle records must pass the existing round-feature
+  corroboration guard. Native turned-band axes count as round evidence alongside
+  holes and bosses. A rectangle's four corners fitting a circle is insufficient;
+  the regression failed before this guard. Five-member inference remains limited
+  to the entire equal coplanar group, and prints no spacing claim.
+- Pinned GDT ink reserves space for dimensions, but is not supplied again to the
+  GDT pass that already owns it. Duplicating it produced duplicate problem IDs and
+  broke delta replay; the unchanged session replay test now passes.
+- Profiled double-D bores use their recorded depth and fingerprint midpoint for
+  side-on axes as well as end-on crosses; a removed section-side bore is omitted.
+  The generic profiled-bore extent regression failed before the side-axis branch.
+- Section precedence uses the complete cylindrical support along the plane
+  normal (axial depth plus projected radius), not just radius. Deep bores crossing
+  the plane retain their cross; wholly removed holes, bands, bosses and seats are
+  omitted. A pitch circle requires all its members to survive. The partial-bore
+  case failed before this correction (`target/g6/red-section-depth.log`).
+- Oblique holes use the nearest principal axis for their end view, matching
+  Python and the existing site lint. The cross follows the projected opening
+  ellipse (minor radius = paper radius * abs(axis dot view normal)); the other
+  views get projected axial lines. Exact-normal-only marking missed CTC-03/04
+  and FTC-07 holes at 1 to 45 degrees. The generic 0.6/0.8-axis regression failed
+  before this fix; no centre-mark lint exemption was added.
+- Native double-D `location` is an entrance, not the depth midpoint. Use the
+  physical fingerprint position for its side-axis centre and section support;
+  retain the entrance for the end cross. The offset-position regression failed
+  before the fix, and the golden STEP was rendered and inspected before/after.
+  The pre-fix PNG and native Analysis are retained in `target/g6/visual-final/`
+  and `target/g6/profiled-analysis.json`.
+- Furniture remains derived from recognised physical features, as in Python;
+  no centres or machining facts are guessed from arbitrary projected curves.
+  Seven benchmark parts have no recognised hole/boss/turned-band furniture
+  (1000, 10007, 10033, 10038, 10046, 10047, 10049). For example, native 10038
+  reports only two plates and one through-step (`target/g6/10038-analysis.json`);
+  small round outlines on that sheet remain a recognition question. This is an
+  overturnable boundary, not evidence that every raw circular curve is a hole.
+
+G6 completed: 672/672 required-corpus release tests (69 nonempty groups,
+none ignored), fmt/strict release Clippy/build pass; Python 21/21, Node 8/8;
+30 parts / 300 cells no worse (ink 278, feature crossings 212 to 210), all 23
+furniture/section reviews zero missing centres or label/centre contacts; random
+pins 270/270 GO; scripted MCP 7/7. All thirty sheets were rasterised and reviewed,
+with seven detailed sheet inspections; final benchmark rasters match those
+reviewed. Exact tables, file list, red evidence and executable SHA are in the
+G6 status entry. No commit or push was made.

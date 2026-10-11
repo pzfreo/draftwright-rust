@@ -467,7 +467,7 @@ fn no_pmi_item_is_named_by_a_part_21_instance() {
 /// their new IDs. What the thin slice's stream S2 added is set aside ([`without_typed_state`]).
 /// Parts whose plan the planner has changed since 0.1.0-alpha.1: their oracle is the version 2
 /// spec renamed by hand ([`renamed`]), planned now, in place of the alpha 1 plan.
-const REPLANNED: [&str; 1] = ["bracket_positions"];
+const REPLANNED: [&str; 2] = ["bracket_positions", "plate"];
 
 #[test]
 fn version_1_specs_migrate_and_plan_identically() {
@@ -511,8 +511,9 @@ fn version_1_specs_migrate_and_plan_identically() {
         };
         let mut expected = if REPLANNED.contains(&part) {
             // The planner has changed this part's plan since 0.1.0-alpha.1 (one span, one
-            // dimension for PMI: `share_pmi`), so the oracle is the plan of the spec renamed by
-            // hand, independently of the migration, as a version 2 spec.
+            // dimension for PMI: `share_pmi`; ISO 128 furniture clearance), so the oracle is
+            // the plan of the spec renamed by hand, independently of the migration, as a
+            // version 2 spec.
             let mut v2 = renamed(&serde_json::to_value(&spec).unwrap(), &ids);
             v2["schema"] = model::SPEC_SCHEMA.into();
             let v2: Spec = serde_json::from_value(v2).unwrap();

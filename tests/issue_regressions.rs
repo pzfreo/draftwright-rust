@@ -710,6 +710,18 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
         .collect();
     assert_eq!(seats.len(), 3);
     let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    assert!(plan.views.iter().any(|v| {
+        serde_json::to_value(v).unwrap()["line_work"]
+            .as_array()
+            .is_some_and(|w| {
+                w.iter().any(|w| {
+                    w["kind"] == "axis"
+                        && seats
+                            .iter()
+                            .any(|id| w["id"].as_str().unwrap().ends_with(id))
+                })
+            })
+    }));
     let callout = plan
         .dimensions
         .iter()

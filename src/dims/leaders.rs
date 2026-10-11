@@ -141,6 +141,9 @@ struct Candidate {
     cost: i64,
     hard: u32,
     crossings: u32,
+    furniture: u32,
+    furniture_hard: u32,
+    furniture_text: u32,
     feature_crossings: u32,
     inside: i64,
     aware: bool,
@@ -170,11 +173,15 @@ impl Candidate {
                     + i64::from(self.outside) * AREA
                     + self.cost
             }
+            + i64::from(self.furniture) * 100_000
     }
 
     /// Whether it is clear: no hard blocker and nothing crossed.
     fn clear(&self) -> bool {
-        self.hard == 0 && self.crossings == 0 && (!self.aware || self.feature_crossings == 0)
+        self.hard == 0
+            && self.crossings == 0
+            && self.furniture == 0
+            && (!self.aware || self.feature_crossings == 0)
     }
 
     fn placed(&self) -> Placed {
@@ -199,6 +206,7 @@ struct Fixed {
     heads: Vec<(usize, [P2; 2])>,
     /// Where each of them lies, so a candidate tests only those near it.
     grid: Grid,
+    furniture: BTreeMap<usize, bool>,
 }
 
 impl Fixed {
@@ -231,6 +239,7 @@ impl Fixed {
             labels,
             heads,
             grid,
+            furniture: BTreeMap::new(),
         }
     }
 }
@@ -442,7 +451,7 @@ pub(super) fn place_with_obstacles(
             .enumerate()
             .filter_map(|(i, p)| Some((i, p.as_ref()?)))
     };
-    let fixed = Fixed::new(
+    let mut fixed = Fixed::new(
         on().chain(
             obstacles
                 .iter()
@@ -450,6 +459,12 @@ pub(super) fn place_with_obstacles(
                 .filter_map(|(i, d)| Some((items.len() + i, d.placed.as_ref()?))),
         ),
     );
+    fixed.furniture = obstacles
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.kind == "ink")
+        .map(|(i, d)| (items.len() + i, d.basis == "global_axis"))
+        .collect();
     // How far each view's strips reach with dimension ink, past the view's edges.
     let mut reach: BTreeMap<(&str, usize), f64> = BTreeMap::new();
     for i in 0..items.len() {
@@ -502,38 +517,81 @@ pub(super) fn place_with_obstacles(
             },
         ));
     }
-    let (mut inventories, original): (Vec<_>, Vec<_>) = jobs
+    let measured: Vec<_> = jobs
         .iter()
         .map(|(_, job)| inventory(job, &fixed, page))
-        .unzip();
+        .collect();
+    let mut inventories: Vec<_> = measured.iter().map(|v| v.0.clone()).collect();
+    let mut baseline: Vec<_> = measured.iter().map(|v| v.1.clone()).collect();
+    let baseline_original: Vec<_> = measured.iter().map(|v| v.2.clone()).collect();
     // Semantic PMI claims its strips after dimensions. Until those strips participate in the
     // joint solve, retain the established objective rather than planning PMI twice as a probe.
     let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
         .0
         .is_empty();
-    let (old_choice, old_capped) = assign(&original);
-    let (mut choice, mut capped) = if semantic_pmi {
-        (old_choice.clone(), old_capped.clone())
-    } else {
-        assign(&inventories)
-    };
-    // Keep the annotation floor using the already measured candidates and their pair contacts.
-    // No dimensions, feature projections or dependent PMI placements are rebuilt here.
     let defects = |inv: &[Vec<Candidate>], selected: &[usize]| {
         let mut count = 0;
         for (k, &c) in selected.iter().enumerate() {
             let a = &inv[k][c];
-            count += a.hard + a.crossings + a.outside;
+            count += a.hard - a.furniture_hard + a.crossings - a.furniture_text + a.outside;
             for (j, &other) in selected.iter().enumerate().take(k) {
                 count += conflict(a, &inv[j][other]);
             }
         }
         count
     };
-    if semantic_pmi || defects(&inventories, &choice) > defects(&original, &old_choice) {
-        inventories = original;
-        choice = old_choice;
-        capped = old_capped;
+    let (legacy_choice, legacy_capped) = assign(&baseline_original);
+    let (mut baseline_choice, mut baseline_capped) = if semantic_pmi {
+        (legacy_choice.clone(), legacy_capped.clone())
+    } else {
+        assign(&baseline)
+    };
+    if semantic_pmi
+        || defects(&baseline, &baseline_choice) > defects(&baseline_original, &legacy_choice)
+    {
+        baseline = baseline_original;
+        baseline_choice = legacy_choice;
+        baseline_capped = legacy_capped;
+    }
+    // Furniture must not buy clearance by sending a leader through another feature.
+    // Retain the established route as a candidate, and constrain each job by its prior floor.
+    for (k, (_, job)) in jobs.iter().enumerate() {
+        let b = &baseline[k][baseline_choice[k]];
+        let ceiling = b.hard + b.crossings + b.outside;
+        inventories[k].retain(|c| {
+            c.feature_crossings <= b.feature_crossings
+                && c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside <= ceiling
+        });
+        let right = b.end[0] > b.elbow[0];
+        if let Some(mut c) = measure(job, b.tip, b.elbow, right, &fixed, page) {
+            c.aware = !semantic_pmi;
+            inventories[k].push(c);
+        }
+    }
+    if semantic_pmi {
+        for inv in &mut inventories {
+            for c in inv {
+                c.aware = false;
+            }
+        }
+    }
+    let (mut choice, mut capped) = assign(&inventories);
+    if defects(&inventories, &choice) > defects(&baseline, &baseline_choice) {
+        // The bounded joint solve may introduce pair conflicts even when every job keeps its
+        // own floor. Preserve the prior assignment, with its fixed-ink scoring retained.
+        inventories = jobs
+            .iter()
+            .enumerate()
+            .map(|(k, (_, job))| {
+                let b = &baseline[k][baseline_choice[k]];
+                vec![
+                    measure(job, b.tip, b.elbow, b.end[0] > b.elbow[0], &fixed, page)
+                        .expect("existing route"),
+                ]
+            })
+            .collect();
+        choice = vec![0; inventories.len()];
+        capped = baseline_capped;
     }
     let mut problems = Vec::new();
     let named = |i: usize| format!("{} ({})", items[i].id, items[i].terms.join(" "));
@@ -793,7 +851,9 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 
 /// Every candidate of *job* measured, the best [`KEEP`] kept (fewest hard blockers, then fewest
 /// crossings, then shortest, then generation order), near-duplicates dropped.
-fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> (Vec<Candidate>, Vec<Candidate>) {
+type Inventories = (Vec<Candidate>, Vec<Candidate>, Vec<Candidate>);
+
+fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Inventories {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -872,10 +932,20 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> (Vec<Candidate>, Vec<Cand
         }
     }
     let aware = keep(&measured);
-    for c in &mut measured {
+    let mut baseline = measured.clone();
+    for c in &mut baseline {
+        c.hard -= c.furniture_hard;
+        c.crossings -= c.furniture_text;
+        c.text -= c.furniture_text;
+        c.furniture = 0;
+        c.furniture_hard = 0;
+        c.furniture_text = 0;
+    }
+    let baseline_aware = keep(&baseline);
+    for c in &mut baseline {
         c.aware = false;
     }
-    (aware, keep(&measured))
+    (aware, baseline_aware, keep(&baseline))
 }
 
 fn keep(measured: &[Candidate]) -> Vec<Candidate> {
@@ -1001,17 +1071,40 @@ fn measure(
     // plan's collision checks report them.
     let mut crossed: Vec<usize> = Vec::new();
     let mut text: Vec<usize> = Vec::new();
+    let mut furniture = Vec::new();
+    let mut furniture_hard = 0;
+    let mut furniture_text = Vec::new();
     let lines = segs.map(Line::new);
     fixed.grid.near(0, near, |n| {
         let (i, f) = &fixed.segments[n];
         if !segment_near(*f, near) {
             return;
         }
-        if lines.iter().any(|s| s.meets(*f)) {
-            crossed.push(*i);
+        let meets = if let Some(&global) = fixed.furniture.get(i) {
+            segs.iter()
+                .enumerate()
+                .any(|(k, s)| crate::centrelines::leader_conflict(*s, *f, global, k == 0))
+        } else {
+            lines.iter().any(|s| s.meets(*f))
+        };
+        if meets {
+            if fixed.furniture.contains_key(i) {
+                furniture.push(*i);
+                if lines.iter().any(|s| s.along(*f)) {
+                    hard += 1;
+                    furniture_hard += 1;
+                }
+            } else {
+                crossed.push(*i);
+            }
         }
         if crosses(*f, lb) {
             text.push(*i);
+            if fixed.furniture.contains_key(i) {
+                hard += 1;
+                furniture_hard += 1;
+                furniture_text.push(*i);
+            }
         }
     });
     fixed.grid.near(2, near, |n| {
@@ -1042,7 +1135,7 @@ fn measure(
     });
     // An item both crossed and met by the label counts in each: the plan reports a crossing
     // and a text contact as two problems of the pair.
-    for v in [&mut crossed, &mut text] {
+    for v in [&mut crossed, &mut text, &mut furniture, &mut furniture_text] {
         v.sort_unstable();
         v.dedup();
     }
@@ -1067,6 +1160,9 @@ fn measure(
         cost,
         hard,
         crossings,
+        furniture: furniture.len() as u32,
+        furniture_hard,
+        furniture_text: furniture_text.len() as u32,
         feature_crossings,
         inside,
         aware: true,
@@ -1720,6 +1816,9 @@ mod tests {
             cost,
             hard: 0,
             crossings: 0,
+            furniture: 0,
+            furniture_hard: 0,
+            furniture_text: 0,
             feature_crossings: 0,
             inside: 0,
             aware: false,

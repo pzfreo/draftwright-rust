@@ -322,6 +322,30 @@ the cell. A Spec material different from the unique usable STEP material is
 `step_material_disagreement` (warning, both values and source/path refs); the Spec
 value still wins, including an explicit blank.
 
+### Centre furniture
+
+Each shown principal or section view carries automatic `line_work` in paper
+coordinates: provenance ID, kind (`cross`, `axis`, `pitch_circle`, `cutting_plane`)
+and exact curves, with a centre for end-on crosses and a `global_axis` flag only
+for the whole turning axis. It contains no values and is not Spec-addressable.
+Hole, boss, turned-band and circular-seat geometry supplies it independently of
+dimensional omissions. Bolt-circle crosses run radially and tangentially.
+
+The centre layer uses thin black long-dash-dot ink; a long dash meets at the
+cross centre. Crosses extend approximately 3 mm beyond the edge, proportionately
+less for very small holes and more for very large ones. Local axes extend beyond
+their ends; the whole turning axis extends 5 mm. Visible and hidden edges have
+precedence. Sections omit axes wholly on the removed side and retain axes of
+cut holes and cylinders.
+
+This furniture, including the finite cutting-plane line, enters the existing
+fixed-ink placement hook before dimensions and PMI. Labels and travel along a
+line are hard conflicts; transverse crossings are routing costs, with only a
+local transverse tip exemption on an explicitly marked global turning axis.
+Furniture provenance appears in problem `refs`; its carrier view is a subject.
+Drawing lint checks the actual marked centres against independent projections
+of the Analysis's holes, including pattern members and double-D bores.
+
 ### Dimensions (first cut)
 
 `src/dims/` plans the dimensions draftwright's defaults would state for the families ported

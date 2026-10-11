@@ -341,12 +341,12 @@ fn crossings<'a>(a: &'a Drawn, b: &'a Drawn) -> Vec<(&'a Drawn, &'a Drawn, f64)>
     found
 }
 
-/// `label_centerline_overlap` for the label (or label-less thing) *d* and the centreline *cl*
+/// `label_centerline_overlap` for the actual label of *d* and the centreline *cl*
 /// (draftwright's `_label_centerline_overlap`): the greatest overlap of the label box with any
 /// of the centreline's lines, each measured across its stroke by how deep it runs in and along
 /// it by its clipped length; with no lines, its whole ink. None unless both exceed 0.5 mm.
 fn centreline_overlap(d: &Drawn, cl: &Drawn) -> Option<(f64, f64)> {
-    let [lx0, ly0, lx1, ly1] = d.label.unwrap_or(d.ink);
+    let [lx0, ly0, lx1, ly1] = d.label?;
     let overlap = |[x0, y0, x1, y1]: [f64; 4], segment: bool| {
         let (w, h) = (x1 - x0, y1 - y0);
         let across = |lo: f64, hi: f64, c: f64| {

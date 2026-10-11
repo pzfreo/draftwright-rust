@@ -81,6 +81,6 @@
   "code": "annotation_leader_crossing",
   "count": 2,
   "verdict": "rust-wrong",
-  "reason": "The two front callouts (hole:11, 2× ⌀6.3 ↧ 12.7; boss:5, 2× ø31.8) cross reciprocally. The G2 review fix moves the counted plate thickness to its exposed side profile, removing a front leader obstacle; this returns the pre-G2 reciprocal crossing. The measured corner reservation keeps both callouts inside their bands, so the fourteen other band overruns are unchanged. Both exact crossings remain rust-wrong and are checked by tests/leaders.rs. This captured-recognition residual is recorded separately from the no-worse native quality gate."
+  "reason": "The two front callouts (hole:11, 2× ⌀6.3 ↧ 12.7; boss:5, 2× ø31.8) cross reciprocally. The G2 review fix moves the counted plate thickness to its exposed side profile, removing a front leader obstacle; this returns the pre-G2 reciprocal crossing. The measured corner reservation keeps both callouts inside their bands, so the fourteen other band overruns are unchanged. Both exact crossings remain rust-wrong and are checked by tests/leaders.rs. This captured-recognition residual is recorded separately from the no-worse native quality gate. Rebase note (unverified): G6 fixed ISO 128 furniture reroutes the boss callout. The directional contact from d:f:boss:5/boss.diameter to d:f:hole:11/bore.diameter disappears (tests/leaders.rs); the reverse leader contact remains, is reported and kept. Previously two directional contacts were listed. No new crossing is accepted."
  }
 ]

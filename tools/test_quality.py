@@ -89,6 +89,21 @@ class RepeatedSpans(unittest.TestCase):
                     self.assertEqual(quality.main(), repeated)
 
 
+class CentreLineInk(unittest.TestCase):
+    def test_a_real_label_centreline_contact_counts_as_ink(self):
+        plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'problems': [],
+                'views': [{'line_work': [{'kind': 'cross'}]}]}
+        replies = [subprocess.CompletedProcess([], 0, '{}', ''),
+            subprocess.CompletedProcess([], 0, json.dumps(plan), ''),
+            subprocess.CompletedProcess([], 0, json.dumps({'structural': [
+                {'code': 'label_centerline_overlap', 'annotation': 'd:a'}], 'lint': []}), '')]
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
+            (Path(out) / 'part.svg').write_text('<svg/>')
+            _, result = quality.one('part.step', 'dw', out)
+        self.assertEqual(result['ink'], 1)
+        self.assertEqual(result['ink_by_code'], {'label_centerline_overlap': 1})
+
+
 class FeatureCrossings(unittest.TestCase):
     def test_counts_plan_feature_pairs_and_extension_lines(self):
         plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'views': [],
