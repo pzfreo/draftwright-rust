@@ -1,11 +1,16 @@
 """Acceptance gates must reject bad/incomplete evidence; no renderer mocks or extra packages."""
 import copy
 import json
+import os
+import importlib.util
+import re
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / 'tools/ci_acceptance.py'
@@ -124,9 +129,92 @@ class Acceptance(unittest.TestCase):
     def test_ci_calls_local_runner_and_always_uploads_evidence(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
         for required in ('quality-pins', 'repeated-spans', 'mcp', 'tools/ci_acceptance.py',
-                         'if: always()', 'acceptance-inputs.tar.gz', 'timeout-minutes: 30'):
+                         'if: always()', 'acceptance-inputs.tar.gz', 'timeout-minutes: ${{ matrix.timeout }}'):
             self.assertIn(required, workflow)
         self.assertNotIn('continue-on-error', workflow)
+
+    def runner(self):
+        spec = importlib.util.spec_from_file_location('ci_acceptance', RUNNER)
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        return runner
+
+    def test_hosted_pin_matrix_covers_every_cell_with_bounded_jobs(self):
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        cells = re.findall(r'job: quality-pins, label: quality-pins-(\d-\d), '
+                           r'pin_args: "--pin-cell (\d-\d)", timeout: (\d+)', workflow)
+        expected = {(f'{seed}-{pins}', f'{seed}-{pins}', '30')
+                    for seed in (1, 2, 3) for pins in (1, 3, 8)}
+        self.assertEqual(len(cells), 9)
+        self.assertEqual(set(cells), expected)
+        self.assertIn('${{ matrix.pin_args }}', workflow)
+        self.assertIn('name: acceptance-${{ matrix.label }}', workflow)
+        runner = self.runner()
+        with tempfile.TemporaryDirectory() as tmp:
+            for cell in runner.PIN_CELLS:
+                args = SimpleNamespace(binary=Path('binary'), corpus=Path('corpus'),
+                                       baseline=Path('baseline'), pin_cell=cell)
+                run = runner.Run(args, Path(tmp))
+                with patch.object(run, 'step') as step:
+                    run.execute('quality-pins')
+                calls = step.call_args_list
+                self.assertEqual([c.args[0] for c in calls], ['quality', 'pins-' + cell])
+                command = calls[1].args[1]
+                self.assertIn('--require-go', command)
+                self.assertEqual(command[command.index('--baseline') + 1],
+                                 Path(tmp) / 'quality/baseline.json')
+                self.assertEqual(command[command.index('--seed') + 1], int(cell[0]))
+                self.assertEqual(command[command.index('--pins') + 1], int(cell[2]))
+
+    def test_survey_budgets_allow_observed_hosted_slowdown(self):
+        runner = self.runner()
+        run = runner.Run(SimpleNamespace(binary=Path('binary')), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('repeated-spans')
+        command = step.call_args.args[1]
+        self.assertEqual(command[command.index('--timeout') + 1], 3600)
+        self.assertEqual(step.call_args.kwargs['timeout'], 6600)
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        self.assertRegex(workflow, r'job: repeated-spans,.*timeout: 120')
+
+    def test_part_timeout_retains_error_evidence(self):
+        quality = self.runner().quality
+        with tempfile.TemporaryDirectory() as tmp:
+            for operation in ('render', 'plan'):
+                expired = subprocess.TimeoutExpired(['binary', operation], 3600)
+                outputs = [expired] if operation == 'render' else [SimpleNamespace(), expired]
+                with patch.object(quality.subprocess, 'run', side_effect=outputs) as child:
+                    name, result = quality.one('slow.step', 'binary', tmp, timeout=3600)
+                self.assertEqual(name, 'slow')
+                self.assertIn('3600', result['error'])
+                self.assertIn(operation, result['error'])
+                self.assertTrue(all(c.kwargs['timeout'] == 3600 for c in child.call_args_list))
+
+    def test_survey_writes_all_part_errors_after_timeouts(self):
+        spec = importlib.util.spec_from_file_location('survey', ROOT / 'tools/survey_repeated_spans.py')
+        survey = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(survey)
+        corpus = os.environ.get('DRAFTWRIGHT_CORPUS')
+        if not corpus:
+            self.skipTest('DRAFTWRIGHT_CORPUS required for full survey error evidence')
+        with tempfile.TemporaryDirectory() as tmp:
+            expired = subprocess.TimeoutExpired(['binary', 'render'], 1)
+            with patch.object(sys, 'argv', ['survey', '--timeout', '1', 'binary', tmp]), \
+                    patch.object(survey.quality.subprocess, 'run', side_effect=expired), \
+                    patch.object(survey.quality, 'table'):
+                self.assertEqual(survey.main(), 1)
+            results = json.loads((Path(tmp) / 'baseline.json').read_text())
+            self.assertEqual(len(results), 64)
+            self.assertTrue(all('timed out' in row['error'] for row in results.values()))
+
+    def test_failed_subprocess_reports_exit_before_missing_results(self):
+        runner = self.runner()
+        with tempfile.TemporaryDirectory() as tmp:
+            run = runner.Run(None, Path(tmp))
+            self.assertFalse(run.step('survey', [sys.executable, '-c', 'raise SystemExit(1)'],
+                                      'survey', Path(tmp) / 'missing.json'))
+            self.assertEqual(run.steps[0]['exit_code'], 1)
+            self.assertEqual(run.steps[0]['error'], 'survey exited 1; see survey.log')
 
     def test_mcp_requires_readable_judge_documents_and_rendered_artifacts(self):
         tasks = json.loads((ROOT / 'tools/mcp-eval/tasks.json').read_text())['tasks']

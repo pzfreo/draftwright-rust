@@ -18,6 +18,7 @@ KEYS = ['off_sheet', 'repeated_label', 'repeated_measure', 'views_overlap',
         'view_on_title_block', 'ink', 'repeated_span', 'line_through_feature',
         'hidden_on_visible', 'section_hidden']
 JOBS = ('quality-pins', 'repeated-spans', 'mcp')
+PIN_CELLS = tuple(f'{seed}-{pins}' for seed in (1, 2, 3) for pins in (1, 3, 8))
 CORPUS_REV = '6d544e060cd0eeb4442d2196e5df757b5a15ea55'
 spec = importlib.util.spec_from_file_location('quality', ROOT / 'tools/quality.py')
 quality = importlib.util.module_from_spec(spec)
@@ -133,20 +134,20 @@ class Run:
         self.args, self.out, self.steps = args, out, []
         self.metrics = {}
 
-    def step(self, label, argv, kind=None, result=None, baseline=None):
+    def step(self, label, argv, kind=None, result=None, baseline=None, timeout=1500):
         start = time.monotonic()
         record = {'name': label, 'command': [str(a) for a in argv]}
         try:
             with (self.out / (label + '.log')).open('w') as log:
                 child = subprocess.run(record['command'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
-                                       timeout=1500)
+                                       timeout=timeout)
             record['exit_code'] = child.returncode
+            require(child.returncode == 0, f'{label} exited {child.returncode}; see {label}.log')
             if kind:
                 record['metrics'] = validate(kind, read(result), read(baseline) if baseline else None)
                 if kind == 'mcp':
                     mcp_documents(self.out / 'mcp-documents')
                 self.metrics[label] = record['metrics']
-            require(child.returncode == 0, f'{label} exited {child.returncode}; see {label}.log')
             record['passed'] = True
         except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
             record.update(passed=False, error=str(error))
@@ -178,16 +179,18 @@ class Run:
                     rejected = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
                 self.steps.append({'name': 'reject-deliberate-regression', 'passed': rejected.returncode == 1,
                                    'observed_exit_code': rejected.returncode, 'expected_exit_code': 1})
-            for seed in (1, 2, 3):
-                for pins in (1, 3, 8):
-                    pin_out = out / f'pins-{seed}-{pins}'
-                    self.step(f'pins-{seed}-{pins}', [*py, ROOT / 'tools/quality.py', '--seed', seed,
-                              '--pins', pins, '--baseline', fresh, '--require-go', binary, pin_out, *files],
-                              'pins', pin_out / 'random-pins.json', fresh)
+            cells = (args.pin_cell,) if args.pin_cell else PIN_CELLS
+            for cell in cells:
+                seed, pins = map(int, cell.split('-'))
+                pin_out = out / f'pins-{cell}'
+                self.step(f'pins-{cell}', [*py, ROOT / 'tools/quality.py', '--seed', seed,
+                          '--pins', pins, '--baseline', fresh, '--require-go', binary, pin_out, *files],
+                          'pins', pin_out / 'random-pins.json', fresh)
         elif job == 'repeated-spans':
             survey_out = out / 'survey'
-            self.step('survey', [*py, ROOT / 'tools/survey_repeated_spans.py', binary, survey_out],
-                      'survey', survey_out / 'baseline.json')
+            self.step('survey', [*py, ROOT / 'tools/survey_repeated_spans.py',
+                      '--timeout', 3600, binary, survey_out],
+                      'survey', survey_out / 'baseline.json', timeout=6600)
         else:
             self.step('python-quality-tests', [*py, ROOT / 'tools/test_quality.py'])
             self.step('acceptance-tests', [*py, ROOT / 'tools/test_ci_acceptance.py'])
@@ -200,6 +203,7 @@ class Run:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--job', choices=(*JOBS, 'all'), default='all')
+    parser.add_argument('--pin-cell', choices=PIN_CELLS, help='Run one seed-N cell with a fresh baseline')
     parser.add_argument('--binary', type=Path, default=Path('target/release/draftwright'))
     parser.add_argument('--corpus', type=Path, default=os.environ.get('DRAFTWRIGHT_CORPUS'))
     parser.add_argument('--out', type=Path, default=Path('target/acceptance'))
@@ -208,6 +212,8 @@ def main():
     parser.add_argument('--results', type=Path)
     parser.add_argument('--documents-dir', type=Path, help='Check saved MCP judge documents and PNGs')
     args = parser.parse_args()
+    if args.pin_cell and args.job != 'quality-pins':
+        parser.error('--pin-cell requires --job quality-pins')
     if args.check_results:
         try:
             print(json.dumps(validate(args.check_results, read(args.results), read(args.baseline)), sort_keys=True))

@@ -127,14 +127,29 @@ jobs:
           done
 
   acceptance:
-    name: acceptance (${{ matrix.job }})
+    name: acceptance (${{ matrix.label }})
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
       matrix:
-        job: [quality-pins, repeated-spans, mcp]
+        # Hosted measurements: 342 s baseline + 432 s per pin cell. Each shard
+        # measures a fresh same-binary baseline; nine shards enforce all 270 runs.
+        include:
+          - {job: quality-pins, label: quality-pins-1-1, pin_args: "--pin-cell 1-1", timeout: 30}
+          - {job: quality-pins, label: quality-pins-1-3, pin_args: "--pin-cell 1-3", timeout: 30}
+          - {job: quality-pins, label: quality-pins-1-8, pin_args: "--pin-cell 1-8", timeout: 30}
+          - {job: quality-pins, label: quality-pins-2-1, pin_args: "--pin-cell 2-1", timeout: 30}
+          - {job: quality-pins, label: quality-pins-2-3, pin_args: "--pin-cell 2-3", timeout: 30}
+          - {job: quality-pins, label: quality-pins-2-8, pin_args: "--pin-cell 2-8", timeout: 30}
+          - {job: quality-pins, label: quality-pins-3-1, pin_args: "--pin-cell 3-1", timeout: 30}
+          - {job: quality-pins, label: quality-pins-3-3, pin_args: "--pin-cell 3-3", timeout: 30}
+          - {job: quality-pins, label: quality-pins-3-8, pin_args: "--pin-cell 3-8", timeout: 30}
+          # The local 745 s survey projects to ~68 min at the observed 5.5x
+          # hosted slowdown. Allow 110 min for the step and 120 min for the job.
+          - {job: repeated-spans, label: repeated-spans, pin_args: "", timeout: 120}
+          - {job: mcp, label: mcp, pin_args: "", timeout: 10}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -145,11 +160,11 @@ jobs:
         with:
           name: acceptance-inputs
       - run: tar -xzf acceptance-inputs.tar.gz
-      - run: python3 -I tools/ci_acceptance.py --job ${{ matrix.job }} --out target/acceptance
+      - run: python3 -I tools/ci_acceptance.py --job ${{ matrix.job }} ${{ matrix.pin_args }} --out target/acceptance
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: acceptance-${{ matrix.job }}
+          name: acceptance-${{ matrix.label }}
           path: target/acceptance/
           if-no-files-found: error
           retention-days: 14
