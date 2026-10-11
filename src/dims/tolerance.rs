@@ -10,7 +10,8 @@
 //! - **A fit** is set on a hole or a cylindrical boss (`features/<id>/fit`): an ISO 286 class
 //!   from draftwright's table (`fits.py`: holes H, G, F; shafts h, g, f, js, k, n, p; grades 5 to
 //!   11; nominal sizes up to 250 mm). It is printed after the diameter of the callout that states
-//!   the feature's size, as the class code (`⌀8.1 H7 THRU`).
+//!   the feature's size, as the class and its limits (`⌀8.1 H7 (+0.015/0) THRU`), or the class
+//!   alone when the sheet hides fit limits (`sheet/fit_limits: false`, draftwright's form).
 //!
 //! A band is withheld, and the plan says so, when the sheet cannot state it truthfully:
 //! - **a band of nothing** (ARCH0019-2): with the authored digits kept, only a band whose every
@@ -120,6 +121,90 @@ pub(super) fn fit(code: &str) -> Result<(&str, u32), String> {
     Ok((letters, grade))
 }
 
+/// ISO 286 nominal size bands: the upper bound, mm, of each "over the previous, up to and
+/// including this" step (draftwright's `fits._BANDS`).
+const BANDS: [f64; 10] = [3.0, 6.0, 10.0, 18.0, 30.0, 50.0, 80.0, 120.0, 180.0, 250.0];
+/// Standard tolerance grades IT5 to IT11, µm, per band (ISO 286-1 Table 1; `fits._IT`).
+const IT: [[i32; 10]; 7] = [
+    [4, 5, 6, 8, 9, 11, 13, 15, 18, 20],
+    [6, 8, 9, 11, 13, 16, 19, 22, 25, 29],
+    [10, 12, 15, 18, 21, 25, 30, 35, 40, 46],
+    [14, 18, 22, 27, 33, 39, 46, 54, 63, 72],
+    [25, 30, 36, 43, 52, 62, 74, 87, 100, 115],
+    [40, 48, 58, 70, 84, 100, 120, 140, 160, 185],
+    [60, 75, 90, 110, 130, 160, 190, 220, 250, 290],
+];
+/// The shafts' fundamental upper deviation es, µm, per band, for the clearance letters (`fits._ES`);
+/// the hole classes H, G and F mirror them (EI = -es).
+const ES: [(&str, [i32; 10]); 3] = [
+    ("h", [0; 10]),
+    ("g", [-2, -4, -5, -6, -7, -9, -10, -12, -14, -15]),
+    ("f", [-6, -10, -13, -16, -20, -25, -30, -36, -43, -50]),
+];
+/// The shafts' fundamental lower deviation ei, µm, per band, for the interference letters
+/// (`fits._EI`).
+const EI: [(&str, [i32; 10]); 3] = [
+    ("k", [0, 1, 1, 1, 2, 2, 2, 3, 3, 4]),
+    ("n", [4, 8, 10, 12, 15, 17, 20, 23, 27, 31]),
+    ("p", [6, 12, 15, 18, 22, 26, 32, 37, 43, 50]),
+];
+
+/// A class's limit deviations at a nominal diameter, mm: `(lower, upper)`, as draftwright's
+/// `fits.fit_deviation` gives them. None outside the table (a class or grade it does not hold,
+/// a nominal not over 0 or above 250 mm).
+pub(super) fn deviations(code: &str, nominal: f64) -> Option<(f64, f64)> {
+    let (letters, grade) = fit(code).ok()?;
+    let band = BANDS.iter().position(|&b| nominal > 0.0 && nominal <= b)?;
+    let it = IT[(grade - 5) as usize][band];
+    let table =
+        |t: &[(&str, [i32; 10])], l: &str| t.iter().find(|(k, _)| *k == l).map(|(_, v)| v[band]);
+    let lower = letters.to_lowercase();
+    let (lo, hi) = if HOLE_CLASSES.contains(&letters) {
+        let ei = -table(&ES, &lower)?;
+        (ei, ei + it)
+    } else if letters == "js" {
+        return Some((-f64::from(it) / 2000.0, f64::from(it) / 2000.0));
+    } else if let Some(es) = table(&ES, letters) {
+        (es - it, es)
+    } else {
+        // k's tabulated deviation holds for IT4 to IT7 only; ISO 286 makes it 0 for coarser
+        // grades (`fits.fit_deviation`, #29).
+        let ei = if letters == "k" && grade > 7 {
+            0
+        } else {
+            table(&EI, letters)?
+        };
+        (ei, ei + it)
+    };
+    Some((f64::from(lo) / 1000.0, f64::from(hi) / 1000.0))
+}
+
+/// A class with its limits, as the sheet prints it when they are shown: `H7 (+0.015/0)`.
+pub(super) fn with_limits(code: &str, (lower, upper): (f64, f64)) -> String {
+    format!("{code} {}", limits_term((lower, upper)))
+}
+
+/// The limits alone: `(+0.015/0)`.
+pub(super) fn limits_term((lower, upper): (f64, f64)) -> String {
+    format!("({}/{})", deviation(upper), deviation(lower))
+}
+
+/// Whether the sheet shows a fit's limits beside its class (`sheet/fit_limits`, shown unless the
+/// spec says false).
+pub(super) fn limits_shown(spec: &Spec) -> bool {
+    spec.sheet.fit_limits != Some(false)
+}
+
+/// A limit deviation as a fit prints it (draftwright's `fits._fmt_dev`): signed, to the µm
+/// digit, and an exact zero as `0`.
+pub(super) fn deviation(v: f64) -> String {
+    if v.abs() < 5e-5 {
+        return "0".into();
+    }
+    let s = format!("{v:+.4}");
+    s.strip_suffix('0').map_or(s.clone(), str::to_string)
+}
+
 /// Checks every tolerance and fit the spec authors reads as one: the form, never the part (that
 /// is [`apply`]'s). A refusal names the entry.
 pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
@@ -190,6 +275,7 @@ pub(super) fn apply(
         .map_or(&[][..], |r| r.patterns.as_slice());
     // Each fit, on a feature that can take it, at its size.
     let mut fits: BTreeMap<&str, &str> = BTreeMap::new();
+    let mut nominals: BTreeMap<&str, f64> = BTreeMap::new();
     for (id, entry) in &spec.features {
         let Some(code) = entry.fit.as_deref() else {
             continue;
@@ -254,6 +340,7 @@ pub(super) fn apply(
             }
         }
         fits.insert(id, code);
+        nominals.insert(id, d.expect("in the table"));
     }
 
     let mut from_spec = Vec::with_capacity(kept.len());
@@ -325,7 +412,11 @@ pub(super) fn apply(
             if member_fits.iter().all(|f| *f == Some(first)) {
                 given.push("fit".to_string());
                 w.basis += &format!("; its fit is the spec's ({})", members.join(", "));
-                Some(first.to_string())
+                let limits = nominals
+                    .get(members[0].as_str())
+                    .and_then(|&d| deviations(first, d))
+                    .filter(|_| limits_shown(spec));
+                Some(limits.map_or(first.to_string(), |l| with_limits(first, l)))
             } else {
                 None
             }
@@ -538,6 +629,23 @@ mod tests {
         assert_eq!(band(1.0, -1.0), "±1.0");
         assert_eq!(band(-0.014, -0.039), "-0.014 -0.039");
         assert_eq!(band(0.039, 0.014), "+0.039 +0.014");
+    }
+
+    #[test]
+    fn fit_classes_have_iso_286_limits() {
+        // ISO 286-2: ⌀10 H7 is +0.015/0, ⌀10 G7 +0.020/+0.005, ⌀30 F8 +0.053/+0.020; a
+        // band's upper bound belongs to it (⌀3 H11 is +0.060/0).
+        let at = |c, d| deviations(c, d).map(|(l, u)| (deviation(u), deviation(l)));
+        assert_eq!(at("H7", 10.0), Some(("+0.015".into(), "0".into())));
+        assert_eq!(at("G7", 10.0), Some(("+0.020".into(), "+0.005".into())));
+        assert_eq!(at("F8", 30.0), Some(("+0.053".into(), "+0.020".into())));
+        assert_eq!(at("H11", 3.0), Some(("+0.060".into(), "0".into())));
+        assert_eq!(at("H7", 250.5), None);
+        // Shafts (`fits.fit_deviation("g6", 20) == (-0.020, -0.007)`), js symmetric, k8 from 0.
+        assert_eq!(at("g6", 20.0), Some(("-0.007".into(), "-0.020".into())));
+        assert_eq!(at("js6", 20.0), Some(("+0.0065".into(), "-0.0065".into())));
+        assert_eq!(at("k8", 20.0), Some(("+0.033".into(), "0".into())));
+        assert_eq!(at("H4", 10.0), None);
     }
 
     #[test]

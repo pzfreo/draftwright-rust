@@ -68,6 +68,16 @@
               "additionalProperties": {
                 "type": "string"
               }
+            },
+            "fit_limits": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [],

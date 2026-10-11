@@ -35,8 +35,12 @@ fn analysed(name: &str) -> (Part, Analysis) {
     .unwrap()
 }
 
+/// A spec as draftwright's `Sheet` API would print it: a fit as its class alone (`fits.FitClass`'s
+/// default), so the port's labels compare with draftwright's (`sheet/fit_limits: false`).
 fn spec(value: Value) -> Spec {
-    serde_json::from_value(value).unwrap()
+    let mut s: Spec = serde_json::from_value(value).unwrap();
+    s.sheet.fit_limits.get_or_insert(false);
+    s
 }
 
 fn label<'a>(plan: &'a Plan, id: &str) -> &'a str {
@@ -464,11 +468,24 @@ fn an_edited_band_survives_the_round_trip_through_every_format() {
     assert_eq!(label(&plan, "d:envelope/width.length"), "60 ±0.05");
     assert_eq!(
         label(&plan, "d:f:hole_pattern:1/bore.diameter"),
+        "4× ⌀6 H7 (+0.012/0) THRU (2×2)"
+    );
+    // The sheet hides fit limits when asked: the class alone, as draftwright prints it.
+    let hidden = model::edit(
+        &edited,
+        &json!([{ "op": "set", "path": "sheet/fit_limits", "value": false }]),
+    )
+    .unwrap();
+    assert_eq!(
+        label(
+            &model::plan(&a, &hidden).unwrap(),
+            "d:f:hole_pattern:1/bore.diameter"
+        ),
         "4× ⌀6 H7 THRU (2×2)"
     );
     let drawing = model::render(&p, &a, &plan, &font()).unwrap();
     // The label's text run is the plan's label, band included.
-    for want in ["60 ±0.05", "4× ⌀6 H7 THRU (2×2)"] {
+    for want in ["60 ±0.05", "4× ⌀6 H7 (+0.012/0) THRU (2×2)"] {
         assert!(drawing.text.iter().any(|t| t.text == want), "{want}");
     }
     let pdf = drawing.pdf(&|_| {

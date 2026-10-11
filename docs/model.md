@@ -151,7 +151,7 @@ The design also includes `sheet/projection`, `views/sections` and feature `ancho
 `"sections": [{"id": "A", "through": "f:hole:3"}]`,
 `"anchor": {"…": "fingerprint"}`, `"note": "REAM"`). These fields are not yet read.
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`), `views/<name>` (`omit`, `place`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`), `views/<name>` (`omit`, `place`),
   `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>/fit`, `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
@@ -345,8 +345,10 @@ basis, placed}`:
   - `features/<id>/fit` is an ISO 286 class from draftwright's table (`fits.py`): on a hole an
     upper-case hole class (H, G, F), on a cylindrical boss a lower-case shaft class (h, g, f, js,
     k, n, p), grades 5 to 11, for a nominal size up to 250 mm. It is printed after the diameter
-    of the callout that states the feature's size (`2× ⌀6.3 H7 ↧ 12.7`, `ø44.5 h6`), as the class
-    code. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
+    of the callout that states the feature's size, as the class and its limits from the table
+    (`2× ⌀6.3 H7 (+0.012/0) ↧ 12.7`, `ø44.5 h6 (0/-0.016)`); `sheet/fit_limits: false` prints
+    the class alone, as draftwright does (`2× ⌀6.3 H7 ↧ 12.7`). A PMI hole class stated without
+    limits is printed the same way. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
     part does not have, of the wrong case (`"h7" reads as "H7"`) or outside the table is
     refused; so is a size given both a tolerance and a fit.
   - The item lists what the spec gave it in `from_spec` (`tolerance`, `fit`) and is not a

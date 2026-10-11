@@ -624,7 +624,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         (c, edited.problems)
     };
     let (c, problems) = fitted(&holes);
-    assert_eq!(c.label, "6× ⌀10 H7 THRU EQ SP ON ø90 BC");
+    assert_eq!(c.label, "6× ⌀10 H7 (+0.015/0) THRU EQ SP ON ø90 BC");
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
         && p.refs.contains(&source)
         && p.message.contains("its own fit")

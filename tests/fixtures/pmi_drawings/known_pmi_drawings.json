@@ -7983,7 +7983,7 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "6× ⌀6.6 H11 THRU (2×3)",
+     "text": "6× ⌀6.6 H11 (+0.090/0) THRU (2×3)",
      "view": "plan"
     }
    ]
@@ -8055,7 +8055,7 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "⌀62 H7 THRU ⌴SF ⌀70 ↧ 10",
+     "text": "⌀62 H7 (+0.030/0) THRU ⌴SF ⌀70 ↧ 10",
      "view": "plan"
     }
    ]
@@ -8085,7 +8085,7 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "6× ⌀10 H11 THRU EQ SP ON ⌀90 BC",
+     "text": "6× ⌀10 H11 (+0.090/0) THRU EQ SP ON ⌀90 BC",
      "view": "plan"
     }
    ]
@@ -8115,7 +8115,7 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "⌀1.7 H11 ↧ 5.4",
+     "text": "⌀1.7 H11 (+0.060/0) ↧ 5.4",
      "view": "front"
     }
    ]

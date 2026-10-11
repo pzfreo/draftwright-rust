@@ -189,7 +189,7 @@ fn curved_edges_are_unfilled_and_faces_keep_fill() {
 }
 
 #[test]
-fn symbolic_bore_fits_are_printed_without_computing_limits() {
+fn symbolic_bore_fits_are_printed_with_their_iso_286_limits() {
     let s = session();
     for fit in ["H7", "H11"] {
         let report = s.pmi_report();
@@ -214,6 +214,41 @@ fn symbolic_bore_fits_are_printed_without_computing_limits() {
                 .dimensions
                 .iter()
                 .any(|d| d.placed.is_some() && d.label.contains(fit))
+        );
+    }
+    // The class and its limits from ISO 286 (draftwright's `fits` table), never the class alone.
+    let labels: Vec<String> = s
+        .plan()
+        .dimensions
+        .iter()
+        .map(|d| d.label.clone())
+        .collect();
+    for fit in ["H7", "H11"] {
+        let label = labels.iter().find(|l| l.contains(fit)).unwrap();
+        assert!(
+            label.contains(&format!("{fit} (+0.")) && label.contains("/0)"),
+            "{label:?} states {fit} with its limits"
+        );
+    }
+    let mut hidden = model::Spec::default();
+    hidden.sheet.fit_limits = Some(false);
+    let (part, analysis) = model::analyse_native_step(
+        std::path::Path::new("editor_pmi.step"),
+        include_bytes!("fixtures/parts/editor_pmi.step"),
+    )
+    .unwrap();
+    let quiet = Session::new(part, analysis, hidden).unwrap();
+    for fit in ["H7", "H11"] {
+        let label = quiet
+            .plan()
+            .dimensions
+            .iter()
+            .map(|d| d.label.clone())
+            .find(|l| l.contains(fit))
+            .unwrap();
+        assert!(
+            !label.contains("(+"),
+            "{label:?} states {fit} alone when the sheet hides fit limits"
         );
     }
     let raw = std::str::from_utf8(include_bytes!("fixtures/parts/editor_pmi.step"))

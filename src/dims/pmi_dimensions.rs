@@ -25,9 +25,9 @@
 //!   different requirements (draftwright splits it; the port splits count groups, grids and
 //!   lines), a counted turned diameter a record names only one of (`pmi_dimensions_not_ported`).
 //!
-//! Dimensions on supplemental (invisible) geometry stay refused. A stated ISO 286 class
-//! without limits is printed symbolically only on a uniquely matched recognised bore owner;
-//! no unstated limits are computed.
+//! Dimensions on supplemental (invisible) geometry stay refused. A stated ISO 286 hole class
+//! without limits is printed only on a uniquely matched recognised bore owner, as the class and
+//! its limits from draftwright's table (`⌀10 H7 (+0.015/0)`); one outside the table is refused.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -53,6 +53,8 @@ pub(super) struct Note {
     pub claimed: Vec<String>,
     /// The clause the band added to the item's basis.
     pub clause: String,
+    /// A fit's limits term, which the sheet drops when it hides fit limits.
+    pub limits: Option<String>,
 }
 
 /// A record's tolerance: its signed upper and lower deviations, and its limits when it states
@@ -82,14 +84,18 @@ impl Req {
     fn print(&self, w: &mut Want) -> Option<Note> {
         let before = w.terms.clone();
         let symmetric = self.upper > 0.0 && self.upper == -self.lower;
+        let mut limits = None;
         let (ok, band) = if let Some((letters, grade)) = self.fit {
-            let text = format!(
+            let class = format!(
                 "{}{grade}",
                 std::str::from_utf8(&letters)
                     .unwrap()
                     .trim_end_matches('\0')
             );
-            (tolerance::insert(w, &text), text)
+            let term = tolerance::limits_term((self.lower, self.upper));
+            let ok = tolerance::insert(w, &term) && tolerance::insert(w, &class);
+            limits = Some(term);
+            (ok, tolerance::with_limits(&class, (self.lower, self.upper)))
         } else {
             match self.limits {
                 Some((lo, hi)) if !symmetric => {
@@ -107,6 +113,7 @@ impl Req {
             banded: Vec::new(),
             claimed: Vec::new(),
             clause: String::new(),
+            limits,
         })
     }
 }
@@ -174,16 +181,20 @@ fn requirement(r: &Record, value: f64) -> Option<Req> {
             limits: None,
             fit: None,
         }),
-        _ => symbolic_fit(r).map(|fit| Req {
-            upper: 0.0,
-            lower: 0.0,
-            limits: None,
-            fit: Some(fit),
-        }),
+        _ => {
+            let fit = symbolic_fit(r)?;
+            let (lower, upper) = tolerance::deviations(r.fit.as_deref()?, value)?;
+            Some(Req {
+                upper,
+                lower,
+                limits: None,
+                fit: Some(fit),
+            })
+        }
     }
 }
 
-// Preserve a stated ISO class as a symbol, without computing unstated limits.
+// A stated ISO class without limits: the class, whose limits the plan prints from the table.
 fn symbolic_fit(r: &Record) -> Option<([u8; 2], u8)> {
     let code = r.fit.as_deref()?;
     let (letters, grade) = tolerance::fit(code).ok()?;
@@ -202,6 +213,9 @@ pub(super) fn symbolic_bore(r: &Record) -> bool {
         && r.lower_bound.is_none()
         && r.upper_bound.is_none()
         && symbolic_fit(r).is_some()
+        && r.value
+            .zip(r.fit.as_deref())
+            .is_some_and(|(v, code)| tolerance::deviations(code, v).is_some())
         && r.geometry.as_ref().is_some_and(|g| {
             g.reasons.is_empty()
                 && !g.cylinders.is_empty()
@@ -1005,6 +1019,25 @@ fn leader(
         }
     );
     own(ids, r, value, vec![view], Shape::Callout { sites }, basis)
+}
+
+/// Drops the limits a PMI fit put beside its class when the spec hides fit limits
+/// (`sheet/fit_limits: false`).
+pub(super) fn hide_fit_limits(
+    spec: &Spec,
+    notes: &BTreeMap<String, Note>,
+    kept: &mut [(Want, bool, Option<&'static str>, Vec<&'static str>)],
+) {
+    if tolerance::limits_shown(spec) {
+        return;
+    }
+    for (w, ..) in kept.iter_mut() {
+        if let Some(term) = notes.get(w.id.as_str()).and_then(|n| n.limits.as_ref())
+            && let Some(i) = w.terms.iter().position(|t| t == term)
+        {
+            w.terms.remove(i);
+        }
+    }
 }
 
 /// A spec's own tolerance or fit on a size wins over an imported one (draftwright's

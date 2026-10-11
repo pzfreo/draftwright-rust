@@ -2732,3 +2732,13 @@ Fmt, release Clippy, release build and required-corpus tests pass: **618 tests**
 tests pass **4/4**. S7 still scores **6/7** (exit 1), with the documented plate
 failure; that all-tasks gate is not passed. No conditions or tests were weakened.
 Logs are in `target/d1-fix-logs/`.
+## Fit limits (maintainer's decision, 2026-10-11)
+
+- An ISO 286 fit prints its class and its limits from draftwright's table (`⌀10 H7 (+0.015/0)`),
+  for fits authored in the Spec and for PMI hole classes stated without limits. This settles the
+  open question on PMI classes without limits for bores.
+- `sheet/fit_limits: false` prints the class alone (draftwright's default form); the parity
+  tests in `tests/tolerances.rs` use it.
+- Still refused: PMI shaft classes without limits on bosses (`g6` on the spool and pin), which
+  are not lowered for other reasons (`symbolic_bore` is bores only). Their limits are now
+  computable from the same table if they are lowered later.

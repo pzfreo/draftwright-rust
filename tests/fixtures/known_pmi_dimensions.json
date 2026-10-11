@@ -1093,9 +1093,9 @@
   "port": "dimension:#1360",
   "field": "label",
   "python": "6× ⌀6.6 THRU (2×3)",
-  "rust": "6× ⌀6.6 H11 THRU (2×3)",
+  "rust": "6× ⌀6.6 H11 (+0.090/0) THRU (2×3)",
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed verbatim on that owner, with no unstated limits computed and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -1107,11 +1107,11 @@
    "outcome": "standalone"
   },
   "rust": {
-   "detail": "⌀62 H7 THRU ⌴SF ⌀70 ↧ 10",
+   "detail": "⌀62 H7 (+0.030/0) THRU ⌴SF ⌀70 ↧ 10",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed verbatim on that owner, with no unstated limits computed and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -1119,9 +1119,9 @@
   "port": "dimension:#6392",
   "field": "label",
   "python": "6× ⌀10 THRU EQ SP ON ⌀90 BC",
-  "rust": "6× ⌀10 H11 THRU EQ SP ON ⌀90 BC",
+  "rust": "6× ⌀10 H11 (+0.090/0) THRU EQ SP ON ⌀90 BC",
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed verbatim on that owner, with no unstated limits computed and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  },
  {
   "file": "hw_string_post_tapped_intent.step",
@@ -1129,8 +1129,8 @@
   "port": "dimension:#3116",
   "field": "label",
   "python": "⌀1.7 ↧ 5.4",
-  "rust": "⌀1.7 H11 ↧ 5.4",
+  "rust": "⌀1.7 H11 (+0.060/0) ↧ 5.4",
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed verbatim on that owner, with no unstated limits computed and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  }
 ]

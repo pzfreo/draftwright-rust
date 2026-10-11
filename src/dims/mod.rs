@@ -773,6 +773,7 @@ pub(crate) fn plan_with_obstacles(
     }
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
+    pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     share(&mut kept, &mut given, &mut omitted);

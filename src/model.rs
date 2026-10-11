@@ -263,6 +263,10 @@ pub struct SheetSpec {
     pub scale: Option<String>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub title: BTreeMap<String, String>,
+    /// Whether a fit prints its ISO 286 limits beside its class (`⌀10 H7 (+0.015/0)`): shown
+    /// unless false, which prints the class alone (`⌀10 H7`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fit_limits: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
