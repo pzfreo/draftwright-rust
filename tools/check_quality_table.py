@@ -7,13 +7,14 @@ import sys
 from pathlib import Path
 
 keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap",
-        "view_on_title_block", "ink", "repeated_span", "line_through_feature"]
+        "view_on_title_block", "ink", "repeated_span", "line_through_feature",
+        "hidden_on_visible", "section_hidden"]
 tables = []
 rows = None
 columns = []
 for line in Path(sys.argv[1]).read_text().splitlines():
     fields = line.split()
-    if fields and fields[0] == "part" and "ink" in fields[1:]:
+    if fields and fields[0] == "part" and ({"ink", "off_sheet"} & set(fields[1:])):
         columns = [next((key for key in keys if key == name or key[:12] == name), name)
                    for name in fields[1:]]
         rows = {}

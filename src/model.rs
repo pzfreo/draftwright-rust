@@ -2032,7 +2032,7 @@ impl Projections {
         let view = View::new(v.direction, v.up).expect("a planned view");
         let centre = extent(analysis, &view).1;
         let key = projection_key(v);
-        let placement = bits(&[&[v.scale], &centre, &v.at]);
+        let placement = bits(&[&[v.scale, f64::from(v.id == "v:iso")], &centre, &v.at]);
         if let Some((previous, geometry)) = self.geometry.get(&key)
             && *previous == placement
         {
@@ -2059,6 +2059,11 @@ impl Projections {
                 .map(|e| placed(e, v.scale, centre, v.at));
             match projected(&moved) {
                 Some(curve) => {
+                    let curve = if v.id == "v:iso" {
+                        curve
+                    } else {
+                        crate::linework::stable_curve(curve)
+                    };
                     let items = if piece.visible {
                         &mut geometry.visible
                     } else {
@@ -2068,6 +2073,11 @@ impl Projections {
                 }
                 None => geometry.undrawn += 1,
             }
+        }
+        if v.cut.is_some() {
+            geometry.hidden.clear();
+        } else if v.id != "v:iso" {
+            geometry.hidden = crate::linework::hidden(&geometry.visible, geometry.hidden);
         }
         self.stats.bounds += 1;
         geometry.bbox = items_bbox(&geometry.visible);
@@ -2831,11 +2841,20 @@ fn section_furniture(
                 .collect()
         })
         .collect();
-    // Each hatch stretch is kept where the part has material just behind the cut, on the kept
-    // side: a face lying in the cutting plane leaves a doubled piece in the cut's boundary.
-    let classifier = Classifier::new(part);
-    let n = cut.normal;
-    let inside = |q: [f64; 2]| {
+    // Only material crossing the plane is hatched. Coplanar faces and stray cut
+    // pieces must not flip parity or conceal a boundary inside a candidate span.
+    let faces: Vec<usize> = part
+        .solids
+        .iter()
+        .flat_map(|solid| solid.faces.iter().copied())
+        .collect();
+    let classifier = if faces.is_empty() {
+        Classifier::new(part)
+    } else {
+        Classifier::for_faces(part, faces)
+    };
+    let n = plane.normal;
+    let to_model = |q: [f64; 2], side: f64| {
         let (u, w) = (
             centre[0] + (q[0] - v.at[0]) / s,
             centre[1] + (q[1] - v.at[1]) / s,
@@ -2845,11 +2864,41 @@ fn section_furniture(
             .map(|k| (cut.origin[k] - base[k]) * n[k])
             .sum::<f64>()
             / (0..3).map(|k| view.toward[k] * n[k]).sum::<f64>();
-        let p = [0, 1, 2].map(|k| base[k] + view.toward[k] * along + n[k] * 1e-2);
-        classifier.classify(p) == State::In
+        [0, 1, 2].map(|k| base[k] + view.toward[k] * along + side * n[k] * 1e-2)
     };
-    for [a, b] in hatch(&page, HATCH_SPACING, Some(&inside)) {
-        out.ink.push(Item::Edge(Curve::Line(a, b)));
+    for [a, b] in hatch(&page, HATCH_SPACING, Some(&|_| true)) {
+        let point = |t: f64| [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+        let (p, q) = (to_model(a, 1.0), to_model(b, 1.0));
+        let length = (0..3).map(|k| (q[k] - p[k]).powi(2)).sum::<f64>().sqrt();
+        let direction = [0, 1, 2].map(|k| (q[k] - p[k]) / length);
+        let mut stops = vec![0.0, 1.0];
+        for side in [-1.0, 1.0] {
+            let hits = classifier
+                .rays()
+                .hits(to_model(a, side), direction, length)
+                .ok_or_else(|| Unresolved {
+                    faces: part
+                        .solids
+                        .iter()
+                        .flat_map(|solid| solid.faces.iter().copied())
+                        .collect(),
+                    edges: Vec::new(),
+                })?;
+            stops.extend(hits.iter().map(|hit| (hit.t / length).clamp(0.0, 1.0)));
+        }
+        stops.sort_by(f64::total_cmp);
+        stops.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
+        for pair in stops.windows(2) {
+            let middle = point((pair[0] + pair[1]) / 2.0);
+            if (pair[1] - pair[0]) * length * s > 0.2
+                && [-1.0, 1.0]
+                    .into_iter()
+                    .all(|side| classifier.classify(to_model(middle, side)) == State::In)
+            {
+                out.ink
+                    .push(Item::Edge(Curve::Line(point(pair[0]), point(pair[1]))));
+            }
+        }
     }
     out.hatch = out.ink.len();
     let half_h = 0.5 * extent(analysis, view).0[1] * v.scale;
