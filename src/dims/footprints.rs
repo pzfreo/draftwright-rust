@@ -4,7 +4,9 @@
 //! in recognition. The Analysis retains no complete outer wire, so solid bounds detect re-entry
 //! and measure the distance to an exit without pretending to describe a concave silhouette.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 
 use super::placement::Frame;
 use super::{Measurement, P2, P3};
@@ -31,6 +33,42 @@ pub(super) struct Footprints {
     solids: Vec<[f64; 4]>,
     view: String,
     members: BTreeMap<String, BTreeSet<String>>,
+}
+
+type Projections = BTreeMap<(String, Vec<u64>), Rc<Footprints>>;
+
+/// Plan-local projections, keyed by the resolved frame so a repacked view cannot reuse stale ink.
+#[derive(Default)]
+pub(crate) struct Cache {
+    views: RefCell<Projections>,
+}
+
+impl Cache {
+    pub(super) fn get(
+        &self,
+        analysis: &Analysis,
+        view: &crate::model::PlannedView,
+    ) -> Rc<Footprints> {
+        let key = view
+            .direction
+            .iter()
+            .chain(&view.up)
+            .chain(&view.at)
+            .chain(std::iter::once(&view.scale))
+            .map(|v| v.to_bits())
+            .collect();
+        self.views
+            .borrow_mut()
+            .entry((view.id.clone(), key))
+            .or_insert_with(|| {
+                Rc::new(Footprints::new(
+                    analysis,
+                    &Frame::new(analysis, view),
+                    view.id.trim_start_matches("v:"),
+                ))
+            })
+            .clone()
+    }
 }
 
 fn bounds(points: impl Iterator<Item = P2>) -> [f64; 4] {
@@ -131,11 +169,26 @@ impl Shape {
         }
     }
 
-    fn crossed(&self, s: [P2; 2], own: bool) -> bool {
+    fn crossed(&self, s: [P2; 2]) -> bool {
         let len = (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]);
+        // Reject disjoint bounds before testing loop edges. Convex shapes need one interval.
+        let Some((a, b)) = clip(s, self.bounds()) else {
+            return false;
+        };
+        if (b - a) * len <= HAIR {
+            return false;
+        }
+        if let Self::Box(_) = self {
+            return a * len > HAIR;
+        }
+        if let Self::Circle(c, r) = self
+            && (s[0][0] - c[0]).hypot(s[0][1] - c[1]) <= *r
+        {
+            return false;
+        }
         self.spans(s)
             .iter()
-            .any(|(a, b)| (b - a) * len > HAIR && !(own && a * len <= HAIR))
+            .any(|(a, b)| (b - a) * len > HAIR && a * len > HAIR)
     }
 
     fn bounds(&self) -> [f64; 4] {
@@ -414,17 +467,23 @@ impl Footprints {
         }
     }
 
-    pub(super) fn crossed(&self, shaft: [P2; 2], owners: &[Measurement]) -> BTreeSet<String> {
-        let mut result: BTreeSet<String> = self
+    pub(super) fn crossed(&self, shaft: [P2; 2], _owners: &[Measurement]) -> BTreeSet<String> {
+        self.crossed_ids(shaft)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    pub(super) fn crossing_count(&self, shaft: [P2; 2]) -> usize {
+        self.crossed_ids(shaft).len()
+    }
+
+    fn crossed_ids(&self, shaft: [P2; 2]) -> BTreeSet<&str> {
+        let mut result: BTreeSet<&str> = self
             .features
             .iter()
-            .filter(|f| {
-                let own = self.owned(&f.id, owners)
-                // A loop not recognised as a feature can still contain the target's tip.
-                || f.id==self.view;
-                f.shape.crossed(shaft, own)
-            })
-            .map(|f| f.id.clone())
+            .filter(|f| f.shape.crossed(shaft))
+            .map(|f| f.id.as_str())
             .collect();
         let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
         if self
@@ -432,7 +491,7 @@ impl Footprints {
             .iter()
             .any(|b| clip(shaft, *b).is_some_and(|(a, c)| a * len > HAIR && (c - a) * len > HAIR))
         {
-            result.insert(self.view.clone());
+            result.insert(self.view.as_str());
         }
         result
     }
@@ -456,15 +515,11 @@ impl Footprints {
     ) -> BTreeSet<String> {
         self.features
             .iter()
-            .filter(|f| {
-                f.id != self.view && !self.owned(&f.id, owners) && f.shape.crossed(shaft, false)
-            })
+            .filter(|f| f.id != self.view && !self.owned(&f.id, owners) && f.shape.crossed(shaft))
             .map(|f| f.id.clone())
             .collect()
     }
-
-    /// Travel within the solid bounds before reaching an edge; initial feature attachment is
-    /// legitimate, but between equally clear routes the nearer exit is better drafting.
+    /// Travel to an exit is a length tie-break, never a crossing or a containment warning.
     pub(super) fn inside_length(&self, shaft: [P2; 2]) -> f64 {
         let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
         self.solids
@@ -640,28 +695,82 @@ mod tests {
             features
                 .iter()
                 .filter(|p| p.code == "extension_through_feature")
-                .all(|p| !p.fix.is_empty())
+                .all(|p| p.fix.is_empty())
         );
     }
 
     #[test]
-    fn circles_reject_tangency_and_allow_only_the_owners_initial_exit() {
+    fn plan_cache_reuses_a_projection_but_rebuilds_after_view_repacking() {
+        let a = analysis();
+        let mut view: crate::model::PlannedView = serde_json::from_value(serde_json::json!({
+            "id":"v:plan","direction":[0.0,0.0,1.0],"up":[0.0,1.0,0.0],"at":[50.0,50.0],
+            "scale":1.0,"area":[20.0,20.0,100.0,100.0],"default":true,"basis":"","state":{"kind":"shown"}})).unwrap();
+        let cache = Cache::default();
+        let first = cache.get(&a, &view);
+        assert!(Rc::ptr_eq(&first, &cache.get(&a, &view)));
+        view.at[0] += 10.0;
+        let moved = cache.get(&a, &view);
+        assert!(!Rc::ptr_eq(&first, &moved));
+        assert_eq!(first.features.len(), moved.features.len());
+        for (a, b) in first.features.iter().zip(&moved.features) {
+            assert!((b.shape.bounds()[0] - a.shape.bounds()[0] - 10.0).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn containing_features_allow_an_exit_but_still_report_reentry() {
+        let vertices = [
+            [0.0, 0.0],
+            [6.0, 0.0],
+            [6.0, 4.0],
+            [4.0, 4.0],
+            [4.0, 1.0],
+            [2.0, 1.0],
+            [2.0, 4.0],
+            [0.0, 4.0],
+        ];
+        let f = Footprints {
+            features: vec![Footprint {
+                id: "f:cavity".into(),
+                shape: Shape::Loop(
+                    (0..vertices.len())
+                        .map(|i| [vertices[i], vertices[(i + 1) % vertices.len()]])
+                        .collect(),
+                ),
+            }],
+            solids: vec![],
+            view: "v:plan".into(),
+            members: BTreeMap::new(),
+        };
+        let exit = [[1.0, 2.0], [-1.0, 2.0]];
+        let reentry = [[1.0, 2.0], [7.0, 2.0]];
+        assert!(f.crossed(exit, &[]).is_empty());
+        assert!(f.crossed_extension(exit, &[]).is_empty());
+        assert_eq!(f.crossed(reentry, &[]), BTreeSet::from(["f:cavity".into()]));
+        assert_eq!(
+            f.crossed_extension(reentry, &[]),
+            BTreeSet::from(["f:cavity".into()])
+        );
+    }
+
+    #[test]
+    fn circles_reject_tangency_and_allow_any_initial_exit() {
         let f = Shape::Circle([0.0, 0.0], 2.0);
-        assert!(f.crossed([[-3.0, 0.0], [3.0, 0.0]], false));
-        assert!(f.crossed([[-3.0, 0.0], [3.0, 0.0]], true));
-        assert!(!f.crossed([[-3.0, 2.0], [3.0, 2.0]], false));
-        assert!(!f.crossed([[2.0, 0.0], [4.0, 0.0]], true));
-        assert!(!f.crossed([[0.0, 0.0], [4.0, 0.0]], true));
-        assert!(f.crossed([[0.0, 0.0], [4.0, 0.0]], false));
+        assert!(f.crossed([[-3.0, 0.0], [3.0, 0.0]]));
+        assert!(f.crossed([[-3.0, 0.0], [3.0, 0.0]]));
+        assert!(!f.crossed([[-3.0, 2.0], [3.0, 2.0]]));
+        assert!(!f.crossed([[2.0, 0.0], [4.0, 0.0]]));
+        assert!(!f.crossed([[0.0, 0.0], [4.0, 0.0]]));
+        assert!(!f.crossed([[0.0, 0.0], [4.0, 0.0]]));
     }
 
     #[test]
     fn boxes_count_side_on_bands_but_not_their_edges_or_short_touches() {
         let f = Shape::Box([-1.0, -2.0, 1.0, 2.0]);
-        assert!(f.crossed([[-4.0, 0.0], [4.0, 0.0]], false));
-        assert!(!f.crossed([[-4.0, 2.0], [4.0, 2.0]], false));
-        assert!(!f.crossed([[0.99, 0.0], [4.0, 0.0]], false));
-        assert!(!f.crossed([[0.0, 0.0], [0.0, 0.0]], false));
+        assert!(f.crossed([[-4.0, 0.0], [4.0, 0.0]]));
+        assert!(!f.crossed([[-4.0, 2.0], [4.0, 2.0]]));
+        assert!(!f.crossed([[0.99, 0.0], [4.0, 0.0]]));
+        assert!(!f.crossed([[0.0, 0.0], [0.0, 0.0]]));
     }
 
     #[test]
@@ -680,7 +789,7 @@ mod tests {
             .map(|i| [vertices[i], vertices[(i + 1) % vertices.len()]])
             .collect();
         let f = Shape::Loop(edges);
-        assert!(f.crossed([[1.0, 2.0], [7.0, 2.0]], true));
-        assert!(!f.crossed([[1.0, 2.0], [-1.0, 2.0]], true));
+        assert!(f.crossed([[1.0, 2.0], [7.0, 2.0]]));
+        assert!(!f.crossed([[1.0, 2.0], [-1.0, 2.0]]));
     }
 }

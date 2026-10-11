@@ -33,8 +33,8 @@
 //!   leader or shoulder crosses or runs along, and (again) one whose ink and the label meet (its
 //!   line through the label, the label on its label, a leader line through its label);
 //!   each other feature footprint crossed by the shaft and ink outside the reserved area also
-//!   count in this tier. The original assignment is retained when the reporting predicates find
-//!   more annotation defects in the new assignment;
+//!   count in this tier. The original assignment is retained when the measured candidates and their pair
+//!   contacts find more annotation defects in the new assignment;
 //!   the dimensions are placed first and fixed (ARCH0014-3: principal dimensions claim their
 //!   strips; the callouts yield);
 //! - **text**: of the items met, those whose ink and the label meet, below the crossings:
@@ -72,10 +72,10 @@
 
 use std::collections::BTreeMap;
 
+use super::PlannedDimension;
 use super::footprints::Footprints;
 use super::placement::{Frame, Page, Side, arrow, boxes_overlap, crosses, label_box};
 use super::{CAP, P2, Placed, SHOULDER, Shape, Want, font, label_ink};
-use super::{Measurement, PlannedDimension};
 use crate::model::Problem;
 
 /// The clearance an elbow keeps from the view's edge, or from the outermost dimension ink of the
@@ -369,7 +369,6 @@ fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
 struct Job<'a> {
     view: &'a str,
     footprints: &'a Footprints,
-    owners: &'a [Measurement],
     outline: [f64; 4],
     /// The view's reserved area (box and bands), when the sheet has it.
     area: Option<[f64; 4]>,
@@ -401,8 +400,7 @@ fn side_index(side: Side) -> usize {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place(
     analysis: &crate::model::Analysis,
-    spec: &crate::model::Spec,
-    sheet: &crate::model::PlannedSheet,
+    cache: &super::footprints::Cache,
     views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
@@ -413,8 +411,7 @@ pub(super) fn place(
 ) -> Vec<Problem> {
     place_with_obstacles(
         analysis,
-        spec,
-        sheet,
+        cache,
         views,
         frames,
         items,
@@ -429,8 +426,7 @@ pub(super) fn place(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_with_obstacles(
     analysis: &crate::model::Analysis,
-    spec: &crate::model::Spec,
-    sheet: &crate::model::PlannedSheet,
+    cache: &super::footprints::Cache,
     views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
@@ -473,9 +469,9 @@ pub(super) fn place_with_obstacles(
         let e = reach.entry((view, side_index(side))).or_insert(0.0);
         *e = e.max(far);
     }
-    let footprints: BTreeMap<_, _> = frames
+    let footprints: BTreeMap<_, _> = views
         .iter()
-        .map(|(name, f)| (*name, Footprints::new(analysis, f, name)))
+        .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
     let mut jobs: Vec<(usize, Job)> = Vec::new();
     for (i, w) in items.iter().enumerate() {
@@ -497,7 +493,6 @@ pub(super) fn place_with_obstacles(
             Job {
                 view,
                 footprints: &footprints[view],
-                owners: &w.measurements,
                 outline: f.outline(),
                 area: page.area(view),
                 sites: page_sites(f, sites),
@@ -507,86 +502,35 @@ pub(super) fn place_with_obstacles(
             },
         ));
     }
-    let mut inventories: Vec<Vec<Candidate>> = jobs
+    let (mut inventories, original): (Vec<_>, Vec<_>) = jobs
         .iter()
-        .map(|(_, job)| inventory(job, &fixed, page, true))
-        .collect();
-    let (mut choice, mut capped) = assign(&inventories);
-    let original: Vec<Vec<Candidate>> = jobs
-        .iter()
-        .map(|(_, job)| inventory(job, &fixed, page, false))
-        .collect();
+        .map(|(_, job)| inventory(job, &fixed, page))
+        .unzip();
+    // Semantic PMI claims its strips after dimensions. Until those strips participate in the
+    // joint solve, retain the established objective rather than planning PMI twice as a probe.
+    let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
+        .0
+        .is_empty();
     let (old_choice, old_capped) = assign(&original);
-    // A bounded inventory can lose useful joint routes when a new obstacle changes its order.
-    // Keep the original solution as a floor on annotation defects, measured by the reporting
-    // predicates, rather than allowing a feature improvement to obscure text or ink. PMI is
-    // placed afterwards, so measure that dependent placement too; no PMI problem kind may grow.
-    let ink = |inv: &[Vec<Candidate>], selected: &[usize]| {
-        let mut trial = placed.to_vec();
-        for ((i, _), (candidates, c)) in jobs.iter().zip(inv.iter().zip(selected)) {
-            if let Some(c) = candidates.get(*c) {
-                trial[*i] = Some(c.placed());
+    let (mut choice, mut capped) = if semantic_pmi {
+        (old_choice.clone(), old_capped.clone())
+    } else {
+        assign(&inventories)
+    };
+    // Keep the annotation floor using the already measured candidates and their pair contacts.
+    // No dimensions, feature projections or dependent PMI placements are rebuilt here.
+    let defects = |inv: &[Vec<Candidate>], selected: &[usize]| {
+        let mut count = 0;
+        for (k, &c) in selected.iter().enumerate() {
+            let a = &inv[k][c];
+            count += a.hard + a.crossings + a.outside;
+            for (j, &other) in selected.iter().enumerate().take(k) {
+                count += conflict(a, &inv[j][other]);
             }
         }
-        let dims: Vec<PlannedDimension> = items
-            .iter()
-            .enumerate()
-            .map(|(i, w)| PlannedDimension {
-                id: w.id.clone(),
-                kind: if matches!(w.shape, Shape::Callout { .. }) {
-                    "callout"
-                } else {
-                    "linear"
-                }
-                .into(),
-                view: format!("v:{}", views_of[i].unwrap_or("front")),
-                value: w.value,
-                label: w.terms.join(" "),
-                terms: w.terms.clone(),
-                measurements: w.measurements.clone(),
-                default: true,
-                from_spec: vec![],
-                basis: w.basis.clone(),
-                state: crate::items::State::Shown,
-                placed: trial[i].clone(),
-            })
-            .chain(obstacles.iter().cloned())
-            .collect();
-        let pmi: BTreeMap<String, usize> = if analysis.pmi.is_some() {
-            let (_, problems) = super::gdt::plan(analysis, spec, sheet, views, &dims);
-            let mut counts = BTreeMap::new();
-            for p in problems
-                .iter()
-                .filter(|p| p.code.starts_with("annotation_"))
-            {
-                *counts.entry(p.code.clone()).or_default() += 1;
-            }
-            counts
-        } else {
-            BTreeMap::new()
-        };
-        let count = super::placement::collisions(analysis, &dims, sheet, views)
-            .iter()
-            .filter(|p| {
-                matches!(
-                    p.code.as_str(),
-                    "annotation_ink_overlap"
-                        | "annotation_over_view"
-                        | "annotation_line_over_view"
-                        | "annotation_leader_crossing"
-                        | "annotation_outside_area"
-                )
-            })
-            .count();
-        (count, pmi)
+        count
     };
-    let (count, pmi) = ink(&inventories, &choice);
-    let (old_count, old_pmi) = ink(&original, &old_choice);
-    if count > old_count
-        || pmi
-            .iter()
-            .any(|(code, count)| *count > old_pmi.get(code).copied().unwrap_or(0))
-    {
+    if semantic_pmi || defects(&inventories, &choice) > defects(&original, &old_choice) {
         inventories = original;
         choice = old_choice;
         capped = old_capped;
@@ -691,21 +635,19 @@ pub(super) fn intent_tip(frame: &Frame, sites: &[(super::P3, f64)], elbow: P2) -
     rim_tip(nearest(&page_sites(frame, sites), elbow), elbow)
 }
 
-/// Resolve a prescribed strip against the Analysis alone, so edits to other annotations cannot
-/// move a pin. Keep the prescribed station when clear; otherwise choose the nearest station and
-/// site with fewer footprint crossings, translating the shoulder and label together.
+/// Keep a prescribed strip and lane. Prefer its station; shift only to reduce feature
+/// crossings without increasing contacts with other prescribed pins. Free ink yields later.
 pub(super) fn route_intent(
-    analysis: &crate::model::Analysis,
+    footprints: &Footprints,
     frame: &Frame,
     w: &Want,
     p: &mut Placed,
-    view: &str,
     side: crate::placement_intent::Side,
+    obstacles: &[(&str, &Placed)],
 ) {
     let Shape::Callout { sites } = &w.shape else {
         return;
     };
-    let footprints = Footprints::new(analysis, frame, view);
     let Some(&[tip, elbow]) = p.lines.first() else {
         return;
     };
@@ -719,6 +661,43 @@ pub(super) fn route_intent(
     ));
     let o = frame.outline();
     let sites = page_sites(frame, sites);
+    let contacts = |tip: P2, next: P2| {
+        let shift = [next[0] - elbow[0], next[1] - elbow[1]];
+        let label = [
+            p.label_box[0] + shift[0],
+            p.label_box[1] + shift[1],
+            p.label_box[2] + shift[0],
+            p.label_box[3] + shift[1],
+        ];
+        let lines = [
+            [tip, next],
+            [
+                next,
+                [p.lines[1][1][0] + shift[0], p.lines[1][1][1] + shift[1]],
+            ],
+        ];
+        obstacles
+            .iter()
+            .filter(|(id, _)| *id != w.id)
+            .map(|(_, p)| *p)
+            .map(|q| {
+                usize::from(
+                    boxes_overlap(label, q.label_box)
+                        || lines.iter().any(|line| crosses(*line, q.label_box))
+                        || q.lines
+                            .iter()
+                            .chain(&q.arrows)
+                            .any(|line| crosses(*line, label)),
+                ) + usize::from(lines.iter().any(|line| {
+                    q.lines
+                        .iter()
+                        .chain(&q.arrows)
+                        .any(|other| lines_meet(*line, *other))
+                }))
+            })
+            .sum::<usize>()
+    };
+    let old_contacts = contacts(tip, elbow);
     let mut best = (before, 0.0, tip, elbow);
     for station in stations(elbow[k], o[k].min(elbow[k]), o[k + 2].max(elbow[k])) {
         let mut next = elbow;
@@ -727,6 +706,9 @@ pub(super) fn route_intent(
             let tip = rim_tip(site, next);
             let n = footprints.crossed([tip, next], &w.measurements).len();
             let shift = (station - elbow[k]).abs();
+            if contacts(tip, next) > old_contacts {
+                continue;
+            }
             if n < best.0
                 || (n == best.0 && (shift < best.1 || (shift == best.1 && station < best.3[k])))
             {
@@ -811,7 +793,7 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 
 /// Every candidate of *job* measured, the best [`KEEP`] kept (fewest hard blockers, then fewest
 /// crossings, then shortest, then generation order), near-duplicates dropped.
-fn inventory(job: &Job, fixed: &Fixed, page: &Page, aware: bool) -> Vec<Candidate> {
+fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> (Vec<Candidate>, Vec<Candidate>) {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -884,12 +866,19 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, aware: bool) -> Vec<Candidat
             None => &[true, false],
         };
         for &right in options {
-            if let Some(mut c) = measure(job, tip, elbow, right, fixed, page) {
-                c.aware = aware;
+            if let Some(c) = measure(job, tip, elbow, right, fixed, page) {
                 measured.push(c);
             }
         }
     }
+    let aware = keep(&measured);
+    for c in &mut measured {
+        c.aware = false;
+    }
+    (aware, keep(&measured))
+}
+
+fn keep(measured: &[Candidate]) -> Vec<Candidate> {
     // Ordered by their keys alone (each key distinct, by its generation order), not moving the
     // candidates themselves.
     let mut order: Vec<_> = measured
@@ -1058,7 +1047,7 @@ fn measure(
         v.dedup();
     }
     let crossings = (crossed.len() + text.len()) as u32;
-    let feature_crossings = job.footprints.crossed(segs[0], job.owners).len() as u32;
+    let feature_crossings = job.footprints.crossing_count(segs[0]) as u32;
     // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
     let outside = job.area.is_some_and(|a| {
         [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]
@@ -1151,7 +1140,6 @@ pub fn clear_routes(
     let job = Job {
         view,
         footprints: &footprints,
-        owners: &w.measurements,
         outline: f.outline(),
         area: page.area(view),
         sites: page_sites(f, sites),

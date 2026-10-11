@@ -647,9 +647,18 @@ pub fn plan(
     views: &[PlannedView],
     dims: &[PlannedDimension],
 ) -> (Vec<PlannedGdt>, Vec<Problem>) {
-    plan_anchored(analysis, spec, sheet, views, dims, None)
+    plan_anchored(
+        analysis,
+        spec,
+        sheet,
+        views,
+        dims,
+        None,
+        &super::footprints::Cache::default(),
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn plan_anchored(
     analysis: &Analysis,
     spec: &Spec,
@@ -657,6 +666,7 @@ pub(crate) fn plan_anchored(
     views: &[PlannedView],
     dims: &[PlannedDimension],
     canonical: Option<&crate::model::Plan>,
+    cache: &super::footprints::Cache,
 ) -> (Vec<PlannedGdt>, Vec<Problem>) {
     let shown = |name: &str| views.iter().any(|v| v.id == format!("v:{name}"));
     let (mut items, mut problems) = crate::pmi_lowering::lower(analysis, &shown);
@@ -1035,7 +1045,7 @@ pub(crate) fn plan_anchored(
     let mut all: Vec<PlannedDimension> = dims.to_vec();
     all.extend(out.iter().filter_map(proxy));
     problems.extend(
-        placement::collisions(analysis, &all, sheet, views)
+        placement::collisions_cached(analysis, &all, sheet, views, cache)
             .into_iter()
             .filter(|p| p.subjects.iter().any(|s| s.starts_with("pmi:"))),
     );
@@ -1104,6 +1114,24 @@ pub fn finish_collisions(
     items: &[PlannedDimension],
     r: &crate::pmi_lowering::PlannedRequirement,
 ) -> Vec<Problem> {
+    finish_collisions_cached(
+        analysis,
+        sheet,
+        views,
+        items,
+        r,
+        &super::footprints::Cache::default(),
+    )
+}
+
+pub(crate) fn finish_collisions_cached(
+    analysis: &Analysis,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    items: &[PlannedDimension],
+    r: &crate::pmi_lowering::PlannedRequirement,
+    cache: &super::footprints::Cache,
+) -> Vec<Problem> {
     let Some(proxy) = finish_proxy(r) else {
         return Vec::new();
     };
@@ -1111,7 +1139,7 @@ pub fn finish_collisions(
     all.push(proxy);
     // It stands in the band the title block's reservation keeps above the grid, as the scale
     // note does, so the reservation is not an obstacle to it.
-    placement::collisions(analysis, &all, sheet, views)
+    placement::collisions_cached(analysis, &all, sheet, views, cache)
         .into_iter()
         .filter(|q| q.subjects.contains(&r.id) && q.code != "annotation_over_title_block")
         .collect()

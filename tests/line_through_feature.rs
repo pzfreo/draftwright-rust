@@ -158,3 +158,40 @@ fn hex_leader_avoids_the_blind_hole_band_it_previously_crossed() {
         plan.problems
     );
 }
+
+#[test]
+fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only() {
+    let Some(c) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&c.join("nist/nist_ftc_08_asme1_rc.stp")).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let callouts = [
+        "d:f:hole_pattern:2/bore.diameter",
+        "d:f:hole_pattern:3/bore.diameter",
+        "d:f:hole:9/bore.diameter",
+        "d:f:hole:15/bore.diameter",
+        "d:f:hole:17/bore.diameter",
+        "d:f:hole:19/bore.diameter",
+    ];
+    for id in callouts {
+        assert!(
+            plan.dimensions
+                .iter()
+                .any(|d| d.id == id && d.placed.is_some())
+        );
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| p.code == "leader_through_feature" && p.subjects == [id, "f:slot:1"]),
+            "{id}: {:?}",
+            plan.problems
+        );
+    }
+    let extensions: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "extension_through_feature")
+        .collect();
+    assert!(!extensions.is_empty());
+    assert!(extensions.iter().all(|p| p.fix.is_empty()));
+}

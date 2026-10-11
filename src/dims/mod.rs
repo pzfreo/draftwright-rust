@@ -55,7 +55,7 @@ mod bosses;
 mod edges;
 mod envelope;
 mod flats;
-mod footprints;
+pub(crate) mod footprints;
 pub mod gdt;
 mod grooves;
 mod holes;
@@ -688,9 +688,18 @@ pub fn plan(
     sheet: &PlannedSheet,
     views: &[PlannedView],
 ) -> Result<Planned, Invalid> {
-    plan_with_obstacles(analysis, spec, sheet, views, &[], &[])
+    plan_with_obstacles(
+        analysis,
+        spec,
+        sheet,
+        views,
+        &[],
+        &[],
+        &footprints::Cache::default(),
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn plan_with_obstacles(
     analysis: &Analysis,
     spec: &Spec,
@@ -698,6 +707,7 @@ pub(crate) fn plan_with_obstacles(
     views: &[PlannedView],
     obstacles: &[PlannedDimension],
     held: &[PlannedDimension],
+    cache: &footprints::Cache,
 ) -> Result<Planned, Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
@@ -835,7 +845,7 @@ pub(crate) fn plan_with_obstacles(
             });
         }
     }
-    let intended: Vec<Option<Placed>> = all
+    let mut intended: Vec<Option<Placed>> = all
         .iter()
         .enumerate()
         .map(|(i, w)| {
@@ -857,14 +867,50 @@ pub(crate) fn plan_with_obstacles(
                 .filter_map(|d| d.placed.as_ref())
                 .map(|p| p.label_box[2] - p.label_box[0])
                 .fold(0.0, f64::max);
-            let mut placed =
-                placement::intent(&frames[v], w, p, sides[i]?, lane[i], callout_width)?;
-            if let Some(side) = p.side {
-                leaders::route_intent(analysis, &frames[v], w, &mut placed, v, side);
-            }
-            Some(placed)
+            placement::intent(&frames[v], w, p, sides[i]?, lane[i], callout_width)
         })
         .collect();
+    let prescribed = intended.clone();
+    let pin_ink: Vec<_> = all
+        .iter()
+        .zip(&prescribed)
+        .filter_map(|(w, p)| {
+            spec.dimensions
+                .get(&w.id)?
+                .place
+                .as_ref()?
+                .pinned
+                .then_some((w.id.as_str(), p.as_ref()?))
+        })
+        .chain(
+            obstacles
+                .iter()
+                .filter_map(|d| Some((d.id.as_str(), d.placed.as_ref()?))),
+        )
+        .collect();
+    for (i, w) in all.iter().enumerate() {
+        if let (Some(side), Some(v), Some(placed)) = (
+            spec.dimensions
+                .get(&w.id)
+                .and_then(|e| e.place.as_ref())
+                .and_then(|p| p.side),
+            chosen[i],
+            intended[i].as_mut(),
+        ) {
+            let view = views
+                .iter()
+                .find(|view| view.id == format!("v:{v}"))
+                .unwrap();
+            leaders::route_intent(
+                &cache.get(analysis, view),
+                &frames[v],
+                w,
+                placed,
+                side,
+                &pin_ink,
+            );
+        }
+    }
     placement::fall_through(
         &frames, &all, &chosen, &owner, &mut sides, &mut lane, analysis, sheet, views,
     );
@@ -925,8 +971,7 @@ pub(crate) fn plan_with_obstacles(
     let leader_problems = if obstacles.is_empty() {
         leaders::place(
             analysis,
-            spec,
-            sheet,
+            cache,
             views,
             &frames,
             &all,
@@ -938,8 +983,7 @@ pub(crate) fn plan_with_obstacles(
     } else {
         leaders::place_with_obstacles(
             analysis,
-            spec,
-            sheet,
+            cache,
             views,
             &frames,
             &all,
@@ -1086,7 +1130,9 @@ pub(crate) fn plan_with_obstacles(
         }
     }
     pmi_dimensions::finish(&mut out);
-    problems.extend(placement::collisions(analysis, &out, sheet, views));
+    problems.extend(placement::collisions_cached(
+        analysis, &out, sheet, views, cache,
+    ));
     Ok((out, omitted, problems))
 }
 /// The sizes that one dimension states for every feature it spans ([`share`]), and whether its

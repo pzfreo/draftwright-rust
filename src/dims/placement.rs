@@ -1417,25 +1417,39 @@ impl<'a> Page<'a> {
 }
 
 /// What the simple placement collides with: each a problem on the dimension's ID.
+#[cfg(test)]
 pub(super) fn collisions(
     analysis: &Analysis,
     dims: &[PlannedDimension],
     sheet: &PlannedSheet,
     views: &[PlannedView],
 ) -> Vec<Problem> {
+    collisions_cached(
+        analysis,
+        dims,
+        sheet,
+        views,
+        &super::footprints::Cache::default(),
+    )
+}
+
+pub(super) fn collisions_cached(
+    analysis: &Analysis,
+    dims: &[PlannedDimension],
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    cache: &super::footprints::Cache,
+) -> Vec<Problem> {
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
     let outlines = outlines(analysis, views);
-    let footprints: BTreeMap<&str, super::footprints::Footprints> = views
+    let footprints: BTreeMap<_, _> = views
         .iter()
         .filter_map(|v| {
             let name = v.id.strip_prefix("v:")?;
-            super::NAMES.contains(&name).then(|| {
-                (
-                    v.id.as_str(),
-                    super::footprints::Footprints::new(analysis, &Frame::new(analysis, v), name),
-                )
-            })
+            super::NAMES
+                .contains(&name)
+                .then(|| (v.id.as_str(), cache.get(analysis, v)))
         })
         .collect();
     let placed: Vec<(&PlannedDimension, &Placed)> = dims
@@ -1471,23 +1485,6 @@ pub(super) fn collisions(
                 };
                 for feature in crossed {
                     let subjects = vec![d.id.clone(), feature];
-                    let fix = if d.kind == "linear" {
-                        let horizontal = p.rotation.rem_euclid(180.0).abs() < 1e-6;
-                        let k = usize::from(horizontal);
-                        let side = if shaft[1][k] > shaft[0][k] {
-                            if horizontal { "below" } else { "left" }
-                        } else if horizontal {
-                            "above"
-                        } else {
-                            "right"
-                        };
-                        vec![crate::items::Op::set(
-                            format!("dimensions/{}/place", crate::items::key(&d.id)),
-                            serde_json::json!({"view": d.view.trim_start_matches("v:"),"side":side,"lane":0}),
-                        )]
-                    } else {
-                        vec![]
-                    };
                     feature_problems.push(Problem {
                         id: format!("p:{code}:{}:line:{n}", subjects.join("|")),
                         code: code.into(),
@@ -1505,7 +1502,6 @@ pub(super) fn collisions(
                             subjects[1]
                         ),
                         subjects,
-                        fix,
                         ..Default::default()
                     });
                 }

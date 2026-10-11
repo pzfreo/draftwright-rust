@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { check, loadTasks } from './check.mjs';
 import { localParts, featureNames } from './parts.mjs';
 import { serverUrl } from './client.mjs';
-import { pinCallouts, keepIntent } from './scripted-ops.mjs';
+import { pinCallouts, keepIntent, oppositeExtension } from './scripted-ops.mjs';
 const args=process.argv.slice(2);
 const option=(key,fallback)=>args.includes(key)?args[args.indexOf(key)+1]:fallback;
 const tokens=bytes=>Math.ceil(bytes/4);
@@ -49,10 +49,18 @@ try {
         case 'ctc01-fix-problems-near-slot':{
           // Opening and the feature's complete corrective answer share one bounded call.
           let problems=initial.problem_page??await call('list_problems',{part_ref,spec_version:current,filter:{feature:'f:slot:1'}});
+          const reported=[...problems.items];
           const fixes=problems.items.flatMap(p=>p.fix??[]);
           while(problems.next_cursor!==null){
             problems=await call('list_problems',{part_ref,spec_version:current,filter:{feature:'f:slot:1'},cursor:problems.next_cursor});
+            reported.push(...problems.items);
             fixes.push(...problems.items.flatMap(p=>p.fix??[]));
+          }
+          // Report-only warnings require an explicit editor decision using the resolved item.
+          for(const p of reported.filter(p=>p.code==='extension_through_feature')){
+            const {item}=await call('get_item',{part_ref,spec_version:current,id:p.subjects[0],detail:true});
+            const line=Number(p.id.match(/:line:(\d+)$/)?.[1]);
+            fixes.push(oppositeExtension(item,line));
           }
           if(fixes.length)await apply(fixes);
           break;

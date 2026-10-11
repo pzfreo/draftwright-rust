@@ -153,3 +153,9 @@ To isolate the registration/problem-page saving with the same script and binary,
 and compare it to the ordinary run with `check-efficiency.mjs`. This ablation uses
 the identical fixes and task conditions, but obtains the slot page in a separate call.
 No real-model performance is inferred from this scripted instrument.
+
+S1 review fix: extension-through-feature warnings are report-only. For the slot task,
+the scripted editor reads the affected dimension with `get_item(detail=true)` and
+makes an explicit opposite-strip edit from its extension geometry. This is a scripted
+editing decision, not a suggested Plan fix; it costs an additional tool call. The
+unchanged task checker must still find no problems near the slot after re-planning.

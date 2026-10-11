@@ -3076,3 +3076,71 @@ sheets and the pinned plate were inspected. CGB203’s unrecognised blade crossi
 dense extension ladders remain; the metric is not complete concave-material coverage.
 Full before/after tables, red-test evidence and artifact paths are in the S1 status entry.
 No commit or push was made.
+
+## Stage F / S1 review fix (2026-10-11)
+
+This supersedes the first S1 entry's fallback and extension-fix decisions. Footprints
+are now cached per resolved frame within `model::plan_with`, shared by dimensions,
+leader placement, GD&T collision reporting and finish collision reporting. Repacking
+changes the key. Candidate geometry is measured once; two bounded rankings share it,
+and their annotation-cost floor uses candidate costs and pair contacts without
+building dimensions or running collision/PMI planning as probes. Initial exits from
+*any* containing feature are exempt; later entry into that footprint still counts.
+Extension warnings are report-only and have no fix ops. The scripted slot editor reads
+the offending dimension and deliberately moves it to the opposite strip; the planner
+never applies or offers that edit. The seven task conditions are unchanged.
+
+Overturnable judgement calls and remaining limitations:
+
+- Semantic PMI's strips depend on the dimensions. Keep the original leader objective
+  on parts with drawable semantic PMI rather than probing two complete PMI placements.
+  The failed experiment without this safeguard made STC-09 e4 report an additional
+  frame outside its band (3 instead of 2) and a frame leader across another view;
+  `tests/gdt_band.rs` caught both. The conservative safeguard passes those same tests.
+  Footprint warnings are still reported. A future joint dimension/PMI solve may remove
+  this restriction. Presentation-only PMI does not disable feature-aware routing.
+- Retain the existing aware-mode area/exit objective for this fix round. Reverting its
+  two score changes together restores 10020's bad notch route (14 actual boundary
+  crossings instead of 5) and worsens ink on six quality parts (see
+  `target/f1-review-trial/` and `/tmp/f1-review-focused.log`). The new floor is cheap and
+  explicit; it still favours fewer annotation defects before accepting a feature gain.
+  This objective remains a deliberate behavioural difference, rather than claiming
+  that the review's observation of broader scoring was wrong.
+- `along` on an explicit callout is the preferred station, subordinate to fewer feature
+  crossings; side and lane remain prescribed. The plate middle station may move 5 mm.
+  Candidate alternatives now check the other prescribed pins' labels and lines; free
+  annotations subsequently yield in the existing solver. It is not a joint pin solve.
+- The metric remains limited to Analysis feature footprints and solid-box re-entry.
+  It does not measure complete concave material. CGB241's arm and 10000's through-body
+  extensions can still score zero. Adding complete outer wires needs an Analysis change,
+  outside this stream's geometry restrictions. FTC-09 hole 18 and CTC-05 hole 17 / flat 2
+  still have reported crossings; clearing them without extra annotation defects requires
+  a larger routing change. These minor review findings are accepted as limitations.
+- The metric correction lowers warning totals without necessarily moving any ink. Do
+  not interpret the whole before/after reduction as drafting improvement. Only four
+  quality sheets change geometry in this round; extension placement is unchanged.
+
+The new containing-loop unit regression and FTC-08 drawing/report-only regression both
+fail against an archive of the actual pre-review HEAD, not an ablation. Red logs:
+`/tmp/f1-review-red-unit.log`, `/tmp/f1-review-red-drawing.log`. The cache test checks
+reuse and invalidation after repacking. `tools/check_leader_planning_time.py` provides
+an explicit serial before/after release-time gate (aggregate median ratio <= 0.8),
+so performance is no longer inferred from quality/MCP success alone.
+
+Final review-fix verification: fmt, release clippy with warnings denied, required-corpus
+release tests **651/651 in 70 groups**, and release build pass. Quality **30 parts /
+240 cells no worse**, ink **278**, line-through-feature **269→212**; extensions are
+unchanged geometrically. Random pins **270/270, 9/9 GO**, zero off-sheet. Scripted MCP
+**7/7**, **16 calls** (one explicit item read for the report-only slot extension).
+Python tests **15/15**, Node tests **8/8**. Inspected all four changed sheets and the
+pinned plate at 2400 pixels, plus the notch and HEX release sheets.
+
+Measured release planning medians on the three reviewed STEP files: CTC-04
+**10.74→3.06 s**, FTC-08 **3.45→1.76 s**, CTC-02 **9.49→6.30 s**; aggregate **53.0%
+less time**. The timing gate passes at ratio **0.470** and fails at **1.230** when the
+reviewed binary is compared with itself. This establishes recovery from the reviewed
+slow build, not parity with the pre-feature base. A further profiling target is the
+bounded candidate rankings/assignments; no full collision/PMI fallback remains.
+
+Final table, timing and pin rows, commands and artifact locations are in the S1 review
+fix entry of `docs/status-2026-10-10.md`. No commit or push was made.

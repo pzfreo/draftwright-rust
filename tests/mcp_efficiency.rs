@@ -198,13 +198,20 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .count(),
         1
     );
+    assert!(
+        problems
+            .iter()
+            .filter(|p| p["code"] == "extension_through_feature")
+            .all(|p| p["fix"].as_array().is_none_or(Vec::is_empty))
+    );
     assert_eq!(result["next_cursor"], Value::Null);
     let mut ops = Vec::new();
     for p in problems {
         ops.extend(
             p["fix"]
                 .as_array()
-                .expect("default includes fix")
+                .map(Vec::as_slice)
+                .unwrap_or(&[])
                 .iter()
                 .cloned(),
         );
@@ -221,8 +228,11 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 5);
-    for p in problems {
+    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 2);
+    for p in problems
+        .iter()
+        .filter(|p| p["code"] != "extension_through_feature")
+    {
         assert!(
             delta["problems_resolved"]
                 .as_array()
