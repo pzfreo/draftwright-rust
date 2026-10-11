@@ -3264,3 +3264,77 @@ and `target/s2-fix-*`. No commit or push was made.
   S2's test table has no `ink`). Columns absent from the baseline are skipped.
 - S1's mocked crossing test in `tools/test_quality.py` writes an empty `part.svg`
   so S2's SVG metric can read it; the assertion is unchanged.
+
+## Stage H issue #3: concurrent file exports (2026-10-11)
+
+The review finding at `308132b` still holds at current Stage F HEAD `b999b13`:
+`api::write` shares `<prefix>.<format>.part`, truncates with `fs::write`, and its
+cleanup can remove another caller's stage. Export filenames and rendering are
+outside this fix; only file publication changes. No dependency is added.
+
+Overturnable unattended judgement calls:
+
+- Choose last-writer-wins per destination: the last successful atomic rename
+  determines that file's complete payload. Start/return order does not determine
+  the winner. No writer lock is added. A multi-format export is not transactional;
+  formats can come from different invocations, and a later failure retains formats
+  already published. This is documented on `api::write`, in the README, the model
+  adapter description and the MCP export description.
+- Use hidden sibling `.draftwright-export.<pid>.<counter>.part` files, independent
+  of the destination basename, so long/non-UTF-8 destination names are not lengthened.
+  Follow stateless cache's PID/counter and `create_new` pattern, but retry existing
+  names (including stale files, directories and symlinks) without removing them.
+  Remove a stage on write/rename failure only after exclusive creation succeeded.
+  Crash leftovers are retained; there is no automatic scavenging or new crash
+  durability guarantee.
+- Extract the single-file operation into a private helper accepting the write
+  operation. Production supplies `write_all`; regressions pause writers or inject
+  a partial-write error there, without timing sleeps or special production hooks.
+  The old shared-path behavior was retained in this helper for the red run.
+- The old ADR5-10 test used a directory at the fixed `.part` path to force an open
+  failure. Unique staging must bypass that unrelated directory. Update that case
+  to require successful export and preservation of the directory; injected partial
+  write and rename failure regressions retain the original failure invariants.
+
+Six new unit regressions cover simultaneous four-format exports to one revision
+prefix, a controlled last-rename winner, partial-write cleanup, rename cleanup,
+nontransactional batch failure, and collision retry with a foreign file, directory
+and (on Unix) symlink. All six failed with the behavior-preserving extraction of
+Stage F's original shared staging implementation: **0 passed / 6 failed**. All six
+pass with unique exclusive staging: **6 passed / 0 failed**. Each checks naming,
+complete bytes, ownership or failure preservation without rendering a new drawing.
+The existing model naming test is unchanged; the ADR5-10 test now also verifies
+that an unrelated legacy `.part` directory survives successful export.
+
+Before/after regression totals:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| New regressions passing | 0/6 | 6/6 |
+| New regressions failing | 6 | 0 |
+
+Before/after controlled publication metrics (one forced interleaving per row):
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Same-destination writers completing successfully | 1/2 | 2/2 |
+| Paused writer's stage retained after another publish | 0/1 | 1/1 |
+| Paused writer's stage retained after another partial-write failure | 0/1 | 1/1 |
+| Paused writer's stage retained after another rename failure | 0/1 | 1/1 |
+| Foreign `.part` retained after batch failure | 0/1 | 1/1 |
+
+Red/green output and the final checks are under `target/h3/` (`before.log`,
+`after.log`, `fmt.log`, `clippy.log`, `tests.log`, `results.txt`). The red helper
+source is also retained at `/private/tmp/h3-before-api.rs`. Drawing metrics were
+not remeasured: no planner, layout or renderer source changes in this issue.
+
+Final serial verification, with `CARGO_BUILD_JOBS=8`, `RUST_TEST_THREADS=8`:
+`cargo fmt --check` passes; `cargo clippy --all-targets --release -- -D warnings`
+passes; `DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus
+DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release` passes **670 tests in 71
+result groups, 0 failed, 0 ignored**. Session **8/8** (including the NIST gate),
+stateless adapters **8/8**, render caches **12/12**, captured SVG/DXF comparisons,
+deterministic PDF/text layers and the updated ADR5-10 guard all pass unchanged
+apart from the guard's explicit legacy-staging expectation described above.
+All issue claims were current at the checked HEAD; none had already been fixed.
+No unresolved implementation question remains. No commit or push was made.

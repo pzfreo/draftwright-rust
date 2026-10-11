@@ -713,7 +713,8 @@ output is byte-identical to analysing the same STEP with the same features.
   `draftwright review …` and `draftwright render … -o out` all print JSON. `--analysis a.json`
   names an Analysis file in place of `--features` (`draftwright plan --analysis a.json` needs no
   STEP file). Exit code 2 means
-  invalid input; exit code 1 means a write failed and the output was left as it was.
+  invalid input; exit code 1 means a write failed without that invocation replacing its destination.
+  Earlier formats in the same export may already have been published.
 - **JSON-lines service.** `draftwright serve` takes one request and gives one reply per line, in
   the shape of specify-core's `serve`: `{"id": 1, "op": "plan", "step": "part.step", "spec": {…}}`
   gives `{"id": 1, "ok": true, "result": …}` or `{"id": 1, "ok": false, "error": {…}}`, and
@@ -724,6 +725,12 @@ output is byte-identical to analysing the same STEP with the same features.
   written for an LLM; `plan`, `render` and `review` take `analysis` as an object, and `plan`
   requires no `step`. Results are the documents as JSON text; `review` adds the drawing as SVG
   text. A refused request is a tool error (`isError`) carrying the message and the choices.
+
+**File exports.** `api::write` creates unique sibling staging files exclusively and publishes
+with atomic replacement per destination. Concurrent callers use last-writer-wins per file
+(the last successful rename), and cleanup removes only their own staged copy. A multi-format
+export is not transactional: concurrent callers can publish different formats, and a later
+failure does not roll back formats already published. Destination names are unchanged.
 
 **The spec in each output** (invariant 8): in the SVG's metadata, in the PDF's document
 information, and in the DXF as comments (group code 999) ahead of the first section. AutoCAD,

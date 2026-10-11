@@ -56,6 +56,12 @@ draftwright serve                                      # the same operations as 
 draftwright-mcp                                        # the same operations as an MCP server (stdio)
 ```
 
+File exports stage each format in a unique sibling file and atomically replace its destination.
+Concurrent exports to the same prefix use last-writer-wins per file: the last successful rename
+wins. A multi-format export is not transactional; formats can come from different callers,
+and a later failure leaves already published formats in place. Cleanup removes only that
+invocation's staging file. Output names and rendered bytes are unchanged.
+
 `--spec` is optional: without it the defaults are drawn. The service, the MCP server and the
 library (`api::analyse(step, None)` and the rest) are not switched to native recognition:
 there, no `features` still means no features, and Python's JSON is passed as `features`.

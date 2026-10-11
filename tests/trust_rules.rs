@@ -187,15 +187,18 @@ fn a_failed_write_leaves_the_destination_as_it_was() {
     let out = dir.join("part");
     let files = |format: &str| vec![(format.to_string(), b"new".to_vec())];
 
-    // The staged copy cannot be written: the drawing already there is kept.
+    // A foreign directory at the old staging path is bypassed and kept.
     std::fs::write(dir.join("part.svg"), "old").unwrap();
     std::fs::create_dir(dir.join("part.svg.part")).unwrap();
-    let e = api::write(&out, &files("svg")).unwrap_err();
-    assert_eq!(e.code, "failed", "{e}");
+    assert_eq!(
+        api::write(&out, &files("svg")).unwrap(),
+        [dir.join("part.svg").display().to_string()]
+    );
     assert_eq!(
         std::fs::read_to_string(dir.join("part.svg")).unwrap(),
-        "old"
+        "new"
     );
+    assert!(dir.join("part.svg.part").is_dir());
 
     // It cannot be moved in (a directory is in its place): what was there is kept, and the
     // staged copy is removed.

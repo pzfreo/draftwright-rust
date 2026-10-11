@@ -12,7 +12,7 @@
 //!   kept between calls. [`Service`] additionally owns the live JSON-lines session.
 //!
 //! An [`Error`] is `invalid` (the request cannot be met as asked; it says what would be accepted)
-//! or `failed` (something went wrong; nothing was written in its place).
+//! or `failed` (something went wrong; each file is published only when complete).
 
 use std::path::Path;
 
@@ -314,9 +314,12 @@ fn rendered(
 
 /// Writes each rendered file at *out* with its format's extension appended (`part.rev2` →
 /// `part.rev2.svg`; an *out* already ending in a drawing format's extension has it replaced, as
-/// draftwright's `_output_prefix` does), and returns the paths written. Each is written beside its
-/// place and then moved in, so a failure leaves any earlier file as it was, and the staged copy
-/// is removed (ADR5-10).
+/// draftwright's `_output_prefix` does), and returns the paths written. Each is written to a
+/// uniquely and exclusively created sibling, then atomically replaces its destination. A failed
+/// write/rename does not replace that destination and removes only this invocation's staged copy
+/// (ADR5-10). Concurrent writers use last-writer-wins per file (the last successful rename).
+/// A multi-format export is not transactional: formats may come from different writers, and a
+/// later failure leaves already published formats in place.
 pub fn write(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<String>, Error> {
     let stem = match out.extension().and_then(|e| e.to_str()) {
         Some(e) if FORMATS.contains(&e) => out.with_extension(""),
@@ -330,24 +333,55 @@ pub fn write(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<String>, Err
     let mut written = Vec::new();
     for (format, bytes) in files {
         let path = named(format);
-        let staged = named(&format!("{format}.part"));
-        // A staged file that is not a file (a directory in its place) is not ours to remove.
-        let discard = || {
-            if staged.is_file() {
-                let _ = std::fs::remove_file(&staged);
-            }
-        };
-        std::fs::write(&staged, bytes).map_err(|e| {
-            discard();
-            Error::failed(format!("cannot write {}: {e}", staged.display()))
-        })?;
-        std::fs::rename(&staged, &path).map_err(|e| {
-            discard();
-            Error::failed(format!("cannot write {}: {e}", path.display()))
+        write_file(&path, |file| {
+            use std::io::Write;
+            file.write_all(bytes)
         })?;
         written.push(path.display().to_string());
     }
     Ok(written)
+}
+
+static EXPORT_STAGED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn write_file(
+    path: &Path,
+    write: impl FnOnce(&mut std::fs::File) -> std::io::Result<()>,
+) -> Result<(), Error> {
+    let (staged, mut file) = loop {
+        let staged = path.with_file_name(format!(
+            ".draftwright-export.{}.{}.part",
+            std::process::id(),
+            EXPORT_STAGED.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&staged)
+        {
+            Ok(file) => break (staged, file),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => {
+                return Err(Error::failed(format!(
+                    "cannot write {}: {e}",
+                    staged.display()
+                )));
+            }
+        }
+    };
+    let discard = || {
+        let _ = std::fs::remove_file(&staged);
+    };
+    let result = write(&mut file);
+    drop(file);
+    result.map_err(|e| {
+        discard();
+        Error::failed(format!("cannot write {}: {e}", staged.display()))
+    })?;
+    std::fs::rename(&staged, path).map_err(|e| {
+        discard();
+        Error::failed(format!("cannot write {}: {e}", path.display()))
+    })
 }
 
 /// A drawing to look at: the plan rendered as SVG, with its problems and lint's findings on the
@@ -677,3 +711,290 @@ pub const STATELESS_OPERATIONS: [&str; 14] = [
     "mcp_analyse",
     "mcp_render",
 ];
+
+#[cfg(test)]
+mod export_tests {
+    use super::*;
+    use std::fs;
+    use std::io::{self, Write};
+    use std::path::PathBuf;
+    use std::sync::{Barrier, Mutex, mpsc};
+    use std::time::Duration;
+
+    static LOCK: Mutex<()> = Mutex::new(());
+
+    struct Scratch(PathBuf);
+    impl Scratch {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir()
+                .join(format!("draftwright-export-{name}-{}", std::process::id()));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+        fn entries(&self) -> Vec<PathBuf> {
+            let mut entries: Vec<_> = fs::read_dir(&self.0)
+                .unwrap()
+                .map(|e| e.unwrap().path())
+                .collect();
+            entries.sort();
+            entries
+        }
+    }
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn simultaneous_exports_keep_complete_payloads_and_foreign_staging() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Scratch::new("simultaneous");
+        let foreign = dir.0.join("part.rev2.svg.part");
+        fs::write(&foreign, b"another invocation").unwrap();
+        let barrier = Barrier::new(2);
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..2)
+                .map(|writer| {
+                    let dir = &dir;
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        let files: Files = FORMATS
+                            .iter()
+                            .enumerate()
+                            .map(|(i, &format)| {
+                                (
+                                    format.into(),
+                                    vec![b'A' + writer * 4 + i as u8; 65536 + writer as usize],
+                                )
+                            })
+                            .collect();
+                        barrier.wait();
+                        (0..8)
+                            .map(|_| write(&dir.0.join("part.rev2.pdf"), &files))
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            for handle in handles {
+                for result in handle.join().unwrap() {
+                    let written = result.unwrap();
+                    assert_eq!(
+                        written,
+                        FORMATS.map(|f| dir.0.join(format!("part.rev2.{f}")).display().to_string())
+                    );
+                }
+            }
+        });
+        for (i, format) in FORMATS.iter().enumerate() {
+            let bytes = fs::read(dir.0.join(format!("part.rev2.{format}"))).unwrap();
+            assert!(bytes == vec![b'A' + i as u8; 65536] || bytes == vec![b'E' + i as u8; 65537]);
+        }
+        assert_eq!(fs::read(&foreign).unwrap(), b"another invocation");
+        assert_eq!(
+            dir.entries().len(),
+            5,
+            "only destinations and the foreign staging file"
+        );
+    }
+
+    #[test]
+    fn last_rename_wins_without_touching_the_other_writers_stage() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Scratch::new("last-writer");
+        let path = dir.0.join("part.svg");
+        fs::write(&path, b"old destination").unwrap();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let first_path = &path;
+            let first = scope.spawn(move || {
+                write_file(first_path, |file| {
+                    file.write_all(b"first payload")?;
+                    ready_tx.send(()).unwrap();
+                    resume_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+                    Ok(())
+                })
+            });
+            ready_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+            let stage = dir.entries().into_iter().find(|p| p != &path).unwrap();
+            let second = write_file(&path, |file| {
+                file.write_all(b"second payload")?;
+                assert_eq!(fs::read(&path).unwrap(), b"old destination");
+                Ok(())
+            });
+            let intermediate = fs::read(&path);
+            let retained = fs::read(&stage);
+            resume_tx.send(()).unwrap();
+            let first = first.join().unwrap();
+            eprintln!(
+                "H3 last-writer: completed={}, retained_stage={}",
+                usize::from(first.is_ok()) + usize::from(second.is_ok()),
+                usize::from(retained.as_ref().is_ok_and(|b| b == b"first payload"))
+            );
+            second.unwrap();
+            first.unwrap();
+            assert_eq!(intermediate.unwrap(), b"second payload");
+            assert_eq!(retained.unwrap(), b"first payload");
+        });
+        assert_eq!(fs::read(&path).unwrap(), b"first payload");
+        assert_eq!(dir.entries(), [path]);
+    }
+
+    #[test]
+    fn failed_partial_write_cleans_only_its_owned_stage() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Scratch::new("write-failure");
+        let path = dir.0.join("part.svg");
+        fs::write(&path, b"old destination").unwrap();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let first_path = &path;
+            let first = scope.spawn(move || {
+                write_file(first_path, |file| {
+                    file.write_all(b"successful payload")?;
+                    ready_tx.send(()).unwrap();
+                    resume_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+                    Ok(())
+                })
+            });
+            ready_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+            let stage = dir.entries().into_iter().find(|p| p != &path).unwrap();
+            let failed = write_file(&path, |file| {
+                file.write_all(b"partial")?;
+                Err(io::Error::other("injected write failure"))
+            });
+            let retained = fs::read(&stage);
+            let destination = fs::read(&path);
+            let entries = dir.entries();
+            resume_tx.send(()).unwrap();
+            let first = first.join().unwrap();
+            eprintln!(
+                "H3 partial-write failure: retained_stage={}",
+                usize::from(retained.as_ref().is_ok_and(|b| b == b"successful payload"))
+            );
+            let error = failed.unwrap_err();
+            assert_eq!(error.code, "failed");
+            assert!(error.message.contains("injected write failure"));
+            assert_eq!(destination.unwrap(), b"old destination");
+            assert_eq!(retained.unwrap(), b"successful payload");
+            assert_eq!(entries.len(), 2);
+            first.unwrap();
+        });
+        assert_eq!(fs::read(&path).unwrap(), b"successful payload");
+        assert_eq!(dir.entries(), [path]);
+    }
+
+    #[test]
+    fn failed_rename_keeps_the_other_stage_and_destination() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Scratch::new("rename-failure");
+        let path = dir.0.join("part.svg");
+        fs::create_dir(&path).unwrap();
+        fs::write(path.join("keep"), b"destination contents").unwrap();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let first_path = &path;
+            let first = scope.spawn(move || {
+                write_file(first_path, |file| {
+                    file.write_all(b"successful payload")?;
+                    ready_tx.send(()).unwrap();
+                    resume_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+                    Ok(())
+                })
+            });
+            ready_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+            let stage = dir.entries().into_iter().find(|p| p != &path).unwrap();
+            let failed = write_file(&path, |file| file.write_all(b"failed payload"));
+            let retained = fs::read(&stage);
+            let destination = fs::read(path.join("keep"));
+            let entries = dir.entries();
+            fs::remove_dir_all(&path).unwrap();
+            resume_tx.send(()).unwrap();
+            let first = first.join().unwrap();
+            eprintln!(
+                "H3 rename failure: retained_stage={}",
+                usize::from(retained.as_ref().is_ok_and(|b| b == b"successful payload"))
+            );
+            assert_eq!(failed.unwrap_err().code, "failed");
+            assert_eq!(destination.unwrap(), b"destination contents");
+            assert_eq!(retained.unwrap(), b"successful payload");
+            assert_eq!(entries.len(), 2);
+            first.unwrap();
+        });
+        assert_eq!(fs::read(&path).unwrap(), b"successful payload");
+        assert_eq!(dir.entries(), [path]);
+    }
+
+    #[test]
+    fn export_batch_failure_keeps_published_formats_and_foreign_files() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Scratch::new("batch");
+        let foreign = dir.0.join("part.pdf.part");
+        fs::write(&foreign, b"another invocation").unwrap();
+        fs::write(dir.0.join("part.svg"), b"old SVG").unwrap();
+        fs::write(dir.0.join("part.png"), b"unrequested PNG").unwrap();
+        fs::create_dir(dir.0.join("part.pdf")).unwrap();
+        let error = write(
+            &dir.0.join("part"),
+            &[
+                ("svg".into(), b"new SVG".to_vec()),
+                ("pdf".into(), b"new PDF".to_vec()),
+                ("dxf".into(), b"not reached".to_vec()),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "failed");
+        assert_eq!(fs::read(dir.0.join("part.svg")).unwrap(), b"new SVG");
+        assert_eq!(
+            fs::read(dir.0.join("part.png")).unwrap(),
+            b"unrequested PNG"
+        );
+        eprintln!(
+            "H3 batch failure: retained_foreign={}",
+            usize::from(fs::read(&foreign).is_ok_and(|b| b == b"another invocation"))
+        );
+        assert_eq!(fs::read(&foreign).unwrap(), b"another invocation");
+        assert_eq!(dir.entries().len(), 4);
+        assert!(!dir.0.join("part.dxf").exists());
+    }
+    #[test]
+    fn exclusive_creation_skips_collisions_without_removing_foreign_entries() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Scratch::new("collisions");
+        let path = dir.0.join("part.svg");
+        fs::write(&path, b"old destination").unwrap();
+        let next = EXPORT_STAGED.load(std::sync::atomic::Ordering::Relaxed);
+        let candidate = |id| {
+            dir.0.join(format!(
+                ".draftwright-export.{}.{id}.part",
+                std::process::id()
+            ))
+        };
+        fs::write(candidate(next), b"foreign file").unwrap();
+        fs::create_dir(candidate(next + 1)).unwrap();
+        fs::write(candidate(next + 1).join("keep"), b"foreign directory").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&path, candidate(next + 2)).unwrap();
+        #[cfg(not(unix))]
+        fs::write(candidate(next + 2), b"foreign file").unwrap();
+        write_file(&path, |file| {
+            file.write_all(b"new destination")?;
+            assert!(candidate(next + 3).is_file(), "collisions must be retried");
+            assert_eq!(fs::read(&path).unwrap(), b"old destination");
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new destination");
+        assert_eq!(fs::read(candidate(next)).unwrap(), b"foreign file");
+        assert_eq!(
+            fs::read(candidate(next + 1).join("keep")).unwrap(),
+            b"foreign directory"
+        );
+        assert!(fs::symlink_metadata(candidate(next + 2)).is_ok());
+        assert_eq!(dir.entries().len(), 4);
+    }
+}
