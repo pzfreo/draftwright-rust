@@ -9,7 +9,7 @@
 //!   default); the others, and [`call`], take Python quiddity's JSON or none;
 //! - [`call`]: the same operations by name with JSON arguments, as the service and the MCP server
 //!   receive them. Requests carry their documents and name the STEP file by path, so nothing is
-//!   kept between calls.
+//!   kept between calls. [`Service`] additionally owns the live JSON-lines session.
 //!
 //! An [`Error`] is `invalid` (the request cannot be met as asked; it says what would be accepted)
 //! or `failed` (something went wrong; nothing was written in its place).
@@ -122,7 +122,7 @@ impl<'a> From<Option<&'a Path>> for Features<'a> {
 }
 
 /// The part at *step* and its analysis, with its features from *features*.
-fn analysed(step: &Path, features: Features) -> Result<(Part, Analysis), Error> {
+pub(crate) fn analysed(step: &Path, features: Features) -> Result<(Part, Analysis), Error> {
     Ok(match features {
         Features::None => model::analyse(step)?,
         Features::Python(json) => model::analyse_with(step, Some(json))?,
@@ -530,4 +530,105 @@ fn dispatch(op: &str, args: &Value) -> Result<Value, Error> {
 
 fn json_of(document: &impl Serialize) -> Value {
     serde_json::to_value(document).expect("a document serialises")
+}
+
+/// Additional operations on the connection's one live part; batch operations still work.
+pub const SESSION_OPERATIONS: [&str; 8] = [
+    "open", "apply", "undo", "redo", "item", "items", "problems", "options",
+];
+
+#[derive(Default)]
+pub struct Service {
+    session: Option<crate::session::Session>,
+}
+impl Service {
+    pub fn call(&mut self, op: &str, args: &Value) -> Result<Value, Error> {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.dispatch(op, args)))
+            .unwrap_or_else(|_| Err(Error::failed(format!("{op} stopped"))))
+    }
+    fn dispatch(&mut self, op: &str, args: &Value) -> Result<Value, Error> {
+        if op == "open" {
+            let step = args
+                .get("step")
+                .and_then(Value::as_str)
+                .ok_or_else(|| Error::invalid("open needs \"step\", a file path"))?;
+            let spec = args
+                .get("spec")
+                .filter(|v| !v.is_null())
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| Error::invalid(format!("invalid spec: {e}")))?
+                .unwrap_or_default();
+            let session = if let Some(a) = args.get("analysis").filter(|a| !a.is_null()) {
+                if args.get("features").is_some_and(|v| !v.is_null()) {
+                    return Err(Error::invalid("open takes analysis or features, not both"));
+                }
+                let analysis: Analysis = serde_json::from_value(a.clone())
+                    .map_err(|e| Error::invalid(format!("invalid analysis: {e}")))?;
+                crate::session::Session::new(bound(Path::new(step), &analysis)?, analysis, spec)?
+            } else {
+                let features = match args.get("features") {
+                    None | Some(Value::Null) => Features::Native,
+                    Some(Value::String(s)) if s == "native" => Features::Native,
+                    Some(Value::String(s)) if s == "none" => Features::None,
+                    Some(Value::String(s)) => Features::Python(Path::new(s)),
+                    _ => {
+                        return Err(Error::invalid(
+                            "open's features is native, none or a JSON file path",
+                        ));
+                    }
+                };
+                crate::session::Session::open(Path::new(step), features, spec)?
+            };
+            let result = json_of(session.state());
+            self.session = Some(session);
+            return Ok(result);
+        }
+        if !SESSION_OPERATIONS.contains(&op) {
+            return call(op, args);
+        }
+        let session = self
+            .session
+            .as_mut()
+            .ok_or_else(|| Error::invalid("open a part before using session operations"))?;
+        let id = || {
+            args.get("item")
+                .and_then(Value::as_str)
+                .ok_or_else(|| Error::invalid(format!("{op} needs \"item\", a stable item ID")))
+        };
+        match op {
+            "apply" => {
+                let ops = args
+                    .get("ops")
+                    .ok_or_else(|| Error::invalid("apply needs ops, a list of Spec operations"))?;
+                let ops: Vec<crate::items::Op> = serde_json::from_value(ops.clone())
+                    .map_err(|e| Error::invalid(format!("invalid ops: {e}")))?;
+                let commit = match args.get("commit") {
+                    None => true,
+                    Some(Value::Bool(b)) => *b,
+                    _ => return Err(Error::invalid("commit is a boolean")),
+                };
+                Ok(json_of(&session.apply(&ops, commit)?))
+            }
+            "undo" => Ok(json_of(&session.undo()?)),
+            "redo" => Ok(json_of(&session.redo()?)),
+            "item" => Ok(json_of(&session.item(id()?)?)),
+            "options" => Ok(json_of(&session.options(id()?)?)),
+            "items" => {
+                let filter = serde_json::from_value(
+                    args.get("filter").cloned().unwrap_or_else(|| json!({})),
+                )
+                .map_err(|e| Error::invalid(format!("invalid item filter: {e}")))?;
+                Ok(json_of(&session.items(&filter)))
+            }
+            "problems" => {
+                let filter = serde_json::from_value(
+                    args.get("filter").cloned().unwrap_or_else(|| json!({})),
+                )
+                .map_err(|e| Error::invalid(format!("invalid problem filter: {e}")))?;
+                Ok(json_of(&session.problems(&filter)))
+            }
+            _ => unreachable!(),
+        }
+    }
 }

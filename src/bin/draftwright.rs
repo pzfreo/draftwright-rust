@@ -197,13 +197,14 @@ fn json_of(document: &impl serde::Serialize) -> Value {
 /// Answers requests, one JSON object per line, until stdin closes.
 fn serve() -> ExitCode {
     let stdout = std::io::stdout();
+    let mut service = api::Service::default();
     for line in std::io::stdin().lock().lines() {
         let Ok(line) = line else { break };
         if line.trim().is_empty() {
             continue;
         }
         let reply = match serde_json::from_str::<Value>(&line) {
-            Ok(request) => reply(&request),
+            Ok(request) => reply(&request, &mut service),
             Err(e) => json!({ "id": null, "ok": false, "error": Error::invalid(e.to_string()) }),
         };
         let mut out = stdout.lock();
@@ -215,15 +216,17 @@ fn serve() -> ExitCode {
 }
 
 /// A request's reply: its result, or a structured error.
-fn reply(request: &Value) -> Value {
+fn reply(request: &Value, service: &mut api::Service) -> Value {
     let Some(fields) = request.as_object() else {
         let error = Error::invalid("a request is a JSON object");
         return json!({ "id": null, "ok": false, "error": error });
     };
     let id = fields.get("id").cloned().unwrap_or(Value::Null);
     let result = match fields.get("op").and_then(Value::as_str) {
-        Some("hello") => Ok(json!({ "protocol": PROTOCOL, "ops": api::OPERATIONS })),
-        Some(op) => api::call(op, request),
+        Some("hello") => Ok(
+            json!({ "protocol": PROTOCOL, "ops": api::OPERATIONS.iter().chain(api::SESSION_OPERATIONS.iter()).collect::<Vec<_>>() }),
+        ),
+        Some(op) => service.call(op, request),
         None => Err(Error::invalid("a request needs \"op\"")),
     };
     match result {

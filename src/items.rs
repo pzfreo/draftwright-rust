@@ -86,7 +86,7 @@ pub fn key(id: &str) -> String {
 }
 
 /// A plan item, as a caller lists it.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Item {
     pub id: String,
     /// `sheet`, `view`, `dimension`, `control_frame`, `datum_feature`, `label`, `requirement`,

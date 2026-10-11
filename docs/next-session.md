@@ -2357,3 +2357,44 @@ Overturnable judgement calls:
 - Timings are native warm-render samples, excluding planning and export. They show the cache's
   measured effect, not the complete S4 p90 or WASM latency gate; those belong to the session and
   editor streams.
+
+## Thin slice S4 part B: Session (2026-10-11)
+
+Overturnable judgement calls made unattended:
+
+- S0's `bench/edits/*.json` are present on draftwright-editor `origin/thin-slice` and
+  `origin/ts/s0-baseline` (and scratchpad `wt-ts-int-s0/bench/edits`). The initial report
+  checked only main and incorrectly treated the files as unavailable. The shared sequence in
+  `tests/common/session_edits.rs` now covers all nine edit kinds, including width's carrier
+  move to `plan` and `views/side/omit`; GRM-03 has eight edits, without a carrier move.
+  Keep the existing seven relative Spec operations as conservative equivalents of S0's old
+  page-offset/Spec-1 commands; the new commands map directly to Spec-2 fields. This judgement
+  is overturnable if S5 needs exact offset-to-anchor migration. No editor files were changed.
+- Always use the bundled `tests/fixtures/parts/mounting_plate.step` for the plate benchmark
+  and latency example invocation; results no longer depend on a host's editor checkout.
+- Retain the existing regular-test and example p90 assertions against 150 ms, consistent with
+  the maintainer's acceptance gate and this fix round's prohibition on weakened tests. A future
+  dedicated performance job could isolate the gate from loaded CI; no such change is made here.
+- S5/S7 payload follow-up: `open` serialises the full State including projected view geometry;
+  moving/rescaling views resends their geometry (CTC-01 deltas around 5.2 MB). This remains
+  acceptable in process but costly over JSON-lines; consider geometry handles/caching or compact
+  transport in those streams, preserving lossless replay. This stream adds no transport policy.
+- Count complete recovered-planner invocations, the same unit as the batch API/old editor's
+  multiple plans. One per apply/undo/redo, zero for queries. The existing global planner has no
+  safe partial-plan entry point, so use its full-plan fallback. Internal recovery candidates
+  and S3's canonical pin plan remain; the counter explicitly does not count those trials.
+  Removing those trials would alter fresh-plan equivalence and drafting behaviour. A future
+  planner-locality API can replace this fallback under the same replay oracle.
+- Keep one live part per JSON-lines connection, opened explicitly by `open`; a successful open
+  replaces its history. Continue answering all existing stateless requests alongside it.
+  No handles, persistence, paging or MCP transports are added (S7 owns that surface).
+- Send typed curve/ink fragments, including searchable text and lint provenance, rather than
+  add a second SVG-fragment formatter. Clients can replay a State and assemble/export with the
+  library renderer. Sheet furniture is still assembled from the patched Plan, as in S4 part A.
+- Options conservatively offer placements on the current carrier and compatible view anchors;
+  they are not an exhaustive enumeration of alternative dimensional/PMI projections. Collision
+  checks happen in preview/apply, without running extra plans from a query.
+- Latency gate covers native apply, complete sheet assembly, delta construction and JSON
+  encoding after open, ten repetitions of nine edits (eight for GRM-03). Undo restores the
+  starting state between repetitions and is not timed. Opening (including HLR) is recorded separately.
+  WASM/UI display-rate drag checks remain in S5; no editor or MCP files were touched.

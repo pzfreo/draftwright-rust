@@ -680,8 +680,8 @@ Each operation is validated against the analysis:
 A caller may equally replace the whole spec.
 
 **Adapters.** All three call one module, `src/api.rs`: the operations typed, and `api::call`,
-the same operations by name with JSON arguments. Requests carry their documents and name files by
-path, so no adapter keeps state between calls. Errors are `{"code": "invalid" | "failed",
+the same operations by name with JSON arguments. Batch requests carry their documents and name
+files by path, so they need no session state; the Session additions are described below. Errors are `{"code": "invalid" | "failed",
 "message", "choices"?}`.
 
 `plan`, `render` and `review` take the part either as `step` (the STEP file's path) with
@@ -824,3 +824,72 @@ material, threads/knurls, dimensions, frames and datums consume the one report. 
 ordinary analysis API still attaches PMI once and carries the report in the Analysis; there are
 no separate material, thread or frame reads in planning or rendering. Haecceity's geometry/part
 inventory reader remains separate from its semantic PMI parser.
+
+## Sessions (thin slice S4 part B)
+
+`session::Session` (also exported as `draftwright::Session`) owns one immutable part and its
+Analysis (including the already-read PMI report), current Spec/Plan, projections, annotation
+ink and Spec history. `Session::new(part, analysis, spec)` takes trusted in-process geometry
+and analysis; `Session::open(step, api::Features, spec)` loads them once. The batch operations
+above retain their existing behaviour.
+
+`apply(&[items::Op], commit)` uses exactly `edit`'s operation vocabulary and validates the
+result through the recovered planner. `commit: false` returns the same delta as committing
+from that state, while changing neither state, history nor cache counters. Refused edits also
+leave the last good state intact. A batch is one undo step; `undo()` and `redo()` return deltas.
+A successful new commit discards the redo branch; a preview or refusal preserves it. History
+retains Specs, rather than whole drawings or projections.
+
+Each edit makes one complete `plan_recovered` invocation. The existing planner is global, so
+this is the conservative full-plan fallback: its internal layout candidate/recovery attempts
+and canonical pin plan remain part of that invocation. `Session::stats().plans` counts those
+invocations at the planning entry point, including undo/redo, and excludes discarded previews;
+it does not claim to count individual internal layout candidates. `Delta.plans` reports the
+measured invocations for a transaction, including a discarded preview. Queries never invoke it.
+Projection and bounds counters count actual expensive passes as in S4 part A; the annotation
+counter counts actual independent item renders. Unchanged label/geometry/provenance keeps its
+ink, even when the item's basis or default changes. Sheet furniture is assembled afresh.
+
+`Delta` reports `changed`, `added` and `removed` item IDs/typed answers, and complete problems
+added/resolved (a changed problem is resolved and replaced). It also carries a lossless
+`PlanDelta`: changed top-level fields and changed collection records by stable ID, with order
+only when it changes. The other payloads are changed view geometry and independently rendered
+annotation ink, using S4 part A's `RenderedItem`. Geometry and ink are typed, serialisable curve
+records; no full SVG is returned on each edit. Omitting an item can keep its ID/state in the
+Plan while removing its ink. `Delta::apply_to(&mut session::State)` replays without planning or
+formatting annotation labels. `State::render` assembles those cached pieces and the plan's
+furniture through the same renderer as a fresh sheet, including searchable text, lint provenance
+and embedded Spec. `Session::drawing()` exposes the current assembled drawing for export.
+
+The queries are `item(id)`, `items(&ItemFilter)`, `problems(&ProblemFilter)` and `options(id)`.
+An item answer carries typed state, resolved value, the engine's label, placed geometry,
+anchors, features, basis and allowed edit fields. Item filters combine view (with or without
+`v:`), kind (including linear/callout/angular), exact typed state, feature, region (page millimetres) and proximity to another
+item's ink (`near`, optional `radius`, default 10 mm). PMI feature associations follow overlap with the feature's drawing faces; their anchors also
+name those faces. Problem filters combine code, severity
+and subject ID. Unknown item IDs give the five nearest IDs. Options conservatively offer
+placements on the item's current carrier, compatible view anchors, and the ISO scale series
+for the sheet; collisions are reported by preview/apply. They do not run trial plans.
+
+`draftwright serve` keeps one Session per connection, behind `api::Service`. The additional
+operations advertised by `hello` are:
+
+```json
+{"id":1,"op":"open","step":"part.step","spec":{}}
+{"id":2,"op":"apply","commit":false,"ops":[{"op":"set","path":"dimensions/d:envelope~1width.length/tolerance","value":"±0.1"}]}
+{"id":3,"op":"apply","ops":[{"op":"set","path":"views/iso/omit","value":true}]}
+{"id":4,"op":"undo"}
+{"id":5,"op":"redo"}
+{"id":6,"op":"item","item":"d:envelope/width.length"}
+{"id":7,"op":"items","filter":{"kind":"dimension","view":"front"}}
+{"id":8,"op":"problems","filter":{"severity":"error"}}
+{"id":9,"op":"options","item":"sheet"}
+```
+
+`open` returns the initial replayable State, defaults to native recognition, accepts `features`
+(`native`, `none` or Python recognition JSON path), or a bound `analysis` in its place. A new
+successful `open` replaces the connection's part/history; a failed one preserves them.
+`apply` defaults to committing. Item IDs use `item` so the request's `id` remains the reply
+correlation ID. The original six operations and protocol/reply shapes are unchanged, and may
+be interleaved with session requests. `api::call` remains stateless; `api::Service::call` owns
+the connection state. Editor integration and MCP adapters belong to S5 and S7.

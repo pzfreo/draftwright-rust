@@ -429,7 +429,7 @@ pub const SECTION: &str = "section_aa";
 const LOADER: &str = concat!("haecceity via draftwright ", env!("CARGO_PKG_VERSION"));
 
 /// A scale as printed: `n:1` or `1:n`.
-fn scale_name(s: f64) -> String {
+pub(crate) fn scale_name(s: f64) -> String {
     if s >= 1.0 {
         format!("{}:1", fmt_ratio(s))
     } else {
@@ -1906,7 +1906,7 @@ pub fn render(
 
 /// What renders share: hidden-line projections and cuts, and the latest placed edges and
 /// visible-ink bounds per projection. A different part binding discards the cached geometry.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Projections {
     binding: Option<String>,
     views: HashMap<Vec<u64>, Vec<Projected>>,
@@ -1923,7 +1923,7 @@ pub struct ProjectionStats {
 }
 
 /// One view's projected edges on the page, with the bounds of its visible ink.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ViewGeometry {
     pub visible: Vec<Item>,
     pub hidden: Vec<Item>,
@@ -1932,7 +1932,7 @@ pub struct ViewGeometry {
 }
 
 /// The geometry layer, in plan view order. Sheet furniture belongs to the annotation layer.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct GeometryLayer {
     pub views: Vec<(String, ViewGeometry)>,
 }
@@ -2076,7 +2076,7 @@ pub enum AnnotationItem<'a> {
 }
 
 /// One item's ink and provenance. Run indices are local until appended to a drawing.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RenderedItem {
     pub items: Vec<Item>,
     pub text: Vec<TextRun>,
@@ -2171,6 +2171,27 @@ pub fn render_annotations(
     font: &Font,
     geometry: GeometryLayer,
     projections: &mut Projections,
+) -> Result<Drawing, Unresolved> {
+    render_annotations_with_items(
+        part,
+        analysis,
+        plan,
+        font,
+        geometry,
+        projections,
+        &BTreeMap::new(),
+    )
+}
+
+/// Assembles the same drawing, reusing independently rendered annotations by ID.
+pub fn render_annotations_with_items(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+    geometry: GeometryLayer,
+    projections: &mut Projections,
+    items: &BTreeMap<String, RenderedItem>,
 ) -> Result<Drawing, Unresolved> {
     // Section furniture (hatch, cutting plane), and its text: what, where.
     let mut furniture: Vec<Item> = Vec::new();
@@ -2298,21 +2319,29 @@ pub fn render_annotations(
     // is measured.
     let mut annotations = Vec::new();
     for d in &plan.dimensions {
-        render_item(AnnotationItem::Dimension(d)).append(
-            &mut layers[2].items,
-            &mut text,
-            &mut annotations,
-            &mut sheet,
-        );
+        items
+            .get(&d.id)
+            .cloned()
+            .unwrap_or_else(|| render_item(AnnotationItem::Dimension(d)))
+            .append(
+                &mut layers[2].items,
+                &mut text,
+                &mut annotations,
+                &mut sheet,
+            );
     }
     // The feature control frames and datum feature symbols, likewise.
     for g in &plan.gdt {
-        render_item(AnnotationItem::Gdt(g)).append(
-            &mut layers[2].items,
-            &mut text,
-            &mut annotations,
-            &mut sheet,
-        );
+        items
+            .get(&g.id)
+            .cloned()
+            .unwrap_or_else(|| render_item(AnnotationItem::Gdt(g)))
+            .append(
+                &mut layers[2].items,
+                &mut text,
+                &mut annotations,
+                &mut sheet,
+            );
     }
     // Glyphs *laid* out drawn moved to *at*, and the *run* (text, font file, size), if any, as
     // invisible text centred there; the run's index in the drawing's text.
