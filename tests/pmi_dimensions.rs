@@ -845,3 +845,44 @@ fn the_same_part_gives_the_same_plan_and_bytes() {
         );
     }
 }
+
+/// One span, one dimension for PMI (`share_pmi`): the plate states each grid hole's basic
+/// location, so a row or column states the same span once per hole, and the default hole
+/// locations measure spans the PMI states. The plan view draws each span once: no two of its
+/// placed PMI or location dimensions share a label and value (every one of them here runs from
+/// the part's left or front face), and every basic record is claimed by a planned dimension.
+#[test]
+fn a_span_the_pmi_states_is_drawn_once() {
+    let (_, a, plan) = planned("hw_assembly_plate_pin_intent");
+    let mut seen = BTreeSet::new();
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some() && d.view == "v:plan")
+    {
+        // The PMI dimensions and the default locations; a pitch of the same value spans
+        // something else.
+        if !(d.id.contains("/linear") || d.id.contains("/location.")) {
+            continue;
+        }
+        assert!(
+            seen.insert((d.label.clone(), d.value.to_bits())),
+            "{} repeats {:?} in the plan view",
+            d.id,
+            d.label
+        );
+    }
+    let conveyed: Vec<_> = plan
+        .omitted
+        .iter()
+        .filter(|o| o.basis.contains("the part's PMI"))
+        .collect();
+    assert!(conveyed.len() >= 8, "{conveyed:?}");
+    for r in records(&a).iter().filter(|r| r.kind == "linear" && r.basic) {
+        assert!(
+            stating(&plan, &a, r).is_some(),
+            "{} is claimed by a planned dimension",
+            r.source_id
+        );
+    }
+}

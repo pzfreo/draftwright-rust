@@ -119,6 +119,7 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
                 + serde_json::to_vec(&tool["outputSchema"]).unwrap().len()
         })
         .sum();
-    assert!(schema_bytes < 38500, "schemas: {schema_bytes} bytes");
+    // 38,500 after D1 trimmed them; sheet/fit_limits added about 500 bytes across the tools.
+    assert!(schema_bytes < 39500, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }

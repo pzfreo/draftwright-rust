@@ -2742,3 +2742,13 @@ Logs are in `target/d1-fix-logs/`.
 - Still refused: PMI shaft classes without limits on bosses (`g6` on the spool and pin), which
   are not lowered for other reasons (`symbolic_bore` is bores only). Their limits are now
   computable from the same table if they are lowered later.
+
+## One span, one dimension for PMI (maintainer's request, 2026-10-11)
+
+- `share_pmi` (src/dims/mod.rs): PMI linear dimensions across the same span with the same label
+  are drawn once (a model that states each grid hole's basic location states a row's or a
+  column's span once per hole), and a default dimension with nothing from the spec gives way to
+  a PMI dimension of the same span and value. Each one that gives way is omitted, covered by
+  the survivor, which claims its measurement. 15 records per PMI oracle are verdicted
+  rust-correct (draftwright draws them all). Judgement call: a default dimension the spec has
+  toleranced keeps its own line beside the PMI one.

@@ -465,6 +465,10 @@ fn no_pmi_item_is_named_by_a_part_21_instance() {
 /// (`draftwright.spec/2`) and plans identically, every ID read as it now is (its `@<view>`
 /// dropped, a PMI source named by its record's identity) and the GD&T items in the order of
 /// their new IDs. What the thin slice's stream S2 added is set aside ([`without_typed_state`]).
+/// Parts whose plan the planner has changed since 0.1.0-alpha.1: their oracle is the version 2
+/// spec renamed by hand ([`renamed`]), planned now, in place of the alpha 1 plan.
+const REPLANNED: [&str; 1] = ["bracket_positions"];
+
 #[test]
 fn version_1_specs_migrate_and_plan_identically() {
     // As the command line planned them: the plate with its recognition (`--features`), the AP242
@@ -505,8 +509,21 @@ fn version_1_specs_migrate_and_plan_identically() {
             Some(Reading::Read(r)) => r.identities().ids,
             _ => BTreeMap::new(),
         };
-        let mut expected = renamed(&old, &ids);
+        let mut expected = if REPLANNED.contains(&part) {
+            // The planner has changed this part's plan since 0.1.0-alpha.1 (one span, one
+            // dimension for PMI: `share_pmi`), so the oracle is the plan of the spec renamed by
+            // hand, independently of the migration, as a version 2 spec.
+            let mut v2 = renamed(&serde_json::to_value(&spec).unwrap(), &ids);
+            v2["schema"] = model::SPEC_SCHEMA.into();
+            let v2: Spec = serde_json::from_value(v2).unwrap();
+            serde_json::to_value(api::plan_from(&step, features, &v2).unwrap()).unwrap()
+        } else {
+            renamed(&old, &ids)
+        };
         expected["spec"]["schema"] = model::SPEC_SCHEMA.into();
+        if REPLANNED.contains(&part) {
+            expected = without_typed_state(expected);
+        }
         let mut got = without_typed_state(serde_json::to_value(&plan).unwrap());
         for p in [&mut expected, &mut got] {
             // A problem's subjects and its references (S2) are what 0.1.0-alpha.1's subjects

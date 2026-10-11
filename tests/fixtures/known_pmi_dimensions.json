@@ -1,21 +1,5 @@
 [
  {
-  "file": "assembly_plate_pin.step",
-  "record": "dimension:0:1:4:14",
-  "port": "dimension:#1422",
-  "field": "outcome",
-  "python": {
-   "detail": null,
-   "outcome": "dropped"
-  },
-  "rust": {
-   "detail": "45",
-   "outcome": "standalone"
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 1 required annotation outcome(s) (pmi_dropped); pmi_dropped: PMI '45' not placed (no room beside the plan)); the port places it with the other planned dimensions, any collision reported against its ID."
- },
- {
   "file": "bolt_thread_knurl.step",
   "record": "dimension:0:1:4:1",
   "port": "dimension:#418",
@@ -42,22 +26,6 @@
   "rust": "9 dimensions drawn",
   "verdict": "rust-correct",
   "evidence": "draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it and lowers its PMI dimensions."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:14",
-  "port": "dimension:#1416",
-  "field": "outcome",
-  "python": {
-   "detail": null,
-   "outcome": "dropped"
-  },
-  "rust": {
-   "detail": "45",
-   "outcome": "standalone"
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete, pmi_dropped: PMI '45' not placed (no room beside the plan)); the port places it with the other planned dimensions, boxed (basic), any collision reported against its ID. The same cause as assembly_plate_pin.step's dimension:0:1:4:14 (rust-correct)."
  },
  {
   "file": "hw_assembly_plate_pin_intent.step",
@@ -1132,5 +1100,245 @@
   "rust": "⌀1.7 H11 (+0.060/0) ↧ 5.4",
   "verdict": "rust-correct",
   "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "dimension:0:1:4:6",
+  "port": "dimension:#1358",
+  "field": "outcome",
+  "python": {
+   "detail": "15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "15",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "dimension:0:1:4:7",
+  "port": "dimension:#1366",
+  "field": "outcome",
+  "python": {
+   "detail": "50",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "50",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "dimension:0:1:4:8",
+  "port": "dimension:#1374",
+  "field": "outcome",
+  "python": {
+   "detail": "15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "15",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "dimension:0:1:4:9",
+  "port": "dimension:#1382",
+  "field": "outcome",
+  "python": {
+   "detail": "80",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "80",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "dimension:0:1:4:10",
+  "port": "dimension:#1390",
+  "field": "outcome",
+  "python": {
+   "detail": "45",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "45",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "dimension:0:1:4:11",
+  "port": "dimension:#1398",
+  "field": "outcome",
+  "python": {
+   "detail": "20",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "20",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "assembly_plate_pin.step",
+  "record": "dimension:0:1:4:14",
+  "port": "dimension:#1422",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "45",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete, pmi_dropped); the port states its span once, on the PMI dimension of the same span and label, which claims it (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions)."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:6",
+  "port": "dimension:#1376",
+  "field": "outcome",
+  "python": {
+   "detail": "15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "15",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:7",
+  "port": "dimension:#1381",
+  "field": "outcome",
+  "python": {
+   "detail": "50",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "50",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:8",
+  "port": "dimension:#1386",
+  "field": "outcome",
+  "python": {
+   "detail": "15",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "15",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:9",
+  "port": "dimension:#1391",
+  "field": "outcome",
+  "python": {
+   "detail": "80",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "80",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:10",
+  "port": "dimension:#1396",
+  "field": "outcome",
+  "python": {
+   "detail": "45",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "45",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:11",
+  "port": "dimension:#1401",
+  "field": "outcome",
+  "python": {
+   "detail": "20",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "20",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:14",
+  "port": "dimension:#1416",
+  "field": "outcome",
+  "python": {
+   "detail": null,
+   "outcome": "dropped"
+  },
+  "rust": {
+   "detail": "45",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete, pmi_dropped); the port states its span once, on the PMI dimension of the same span and label, which claims it (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:91",
+  "port": "dimension:#15466",
+  "field": "outcome",
+  "python": {
+   "detail": "0.30 ±0.02 INCH",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "0.30 ±0.02 INCH",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
  }
 ]

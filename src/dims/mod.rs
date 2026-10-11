@@ -777,6 +777,7 @@ pub(crate) fn plan_with_obstacles(
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     share(&mut kept, &mut given, &mut omitted);
+    share_pmi(&mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
     // Then everything the part would have is placed: each item's lane, and where its label
@@ -1146,6 +1147,108 @@ fn share(
         );
         if counted {
             w.terms.insert(0, format!("{n}×"));
+        }
+    }
+    let mut i = 0;
+    kept.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
+    let mut i = 0;
+    given.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
+}
+
+/// One span, one dimension, for the part's PMI linear dimensions: a kept PMI linear dimension
+/// across the same span as another (the same view and axis, raw ends within 1e-6 mm) conveys it.
+/// - Two PMI dimensions with the same label (basic or not, band included) are drawn once: a
+///   model that states each hole's basic location states the same span once per hole in a row or
+///   column. The survivor is the smaller ID and claims every member's measurement.
+/// - A default dimension with nothing from the spec (no tolerance or fit) and the same value
+///   gives way to the PMI one, which is source-authored and carries the requirement; the PMI
+///   dimension claims its measurement.
+///
+/// Each one that gives way moves to *omitted*, `conveyed by` the survivor. *given* stays aligned
+/// with *kept*.
+fn share_pmi(
+    kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<Omitted>,
+) {
+    const SAME_SPAN: f64 = 1e-6;
+    let pmi = |w: &Want| {
+        w.measurements
+            .first()
+            .is_some_and(|m| m.feature.starts_with("pmi:") && m.parameter.starts_with("linear"))
+    };
+    let span =
+        |(w, _, view, _): &(Want, bool, Option<&'static str>, Vec<&'static str>)| match w.shape {
+            Shape::Linear { a, b, axis, .. } => Some((
+                view.unwrap_or(w.views[0]),
+                axis,
+                a[axis].min(b[axis]),
+                a[axis].max(b[axis]),
+            )),
+            Shape::Callout { .. } | Shape::Angular { .. } => None,
+        };
+    let mut gone = BTreeSet::new();
+    let order: Vec<usize> = {
+        let mut o: Vec<usize> = (0..kept.len()).filter(|&i| pmi(&kept[i].0)).collect();
+        o.sort_by(|&x, &y| kept[x].0.id.cmp(&kept[y].0.id));
+        o
+    };
+    for &p in &order {
+        if gone.contains(&p) {
+            continue;
+        }
+        let Some(sp) = span(&kept[p]) else { continue };
+        let owner = kept[p].0.id.clone();
+        let mut claims = Vec::new();
+        for i in 0..kept.len() {
+            if i == p || gone.contains(&i) {
+                continue;
+            }
+            let Some(si) = span(&kept[i]) else { continue };
+            let same = sp.0 == si.0
+                && sp.1 == si.1
+                && (sp.2 - si.2).abs() <= SAME_SPAN
+                && (sp.3 - si.3).abs() <= SAME_SPAN;
+            if !same {
+                continue;
+            }
+            let (w, default, ..) = &kept[i];
+            let how = if pmi(w) {
+                if w.terms != kept[p].0.terms
+                    || pmi_dimensions::basic(&w.measurements)
+                        != pmi_dimensions::basic(&kept[p].0.measurements)
+                {
+                    continue;
+                }
+                "the part's PMI states the same span again"
+            } else if *default && given[i].is_empty() && w.value == kept[p].0.value {
+                "a default dimension gives way to the part's PMI dimension of the same span"
+            } else {
+                continue;
+            };
+            omitted.push(Omitted {
+                id: w.id.clone(),
+                label: w.terms.join(" "),
+                basis: format!(
+                    "conveyed by {owner}: it states the same {} across the same span in {}, in the same view; {how} (one span, one dimension: ARCH0009-6)",
+                    fmt(w.value),
+                    AXES[sp.1]
+                ),
+                state: State::Covered { by: owner.clone() },
+            });
+            claims.extend(w.measurements.iter().cloned());
+            gone.insert(i);
+        }
+        if !claims.is_empty() {
+            let w = &mut kept[p].0;
+            w.measurements.extend(claims);
+            w.basis += "; one span, one dimension: it also states what the others across the same span stated (ARCH0009-6)";
         }
     }
     let mut i = 0;
