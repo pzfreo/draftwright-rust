@@ -251,3 +251,84 @@ fn opposite_channel_wall_needs_every_printed_dependency_and_a_full_span() {
     a.features[2].parameters["geometry"]["run_interval"] = json!([1, 20]);
     assert_eq!(codes(&a, &ink), ["plate_requirement_missing"]);
 }
+
+#[test]
+fn a_through_step_can_replace_a_baseline_rung_without_closing_the_chain() {
+    let mut a = part(vec![
+        plate("z", 2.0, 5.0),
+        feature(
+            "f:through_step:1",
+            "through_step",
+            json!({"axis":"y", "at":[5,5,1], "section":[[0,0],[0,2],[10,2]],
+            "body_key":[0,0,0,20,20,20,8000,2400]}),
+        ),
+    ]);
+    one_body(&mut a);
+    a.levels = vec![2.0, 5.0];
+    a.level_supports = serde_json::from_value(json!([
+        {"z":5,"x_span":[0,20],"y_span":[0,20]}
+    ]))
+    .unwrap();
+    let ink = [
+        mark("f:through_step:1", "through_step_leg.length.z", "2"),
+        mark("step_level", "step_height.length.h5", "5"),
+    ];
+    assert!(codes(&a, &ink).is_empty());
+    assert_eq!(codes(&a, &ink[..1]), ["plate_requirement_missing"]);
+    assert_eq!(codes(&a, &ink[1..]), ["plate_requirement_missing"]);
+    // Recognition of a replacement does not displace a rung that is actually printed.
+    assert!(
+        codes(
+            &a,
+            &[
+                mark("step_level", "step_height.length.h2", "2"),
+                ink[1].clone()
+            ]
+        )
+        .is_empty()
+    );
+    a.features[1].parameters["body_key"] = json!([30, 0, 0, 50, 20, 20, 8000, 2400]);
+    assert_eq!(codes(&a, &ink), ["plate_requirement_missing"]);
+}
+
+#[test]
+fn a_top_slabs_thickness_and_overall_cover_its_redundant_underside_station() {
+    use draftwright::{
+        items::{Op, State, key},
+        model::{self, Spec},
+    };
+    let mut a = part(vec![plate("z", 17.0, 20.0)]);
+    one_body(&mut a);
+    a.levels = vec![17.0];
+    a.level_supports = serde_json::from_value(json!([
+        {"z":17,"x_span":[0,20],"y_span":[0,20]}
+    ]))
+    .unwrap();
+    let rung = "d:step_level/step_height.length.h17";
+    let thickness = "d:f:plate:1/thickness.length";
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().any(|d| d.id == thickness));
+    assert!(!plan.dimensions.iter().any(|d| d.id == rung));
+    assert!(plan.omitted.iter().any(|o| o.id == rung
+        && o.state
+            == State::Covered {
+                by: thickness.into()
+            }));
+    for owner in [thickness, "d:envelope/height.length"] {
+        let spec = model::edit(
+            &Spec::default(),
+            &json!([Op::set(
+                format!("dimensions/{}/omit", key(owner)),
+                json!(true)
+            )]),
+        )
+        .unwrap();
+        let restored = model::plan(&a, &spec).unwrap();
+        assert!(
+            restored
+                .dimensions
+                .iter()
+                .any(|d| d.id == rung && d.placed.is_some())
+        );
+    }
+}

@@ -227,6 +227,8 @@ pub struct Lanes {
     pub plate_front_top: f64,
     pub plate_front_below: usize,
     pub plate_side_left: f64,
+    pub plate_side_top: f64,
+    pub plate_plan_above: usize,
     pub plan_above: usize,
     pub plan_left: usize,
     pub side_below: usize,
@@ -286,6 +288,12 @@ impl Strips {
             widen(&mut self.fv_bottom, lanes.plate_front_below);
         }
         self.sv_left = self.sv_left.max(lanes.plate_side_left);
+        self.sv_top = self.sv_top.max(lanes.plate_side_top);
+        // An outside thickness label extends above the aligned front/side row.
+        self.fv_top = self.fv_top.max(lanes.plate_side_top);
+        if lanes.plate_plan_above > 0 {
+            self.pv_authored_top = self.pv_authored_top.max(lane_band(lanes.plate_plan_above));
+        }
         widen(&mut self.fv_bottom, lanes.side_below);
         widen(&mut self.sv_bottom, lanes.side_below);
         widen(&mut self.sv_top, lanes.side_above);

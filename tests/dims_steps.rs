@@ -498,9 +498,55 @@ fn ftc06_shoulders_and_heights_match_draftwrights_sheet() {
     let mut theirs = python(&f, &["step_level"]);
     theirs.retain(|(v, _)| v == "front");
     assert_eq!(theirs.len(), 3);
+    // The top slab and overall height convey the underside without a closed chain.
+    let underside = "d:step_level/step_height.length.h215_9";
+    let covered = plan.omitted.iter().find(|o| o.id == underside).unwrap();
+    let draftwright::items::State::Covered { by } = &covered.state else {
+        panic!("{covered:?}");
+    };
+    let slab = plan.dimensions.iter().find(|d| &d.id == by).unwrap();
+    assert!(slab.placed.is_some());
     assert!(
-        theirs.iter().all(|t| heights.contains(t)),
+        slab.measurements
+            .iter()
+            .any(|m| { m.parameter == "thickness.length" && (m.value - 31.75).abs() < 1e-3 })
+    );
+    let overall = plan
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements.iter().any(|m| {
+                m.feature == "envelope"
+                    && m.parameter == "height.length"
+                    && (m.value - 247.65).abs() < 1e-3
+            })
+        })
+        .unwrap();
+    assert!(overall.placed.is_some());
+    assert!(
+        theirs
+            .iter()
+            .all(|t| t == &("front".into(), "215.9".into()) || heights.contains(t)),
         "{theirs:?} in {heights:?}"
     );
-    assert_eq!(heights.len(), 6, "{heights:?}");
+    assert_eq!(heights.len(), 5, "{heights:?}");
+    for owner in [&slab.id, &overall.id] {
+        let spec = model::edit(
+            &Spec::default(),
+            &serde_json::json!([draftwright::items::Op::set(
+                format!("dimensions/{}/omit", draftwright::items::key(owner)),
+                serde_json::json!(true),
+            )]),
+        )
+        .unwrap();
+        let restored = model::plan(&a, &spec).unwrap();
+        let rung = restored
+            .dimensions
+            .iter()
+            .find(|d| d.id == underside)
+            .unwrap();
+        assert!(rung.placed.is_some());
+        assert_eq!(rung.view, "v:front");
+        assert_eq!(rung.label, "215.9");
+    }
 }

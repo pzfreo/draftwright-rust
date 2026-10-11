@@ -412,6 +412,48 @@ fn omitting_one_dimension_moves_no_other() {
                             if a[0] == b[0] { a[0] } else { a[1] }
                         };
                         if let (true, Some(survivor)) = (d.kind == "linear", all.get(gone)) {
+                            // An underside derived from a slab and the overall is not a
+                            // coincident span. Restore its own front datum-to-level span;
+                            // the existing checks still hold every unrelated item fixed.
+                            let slab = full
+                                .omitted
+                                .iter()
+                                .find(|o| o.id == d.id)
+                                .and_then(|o| match &o.state {
+                                    draftwright::items::State::Covered { by } => {
+                                        all.get(by.as_str())
+                                    }
+                                    _ => None,
+                                })
+                                .and_then(|owner| {
+                                    owner
+                                        .measurements
+                                        .iter()
+                                        .find(|m| m.parameter == "thickness.length")
+                                })
+                                .and_then(|m| analysis.features.iter().find(|f| f.id == m.feature));
+                            if let Some(slab) = slab
+                                && d.measurements.iter().any(|m| {
+                                    m.feature == "step_level"
+                                        && m.parameter.starts_with("step_height.length.h")
+                                })
+                            {
+                                let slab = draftwright::lint::plates::read(analysis, slab).unwrap();
+                                assert_eq!(slab.axis, 2);
+                                assert!((slab.span[1][2] - analysis.envelope[1][2]).abs() <= 1e-3);
+                                assert!(
+                                    (d.value - (slab.span[0][2] - analysis.envelope[0][2])).abs()
+                                        <= 1e-3
+                                );
+                                assert_eq!(d.view, "v:front");
+                                let view = plan.views.iter().find(|v| v.id == d.view).unwrap();
+                                let (a, b) = (p.arrows[0][0], p.arrows[1][0]);
+                                assert!(
+                                    ((a[0] - b[0]).hypot(a[1] - b[1]) - d.value * view.scale).abs()
+                                        < 1e-6
+                                );
+                                continue;
+                            }
                             // Counted walls may lie on different axes. On promotion the
                             // remaining wall must state its own interval in an edge-on view.
                             if d.measurements

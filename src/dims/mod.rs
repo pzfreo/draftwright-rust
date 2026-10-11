@@ -675,7 +675,7 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
             )
         })
         .collect();
-    plates::prefer_readable(&mut wants, &frames, None);
+    plates::prefer_readable(analysis, &mut wants, &frames, None);
     let (chosen, _) = route(&mut wants, &frames, analysis);
     let plate = |w: &Want| {
         w.measurements
@@ -721,6 +721,18 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
         .map(|(i, _)| lane[i] + 1)
         .max()
         .unwrap_or(0);
+    let plan_linear = wants
+        .iter()
+        .enumerate()
+        .filter(|(i, w)| {
+            owner[*i].is_none()
+                && chosen[*i] == Some("plan")
+                && sides[*i] == Some(placement::Side::Above)
+                && matches!(w.shape, Shape::Linear { .. })
+        })
+        .map(|(i, _)| lane[i] + 1)
+        .max()
+        .unwrap_or(0);
     for (i, w) in wants.iter().enumerate() {
         if owner[i].is_some()
             || !w
@@ -740,6 +752,13 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
             }
             (Some("front"), Some(placement::Side::Below)) => bands.plate_front_below = front_linear,
             (Some("side"), Some(placement::Side::Above)) => bands.plate_side_left = ARROW + 2.0,
+            (Some("side"), Some(placement::Side::Right)) => {
+                let ink = label_ink(&w.terms, font());
+                bands.plate_side_top = bands
+                    .plate_side_top
+                    .max(ink.max[0] - ink.min[0] + ARROW + 3.0);
+            }
+            (Some("plan"), Some(placement::Side::Above)) => bands.plate_plan_above = plan_linear,
             _ => {}
         }
     }
@@ -787,7 +806,7 @@ pub(crate) fn plan_with_obstacles(
         })
         .collect();
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
-    plates::prefer_readable(&mut wants, &frames, Some(spec));
+    plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (chosen, end_on) = route(&mut wants, &frames, analysis);
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner

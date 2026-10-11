@@ -71,6 +71,13 @@ edited.
   scan draftwright's lint makes for undimensionable openings and toothed outlines, made here when
   the part is analysed because lint never sees the part (`src/lint/profiles.rs`). `plan` reads
   older analyses with none; `review` judges only this version.
+  Principal faces now also retain optional `outer_lines` (straight outer boundary edges).
+  Plate planning can choose a boundary profile whose two thickness faces have overlapping
+  solid edges, and anchor its witnesses there. This is model-space Analysis evidence;
+  no projected line-work is added to the Plan. Older analyses default to no straight-edge
+  evidence and keep the axis-map fallback. Profile visibility is proved only for one solid;
+  body bounds are transformed from the recognition frame before matching.
+
 - **PMI** (`draftwright.analysis/7`, `pmi`): the part's AP242 semantic PMI as `src/pmi.rs`
   reads it (`read`, the report: records with their faces, and every source not read with its
   reason), each geometric tolerance and datum with where it attaches (`geometry`: a datum's site

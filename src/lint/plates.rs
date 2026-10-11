@@ -323,8 +323,9 @@ pub fn alternatives(a: &Analysis, f: &Feature) -> Vec<Vec<Term>> {
             out.push(vec![Term::new(&s.id, "step.length", b.hi - b.lo)]);
         }
     }
+    let mut step_intervals = Vec::new();
     for s in a.features.iter().filter(|s| s.kind == "through_step") {
-        if !s.faces.iter().any(|face| f.faces.contains(face)) {
+        if !same_body(a, f, s) {
             continue;
         }
         let q = &s.parameters;
@@ -356,18 +357,24 @@ pub fn alternatives(a: &Analysis, f: &Feature) -> Vec<Vec<Term>> {
             continue;
         };
         for ends in ends.windows(2) {
-            if near(lo, ends[0][k].min(ends[1][k]))
-                && near(hi, ends[0][k].max(ends[1][k]))
-                && (0..3).all(|j| j == k || near(ends[0][j], ends[1][j]))
-            {
-                out.push(vec![Term::new(
+            if (0..3).all(|j| j == k || near(ends[0][j], ends[1][j])) {
+                let (start, stop) = (ends[0][k].min(ends[1][k]), ends[0][k].max(ends[1][k]));
+                let term = Term::new(
                     &s.id,
                     &format!("through_step_leg.length.{}", AXES[k]),
-                    p.thickness(),
-                )]);
+                    stop - start,
+                );
+                if near(lo, start)
+                    && near(hi, stop)
+                    && s.faces.iter().any(|face| f.faces.contains(face))
+                {
+                    out.push(vec![term.clone()]);
+                }
+                step_intervals.push((start, stop, term));
             }
         }
     }
+
     // The aggregate ladder has no body key. Its intervals cannot be borrowed
     // across disconnected solids, or when an older Analysis lacks that proof.
     let support = a.principal_profiles.len() == 1
@@ -378,22 +385,30 @@ pub fn alternatives(a: &Analysis, f: &Feature) -> Vec<Vec<Term>> {
     if k == 2 && support {
         let rung = |z: f64| {
             if near(z, a.envelope[0][2]) {
-                Some(Vec::new())
-            } else if a.levels.iter().any(|level| near(*level, z)) {
+                return vec![Vec::new()];
+            }
+            let mut terms: Vec<_> = step_intervals
+                .iter()
+                .filter(|(start, stop, _)| near(*start, a.envelope[0][2]) && near(*stop, z))
+                .map(|(_, _, term)| vec![term.clone()])
+                .collect();
+            if a.levels.iter().any(|level| near(*level, z)) {
                 let h = z - a.envelope[0][2];
-                Some(vec![Term::new(
+                terms.push(vec![Term::new(
                     "step_level",
                     &format!("step_height.length.h{}", word(h)),
                     h,
-                )])
-            } else {
-                None
+                )]);
             }
+            terms
         };
-        if let (Some(mut left), Some(right)) = (rung(lo), rung(hi)) {
-            left.extend(right);
-            if !left.is_empty() {
-                out.push(left);
+        for left in rung(lo) {
+            for right in rung(hi) {
+                let mut terms = left.clone();
+                terms.extend(right);
+                if !terms.is_empty() {
+                    out.push(terms);
+                }
             }
         }
     }

@@ -51,9 +51,9 @@
  {
   "part": "m1000",
   "code": "annotation_outside_area",
-  "count": 4,
+  "count": 3,
   "verdict": "rust-wrong",
-  "reason": "d:envelope/depth.length (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y (6.3) in the same way. One recess callout beside its view: the side's hex pocket (11.5 mm, its long label). Since stream d-quality-lanes the band right of the front holds the height ladder's lanes, so the seat's z location d:f:section_recess:4/seat_location.location.z (23.1), in the lane beyond the rungs, lies inside the front's area (4 before). Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). 7 before stream d-placement-fit, 6 before d-callout-leaders. G2 adds the native 4.2 wall thickness below front. In captured recognition the seat-diameter callout now stands 2.1 mm below the front band; the depth, hex-pocket callout and seat Y location also remain outside the side band. All four exact findings are retained as rust-wrong, with no severity change. The native quality gate and sheet review independently check the requested part."
+  "reason": "G2 review fix: the wall now uses solid plan-profile edges and its added plan lane reserves the shared linear band. The seat-diameter callout's new 2.1 mm front overrun is fixed. The three pre-existing side-band overruns remain: overall depth (4.7 mm), HEX 1.9 A/F × 2.1 DEEP (14.5 mm) and seat Y location (10.7 mm). Exact findings remain rust-wrong; no severity or checking tolerance changes."
  },
  {
   "part": "m10046",
@@ -79,8 +79,8 @@
  {
   "part": "ftc06",
   "code": "annotation_leader_crossing",
-  "count": 1,
+  "count": 2,
   "verdict": "rust-wrong",
-  "reason": "The leaders of the front's callouts d:f:hole:11/bore.diameter (2× ⌀6.3 ↧ 12.7) and d:f:boss:5/boss.diameter (2× ø31.8) cross each other. They came with drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the isometric no longer lies beyond the front's band, so the front's locations no longer run into it (the 2 annotation_line_over_view listed before are gone), and the front's callout assignment (src/dims/leaders.rs) now takes routes that cross; the crossing is reported and kept, never a callout dropped (ADR2-D6). G2 adds the counted plate statement 2× 31.8 as a leader-routing obstacle. The boss:5 leader no longer crosses hole:11; the reciprocal hole:11 leader still crosses a boss:5 line. Tests/leaders.rs checks that exact remaining crossing, rather than accepting fewer crossings in general."
+  "reason": "The two front callouts (hole:11, 2× ⌀6.3 ↧ 12.7; boss:5, 2× ø31.8) cross reciprocally. The G2 review fix moves the counted plate thickness to its exposed side profile, removing a front leader obstacle; this returns the pre-G2 reciprocal crossing. The measured corner reservation keeps both callouts inside their bands, so the fourteen other band overruns are unchanged. Both exact crossings remain rust-wrong and are checked by tests/leaders.rs. This captured-recognition residual is recorded separately from the no-worse native quality gate."
  }
 ]

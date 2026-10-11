@@ -1,6 +1,5 @@
-//! Plate and wall thicknesses, routed as Python's `_thin_profiles`: z to the
-//! front's left strip, y above the side, x below the front. The native inventory
-//! also retains single-axis walls; proven alternative statements cover them.
+//! Plate and wall thicknesses in exposed boundary profiles. Python's fixed
+//! axis map is the fallback; proven alternative statements cover derived intervals.
 
 use super::{Context, Measurement, Omitted, Planner, Problem, Shape, Want, fmt, want_id};
 use crate::items::State;
@@ -67,6 +66,7 @@ type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 /// omitting an alternative restores the plate's own dimension.
 pub(super) fn consolidate(a: &Analysis, kept: &mut Vec<Kept>, omitted: &mut Vec<Omitted>) {
     let mut gone = Vec::new();
+    let mut borrowed = std::collections::BTreeSet::new();
     for (i, (w, ..)) in kept.iter().enumerate() {
         let Some(m) = w
             .measurements
@@ -80,13 +80,6 @@ pub(super) fn consolidate(a: &Analysis, kept: &mut Vec<Kept>, omitted: &mut Vec<
         };
         let intrinsic = plates::exclusion(a, f);
         let alternative = plates::alternatives(a, f).into_iter().find_map(|terms| {
-            // In a base-and-walls construction the explicit thickness is the
-            // characteristic size; subtracting two ladder heights is secondary.
-            if crate::lint::channels::multi_axis(a)
-                && terms.iter().any(|t| t.feature == "step_level")
-            {
-                return None;
-            }
             let owners: Option<Vec<_>> = terms
                 .iter()
                 .map(|t| {
@@ -105,6 +98,9 @@ pub(super) fn consolidate(a: &Analysis, kept: &mut Vec<Kept>, omitted: &mut Vec<
             owners.filter(|o| !o.is_empty())
         });
         if intrinsic.is_some() || alternative.is_some() {
+            if let Some(owners) = &alternative {
+                borrowed.extend(owners.iter().cloned());
+            }
             let by = alternative
                 .as_ref()
                 .and_then(|o| o.first())
@@ -125,6 +121,54 @@ pub(super) fn consolidate(a: &Analysis, kept: &mut Vec<Kept>, omitted: &mut Vec<
                 state: State::Covered { by },
             });
             gone.push(i);
+        }
+    }
+    // A top slab's explicit size and the overall height own its underside station.
+    // Keep a station another plate borrowed; never leave a covered item without its proof.
+    if a.principal_profiles.len() == 1 {
+        for (i, (w, ..)) in kept.iter().enumerate() {
+            let Shape::Linear {
+                a: lo,
+                b: hi,
+                axis: 2,
+                ..
+            } = w.shape
+            else {
+                continue;
+            };
+            if gone.contains(&i)
+                || !w
+                    .measurements
+                    .iter()
+                    .any(|m| m.parameter == "thickness.length")
+                || (hi[2] - a.envelope[1][2]).abs() > 1e-3
+            {
+                continue;
+            }
+            let Some((overall, ..)) = kept.iter().find(|(d, ..)| {
+                d.measurements
+                    .iter()
+                    .any(|m| m.feature == "envelope" && m.parameter == "height.length")
+            }) else {
+                continue;
+            };
+            for (j, (rung, ..)) in kept.iter().enumerate() {
+                if gone.contains(&j) || borrowed.contains(&rung.id) {
+                    continue;
+                }
+                if rung.measurements.iter().any(|m| {
+                    m.feature == "step_level"
+                        && m.parameter.starts_with("step_height.length.h")
+                        && (m.value - (lo[2] - a.envelope[0][2])).abs() <= 1e-3
+                }) {
+                    omitted.push(Omitted {
+                        id: rung.id.clone(), label: rung.terms.join(" "),
+                        basis: format!("conveyed by {}: the underside station follows from the top slab and overall height; dependencies: {}, {}", w.id, w.id, overall.id),
+                        state: State::Covered { by: w.id.clone() },
+                    });
+                    gone.push(j);
+                }
+            }
         }
     }
     let mut i = 0;
@@ -214,6 +258,7 @@ pub(super) fn share(
 }
 
 pub(super) fn prefer_readable(
+    analysis: &Analysis,
     wants: &mut [Want],
     frames: &std::collections::BTreeMap<&str, super::Frame>,
     spec: Option<&crate::model::Spec>,
@@ -223,7 +268,6 @@ pub(super) fn prefer_readable(
             .measurements
             .iter()
             .any(|m| m.parameter == "thickness.length")
-            || !matches!(w.shape, Shape::Linear { axis: 1, .. })
             || spec
                 .and_then(|s| s.dimensions.get(&w.id))
                 .is_some_and(|entry| {
@@ -231,6 +275,152 @@ pub(super) fn prefer_readable(
                 })
         {
             continue;
+        }
+        if matches!(w.shape, Shape::Linear { axis: 1, .. })
+            && frames
+                .get("side")
+                .is_some_and(|f| w.value * f.scale() < 2.0 * super::ARROW)
+            && frames.contains_key("plan")
+        {
+            w.views.retain(|v| *v != "plan");
+            w.views.insert(0, "plan");
+        }
+        if let Shape::Linear {
+            a,
+            b,
+            axis,
+            a_edge,
+            b_edge,
+            ..
+        } = &mut w.shape
+        {
+            let profile = w
+                .views
+                .iter()
+                .filter_map(|name| {
+                    let frame = frames.get(name)?;
+                    // Boundary faces prove visibility only for an isolated solid.
+                    if analysis.principal_profiles.len() != 1 {
+                        return None;
+                    }
+                    let (normal, high) = match *name {
+                        "front" => (1, false),
+                        "plan" => (2, true),
+                        _ => (0, true),
+                    };
+                    let across = (0..3).find(|k| *k != *axis && *k != normal)?;
+                    let feature = analysis
+                        .features
+                        .iter()
+                        .find(|f| w.measurements.iter().any(|m| m.feature == f.id))?;
+                    for source in &analysis.principal_profiles {
+                        if let Some(key) = feature
+                            .parameters
+                            .get("body_key")
+                            .and_then(|v| v.as_array())
+                        {
+                            if key.len() < 6 {
+                                continue;
+                            }
+                            let local: Option<Vec<_>> =
+                                key[..6].iter().map(|v| v.as_f64()).collect();
+                            let Some(local) = local else {
+                                continue;
+                            };
+                            let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
+                            for corner in 0..8 {
+                                let q = std::array::from_fn(|k| local[k + 3 * ((corner >> k) & 1)]);
+                                let q = crate::bridge::holes::to_part(
+                                    &crate::bridge::holes::frame(analysis),
+                                    q,
+                                );
+                                for k in 0..3 {
+                                    bounds[0][k] = bounds[0][k].min(q[k]);
+                                    bounds[1][k] = bounds[1][k].max(q[k]);
+                                }
+                            }
+                            if (0..3).any(|k| {
+                                (0..2).any(|end| {
+                                    (bounds[end][k] - source.bounds[end][k]).abs() > 1e-3
+                                })
+                            }) {
+                                continue;
+                            }
+                        }
+                        for face in &source.faces {
+                            if face.unsplit
+                                || face.axis != normal
+                                || (face.at - source.bounds[usize::from(high)][normal]).abs() > 1e-3
+                            {
+                                continue;
+                            }
+                            let edges: Vec<_> = face
+                                .outer_lines
+                                .iter()
+                                .chain(face.inner.iter().flat_map(|wire| wire.edges.iter()))
+                                .filter(|e| e.kind == crate::lint::profiles::Kind::Line)
+                                .collect();
+                            for left in &edges {
+                                if (left.start[*axis] - a[*axis]).abs() > 1e-3
+                                    || (left.end[*axis] - a[*axis]).abs() > 1e-3
+                                {
+                                    continue;
+                                }
+                                for right in &edges {
+                                    if (right.start[*axis] - b[*axis]).abs() > 1e-3
+                                        || (right.end[*axis] - b[*axis]).abs() > 1e-3
+                                    {
+                                        continue;
+                                    }
+                                    let lo = left.bounds[0][across].max(right.bounds[0][across]);
+                                    let hi = left.bounds[1][across].min(right.bounds[1][across]);
+                                    if hi - lo <= 1e-3 {
+                                        continue;
+                                    }
+                                    let mut pa = *a;
+                                    let mut pb = *b;
+                                    pa[normal] = face.at;
+                                    pb[normal] = face.at;
+                                    // Anchor at the end nearest the carrying strip, on both solid edges.
+                                    let mut q = pa;
+                                    q[across] = lo;
+                                    let mut r = pa;
+                                    r[across] = hi;
+                                    let horizontal = super::placement::across(frame, *axis)?;
+                                    let coordinate = usize::from(horizontal);
+                                    let positive =
+                                        *name == "side" || (*name == "plan" && horizontal);
+                                    let t = if (frame.page(q)[coordinate]
+                                        > frame.page(r)[coordinate])
+                                        == positive
+                                    {
+                                        lo
+                                    } else {
+                                        hi
+                                    };
+                                    pa[across] = t;
+                                    pb[across] = t;
+                                    return Some((*name, pa, pb));
+                                }
+                            }
+                        }
+                    }
+                    None
+                })
+                .next();
+            if let Some((view, pa, pb)) = profile {
+                w.views.retain(|v| *v != view);
+                w.views.insert(0, view);
+                *a = pa;
+                *b = pb;
+                *a_edge = false;
+                *b_edge = false;
+                w.basis += "; both witnesses lie on solid edges of an exposed boundary profile";
+                continue;
+            }
+            if *axis != 1 {
+                continue;
+            }
         }
         // A wall narrower than two arrowheads cannot carry inward arrows in
         // the end profile. The plan shows the same interval in its clear left band.

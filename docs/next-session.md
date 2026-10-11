@@ -3359,3 +3359,88 @@ zero off-sheet; scripted MCP is 7/7. Python quality tests 20/20, Node client 8/8
 All thirty final SVGs match the reviewed raster-input hashes; the eleven relevant
 sheets were also inspected individually. The final binary SHA is in the G2 status
 entry. No commit or push was made.
+
+## G2 review fix round (2026-10-11, unattended)
+
+The fixed axis order put 1000's 4.2 wall on a hidden front edge and 10038's
+4.4 flange on absent front geometry. Principal-profile Analysis evidence now
+retains optional straight outer boundary edges. The plate planner prefers a
+facing boundary profile containing both thickness edges with a shared span,
+then attaches witnesses to the end nearest its carrying strip. No part names
+enter planning. Spec view requests win; old Analyses retain the earlier routing
+(axis map plus the existing narrow-Y readability preference).
+The isolated-solid restriction avoids claiming visibility across an assembly.
+Recognition-frame body bounds are transformed before matching the evidence.
+
+Removed the multi-axis exception to interval consolidation. 10007's 3.9 is
+covered by 28.0 and 31.9; its 11.7 is covered by the through-step's 2.3 baseline
+leg and the 14.0 rung. A through-step leg can replace a ladder rung only with
+body-local interval proof and both printed dependencies. Omitting either owner
+restores the plate dimension. This applies the existing 10047 policy consistently.
+
+Overturnable judgement calls: exposed boundary profiles take priority over
+Python origin/main `_thin_profiles.register_plate_thickness`'s fixed map;
+absent evidence retains that map. A thickness derived from two retained,
+proven stations is covered, avoiding a redundant closed chain; this replaces
+the earlier multi-axis judgement. Short Y walls still prefer the plan when
+its profile is available. Outside thickness text reserves its adjacent corner;
+the aligned front/side row shares an upper corner reservation, like its lower
+band. A new plate lane above plan reserves the actual linear lanes sharing it.
+Front-left lanes now feed `plate_front_left`, separately from `plan_left`.
+
+Regression evidence and final verification: see the appended G2 review entry in
+`docs/status-2026-10-10.md`; artifacts are under `target/g2-fix-*`.
+
+The captured m1000 seat-diameter overrun is fixed (4 → 3 exact band findings).
+FTC-06's captured reciprocal leader crossing returns (1 → 2) when the counted
+thickness moves from front to its exposed side profile; both are explicitly
+`rust-wrong` in the unchanged exact comparison predicates. Its fourteen band
+findings remain unchanged after the corner reservation. No source severity,
+quality predicate, blend logic or catalogue YAML changed.
+
+The minor FTC-07 A3 1:5 recovery observation remains 16 more items over another
+view at the rejected A3 1:1 alternative (14 before thickness planning). The
+three thickness statements are required manufacturing information; that try
+remains rejected and the final A2 1:2 drawing has unchanged native quality.
+Do not hide required thicknesses or relax the recovery gate to improve a rejected
+alternative's count. Fixing that alternative needs broader lane packing, which
+is deferred as an overturnable scope judgement; its exact test remains intact.
+
+The visual audit also exposed 10038's 7.2 + 4.4 = 11.6 chain. For a retained
+top slab, its thickness and the printed overall height now cover its underside
+ladder station; 7.2 is withdrawn while 4.4 remains on the exposed side profile.
+This is the inverse of the existing base-slab ownership of its top station.
+A station borrowed by another plate stays retained, and omitting the thickness
+restores its underside station. This characteristic-size preference is an
+explicit, overturnable judgement; the regression checks both the chain removal
+and the restored station. Endpoint coverage keeps every valid rung/through-step
+alternative, so an unprinted recognised replacement cannot displace a printed
+ladder owner.
+
+The same top-slab rule withdraws FTC-06's 215.9 underside rung: the exposed
+side's counted 31.8 and front overall 247.7 convey it. The Python difference
+has a `rust-correct` verdict with the interval evidence in known_dimensions.
+The old sampled-step regression now checks both printed owners, all other
+Python heights unchanged, and restoration of 215.9 when either owner is omitted.
+The placement omission test checks the restored datum-to-underside span in
+front for this inverse ownership, rather than requiring a noncoincident rung
+to reuse the omitted side slab's lane; unrelated view and ink identities stay
+asserted. Native FTC-06 quality is unchanged. Its captured reciprocal crossing
+is the pre-G2 crossing restored when the front thickness obstacle is removed;
+this residual remains `rust-wrong`, rather than being accepted as good drafting.
+
+The editability/trust regression now recognises every exact ID in the recorded
+coverage dependencies, in addition to the first `conveyed by` owner. Its former
+prefix-only lookup missed restoration after omitting the overall-height owner.
+Exact surviving item sets, restoration of all promoted items, omission counts
+and individually authored dimensions remain asserted. The focused twelve-test
+trust group passes with both owners treated consistently.
+
+Final fix-round verification (completed 2026-10-12): 678/678 Rust tests in
+73 groups, zero failed/ignored; fmt and strict release clippy pass. Release
+quality: 30 parts / 300 cells identical to preceding G2 table, no part worse;
+ink 273, through-feature 211. Pin grid 270/270 GO, zero off-sheet; scripted MCP
+7/7; Python 20/20, Node 8/8; plate audit passes. Twelve sheets inspected;
+all changed native SVGs match the reviewed hashes. Grid/MCP binary SHA and
+baseline match final output; see the appended G2 fix-round status entry and
+`target/g2-fix-evidence/final-verification.json`. No commit or push.

@@ -93,6 +93,9 @@ pub struct Face {
     pub inner: Vec<Wire>,
     pub outer_edges: usize,
     pub outer_arcs: Vec<Edge>,
+    /// Straight boundary edges for choosing exposed plate profiles.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outer_lines: Vec<Edge>,
     /// Its loops could not be told apart (the kernel found no outer loop), so its openings are
     /// not read.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -238,6 +241,12 @@ pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
                         at,
                         inner,
                         outer_edges: outer.edges.len(),
+                        outer_lines: outer
+                            .edges
+                            .iter()
+                            .filter(|e| e.kind == Kind::Line)
+                            .cloned()
+                            .collect(),
                         outer_arcs: outer
                             .edges
                             .into_iter()
@@ -1051,6 +1060,7 @@ mod tests {
                 inner: Vec::new(),
                 outer_edges: edges,
                 outer_arcs: arcs,
+                outer_lines: Vec::new(),
                 unsplit: false,
             }],
         };

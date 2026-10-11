@@ -514,7 +514,8 @@ pub(super) fn band_lanes<'a>(
             ("front", Side::Below) => &mut out.front_below,
             ("front", Side::Right) => &mut out.front_right,
             ("plan", Side::Above) => &mut out.plan_above,
-            ("front" | "plan", Side::Left) => &mut out.plan_left,
+            ("plan", Side::Left) => &mut out.plan_left,
+            ("front", Side::Left) => &mut out.plate_front_left,
             ("side", Side::Below) => &mut out.side_below,
             ("side", Side::Above) => &mut out.side_above,
             ("side", Side::Right) => &mut out.side_right,
@@ -1659,6 +1660,14 @@ pub(super) fn collisions_cached(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn front_left_lanes_do_not_reserve_the_plan_band() {
+        let front = Some("front");
+        let bands = super::band_lanes([((&front, Some(super::Side::Left)), 2)].into_iter());
+        assert_eq!(bands.plate_front_left, 3);
+        assert_eq!(bands.plan_left, 0);
+    }
+
     use super::*;
 
     /// `slides` stays bounded by the sheet however long the dimension line: a 200 km line at 1:1

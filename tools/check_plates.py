@@ -56,5 +56,12 @@ for name in parts:
                                       "z": {"v:front", "v:side"}}[axis], item_id
         statements[dimension["id"]] = f'{dimension["label"]} ({dimension["view"]})'
         direct += 1
+    if name == "1000":
+        assert next(d for d in plan["dimensions"] if d["id"] == "d:f:plate:1/thickness.length")["view"] == "v:plan"
+    if name == "10038":
+        assert not any(d["id"] == "d:step_level/step_height.length.h7_168" for d in plan["dimensions"]), "10038: redundant underside closes a chain"
+        assert next(d for d in plan["dimensions"] if d["id"] == "d:f:plate:1/thickness.length")["view"] == "v:side"
+    if name == "10007":
+        assert direct == 0, "10007: ladder intervals must not close dimension chains"
     print(f"{name:28} {len(plates):5} {direct:6} {covered:7} " + "; ".join(statements.values()))
 print("PASS: every reviewed slab is stated once in an edge-on view or has a drawn owner")

@@ -947,7 +947,7 @@
     "label": "31.8",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the front thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on front witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
   },
   {
     "part": "ftc06",
@@ -957,26 +957,36 @@
     "label": "31.8",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the front thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on front witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
   },
   {
     "part": "ftc06",
     "side": "rust",
     "family": "plate",
-    "view": "front",
+    "view": "side",
     "label": "2× 31.8",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the front thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on front witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs. G2 review fix: Analysis principal boundary straight edges prove both witness faces in the plan profile (m1000) or side profile (FTC-06); their original front placement used absent/hidden edges. Both witnesses now attach to those solid edges. Python origin/main _thin_profiles.register_plate_thickness uses the fixed axis map; the deliberate exposed-profile preference is rust-correct, with corpus view regressions and 2400 px sheet evidence."
   },
   {
     "part": "m1000",
     "side": "rust",
     "family": "plate",
-    "view": "front",
+    "view": "plan",
     "label": "4.2",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "G2 conservative judgement: every native or bridged body-local slab needs thickness evidence unless an actual alternative states its interval. Python detect.py::_append_prismatic_features lowers only multi-axis plate constructions; m1000 has a single x slab [0,4.219] whose thickness no captured ladder or envelope measurement states (its recognition plate remains unverifiable in Python). The port prints 4.2 below front, x thickness edge-on, and claims thickness.length. This fulfils ISSUE-1373-a without treating the conversion gate as physical evidence; tests/dims_plates.rs and the G2 visual/quality evidence cover the native counterparts. The same rust-correct native-inventory policy states 10033 (8.3), 10049 (4.5), 10060 (14.3) and GRM-03 (2.5); native Analysis/Plan intervals and all changed SVG rasters are audited in the G2 status entry. Native FTC-07 uses an additional rust-correct placement judgement: its 5.08 mm Y wall is 2.54 mm on paper at 1:2, narrower than two 2.7 mm arrowheads, so the clear plan-left strip carries 5.1 instead of Python _thin_profiles.py fixed side-above map. Both views prove the same interval; explicit Spec view edits prevail. tools/check_plates.py and the reviewed 2400 px sheet provide the native evidence outside this captured-Python comparator."
+    "reason": "G2 conservative judgement: every native or bridged body-local slab needs thickness evidence unless an actual alternative states its interval. Python detect.py::_append_prismatic_features lowers only multi-axis plate constructions; m1000 has a single x slab [0,4.219] whose thickness no captured ladder or envelope measurement states (its recognition plate remains unverifiable in Python). The port prints 4.2 above plan, x thickness edge-on, and claims thickness.length. This fulfils ISSUE-1373-a without treating the conversion gate as physical evidence; tests/dims_plates.rs and the G2 visual/quality evidence cover the native counterparts. The same rust-correct native-inventory policy states 10033 (8.3), 10049 (4.5), 10060 (14.3) and GRM-03 (2.5); native Analysis/Plan intervals and all changed SVG rasters are audited in the G2 status entry. Native FTC-07 uses an additional rust-correct placement judgement: its 5.08 mm Y wall is 2.54 mm on paper at 1:2, narrower than two 2.7 mm arrowheads, so the clear plan-left strip carries 5.1 instead of Python _thin_profiles.py fixed side-above map. Both views prove the same interval; explicit Spec view edits prevail. tools/check_plates.py and the reviewed 2400 px sheet provide the native evidence outside this captured-Python comparator. G2 review fix: Analysis principal boundary straight edges prove both witness faces in the plan profile (m1000) or side profile (FTC-06); their original front placement used absent/hidden edges. Both witnesses now attach to those solid edges. Python origin/main _thin_profiles.register_plate_thickness uses the fixed axis map; the deliberate exposed-profile preference is rust-correct, with corpus view regressions and 2400 px sheet evidence."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "step_height",
+    "view": "front",
+    "label": "215.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The exposed top-flange thickness (the counted 2× 31.8 statement on the side profile) and overall height 247.7 already define the underside station 215.9. G2 review's top-slab ownership removes that rung to avoid the closed chain 215.9 + 31.8 = 247.7, retaining its stable item as Covered by the thickness with both dependencies named. Python origin/main _thin_profiles.register_plate_thickness and the captured sheet retain the fixed-map thickness plus that ladder rung. This is the same rule as 10038's redundant 7.2 underside, checked by the generic top-slab ownership/omission regression and the native/captured sheet audit."
   }
 ]
