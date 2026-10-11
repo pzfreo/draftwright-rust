@@ -69,10 +69,16 @@
           "type": "string"
         },
         "label": {
-          "$ref": "#/$defs/A"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "view": {
-          "$ref": "#/$defs/A"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "state": {
           "$ref": "#/$defs/t"
@@ -146,39 +152,34 @@
           "type": "object"
         },
         "value": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "number",
+            "null"
           ]
         },
         "dimension_kind": {
-          "$ref": "#/$defs/A"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "placement": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "object",
+            "null"
           ]
         },
         "anchors": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/A"
         },
         "features": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/A"
         },
         "basis": {
           "type": "string"
         },
         "operations": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -197,7 +198,10 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/$defs/A"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "detail_ref": {
           "type": "string"
@@ -222,7 +226,7 @@
           "type": "string"
         },
         "choices": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -232,16 +236,6 @@
       "additionalProperties": false
     },
     "A": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "B": {
       "items": {
         "type": "string"
       },

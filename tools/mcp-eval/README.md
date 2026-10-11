@@ -143,5 +143,13 @@ node tools/mcp-eval/check-efficiency.mjs target/e2-mcp-before.json target/e2-mcp
 The comparison requires fewer calls and preserves every previously successful task;
 it does not replace the runner's stricter all-seven-tasks gate. The existing plate
 placement failure still makes the runner exit 1 until E1 fixes layout. The E2 runner
-uses summary IDs and offered fits/fixes; the GRM-03 request is one batch of Spec ops.
+uses summary IDs and offered slot fixes; H7 remains the requested scripted input,
+as before E2. Fit options are covered by Rust tests. GRM-03 uses two sequential
+applies, preserving its keep-intent coverage. The efficiency comparator requires both.
+The plate script requires all three task callouts and fails if an index hint is missing.
+
+To isolate the registration/problem-page saving with the same script and binary, run
+`node tools/mcp-eval/run-scripted.mjs --separate-problems --out target/e2-separate.json`
+and compare it to the ordinary run with `check-efficiency.mjs`. This ablation uses
+the identical fixes and task conditions, but obtains the slot page in a separate call.
 No real-model performance is inferred from this scripted instrument.

@@ -31,10 +31,16 @@
       "type": "object",
       "properties": {
         "view": {
-          "$ref": "#/$defs/A"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "kind": {
-          "$ref": "#/$defs/A"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "state": {
           "anyOf": [
@@ -47,7 +53,10 @@
           ]
         },
         "feature": {
-          "$ref": "#/$defs/A"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "region": {
           "anyOf": [
@@ -65,7 +74,10 @@
           ]
         },
         "near": {
-          "$ref": "#/$defs/A"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "radius": {
           "anyOf": [
@@ -97,23 +109,25 @@
           ]
         },
         "binding": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "object",
+            "null"
           ]
         },
         "sheet": {
           "type": "object",
           "properties": {
             "size": {
-              "$ref": "#/$defs/A"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "scale": {
-              "$ref": "#/$defs/A"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "title": {
               "type": "object",
@@ -122,29 +136,25 @@
               }
             },
             "fit_limits": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "boolean",
+                "null"
               ]
             }
           },
           "additionalProperties": false
         },
         "views": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/A"
         },
         "dimensions": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/A"
         },
         "annotations": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/A"
         },
         "features": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/A"
         },
         "dimension_source": {
           "enum": [
@@ -220,16 +230,6 @@
       ]
     },
     "A": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "B": {
       "additionalProperties": {
         "type": "object"
       },

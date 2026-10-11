@@ -103,8 +103,8 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
         {
             return Err(bad());
         }
-        if let Some(t) = s["type"].as_str() {
-            let valid = match t {
+        if let Some(types) = s.get("type") {
+            let accepts = |t: &str| match t {
                 "object" => v.is_object(),
                 "array" => v.is_array(),
                 "string" => v.is_string(),
@@ -114,6 +114,10 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
                 "null" => v.is_null(),
                 _ => false,
             };
+            let valid = types.as_str().is_some_and(accepts)
+                || types
+                    .as_array()
+                    .is_some_and(|ts| ts.iter().any(|t| t.as_str().is_some_and(accepts)));
             if !valid {
                 return Err(bad());
             }
@@ -297,14 +301,19 @@ fn corrective_error(cache: &Cache, tool: &str, args: &Value, mut error: Error) -
     {
         return error;
     }
-    let attempt = || -> Option<(Value, Vec<String>)> {
+    let attempt = || -> Option<(usize, Value, Vec<String>)> {
         let given = if tool == "apply_ops" {
             cache.get_version(args["parent"].as_str()?).ok()?
         } else {
             spec(cache, args).ok()?
         };
-        let session = cache.session(args["part_ref"].as_str()?, &given).ok()?;
-        for op in args["ops"].as_array()? {
+        let mut session = cache.session(args["part_ref"].as_str()?, &given).ok()?;
+        for (index, op) in args["ops"].as_array()?.iter().enumerate() {
+            let operation = serde_json::from_value(op.clone()).ok()?;
+            let refused = session.apply(&[operation], false).err();
+            if !refused.is_some_and(|e| e.message == error.message) {
+                continue;
+            }
             if op["op"] != "set" {
                 continue;
             }
@@ -380,15 +389,21 @@ fn corrective_error(cache: &Cache, tool: &str, args: &Value, mut error: Error) -
                 }
                 _ => {}
             }
-            if corrected != *op && crate::model::edit(session.spec(), &json!([corrected])).is_ok() {
-                return Some((corrected, choices));
+            if corrected != *op
+                && session
+                    .apply(&[serde_json::from_value(corrected.clone()).ok()?], false)
+                    .is_ok()
+            {
+                return Some((index, corrected, choices));
             }
         }
         None
     };
-    if let Some((op, choices)) = attempt() {
+    if let Some((index, op, choices)) = attempt() {
         error.choices = choices;
-        error.message.push_str(&format!(" Corrected op: {op}"));
+        error
+            .message
+            .push_str(&format!(" Replace ops[{index}]. Corrected op: {op}"));
     }
     error
 }

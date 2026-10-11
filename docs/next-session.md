@@ -2779,11 +2779,13 @@ Overturnable judgements made unattended:
   key, a title cell's canonical Spec key, or an explicit one-field `{symmetric: magnitude}`
   tolerance and the existing ASCII tolerance spellings. The caller must review/retry it.
   Never infer a tolerance magnitude, choose a member of a pattern, or alter stale-head choices.
-- The scripted runner now discovers IDs from summary and H7 from options, reads slot fixes
-  from the opening answer, and batches the GRM-03 edits already expressed in one user request.
-  Its unchanged judge checks the final drawing; shared Session/stateless parity tests separately
-  retain sequential edit/scale coverage. Scripted call savings are not a prediction of a
-  real model's choices. The driver owns the real-model run after integration.
+- Fix round supersedes the GRM batching judgement: preserve its two sequential commits,
+  so a later sheet/scale change must retain the earlier tolerance/omission. H7 is a task
+  input, just as in the original scripted agent; the script no longer adds a fit-options
+  discovery call when measuring against that baseline. Rust tests still cover valid fits.
+  `--separate-problems` is a paired ablation: the same script/binary/fixes make one extra
+  slot query, isolating the saving from `inspect_part.problem_filter`. This is evidence of
+  the tool's call saving, not a prediction of a real model's choices.
 - No placement/layout algorithms or drafting outputs were changed. The existing plate pin
   task's failure cannot be fixed within E2: E1 owns placement. Retain its strict failure and
   report the full scripted go/no-go separately from E2's fewer-calls/preserved-success gate.
@@ -2817,3 +2819,33 @@ Scripted calls **16 → 15**, all six previous successes retained; its strict al
 still exits 1 for the unchanged plate layout failure. E1 must resolve that condition before
 claiming the global seven-task gate. No real-model evaluation, commits or pushes were made.
 Per-task counts, byte/token measurements and artifact paths are in the E2 status section.
+
+## E2 review fix round (2026-10-11)
+
+Overturnable judgements made unattended:
+
+- Offer one correction for the reported batch failure, naming its zero-based op index.
+  Match the isolated Session refusal to the actual error and preview the proposed replacement
+  through Session before offering it. Do not attach a correction for a different mistake.
+  Multiple bad ops may still need multiple retries; repairing unrelated ops or inventing missing
+  engineering intent would overstate what this reply validates. Supported translations remain
+  the five documented unambiguous patterns; other refusals retain their valid choices.
+- The plate instrument now requires all three task callouts explicitly. A shortened index fails
+  the instrument instead of silently changing its input. No item-index policy or layout code
+  was tuned for this task.
+- Nullable type-only schemas use JSON Schema's equivalent `type: [T, "null"]` form. The local
+  validator checks these unions strictly, including negative cases. Regeneration saves 1,190 B,
+  giving 1,206 B of headroom inside the existing 39,500 B budget. Keep the short local definition
+  names; no consumer depends on them and `$defs/op` remains stable.
+- The strict seven-task evaluation must keep failing for the existing plate layout problem until
+  E1 fixes it. E2 cannot satisfy that global gate within the explicit prohibition on placement
+  changes. Do not label the full required check suite passed on the strength of six successes.
+
+Fix-round verification: **629/629** required-corpus release tests, fmt, strict release
+Clippy and release build pass; final MCP regressions **9/9**, Node **7/7**, Python **5/5**,
+and independent schemas **24/24** pass. Quality **30/30**, all **180 cells identical**.
+Scripted calls **16→15**, with GRM-03 **3→3** and H7 **2→2**; only CTC-01 saves a call.
+The same-binary separate-query ablation reproduces **16→15** with **21/21 identical judge
+JSON documents**. The strict seven-task gate remains **6/7, exit 1** for the untouched
+plate layout findings, so `tests_passed` remains false. The corrected measurements and
+artifact paths are in the final E2 fix-round entry of `docs/status-2026-10-10.md`.

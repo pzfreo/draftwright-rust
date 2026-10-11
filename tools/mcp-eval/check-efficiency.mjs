@@ -22,6 +22,10 @@ export function checkEfficiency(before, after) {
   for (const result of before.results) {
     if (result.success && !tasks.get(result.task)?.success) failures.push(`${result.task}: lost success`);
   }
+  const keepIntent = tasks.get('grm03-sheet-scale-keep-intent');
+  if (keepIntent && keepIntent.calls.filter(call => call.tool === 'apply_ops' && !call.isError).length !== 2) {
+    failures.push('grm03-sheet-scale-keep-intent: requires two sequential applies');
+  }
   const calls = report => report.results.reduce((sum, result) => sum + result.tool_calls, 0);
   if (calls(after) >= calls(before)) failures.push(`calls did not drop: ${calls(before)} → ${calls(after)}`);
   return { pass: failures.length === 0, before: calls(before), after: calls(after), failures };

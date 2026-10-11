@@ -171,7 +171,7 @@ D1 adds the real-model call client and finished-task checker; see
 calling, logging bytes/tokens and scoring. Served descriptions explain each tool without
 requiring source access. Schemas factor repeated shapes through local `$defs` while
 remaining standalone. `cargo test --release --test engine_version` checks the source hash,
-cache namespace, tool descriptions and a 38,500-byte per-session schema budget.
+cache namespace, tool descriptions and a 39,500-byte per-session schema budget.
 
 `inspect_part.key_items` is a deterministic, 700-byte index: envelope dimensions and
 representative feature sizes/dimensions. Use `list_items` for the complete list.
@@ -191,5 +191,7 @@ and the drawing number is `sheet/title/number`. Compatible view/side pairs remai
 
 Common unambiguous vocabulary errors include valid choices and an explicit
 `Corrected op: {JSON}` in the refusal message. They keep the invalid edit unapplied;
-review and resubmit the correction. Ambiguous feature ownership and missing engineering
+The message identifies the replaced zero-based `ops[index]`; the correction is
+previewed through Session and corresponds to the reported refusal. A batch with multiple
+invalid operations can still require another retry. Review and resubmit the correction. Ambiguous feature ownership and missing engineering
 magnitudes are not guessed. Batch all edits for one request in `apply_ops.ops`.

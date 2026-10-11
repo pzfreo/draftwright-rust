@@ -302,3 +302,69 @@ fn fit_options_respect_nominal_table_boundaries() {
         );
     }
 }
+
+#[test]
+fn batch_refusal_corrects_the_named_failure_and_reports_its_index() {
+    let (cache, summary) = open("batch-refusal", "plate");
+    let title = json!({"op":"set","path":"sheet/title/drawing_number","value":"DW-0001"});
+    for ops in [
+        json!([{"op":"set","path":"sheet/scale","value":"1:1"}, title]),
+        json!([{"op":"set","path":"sheet/title/title","value":"PLATE"}, title]),
+    ] {
+        let error = mcp::call(
+            &cache,
+            "preview_ops",
+            &json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"ops":ops}),
+        ).unwrap_err();
+        let (_, correction) = error.message.split_once("Corrected op: ").unwrap();
+        let corrected: Value = serde_json::from_str(correction).unwrap();
+        assert!(error.message.contains("Replace ops[1]."), "{error}");
+        assert_eq!(corrected["path"], "sheet/title/number");
+    }
+    let error = mcp::call(
+        &cache, "preview_ops",
+        &json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"ops":[title,
+            {"op":"set","path":"dimensions/d:envelope~1width.length/tolerance","value":{"symmetric":0.02}}
+        ]}),
+    ).unwrap_err();
+    assert!(error.message.contains("Replace ops[1]."), "{error}");
+    let (_, correction) = error.message.split_once("Corrected op: ").unwrap();
+    let corrected: Value = serde_json::from_str(correction).unwrap();
+    assert_eq!(corrected["value"], "±0.02");
+    let error = mcp::call(
+        &cache,
+        "preview_ops",
+        &json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"ops":[
+            {"op":"set","path":"dimensions/d:envelope~1width.length/tolerance","value":"nonsense"}, title
+        ]}),
+    ).unwrap_err();
+    assert!(!error.message.contains("Corrected op:"), "{error}");
+}
+
+#[test]
+fn compact_nullable_schema_types_keep_validation_strict() {
+    let schema = mcp::schema("inspect_part", false).unwrap();
+    for spec in [
+        json!({"sheet":{"size":null,"fit_limits":null}}),
+        json!({"sheet":{"size":"A4","fit_limits":true}}),
+    ] {
+        mcp::validate(&schema, &json!({"part_ref":"part","spec":spec})).unwrap();
+    }
+    for spec in [
+        json!({"sheet":{"size":42}}),
+        json!({"sheet":{"fit_limits":"yes"}}),
+    ] {
+        assert!(mcp::validate(&schema, &json!({"part_ref":"part","spec":spec})).is_err());
+    }
+    for (types, accepted, refused) in [
+        (json!(["string", "null"]), json!("A4"), json!(42)),
+        (json!(["number", "null"]), json!(0.02), json!("0.02")),
+        (json!(["boolean", "null"]), json!(true), json!([])),
+        (json!(["object", "null"]), json!({}), json!([])),
+    ] {
+        let schema = json!({"type":types});
+        mcp::validate(&schema, &accepted).unwrap();
+        mcp::validate(&schema, &Value::Null).unwrap();
+        assert!(mcp::validate(&schema, &refused).is_err());
+    }
+}

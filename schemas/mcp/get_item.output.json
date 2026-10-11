@@ -21,10 +21,16 @@
                   "type": "string"
                 },
                 "label": {
-                  "$ref": "#/$defs/B"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "view": {
-                  "$ref": "#/$defs/B"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "state": {
                   "$ref": "#/$defs/t"
@@ -33,13 +39,9 @@
                   "type": "string"
                 },
                 "value": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
+                  "type": [
+                    "number",
+                    "null"
                   ]
                 },
                 "operations": {
@@ -87,26 +89,21 @@
           "type": "object"
         },
         "value": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "number",
+            "null"
           ]
         },
         "dimension_kind": {
-          "$ref": "#/$defs/B"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "placement": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "object",
+            "null"
           ]
         },
         "anchors": {
@@ -213,16 +210,6 @@
         "type": "string"
       },
       "type": "array"
-    },
-    "B": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   }
 }

@@ -31,7 +31,10 @@
       "type": "object",
       "properties": {
         "code": {
-          "$ref": "#/$defs/B"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "severity": {
           "anyOf": [
@@ -48,10 +51,16 @@
           ]
         },
         "subject": {
-          "$ref": "#/$defs/B"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "feature": {
-          "$ref": "#/$defs/B"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
@@ -72,23 +81,25 @@
           ]
         },
         "binding": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "object",
+            "null"
           ]
         },
         "sheet": {
           "type": "object",
           "properties": {
             "size": {
-              "$ref": "#/$defs/B"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "scale": {
-              "$ref": "#/$defs/B"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "title": {
               "type": "object",
@@ -97,13 +108,9 @@
               }
             },
             "fit_limits": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "boolean",
+                "null"
               ]
             }
           },
@@ -147,16 +154,6 @@
         "type": "object"
       },
       "type": "object"
-    },
-    "B": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   }
 }

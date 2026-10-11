@@ -8,7 +8,9 @@ I = {'type': 'integer', 'minimum': 0}
 def arr(item, **kw): return {'type': 'array', 'items': item, **kw}
 def obj(props, required=(), extra=False): return {'type':'object', 'properties':props, **({'required':list(required)} if required else {}), 'additionalProperties':extra}
 def ref(name): return {'$ref':'#/$defs/'+name}
-def nullable(s): return {'anyOf':[s, {'type':'null'}]}
+def nullable(s):
+    if set(s) == {'type'}: return {'type':[s['type'], 'null']}
+    return {'anyOf':[s, {'type':'null'}]}
 state={'anyOf':[obj({'kind':{'enum':['shown','omitted_by_user','not_authored']}},['kind']), obj({'kind':{'const':'covered'},'by':S},['kind','by']),obj({'kind':{'const':'not_drawable'},'reason_code':S},['kind','reason_code'])]}
 op={'anyOf':[obj({'op':{'enum':['set','add']},'path':S,'value':{}},['op','path','value']),obj({'op':{'const':'remove'},'path':S},['op','path'])]}
 place=obj({'view':{'enum':['front','plan','side']},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'pinned':B})

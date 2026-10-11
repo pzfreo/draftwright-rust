@@ -29,6 +29,11 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
             assert published.get('type') == 'object', 'MCP schema roots are objects'
             Draft202012Validator.check_schema(published)
             validators[tool['name'], direction] = Draft202012Validator(published)
+    nullable = validators['inspect_part', 'input']
+    for sheet in [{'size': None, 'fit_limits': None}, {'size': 'A4', 'fit_limits': True}]:
+        nullable.validate({'part_ref': 'part', 'spec': {'sheet': sheet}})
+    for sheet in [{'size': 42}, {'fit_limits': 'yes'}]:
+        assert not nullable.is_valid({'part_ref': 'part', 'spec': {'sheet': sheet}})
     def call(name, args):
         validators[name, 'input'].validate(args)
         result = rpc('tools/call', {'name': name, 'arguments': args})

@@ -155,10 +155,16 @@
           "type": "string"
         },
         "label": {
-          "$ref": "#/$defs/B"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "view": {
-          "$ref": "#/$defs/B"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "state": {
           "$ref": "#/$defs/t"
@@ -232,26 +238,21 @@
           "type": "object"
         },
         "value": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "number",
+            "null"
           ]
         },
         "dimension_kind": {
-          "$ref": "#/$defs/B"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "placement": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "object",
+            "null"
           ]
         },
         "anchors": {
@@ -283,7 +284,10 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/$defs/B"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "detail_ref": {
           "type": "string"
@@ -317,7 +321,7 @@
           "$ref": "#/$defs/A"
         },
         "fix": {
-          "$ref": "#/$defs/C"
+          "$ref": "#/$defs/B"
         }
       },
       "required": [
@@ -386,7 +390,7 @@
           "$ref": "#/$defs/A"
         },
         "fix": {
-          "$ref": "#/$defs/C"
+          "$ref": "#/$defs/B"
         }
       },
       "required": [
@@ -426,16 +430,6 @@
       "type": "array"
     },
     "B": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "C": {
       "items": {
         "$ref": "#/$defs/op"
       },
