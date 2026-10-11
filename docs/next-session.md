@@ -2362,12 +2362,23 @@ Overturnable judgement calls:
 
 Overturnable judgement calls made unattended:
 
-- The editor checkout and `origin/main` both lack `bench/edits/*.json` (only the two existing
-  WASM bench scripts are present). Reproduce S0's sequence from thin-slice plan section 3.2:
-  move a view relative to front, move a linear label along its line, change side, omit, restore,
-  change tolerance, change scale. The two omission states are separate commits, so seven edits.
-  `tests/common/session_edits.rs` shares the sequence with `examples/session_latency.rs`.
-  Reconcile with the S0 stream's eventual files when available; no editor files were changed.
+- S0's `bench/edits/*.json` are present on draftwright-editor `origin/thin-slice` and
+  `origin/ts/s0-baseline` (and scratchpad `wt-ts-int-s0/bench/edits`). The initial report
+  checked only main and incorrectly treated the files as unavailable. The shared sequence in
+  `tests/common/session_edits.rs` now covers all nine edit kinds, including width's carrier
+  move to `plan` and `views/side/omit`; GRM-03 has eight edits, without a carrier move.
+  Keep the existing seven relative Spec operations as conservative equivalents of S0's old
+  page-offset/Spec-1 commands; the new commands map directly to Spec-2 fields. This judgement
+  is overturnable if S5 needs exact offset-to-anchor migration. No editor files were changed.
+- Always use the bundled `tests/fixtures/parts/mounting_plate.step` for the plate benchmark
+  and latency example invocation; results no longer depend on a host's editor checkout.
+- Retain the existing regular-test and example p90 assertions against 150 ms, consistent with
+  the maintainer's acceptance gate and this fix round's prohibition on weakened tests. A future
+  dedicated performance job could isolate the gate from loaded CI; no such change is made here.
+- S5/S7 payload follow-up: `open` serialises the full State including projected view geometry;
+  moving/rescaling views resends their geometry (CTC-01 deltas around 5.2 MB). This remains
+  acceptable in process but costly over JSON-lines; consider geometry handles/caching or compact
+  transport in those streams, preserving lossless replay. This stream adds no transport policy.
 - Count complete recovered-planner invocations, the same unit as the batch API/old editor's
   multiple plans. One per apply/undo/redo, zero for queries. The existing global planner has no
   safe partial-plan entry point, so use its full-plan fallback. Internal recovery candidates
@@ -2384,6 +2395,6 @@ Overturnable judgement calls made unattended:
   they are not an exhaustive enumeration of alternative dimensional/PMI projections. Collision
   checks happen in preview/apply, without running extra plans from a query.
 - Latency gate covers native apply, complete sheet assembly, delta construction and JSON
-  encoding after open, ten repetitions of seven edits per part. Undo restores the starting
-  state between repetitions and is not timed. Opening (including HLR) is recorded separately.
+  encoding after open, ten repetitions of nine edits (eight for GRM-03). Undo restores the
+  starting state between repetitions and is not timed. Opening (including HLR) is recorded separately.
   WASM/UI display-rate drag checks remain in S5; no editor or MCP files were touched.

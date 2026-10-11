@@ -1,4 +1,4 @@
-//! The plan S0 sequence, expressed as Spec ops on stable IDs.
+//! S0 bench/edits from draftwright-editor origin/thin-slice, mapped to relative Spec ops.
 use draftwright::items::{Op, key};
 use draftwright::session::Session;
 use serde_json::json;
@@ -17,7 +17,7 @@ pub fn edits(s: &Session) -> Vec<Vec<Op>> {
     } else {
         "1:2"
     };
-    vec![
+    let mut sequence = vec![
         vec![Op::set(
             format!("views/{}/place", view.id.trim_start_matches("v:")),
             json!({"relative_to":"front","side":"above","gap":15,"align":"middle"}),
@@ -35,5 +35,18 @@ pub fn edits(s: &Session) -> Vec<Vec<Op>> {
         vec![Op::set(format!("{base}/omit"), json!(false))],
         vec![Op::set(format!("{base}/tolerance"), json!("±0.1"))],
         vec![Op::set("sheet/scale", json!(scale))],
-    ]
+    ];
+    // GRM-03 has no width carrier move in S0's sequence.
+    if s.plan()
+        .dimensions
+        .iter()
+        .any(|d| d.id == "d:envelope/width.length")
+    {
+        sequence.push(vec![Op::set(
+            "dimensions/d:envelope~1width.length/place/view",
+            json!("plan"),
+        )]);
+    }
+    sequence.push(vec![Op::set("views/side/omit", json!(true))]);
+    sequence
 }

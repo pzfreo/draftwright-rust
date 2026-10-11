@@ -16,12 +16,9 @@ use session_edits::edits;
 
 fn path(file: &str) -> Option<PathBuf> {
     if file == "plate" {
-        let editor = Path::new("/Users/paul/repos/draftwright-editor/public/samples/plate.step");
-        return Some(if editor.exists() {
-            editor.into()
-        } else {
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/mounting_plate.step")
-        });
+        return Some(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/mounting_plate.step"),
+        );
     }
     corpus::dir().map(|c| c.join(file))
 }
@@ -38,12 +35,36 @@ fn benchmark(file: &str) {
         serde_json::from_slice(&serde_json::to_vec(s.state()).unwrap()).unwrap();
     let mut times = Vec::new();
     let sequence = edits(&s);
+    let moves_dimension = !file.contains("GRM-03");
+    assert_eq!(sequence.len(), if moves_dimension { 9 } else { 8 });
+    assert_eq!(
+        sequence.last().unwrap(),
+        &[Op::set("views/side/omit", json!(true))]
+    );
+    if moves_dimension {
+        assert_eq!(
+            sequence[7],
+            [Op::set(
+                "dimensions/d:envelope~1width.length/place/view",
+                json!("plan")
+            )]
+        );
+    }
     for ops in &sequence {
+        let previous = serde_json::to_vec(s.state()).unwrap();
         let before = s.stats();
+        let preview = s.apply(ops, false).unwrap();
+        assert_eq!(preview.plans, 1);
+        assert_eq!(serde_json::to_vec(s.state()).unwrap(), previous);
+        assert_eq!(s.stats(), before);
         let start = Instant::now();
         let delta = s.apply(ops, true).unwrap();
         assert_eq!(delta.plans, 1);
         times.push(start.elapsed().as_secs_f64() * 1000.0);
+        assert_eq!(
+            serde_json::to_vec(&delta).unwrap(),
+            serde_json::to_vec(&preview).unwrap()
+        );
         assert_eq!(s.stats().plans, before.plans + 1, "{file}: plans per edit");
         let wire: Delta = serde_json::from_slice(&serde_json::to_vec(&delta).unwrap()).unwrap();
         wire.apply_to(&mut replay).unwrap();
@@ -70,6 +91,8 @@ fn benchmark(file: &str) {
         let saved = serde_json::to_vec(s.plan()).unwrap();
         let svg = s.drawing().svg();
         s.undo().unwrap().apply_to(&mut replay).unwrap();
+        assert_eq!(serde_json::to_vec(s.state()).unwrap(), previous);
+        assert_eq!(serde_json::to_vec(&replay).unwrap(), previous);
         s.redo().unwrap().apply_to(&mut replay).unwrap();
         assert_eq!(serde_json::to_vec(s.plan()).unwrap(), saved);
         assert_eq!(s.drawing().svg(), svg);

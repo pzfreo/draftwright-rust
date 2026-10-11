@@ -17,7 +17,7 @@ fn main() {
         let ops = session_edits::edits(&session);
         let mut samples = Vec::new();
         let mut bytes = 0;
-        // Warm the geometry once, then repeat the same seven edits ten times.
+        // Warm the geometry once, then repeat the complete S0 sequence ten times.
         for _ in 0..10 {
             for edit in &ops {
                 let plans = session.stats().plans;
