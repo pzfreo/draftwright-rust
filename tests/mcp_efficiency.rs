@@ -190,7 +190,14 @@ fn one_feature_problem_query_returns_all_member_fixes() {
         json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"filter":{"feature":"f:slot:1"}}),
     );
     let problems = result["items"].as_array().unwrap();
-    assert_eq!(problems.len(), 2);
+    assert_eq!(problems.len(), 3);
+    assert_eq!(
+        problems
+            .iter()
+            .filter(|p| p["code"] == "extension_through_feature")
+            .count(),
+        1
+    );
     assert_eq!(result["next_cursor"], Value::Null);
     let mut ops = Vec::new();
     for p in problems {
@@ -214,7 +221,16 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 2);
+    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 5);
+    for p in problems {
+        assert!(
+            delta["problems_resolved"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|resolved| resolved["id"] == p["id"])
+        );
+    }
     assert!(delta["problems_added"].as_array().unwrap().is_empty());
 }
 
@@ -232,7 +248,7 @@ fn inspection_batches_a_filtered_problem_page_with_registration() {
         json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"filter":{"feature":"f:slot:1"}}),
     );
     assert_eq!(result["problem_page"], problems);
-    assert_eq!(result["problem_page"]["items"].as_array().unwrap().len(), 2);
+    assert_eq!(result["problem_page"]["items"].as_array().unwrap().len(), 3);
     let all = call(
         &cache,
         "inspect_part",

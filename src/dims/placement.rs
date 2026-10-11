@@ -1426,10 +1426,23 @@ pub(super) fn collisions(
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
     let outlines = outlines(analysis, views);
+    let footprints: BTreeMap<&str, super::footprints::Footprints> = views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            super::NAMES.contains(&name).then(|| {
+                (
+                    v.id.as_str(),
+                    super::footprints::Footprints::new(analysis, &Frame::new(analysis, v), name),
+                )
+            })
+        })
+        .collect();
     let placed: Vec<(&PlannedDimension, &Placed)> = dims
         .iter()
         .filter_map(|d| d.placed.as_ref().map(|p| (d, p)))
         .collect();
+    let mut feature_problems = Vec::new();
     let mut problem = |code: &str, severity: &str, subjects: Vec<String>, message: String| {
         problems.push(Problem {
             id: format!("p:{code}:{}", subjects.join("|")),
@@ -1441,6 +1454,63 @@ pub(super) fn collisions(
         });
     };
     for (d, p) in &placed {
+        if let Some(f) = footprints.get(d.view.as_str()) {
+            let (code, shafts): (&str, &[[P2; 2]]) = match d.kind.as_str() {
+                "callout" => ("leader_through_feature", &p.lines[..p.lines.len().min(1)]),
+                "linear" => (
+                    "extension_through_feature",
+                    &p.lines[..p.lines.len().min(2)],
+                ),
+                _ => ("", &[]),
+            };
+            for (n, shaft) in shafts.iter().enumerate() {
+                let crossed = if d.kind == "callout" {
+                    f.crossed(*shaft, &d.measurements)
+                } else {
+                    f.crossed_extension(*shaft, &d.measurements)
+                };
+                for feature in crossed {
+                    let subjects = vec![d.id.clone(), feature];
+                    let fix = if d.kind == "linear" {
+                        let horizontal = p.rotation.rem_euclid(180.0).abs() < 1e-6;
+                        let k = usize::from(horizontal);
+                        let side = if shaft[1][k] > shaft[0][k] {
+                            if horizontal { "below" } else { "left" }
+                        } else if horizontal {
+                            "above"
+                        } else {
+                            "right"
+                        };
+                        vec![crate::items::Op::set(
+                            format!("dimensions/{}/place", crate::items::key(&d.id)),
+                            serde_json::json!({"view": d.view.trim_start_matches("v:"),"side":side,"lane":0}),
+                        )]
+                    } else {
+                        vec![]
+                    };
+                    feature_problems.push(Problem {
+                        id: format!("p:{code}:{}:line:{n}", subjects.join("|")),
+                        code: code.into(),
+                        severity: "warning".into(),
+                        message: format!(
+                            "The {} {} of {} ({}) crosses {}.",
+                            if d.kind == "callout" {
+                                "leader shaft"
+                            } else {
+                                "dimension extension"
+                            },
+                            n + 1,
+                            d.id,
+                            d.label,
+                            subjects[1]
+                        ),
+                        subjects,
+                        fix,
+                        ..Default::default()
+                    });
+                }
+            }
+        }
         // Its ink past its view's reserved area (the box and its bands).
         if let Some(v) = views.iter().find(|v| v.id == d.view) {
             let a = v.area;
@@ -1569,6 +1639,7 @@ pub(super) fn collisions(
             }
         }
     }
+    problems.extend(feature_problems);
     problems
 }
 

@@ -19,6 +19,18 @@ INK = {"annotation_ink_overlap", "annotation_over_view", "annotation_line_over_v
        "annotation_leader_crossing", "annotation_outside_area"}
 
 
+def line_through_features(plan):
+    """Leader/feature pairs, plus extension lines (once even if several features are crossed)."""
+    leaders, extensions = set(), set()
+    for p in plan.get("problems", []):
+        subjects = p.get("subjects", [])
+        if p["code"] == "leader_through_feature":
+            leaders.add(tuple(subjects))
+        elif p["code"] == "extension_through_feature":
+            extensions.add((subjects[0], p.get("id", "").rsplit(":line:", 1)[-1]))
+    return len(leaders) + len(extensions)
+
+
 def overlap(a, b):
     return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
 
@@ -125,12 +137,13 @@ def one(f, dw, out, spec=None):
         "repeated_span_groups": repeated,
         "views_overlap": view_over, "view_on_title_block": view_tb,
         "ink": sum(codes[c] for c in INK), "ink_by_code": {c: codes[c] for c in INK if codes[c]},
+        "line_through_feature": line_through_features(plan),
         "dimensions": len(plan["dimensions"]),
     }
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):

@@ -55,6 +55,7 @@ mod bosses;
 mod edges;
 mod envelope;
 mod flats;
+mod footprints;
 pub mod gdt;
 mod grooves;
 mod holes;
@@ -856,7 +857,12 @@ pub(crate) fn plan_with_obstacles(
                 .filter_map(|d| d.placed.as_ref())
                 .map(|p| p.label_box[2] - p.label_box[0])
                 .fold(0.0, f64::max);
-            placement::intent(&frames[v], w, p, sides[i]?, lane[i], callout_width)
+            let mut placed =
+                placement::intent(&frames[v], w, p, sides[i]?, lane[i], callout_width)?;
+            if let Some(side) = p.side {
+                leaders::route_intent(analysis, &frames[v], w, &mut placed, v, side);
+            }
+            Some(placed)
         })
         .collect();
     placement::fall_through(
@@ -917,9 +923,24 @@ pub(crate) fn plan_with_obstacles(
     placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
     angular::place(&frames, &all, &chosen, &mut placed, &page);
     let leader_problems = if obstacles.is_empty() {
-        leaders::place(&frames, &all, &chosen, &sides, &mut placed, &page)
+        leaders::place(
+            analysis,
+            spec,
+            sheet,
+            views,
+            &frames,
+            &all,
+            &chosen,
+            &sides,
+            &mut placed,
+            &page,
+        )
     } else {
         leaders::place_with_obstacles(
+            analysis,
+            spec,
+            sheet,
+            views,
             &frames,
             &all,
             &chosen,

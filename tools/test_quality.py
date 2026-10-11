@@ -1,6 +1,7 @@
 """Go/no-go instrument contracts; run with python3 -I tools/test_quality.py."""
 import importlib.util
 import pathlib
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 import json
@@ -74,7 +75,7 @@ class RepeatedSpans(unittest.TestCase):
 
     def test_cli_can_enforce_zero_repeated_spans(self):
         metrics = {k: 0 for k in ('off_sheet', 'repeated_label', 'repeated_measure',
-                                 'views_overlap', 'view_on_title_block', 'ink', 'repeated_span')}
+                                 'views_overlap', 'view_on_title_block', 'ink', 'repeated_span', 'line_through_feature')}
         with tempfile.TemporaryDirectory() as out:
             baseline = pathlib.Path(out) / 'source.json'
             for repeated in (0, 1):
@@ -84,6 +85,36 @@ class RepeatedSpans(unittest.TestCase):
                         'dw', out, 'part.step']
                 with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(quality.main(), repeated)
+
+
+class FeatureCrossings(unittest.TestCase):
+    def test_counts_plan_feature_pairs_and_extension_lines(self):
+        plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'views': [],
+                'problems': [{'code': 'leader_through_feature', 'subjects': ['d:a', 'f:b']},
+                             {'code': 'leader_through_feature', 'subjects': ['d:a', 'f:c']},
+                             {'code': 'extension_through_feature', 'id': 'p:d:e|f:b:line:0', 'subjects': ['d:e', 'f:b']},
+                             {'code': 'extension_through_feature', 'id': 'p:d:e|f:c:line:0', 'subjects': ['d:e', 'f:c']},
+                             {'code': 'extension_through_feature', 'id': 'p:d:e|f:c:line:1', 'subjects': ['d:e', 'f:c']},
+                             {'code': 'leader_through_feature', 'subjects': ['d:a', 'f:b']}]}
+        replies = [subprocess.CompletedProcess([], 0, '{}', ''),
+                   subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
+            _, result = quality.one('part.step', 'dw', out)
+        self.assertEqual(result['line_through_feature'], 4)
+
+    def test_status_headers_select_shared_columns_and_reject_a_regression(self):
+        checker = Path(__file__).with_name('check_quality_table.py')
+        old = 'part off_sheet repeated_lab repeated_mea views_overla view_on_titl ink\np 0 0 0 0 0 1\nTOTAL 0 0 0 0 0 1\n'
+        new = 'part ink line_through off_sheet\np 1 2 0\nTOTAL 1 2 0\n'
+        with tempfile.TemporaryDirectory() as out:
+            status, baseline = Path(out) / 'status.md', Path(out) / 'baseline.json'
+            baseline.write_text(json.dumps({'p': {'off_sheet': 0, 'repeated_label': 0,
+                'repeated_measure': 0, 'views_overlap': 0, 'view_on_title_block': 0,
+                'ink': 1, 'line_through_feature': 3}}))
+            for table, expected in [(old, 0), (new.replace("p 1 2 0", "p 1 3 0"), 0), (new, 1)]:
+                status.write_text(table)
+                result = subprocess.run([sys.executable, '-I', str(checker), str(status), str(baseline)], capture_output=True)
+                self.assertEqual(result.returncode, expected, result.stderr.decode())
 
 
 class RandomPins(unittest.TestCase):
