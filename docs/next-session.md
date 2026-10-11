@@ -3264,3 +3264,109 @@ and `target/s2-fix-*`. No commit or push was made.
   S2's test table has no `ink`). Columns absent from the baseline are skipped.
 - S1's mocked crossing test in `tools/test_quality.py` writes an empty `part.svg`
   so S2's SVG metric can read it; the assertion is unchanged.
+
+## Stage H / issue #2: CI acceptance (2026-10-11)
+
+`tools/ci_acceptance.py` is the local and CI entry point. It uses an already built
+release binary, Python's standard library and Node 22+; no new dependencies.
+From the repository root, use a fresh output directory:
+
+```sh
+source "$HOME/.cargo/env"
+export CARGO_BUILD_JOBS=8 RUST_TEST_THREADS=8
+cargo build --release
+DRAFTWRIGHT_CORPUS=/path/to/quiddity/tests/corpus python3 -I tools/ci_acceptance.py --out target/acceptance
+```
+
+`--job quality-pins`, `--job repeated-spans` and `--job mcp` run the same jobs
+individually. `--binary` and `--corpus` override the executable and corpus.
+There is no fallback fixture path. Missing fixtures, missing metrics, ambiguous
+names, incomplete results, failed subprocesses, any worsened quality cell, any
+repeated span, a failed pin bar or a failed MCP task return nonzero. The runner
+continues independent measurements after a gate failure so failure evidence is
+retained. Four workers are inherited from the instruments; Cargo commands are
+serial and the CI build/test environment caps jobs and threads at eight.
+
+CI reuses the existing build job's pinned corpus checkout at
+`6d544e060cd0eeb4442d2196e5df757b5a15ea55` and release executable produced by
+nextest's Cargo test build. It packages both as `acceptance-inputs.tar.gz`;
+acceptance jobs neither compile again nor checkout a second corpus. The quality
+job generates its own unpinned baseline with that exact executable and reuses
+it for all seed 1/2/3 × N 1/3/8 comparisons, always with `--require-go`.
+The survey requires 42 corpus files plus all 22 bundled AP242 fixtures (64).
+MCP requires the unchanged seven tasks and runs the Python quality tests, Node
+client tests (including real HTTP with the release binary), and new acceptance
+gate tests. The expected judge documents and rendered PNGs are also checked.
+
+Results include `summary.json`/`job.json` with job/step wall seconds, executable
+SHA-256, local fixture hashes, metric totals and exit codes. Quality/survey SVGs
+and Plans, pinned Specs/SVGs, and MCP Spec/Plan/baseline/PNG documents accompany
+the reports. MCP judge renders use the standard 150 dpi and are excluded from scripted tool
+call/token metrics. GitHub uploads the entire result directory with `always()`,
+even when a gate fails, retaining it for 14 days. There is no continue-on-error.
+The quality job also increases a real measured ink cell above the committed bar
+in a separate report and requires the validator to reject it with exit 1; the
+accepted baseline and drawing criteria are unchanged.
+
+Maintainer decision: require these GitHub check names in the repository rules,
+in addition to existing Rust checks:
+
+- `acceptance (quality-pins)`
+- `acceptance (repeated-spans)`
+- `acceptance (mcp)`
+
+Only GitHub can confirm artifact transfer between runners, the always-upload
+behaviour on a failed Actions job, total hosted wall time and required-check
+settings. No settings, commit or push was made during this unattended run.
+The local script and its nonzero failure propagation are exercised locally.
+
+### Baseline maintenance
+
+`tools/ci-quality-baseline.json` records all ten columns for the thirty full
+part names, derived from the latest complete **Stage F integration / Merged
+after table** in `docs/status-2026-10-10.md`, then confirmed against a fresh
+release run (300 identical cells). Its source revision, corpus pin and verified
+executable SHA are recorded. This strict CI comparison is independent of the
+historical Markdown checker, which intentionally compares shared columns only.
+A missing column cannot silently shrink the CI check.
+
+For a legitimate stage improvement, run the complete acceptance pipeline, review
+the changed rendered sheets, and replace each baseline metric with the fresh
+`quality-pins/quality/baseline.json` value only if **every part/metric is no
+worse**. Keep the ten-column list and full part set. Update its source/table and
+verified executable SHA, append the before/after table and review rationale to
+the status doc, and include the baseline diff in the stage review. Re-run the
+acceptance script with the proposed baseline before merging. Do not overwrite
+a baseline to hide a regression. If a future stage deliberately changes a
+metric's definition or fixture population, that is an explicit maintainer/review
+decision: record the old/new predicate or population and measurements, update
+the count/metric contracts and tests together, and review the replacement
+baseline separately. The runner never updates baselines automatically.
+
+Overturnable unattended judgement calls:
+
+- Combine the 30-part gate and pin grid in one check to measure the unpinned
+  baseline only once and prove same-binary provenance without a cross-job
+  baseline dependency. The independent survey/MCP jobs still run on failure.
+- Keep Stage F's ten existing columns and per-part thresholds, including the
+  unchanged isometric hidden-on-visible counts; do not add new drawing policies
+  or modify planner/layout/rendering output in this CI issue.
+- Render all seven MCP judge sheets at the standard 150 dpi when documents are requested,
+  including failures. This makes failure artifacts directly reviewable without
+  adding judge calls to the scripted task metrics.
+- A fresh output directory is required, so stale reports cannot pass an
+  incomplete run. The 30-minute hosted timeout is a conservative ceiling;
+  local measured job times and verification follow in the issue #2 report.
+
+Final local verification: all three jobs pass (`target/h2-acceptance/summary.json`),
+30 parts / 300 identical quality cells, 64/64 zero repeated spans, 270/270
+pin runs GO, MCP 7/7, Python 20/20, Node 8/8, new acceptance tests 10/10.
+All ten new tests fail against the original HEAD. Deliberate 1000 ink 1→2
+is rejected with exit 1. Local job walls: quality-pins 772.322 s, survey
+744.578 s (AP242 FTC-10 dominates), MCP/instruments 11.992 s; full local
+script 1528.938 s. The final MCP job with required judge documents/PNGs
+also passes separately in 9.243 s. Same-binary judge-artifact ablation
+preserves every task call/byte/token record. All 42 local corpus inputs
+are byte-identical to the pinned Git blobs. Required fmt/Python/release
+build/Node/end-to-end checks, workflow YAML and whitespace checks pass.
+Full tables and hosted-only limitations are in the issue #2 status entry.

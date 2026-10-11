@@ -11,6 +11,8 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: "8"
+  RUST_TEST_THREADS: "8"
   DRAFTWRIGHT_CORPUS: ${{ github.workspace }}/quiddity/tests/corpus
   DRAFTWRIGHT_CORPUS_REQUIRED: "1"
 
@@ -54,6 +56,16 @@ jobs:
           tool: nextest@0.9.146
       - run: cargo nextest archive --release --archive-file nextest-archive.tar.zst
       - run: cargo test --doc --release
+      # nextest's cargo test build also produces CARGO_BIN_EXE_draftwright. Reuse that
+      # release executable and this job's pinned corpus in every acceptance job.
+      - run: |
+          test -x target/release/draftwright
+          tar -czf acceptance-inputs.tar.gz target/release/draftwright quiddity/tests/corpus
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: acceptance-inputs
+          path: acceptance-inputs.tar.gz
+          retention-days: 1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nextest-archive
@@ -113,3 +125,31 @@ jobs:
             fi
             "${bin[0]}"
           done
+
+  acceptance:
+    name: acceptance (${{ matrix.job }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [quality-pins, repeated-spans, mcp]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: matrix.job == 'mcp'
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: acceptance-inputs
+      - run: tar -xzf acceptance-inputs.tar.gz
+      - run: python3 -I tools/ci_acceptance.py --job ${{ matrix.job }} --out target/acceptance
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: acceptance-${{ matrix.job }}
+          path: target/acceptance/
+          if-no-files-found: error
+          retention-days: 14

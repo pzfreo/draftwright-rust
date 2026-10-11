@@ -89,6 +89,14 @@ try {
       if(documents){
         const dir=resolve(documents,task.id);mkdirSync(dir,{recursive:true});
         for(const [name,document] of Object.entries({spec,plan,baseline}))writeFileSync(resolve(dir,name+'.json'),JSON.stringify(document,null,2)+'\n');
+        // Judge artifacts do not contribute to the scripted client's call/token counts.
+        try {
+          const sheet=await tool('view_sheet',{part_ref,spec_version:current,dpi:150});
+          const rendered=await rpc('resources/read',{uri:`draftwright:${sheet.artifact_ref}`});
+          writeFileSync(resolve(dir,'sheet.png'),Buffer.from(rendered.contents[0].blob,'base64'));
+        } catch(error) {
+          writeFileSync(resolve(dir,'render-error.json'),JSON.stringify({error:error.message})+'\n');
+        }
       }
     }
     const request_bytes=calls.reduce((s,c)=>s+c.request_bytes,0),response_bytes=calls.reduce((s,c)=>s+c.response_bytes,0);
