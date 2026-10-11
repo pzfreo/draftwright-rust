@@ -267,16 +267,9 @@
  },
  {
   "part": "ftc06",
-  "callout": "d:f:boss:5/boss.diameter",
-  "crossing": "line:d:f:hole:11/bore.diameter",
-  "verdict": "rust-wrong",
-  "reason": "On ftc06 the leaders of the front's callouts d:f:hole:11/bore.diameter and d:f:boss:5/boss.diameter cross each other; they came with drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md), when the isometric moved off the front's band, and the callout assignment (src/dims/leaders.rs) took routes that cross (known_placement.json's ftc06 annotation_leader_crossing). Reported as annotation_leader_crossing and kept (ADR2-D6)."
- },
- {
-  "part": "ftc06",
   "callout": "d:f:hole:11/bore.diameter",
   "crossing": "line:d:f:boss:5/boss.diameter",
   "verdict": "rust-wrong",
-  "reason": "On ftc06 the leaders of the front's callouts d:f:hole:11/bore.diameter and d:f:boss:5/boss.diameter cross each other; they came with drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md), when the isometric moved off the front's band, and the callout assignment (src/dims/leaders.rs) took routes that cross (known_placement.json's ftc06 annotation_leader_crossing). Reported as annotation_leader_crossing and kept (ADR2-D6)."
+  "reason": "On ftc06 the leaders of the front's callouts d:f:hole:11/bore.diameter and d:f:boss:5/boss.diameter cross each other; they came with drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md), when the isometric moved off the front's band, and the callout assignment (src/dims/leaders.rs) took routes that cross (known_placement.json's ftc06 annotation_leader_crossing). Reported as annotation_leader_crossing and kept (ADR2-D6). G2 adds the counted 2× 31.8 plate statement. The reciprocal boss leader crossing disappears; this hole leader crossing remains and is still required by the exact comparison."
  }
 ]

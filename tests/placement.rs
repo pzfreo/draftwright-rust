@@ -29,6 +29,22 @@ use draftwright::model::{self, Analysis, DimensionSource, DimensionSpec, Plan, S
 use draftwright::output::{Curve, Item};
 use serde::{Deserialize, Serialize};
 
+/// Printed alternatives name a representative and all dependencies; intrinsic
+/// ownership remains an exclusion even when its owner's dimension is omitted.
+fn conveyed_owners(basis: &str) -> Vec<&str> {
+    let Some((owner, why)) = basis
+        .strip_prefix("conveyed by ")
+        .and_then(|rest| rest.split_once(": "))
+    else {
+        return Vec::new();
+    };
+    if why.starts_with("recognised ownership") {
+        return Vec::new();
+    }
+    why.split_once("; dependencies: ")
+        .map_or_else(|| vec![owner], |(_, ids)| ids.split(", ").collect())
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Known {
@@ -301,7 +317,7 @@ fn omitting_one_dimension_moves_no_other() {
         let conveyed_by = |id: &str| -> Vec<&str> {
             full.omitted
                 .iter()
-                .filter(|o| o.basis.starts_with(&format!("conveyed by {id}: ")))
+                .filter(|o| conveyed_owners(&o.basis).contains(&id))
                 .map(|o| o.id.as_str())
                 .collect()
         };
@@ -396,6 +412,50 @@ fn omitting_one_dimension_moves_no_other() {
                             if a[0] == b[0] { a[0] } else { a[1] }
                         };
                         if let (true, Some(survivor)) = (d.kind == "linear", all.get(gone)) {
+                            // Counted walls may lie on different axes. On promotion the
+                            // remaining wall must state its own interval in an edge-on view.
+                            if d.measurements
+                                .iter()
+                                .any(|m| m.parameter == "thickness.length")
+                            {
+                                let m = d
+                                    .measurements
+                                    .iter()
+                                    .find(|m| m.parameter == "thickness.length")
+                                    .unwrap();
+                                let feature = analysis
+                                    .features
+                                    .iter()
+                                    .find(|f| f.id == m.feature)
+                                    .unwrap();
+                                let wall =
+                                    draftwright::lint::plates::read(analysis, feature).unwrap();
+                                let view = plan.views.iter().find(|v| v.id == d.view).unwrap();
+                                let (a, b) = (p.arrows[0][0], p.arrows[1][0]);
+                                assert!(
+                                    ((a[0] - b[0]).hypot(a[1] - b[1])
+                                        - wall.thickness() * view.scale)
+                                        .abs()
+                                        < 1e-6,
+                                    "{name}: {} does not state its promoted wall",
+                                    d.id
+                                );
+                                if survivor
+                                    .measurements
+                                    .iter()
+                                    .any(|old| old.parameter == "thickness.length")
+                                {
+                                    assert!(
+                                        survivor
+                                            .measurements
+                                            .iter()
+                                            .any(|old| old.feature == m.feature
+                                                && old.parameter == m.parameter
+                                                && old.value == m.value)
+                                    );
+                                }
+                                continue;
+                            }
                             let survivor = survivor.placed.as_ref().unwrap();
                             assert!(
                                 (lane(p) - lane(survivor)).abs() < 1e-9,
@@ -444,8 +504,7 @@ fn a_merge_the_spec_breaks_draws_both_in_their_own_lanes() {
         let survivors: Vec<&str> = full
             .omitted
             .iter()
-            .filter_map(|o| o.basis.strip_prefix("conveyed by "))
-            .filter_map(|rest| rest.split_once(": ").map(|(id, _)| id))
+            .flat_map(|o| conveyed_owners(&o.basis))
             .collect();
         for survivor in survivors {
             let mut spec = Spec::default();

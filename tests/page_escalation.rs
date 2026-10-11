@@ -450,7 +450,7 @@ fn ftc07_takes_draftwrights_first_choice() {
             .contains("A3 at 1:5 has 2 hole locations too close to read")
             && said
                 .message
-                .contains("14 more items over a view than the first")
+                .contains("16 more items over a view than the first")
             && said
                 .message
                 .contains("A2 at 1:2 (valid and complete); A2 at 1:2 is used"),

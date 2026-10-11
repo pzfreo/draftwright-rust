@@ -219,10 +219,14 @@ impl Strips {
 /// they take: horizontal dimensions below the front and the side and above the plan, vertical
 /// ones right of the front and the side and left of the plan, callouts below the front and above
 /// the plan and the side.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Lanes {
     pub front_below: usize,
     pub front_right: usize,
+    pub plate_front_left: usize,
+    pub plate_front_top: f64,
+    pub plate_front_below: usize,
+    pub plate_side_left: f64,
     pub plan_above: usize,
     pub plan_left: usize,
     pub side_below: usize,
@@ -274,6 +278,14 @@ impl Strips {
     pub fn reserve(&mut self, lanes: &Lanes) {
         let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
         widen(&mut self.right, lanes.front_right);
+        widen(&mut self.left, lanes.plate_front_left);
+        // Short thickness spans use outside arrows and text. Reserve their ink
+        // past the adjacent corner as well as the carrying strip's lanes.
+        self.fv_top = self.fv_top.max(lanes.plate_front_top);
+        if lanes.plate_front_below > 0 {
+            widen(&mut self.fv_bottom, lanes.plate_front_below);
+        }
+        self.sv_left = self.sv_left.max(lanes.plate_side_left);
         widen(&mut self.fv_bottom, lanes.side_below);
         widen(&mut self.sv_bottom, lanes.side_below);
         widen(&mut self.sv_top, lanes.side_above);

@@ -366,6 +366,18 @@ basis, placed}`:
     callout states, is a `tolerance_not_shown` warning on its ID. Across a revision, feature
     entries are kept inactive like the other feature-keyed entries.
 
+Plate and wall thicknesses (`src/dims/plates.rs`, ISSUE-1373-a) are ordinary
+`d:f:plate:<n>/thickness.length` items: z slabs on the front-left strip, y walls
+above the side view and x walls below front. Equal thicknesses on one recognised
+body share a counted statement with every slab's claim. Proven envelope, step,
+turned-band and channel statements may cover an item; supporting polygonal slabs
+and slot-pattern webs require physical ownership evidence. Single-axis native
+slabs are retained when the ladder does not already state their interval. Plate
+coverage (`src/lint/plates.rs`) checks claimed, printed nominal values independently;
+zero-ink `suppressed:<id>` consumer annotations record authored omissions without
+stating a thickness or letting lint read the Spec. Outcomes use
+`plate_requirement_missing`, `_suppressed` and `_unverifiable`.
+
 Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `slots`, `bosses`,
 `edges`), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised
 feature (blends, turned steps, …) gets one info problem, `dimensions_not_ported`, on its

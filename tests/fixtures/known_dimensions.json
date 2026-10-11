@@ -938,5 +938,45 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "One span, one dimension (E3, ARCH0009-6): connector109's boss at z=139.42 has diameter 130.94, already stated by the overall diameter. The captured Python sheet repeats it as m_dia_z3 and dim_od (tests/fixtures/sheets/connector109.json.gz). The port's d:envelope/od.diameter now claims f:boss:4/boss.diameter and draws one ø130.9 across the same radial stations; the boss's length and the smaller diameters remain separate. Different bands stay separate, and omitting the overall diameter promotes the boss's own statement (tests/repeated_dimensions.rs)."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "plate",
+    "view": "front",
+    "label": "31.8",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the front thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on front witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "plate",
+    "view": "side",
+    "label": "31.8",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the front thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on front witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "plate",
+    "view": "front",
+    "label": "2× 31.8",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the front thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on front witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "plate",
+    "view": "front",
+    "label": "4.2",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "G2 conservative judgement: every native or bridged body-local slab needs thickness evidence unless an actual alternative states its interval. Python detect.py::_append_prismatic_features lowers only multi-axis plate constructions; m1000 has a single x slab [0,4.219] whose thickness no captured ladder or envelope measurement states (its recognition plate remains unverifiable in Python). The port prints 4.2 below front, x thickness edge-on, and claims thickness.length. This fulfils ISSUE-1373-a without treating the conversion gate as physical evidence; tests/dims_plates.rs and the G2 visual/quality evidence cover the native counterparts. The same rust-correct native-inventory policy states 10033 (8.3), 10049 (4.5), 10060 (14.3) and GRM-03 (2.5); native Analysis/Plan intervals and all changed SVG rasters are audited in the G2 status entry. Native FTC-07 uses an additional rust-correct placement judgement: its 5.08 mm Y wall is 2.54 mm on paper at 1:2, narrower than two 2.7 mm arrowheads, so the clear plan-left strip carries 5.1 instead of Python _thin_profiles.py fixed side-above map. Both views prove the same interval; explicit Spec view edits prevail. tools/check_plates.py and the reviewed 2400 px sheet provide the native evidence outside this captured-Python comparator."
   }
 ]

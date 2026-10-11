@@ -62,6 +62,7 @@ mod holes;
 mod leaders;
 pub(crate) mod levels;
 mod placement;
+mod plates;
 mod pmi_dimensions;
 mod recesses;
 mod slots;
@@ -452,7 +453,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 12] = [
+const PLANNERS: [Planner; 13] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -465,6 +466,7 @@ const PLANNERS: [Planner; 12] = [
     steps::PLANNER,
     levels::PLANNER,
     recesses::PLANNER,
+    plates::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's
@@ -673,10 +675,75 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
             )
         })
         .collect();
+    plates::prefer_readable(&mut wants, &frames, None);
     let (chosen, _) = route(&mut wants, &frames, analysis);
-    let owner = vec![None; wants.len()];
+    let plate = |w: &Want| {
+        w.measurements
+            .iter()
+            .any(|m| m.parameter == "thickness.length")
+    };
+    let owner = if wants.iter().any(plate) {
+        let merged = placement::owners(analysis, &wants, &chosen);
+        wants
+            .iter()
+            .enumerate()
+            .map(|(i, w)| if plate(w) { merged[i] } else { None })
+            .collect()
+    } else {
+        vec![None; wants.len()]
+    };
+    if wants
+        .iter()
+        .zip(&owner)
+        .any(|(w, owner)| plate(w) && owner.is_none())
+    {
+        plates::default_terms(analysis, &mut wants, &chosen);
+    }
     let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
-    placement::band_lanes(chosen.iter().zip(sides).zip(lane))
+    let mut bands = placement::band_lanes(
+        chosen
+            .iter()
+            .zip(sides.iter().copied())
+            .zip(lane.iter().copied())
+            .enumerate()
+            .filter(|(i, _)| owner[*i].is_none())
+            .map(|(_, item)| item),
+    );
+    let front_linear = wants
+        .iter()
+        .enumerate()
+        .filter(|(i, w)| {
+            owner[*i].is_none()
+                && chosen[*i] == Some("front")
+                && sides[*i] == Some(placement::Side::Below)
+                && matches!(w.shape, Shape::Linear { .. })
+        })
+        .map(|(i, _)| lane[i] + 1)
+        .max()
+        .unwrap_or(0);
+    for (i, w) in wants.iter().enumerate() {
+        if owner[i].is_some()
+            || !w
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "thickness.length")
+        {
+            continue;
+        }
+        match (chosen[i], sides[i]) {
+            (Some("front"), Some(placement::Side::Left)) => {
+                bands.plate_front_left = bands.plate_front_left.max(lane[i] + 1);
+                let ink = label_ink(&w.terms, font());
+                bands.plate_front_top = bands
+                    .plate_front_top
+                    .max(ink.max[0] - ink.min[0] + ARROW + 3.0);
+            }
+            (Some("front"), Some(placement::Side::Below)) => bands.plate_front_below = front_linear,
+            (Some("side"), Some(placement::Side::Above)) => bands.plate_side_left = ARROW + 2.0,
+            _ => {}
+        }
+    }
+    bands
 }
 
 /// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
@@ -720,6 +787,7 @@ pub(crate) fn plan_with_obstacles(
         })
         .collect();
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
+    plates::prefer_readable(&mut wants, &frames, Some(spec));
     let (chosen, end_on) = route(&mut wants, &frames, analysis);
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
@@ -782,11 +850,13 @@ pub(crate) fn plan_with_obstacles(
             _ => kept.push((w, entry.is_none(), view, along)),
         }
     }
+    plates::consolidate(analysis, &mut kept, &mut omitted);
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
     pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
     share_pmi(&mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
