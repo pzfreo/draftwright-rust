@@ -301,6 +301,14 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
         .iter()
         .enumerate()
         .filter(|(_, d)| d.placed.is_some() && off.contains(&d.id))
+        .filter(|(_, d)| {
+            !plan
+                .spec
+                .dimensions
+                .get(&d.id)
+                .and_then(|e| e.place.as_ref())
+                .is_some_and(|p| p.pinned)
+        })
         .filter_map(|(i, d)| Some((i, hole_item(d)?)))
         .collect();
     for &(i, kind) in &drops {
@@ -363,6 +371,22 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
     let mut table_failure = None;
     if tabulate {
         let (rows, replace) = rows(analysis, plan, &loose, row_tags);
+        if replace.iter().any(|&i| {
+            plan.spec
+                .dimensions
+                .get(&plan.dimensions[i].id)
+                .and_then(|e| e.place.as_ref())
+                .is_some_and(|p| p.pinned)
+        }) {
+            for &(i, _) in &drops {
+                say(
+                    plan,
+                    i,
+                    " No hole table: it would replace a pinned hole item.",
+                );
+            }
+            return;
+        }
         for &i in &replace {
             attempt[i].placed = None;
             attempt[i].state = crate::items::State::Covered { by: ID.into() };

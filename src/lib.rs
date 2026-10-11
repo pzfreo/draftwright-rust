@@ -16,6 +16,7 @@ pub mod lint;
 pub mod model;
 pub mod notes;
 pub mod output;
+pub mod placement_intent;
 pub mod pmi;
 pub mod pmi_lowering;
 pub mod png;

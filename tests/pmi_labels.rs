@@ -259,8 +259,13 @@ fn a_turned_part_keeps_the_view_its_pmi_is_drawn_in() {
     // A spec that asks for the side view to be left out still has its way, and the frame says
     // why it is not drawn.
     let mut spec = Spec::default();
-    spec.views
-        .insert("side".into(), draftwright::model::ViewSpec { omit: true });
+    spec.views.insert(
+        "side".into(),
+        draftwright::model::ViewSpec {
+            omit: true,
+            ..Default::default()
+        },
+    );
     let plan = model::plan(&a, &spec).unwrap();
     assert!(plan.views.iter().all(|v| v.id != "v:side"));
     let flatness = plan.gdt.iter().find(|g| g.cells[0] == "⏥").unwrap();

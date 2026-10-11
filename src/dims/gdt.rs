@@ -647,6 +647,17 @@ pub fn plan(
     views: &[PlannedView],
     dims: &[PlannedDimension],
 ) -> (Vec<PlannedGdt>, Vec<Problem>) {
+    plan_anchored(analysis, spec, sheet, views, dims, None)
+}
+
+pub(crate) fn plan_anchored(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    dims: &[PlannedDimension],
+    canonical: Option<&crate::model::Plan>,
+) -> (Vec<PlannedGdt>, Vec<Problem>) {
     let shown = |name: &str| views.iter().any(|v| v.id == format!("v:{name}"));
     let (mut items, mut problems) = crate::pmi_lowering::lower(analysis, &shown);
     if items.is_empty() {
@@ -662,6 +673,24 @@ pub fn plan(
         })
         .collect();
     let page = Page::new(analysis, sheet, views);
+    for item in &mut items {
+        if let Some(p) = spec
+            .annotations
+            .get(&item.id)
+            .and_then(|a| a.place.as_ref())
+        {
+            if let Some(v) = p.view.as_deref() {
+                item.view = match v {
+                    "plan" => "plan",
+                    "side" => "side",
+                    _ => "front",
+                };
+            }
+            if let Some(side) = p.side {
+                item.side = side.name();
+            }
+        }
+    }
     // Each site's position across its strip.
     let across = |i: &Lowered| -> f64 {
         frames.get(i.view).map_or(0.0, |f| {
@@ -683,8 +712,24 @@ pub fn plan(
         } else {
             across(a).total_cmp(&across(b))
         };
-        (a.view, a.side)
-            .cmp(&(b.view, b.side))
+        (
+            !spec
+                .annotations
+                .get(&a.id)
+                .and_then(|a| a.place.as_ref())
+                .is_some_and(|p| p.pinned),
+            a.view,
+            a.side,
+        )
+            .cmp(&(
+                !spec
+                    .annotations
+                    .get(&b.id)
+                    .and_then(|a| a.place.as_ref())
+                    .is_some_and(|p| p.pinned),
+                b.view,
+                b.side,
+            ))
             .then(order)
             .then(a.source.cmp(&b.source))
     });
@@ -732,12 +777,25 @@ pub fn plan(
             label: crate::items::frame_label(&cells),
             cells,
             modifiers,
-            default: true,
+            default: !spec.annotations.contains_key(&item.id),
             basis: item.basis.clone(),
             // Shown once placed; else its view is not drawn.
             state: State::not_drawable("pmi_not_drawn"),
             placed: None,
         };
+        if spec.annotations.get(&item.id).is_some_and(|a| a.omit) {
+            planned.state = State::OmittedByUser;
+            planned.basis += "; omitted by the spec";
+            out.push(planned);
+            continue;
+        }
+        let intent = spec
+            .annotations
+            .get(&item.id)
+            .and_then(|a| a.place.as_ref());
+        if intent.is_some() {
+            planned.basis += "; placed relative to its anchor by the spec";
+        }
         let Some(frame) = frames.get(item.view) else {
             problems.push(Problem {
                 id: format!("p:pmi_not_drawn:{}", item.id),
@@ -761,6 +819,50 @@ pub fn plan(
             out.push(planned);
             continue;
         };
+        if intent.is_some_and(crate::placement_intent::automatic_pin)
+            && let Some(base) = canonical
+            && let Some(g) = base
+                .gdt
+                .iter()
+                .find(|g| g.id == item.id && g.view == planned.view)
+            && let Some(delta) = crate::placement_intent::anchor_delta(base, views, &g.view)
+            && let Some(mut p) = g.placed.clone()
+        {
+            use crate::placement_intent::{move_box, move_point};
+            move_point(&mut p.tip, delta);
+            move_box(&mut p.label_box, delta);
+            for line in p
+                .lines
+                .iter_mut()
+                .chain(&mut p.arrows)
+                .chain(&mut p.strokes)
+            {
+                for q in line {
+                    move_point(q, delta);
+                }
+            }
+            for arc in &mut p.arcs {
+                if delta != [0.0, 0.0] {
+                    arc[0] += delta[0];
+                    arc[1] += delta[1];
+                }
+            }
+            for fill in &mut p.fills {
+                for q in fill {
+                    move_point(q, delta);
+                }
+            }
+            for t in p.letters.iter_mut().chain(&mut p.runs) {
+                move_point(&mut t.at, delta);
+            }
+            labels.push(p.label_box);
+            lines.extend(p.lines.iter().copied());
+            planned.side = g.side.clone();
+            planned.state = State::Shown;
+            planned.placed = Some(p);
+            out.push(planned);
+            continue;
+        }
         let own = format!("v:{}", item.view);
         let ink: Vec<[P2; 2]> = dims
             .iter()
@@ -783,7 +885,7 @@ pub fn plan(
             labels: labels.clone(),
             lines: lines.clone(),
         };
-        let sides: Vec<&str> = if datum {
+        let sides: Vec<&str> = if datum || intent.is_some_and(|p| p.side.is_some()) {
             vec![item.side]
         } else {
             std::iter::once(item.side)
@@ -797,11 +899,25 @@ pub fn plan(
             .map(|s| frame.page(s))
             .collect();
         let tiers = |side: &str, tip: P2| {
-            let first = first_tier(datum, side, tip, frame.outline(), &ink, laid.size);
+            let pinned = intent.is_some_and(|p| p.pinned);
+            let first = first_tier(
+                datum,
+                side,
+                tip,
+                frame.outline(),
+                if pinned { &[] } else { &ink },
+                laid.size,
+            );
             let d = outward(side);
             let sign = if d[0] + d[1] < 0.0 { -1.0 } else { 1.0 };
             let step = step(datum, side, laid.size);
-            (0..TIERS).map(move |k| first + sign * k as f64 * step)
+            let lane = intent.and_then(|p| p.lane).unwrap_or(0);
+            let count = if intent.is_some_and(|p| p.pinned) {
+                1
+            } else {
+                TIERS
+            };
+            (0..count).map(move |k| first + sign * (k + lane) as f64 * step)
         };
         // The best grade any place has, the first place of that grade: by site, then strip,
         // then tier.
@@ -809,8 +925,41 @@ pub fn plan(
         'search: for (n, tip) in tips.iter().enumerate() {
             for side in &sides {
                 for pos in tiers(side, *tip) {
-                    let c = candidate(datum, *tip, side, pos, laid.size);
-                    let g = obstacles.grade(&c);
+                    let mut anchor = *tip;
+                    if let Some(along) = intent.and_then(|p| p.along) {
+                        let o = frame.outline();
+                        let k = usize::from(outward(side)[0] != 0.0);
+                        anchor[k] = o[k] + along.fraction() * (o[k + 2] - o[k]);
+                    }
+                    let mut c = candidate(datum, anchor, side, pos, laid.size);
+                    if datum && intent.and_then(|p| p.along).is_some() {
+                        for fill in &mut c.fills {
+                            for q in fill {
+                                q[0] += tip[0] - anchor[0];
+                                q[1] += tip[1] - anchor[1];
+                            }
+                        }
+                    }
+                    if intent.and_then(|p| p.along).is_some() {
+                        if let Some(line) = c.lines.first_mut() {
+                            line[0] = if datum {
+                                [
+                                    line[0][0] + tip[0] - anchor[0],
+                                    line[0][1] + tip[1] - anchor[1],
+                                ]
+                            } else {
+                                *tip
+                            };
+                        }
+                        for a in &mut c.arrows {
+                            *a = placement::arrow(*tip, c.elbow);
+                        }
+                    }
+                    let g = if intent.is_some_and(|p| p.pinned) {
+                        0
+                    } else {
+                        obstacles.grade(&c)
+                    };
                     if best.as_ref().is_none_or(|b| g < b.0) {
                         best = Some((g, side, c, *tip, n));
                         if g == 0 {

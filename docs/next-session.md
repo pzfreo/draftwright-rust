@@ -2128,3 +2128,207 @@ improvement plan and questions are the current work. Still open from before it:
     exactly? Also disclosed, not gated: native GRM-03 goes A4 2:1 to A4 1:1 (draftwright 5:1;
     cause a leader label on an extension line in `leaders.rs`), and ftc07 A1 1:1 (draftwright
     A2 1:2; its A2 1:2 try fails on three ink-placement findings).
+
+## Thin slice S3: placement as intent (2026-10-10)
+
+Initial implementation committed by the driver as `908f178`: dimension and semantic PMI `place` (`view`,
+`side`, zero-based `lane`, fractional/named `along`, `pinned`), and view `place`
+(`relative_to`, `side`, paper `gap`, `align`, `pinned`). The model reference documents the
+schema and anchor resolution. Fixed annotations participate in linear, leader, PMI and view
+packing; pinned hole items cannot be dropped or replaced by a hole table. Unavailable anchors,
+covered pins, collisions and sheet overruns are reported while their Spec entries are retained.
+S4 sessions and S5 editor migration/fork retirement are outside this change.
+
+Overturnable judgement calls made unattended:
+
+- Retain the S1 `dimensions/<id>/view` spelling for compatibility; `place.view` wins. The
+  editor's old `keep` spelling is not introduced: `omit: false` still follows consolidation.
+- A view's relative anchor is another view name or `sheet` (the drawing area's lower left).
+  Gaps use paper mm (default 10); alignment is start/middle/end. Lane and gap inputs are bounded
+  at 1000 to keep layout searches finite. A pin without explicit strip/label fields uses the canonical automatic geometry.
+- A pin fixes its carrier and the carrier's view-anchor chain for automatic packing. The
+  canonical frames and automatic sheet choice come from the part's default recovered plan,
+  with explicit sheet and scale choices applied. Recovery does not change sheet or scale under
+  pins in response to unrelated edits. Editing an anchor's own intent is a related edit and
+  intentionally re-resolves its dependants; sheet and scale edits also re-resolve them. These
+  rules require no hidden session or page coordinates and replay from the Spec alone.
+- Fixed ink bounds reserve conservative rectangles. Free views use deterministic edge-aligned
+  candidates around these obstacles and the title block. An unpinned isometric may shrink;
+  principal views keep their sheet scale. An infeasible placement is retained and reported.
+- Existing angular PMI keeps its measured sector; lane adjusts its radius and along its arc.
+  A side request is reported with a fix removing that field, rather than changing the sector.
+- A placement fix on a pin resets the annotation's `place` to `{}` or removes the view's
+  `place`, returning it to automatic placement. Free-item fixes suggest another strip/label
+  position; callers must re-plan to assess them. If tabulation would replace a pinned hole
+  item, keep that pin and report the original drops instead of duplicating its measurements.
+
+Six S3 regression tests in `tests/placement_intent.rs` were run before implementation: all six
+failed on the unchanged model's refusal of `place`/`annotations`. They were then strengthened
+with seeded sequences (two seeds, 16 edits per seed, random N=1–4) on the editor plate, corpus
+10127, GRM-03 and CTC-01, plus semantic AP242 CTC-01. They cover omission, tolerance and relative
+placement edits of other annotations and views, sheet/scale re-resolution, collision and
+missing-anchor reports, executable placement fixes, and SVG/DXF/PDF/PNG Spec extraction and exact
+re-rendering. Existing test expectations were not weakened; two `ViewSpec` literals only gained
+the new field's default.
+
+Seeded pin distribution (before the other-item edits; all pins retain byte-identical geometry
+after 16 edits per configuration). The corpus CTC-01 is presentation PMI; the AP242 fixture
+adds semantic frames and datum symbols. This is a report, not a zero-collision gate:
+
+| Part | Seed | Pins | Off sheet | View pin overlap | Label / line over view | Label / ink overlap | Leader crossing | Outside area | Fit uncertain | Dropped free items |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| plate | 1379 | 3 | 0 | 1 | 2 / 4 | 0 / 0 | 0 | 7 | 1 | 1 |
+| plate | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 1 | 4 | 1 | 0 |
+| 10127 | 1379 | 3 | 0 | 0 | 0 / 0 | 0 / 0 | 0 | 3 | 0 | 0 |
+| 10127 | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 0 | 1 | 0 | 0 |
+| GRM-03 | 1379 | 3 | 0 | 1 | 0 / 0 | 0 / 0 | 0 | 3 | 0 | 0 |
+| GRM-03 | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 0 | 4 | 0 | 0 |
+| CTC-01 | 1379 | 3 | 0 | 0 | 0 / 0 | 0 / 2 | 3 | 9 | 0 | 0 |
+| CTC-01 | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 3 | 8 | 0 | 0 |
+| CTC-01 AP242 | 1379 | 3 | 0 | 0 | 0 / 0 | 1 / 1 | 19 | 11 | 1 | 0 |
+| CTC-01 AP242 | 3227993 | 2 | 0 | 0 | 0 / 0 | 0 / 0 | 23 | 10 | 1 | 0 |
+
+The supplied, deliberately conflicting pins can leave collisions. They remain drawn and their
+IDs are reported. Source/recognition/PMI coverage findings are excluded from this layout table.
+
+
+Final validation on the completed S3 code (2026-10-10, `CARGO_BUILD_JOBS=4`,
+`RUST_TEST_THREADS=4`; one Cargo command at a time):
+
+- `cargo fmt --check`: passed.
+- `cargo clippy --all-targets --release -- -D warnings`: passed.
+- `DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`:
+  571 passed, 0 failed, 0 ignored, across 63 result groups (including doc tests).
+  The six S3 tests also passed separately on the final code: 6 passed, 0 failed.
+- `cargo build --release`: passed. No process was killed by the memory guard.
+- The requested `sed`/`tr`/`xargs` invocation of `python3 -I tools/quality.py` ran on all 30
+  `tools/quality_parts.txt` parts, with no pins. Compared every part and every quality column,
+  including the five individual ink codes, against the latest values in
+  `docs/quality-2026-10-09.md` (including its final CTC-02 correction): no regressions.
+  FTC-10 measured four leader crossings instead of the table's five; all other cells matched.
+  Results are in `target/quality-s3/baseline.json` and the rendered SVGs in that directory.
+
+```text
+                              off_sheet repeated_lab repeated_mea views_overla view_on_titl          ink
+TOTAL                                   0           18            0            0            0          282
+parts affected                          0            9            0            0            0           21 of 30
+```
+
+`git diff --check` passed. The initial agent made no commits or pushes; the driver then committed the work as `908f178`.
+
+## S3 review fix round (2026-10-11)
+
+Changes are uncommitted in this worktree; the driver owns commits. Fixed the major review
+finding: `{place: {pinned: true}}` on a dimension or PMI annotation now keeps its canonical
+automatic ink, rather than rebuilding it in lane zero. The ink is translated only when its
+carrier anchor is deliberately changed. Explicit linear strip intent without a lane uses the
+automatic lane. Pins still participate as obstacles before free items are packed.
+
+Three added regressions were each observed failing before their corresponding fix:
+`pinning_without_offsets_keeps_automatic_geometry` (plate hole-pattern callout moved),
+`missing_pmi_placement_on_a_revision_is_inactive` (missing annotation refused the plan), and
+`an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt` (table attempt suppressed).
+The first checks every placed dimension and semantic PMI item on the slice parts, byte for
+byte, both on pinning and after an unrelated omission. The existing sheet/scale test now
+checks off-sheet label and leader ink for its specific `annotation_off_sheet` problem; a
+front-view pin fits A0, overruns A4 without moving, and must have `pinned_view_off_sheet`
+with a fix. Re-resolution across sheets permits only floating-point rounding of its box
+(1e-9 mm); the lower-left anchor is checked exactly.
+
+Removed the redundant final dimension pin-copy loop; the placement stages themselves preserve
+fixed items. Empty annotation maps skip the extra PMI lowering used for key validation.
+A different source binding now makes PMI dimensions and annotations inactive alongside
+feature entries, retaining them and their original binding with removal fixes; unknown PMI
+IDs on the same source are still refused. GD&T's beyond-lanes retry runs with pins. A hole
+table is prevented only when its replacement set includes a pin; an off-axis hole pin no
+longer suppresses an unrelated plan-view table attempt. Corrected render defaults and restored
+the original model design fields as documented, unimplemented design; corrected the initial
+S3 report's stale commit wording.
+
+Overturnable judgement call retained: automatic sheet/scale recovery stays disabled with
+pins. Its retries change the carrier scale or page frame, contradicting the required
+byte-identical pin position under unrelated edits. Explicit sheet/scale edits still re-resolve
+pins and report failures. Recovering free items on another sheet while keeping pinned carrier
+frames would require a separate layout contract; this round keeps the existing invariant.
+
+Seeded comparison now reports the unpinned baseline alongside each pinned configuration (the
+same deliberately conflicting explicit pins as the initial report). No new off-sheet ink in
+any configuration; ink totals below use quality.py's five annotation codes. This is measured
+layout degradation, not a claim that arbitrary explicit pins meet the later go/no-go gate.
+
+| Part | Seed | Unpinned ink | Pinned ink | Off sheet before → after |
+| --- | --- | --- | --- | --- |
+| plate | 1379 | 3 | 13 | 0 → 0 |
+| plate | 3227993 | 3 | 5 | 0 → 0 |
+| 10127 | 1379 | 1 | 3 | 0 → 0 |
+| 10127 | 3227993 | 1 | 1 | 0 → 0 |
+| GRM-03 | 1379 | 2 | 3 | 0 → 0 |
+| GRM-03 | 3227993 | 2 | 4 | 0 → 0 |
+| CTC-01 | 1379 | 11 | 14 | 0 → 0 |
+| CTC-01 | 3227993 | 11 | 11 | 0 → 0 |
+| CTC-01 AP242 | 1379 | 26 | 31 | 0 → 0 |
+| CTC-01 AP242 | 3227993 | 26 | 33 | 0 → 0 |
+
+Final review-round validation (`CARGO_BUILD_JOBS=4`, `RUST_TEST_THREADS=4`, one Cargo
+command at a time; no process killed by the memory guard):
+
+- `cargo fmt --check`: passed.
+- `cargo clippy --all-targets --release -- -D warnings`: passed.
+- Required full-corpus `cargo test --release`: **574 passed, 0 failed, 0 ignored**, 63 result
+  groups including doc tests. Logs: `target/s3-fix-full-tests.log`.
+- Targeted placement tests: **8 passed**; targeted hole-table tests: **11 passed**.
+  Seeded baseline/pin comparison: `target/s3-fix-regressions.log`.
+- `cargo build --release`: passed.
+- Required `sed`/`tr`/`xargs` invocation of `python3 -I tools/quality.py`: all **30 parts**
+  succeeded. Compared every documented column and all five ink codes with the latest complete
+  table in `docs/quality-2026-10-09.md`, applying its final CTC-02 correction: **no part worse**.
+  FTC-10 has 4 leader crossings / 22 ink rather than the table's 5 / 23. Results exactly match
+  the initial S3 artifact, including dimensions and repeated drawn spans.
+  Artifacts: `target/quality-s3-fix/baseline.json`, its rendered SVGs, and
+  `target/s3-fix-quality.log`.
+
+```text
+                              off_sheet repeated_lab repeated_mea views_overla view_on_titl          ink
+TOTAL                                   0           18            0            0            0          282
+parts affected                          0            9            0            0            0           21 of 30
+```
+
+`git diff --check` passed. No commits or pushes in this fix round.
+
+## S3 review fix round 2 (2026-10-11, Claude)
+
+The two major review items are fixed; the two minor items are left as recorded below.
+
+- **A bare pin's own label edits:** a bare pin (`place: {pinned:true}`) kept the canonical
+  plan's ink, including the label box sized for the default text, so a tolerance added to the
+  pinned item itself was drawn outside its box. `dims::placement::relabel` now re-sets the label
+  from the item's current terms when they differ from the held terms (unchanged terms keep the
+  held ink byte for byte). The lines and arrows stay; a linear or angular label keeps its centre
+  along its direction, a callout's label keeps the edge at its shoulder and a shoulder that ran
+  under the label follows the new width. On the editor's plate.step,
+  `d:envelope/width.length = {tolerance:'±0.25', place:{pinned:true}}` now gives the box
+  [72.305, 55.964, 87.695, 58.13], the same as unpinned. Regression test
+  `a_bare_pin_relays_its_own_label_when_its_text_changes` (46 linear and 22 callout items on
+  the slice parts; it fails without the fix). **Judgement call (overturnable):** a re-laid
+  linear label is not moved outside its arrows if the longer text no longer fits between them;
+  the held dimension line is kept, and any collision is reported as usual.
+- **No sheet anchor for views:** `views/<name>/place.relative_to` accepts only another view
+  (`front`, `plan`, `side`, `iso`, `section_aa`); `sheet` was a page coordinate in disguise
+  (ADR R1 invariant 1, maintainer decision 2) and is now refused. The tests that pinned views to
+  the sheet now pin them beside another view; the sheet-change test checks that the relation to
+  the anchor holds on A0 and on A4 and that A4 reports `pinned_view_off_sheet`. In the seeded
+  property test, the anchor chain of a pinned view is excluded from the "other items" edits,
+  as a pinned dimension's carrying view already was (editing the anchor is editing the pin's
+  own intent). docs/model.md updated.
+- **Left (minor):** tools/quality.py has no random-pin mode (the distribution is still the
+  cargo test's eprintln on the slice parts), and recovery stays off for the whole drawing while
+  any pin exists, with the canonical plan recomputed on each `plan_with` (S4 latency).
+
+Validation (`CARGO_BUILD_JOBS=4`, `RUST_TEST_THREADS=4`, one at a time): `cargo fmt --check`
+passed; `cargo clippy --all-targets --release -- -D warnings` passed; required full-corpus
+`cargo test --release`: **575 passed, 0 failed, 0 ignored** (63 result groups; log
+`target/s3-fix2-full-tests.log`); `tools/quality.py` on the 30 parts: TOTAL off_sheet 0,
+repeated_label 18, repeated_measure 0, views_overlap 0, view_on_title_block 0, ink 282, and
+`baseline.json` byte-identical to the previous round's, so no part is worse than the latest
+table in `docs/quality-2026-10-09.md` (per part, against the gate audit's "after" column, ftc10
+ink 22 against 23 after the accepted leader-label weighting).

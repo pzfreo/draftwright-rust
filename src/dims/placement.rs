@@ -823,6 +823,231 @@ pub(super) fn settle(
     settle_where(items, &page, |_| true, |i, j| j != i);
 }
 
+pub(super) fn settle_fixed(
+    items: &mut [Option<Placed>],
+    fixed: &[bool],
+    obstacles: &[PlannedDimension],
+    analysis: &Analysis,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+) {
+    if fixed.iter().all(|f| !f) && obstacles.is_empty() {
+        settle(items, analysis, sheet, views);
+        return;
+    }
+    let n = items.len();
+    let mut all = items.to_vec();
+    all.extend(obstacles.iter().map(|d| d.placed.clone()));
+    let page = Page::new(analysis, sheet, views);
+    settle_where(&mut all, &page, |i| i < n && !fixed[i], |i, j| i != j);
+    items.clone_from_slice(&all[..n]);
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn avoid_fixed(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    chosen: &[Option<&str>],
+    sides: &[Option<Side>],
+    lanes: &[usize],
+    fixed: &[bool],
+    placed: &mut [Option<Placed>],
+    obstacles: &[PlannedDimension],
+    page: &Page,
+) {
+    let held: Vec<Placed> = placed
+        .iter()
+        .zip(fixed)
+        .filter_map(|(p, f)| if *f { p.clone() } else { None })
+        .chain(obstacles.iter().filter_map(|d| d.placed.clone()))
+        .collect();
+    if held.is_empty() {
+        return;
+    }
+    let blocked = |p: &Placed| {
+        held.iter().any(|q| {
+            boxes_overlap(p.label_box, q.label_box)
+                || p.lines.iter().any(|l| crosses(*l, q.label_box))
+                || q.lines.iter().any(|l| crosses(*l, p.label_box))
+        })
+    };
+    for i in 0..items.len() {
+        if fixed[i] {
+            continue;
+        }
+        let (Some(p), Some(view), Some(side)) = (&placed[i], chosen[i], sides[i]) else {
+            continue;
+        };
+        if !blocked(p) {
+            continue;
+        }
+        for lane in lanes[i] + 1..lanes[i] + 65 {
+            if let Some(p) = place(&frames[view], &items[i], side, lane)
+                && page.fits(&p, view)
+                && !blocked(&p)
+            {
+                placed[i] = Some(p);
+                break;
+            }
+        }
+    }
+}
+
+/// A held (bare-pin) placement re-laid for the item's current label: the lines stay where the
+/// automatic layout put them, and only the label is re-set from *terms*. A linear or angular label
+/// keeps its centre along its direction; a callout's keeps the edge at its shoulder and the
+/// shoulder line follows the new width. Unchanged terms keep the held ink byte for byte.
+pub(super) fn relabel(held: &Placed, was: &[String], w: &Want) -> Placed {
+    if was == w.terms.as_slice() {
+        return held.clone();
+    }
+    let ink = label_ink(&w.terms, font());
+    let mut p = held.clone();
+    let fresh = label_box(&ink, p.label_at, p.rotation);
+    let old = held.label_box;
+    let r = p.rotation.rem_euclid(180.0);
+    let axis = if r.abs() < 1e-9 {
+        Some(0)
+    } else if (r - 90.0).abs() < 1e-9 {
+        Some(1)
+    } else {
+        None
+    };
+    let mut d = [0.0; 2];
+    match (&w.shape, axis) {
+        (Shape::Callout { .. }, Some(k)) => {
+            // The shoulder is the leader's last segment; the label sits beyond its far end.
+            let shoulder = p.lines.last().copied();
+            let right = shoulder.is_none_or(|[a, b]| b[k] >= a[k]);
+            d[k] = if right {
+                old[k] - fresh[k]
+            } else {
+                old[k + 2] - fresh[k + 2]
+            };
+        }
+        (_, Some(k)) => d[k] = 0.5 * (old[k] + old[k + 2] - fresh[k] - fresh[k + 2]),
+        (_, None) => {
+            for k in 0..2 {
+                d[k] = 0.5 * (old[k] + old[k + 2] - fresh[k] - fresh[k + 2]);
+            }
+        }
+    }
+    p.label_at = [p.label_at[0] + d[0], p.label_at[1] + d[1]];
+    p.label_box = label_box(&ink, p.label_at, p.rotation);
+    if let (Shape::Callout { .. }, Some(k), Some(last)) = (&w.shape, axis, p.lines.last_mut()) {
+        // A shoulder that ran under the old label runs under the new one, as far past its end.
+        let [a, b] = *last;
+        if b[k] >= a[k] && b[k] > old[k] {
+            last[1][k] = p.label_box[k + 2] + (b[k] - old[k + 2]);
+        } else if b[k] < a[k] && b[k] < old[k + 2] {
+            last[1][k] = p.label_box[k] + (b[k] - old[k]);
+        }
+    }
+    p
+}
+
+/// Resolve intent independently of the other annotations, then let the solver fill around it.
+pub(super) fn intent(
+    frame: &Frame,
+    w: &Want,
+    p: &crate::placement_intent::Place,
+    side: Side,
+    lane: usize,
+) -> Option<Placed> {
+    if !p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() {
+        return None;
+    }
+    let side = match p.side {
+        Some(crate::placement_intent::Side::Above) => Side::Above,
+        Some(crate::placement_intent::Side::Below) => Side::Below,
+        Some(crate::placement_intent::Side::Left) => Side::Left,
+        Some(crate::placement_intent::Side::Right) => Side::Right,
+        None => side,
+    };
+    let lane = p.lane.unwrap_or(lane);
+    let mut placed = match &w.shape {
+        Shape::Linear { axis, .. } => {
+            let horizontal = across(frame, *axis)?;
+            if horizontal != matches!(side, Side::Above | Side::Below) {
+                return None;
+            }
+            place_linear(frame, &w.shape, &w.terms, side, lane)?
+        }
+        Shape::Callout { sites } => {
+            let (site, radius) = sites.first()?;
+            let c = frame.page(*site);
+            let d = match side {
+                Side::Above => [0.0, 1.0],
+                Side::Below => [0.0, -1.0],
+                Side::Left => [-1.0, 0.0],
+                Side::Right => [1.0, 0.0],
+            };
+            let tip = [
+                c[0] + d[0] * radius * frame.scale(),
+                c[1] + d[1] * radius * frame.scale(),
+            ];
+            let o = frame.outline();
+            let (line, _) = lane_at(o, side, lane);
+            let k = usize::from(matches!(side, Side::Above | Side::Below));
+            let f = p
+                .along
+                .unwrap_or(crate::placement_intent::Along::Fraction(0.5))
+                .fraction();
+            let mut elbow = c;
+            elbow[k] = line;
+            elbow[1 - k] = o[1 - k] + f * (o[3 - k] - o[1 - k]);
+            let ink = label_ink(&w.terms, font());
+            let width = ink.max[0] - ink.min[0];
+            let left = side == Side::Left;
+            let end = [
+                elbow[0]
+                    + if left {
+                        -width - super::SHOULDER
+                    } else {
+                        width + super::SHOULDER
+                    },
+                elbow[1],
+            ];
+            let at = [
+                if left {
+                    end[0] - ink.min[0]
+                } else {
+                    elbow[0] + super::SHOULDER - ink.min[0]
+                },
+                elbow[1] + LIFT,
+            ];
+            Placed {
+                lines: vec![[tip, elbow], [elbow, end]],
+                arrows: vec![arrow(tip, elbow)],
+                label_at: at,
+                rotation: 0.0,
+                label_box: label_box(&ink, at, 0.0),
+            }
+        }
+        Shape::Angular { angle } => super::angular::intent(frame, angle, &w.terms, p)?,
+    };
+    if matches!(w.shape, Shape::Linear { .. })
+        && let Some(along) = p.along
+    {
+        let k = usize::from(placed.rotation != 0.0);
+        let lo = placed
+            .arrows
+            .iter()
+            .map(|a| a[0][k])
+            .fold(f64::INFINITY, f64::min);
+        let hi = placed
+            .arrows
+            .iter()
+            .map(|a| a[0][k])
+            .fold(f64::NEG_INFINITY, f64::max);
+        let ink = label_ink(&w.terms, font());
+        let width = ink.max[0] - ink.min[0];
+        placed.label_at[k] = lo + along.fraction() * (hi - lo) - 0.5 * width - ink.min[0];
+        placed.label_box = label_box(&ink, placed.label_at, placed.rotation);
+    }
+    Some(placed)
+}
+
 /// Places each item merged away ([`owners`]) in its survivor's lane, once everything else is
 /// placed (callouts included), and moves its label as [`settle`] would, clear of every other
 /// item but its survivor and the items merged with it: their ink is the one span drawn once. One
