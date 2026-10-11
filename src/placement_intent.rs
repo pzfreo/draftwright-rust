@@ -424,10 +424,12 @@ pub(crate) fn views(
     for v in views.iter().filter(|v| fixed.contains(&v.id)) {
         let a = v.area;
         let path = format!("views/{}/place", v.id.trim_start_matches("v:"));
-        if a[0] < crate::layout::MARGIN
-            || a[1] < crate::layout::MARGIN
-            || a[2] > page[0] - crate::layout::MARGIN
-            || a[3] > page[1] - crate::layout::MARGIN
+        // Anchor arithmetic can put a boundary a few ulps beyond the paper margin.
+        let tolerance = 1e-9;
+        if a[0] < margin - tolerance
+            || a[1] < margin - tolerance
+            || a[2] > page[0] - margin + tolerance
+            || a[3] > page[1] - margin + tolerance
         {
             // Only an explicit view pin has an editable view placement entry.
             if s.views
@@ -608,4 +610,53 @@ pub(crate) fn held_dimensions(
             Some(d)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pinned_view_bounds_distinguish_roundoff_from_overruns_on_every_edge() {
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size":"A4", "page":[210,297], "scale":"1:1", "scale_factor":1,
+            "arrangement":"columns", "title_block":[150,10,200,40],
+            "default":true, "basis":"test", "state":{"kind":"shown"}, "title":{}
+        }))
+        .unwrap();
+        let view: PlannedView = serde_json::from_value(json!({
+            "id":"v:plan", "direction":[0,0,1], "up":[0,1,0], "at":[50,50],
+            "scale":1, "area":[10,10,200,287], "default":true,
+            "basis":"test", "state":{"kind":"shown"}
+        }))
+        .unwrap();
+        let spec: Spec = serde_json::from_value(json!({"views":{"plan":{"place":{
+            "relative_to":"front", "side":"above", "pinned":true
+        }}}}))
+        .unwrap();
+        for edge in 0..4 {
+            for (error, off_sheet) in [(0.0, false), (1e-12, false), (1e-4, true)] {
+                let mut held = view.clone();
+                held.area[edge] += if edge < 2 { -error } else { error };
+                let area = held.area;
+                let mut problems = Vec::new();
+                views(
+                    &spec,
+                    std::slice::from_mut(&mut held),
+                    None,
+                    &sheet,
+                    &[],
+                    &mut problems,
+                );
+                assert_eq!(held.area, area);
+                assert_eq!(
+                    problems
+                        .iter()
+                        .any(|p| p.code == "pinned_view_off_sheet" && p.subjects == ["v:plan"]),
+                    off_sheet,
+                    "edge {edge}, error {error}"
+                );
+            }
+        }
+    }
 }

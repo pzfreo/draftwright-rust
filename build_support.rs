@@ -4,12 +4,21 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub fn inputs(root: &Path) -> io::Result<Vec<PathBuf>> {
-    fn collect(root: &Path, path: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
+    fn collect(
+        root: &Path,
+        path: &Path,
+        extensions: &[&str],
+        files: &mut Vec<PathBuf>,
+    ) -> io::Result<()> {
         for entry in fs::read_dir(path)? {
             let path = entry?.path();
             if path.is_dir() {
-                collect(root, &path, files)?;
-            } else {
+                collect(root, &path, extensions, files)?;
+            } else if path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| extensions.contains(&e))
+            {
                 files.push(path.strip_prefix(root).unwrap().to_path_buf());
             }
         }
@@ -18,8 +27,12 @@ pub fn inputs(root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut files = ["Cargo.toml", "Cargo.lock", "build.rs", "build_support.rs"]
         .map(PathBuf::from)
         .to_vec();
-    for directory in ["src", "schemas/mcp", "fonts"] {
-        collect(root, &root.join(directory), &mut files)?;
+    for (directory, extensions) in [
+        ("src", &["rs"][..]),
+        ("schemas/mcp", &["json"][..]),
+        ("fonts", &["ttf", "otf"][..]),
+    ] {
+        collect(root, &root.join(directory), extensions, &mut files)?;
     }
     files.sort();
     Ok(files)

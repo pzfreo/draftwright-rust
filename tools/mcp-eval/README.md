@@ -118,3 +118,9 @@ Measurements exit 0 even for a measured no-go; add `--require-go` to enforce the
 bar (nonzero for any failing part). Missing parts, failed commands and insufficient
 pin candidates always fail. For zero unpinned ink, the 1.5× bar requires zero
 pinned ink. The aggregate passes only if every part passes.
+
+Sampling chooses random subsets of existing drawable placements. Dimensions and PMI
+use bare pins that retain automatic geometry; views use the nearest named relative
+placement to a fixed root. It does not measure random manual relocation to placements
+from `item_options`. This narrower interpretation is recorded as overturnable in
+`docs/next-session.md`; a passing grid would not establish relocation quality.

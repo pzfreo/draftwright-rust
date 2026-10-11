@@ -5,6 +5,16 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { serverUrl } from './client.mjs';
+
+test('server startup waits for a complete line across every chunk boundary', () => {
+  const line = 'draftwright MCP listening on http://127.0.0.1:43210/mcp\n';
+  for (let end = 0; end < line.length; end++) {
+    assert.equal(serverUrl(line.slice(0, end)), undefined, `prefix ${end}`);
+    assert.equal(serverUrl(line.slice(0, end) + line.slice(end)), 'http://127.0.0.1:43210/mcp');
+  }
+  assert.equal(serverUrl(line.replace('\n', '\r\n') + 'later log\n'), 'http://127.0.0.1:43210/mcp');
+});
 
 const run = args => new Promise(done => {
   const child = spawn(process.execPath, ['tools/mcp-eval/call.mjs', ...args]);
@@ -86,7 +96,7 @@ test('real HTTP adapter accepts a call and checker scores final and initial vers
   try {
     const url = await new Promise((done, fail) => {
       let stderr = '';
-      child.stderr.on('data', text => { stderr += text; const match = stderr.match(/listening on (http:\/\/[^\s]+)/); if (match) done(match[1]); });
+      child.stderr.on('data', text => { stderr += text; const url = serverUrl(stderr); if (url) done(url); });
       child.on('error', fail); child.on('exit', code => fail(new Error(`server exited ${code}: ${stderr}`)));
     });
     const common = ['--url', url, '--log', resolve(dir, 'calls.jsonl'), '--task', 'plate-a4-title-no-iso'];

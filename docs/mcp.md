@@ -77,9 +77,11 @@ Tool subprocess requests may put fields inside `arguments` (e.g.
 request ID does not conflict with the item's ID. Existing live Session operations are preserved.
 
 `part_ref` is `<STEP SHA-256>-<engine SHA-256>`. `build.rs` derives `ENGINE_VERSION` from
-sorted, length-delimited relative paths and contents of `src/`, Cargo.lock, Cargo.toml, the
-build scripts, MCP schemas and bundled fonts. Cargo watches the files and directories, so edits,
-additions and removals invalidate the key automatically; no manual suffix bump is needed.
+sorted, length-delimited relative paths and contents of `src/**/*.rs`, Cargo.lock, Cargo.toml,
+the build scripts, MCP `*.json` schemas and bundled `*.ttf`/`*.otf` fonts. Stray files
+(such as `.DS_Store`, swap files and backups) are excluded. Cargo watches files and
+directories, so edits, additions and removals of relevant inputs invalidate the key
+automatically; no manual suffix bump is needed.
 Absolute paths and timestamps are excluded, so identical checkouts share keys. Unknown keys, including keys
 from another engine, explain registration with `inspect_part {step: ...}`. Registration copies
 STEP bytes, their original basename, and optional recognition JSON. Cold keys compute Analysis,

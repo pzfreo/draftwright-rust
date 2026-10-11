@@ -6,6 +6,7 @@ import { resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { check, loadTasks } from './check.mjs';
 import { localParts, featureNames } from './parts.mjs';
+import { serverUrl } from './client.mjs';
 const args=process.argv.slice(2);
 const option=(key,fallback)=>args.includes(key)?args[args.indexOf(key)+1]:fallback;
 const tokens=bytes=>Math.ceil(bytes/4);
@@ -17,7 +18,7 @@ try {
   if(!url){
     cache=mkdtempSync(resolve(tmpdir(),'draftwright-mcp-eval-'));
     child=spawn(resolve(option('--binary','target/release/draftwright')),['mcp-http','127.0.0.1:0'],{env:{...process.env,DRAFTWRIGHT_CACHE:cache},stdio:['ignore','ignore','pipe']});
-    url=await new Promise((done,fail)=>{let text='';child.stderr.on('data',chunk=>{text+=chunk;const found=text.match(/listening on (http:\/\/[^\s]+)/);if(found)done(found[1]);});child.on('error',fail);child.on('exit',code=>fail(new Error(`server exited ${code}: ${text}`)));});
+    url=await new Promise((done,fail)=>{let text='';child.stderr.on('data',chunk=>{text+=chunk;const found=serverUrl(text);if(found)done(found);});child.on('error',fail);child.on('exit',code=>fail(new Error(`server exited ${code}: ${text}`)));});
   }
   const rpc=async(method,params)=>{
     const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream','MCP-Protocol-Version':'2025-06-18'},body:JSON.stringify({jsonrpc:'2.0',id:++nextId,method,params})});

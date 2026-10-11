@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 
 export const tokens = bytes => Math.ceil(bytes / 4);
 export const size = value => Buffer.byteLength(JSON.stringify(value));
+export const serverUrl = stderr => stderr.match(/listening on (http:\/\/[^\s]+\/mcp)\r?\n/)?.[1];
 
 export async function rpc(url, method, params, { log, task } = {}) {
   const request = JSON.stringify({ jsonrpc: '2.0', id: 1, method, params });

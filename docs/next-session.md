@@ -2656,3 +2656,78 @@ to use a disposable isolated target. The working build script was forced to reru
 and the engine-version test verified the compiled identifier against the working
 source before the complete 615-test run. Final artifacts and measurements use the
 verified working engine; there was no layout code difference in the initial probe.
+
+
+## D1 review fix round (2026-10-11)
+
+The reported off-sheet plan views were false positives: a view at the 10 mm
+margin can resolve to `9.999999999999996`. The reporting comparison now allows
+**1e-9 mm** on each drawing-area boundary. This is an overturnable conservative numerical
+tolerance: it covers anchor arithmetic rounding while still reporting real
+overruns. Packing, resolved geometry, pin intent and collision checks are unchanged.
+A unit regression covers exact boundaries, 1e-12 mm rounding and 1e-4 mm real
+overruns on all four edges, retaining the geometry and checking problem subjects.
+A corpus regression verifies byte-identical unpinned/pinned plan-view geometry
+for 1000, 10000 and 1004 and no off-sheet finding. Both failed before this fix.
+
+The fingerprint now includes only Rust `*.rs` source, MCP `*.json` schemas,
+`*.ttf`/`*.otf` fonts and the four explicit build/manifest/lock files. Extension
+filtering instead of invoking git is an overturnable choice: release source
+archives must work without repository metadata. Directory watches remain, so
+new/deleted relevant inputs are detected. A regression fails before the fix
+when `.DS_Store`, swaps and backup files change the input set; it also checks
+that adding/removing Rust source changes/restores the fingerprint.
+
+The existing random selection and bare annotation pins are retained for an
+exact comparison with the reviewed grid. This measures random subsets of
+existing placements; it does not measure random relocation to option-selected
+placements. That narrower interpretation remains overturnable, and the new
+report must not be used to claim relocation quality. A second sampling policy
+and full measured grid would be a separate instrument change, not a cheap
+reporting fix. The observed NO-GO already requires the lane redesign.
+
+The earlier implementation is driver-committed as `9b7ee2b`. This fix round
+does not commit, push or write the index. No editor or draftwright-io files
+are changed. The existing geometry-backed diagnosis of the plate task stands;
+no scripted conditions or quality thresholds are weakened.
+
+
+The fix-round MCP runner initially failed before reaching any task with
+`EHOSTUNREACH 0.0.0.127:80`. Its stderr parser accepted a partial startup URL
+(`http://127`) before the rest of the host, port and `/mcp` arrived. The same
+pattern was present in the live-client test. Both now use a shared parser that
+requires the complete newline-terminated `/mcp` startup line. A Node regression
+checks every split point plus CRLF and subsequent logs; it failed against the
+old pattern (`http://1` returned from a prefix) and passes after the fix. No
+retries or relaxed assertions were added. This explains the reproduced startup
+failure; the earlier implementation's unspecified `fetch failed` may have had
+the same cause, but that historical attribution is not proven.
+
+
+The fresh grid disproves the reviewer's provisional GRM-03 diagnosis: its
+isometric right edge is exactly 287 mm, but the pin uses `align:start` to the
+front view, raising its area from `[137,71,287,200]` to `[137,84,287,213]`. On
+the 297×210 mm page, the drawing-area top is 200 mm, so this is a **real 13 mm
+overrun**, not rounding at the right edge. The bounds report correctly remains.
+Reproduce with `draftwright plan` on the corpus GRM-03 file and the saved
+`target/d1-fix-pins-1-3/pinned/GRM-03_thumbwheel_drive_screw.spec.json`; the
+comparison plans are `target/d1-fix-grm-{default,pinned}-plan.json`. Named view
+alignment is intentionally quantized by the existing sampler. Do not remove a
+real finding or alter that sampling policy to improve the measured bar.
+
+
+Final fix-round measurements: **270/270 completed**, **7/9 combinations fail**,
+**8/270 experiments fail**. Twelve plan-view false positives are removed; three
+real isometric overruns remain. Six experiments exceed the ink bar, with one
+also off-sheet. Selected IDs, complete Specs and every non-off-sheet metric
+match the original grid. The corrected full tables and review-count arithmetic
+are in `docs/status-2026-10-10.md`; raw comparison is
+`target/d1-fix-grid-comparison.json`. Unpinned quality is identical in all 180
+cells and in complete baseline JSON. `--require-go` accepts the corrected 1004
+case and rejects the real GRM-03 overrun.
+
+Fmt, release Clippy, release build and required-corpus tests pass: **618 tests**,
+**68 result groups**, zero failures/ignored. Python tests pass **5/5** and Node
+tests pass **4/4**. S7 still scores **6/7** (exit 1), with the documented plate
+failure; that all-tasks gate is not passed. No conditions or tests were weakened.
+Logs are in `target/d1-fix-logs/`.

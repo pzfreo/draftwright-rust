@@ -56,6 +56,47 @@ fn engine_version_matches_source_and_invalidates_on_content_changes() {
 }
 
 #[test]
+fn engine_inputs_ignore_stray_files_but_include_source_and_assets() {
+    let scratch = Path::new(env!("CARGO_TARGET_TMPDIR")).join("engine-input-filter");
+    let _ = std::fs::remove_dir_all(&scratch);
+    for directory in ["src/nested", "schemas/mcp", "fonts"] {
+        std::fs::create_dir_all(scratch.join(directory)).unwrap();
+    }
+    for file in [
+        "Cargo.toml",
+        "Cargo.lock",
+        "build.rs",
+        "build_support.rs",
+        "src/nested/a.rs",
+        "schemas/mcp/a.json",
+        "fonts/a.ttf",
+        "fonts/b.otf",
+    ] {
+        std::fs::write(scratch.join(file), "input").unwrap();
+    }
+    let before = build_support::inputs(&scratch).unwrap();
+    let hash = build_support::fingerprint(&scratch, &before).unwrap();
+    for file in [
+        "src/.DS_Store",
+        "src/nested/.a.rs.swp",
+        "src/nested/a.rs~",
+        "schemas/mcp/.DS_Store",
+        "schemas/mcp/a.json.bak",
+        "fonts/.DS_Store",
+    ] {
+        std::fs::write(scratch.join(file), "stray").unwrap();
+    }
+    let after = build_support::inputs(&scratch).unwrap();
+    assert_eq!(before, after);
+    assert_eq!(hash, build_support::fingerprint(&scratch, &after).unwrap());
+    std::fs::write(scratch.join("src/nested/b.rs"), "new source").unwrap();
+    let added = build_support::inputs(&scratch).unwrap();
+    assert_ne!(hash, build_support::fingerprint(&scratch, &added).unwrap());
+    std::fs::remove_file(scratch.join("src/nested/b.rs")).unwrap();
+    assert_eq!(before, build_support::inputs(&scratch).unwrap());
+}
+
+#[test]
 fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     let cache = draftwright::stateless::Cache::new("unused");
     let reply = draftwright::mcp::reply(

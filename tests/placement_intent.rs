@@ -268,6 +268,35 @@ fn placement_vocabulary_is_validated_without_page_coordinates() {
 }
 
 #[test]
+fn unchanged_view_pins_at_the_margin_are_not_off_sheet() {
+    let Some(c) = corpus::dir() else { return };
+    for name in ["1000", "10000", "1004"] {
+        let (_, a) = model::analyse_native(&c.join(format!("mfcadpp/{name}.step"))).unwrap();
+        let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let s = set(
+            &Spec::default(),
+            "v:plan",
+            "place",
+            json!({"relative_to":"front","side":"above","gap":0,"align":"middle","pinned":true}),
+        );
+        let pinned = model::plan_recovered(&a, &s).unwrap();
+        assert_eq!(
+            geometry(&base, "v:plan"),
+            geometry(&pinned, "v:plan"),
+            "{name}"
+        );
+        assert!(
+            !pinned
+                .problems
+                .iter()
+                .any(|p| p.code == "pinned_view_off_sheet"),
+            "{name}: {:?}",
+            pinned.problems
+        );
+    }
+}
+
+#[test]
 fn pinning_without_offsets_keeps_automatic_geometry() {
     for (name, a) in slice()
         .into_iter()
