@@ -479,7 +479,22 @@ fn ftc06_shoulders_and_heights_match_draftwrights_sheet() {
             ("step_position.length.y46_99", "side", "47.0"),
         ])
     );
-    let heights = shown(&items(&plan, &["step_height"]));
+    let mut heights = shown(&items(&plan, &["step_height"]));
+    let shared = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label == "4× 38.1")
+        .unwrap();
+    assert!(shared.placed.is_some());
+    let level = shared
+        .measurements
+        .iter()
+        .find(|m| m.feature == "step_level" && m.parameter == "step_height.length.h38_1")
+        .unwrap();
+    heights.push((
+        shared.view.trim_start_matches("v:").into(),
+        draftwright::dims::fmt(level.value),
+    ));
     let mut theirs = python(&f, &["step_level"]);
     theirs.retain(|(v, _)| v == "front");
     assert_eq!(theirs.len(), 3);

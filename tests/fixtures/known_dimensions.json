@@ -714,16 +714,6 @@
     "side": "rust",
     "family": "step_height",
     "view": "front",
-    "label": "38.1",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung and drops it because it lies too close above the last rung kept at the sheet's scale (1:5), asking for a detail view; its lint reports the detail unplaceable (detail_unplaceable, warning), so its sheet leaves the height unstated. The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "ftc06",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
     "label": "230.2",
     "count": 1,
     "verdict": "undetermined",
@@ -938,5 +928,15 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+  },
+  {
+    "part": "connector109",
+    "side": "python",
+    "family": "boss",
+    "view": "front",
+    "label": "ø130.9",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "One span, one dimension (E3, ARCH0009-6): connector109's boss at z=139.42 has diameter 130.94, already stated by the overall diameter. The captured Python sheet repeats it as m_dia_z3 and dim_od (tests/fixtures/sheets/connector109.json.gz). The port's d:envelope/od.diameter now claims f:boss:4/boss.diameter and draws one ø130.9 across the same radial stations; the boss's length and the smaller diameters remain separate. Different bands stay separate, and omitting the overall diameter promotes the boss's own statement (tests/repeated_dimensions.rs)."
   }
 ]

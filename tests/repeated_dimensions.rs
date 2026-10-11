@@ -324,3 +324,159 @@ fn bosses_sharing_a_height_across_one_span_state_it_once_counted() {
         );
     }
 }
+
+/// A location and a ladder rung can state the same distance even though their planners and
+/// witnesses differ. FTC-10's hole row sits on the 12.5 mm face level: one line states both.
+#[test]
+fn a_location_and_a_face_level_on_one_span_are_one_statement() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = native(&dir, "nist/nist_ftc_10_asme1_rb.stp");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let location = claiming(&plan, "f:hole_pattern:7", "location.length.z");
+    let rung = claiming(&plan, "step_level", "step_height.length.h12_5");
+    assert_eq!(location.id, rung.id);
+    assert_eq!(location.label, "12.5");
+    assert!(plan.omitted.iter().any(|o| {
+        o.id == "d:step_level/step_height.length.h12_5"
+            && o.state
+                == draftwright::items::State::Covered {
+                    by: location.id.clone(),
+                }
+    }));
+    assert_each_quantity_once("ftc10", &plan);
+    let annotations = draftwright::dims::render(&plan.dimensions, &mut Vec::new(), &mut Vec::new());
+    let drawn = annotations.iter().find(|a| a.name == location.id).unwrap();
+    assert!(
+        drawn
+            .claims
+            .iter()
+            .any(|m| m.feature == "step_level" && m.parameter == "step_height.length.h12_5")
+    );
+
+    let mut spec = Spec::default();
+    spec.dimensions.insert(
+        location.id.clone(),
+        DimensionSpec {
+            omit: true,
+            ..Default::default()
+        },
+    );
+    let without = model::plan_recovered(&a, &spec).unwrap();
+    let rung = claiming(&without, "step_level", "step_height.length.h12_5");
+    assert_eq!(rung.id, "d:step_level/step_height.length.h12_5");
+    assert!(
+        rung.measurements
+            .iter()
+            .all(|m| m.feature != "f:hole_pattern:7")
+    );
+}
+
+#[test]
+fn an_authored_location_and_rung_with_equal_bands_share_the_authored_survivor() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = native(&dir, "nist/nist_ftc_10_asme1_rb.stp");
+    let mut spec = Spec::default();
+    for id in [
+        "d:f:hole_pattern:7/location.length.z",
+        "d:step_level/step_height.length.h12_5",
+    ] {
+        spec.dimensions.insert(
+            id.into(),
+            DimensionSpec {
+                tolerance: Some("±0.1".into()),
+                ..Default::default()
+            },
+        );
+    }
+    let plan = model::plan_recovered(&a, &spec).unwrap();
+    assert_eq!(
+        claiming(&plan, "f:hole_pattern:7", "location.length.z").id,
+        claiming(&plan, "step_level", "step_height.length.h12_5").id
+    );
+    let d = claiming(&plan, "step_level", "step_height.length.h12_5");
+    assert_eq!(d.label, "12.5 ±0.1");
+    assert!(!d.default);
+    // Different requirements must remain distinct statements, even at the same stations.
+    spec.dimensions
+        .get_mut("d:step_level/step_height.length.h12_5")
+        .unwrap()
+        .tolerance = Some("±0.2".into());
+    let different = model::plan_recovered(&a, &spec).unwrap();
+    assert_ne!(
+        claiming(&different, "f:hole_pattern:7", "location.length.z").id,
+        claiming(&different, "step_level", "step_height.length.h12_5").id
+    );
+}
+
+/// A turned profile's largest boss diameter is already its overall diameter. Keep the overall
+/// statement and its feature claim, rather than a second line at another axial station.
+#[test]
+fn a_turned_boss_on_the_overall_diameter_is_stated_by_the_extent() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = native(&dir, "cadgenbench/threaded_connector_109.step");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let extent = claiming(&plan, "envelope", "od.diameter");
+    let boss = claiming(&plan, "f:boss:4", "boss.diameter");
+    assert_eq!(extent.id, boss.id);
+    assert_eq!(extent.id, "d:envelope/od.diameter");
+    assert_eq!(extent.label, "ø130.9");
+    let annotations = draftwright::dims::render(&plan.dimensions, &mut Vec::new(), &mut Vec::new());
+    let drawn = annotations.iter().find(|a| a.name == extent.id).unwrap();
+    assert!(
+        drawn
+            .claims
+            .iter()
+            .any(|m| m.feature == "f:boss:4" && m.parameter == "boss.diameter")
+    );
+
+    let mut spec = Spec::default();
+    spec.dimensions.insert(
+        extent.id.clone(),
+        DimensionSpec {
+            omit: true,
+            ..Default::default()
+        },
+    );
+    let without = model::plan_recovered(&a, &spec).unwrap();
+    assert_eq!(
+        claiming(&without, "f:boss:4", "boss.diameter").id,
+        "d:f:boss:4/boss.diameter"
+    );
+    spec.dimensions.clear();
+    spec.dimensions.insert(
+        "d:f:boss:4/boss.diameter".into(),
+        DimensionSpec {
+            tolerance: Some("±0.1".into()),
+            ..Default::default()
+        },
+    );
+    let toleranced = model::plan_recovered(&a, &spec).unwrap();
+    assert_ne!(
+        claiming(&toleranced, "envelope", "od.diameter").id,
+        claiming(&toleranced, "f:boss:4", "boss.diameter").id
+    );
+}
+
+#[test]
+fn a_counted_boss_height_also_states_its_face_level() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = native(&dir, "nist/nist_ftc_06_asme1_rd.stp");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let size = claiming(&plan, "f:boss:1", "boss_height.length");
+    let level = claiming(&plan, "step_level", "step_height.length.h38_1");
+    assert_eq!(size.id, level.id);
+    assert_eq!(size.label, "4× 38.1");
+    for b in ["f:boss:2", "f:boss:3", "f:boss:4"] {
+        assert_eq!(claiming(&plan, b, "boss_height.length").id, size.id);
+    }
+    assert_eq!(
+        size.measurements.len(),
+        5,
+        "the level is a claim, not a fifth boss"
+    );
+    let issues = lint::check(&a, &marks(&plan));
+    assert!(
+        issues.iter().all(|i| i.code != "boss_height_missing"),
+        "{issues:?}"
+    );
+}

@@ -1,0 +1,82 @@
+[
+  {
+    "part": "bracket_positions",
+    "items": [
+      "d:f:hole:2/location.length.x",
+      "d:pmi:dimension.linear.basic:f234,262/linear.basic"
+    ],
+    "kind": "span",
+    "verdict": "rust-correct",
+    "evidence": "The basic PMI X locations have values 10 and 98.816351 mm; the geometry defaults read 9.999999999979991 and 98.81635164398. Endpoints and values differ by less than 1e-6 mm. The PMI line, including its basic box, claims the default location; retaining an unboxed line beside it repeats the same span. Python draws the default and standalone basic dimensions (tests/fixtures/pmi_drawings/bracket_positions.json.gz). This extends the maintainer-approved share_pmi rule to geometric noise; different authored bands remain separate (tests/pmi_dimensions.rs)."
+  },
+  {
+    "part": "bracket_positions",
+    "items": [
+      "d:f:hole:4/location.length.x",
+      "d:pmi:dimension.linear.basic:f236,262/linear.basic"
+    ],
+    "kind": "span",
+    "verdict": "rust-correct",
+    "evidence": "The basic PMI X locations have values 10 and 98.816351 mm; the geometry defaults read 9.999999999979991 and 98.81635164398. Endpoints and values differ by less than 1e-6 mm. The PMI line, including its basic box, claims the default location; retaining an unboxed line beside it repeats the same span. Python draws the default and standalone basic dimensions (tests/fixtures/pmi_drawings/bracket_positions.json.gz). This extends the maintainer-approved share_pmi rule to geometric noise; different authored bands remain separate (tests/pmi_dimensions.rs)."
+  },
+  {
+    "part": "nist_ftc_06_asme1_rd",
+    "items": [
+      "d:f:boss:1/boss_height.length",
+      "d:step_level/step_height.length.h38_1"
+    ],
+    "kind": "span",
+    "verdict": "rust-correct",
+    "evidence": "The four cylindrical bosses stand from z=-247.65 to z=-209.55, the face level h38_1: 38.1 mm versus 38.099999999999994 mm in the ladder. Keep 4× 38.1 and all four boss claims, adding the level claim without counting it as a fifth boss. Python independently plans the boss heights and this rung, but withholds the rung near another kept rung at 1:5 (the previous known_dimensions.json legibility verdict; tests/fixtures/sheets/ftc06.json.gz). annotations/_height_ladder.py has no cross-family dedup. tests/repeated_dimensions.rs checks the count and lint coverage."
+  },
+  {
+    "part": "nist_ftc_10_asme1_ap242-e2",
+    "items": [
+      "d:f:hole_pattern:7/location.length.z",
+      "d:step_level/step_height.length.h12_5"
+    ],
+    "kind": "span",
+    "verdict": "rust-correct",
+    "evidence": "The AP242 FTC-10 variant has the same 12.5 mm front-view location/rung span as the corpus FTC-10 (base z=-37.5 to z=-25). The location claims the level and the rung is covered. No PMI record is removed: the unchanged exhaustive PMI dimensions/drawings/coverage comparisons guard the requirements. Python height-ladder candidates have no cross-family dedup (origin/main:src/draftwright/annotations/_height_ladder.py)."
+  },
+  {
+    "part": "nist_ftc_10_asme1_rb",
+    "items": [
+      "d:f:hole_pattern:7/location.length.z",
+      "d:step_level/step_height.length.h12_5"
+    ],
+    "kind": "span",
+    "verdict": "rust-correct",
+    "evidence": "The hole row at z=-25 and the face-level rung both measure from the base z=-37.5: one 12.5 mm span in the front view. Python repeats it as dim_step_0 in front and dim_loc_side_z1250 in side; its height-ladder candidates have no cross-family dedup (origin/main:src/draftwright/annotations/_height_ladder.py). The port locates holes in their end-on view by the maintainer decision, placing both statements in front. The location carries both claims, with a covered rung; omitting it promotes the rung. tests/repeated_dimensions.rs checks equal and distinct tolerance bands."
+  },
+  {
+    "part": "nist_stc_06_asme1_ap242-e3",
+    "items": [
+      "d:envelope/depth.length",
+      "d:pmi:dimension.linear:f15,16/linear"
+    ],
+    "kind": "span",
+    "verdict": "rust-correct",
+    "evidence": "The overall depth is 304.8 mm; PMI face pair 15,16 states 12.00 ±0.01 INCH, converted to 304.79999999999995 mm. The source-authored PMI line carries the depth claim; the default bare millimetre dimension adds no requirement. Python keeps the standalone inch dimension beside the model extent (tests/fixtures/pmi_drawings/nist_stc_06_asme1_ap242-e3.json.gz). A Spec tolerance on the extent remains a separate statement (tests/pmi_dimensions.rs)."
+  },
+  {
+    "part": "nist_stc_10_asme1_ap242-e2",
+    "items": [
+      "d:f:hole_pattern:4/location.length.z",
+      "d:step_level/step_height.length.h12_5"
+    ],
+    "kind": "span",
+    "verdict": "rust-correct",
+    "evidence": "The AP242 STC-10 hole row and face level both measure 12.5 mm above the base in front. Their arrow stations coincide, despite different witnesses: the location witnesses the hole row while the rung witnesses the level support. One location claims both measurements. Python height-ladder candidates have no cross-family dedup (origin/main:src/draftwright/annotations/_height_ladder.py); exhaustive PMI oracle comparisons remain unchanged."
+  },
+  {
+    "part": "threaded_connector_109",
+    "items": [
+      "d:envelope/od.diameter",
+      "d:f:boss:4/boss.diameter"
+    ],
+    "kind": "span",
+    "verdict": "rust-correct",
+    "evidence": "The boss at z=139.42 has the overall diameter 130.94 mm: the radial stations are identical in front, although the witnesses stand at different axial stations. Keep d:envelope/od.diameter and its boss claim. Python repeats it as dim_od and m_dia_z3 in tests/fixtures/sheets/connector109.json.gz. The existing known_dimensions oracle now records this as rust-correct; omission fallback and a distinct Spec tolerance are checked in tests/repeated_dimensions.rs."
+  }
+]

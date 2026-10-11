@@ -6,10 +6,84 @@ from unittest.mock import patch
 import json
 import subprocess
 import tempfile
+import contextlib
+import io
+import sys
 
 spec = importlib.util.spec_from_file_location('quality', pathlib.Path(__file__).with_name('quality.py'))
 quality = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(quality)
+
+
+class RepeatedSpans(unittest.TestCase):
+    def dimension(self, id_, ends=(10, 30), lane=0, rotation=0, value=20, feature=None):
+        tips = [[x, lane] if rotation == 0 else [lane, x] for x in ends]
+        return {'id': id_, 'kind': 'linear', 'view': 'v:plan', 'value': value,
+                'label': str(value), 'measurements': [{'feature': feature or id_,
+                                                     'parameter': 'linear'}],
+                'placed': {'rotation': rotation,
+                           'arrows': [[tip, tip] for tip in tips]}}
+
+    def groups(self, dims, scale='1:1'):
+        return quality.repeated_spans({'sheet': {'scale': scale}, 'dimensions': dims})
+
+    def test_span_ignores_lane_label_and_witness_order(self):
+        a = self.dimension('a')
+        b = self.dimension('b', ends=(30, 10), lane=70)
+        b['label'] = '20 ±0.1'
+        self.assertEqual(self.groups([b, a]), [{'kind': 'span', 'items': ['a', 'b']}])
+
+    def test_tolerance_is_in_model_mm_without_rounding_buckets(self):
+        for scale, factor in [('1:5', 0.2), ('5:1', 5)]:
+            a = self.dimension('a', ends=(10 * factor, 30 * factor))
+            b = self.dimension('b', ends=((10 + 0.9e-6) * factor, 30 * factor))
+            self.assertEqual(len(self.groups([a, b], scale)), 1)
+            b = self.dimension('b', ends=((10 + 1.1e-6) * factor, 30 * factor))
+            self.assertEqual(self.groups([a, b], scale), [])
+
+    def test_distinct_axes_values_views_and_unplaced_items_do_not_repeat(self):
+        a = self.dimension('a')
+        for b in [self.dimension('b', rotation=90), self.dimension('b', value=21),
+                  dict(self.dimension('b'), view='v:front'),
+                  dict(self.dimension('b'), placed=None),
+                  dict(self.dimension('b'), kind='callout')]:
+            self.assertEqual(self.groups([a, b]), [])
+
+    def test_same_face_pair_at_different_stations_is_a_near_miss(self):
+        a = self.dimension('a', feature='pmi:dimension.linear:f2,8')
+        b = self.dimension('b', ends=(40, 60), feature='pmi:dimension.linear.basic:f2,8')
+        self.assertEqual(self.groups([a, b]), [{'kind': 'feature_pair', 'items': ['a', 'b']}])
+        b['measurements'][0]['feature'] = 'pmi:dimension.linear:f3,8'
+        self.assertEqual(self.groups([a, b]), [])
+
+    def test_three_dimensions_count_as_two_extras_in_one_group(self):
+        dims = [self.dimension(id_, lane=i * 7) for i, id_ in enumerate('cba')]
+        self.assertEqual(self.groups(dims), [{'kind': 'span', 'items': ['a', 'b', 'c']}])
+
+    def test_geometric_noise_in_values_is_not_a_different_requirement(self):
+        a = self.dimension('a')
+        b = self.dimension('b', value=20 + 1e-9)
+        self.assertEqual(len(self.groups([a, b])), 1)
+        b['value'] = 20 + 2e-6
+        self.assertEqual(self.groups([a, b]), [])
+
+    def test_face_indices_in_different_parts_are_not_the_same_pair(self):
+        a = self.dimension('a', feature='pmi:dimension.linear:p0:f2,8')
+        b = self.dimension('b', ends=(40, 60), feature='pmi:dimension.linear:p1:f2,8')
+        self.assertEqual(self.groups([a, b]), [])
+
+    def test_cli_can_enforce_zero_repeated_spans(self):
+        metrics = {k: 0 for k in ('off_sheet', 'repeated_label', 'repeated_measure',
+                                 'views_overlap', 'view_on_title_block', 'ink', 'repeated_span')}
+        with tempfile.TemporaryDirectory() as out:
+            baseline = pathlib.Path(out) / 'source.json'
+            for repeated in (0, 1):
+                metrics['repeated_span'] = repeated
+                baseline.write_text(json.dumps({'part': metrics}))
+                argv = ['quality.py', '--require-no-repeated-span', '--baseline', str(baseline),
+                        'dw', out, 'part.step']
+                with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(quality.main(), repeated)
 
 
 class RandomPins(unittest.TestCase):
@@ -45,7 +119,7 @@ class RandomPins(unittest.TestCase):
 
     def test_off_sheet_measurement_includes_pinned_views(self):
         plan = self.plan()
-        plan['sheet'] = {}
+        plan['sheet'] = {'scale': '1:1'}
         plan['dimensions'] = []
         render = {'problems': [
             {'code': 'annotation_off_sheet', 'subjects': ['d:a/length']},

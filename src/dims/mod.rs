@@ -776,7 +776,7 @@ pub(crate) fn plan_with_obstacles(
     pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
-    share(&mut kept, &mut given, &mut omitted);
+    share_statements(&mut kept, &mut given, &mut omitted, true);
     share_pmi(&mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
@@ -1082,23 +1082,48 @@ const SHARED: [(&str, bool); 4] = [
     ("boss_height.length", true),
 ];
 
-/// One span, one dimension, for sizes (ARCH0009-6, which the location merge in
-/// [`holes::consolidate`] applies to locations): kept items stating the same [`SHARED`] size of
-/// different features across the same span (the same view and axis, raw ends within 1e-6 mm,
-/// and the same label, tolerance included, so different stated sizes or bands never collapse)
-/// are drawn once. The survivor is one the spec lists over a default, then the smaller ID; it
-/// claims every member's measurement and, for a counted size, prints their number (`2× 6`).
-/// Each other moves to *omitted*, `conveyed by` the survivor. *given* stays aligned with *kept*.
+// Lane ownership uses same-family sharing. New cross-family statements retain their original
+// reservations, so consolidating their ink does not move unrelated items.
 fn share(
     kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
     given: &mut Vec<Vec<String>>,
     omitted: &mut Vec<Omitted>,
 ) {
+    share_statements(kept, given, omitted, false);
+}
+
+/// One span, one dimension (ARCH0009-6): kept items stating the same [`SHARED`] size or
+/// datum distance across the same span (the same view and axis, raw ends within 1e-6 mm,
+/// and the same label and basic status, so different stated sizes or bands never collapse).
+/// Datum distances include different planners' statements, such as a location and a level.
+/// A boss height can also state its face level; only the bosses enter the count.
+/// A turned boss's linear diameter on the overall diameter also shares that statement.
+/// These are drawn once. The survivor is one the spec lists over a default, then the smaller ID; it
+/// claims every member's measurement and, for a counted size, prints their number (`2× 6`).
+/// Each other moves to *omitted*, `conveyed by` the survivor. *given* stays aligned with *kept*.
+fn share_statements(
+    kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<Omitted>,
+    cross_family: bool,
+) {
     const SAME_SPAN: f64 = 1e-6;
-    type Span = (String, &'static str, usize, f64, f64, String);
+    type Span = (String, &'static str, usize, f64, f64, String, f64, bool);
+    let coordinate = |p: &str| {
+        p.starts_with("location")
+            || p.starts_with("seat_location.")
+            || p.starts_with("step_height.length.")
+            || p.starts_with("step_position.length.")
+    };
+    let diameter = |p: &str| matches!(p, "od.diameter" | "boss.diameter");
+    let level = |p: &str| p.starts_with("step_height.length.");
     let span = |(w, _, view, _): &(Want, bool, Option<&'static str>, Vec<&'static str>)| {
         let parameter = &w.measurements.first()?.parameter;
-        SHARED.iter().find(|(p, _)| p == parameter)?;
+        if !(SHARED.iter().any(|(p, _)| p == parameter)
+            || cross_family && (coordinate(parameter) || diameter(parameter)))
+        {
+            return None;
+        }
         match w.shape {
             Shape::Linear { a, b, axis, .. } => Some((
                 parameter.clone(),
@@ -1107,17 +1132,28 @@ fn share(
                 a[axis].min(b[axis]),
                 a[axis].max(b[axis]),
                 w.terms.join(" "),
+                w.value,
+                pmi_dimensions::basic(&w.measurements),
             )),
             Shape::Callout { .. } | Shape::Angular { .. } => None,
         }
     };
     let same = |s: &Span, t: &Span| {
-        s.0 == t.0
+        (s.0 == t.0 && !diameter(&s.0)
+            || cross_family
+                && (coordinate(&s.0) && coordinate(&t.0)
+                    || s.0 == "boss_height.length" && level(&t.0)
+                    || t.0 == "boss_height.length" && level(&s.0)
+                    || (s.0 == "od.diameter" || t.0 == "od.diameter")
+                        && diameter(&s.0)
+                        && diameter(&t.0)))
             && s.1 == t.1
             && s.2 == t.2
             && (s.3 - t.3).abs() <= SAME_SPAN
             && (s.4 - t.4).abs() <= SAME_SPAN
             && s.5 == t.5
+            && (s.6 - t.6).abs() <= SAME_SPAN
+            && s.7 == t.7
     };
     let mut groups: Vec<(Span, Vec<usize>)> = Vec::new();
     for (i, k) in kept.iter().enumerate() {
@@ -1152,11 +1188,23 @@ fn share(
             claims.extend(w.measurements.iter().cloned());
             gone.insert(i);
         }
+        let counted_parameter = members.iter().find_map(|&i| {
+            let p = &kept[i].0.measurements[0].parameter;
+            SHARED
+                .iter()
+                .any(|(shared, count)| shared == p && *count)
+                .then(|| p.clone())
+        });
         let w = &mut kept[*winner].0;
         w.measurements.extend(claims);
-        let features: BTreeSet<&str> = w.measurements.iter().map(|m| m.feature.as_str()).collect();
+        let features: BTreeSet<&str> = w
+            .measurements
+            .iter()
+            .filter(|m| counted_parameter.as_ref().is_none_or(|p| &m.parameter == p))
+            .map(|m| m.feature.as_str())
+            .collect();
         let n = features.len();
-        let counted = SHARED.iter().any(|(p, c)| *p == s.0 && *c);
+        let counted = counted_parameter.is_some() && n > 1;
         w.basis += &format!(
             "; one span, one dimension: it states the same size of all {n} features it spans (ARCH0009-6){}",
             if counted { ", counted" } else { "" }
@@ -1243,7 +1291,10 @@ fn share_pmi(
                     continue;
                 }
                 "the part's PMI states the same span again"
-            } else if *default && given[i].is_empty() && w.value == kept[p].0.value {
+            } else if *default
+                && given[i].is_empty()
+                && (w.value - kept[p].0.value).abs() <= SAME_SPAN
+            {
                 "a default dimension gives way to the part's PMI dimension of the same span"
             } else {
                 continue;
