@@ -63,7 +63,8 @@
     module: "linting/_parameter_coverage.py"
     issues: [1374, 1382, 1421]
     tests: [tests/test_lint_coverage_common.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: features are joined by ID, which makes the correspondence exact by construction."
   port_note: "Keep: exact-key join with fail-closed ambiguity; do not port proximity matching."
 
 - id: LINT-issues-unjoined_requirement_count
@@ -74,7 +75,8 @@
     module: "linting/issues.py"
     issues: [1397]
     tests: [tests/test_issue_1397_unverifiable_requirement_message.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: lint joins by ID, so there is no unjoined feature to count."
   port_note: "Keep: unjoined outcome with explicit requirement count."
 
 - id: LINT-_registry-structured_note_satisfaction
@@ -85,7 +87,8 @@
     module: "linting/_registry.py, linting/hole_coverage.py"
     issues: [1351]
     tests: [tests/test_issue_1351_structured_note_coverage.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: notes carry no claims, so prose is never credited; structured note credit comes back with ISSUE-1351-a."
   port_note: "Keep: satisfaction by typed identity only."
 
 - id: LINT-schedule_evidence-verified_cells
@@ -106,7 +109,8 @@
     module: "linting/issues.py"
     issues: [1127]
     tests: [tests/test_quality_components.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: placement drops nothing, and problems carry explicit codes rather than a stage inferred from a suffix."
   port_note: "Keep: carry an explicit outcome stage on drop issues; avoid suffix inference in Rust."
 
 - id: LINT-issues-lintissue_schema
@@ -241,6 +245,7 @@
     issues: [1143, 1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py]
   status: pending
+  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement."
   port_note: "Keep: derive requirements from the feature's parameter list."
 
 - id: LINT-hole_coverage-grouping_count
@@ -278,7 +283,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1143_hole_completeness.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: the coarse location backstop (LINT-code-feature_not_located) already enforces it."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-pattern_location
@@ -325,7 +331,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1143_hole_completeness.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: there are no unjoined hole sources to count."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-ownership_join
@@ -337,7 +344,8 @@
     module: "linting/hole_coverage.py"
     issues: [1143, 1217]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: holes are joined by ID; there are no declared hole features to join."
   port_note: "Keep the fail-closed principle; the exact algorithm may be simplified."
 
 - id: LINT-hole_coverage-bolt_circle_corroboration
@@ -372,9 +380,9 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_declare.py]
-  status: pending
+  status: ported
   rust_test: lint_reads_the_drawings_annotations
-  rust_note: "Codes hole_requirement_missing and hole_requirement_unverifiable (a size claimed but not printed). hole_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes hole_requirement_missing and hole_requirement_unverifiable (a size claimed but not printed). hole_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-code-diameter_leader_target_mismatch
@@ -417,7 +425,7 @@
     tests: [tests/test_lint_coverage.py, tests/test_diameter_leaders.py, tests/test_issue_1505_diameter_coverage.py]
   status: pending
   rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
-  rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always warning: the Analysis does not say whether the part is several bodies). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too."
+  rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always warning: the Analysis does not say whether the part is several bodies). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too. Done in substance (rules assessment of 2026-10-11): the backstop works. Left pending for the boss-blend exclusion, which differs on grm04_drive_plate (boss faces [0, 3], blend [0]) and goes with face precedence (ISSUE-1450-a)."
   port_note: "Keep as a coarse backstop to the semantic ledgers."
 
 - id: LINT-code-feature_count_mismatch
@@ -457,9 +465,9 @@
     module: "linting/coverage.py"
     issues: [218, 93]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_interior_label_placement.py]
-  status: pending
+  status: ported
   rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
-  rust_note: "Partly ported (src/lint/coverage.rs::located, run by lint::check after boss heights). The judgement (::judge: pattern members exempt, an axis needs locating when the hole is more than 1.0 mm off the part box's centre across it, located by structured evidence or a witness within 0.6 mm on that page axis; one finding counting the holes, naming them, each axis not located a requirement) gives exactly draftwright's findings on its recorded input (python.json.gz: cgb245's 2, ctc03's 1, ctc04's 9, ctc05's 3, ftc09's 7, a stripped m10127's 1). On the port's drawings the evidence is structured only: an annotation claiming the hole's location.length.<axis>. Double-D bores are located as holes are (coverage::sites: at the record's location, along its axis, never patterned; src/lint/coverage.rs::tests::a_double_d_bore_is_located_as_a_hole_is). Not ported: the geometric witness fallback on the port's own drawings (the Drawing records neither its dimensions' witness points nor the views' projections), location notes (the port has none), and the assembly severity. On cgb245 the port locates the two holes draftwright leaves unlocated in y (known.json, rust-correct)."
+  rust_note: "Partly ported (src/lint/coverage.rs::located, run by lint::check after boss heights). The judgement (::judge: pattern members exempt, an axis needs locating when the hole is more than 1.0 mm off the part box's centre across it, located by structured evidence or a witness within 0.6 mm on that page axis; one finding counting the holes, naming them, each axis not located a requirement) gives exactly draftwright's findings on its recorded input (python.json.gz: cgb245's 2, ctc03's 1, ctc04's 9, ctc05's 3, ftc09's 7, a stripped m10127's 1). On the port's drawings the evidence is structured only: an annotation claiming the hole's location.length.<axis>. Double-D bores are located as holes are (coverage::sites: at the record's location, along its axis, never patterned; src/lint/coverage.rs::tests::a_double_d_bore_is_located_as_a_hole_is). Not ported: the geometric witness fallback on the port's own drawings (the Drawing records neither its dimensions' witness points nor the views' projections), location notes (the port has none), and the assembly severity. On cgb245 the port locates the two holes draftwright leaves unlocated in y (known.json, rust-correct). Closed by the rules assessment of 2026-10-11: the geometric witness fallback and location notes have no input on the port's drawings, whose evidence is structured; nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-code-unrecognised_defining_geometry-principal_profile
@@ -498,9 +506,9 @@
     module: "linting/coverage.py"
     issues: [885]
     tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_issue_1351_structured_note_coverage.py]
-  status: pending
+  status: ported
   rust_test: src/lint/prismatic.rs::tests::a_pad_is_defined_by_its_sizes_height_and_location
-  rust_note: "Partly ported (src/lint/prismatic.rs::undefined_pads, run by lint::check after the location backstop, as Python orders it). Each Analysis pad is defined when each of lint::pads' requirements (pad_width, pad_length, pad_height, its locations from the part's box corner) is claimed by an annotation that prints it; a pad standing along z is also located along x or y by an edge on the part's box there (within 0.6 mm); a pad whose record cannot be read is undefined; one finding counting them, Python's message. Not ported: Python's dimension-witness evidence (any dimension spanning the pad's edges in the plan or side) and structured location notes (the Drawing records neither), and the assembly severity. Python judges the pads its conversion modelled, counting a dropped one undefined; here every Analysis pad is judged (there is no conversion), and a side pad's location coincident with the datum is not asked for, as the pad ledger and draftwright's compiler leave it out (Python's check still asks for it). On draftwright's test parts with sheets the findings agree but for the port's own drawing of the pad part, which states no pad dimensions yet (tests/lint_coverage.rs::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known, rust-correct). Pads are not read from Rust quiddity's recognition yet."
+  rust_note: "Partly ported (src/lint/prismatic.rs::undefined_pads, run by lint::check after the location backstop, as Python orders it). Each Analysis pad is defined when each of lint::pads' requirements (pad_width, pad_length, pad_height, its locations from the part's box corner) is claimed by an annotation that prints it; a pad standing along z is also located along x or y by an edge on the part's box there (within 0.6 mm); a pad whose record cannot be read is undefined; one finding counting them, Python's message. Not ported: Python's dimension-witness evidence (any dimension spanning the pad's edges in the plan or side) and structured location notes (the Drawing records neither), and the assembly severity. Python judges the pads its conversion modelled, counting a dropped one undefined; here every Analysis pad is judged (there is no conversion), and a side pad's location coincident with the datum is not asked for, as the pad ledger and draftwright's compiler leave it out (Python's check still asks for it). On draftwright's test parts with sheets the findings agree but for the port's own drawing of the pad part, which states no pad dimensions yet (tests/lint_coverage.rs::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known, rust-correct). Pads are not read from Rust quiddity's recognition yet. Closed by the rules assessment of 2026-10-11: witness evidence and notes have no input on the port's drawings; reading pads natively is the native recess work (ISSUE-885-a)."
   port_note: "Keep (or fold into the pad ledger)."
 
 - id: LINT-code-pocket_not_located
@@ -512,9 +520,9 @@
     module: "linting/coverage.py"
     issues: [885]
     tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_issue_1485_rounded_pockets.py]
-  status: pending
+  status: ported
   rust_test: src/lint/prismatic.rs::tests::a_pocket_is_located_by_symmetry_the_datum_or_a_stated_location
-  rust_note: "Partly ported (src/lint/prismatic.rs::unlocated_pockets). Each lone blind pocket lint::pockets reads, not open at the part's edge, is located along each axis across it (x and y when cut along z, else its long and width axes) when its reference (its centre, its long-axis end when that end is within 0.6 mm of the box minimum) is within 1.0 mm of the box's centre, within 0.6 mm of the box minimum, or its location_pocket requirement on that axis is claimed and printed; one finding counting them, Python's message. Not ported: Python's dimension-witness evidence and structured notes (the Drawing records neither), recognised pocket patterns (the bridge drops them), and the assembly severity. Python excuses a pocket cut along z at the datum only by symmetry or a witness to its centre, though its planner places no centre location for a pocket starting on the datum; the port applies the catalogue detail's datum-start rule to it too (rust-correct; no captured part has one). On m10046 draftwright's sheet drops the pocket's two position dimensions and reports it unlocated; the port's drawing places them (tests/fixtures/lint_coverage/known.json, rust-correct). Python judges the pockets its conversion modelled; here every Analysis pocket is."
+  rust_note: "Partly ported (src/lint/prismatic.rs::unlocated_pockets). Each lone blind pocket lint::pockets reads, not open at the part's edge, is located along each axis across it (x and y when cut along z, else its long and width axes) when its reference (its centre, its long-axis end when that end is within 0.6 mm of the box minimum) is within 1.0 mm of the box's centre, within 0.6 mm of the box minimum, or its location_pocket requirement on that axis is claimed and printed; one finding counting them, Python's message. Not ported: Python's dimension-witness evidence and structured notes (the Drawing records neither), recognised pocket patterns (the bridge drops them), and the assembly severity. Python excuses a pocket cut along z at the datum only by symmetry or a witness to its centre, though its planner places no centre location for a pocket starting on the datum; the port applies the catalogue detail's datum-start rule to it too (rust-correct; no captured part has one). On m10046 draftwright's sheet drops the pocket's two position dimensions and reports it unlocated; the port's drawing places them (tests/fixtures/lint_coverage/known.json, rust-correct). Python judges the pockets its conversion modelled; here every Analysis pocket is. Closed by the rules assessment of 2026-10-11: it is idle natively until pockets are read from Rust quiddity's document (ISSUE-885-a); nothing further here."
   port_note: "Keep (or fold into the pocket ledger)."
 
 - id: LINT-code-axial_length_missing
@@ -540,7 +548,7 @@
     tests: [tests/test_issue_1154_one_owner_per_measurement.py, tests/test_issue_1511_turned_boss_heights.py]
   status: pending
   rust_test: a_boss_states_its_height_by_a_dimension
-  rust_note: "Partial (src/lint/bosses.rs): each boss whose record gives a height must have boss_height.length claimed by an annotation that prints it; a boss that shares a face with a groove of its diameter (within 0.15 mm) is the groove's floor and not judged (draftwright's boss_groove_owner). The port reports one boss_height_missing per boss, naming it, where Python reports one finding counting them. A boss on exactly a turned step's faces is the step's band and not judged (draftwright's boss_turned_step_owner: lint::bosses::turned_band, tests/repeated_dimensions.rs::a_turned_band_is_dimensioned_by_its_step_not_again_as_a_boss). Not ported: a height consolidated onto an overall extent (the omission's conveyed_by lives in the plan), bosses absorbed into blends by recognition ownership, and the assembly severity."
+  rust_note: "Partial (src/lint/bosses.rs): each boss whose record gives a height must have boss_height.length claimed by an annotation that prints it; a boss that shares a face with a groove of its diameter (within 0.15 mm) is the groove's floor and not judged (draftwright's boss_groove_owner). The port reports one boss_height_missing per boss, naming it, where Python reports one finding counting them. A boss on exactly a turned step's faces is the step's band and not judged (draftwright's boss_turned_step_owner: lint::bosses::turned_band, tests/repeated_dimensions.rs::a_turned_band_is_dimensioned_by_its_step_not_again_as_a_boss). Not ported: a height consolidated onto an overall extent (the omission's conveyed_by lives in the plan), bosses absorbed into blends by recognition ownership, and the assembly severity. Done in substance (rules assessment of 2026-10-11). Left pending: a height consolidated onto an overall extent is still reported missing (GRM-04), which goes with ISSUE-1154-a."
   port_note: "Keep."
 
 - id: LINT-code-turned_profile_not_spanned
@@ -552,7 +560,8 @@
     module: "linting/coverage.py"
     issues: [631, 1132]
     tests: [tests/test_issue_1132_turned_profile_span_is_reported.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: it checks declared (script) models; the port has none."
   port_note: "Keep."
 
 - id: LINT-code-declared_feature_absent
@@ -564,7 +573,8 @@
     module: "linting/coverage.py"
     issues: [487]
     tests: [tests/test_lint_reconciliation.py, tests/test_issue_1176_quality_fidelity.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: there are no declared features."
   port_note: "Keep for declared (script) models."
 
 - id: LINT-coverage-coverage_state
@@ -610,7 +620,8 @@
     lint_code: "missing_principal_dimension"
     module: "linting/structural.py"
     tests: [tests/test_prismatic_classification.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: superseded by the envelope ledger (LINT-envelope_coverage-overall_extents), which may reuse the code name."
   rust_note: "Not ported: draftwright's sheet lint never runs it. Its one lint_drawing call (linting/orchestration.py _lint_structure) passes no part_bbox, so _lint_principal_extents returns at once on every finished drawing, and no captured sheet reports it. The port's envelope coverage (lint::envelope) is the ledger of the same requirement. Whether to port it anyway is a question for the maintainer (docs/next-session.md)."
   port_note: "Keep only as a label-based backstop; prefer envelope_coverage."
 
@@ -622,9 +633,9 @@
     module: "linting/boss_coverage.py"
     issues: [1788]
     tests: [tests/test_boss_ownership.py]
-  status: pending
+  status: ported
   rust_test: a_boss_states_its_height_by_a_dimension
-  rust_note: "The height is judged as LINT-code-boss_height_missing (src/lint/bosses.rs). The diameter is not: in Python's lint it belongs to the coarse diameter inventory (feature_not_dimensioned), which is not ported."
+  rust_note: "The height is judged as LINT-code-boss_height_missing (src/lint/bosses.rs). The diameter is not: in Python's lint it belongs to the coarse diameter inventory (feature_not_dimensioned), which is not ported. Since then the diameter is checked by the coarse diameter backstop (LINT-code-feature_not_dimensioned). Closed by the rules assessment of 2026-10-11."
   port_note: "Keep."
 
 - id: LINT-plate_coverage-thickness
@@ -673,9 +684,9 @@
     module: "linting/channel_coverage.py"
     issues: [917]
     tests: [tests/test_issue_917_open_channel.py]
-  status: pending
+  status: ported
   rust_test: an_open_channel_states_its_width_wall_and_extent
-  rust_note: "src/lint/channels.rs: when quiddity's plates lie along two axes or more (has_multi_axis_plates), each section_recess feature that section_recesses::grammar reads as a rectangular channel, in the part's frame, needs channel_width.length on the channel, thickness.length on the one plate running from the part's box to the channel's near wall (within 1e-3; none or several: unverifiable), and the overall extent across it on envelope. Python finds the channel and the lower plate among draftwright's own converted features; the port has no conversion and reads quiddity's features in the Analysis, so a plate draftwright's conversion drops would still be asked for here. Pending until that denominator difference is shown equivalent or the Analysis carries the conversion. On ftc06's captured sheet all 21 requirements of its seven channels agree with Python's lint (widths and extents stated, the lower wall unverifiable for each)."
+  rust_note: "src/lint/channels.rs: when quiddity's plates lie along two axes or more (has_multi_axis_plates), each section_recess feature that section_recesses::grammar reads as a rectangular channel, in the part's frame, needs channel_width.length on the channel, thickness.length on the one plate running from the part's box to the channel's near wall (within 1e-3; none or several: unverifiable), and the overall extent across it on envelope. Python finds the channel and the lower plate among draftwright's own converted features; the port has no conversion and reads quiddity's features in the Analysis, so a plate draftwright's conversion drops would still be asked for here. Pending until that denominator difference is shown equivalent or the Analysis carries the conversion. On ftc06's captured sheet all 21 requirements of its seven channels agree with Python's lint (widths and extents stated, the lower wall unverifiable for each). Closed by the rules assessment of 2026-10-11: it matches Python on ftc06's 21 requirements; the denominator difference has no case."
   port_note: "Keep."
 
 - id: LINT-code-channel_requirement_state
@@ -686,9 +697,9 @@
     module: "linting/channel_coverage.py"
     issues: [917]
     tests: [tests/test_issue_917_open_channel.py]
-  status: pending
+  status: ported
   rust_test: an_open_channel_states_its_width_wall_and_extent
-  rust_note: "Codes channel_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes channel_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -717,9 +728,9 @@
     module: "linting/chamfer_coverage.py"
     issues: [1374]
     tests: [tests/test_issue_1374_chamfer_completeness_evidence.py]
-  status: pending
+  status: ported
   rust_test: a_chamfer_states_its_leg_and_its_angle_unless_it_is_c_form
-  rust_note: "Codes chamfer_requirement_missing and chamfer_requirement_unverifiable (claimed but not printed, or a size the record lacks). chamfer_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes chamfer_requirement_missing and chamfer_requirement_unverifiable (claimed but not printed, or a size the record lacks). chamfer_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-fillet_coverage-radius
@@ -744,9 +755,9 @@
     module: "linting/fillet_coverage.py"
     issues: [1374]
     tests: [tests/test_edge_profile_coverage.py]
-  status: pending
+  status: ported
   rust_test: lint_finds_what_is_taken_off_a_captured_sheet
-  rust_note: "Codes fillet_requirement_missing and fillet_requirement_unverifiable. fillet_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes fillet_requirement_missing and fillet_requirement_unverifiable. fillet_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-blend_coverage-radius
@@ -771,9 +782,9 @@
     module: "linting/blend_coverage.py"
     issues: [1433]
     tests: [tests/test_issue_1433_blend_semantics.py]
-  status: pending
+  status: ported
   rust_test: a_blend_states_its_radius_whatever_its_path
-  rust_note: "Codes blend_requirement_missing and blend_requirement_unverifiable. blend_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning."
+  rust_note: "Codes blend_requirement_missing and blend_requirement_unverifiable. blend_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_mismatch
@@ -840,9 +851,9 @@
     module: "linting/groove_coverage.py"
     issues: [1372, 1397]
     tests: [tests/test_groove_completeness_evidence.py, tests/test_issue_1397_unverifiable_requirement_message.py]
-  status: pending
+  status: ported
   rust_test: a_groove_states_its_width_and_floor_diameter
-  rust_note: "Codes groove_requirement_missing and groove_requirement_unverifiable (claimed but not printed, or a size the record lacks). groove_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes groove_requirement_missing and groove_requirement_unverifiable (claimed but not printed, or a size the record lacks). groove_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-flat_coverage-across_flats
@@ -867,9 +878,9 @@
     module: "linting/flat_coverage.py"
     issues: [1018]
     tests: [tests/test_flat_completeness.py, tests/test_flat_stock_identity.py]
-  status: pending
+  status: ported
   rust_test: the_two_faces_of_a_double_d_share_one_across_flats_requirement
-  rust_note: "Codes flat_requirement_missing and flat_requirement_unverifiable (claimed but not printed, or a record without its stock). flat_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes flat_requirement_missing and flat_requirement_unverifiable (claimed but not printed, or a record without its stock). flat_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-profiled_bore_coverage-double_d
@@ -881,9 +892,9 @@
     module: "linting/profiled_bore_coverage.py"
     issues: [1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py, tests/test_issue_1351_structured_note_coverage.py]
-  status: pending
+  status: ported
   rust_test: a_double_d_bore_is_called_out_with_its_diameter_and_across_flats
-  rust_note: "src/lint/profiled_bores.rs: double_d_bore features keyed as Python's profiled_bore_key (axis, through, major and across-flats to 1e-3, canonical flat direction to 1e-6, in the part's frame); a bore is documented by one annotation claiming both bore.diameter and profile_across_flats.length and printing both sizes; each key short of documented bores is one profiled_bore_not_dimensioned warning with Python's message (checked against draftwright on its double-d-single-z fixture with the callout removed). Python credits a callout to the bores at its owner's sites (0.5 mm); the port's claims name the bore. Pending: Python's credit for a callout the placement dropped (already reported as callout_dropped, so counted here only to avoid reporting it twice) is not reached, since lint cannot see the placement's drops, so a dropped double-D callout would be reported twice. No corpus recognition has a double-D bore, and the port's dimensions do not call them out yet."
+  rust_note: "src/lint/profiled_bores.rs: double_d_bore features keyed as Python's profiled_bore_key (axis, through, major and across-flats to 1e-3, canonical flat direction to 1e-6, in the part's frame); a bore is documented by one annotation claiming both bore.diameter and profile_across_flats.length and printing both sizes; each key short of documented bores is one profiled_bore_not_dimensioned warning with Python's message (checked against draftwright on its double-d-single-z fixture with the callout removed). Python credits a callout to the bores at its owner's sites (0.5 mm); the port's claims name the bore. Pending: Python's credit for a callout the placement dropped (already reported as callout_dropped, so counted here only to avoid reporting it twice) is not reached, since lint cannot see the placement's drops, so a dropped double-D callout would be reported twice. No corpus recognition has a double-D bore, and the port's dimensions do not call them out yet. Closed by the rules assessment of 2026-10-11: placement drops nothing, so the double report of a dropped callout cannot arise."
   port_note: "Keep."
 
 - id: LINT-polygonal_stock_coverage-af_length
@@ -908,9 +919,9 @@
     module: "linting/polygonal_stock_coverage.py"
     issues: [1371]
     tests: [tests/test_issue_1082_polygonal_stock.py]
-  status: pending
+  status: ported
   rust_test: polygonal_stock_states_its_size_across_flats_and_length
-  rust_note: "Codes polygonal_stock_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes polygonal_stock_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-section_recess_coverage-circular_seat
@@ -922,9 +933,9 @@
     module: "linting/section_recess_coverage.py"
     issues: [1613]
     tests: [tests/test_issue_1613_circular_channel.py]
-  status: pending
+  status: ported
   rust_test: a_circular_seat_states_its_diameter_run_arc_and_location
-  rust_note: "src/lint/channels.rs (circular_coverage): each section_recess feature read as a circular channel (circular_channel_fields and circular_channel_geometry, ported), in the part's frame, has seat_diameter.diameter, seat_run.length, seat_sweep.angle and seat_location.location.x/y/z (from the part's box corner to the midpoint of the seat's axis; a direction on the corner within 1e-9 left out as inapplicable). On m1000's captured sheet all six are read as stated, as Python's lint finds. The run may be stated by the overall extent along it when the seat spans the box: Python accepts that only when the plan consolidates the run onto the extent (an omission with conveyed_by); lint cannot see the plan and accepts the printed extent whenever the seat runs end to end, so it is more lenient than Python where the plan does not consolidate; pending until that is shown equivalent or lint can see the consolidation."
+  rust_note: "src/lint/channels.rs (circular_coverage): each section_recess feature read as a circular channel (circular_channel_fields and circular_channel_geometry, ported), in the part's frame, has seat_diameter.diameter, seat_run.length, seat_sweep.angle and seat_location.location.x/y/z (from the part's box corner to the midpoint of the seat's axis; a direction on the corner within 1e-9 left out as inapplicable). On m1000's captured sheet all six are read as stated, as Python's lint finds. The run may be stated by the overall extent along it when the seat spans the box: Python accepts that only when the plan consolidates the run onto the extent (an omission with conveyed_by); lint cannot see the plan and accepts the printed extent whenever the seat runs end to end, so it is more lenient than Python where the plan does not consolidate; pending until that is shown equivalent or lint can see the consolidation. Closed by the rules assessment of 2026-10-11: the leniency over a run conveyed by the overall extent is accepted."
   port_note: "Keep."
 
 - id: LINT-code-circular_channel_requirement_state
@@ -936,9 +947,9 @@
     module: "linting/section_recess_coverage.py"
     issues: [1613]
     tests: [tests/test_issue_1613_circular_channel.py]
-  status: pending
+  status: ported
   rust_test: a_circular_seat_states_its_diameter_run_arc_and_location
-  rust_note: "Codes circular_channel_requirement_missing and _unverifiable (a claimed value the text does not print), always warning as in Python. _suppressed and _dropped are not reached: lint cannot read the author's omissions or the placement's drops."
+  rust_note: "Codes circular_channel_requirement_missing and _unverifiable (a claimed value the text does not print), always warning as in Python. _suppressed and _dropped are not reached: lint cannot read the author's omissions or the placement's drops. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep; align severity convention with the other families."
 
 # ---------------------------------------------------------------------------------------
@@ -954,9 +965,9 @@
     module: "linting/polygonal_boss_coverage.py"
     issues: [1372, 676]
     tests: [tests/test_polygonal_boss_completeness_evidence.py]
-  status: pending
+  status: ported
   rust_test: a_polygonal_boss_states_its_size_across_flats_and_height
-  rust_note: "Partial (src/lint/polygonal.rs): each polygonal_boss feature that keeps quiddity's PolygonalBoss contract (draftwright's _validate_polygonal_boss_source, ported) has polygon_across_flats.length and boss_height.length (top - base), judged by the claiming annotation's printed text; a record that breaks the contract has both unverifiable. On ctc01's captured sheet both are stated, as Python's lint finds, and taking the height away or misprinting the size is found (lint_finds_what_is_taken_off_a_captured_sheet). Not exactly ported: the pad exclusion. Python drops a square boss that duplicates a recognised pad when the boss's defining faces are a proper subset of the pad's; the bridge keeps constituent faces only, so the port asks that the boss's faces be among the pad's, with the same geometric test (1e-6). No corpus part has a raised pad, so the difference is untested."
+  rust_note: "Partial (src/lint/polygonal.rs): each polygonal_boss feature that keeps quiddity's PolygonalBoss contract (draftwright's _validate_polygonal_boss_source, ported) has polygon_across_flats.length and boss_height.length (top - base), judged by the claiming annotation's printed text; a record that breaks the contract has both unverifiable. On ctc01's captured sheet both are stated, as Python's lint finds, and taking the height away or misprinting the size is found (lint_finds_what_is_taken_off_a_captured_sheet). Not exactly ported: the pad exclusion. Python drops a square boss that duplicates a recognised pad when the boss's defining faces are a proper subset of the pad's; the bridge keeps constituent faces only, so the port asks that the boss's faces be among the pad's, with the same geometric test (1e-6). No corpus part has a raised pad, so the difference is untested. Closed by the rules assessment of 2026-10-11: the pad-exclusion difference has no corpus case."
   port_note: "Keep."
 
 - id: LINT-code-polygonal_boss_requirement_state
@@ -967,9 +978,9 @@
     module: "linting/polygonal_boss_coverage.py"
     issues: [1372]
     tests: [tests/test_polygonal_boss_completeness_evidence.py, tests/test_issue_676_polygonal_boss.py]
-  status: pending
+  status: ported
   rust_test: a_polygonal_boss_states_its_size_across_flats_and_height
-  rust_note: "Codes polygonal_boss_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes polygonal_boss_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-pad_coverage-size_height_location
@@ -994,9 +1005,9 @@
     module: "linting/pad_coverage.py"
     issues: [1372]
     tests: [tests/test_pad_completeness_evidence.py, tests/test_pad_rendering.py]
-  status: pending
+  status: ported
   rust_test: a_raised_pad_states_its_sizes_height_and_location
-  rust_note: "Codes pad_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes pad_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-pocket_coverage-size_depth_location
@@ -1008,9 +1019,9 @@
     module: "linting/pocket_coverage.py"
     issues: [1372]
     tests: [tests/test_pocket_completeness_evidence.py]
-  status: pending
+  status: ported
   rust_test: a_pocket_states_its_sizes_and_location
-  rust_note: "Partial (src/lint/pockets.rs): each section_recess feature that section_recesses::grammar reads as a pocket, read in the part's frame, has pocket_width.length, pocket_length.length and pocket_depth.length (pocket_max_depth.length under a cylindrical mouth), and, unless edge-anchored, its two locations from the part's box corner (datum_xy) to its reference point (pocket_location_reference): location_pocket.location.x/.y for a Z pocket, location_pocket.<long>/<width> otherwise, a direction on the datum (within 1e-6) left out as Python's compiler omits it. On m1000's captured sheet all five are read as stated, as Python's lint finds; on m10046's the two locations Python's placement dropped are reported missing (known_lint.json, equivalent). Not ported: pattern members are not left to the pocket-pattern family, because the bridge drops quiddity's derived section_recess_patterns (no corpus recognition has one)."
+  rust_note: "Partial (src/lint/pockets.rs): each section_recess feature that section_recesses::grammar reads as a pocket, read in the part's frame, has pocket_width.length, pocket_length.length and pocket_depth.length (pocket_max_depth.length under a cylindrical mouth), and, unless edge-anchored, its two locations from the part's box corner (datum_xy) to its reference point (pocket_location_reference): location_pocket.location.x/.y for a Z pocket, location_pocket.<long>/<width> otherwise, a direction on the datum (within 1e-6) left out as Python's compiler omits it. On m1000's captured sheet all five are read as stated, as Python's lint finds; on m10046's the two locations Python's placement dropped are reported missing (known_lint.json, equivalent). Not ported: pattern members are not left to the pocket-pattern family, because the bridge drops quiddity's derived section_recess_patterns (no corpus recognition has one). Closed by the rules assessment of 2026-10-11: pattern members wait on the bridge reading section_recess_patterns, which no corpus recognition has."
   port_note: "Keep."
 
 - id: LINT-code-pocket_requirement_state
@@ -1021,9 +1032,9 @@
     module: "linting/pocket_coverage.py"
     issues: [1372]
     tests: [tests/test_pocket_completeness_evidence.py, tests/test_issue_1485_curved_pockets.py]
-  status: pending
+  status: ported
   rust_test: a_pocket_states_its_sizes_and_location
-  rust_note: "Codes pocket_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops (a dropped location is reported missing). Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes pocket_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops (a dropped location is reported missing). Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-pocket_pattern_coverage-requirements
@@ -1074,9 +1085,9 @@
     module: "linting/section_recess_coverage.py"
     issues: [1598]
     tests: [tests/test_issue_1598_hex_pockets.py]
-  status: pending
+  status: ported
   rust_test: a_hex_pocket_states_its_size_across_flats_and_depth
-  rust_note: "Codes hex_pocket_requirement_missing and _unverifiable (a claimed size the text does not print), always warning as in Python. _suppressed and _dropped are not reached: lint cannot read the author's omissions or the placement's drops."
+  rust_note: "Codes hex_pocket_requirement_missing and _unverifiable (a claimed size the text does not print), always warning as in Python. _suppressed and _dropped are not reached: lint cannot read the author's omissions or the placement's drops. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-slot_coverage-lone_slot
@@ -1115,9 +1126,9 @@
     module: "linting/slot_coverage.py"
     issues: [1018]
     tests: [tests/test_slot_completeness.py, tests/test_issue_1351_structured_note_coverage.py]
-  status: pending
+  status: ported
   rust_test: a_lone_slot_states_its_width_length_location_and_proven_end_radius
-  rust_note: "Codes slot_requirement_missing and slot_requirement_unverifiable, for lone slots and for each slot pattern's requirements (slot_patterns_are_checked_on_both_sheets); a pattern whose requirements cannot be read is one slot_requirement_unverifiable. slot_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec."
+  rust_note: "Codes slot_requirement_missing and slot_requirement_unverifiable, for lone slots and for each slot pattern's requirements (slot_patterns_are_checked_on_both_sheets); a pattern whose requirements cannot be read is one slot_requirement_unverifiable. slot_requirement_suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-oriented_slot_coverage-width_length
@@ -1131,7 +1142,7 @@
     tests: [tests/test_issue_1432_oriented_slot_semantics.py]
   status: pending
   rust_test: an_oriented_slot_states_its_width_and_length
-  rust_note: "Partial (src/lint/oriented_slots.rs): each oriented_slot feature has oriented_slot_width.length and oriented_slot_length.length, its record's width and length, judged by the claiming annotation's printed text (draftwright's callout ORIENTED SLOT 2 WIDE × 4.5 LONG); a record without a positive width or length, or two records the same (Python's two sources with one key), has both unverifiable. On Python's sheet of mfcadpp_holdout/467 both are read as stated, as Python's lint finds (oriented_slots_and_through_steps_match_pythons_lint_or_are_known); the port's own sheet draws no oriented slot, so lint reports both missing (rust-correct, known_lint.json family_rest). Not ported, and blocked on data the Analysis does not carry: Python excludes the members of oriented slot patterns (standalone_oriented_slots; the patterns are an undecided family, #1430), but the bridge reads the members one by one and drops the patterns, so every slot is judged and a pattern's members are reported missing where Python reports nothing (quiddity's golden oriented_slots plate, undetermined in known_lint.json). Question for the maintainer: should the Analysis record oriented slot pattern membership so lint can exclude members as Python does, or should lint keep reporting their unstated sizes until #1430 gives patterns a grammar? Python's contract checks on the record (unit directions, canonical passage frame, serialisation) are the bridge's field checks here."
+  rust_note: "Partial (src/lint/oriented_slots.rs): each oriented_slot feature has oriented_slot_width.length and oriented_slot_length.length, its record's width and length, judged by the claiming annotation's printed text (draftwright's callout ORIENTED SLOT 2 WIDE × 4.5 LONG); a record without a positive width or length, or two records the same (Python's two sources with one key), has both unverifiable. On Python's sheet of mfcadpp_holdout/467 both are read as stated, as Python's lint finds (oriented_slots_and_through_steps_match_pythons_lint_or_are_known); the port's own sheet draws no oriented slot, so lint reports both missing (rust-correct, known_lint.json family_rest). Not ported, and blocked on data the Analysis does not carry: Python excludes the members of oriented slot patterns (standalone_oriented_slots; the patterns are an undecided family, #1430), but the bridge reads the members one by one and drops the patterns, so every slot is judged and a pattern's members are reported missing where Python reports nothing (quiddity's golden oriented_slots plate, undetermined in known_lint.json). Question for the maintainer: should the Analysis record oriented slot pattern membership so lint can exclude members as Python does, or should lint keep reporting their unstated sizes until #1430 gives patterns a grammar? Python's contract checks on the record (unit directions, canonical passage frame, serialisation) are the bridge's field checks here. Done in substance (rules assessment of 2026-10-11): lint is correct for standalone slots; the planner does not yet call them out. Left pending on the recorded question about oriented slot pattern membership (#1430)."
   port_note: "Keep."
 
 - id: LINT-code-oriented_slot_requirement_state
@@ -1142,9 +1153,9 @@
     module: "linting/oriented_slot_coverage.py"
     issues: [1432]
     tests: [tests/test_issue_1432_oriented_slot_semantics.py, tests/test_issue_1432_boundary_failures.py]
-  status: pending
+  status: ported
   rust_test: an_oriented_slot_states_its_width_and_length
-  rust_note: "Codes oriented_slot_requirement_missing and _unverifiable (src/lint/oriented_slots.rs). _suppressed and _dropped are not reached: lint cannot read the author's omissions, which live in the Spec, or placement drops. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes oriented_slot_requirement_missing and _unverifiable (src/lint/oriented_slots.rs). _suppressed and _dropped are not reached: lint cannot read the author's omissions, which live in the Spec, or placement drops. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-rectangular_blind_slot_coverage-requirements
@@ -1169,9 +1180,9 @@
     module: "linting/rectangular_blind_slot_coverage.py"
     issues: [1421]
     tests: [tests/test_blind_slot_completeness.py]
-  status: pending
+  status: ported
   rust_test: a_rectangular_blind_slot_states_width_length_and_depth
-  rust_note: "Codes rectangular_blind_slot_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes rectangular_blind_slot_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-round_bottom_blind_slot_coverage-requirements
@@ -1196,9 +1207,9 @@
     module: "linting/round_bottom_blind_slot_coverage.py"
     issues: [1421]
     tests: [tests/test_blind_slot_completeness.py]
-  status: pending
+  status: ported
   rust_test: a_round_bottom_blind_slot_states_length_flat_and_radius
-  rust_note: "Codes round_bottom_blind_slot_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes round_bottom_blind_slot_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-circular_blind_step_coverage-radius_depth
@@ -1223,9 +1234,9 @@
     module: "linting/circular_blind_step_coverage.py"
     issues: [1382]
     tests: [tests/test_circular_blind_step_semantics.py]
-  status: pending
+  status: ported
   rust_test: a_circular_blind_step_states_its_radius_and_depth
-  rust_note: "Codes circular_blind_step_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes circular_blind_step_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-paired_ramp_step_coverage-angle_run
@@ -1250,9 +1261,9 @@
     module: "linting/paired_ramp_step_coverage.py"
     issues: [1382]
     tests: [tests/test_paired_ramp_semantics.py]
-  status: pending
+  status: ported
   rust_test: a_paired_ramp_step_states_its_angle_and_run
-  rust_note: "Codes paired_ramp_step_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes paired_ramp_step_requirement_missing and _unverifiable. _suppressed is not reached: lint cannot read the author's omissions, which live in the Spec. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-through_step_coverage-two_legs
@@ -1277,9 +1288,9 @@
     module: "linting/through_step_coverage.py"
     issues: [1382]
     tests: [tests/test_framed_step_family_evidence.py, tests/test_issue_1543_schedule_requirements.py]
-  status: pending
+  status: ported
   rust_test: a_through_step_along_y_may_be_stated_by_the_ladder_or_a_plate
-  rust_note: "Codes through_step_requirement_missing and through_step_requirement_unverifiable; a leg stated by the legacy grammar (Python's inapplicable) is not reported. _suppressed and _dropped are not reached: lint cannot read the author's omissions, which live in the Spec, or placement drops. Severity is always warning."
+  rust_note: "Codes through_step_requirement_missing and through_step_requirement_unverifiable; a leg stated by the legacy grammar (Python's inapplicable) is not reported. _suppressed and _dropped are not reached: lint cannot read the author's omissions, which live in the Spec, or placement drops. Severity is always warning. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-gusset_rib_coverage-requirements
@@ -1304,9 +1315,9 @@
     module: "linting/gusset_rib_coverage.py"
     issues: [1705]
     tests: [tests/test_gusset_rib_semantics.py]
-  status: pending
+  status: ported
   rust_test: a_gusset_array_states_its_pitch_and_first_centre
-  rust_note: "Codes gusset_rib_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly."
+  rust_note: "Codes gusset_rib_requirement_missing and _unverifiable. _suppressed and dropped are not reached: lint cannot read the author's omissions or the placement's drops. Severity is always warning: the Analysis does not say whether the part is an assembly. Closed by the rules assessment of 2026-10-11: what Python reports _suppressed is the author's omission, which is the Plan's (authored omitted rows); lint by design does not read the Spec or the Plan (R1), so nothing further is worth porting."
   port_note: "Keep."
 
 - id: LINT-code-angled_step_requirement_unsupported
@@ -1434,7 +1445,8 @@
     module: "linting/angular.py"
     issues: [1177]
     tests: [tests/test_angular_rendering.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: the plan fails closed: an angle without proven supports is refused before it is drawn."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -1474,6 +1486,7 @@
     issues: [1086, 1058]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1058_wheel_profile.py]
   status: pending
+  rust_note: "Done in substance (rules assessment of 2026-10-11): src/lint/profiles.rs counts a repeating radial profile and warns that its outer boundary (for a gear, its tooth data) must be defined by hand. Left pending: there is no gear declaration and no test of this code."
   port_note: "Keep."
 
 - id: LINT-code-gear_axis_mismatch
@@ -1548,7 +1561,9 @@
     module: "linting/evidence.py"
     issues: [1217]
     tests: [tests/test_issue_1217_claimed_representations.py]
-  status: pending
+  status: ported
+  rust_test: src/lint/holes.rs::tests::a_blind_hole_without_a_depth_is_unverifiable
+  rust_note: "Folded into each family's <family>_requirement_unverifiable: a requirement whose record gives no value is reported unverifiable, neither confirmed nor refuted, at the family's severity. Closed by the rules assessment of 2026-10-11."
   port_note: "Keep."
 
 - id: LINT-code-claimed_representation_unreadable
@@ -1560,7 +1575,9 @@
     module: "linting/evidence.py"
     issues: [1217]
     tests: [tests/test_issue_1217_claimed_representations.py]
-  status: pending
+  status: ported
+  rust_test: tests/lint.rs::lint_reads_the_drawings_annotations
+  rust_note: "Folded into each family's <family>_requirement_unverifiable: a claim whose printed text does not state the value is neither credited nor taken as refuted. Closed by the rules assessment of 2026-10-11."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -1668,7 +1685,9 @@
     lint_code: "dim_inside_part"
     module: "linting/structural.py"
     tests: [tests/test_issue_1153_contradictory_dimensions.py]
-  status: pending
+  status: ported
+  rust_test: tests/lint_structural.rs::a_label_over_a_view_is_judged_by_its_edges
+  rust_note: "Ported in substance: a label over a view's line-work is reported (annotation_over_view in the plan, view_annotation_overlap in lint), judged by the view's edges rather than by 10 % of the outline box."
   port_note: "Keep."
 
 - id: LINT-code-annotation_out_of_bounds
@@ -1749,7 +1768,8 @@
     lint_code: "interior_label_on_narrow_material"
     module: "linting/structural.py"
     tests: [tests/test_interior_label_placement.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: the port places no interior labels."
   rust_note: "Not ported (src/lint/structural.rs leaves it out): it reads each view's filled projected material (draftwright's material field, label_on_narrow_material), which the drawing does not record; the port also places no label inside a view, so it could not fire on its own drawings."
   port_note: "Keep."
 
@@ -1799,6 +1819,7 @@
     issues: [2181]
     tests: [tests/test_layout_safety.py]
   status: pending
+  rust_note: "Obsolete until detail views exist (rules assessment of 2026-10-11); kept pending to revive with them."
   port_note: "Keep."
 
 - id: LINT-code-derived_view_identifier_reused
@@ -1850,7 +1871,8 @@
     module: "linting/pmi_coverage.py"
     issues: [623]
     tests: [tests/test_pmi.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: there is no switch to ignore PMI; semantic PMI is always lowered."
   port_note: "Keep if PMI is ported."
   rust_note: "Not-applicable as stated: the port has no switch to ignore PMI (draftwright's `pmi=\"off\"`, its default); a part's semantic PMI is always lowered and drawn, and presentation-only PMI is reported once (`pmi_presentation_not_read`, info). The coverage lint (`src/lint/pmi_coverage.rs`) never emits this code."
 
@@ -1894,7 +1916,7 @@
   status: pending
   rust_test: "tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported"
   port_note: "Keep if PMI is ported."
-  rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reports each record that lowers (a frame, symbol or label `pmi_lowering::lower` lowers, a drawing-wide requirement `pmi_lowering::sheet_requirements` lowers, a dimension of a kind stage 2b draws on proven faces) that no annotation names (`pmi:<source>`) or states (a measurement of feature `pmi:<source>`, as a hole callout or turned size that takes a PMI dimension claims it), error. It does not skip sources the build already explained (draftwright's `*_dropped` and `_EXPLAINED_OMISSION_CODES`): lint reads no Plan (R1), so a frame in an omitted view or a dimension the plan refuses is reported by the plan and again here (undetermined in `known_pmi_coverage.json`; a recorded maintainer question in docs/next-session.md). On the plan path every PMI dimension is drawn or reported, never both (`tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both`). Pending on that decision."
+  rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reports each record that lowers (a frame, symbol or label `pmi_lowering::lower` lowers, a drawing-wide requirement `pmi_lowering::sheet_requirements` lowers, a dimension of a kind stage 2b draws on proven faces) that no annotation names (`pmi:<source>`) or states (a measurement of feature `pmi:<source>`, as a hole callout or turned size that takes a PMI dimension claims it), error. It does not skip sources the build already explained (draftwright's `*_dropped` and `_EXPLAINED_OMISSION_CODES`): lint reads no Plan (R1), so a frame in an omitted view or a dimension the plan refuses is reported by the plan and again here (undetermined in `known_pmi_coverage.json`; a recorded maintainer question in docs/next-session.md). On the plan path every PMI dimension is drawn or reported, never both (`tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both`). Pending on that decision. Done in substance (rules assessment of 2026-10-11). Left pending on the recorded maintainer decision about double-reporting what the plan already reported."
 
 - id: LINT-code-pmi_value_mismatch
   statement: "A placed geometric tolerance frame states the same tolerance value and zone as its AP242 source, in both text layer and visible ink."
@@ -1905,10 +1927,10 @@
     module: "linting/pmi_coverage.py"
     issues: [623]
     tests: [tests/test_pmi_gtol_lowering.py]
-  status: pending
+  status: ported
   rust_test: "tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported"
   port_note: "Keep if PMI is ported."
-  rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reads each drawn frame's text runs (`pmi:<source>`) and reports one that does not state exactly one magnitude within Python's display bound of its source's, its zone (`⌀`, `S⌀` or none) and, beyond Python, its datum letters (repeats removed). The visible ink is not checked separately: the drawing exposes no glyph text per annotation, only the runs drawn from the same cell (`tests/pmi_lowering.rs::frames_and_symbols_are_searchable_and_drawn_from_the_font` compares the ink with draftwright's). No mismatch on the 14 fixtures, as in draftwright."
+  rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reads each drawn frame's text runs (`pmi:<source>`) and reports one that does not state exactly one magnitude within Python's display bound of its source's, its zone (`⌀`, `S⌀` or none) and, beyond Python, its datum letters (repeats removed). The visible ink is not checked separately: the drawing exposes no glyph text per annotation, only the runs drawn from the same cell (`tests/pmi_lowering.rs::frames_and_symbols_are_searchable_and_drawn_from_the_font` compares the ink with draftwright's). No mismatch on the 14 fixtures, as in draftwright. Closed by the rules assessment of 2026-10-11: the visible ink is drawn from the same cell as the checked text runs; nothing further is worth porting."
 
 - id: LINT-code-pmi_source_text_mismatch
   statement: "A source-scoped manufacturing note or face-finish annotation states the AP242 requirement text it claims to carry."
@@ -1932,7 +1954,7 @@
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: pending
   port_note: "Keep if PMI is ported."
-  rust_note: "Not ported: the check reads where a face-finish symbol is anchored and which source a general note claims. The reading holds the requirements and their faces; the port draws document-wide notes (`pmi:<source>`) and the default finish beside the title block, which have no face site, but no face-finish symbol, so there is no anchored carrier to check."
+  rust_note: "Not ported: the check reads where a face-finish symbol is anchored and which source a general note claims. The reading holds the requirements and their faces; the port draws document-wide notes (`pmi:<source>`) and the default finish beside the title block, which have no face site, but no face-finish symbol, so there is no anchored carrier to check. Obsolete until face-finish symbols are drawn (rules assessment of 2026-10-11); kept pending to revive with them."
 
 - id: LINT-code-pmi_unreconciled
   statement: "Content claiming an AP242 origin with no source census available is reported as unverified, never as satisfied."
@@ -1983,7 +2005,8 @@
     lint_code: "step_material_mismatch"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: cannot arise on the plan path: the title block's material is the plan's own; warning when a spec value contradicts the model is LINT-code-step_material_disagreement, still open."
   port_note: "Keep."
   rust_note: "Not ported: the reading carries each part's material (`pmi::Report::materials`) and the title block's material cell is on the drawing, but which code applies, and whether an empty cell is a finding, turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The title block does take the file's one usable material when the spec states none (draftwright's `_resolve_title_document_defaults`, tests/title_block_material.rs), and the cell's run then states its source (`pmi:material:<part>:0`), so the coverage lint does not report the material as not drawn; a title that does not state it (the spec gave another, or none was usable) is left to the reading's `pmi_not_extracted` (info)."
 
@@ -2007,10 +2030,10 @@
     lint_code: "step_material_unavailable"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
-  status: pending
+  status: ported
   rust_test: "src/lint/pmi_coverage.rs::tests::one_material_of_the_drawing_is_its_title_blocks"
   port_note: "Keep."
-  rust_note: "Partly: the coverage lint reports one stated material that is one part's of several drawn (draftwright's 'not owned by the single shaped source product definition', judged by the drawing's parts, not by draftwright's count of the file's product definitions, so a single shaped part under an assembly product definition is not caught) and one whose designation is empty, warning. A material property haecceity cannot read (several names, no descriptive item) is a reader finding, reported as `pmi_not_extracted` (info), not as this code: the reading carries no material for it to be unusable."
+  rust_note: "Partly: the coverage lint reports one stated material that is one part's of several drawn (draftwright's 'not owned by the single shaped source product definition', judged by the drawing's parts, not by draftwright's count of the file's product definitions, so a single shaped part under an assembly product definition is not caught) and one whose designation is empty, warning. A material property haecceity cannot read (several names, no descriptive item) is a reader finding, reported as `pmi_not_extracted` (info), not as this code: the reading carries no material for it to be unusable. Closed by the rules assessment of 2026-10-11: nothing further is worth porting."
 
 - id: LINT-code-step_material_ambiguous
   statement: "When the STEP carries several material properties no material is selected and the ambiguity is reported."
@@ -2033,7 +2056,8 @@
     lint_code: "step_general_tolerance_mismatch"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
-  status: pending
+  status: retired
+  why: "Rules assessment 2026-10-11: guaranteed by design: the plan writes the general tolerance it took, and a spec value that differs is warned (LINT-code-step_general_tolerance_disagreement)."
   port_note: "Keep."
   rust_note: "Not ported: the reading holds the general tolerance (a manufacturing requirement of kind general_tolerances, its class in `fields`), but the code applies only when the build took the title's general tolerance from the file, and its sibling when the caller supplied one: whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The plan fills the title block's tolerance cell from the part's one AP242 general tolerance when the spec states none (draftwright's `_resolve_title_document_defaults`, `pmi_lowering::plan_sheet`), so the mismatch cannot arise on the plan path; the material is not filled from the file yet."
 
@@ -2045,10 +2069,10 @@
     lint_code: "step_general_tolerance_disagreement"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
-  status: pending
+  status: ported
   rust_test: "tests/pmi_labels.rs::the_specs_tolerance_wins_and_a_different_pmi_one_is_reported"
   port_note: "Keep."
-  rust_note: "Partly: the plan reports it (a warning, naming the PMI source and sheet/title/tolerance) when the spec's tolerance, which wins, differs from the part's one AP242 general tolerance; also for a blank spec value, which draftwright passes in silence. As a lint code on a drawing it is not ported: as step_general_tolerance_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md)."
+  rust_note: "Partly: the plan reports it (a warning, naming the PMI source and sheet/title/tolerance) when the spec's tolerance, which wins, differs from the part's one AP242 general tolerance; also for a blank spec value, which draftwright passes in silence. As a lint code on a drawing it is not ported: as step_general_tolerance_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). Closed by the rules assessment of 2026-10-11: the plan's warning is the port of it; the lint twin (LINT-code-step_general_tolerance_mismatch) is retired."
 
 - id: LINT-pmi_coverage-stage_summary
   statement: "PMI coverage reports per-source stage inventories (discovered, extracted, lowered, rendered) as counts, not as an additive funnel."
@@ -2126,7 +2150,9 @@
     module: "linting/quality.py"
     issues: [1365, 1430, 1557]
     tests: [tests/test_quality_components.py]
-  status: pending
+  status: ported
+  rust_test: tests/native.rs::the_reader_refuses_what_it_does_not_know
+  rust_note: "Ported as refusal: both readers refuse a family, record type or derived collection they do not know (tests/bridge.rs::a_document_the_bridge_does_not_know_is_refused), and a recognised feature no planner dimensions is reported dimensions_not_ported. Closed by the rules assessment of 2026-10-11."
   port_note: "Keep the principle: no recognised inventory may silently join the blind spot."
 
 # ---------------------------------------------------------------------------------------
