@@ -8,22 +8,24 @@ import sys
 from pathlib import Path
 
 keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap",
-        "view_on_title_block", "ink"]
+        "view_on_title_block", "ink", "repeated_span", "hidden_on_visible", "section_hidden"]
 tables = []
 rows = None
 for line in Path(sys.argv[1]).read_text().splitlines():
     if re.match(r"^part\s+off_sheet\s+repeated_lab", line):
+        columns = line.split()[1:]
+        table_keys = [next(k for k in keys if k[:12] == column) for column in columns]
         rows = {}
     elif rows is not None:
         fields = line.split()
         if fields and fields[0] == "TOTAL":
-            tables.append(rows)
+            tables.append((table_keys, rows))
             rows = None
-        elif len(fields) == 7 and all(n.isdecimal() for n in fields[1:]):
+        elif len(fields) == len(columns) + 1 and all(n.isdecimal() for n in fields[1:]):
             rows[fields[0]] = list(map(int, fields[1:]))
 
-assert tables and tables[-1], "no complete quality table in status document"
-reference = tables[-1]
+assert tables and tables[-1][1], "no complete quality table in status document"
+keys, reference = tables[-1]
 actual = json.loads(Path(sys.argv[2]).read_text())
 assert len(actual) == len(reference), "part count differs from status table"
 seen = set()

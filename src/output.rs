@@ -78,6 +78,59 @@ impl Curve {
         }
     }
 
+    /// An exact parameter interval of the curve, with 0 ≤ lo < hi ≤ 1.
+    pub fn trim(&self, lo: f64, hi: f64) -> Self {
+        fn split<const N: usize>(p: &[[f64; N]], t: f64) -> (Vec<[f64; N]>, Vec<[f64; N]>) {
+            let mut q = p.to_vec();
+            let (mut left, mut right) = (vec![q[0]], vec![*q.last().unwrap()]);
+            while q.len() > 1 {
+                q = q
+                    .windows(2)
+                    .map(|w| std::array::from_fn(|k| (1.0 - t) * w[0][k] + t * w[1][k]))
+                    .collect();
+                left.push(q[0]);
+                right.push(*q.last().unwrap());
+            }
+            right.reverse();
+            (left, right)
+        }
+        fn pieces<const N: usize>(p: &[Vec<[f64; N]>], lo: f64, hi: f64) -> Vec<Vec<[f64; N]>> {
+            let n = p.len() as f64;
+            p.iter()
+                .enumerate()
+                .filter_map(|(i, poles)| {
+                    let a = (lo * n - i as f64).max(0.0);
+                    let b = (hi * n - i as f64).min(1.0);
+                    if b <= a {
+                        return None;
+                    }
+                    let left = split(poles, b).0;
+                    Some(split(&left, a / b).1)
+                })
+                .collect()
+        }
+        match self {
+            Self::Line(..) => Self::Line(self.at(lo), self.at(hi)),
+            Self::Conic {
+                centre,
+                radii,
+                x_axis,
+                y_axis,
+                t0,
+                t1,
+            } => Self::Conic {
+                centre: *centre,
+                radii: *radii,
+                x_axis: *x_axis,
+                y_axis: *y_axis,
+                t0: t0 + lo * (t1 - t0),
+                t1: t0 + hi * (t1 - t0),
+            },
+            Self::Beziers(p) => Self::Beziers(pieces(p, lo, hi)),
+            Self::Rational(p) => Self::Rational(pieces(p, lo, hi)),
+        }
+    }
+
     /// The curve's box, `[x0, y0, x1, y1]`: exact for a line or a straight Bézier piece; for a
     /// conic or any other piece, each coordinate's extremes found by sampling 64 steps and
     /// refining each turning point by golden section to 1e-12 of the parameter (a piece turns

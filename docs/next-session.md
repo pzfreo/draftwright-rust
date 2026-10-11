@@ -3011,3 +3011,70 @@ in Stage D. The all-tasks gate is unmet; fixing the existing pin/lane placement
 is E1's scope, excluded from E3. No task/checker condition was weakened.
 Logs, plans and SVGs are under `target/e3-*`; the full table and verdict evidence
 are recorded in the status document and known-differences ledgers.
+
+
+## Stage F S2: line precedence and section linework (2026-10-11)
+
+Overturnable judgement calls made unattended:
+
+- Interpret “within 0.15 mm of visible ink” as distance to the visible stroke,
+  including its half-width; with the existing 0.5 mm part stroke the centreline
+  threshold is 0.4 mm. Subtraction adds 0.002 mm for the two 0.001 mm chord errors.
+  The SVG instrument uses 0.002 mm chord error and integrates capsule intervals;
+  it measures underlying hidden paths, not dash pixels, and includes isometrics.
+- Deduplicate hidden supports within 0.004 mm on the page, enough for two chord
+  errors. This is smaller than any printed stroke. Merge touching collinear
+  fragments to retain one dash run; preserve exact curved fragments and stable
+  source order for equal lengths. Reconsider this tolerance if very fine detail
+  views supply a reason to retain distinguishable supports within it.
+- Hatch only material on both sides of the plane. Probe 0.01 model mm on each
+  side (retaining the previous kept-side offset), split every candidate at the
+  solid-face intersections, and classify each resulting span. This conservative
+  treatment excludes untouched coplanar faces. A much thinner than 0.02 mm wall
+  merits revisiting the probe offset; no part-specific hatch rule was used.
+- Correct the review catalogue's string_post bore orientation: the ø1.6 depth-4
+  bore is on the bottom, z=0..4; the upper opening is the transverse ø1.7 bore at
+  z=11.05. STEP recognition and point-in-solid evidence support this; the base
+  hatch already avoids the axial bore. The regression also requires its walls
+  visible and its section free of hidden items.
+
+Open question: should isometric hidden lines be omitted entirely? This stream
+leaves their original pieces and dash policy intact, as requested. The quality
+column includes their residual proximity to visible ink; the status entry gives
+both totals and per-view evidence so this separate decision is visible.
+
+No new model/editor problem kind is introduced: line precedence, hidden section
+suppression and correct material hatching are renderer responsibilities. The
+cleaned geometry lives in Projections' placed cache; warm renders still perform
+zero HLR and bounds passes. The original render_caches expectations stay intact.
+
+
+S2 follow-up judgement: normalize non-isometric projected conics with minor radius
+≤1e-6 page mm to one straight support spanning all major-axis extrema. At that
+size SVG's endpoint precision can invent return arcs; the actual deviation is
+≤2e-6 mm, far below stroke width. Do this before cached subtraction, keeping
+ordinary arcs exact and isometric geometry untouched. The CTC-02 all-view gate
+caught three such numerical artifacts and now rejects them.
+
+S2 draftsman/model verdicts: FTC-10's right obround/rectangular islands are cut
+material; their coplanar surroundings are not. Samples at x=35/45, y=23±0.01,
+z=22/-22 classify In on both sides within the islands, while x=25,z=22 and
+x=45,z=15 are one-sided. FTC-06's four circles are external cylindrical boss
+cross-sections (x=±76.2,z=-158.75 and x=±114.3,z=-107.95), with material at
+all four centres on y=50.8±0.01. Their smaller coaxial bores lie farther back.
+Do not “fix” those hatch regions by visual analogy with pockets/bores: the review
+catalogue marked these as unproven, and the model disproves that interpretation.
+See the S2 status entry and `target/s2-material-verdict.txt` for evidence.
+
+
+S2 final checks pass: fmt, strict release clippy, required-corpus release tests
+**648/648 (70 groups, no ignored tests)**, release build, Python instruments
+**18/18**, unchanged render caches **12/12**, all thirty quality parts / 270 cells
+no worse, nine `--require-go` pin runs **270/270 GO**, scripted MCP **7/7**.
+The first full run exposed a 273 ms NIST session edit; computing hidden-curve
+lengths once before sorting fixes it (isolated maximum 85.251 ms; unchanged
+150 ms gate passes in the final full run). Every final-build SVG is byte-identical
+to the thirty reviewed rasters' SVGs. Before/after tables, model verdicts, failure
+proof and final artifact locations are in the S2 status entry; deliberate Python
+reference differences are `rust-correct` in `tests/fixtures/known_linework.json`.
+No commit or push was made.

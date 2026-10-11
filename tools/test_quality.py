@@ -74,7 +74,7 @@ class RepeatedSpans(unittest.TestCase):
 
     def test_cli_can_enforce_zero_repeated_spans(self):
         metrics = {k: 0 for k in ('off_sheet', 'repeated_label', 'repeated_measure',
-                                 'views_overlap', 'view_on_title_block', 'ink', 'repeated_span')}
+                                 'views_overlap', 'view_on_title_block', 'ink', 'repeated_span', 'hidden_on_visible', 'section_hidden')}
         with tempfile.TemporaryDirectory() as out:
             baseline = pathlib.Path(out) / 'source.json'
             for repeated in (0, 1):
@@ -84,6 +84,55 @@ class RepeatedSpans(unittest.TestCase):
                         'dw', out, 'part.step']
                 with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(quality.main(), repeated)
+
+
+class Linework(unittest.TestCase):
+    def measure(self, visible, hidden, views=None, width=0):
+        views = views or [{'id': 'v:front', 'area': [-20, -20, 20, 20]}]
+        with tempfile.TemporaryDirectory() as out:
+            path = pathlib.Path(out) / 'sheet.svg'
+            path.write_text(f'<svg><g id="part" stroke-width="{width}">{visible}</g><g id="hidden">{hidden}</g></svg>')
+            return quality.svg_linework(path, {'views': views})
+
+    def test_page_length_and_distance_thresholds(self):
+        visible = '<line x1="0" y1="0" x2="10" y2="0"/>'
+        for length, distance, count in [(2, .14, 1), (2, .16, 0), (.9, 0, 0)]:
+            hidden = f'<path d="M 0 {distance} L {length} {distance}"/>'
+            self.assertEqual(self.measure(visible, hidden)['hidden_on_visible'], count)
+
+    def test_visible_stroke_width_is_ink(self):
+        visible = '<line x1="0" y1="0" x2="10" y2="0"/>'
+        for offset, count in ((.39,1),(.41,0)):
+            hidden = f'<line x1="0" y1="{offset}" x2="10" y2="{offset}"/>'
+            self.assertEqual(self.measure(visible, hidden, width=.5)['hidden_on_visible'], count)
+
+    def test_arc_coincidence_and_partial_overlap(self):
+        self.assertEqual(self.measure('<circle cx="0" cy="0" r="5"/>',
+                         '<path d="M 5 0 A 5 5 0 0 1 0 5"/>')['hidden_on_visible'], 1)
+        self.assertEqual(self.measure('<line x1="0" y1="0" x2="3" y2="0"/>',
+                         '<line x1="2" y1="0" x2="7" y2="0"/>')['hidden_on_visible'], 1)
+
+    def test_section_counts_elements_and_separates_views(self):
+        views = [{'id': 'v:front', 'area': [0,0,10,10]},
+                 {'id': 'v:section_aa', 'area': [20,0,30,10], 'cut': {'normal': [0,1,0]}}]
+        hidden = '<line x1="21" y1="1" x2="29" y2="1"/>'
+        visible = '<line x1="1" y1="1" x2="9" y2="1"/>'
+        self.assertEqual(self.measure(visible, hidden, views),
+                         {'hidden_on_visible': 0, 'section_hidden': 1})
+
+    def test_checker_reads_header_and_rejects_each_linework_regression(self):
+        checker = pathlib.Path(__file__).with_name('check_quality_table.py')
+        with tempfile.TemporaryDirectory() as out:
+            status, baseline = [pathlib.Path(out) / x for x in ('status.md', 'baseline.json')]
+            status.write_text('part off_sheet repeated_lab section_hidd hidden_on_vi\npart1 0 0 0 0\nTOTAL 0 0 0 0\n')
+            for key in ('section_hidden', 'hidden_on_visible', 'off_sheet'):
+                baseline.write_text(json.dumps({'part1': {'section_hidden': 0, 'hidden_on_visible': 0,
+                                                          'off_sheet': 0, 'repeated_label': 0, key: 1}}))
+                self.assertNotEqual(subprocess.run([sys.executable, '-I', str(checker), str(status),
+                                                   str(baseline)], capture_output=True).returncode, 0)
+            baseline.write_text(json.dumps({'part1': {'section_hidden': 0, 'hidden_on_visible': 0, 'off_sheet': 0, 'repeated_label': 0}}))
+            self.assertEqual(subprocess.run([sys.executable, '-I', str(checker), str(status),
+                                            str(baseline)], capture_output=True).returncode, 0)
 
 
 class RandomPins(unittest.TestCase):
@@ -126,7 +175,7 @@ class RandomPins(unittest.TestCase):
             {'code': 'pinned_view_off_sheet', 'subjects': ['v:plan']}]}
         replies = [subprocess.CompletedProcess([], 0, json.dumps(render), ''),
                    subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
-        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'svg_linework', return_value={'hidden_on_visible': 0, 'section_hidden': 0}):
             _, result = quality.one('part.step', 'dw', out)
         self.assertEqual(result['off_sheet'], 2)
         self.assertEqual(result['off_sheet_items'], ['d:a/length', 'v:plan'])

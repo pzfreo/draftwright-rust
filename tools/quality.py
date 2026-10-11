@@ -12,7 +12,8 @@ and ignore lane and label. PMI face-pair near misses are included. Use
 
 Usage: python3 -I tools/quality.py <draftwright binary> <out dir> <step files...>
 (the parts: tools/quality_parts.txt, paths relative to $DRAFTWRIGHT_CORPUS)"""
-import argparse, collections, hashlib, json, subprocess, sys, os, re
+import argparse, collections, hashlib, json, subprocess, sys, os, re, math
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 
 INK = {"annotation_ink_overlap", "annotation_over_view", "annotation_line_over_view",
@@ -76,6 +77,156 @@ def repeated_spans(plan):
                    for g in groups if len(g['members']) > 1), key=lambda g: g['items'])
 
 
+def svg_linework(path, plan):
+    """Count SVG edge elements (line/path/ellipse), in page mm, per placed view.
+
+    Distance is to visible ink (half the SVG stroke width), plus 0.15 mm; dashes are
+    measured as their underlying path. Curves are flattened to 0.002 mm chord
+    error. Isometric edges are included, although their rendering is unchanged.
+    """
+    def flatten(at, end, f, depth=0):
+        middle = f(0.5)
+        flat = all(math.dist(f(t), [at[k]+t*(end[k]-at[k]) for k in (0,1)]) <= 0.002
+                   for t in (.25,.5,.75))
+        if depth >= 20 or flat:
+            return [at, end]
+        return (flatten(at, middle, lambda t: f(t / 2), depth + 1)[:-1]
+                + flatten(middle, end, lambda t: f((t + 1) / 2), depth + 1))
+
+    def points(element):
+        tag = element.tag.rsplit('}', 1)[-1]
+        a = element.attrib
+        if tag == 'line':
+            return [(float(a['x1']), float(a['y1'])), (float(a['x2']), float(a['y2']))]
+        if tag in ('circle', 'ellipse'):
+            rx, ry = float(a.get('rx', a.get('r', 0))), float(a.get('ry', a.get('r', 0)))
+            cx, cy = float(a['cx']), float(a['cy'])
+            f = lambda t: [cx + rx * math.cos(t * 2 * math.pi), cy + ry * math.sin(t * 2 * math.pi)]
+            return sum((flatten(f(i/4), f((i+1)/4), lambda t, i=i: f((i+t)/4))[:-1]
+                        for i in range(4)), []) + [f(1)]
+        if tag != 'path':
+            return []
+        tokens = re.findall(r'[A-Za-z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?', a['d'])
+        out, at, i = [], [0, 0], 0
+        while i < len(tokens):
+            command = tokens[i]; i += 1
+            n = {'M': 2, 'L': 2, 'Q': 4, 'C': 6, 'A': 7, 'Z': 0}[command]
+            values = list(map(float, tokens[i:i+n])); i += n
+            if command == 'Z':
+                out.append(out[0]); continue
+            end = values[-2:]
+            if command in ('M', 'L'):
+                out.append(end)
+            elif command in ('Q', 'C'):
+                poles = [at] + [values[k:k+2] for k in range(0, n, 2)]
+                def bezier(t):
+                    q = poles
+                    while len(q) > 1:
+                        q = [[(1-t)*a[k]+t*b[k] for k in (0,1)] for a,b in zip(q,q[1:])]
+                    return q[0]
+                out.extend(flatten(at, end, bezier)[1:])
+            else:
+                rx, ry, rotation, large, sweep = values[:5]
+                phi = math.radians(rotation); c, s = math.cos(phi), math.sin(phi)
+                dx, dy = (at[0]-end[0])/2, (at[1]-end[1])/2
+                x, y = c*dx+s*dy, -s*dx+c*dy
+                factor = max(1, math.sqrt((x/rx)**2+(y/ry)**2))
+                rx *= factor; ry *= factor
+                k = math.sqrt(max(0, (rx*ry)**2-(rx*y)**2-(ry*x)**2)
+                              / max(1e-30, (rx*y)**2+(ry*x)**2))
+                if bool(large) == bool(sweep): k = -k
+                ux, uy = k*rx*y/ry, -k*ry*x/rx
+                cx, cy = (at[0]+end[0])/2+c*ux-s*uy, (at[1]+end[1])/2+s*ux+c*uy
+                start = math.atan2((y-uy)/ry, (x-ux)/rx)
+                stop = math.atan2((-y-uy)/ry, (-x-ux)/rx)
+                angle = (stop-start) % (2*math.pi)
+                if not sweep: angle -= 2*math.pi
+                f = lambda t: [cx+c*rx*math.cos(start+angle*t)-s*ry*math.sin(start+angle*t),
+                               cy+s*rx*math.cos(start+angle*t)+c*ry*math.sin(start+angle*t)]
+                steps = max(1, math.ceil(abs(angle)/(math.pi/2)))
+                for j in range(steps):
+                    out.extend(flatten(f(j/steps), f((j+1)/steps),
+                                       lambda t, j=j: f((j+t)/steps))[1:])
+            at = end
+        return out
+
+    root = ET.parse(path).getroot()
+    layers = {g.attrib.get('id'): [points(e) for e in g]
+              for g in root.iter() if g.attrib.get('id') in ('part', 'hidden')}
+    visible = layers.get('part', [])
+    tolerance = .15 + next((float(g.attrib.get('stroke-width', 0))/2
+                            for g in root.iter() if g.attrib.get('id') == 'part'), 0)
+    counts = {'hidden_on_visible': 0, 'section_hidden': 0}
+    def view_of(p):
+        return next((v for v in plan['views'] if v.get('area') and
+                     v['area'][0] <= p[0] <= v['area'][2] and
+                     v['area'][1] <= p[1] <= v['area'][3]), None)
+    by_view = collections.defaultdict(list)
+    for curve in visible:
+        if len(curve) >= 2:
+            view = view_of(curve[len(curve)//2])
+            if view:
+                by_view[view['id']].extend(zip(curve, curve[1:]))
+    grids = {}
+    def cells(a, b, pad=0):
+        return ((x,y) for x in range(math.floor((min(a[0],b[0])-pad)/2), math.floor((max(a[0],b[0])+pad)/2)+1)
+                for y in range(math.floor((min(a[1],b[1])-pad)/2), math.floor((max(a[1],b[1])+pad)/2)+1))
+    for view, segments in by_view.items():
+        grid = collections.defaultdict(set)
+        for i, (a,b) in enumerate(segments):
+            for cell in cells(a,b,tolerance): grid[cell].add(i)
+        grids[view] = grid
+    for curve in layers.get('hidden', []):
+        if len(curve) < 2: continue
+        view = view_of(curve[len(curve)//2])
+        if not view: continue
+        counts['section_hidden'] += bool(view.get('cut'))
+        if sum(math.dist(a,b) for a,b in zip(curve,curve[1:])) < 1-1e-9:
+            continue
+        segments = by_view[view['id']]; grid = grids.get(view['id'], {})
+        length = 0
+        for a,b in zip(curve,curve[1:]):
+            candidates = set().union(*(grid.get(cell,set()) for cell in cells(a,b)))
+            intervals = []
+            vx, vy = b[0]-a[0], b[1]-a[1]
+            vv = vx*vx+vy*vy
+            if not vv: continue
+            for i in candidates:
+                c,d = segments[i]
+                if any(max(a[k],b[k]) < min(c[k],d[k])-tolerance or
+                       min(a[k],b[k]) > max(c[k],d[k])+tolerance for k in (0,1)):
+                    continue
+                wx, wy = d[0]-c[0], d[1]-c[1]
+                ww = wx*wx+wy*wy
+                def clip(value, slope, lower, upper, lo, hi):
+                    if abs(slope) < 1e-15:
+                        return (lo,hi) if lower <= value <= upper else (0,0)
+                    u,v = (lower-value)/slope, (upper-value)/slope
+                    return max(lo,min(u,v)), min(hi,max(u,v))
+                if ww:
+                    ax, ay = a[0]-c[0], a[1]-c[1]
+                    lo,hi = clip(ax*wx+ay*wy,vx*wx+vy*wy,0,ww,0,1)
+                    band = tolerance*math.sqrt(ww)
+                    lo,hi = clip(ax*wy-ay*wx,vx*wy-vy*wx,-band,band,lo,hi)
+                    if hi>lo: intervals.append((lo,hi))
+                for end in (c,d):
+                    ax,ay = a[0]-end[0],a[1]-end[1]
+                    dot = ax*vx+ay*vy
+                    disc = tolerance**2-ax*ax-ay*ay+dot*dot/vv
+                    if disc>=0:
+                        half = math.sqrt(disc/vv)
+                        lo,hi = max(0,-dot/vv-half),min(1,-dot/vv+half)
+                        if hi>lo: intervals.append((lo,hi))
+            stop = 0
+            for lo,hi in sorted(intervals):
+                if hi>stop:
+                    length += max(0,hi-max(lo,stop))*math.sqrt(vv)
+                    stop = hi
+            if length >= 1-1e-9: break
+        counts['hidden_on_visible'] += length >= 1-1e-9
+    return counts
+
+
 def one(f, dw, out, spec=None):
     name = os.path.basename(f).split(".")[0]
     os.makedirs(out, exist_ok=True)
@@ -126,11 +277,12 @@ def one(f, dw, out, spec=None):
         "views_overlap": view_over, "view_on_title_block": view_tb,
         "ink": sum(codes[c] for c in INK), "ink_by_code": {c: codes[c] for c in INK if codes[c]},
         "dimensions": len(plan["dimensions"]),
+        **svg_linework(f"{out}/{name}.svg", plan),
     }
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "hidden_on_visible", "section_hidden"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):
