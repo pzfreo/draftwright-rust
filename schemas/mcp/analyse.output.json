@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://draftwright.io/schemas/mcp/analyse.output.json",
+  "type": "object",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "draftwright.analysis/7"
+        },
+        "binding": {
+          "type": "object",
+          "properties": {
+            "source_sha256": {
+              "type": "string"
+            },
+            "part": {
+              "type": "string"
+            },
+            "face_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "loader": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_sha256",
+            "part",
+            "face_count",
+            "loader"
+          ],
+          "additionalProperties": false
+        },
+        "envelope": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "iso_bounds": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 4,
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "schema",
+        "binding",
+        "envelope",
+        "iso_bounds"
+      ],
+      "additionalProperties": true
+    },
+    {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/error"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid",
+            "failed"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

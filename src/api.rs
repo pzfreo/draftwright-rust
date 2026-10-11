@@ -547,6 +547,33 @@ impl Service {
             .unwrap_or_else(|_| Err(Error::failed(format!("{op} stopped"))))
     }
     fn dispatch(&mut self, op: &str, args: &Value) -> Result<Value, Error> {
+        if let Some(tool) = op.strip_prefix("mcp_") {
+            let nested = args.get("arguments");
+            let mut args = nested.unwrap_or(args).clone();
+            if nested.is_none()
+                && let Some(fields) = args.as_object_mut()
+            {
+                fields.remove("op");
+                fields.remove("id");
+            }
+            return crate::mcp::call(&crate::stateless::Cache::environment(), tool, &args);
+        }
+        if op == "stateless_apply" || op == "stateless_preview" {
+            let cache = crate::stateless::Cache::environment();
+            let part_ref = args["part_ref"]
+                .as_str()
+                .ok_or_else(|| Error::invalid("provide part_ref from inspect_part"))?;
+            let spec: Spec =
+                serde_json::from_value(args.get("spec").cloned().unwrap_or_else(|| json!({})))
+                    .map_err(|e| Error::invalid(e.to_string()))?;
+            let ops: Vec<crate::items::Op> = serde_json::from_value(args["ops"].clone())
+                .map_err(|e| Error::invalid(e.to_string()))?;
+            return if op == "stateless_apply" {
+                Ok(json_of(&cache.apply(part_ref, &spec, &ops)?))
+            } else {
+                Ok(json_of(&cache.preview(part_ref, &spec, &ops)?))
+            };
+        }
         if op == "open" {
             let step = args
                 .get("step")
@@ -632,3 +659,21 @@ impl Service {
         }
     }
 }
+
+/// Stateless subprocess operations; tool calls use the same published MCP schemas.
+pub const STATELESS_OPERATIONS: [&str; 14] = [
+    "stateless_apply",
+    "stateless_preview",
+    "mcp_inspect_part",
+    "mcp_list_items",
+    "mcp_get_item",
+    "mcp_list_problems",
+    "mcp_item_options",
+    "mcp_preview_ops",
+    "mcp_apply_ops",
+    "mcp_view_sheet",
+    "mcp_render_pdf",
+    "mcp_get_spec",
+    "mcp_analyse",
+    "mcp_render",
+];

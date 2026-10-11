@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://draftwright.io/schemas/mcp/inspect_part.output.json",
+  "type": "object",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "part_ref": {
+          "type": "string"
+        },
+        "part": {
+          "type": "string"
+        },
+        "face_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "envelope": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "sheet": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "type": "string"
+            },
+            "scale": {
+              "type": "string"
+            },
+            "page": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "size",
+            "scale",
+            "page"
+          ],
+          "additionalProperties": false
+        },
+        "views": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "problems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "spec_version": {
+          "type": "string"
+        },
+        "plan_ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "part_ref",
+        "part",
+        "face_count",
+        "envelope",
+        "sheet",
+        "views",
+        "items",
+        "problems",
+        "spec_version"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/error"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid",
+            "failed"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

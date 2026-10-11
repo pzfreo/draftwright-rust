@@ -2990,3 +2990,5 @@ fn pdf_spec(text: &str) -> Result<Option<String>, String> {
         .ok_or_else(broken)?;
     String::from_utf8(bytes).map(Some).map_err(|_| broken())
 }
+
+mod projection_store;

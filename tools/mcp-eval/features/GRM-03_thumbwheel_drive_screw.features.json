@@ -1,0 +1,859 @@
+{
+ "faces": [
+  {
+   "area": 49.762827632862326,
+   "surface": "plane"
+  },
+  {
+   "area": 12.928789350032435,
+   "surface": "cone"
+  },
+  {
+   "area": 47.123889803850005,
+   "surface": "cylinder"
+  },
+  {
+   "area": 43.98229715025421,
+   "surface": "cylinder"
+  },
+  {
+   "area": 12.566370614359172,
+   "surface": "plane"
+  },
+  {
+   "area": 12.928789350032442,
+   "surface": "cone"
+  },
+  {
+   "area": 164.9336143134533,
+   "surface": "cylinder"
+  },
+  {
+   "area": 41.12344783549041,
+   "surface": "plane"
+  },
+  {
+   "area": 5.553603672693988,
+   "surface": "cone"
+  },
+  {
+   "area": 9.424777960769987,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3.1415926535897922,
+   "surface": "plane"
+  },
+  {
+   "area": 26.26371458401068,
+   "surface": "plane"
+  },
+  {
+   "area": 19.100883333827202,
+   "surface": "cylinder"
+  },
+  {
+   "area": 2.0106192982974678,
+   "surface": "plane"
+  }
+ ],
+ "format": "draftwright.recognition/1",
+ "quiddity": {
+  "association": {
+   "face_count": {
+    "associated": 11,
+    "ratio": 0.7857142857142857,
+    "total": 14,
+    "unassociated": 3
+   },
+   "families": [
+    {
+     "face_count": 2,
+     "family": "holes",
+     "surface_area": 21.11150263212467
+    },
+    {
+     "face_count": 4,
+     "family": "turned_steps",
+     "surface_area": 265.46457922832747
+    },
+    {
+     "face_count": 2,
+     "family": "risers",
+     "surface_area": 90.88627546835274
+    },
+    {
+     "face_count": 3,
+     "family": "chamfers",
+     "surface_area": 31.411182372758866
+    }
+   ],
+   "surface_area": {
+    "associated": 408.87353970156374,
+    "ratio": 0.9069044625121772,
+    "total": 450.8452175535234,
+    "unassociated": 41.97167785195964
+   },
+   "unassociated_faces": [
+    4,
+    10,
+    11
+   ]
+  },
+  "bodies": [
+   {
+    "index": 0,
+    "named_dimensions": {
+     "overall_spans": {
+      "x": 23.500000000000004,
+      "y": 10.0,
+      "z": 10.0
+     },
+     "overall_thickness": 10.0,
+     "thickness_axis": "y"
+    }
+   }
+  ],
+  "coordinate_space": "local",
+  "derived": {
+   "hole_pairs": [],
+   "hole_patterns": [],
+   "oriented_slot_patterns": [],
+   "section_recess_patterns": [],
+   "slot_patterns": [],
+   "turned_profiles": [
+    {
+     "axis": "x",
+     "named_dimensions": {},
+     "profile": {
+      "axis": "x",
+      "axis_origin": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "body_bounds": [
+       -6.58163131,
+       16.91836869,
+       -5.0,
+       5.0,
+       -5.0,
+       5.0
+      ],
+      "body_key": [
+       -6.581631,
+       -5.0,
+       -5.0,
+       16.918369,
+       5.0,
+       5.0,
+       345.897728741,
+       450.845217554
+      ]
+     },
+     "steps": [
+      {
+       "axis": "x",
+       "diameter": 6.0,
+       "hi": -6.082,
+       "lo": -6.582,
+       "profile": {
+        "axis": "x",
+        "axis_origin": [
+         0.0,
+         0.0,
+         0.0
+        ],
+        "body_bounds": [
+         -6.58163131,
+         16.91836869,
+         -5.0,
+         5.0,
+         -5.0,
+         5.0
+        ],
+        "body_key": [
+         -6.581631,
+         -5.0,
+         -5.0,
+         16.918369,
+         5.0,
+         5.0,
+         345.897728741,
+         450.845217554
+        ]
+       }
+      },
+      {
+       "axis": "x",
+       "diameter": 10.0,
+       "hi": -4.082,
+       "lo": -6.082,
+       "profile": {
+        "axis": "x",
+        "axis_origin": [
+         0.0,
+         0.0,
+         0.0
+        ],
+        "body_bounds": [
+         -6.58163131,
+         16.91836869,
+         -5.0,
+         5.0,
+         -5.0,
+         5.0
+        ],
+        "body_key": [
+         -6.581631,
+         -5.0,
+         -5.0,
+         16.918369,
+         5.0,
+         5.0,
+         345.897728741,
+         450.845217554
+        ]
+       }
+      },
+      {
+       "axis": "x",
+       "diameter": 5.0,
+       "hi": -1.082,
+       "lo": -4.082,
+       "profile": {
+        "axis": "x",
+        "axis_origin": [
+         0.0,
+         0.0,
+         0.0
+        ],
+        "body_bounds": [
+         -6.58163131,
+         16.91836869,
+         -5.0,
+         5.0,
+         -5.0,
+         5.0
+        ],
+        "body_key": [
+         -6.581631,
+         -5.0,
+         -5.0,
+         16.918369,
+         5.0,
+         5.0,
+         345.897728741,
+         450.845217554
+        ]
+       }
+      },
+      {
+       "axis": "x",
+       "diameter": 3.0,
+       "hi": 16.918,
+       "lo": -1.082,
+       "profile": {
+        "axis": "x",
+        "axis_origin": [
+         0.0,
+         0.0,
+         0.0
+        ],
+        "body_bounds": [
+         -6.58163131,
+         16.91836869,
+         -5.0,
+         5.0,
+         -5.0,
+         5.0
+        ],
+        "body_key": [
+         -6.581631,
+         -5.0,
+         -5.0,
+         16.918369,
+         5.0,
+         5.0,
+         345.897728741,
+         450.845217554
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "faces": [
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 0,
+    "index": 0
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 1,
+    "index": 1
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 2,
+    "index": 2
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 3,
+    "index": 3
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 4,
+    "index": 4
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 5,
+    "index": 5
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 6,
+    "index": 6
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 7,
+    "index": 7
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 8,
+    "index": 8
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 9,
+    "index": 9
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 10,
+    "index": 10
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 11,
+    "index": 11
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 12,
+    "index": 12
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 13,
+    "index": 13
+   }
+  ],
+  "features": [
+   {
+    "constituent_faces": [
+     12,
+     13
+    ],
+    "defining_faces": [
+     12
+    ],
+    "family": "holes",
+    "index": 0,
+    "record": {
+     "axis": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "flat",
+     "cbore": null,
+     "csink": null,
+     "dependents": [],
+     "depth": 3.8,
+     "diameter": 1.6,
+     "location": [
+      -6.5816313108,
+      0.0,
+      0.0
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     9
+    ],
+    "defining_faces": [
+     9
+    ],
+    "family": "turned_steps",
+    "index": 1,
+    "record": {
+     "axis": "x",
+     "dependents": [],
+     "diameter": 6.0,
+     "hi": -6.082,
+     "lo": -6.582,
+     "named_dimensions": {
+      "axial_length": 0.5,
+      "disc_thickness": {
+       "basis": "heuristic",
+       "value": 0.5
+      }
+     },
+     "profile": {
+      "axis": "x",
+      "axis_origin": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "body_bounds": [
+       -6.58163131,
+       16.91836869,
+       -5.0,
+       5.0,
+       -5.0,
+       5.0
+      ],
+      "body_key": [
+       -6.581631,
+       -5.0,
+       -5.0,
+       16.918369,
+       5.0,
+       5.0,
+       345.897728741,
+       450.845217554
+      ]
+     }
+    },
+    "record_type": "TurnedStep"
+   },
+   {
+    "constituent_faces": [
+     3
+    ],
+    "defining_faces": [
+     3
+    ],
+    "family": "turned_steps",
+    "index": 2,
+    "record": {
+     "axis": "x",
+     "dependents": [
+      {
+       "constituent_faces": [
+        5
+       ],
+       "defining_faces": [
+        5
+       ],
+       "feature_index": 7,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        1
+       ],
+       "defining_faces": [
+        1
+       ],
+       "feature_index": 8,
+       "relation": "edge_treatment"
+      }
+     ],
+     "diameter": 10.0,
+     "hi": -4.082,
+     "lo": -6.082,
+     "named_dimensions": {
+      "axial_length": 2.0,
+      "disc_thickness": {
+       "basis": "heuristic",
+       "value": 2.0
+      }
+     },
+     "profile": {
+      "axis": "x",
+      "axis_origin": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "body_bounds": [
+       -6.58163131,
+       16.91836869,
+       -5.0,
+       5.0,
+       -5.0,
+       5.0
+      ],
+      "body_key": [
+       -6.581631,
+       -5.0,
+       -5.0,
+       16.918369,
+       5.0,
+       5.0,
+       345.897728741,
+       450.845217554
+      ]
+     }
+    },
+    "record_type": "TurnedStep"
+   },
+   {
+    "constituent_faces": [
+     2
+    ],
+    "defining_faces": [
+     2
+    ],
+    "family": "turned_steps",
+    "index": 3,
+    "record": {
+     "axis": "x",
+     "dependents": [],
+     "diameter": 5.0,
+     "hi": -1.082,
+     "lo": -4.082,
+     "named_dimensions": {
+      "axial_length": 3.0
+     },
+     "profile": {
+      "axis": "x",
+      "axis_origin": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "body_bounds": [
+       -6.58163131,
+       16.91836869,
+       -5.0,
+       5.0,
+       -5.0,
+       5.0
+      ],
+      "body_key": [
+       -6.581631,
+       -5.0,
+       -5.0,
+       16.918369,
+       5.0,
+       5.0,
+       345.897728741,
+       450.845217554
+      ]
+     }
+    },
+    "record_type": "TurnedStep"
+   },
+   {
+    "constituent_faces": [
+     6
+    ],
+    "defining_faces": [
+     6
+    ],
+    "family": "turned_steps",
+    "index": 4,
+    "record": {
+     "axis": "x",
+     "dependents": [
+      {
+       "constituent_faces": [
+        8
+       ],
+       "defining_faces": [
+        8
+       ],
+       "feature_index": 9,
+       "relation": "edge_treatment"
+      }
+     ],
+     "diameter": 3.0,
+     "hi": 16.918,
+     "lo": -1.082,
+     "named_dimensions": {
+      "axial_length": 18.0
+     },
+     "profile": {
+      "axis": "x",
+      "axis_origin": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "body_bounds": [
+       -6.58163131,
+       16.91836869,
+       -5.0,
+       5.0,
+       -5.0,
+       5.0
+      ],
+      "body_key": [
+       -6.581631,
+       -5.0,
+       -5.0,
+       16.918369,
+       5.0,
+       5.0,
+       345.897728741,
+       450.845217554
+      ]
+     }
+    },
+    "record_type": "TurnedStep"
+   },
+   {
+    "constituent_faces": [
+     7
+    ],
+    "defining_faces": [
+     7
+    ],
+    "family": "risers",
+    "index": 5,
+    "record": {
+     "axis": "x",
+     "body_key": [
+      -6.581631,
+      -5.0,
+      -5.0,
+      16.918369,
+      5.0,
+      5.0,
+      345.897728741,
+      450.845217554
+     ],
+     "body_levels": [],
+     "dependents": [
+      {
+       "constituent_faces": [
+        5
+       ],
+       "defining_faces": [
+        5
+       ],
+       "feature_index": 7,
+       "relation": "edge_treatment"
+      }
+     ],
+     "hi_at_envelope": true,
+     "lo_at_envelope": true,
+     "named_dimensions": {},
+     "other_axis": "y",
+     "other_positions": [],
+     "positions": [
+      -6.082
+     ],
+     "tol": 0.5,
+     "vertical": true,
+     "z_hi": 4.699999999999926,
+     "z_lo": -4.700000000000075
+    },
+    "record_type": "RiserEvidence"
+   },
+   {
+    "constituent_faces": [
+     0
+    ],
+    "defining_faces": [
+     0
+    ],
+    "family": "risers",
+    "index": 6,
+    "record": {
+     "axis": "x",
+     "body_key": [
+      -6.581631,
+      -5.0,
+      -5.0,
+      16.918369,
+      5.0,
+      5.0,
+      345.897728741,
+      450.845217554
+     ],
+     "body_levels": [],
+     "dependents": [
+      {
+       "constituent_faces": [
+        1
+       ],
+       "defining_faces": [
+        1
+       ],
+       "feature_index": 8,
+       "relation": "edge_treatment"
+      }
+     ],
+     "hi_at_envelope": true,
+     "lo_at_envelope": true,
+     "named_dimensions": {},
+     "other_axis": "y",
+     "other_positions": [],
+     "positions": [
+      -4.082
+     ],
+     "tol": 0.5,
+     "vertical": true,
+     "z_hi": 4.699999999999926,
+     "z_lo": -4.700000000000075
+    },
+    "record_type": "RiserEvidence"
+   },
+   {
+    "constituent_faces": [
+     5
+    ],
+    "defining_faces": [
+     5
+    ],
+    "family": "chamfers",
+    "index": 7,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      -5.932,
+      0.0,
+      4.85
+     ],
+     "axis": "x",
+     "corner": null,
+     "dependents": [],
+     "leg1": 0.3,
+     "leg2": 0.3,
+     "named_dimensions": {},
+     "turned": true
+    },
+    "record_type": "Chamfer"
+   },
+   {
+    "constituent_faces": [
+     1
+    ],
+    "defining_faces": [
+     1
+    ],
+    "family": "chamfers",
+    "index": 8,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      -4.232,
+      -0.0,
+      4.85
+     ],
+     "axis": "x",
+     "corner": null,
+     "dependents": [],
+     "leg1": 0.3,
+     "leg2": 0.3,
+     "named_dimensions": {},
+     "turned": true
+    },
+    "record_type": "Chamfer"
+   },
+   {
+    "constituent_faces": [
+     8
+    ],
+    "defining_faces": [
+     8
+    ],
+    "family": "chamfers",
+    "index": 9,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      16.668,
+      -0.0,
+      1.25
+     ],
+     "axis": "x",
+     "corner": null,
+     "dependents": [],
+     "leg1": 0.5,
+     "leg2": 0.5,
+     "named_dimensions": {},
+     "turned": true
+    },
+    "record_type": "Chamfer"
+   }
+  ],
+  "format": "quiddity-recognition",
+  "format_version": 3,
+  "frame": {
+   "gauge": "axial",
+   "origin": [
+    6.581631310775899,
+    8.417181292010134e-17,
+    7.465119306521368e-14
+   ],
+   "x": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "y": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "z": [
+    0.0,
+    0.0,
+    1.0
+   ]
+  },
+  "package": {
+   "name": "quiddity",
+   "version": "0.4.0.dev0"
+  },
+  "proof": "whole_solid",
+  "rotational": false
+ },
+ "recogniser": "quiddity 0.4.0.dev0",
+ "source_sha256": "b4d455810969ee6644e73f3ee0576b43dc0937eeb2589a4383c931d126b6d285"
+}

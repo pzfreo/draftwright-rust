@@ -1,0 +1,6301 @@
+{
+ "faces": [
+  {
+   "area": 12964.878066825357,
+   "surface": "plane"
+  },
+  {
+   "area": 12251.382658331739,
+   "surface": "plane"
+  },
+  {
+   "area": 12964.878066825364,
+   "surface": "plane"
+  },
+  {
+   "area": 222955.38236920134,
+   "surface": "plane"
+  },
+  {
+   "area": 4000.0,
+   "surface": "plane"
+  },
+  {
+   "area": 3141.5926535897934,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3999.999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 785.3981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 1500.0,
+   "surface": "plane"
+  },
+  {
+   "area": 785.3981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3999.999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 785.3981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 1500.0,
+   "surface": "plane"
+  },
+  {
+   "area": 785.3981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 7484.93012333391,
+   "surface": "plane"
+  },
+  {
+   "area": 2020.7259421637048,
+   "surface": "plane"
+  },
+  {
+   "area": 1047.1975511965784,
+   "surface": "cylinder"
+  },
+  {
+   "area": 2020.725942163697,
+   "surface": "plane"
+  },
+  {
+   "area": 4306.62432702595,
+   "surface": "plane"
+  },
+  {
+   "area": 2051.8552911053966,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3500.0,
+   "surface": "plane"
+  },
+  {
+   "area": 7853.981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 5000.0,
+   "surface": "plane"
+  },
+  {
+   "area": 7853.981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 21540.430193007254,
+   "surface": "plane"
+  },
+  {
+   "area": 7071.067811865477,
+   "surface": "plane"
+  },
+  {
+   "area": 5000.0,
+   "surface": "plane"
+  },
+  {
+   "area": 7853.981633974482,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3500.0,
+   "surface": "plane"
+  },
+  {
+   "area": 2051.855752671264,
+   "surface": "cylinder"
+  },
+  {
+   "area": 1624.9999999999995,
+   "surface": "plane"
+  },
+  {
+   "area": 749.9999999998499,
+   "surface": "plane"
+  },
+  {
+   "area": 785.3981633974474,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3249.999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 785.3981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 749.9999999998499,
+   "surface": "plane"
+  },
+  {
+   "area": 10750.0,
+   "surface": "plane"
+  },
+  {
+   "area": 750.0,
+   "surface": "plane"
+  },
+  {
+   "area": 785.3981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3249.999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 785.3981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 750.0,
+   "surface": "plane"
+  },
+  {
+   "area": 1624.9999999999995,
+   "surface": "plane"
+  },
+  {
+   "area": 2051.8552911110723,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3500.0,
+   "surface": "plane"
+  },
+  {
+   "area": 7853.981633974482,
+   "surface": "cylinder"
+  },
+  {
+   "area": 5000.0,
+   "surface": "plane"
+  },
+  {
+   "area": 7853.981633974482,
+   "surface": "cylinder"
+  },
+  {
+   "area": 22542.920367320512,
+   "surface": "plane"
+  },
+  {
+   "area": 7853.981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 5000.0,
+   "surface": "plane"
+  },
+  {
+   "area": 7853.981633974483,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3500.0,
+   "surface": "plane"
+  },
+  {
+   "area": 2051.8557526712657,
+   "surface": "cylinder"
+  },
+  {
+   "area": 4306.62432702595,
+   "surface": "plane"
+  },
+  {
+   "area": 2020.7259421636963,
+   "surface": "plane"
+  },
+  {
+   "area": 1047.197551196587,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3999.999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 2020.7259421637043,
+   "surface": "plane"
+  },
+  {
+   "area": 3141.5926535897934,
+   "surface": "cylinder"
+  },
+  {
+   "area": 12964.878066825357,
+   "surface": "plane"
+  },
+  {
+   "area": 2309.401076758504,
+   "surface": "plane"
+  },
+  {
+   "area": 2309.401076758502,
+   "surface": "plane"
+  },
+  {
+   "area": 2309.401076758504,
+   "surface": "plane"
+  },
+  {
+   "area": 2309.401076758504,
+   "surface": "plane"
+  },
+  {
+   "area": 2309.4010767585037,
+   "surface": "plane"
+  },
+  {
+   "area": 2309.401076758503,
+   "surface": "plane"
+  },
+  {
+   "area": 7014.805770653946,
+   "surface": "plane"
+  },
+  {
+   "area": 175447.39191868756,
+   "surface": "plane"
+  },
+  {
+   "area": 5999.999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 5999.999999999999,
+   "surface": "plane"
+  },
+  {
+   "area": 6000.0,
+   "surface": "plane"
+  },
+  {
+   "area": 6000.0,
+   "surface": "plane"
+  },
+  {
+   "area": 366.50869127154215,
+   "surface": "cone"
+  },
+  {
+   "area": 2827.433388230814,
+   "surface": "cylinder"
+  },
+  {
+   "area": 366.50869127154215,
+   "surface": "cone"
+  },
+  {
+   "area": 2827.433388230814,
+   "surface": "cylinder"
+  },
+  {
+   "area": 10995.574287564275,
+   "surface": "cylinder"
+  },
+  {
+   "area": 10995.574287564275,
+   "surface": "cylinder"
+  },
+  {
+   "area": 10995.574287564275,
+   "surface": "cylinder"
+  },
+  {
+   "area": 10995.574287564275,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3926.990816987241,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3926.990816987241,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3926.990816987241,
+   "surface": "cylinder"
+  },
+  {
+   "area": 3926.990816987241,
+   "surface": "cylinder"
+  },
+  {
+   "area": 2413.274122635255,
+   "surface": "cylinder"
+  },
+  {
+   "area": 274.7056129670872,
+   "surface": "cylinder"
+  },
+  {
+   "area": 2413.2741226352514,
+   "surface": "cylinder"
+  },
+  {
+   "area": 274.70561295028386,
+   "surface": "cylinder"
+  },
+  {
+   "area": 2413.2741226352537,
+   "surface": "cylinder"
+  },
+  {
+   "area": 274.7056129502799,
+   "surface": "cylinder"
+  },
+  {
+   "area": 2413.2741226352505,
+   "surface": "cylinder"
+  },
+  {
+   "area": 274.705612961578,
+   "surface": "cylinder"
+  },
+  {
+   "area": 469.92731163663234,
+   "surface": "cylinder"
+  },
+  {
+   "area": 469.92731163663314,
+   "surface": "cylinder"
+  },
+  {
+   "area": 469.92731163663336,
+   "surface": "cylinder"
+  },
+  {
+   "area": 469.9273116366333,
+   "surface": "cylinder"
+  },
+  {
+   "area": 469.9273116366329,
+   "surface": "cylinder"
+  },
+  {
+   "area": 469.92731163663257,
+   "surface": "cylinder"
+  },
+  {
+   "area": 387.8358759406696,
+   "surface": "plane"
+  },
+  {
+   "area": 387.83587594067143,
+   "surface": "plane"
+  },
+  {
+   "area": 387.8358759406709,
+   "surface": "plane"
+  },
+  {
+   "area": 387.83587594067114,
+   "surface": "plane"
+  },
+  {
+   "area": 387.8358759406716,
+   "surface": "plane"
+  },
+  {
+   "area": 387.8358759406714,
+   "surface": "plane"
+  },
+  {
+   "area": 32.4127869168482,
+   "surface": "plane"
+  },
+  {
+   "area": 19.77194807559939,
+   "surface": "cylinder"
+  },
+  {
+   "area": 45.6014597053052,
+   "surface": "plane"
+  },
+  {
+   "area": 38.726772569300095,
+   "surface": "cylinder"
+  },
+  {
+   "area": 28.880282895111208,
+   "surface": "plane"
+  },
+  {
+   "area": 13.637832489307458,
+   "surface": "cylinder"
+  },
+  {
+   "area": 47.07021046027559,
+   "surface": "plane"
+  },
+  {
+   "area": 35.516968003194,
+   "surface": "plane"
+  },
+  {
+   "area": 9.307477328466405,
+   "surface": "plane"
+  },
+  {
+   "area": 35.516968003194,
+   "surface": "plane"
+  },
+  {
+   "area": 19.227856042890394,
+   "surface": "plane"
+  },
+  {
+   "area": 9.483031996805998,
+   "surface": "plane"
+  },
+  {
+   "area": 76.80978725831281,
+   "surface": "plane"
+  },
+  {
+   "area": 43.88460953461821,
+   "surface": "cylinder"
+  },
+  {
+   "area": 27.155535276336607,
+   "surface": "plane"
+  },
+  {
+   "area": 12.440631349443597,
+   "surface": "cylinder"
+  },
+  {
+   "area": 44.13439759385662,
+   "surface": "plane"
+  },
+  {
+   "area": 5.148571605812552,
+   "surface": "cylinder"
+  },
+  {
+   "area": 32.4127869168482,
+   "surface": "plane"
+  },
+  {
+   "area": 9.396794615867208,
+   "surface": "plane"
+  },
+  {
+   "area": 669.1799690074251,
+   "surface": "plane"
+  },
+  {
+   "area": 36.4862749629946,
+   "surface": "plane"
+  },
+  {
+   "area": 9.307477328466007,
+   "surface": "plane"
+  },
+  {
+   "area": 33.73045387234739,
+   "surface": "plane"
+  },
+  {
+   "area": 3.883506608007596,
+   "surface": "cylinder"
+  },
+  {
+   "area": 41.946701411166266,
+   "surface": "plane"
+  },
+  {
+   "area": 26.026588175911943,
+   "surface": "cylinder"
+  },
+  {
+   "area": 34.4485743835082,
+   "surface": "plane"
+  },
+  {
+   "area": 9.396794615867407,
+   "surface": "plane"
+  },
+  {
+   "area": 34.2244339246038,
+   "surface": "plane"
+  },
+  {
+   "area": 3.083744804546964,
+   "surface": "cylinder"
+  },
+  {
+   "area": 45.35724599249844,
+   "surface": "plane"
+  },
+  {
+   "area": 23.43289234295553,
+   "surface": "cylinder"
+  },
+  {
+   "area": 333.31020530583635,
+   "surface": "plane"
+  }
+ ],
+ "format": "draftwright.recognition/1",
+ "quiddity": {
+  "association": {
+   "face_count": {
+    "associated": 113,
+    "ratio": 0.8129496402877698,
+    "total": 139,
+    "unassociated": 26
+   },
+   "families": [
+    {
+     "face_count": 12,
+     "family": "holes",
+     "surface_area": 66078.14457721078
+    },
+    {
+     "face_count": 7,
+     "family": "polygonal_bosses",
+     "surface_area": 20871.21223120497
+    },
+    {
+     "face_count": 6,
+     "family": "slots",
+     "surface_area": 22283.185307179585
+    },
+    {
+     "face_count": 34,
+     "family": "section_recesses",
+     "surface_area": 1890.3515713735294
+    },
+    {
+     "face_count": 14,
+     "family": "step_levels",
+     "surface_area": 25621.29232782997
+    },
+    {
+     "face_count": 1,
+     "family": "risers",
+     "surface_area": 222955.38236920134
+    },
+    {
+     "face_count": 3,
+     "family": "chamfers",
+     "surface_area": 7846.739563746819
+    },
+    {
+     "face_count": 4,
+     "family": "oriented_chamfers",
+     "surface_area": 1551.3435037626841
+    },
+    {
+     "face_count": 31,
+     "family": "blends",
+     "surface_area": 30203.573656348348
+    },
+    {
+     "face_count": 8,
+     "family": "fillets",
+     "surface_area": 54983.02000942719
+    },
+    {
+     "face_count": 2,
+     "family": "plates",
+     "surface_area": 398402.7742878889
+    }
+   ],
+   "surface_area": {
+    "associated": 624058.1077895102,
+    "ratio": 0.7723791994130857,
+    "total": 807968.5577546863,
+    "unassociated": 183910.4499651762
+   },
+   "unassociated_faces": [
+    0,
+    1,
+    2,
+    14,
+    15,
+    17,
+    18,
+    22,
+    24,
+    26,
+    30,
+    33,
+    36,
+    39,
+    42,
+    46,
+    48,
+    50,
+    54,
+    55,
+    58,
+    60,
+    69,
+    70,
+    71,
+    72
+   ]
+  },
+  "bodies": [
+   {
+    "index": 0,
+    "named_dimensions": {
+     "overall_spans": {
+      "x": 150.00000010000002,
+      "y": 450.0000000000001,
+      "z": 800.0000000000001
+     },
+     "overall_thickness": 150.00000010000002,
+     "thickness_axis": "x"
+    }
+   }
+  ],
+  "coordinate_space": "local",
+  "derived": {
+   "hole_pairs": [
+    {
+     "body_index": 0,
+     "center_spacing": 60.0,
+     "direction": [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     "holes": [
+      0,
+      1
+     ],
+     "named_dimensions": {
+      "center_spacing": 60.0,
+      "direction": [
+       0.0,
+       0.0,
+       -1.0
+      ]
+     }
+    }
+   ],
+   "hole_patterns": [
+    {
+     "angle": 90.0,
+     "center": [
+      32.298529205,
+      1.3536833199999876,
+      -2.3476212699999905
+     ],
+     "height": 350.0,
+     "holes": [
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 100.0,
+       "diameter": 35.0,
+       "location": [
+        32.298529205,
+        -173.64631668,
+        -327.34762127
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 100.0,
+       "diameter": 35.0,
+       "location": [
+        32.298529205,
+        176.35368332,
+        -327.34762127
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 100.0,
+       "diameter": 35.0,
+       "location": [
+        32.298529205,
+        176.35368332,
+        322.65237873
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 100.0,
+       "diameter": 35.0,
+       "location": [
+        32.298529205,
+        -173.64631668,
+        322.65237873
+       ],
+       "spotface": null
+      }
+     ],
+     "named_dimensions": {},
+     "width": 650.0
+    },
+    {
+     "angle": 90.0,
+     "center": [
+      32.298529205,
+      1.3536833189999982,
+      -2.3476212699999905
+     ],
+     "height": 90.0,
+     "holes": [
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 50.0,
+       "diameter": 25.0,
+       "location": [
+        32.298529205,
+        -43.646316681,
+        -162.34762127
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 50.0,
+       "diameter": 25.0,
+       "location": [
+        32.298529205,
+        46.353683319,
+        -162.34762127
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 50.0,
+       "diameter": 25.0,
+       "location": [
+        32.298529205,
+        46.353683319,
+        157.65237873
+       ],
+       "spotface": null
+      },
+      {
+       "axis": [
+        -1.0,
+        0.0,
+        0.0
+       ],
+       "bottom": "through",
+       "cbore": null,
+       "csink": null,
+       "depth": 50.0,
+       "diameter": 25.0,
+       "location": [
+        32.298529205,
+        -43.646316681,
+        157.65237873
+       ],
+       "spotface": null
+      }
+     ],
+     "named_dimensions": {},
+     "width": 320.0
+    }
+   ],
+   "oriented_slot_patterns": [],
+   "section_recess_patterns": [],
+   "slot_patterns": [],
+   "turned_profiles": []
+  },
+  "faces": [
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 0,
+    "index": 0
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 1,
+    "index": 1
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 2,
+    "index": 2
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 3,
+    "index": 3
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 4,
+    "index": 4
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 5,
+    "index": 5
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 6,
+    "index": 6
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 7,
+    "index": 7
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 8,
+    "index": 8
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 9,
+    "index": 9
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 10,
+    "index": 10
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 11,
+    "index": 11
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 12,
+    "index": 12
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 13,
+    "index": 13
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 14,
+    "index": 14
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 15,
+    "index": 15
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 16,
+    "index": 16
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 17,
+    "index": 17
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 18,
+    "index": 18
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 19,
+    "index": 19
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 20,
+    "index": 20
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 21,
+    "index": 21
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 22,
+    "index": 22
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 23,
+    "index": 23
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 24,
+    "index": 24
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 25,
+    "index": 25
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 26,
+    "index": 26
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 27,
+    "index": 27
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 28,
+    "index": 28
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 29,
+    "index": 29
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 30,
+    "index": 30
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 31,
+    "index": 31
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 32,
+    "index": 32
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 33,
+    "index": 33
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 34,
+    "index": 34
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 35,
+    "index": 35
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 36,
+    "index": 36
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 37,
+    "index": 37
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 38,
+    "index": 38
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 39,
+    "index": 39
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 40,
+    "index": 40
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 41,
+    "index": 41
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 42,
+    "index": 42
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 43,
+    "index": 43
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 44,
+    "index": 44
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 45,
+    "index": 45
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 46,
+    "index": 46
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 47,
+    "index": 47
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 48,
+    "index": 48
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 49,
+    "index": 49
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 50,
+    "index": 50
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 51,
+    "index": 51
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 52,
+    "index": 52
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 53,
+    "index": 53
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 54,
+    "index": 54
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 55,
+    "index": 55
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 56,
+    "index": 56
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 57,
+    "index": 57
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 58,
+    "index": 58
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 59,
+    "index": 59
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 60,
+    "index": 60
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 61,
+    "index": 61
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 62,
+    "index": 62
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 63,
+    "index": 63
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 64,
+    "index": 64
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 65,
+    "index": 65
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 66,
+    "index": 66
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 67,
+    "index": 67
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 68,
+    "index": 68
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 69,
+    "index": 69
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 70,
+    "index": 70
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 71,
+    "index": 71
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 72,
+    "index": 72
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 73,
+    "index": 73
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 74,
+    "index": 74
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 75,
+    "index": 75
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 76,
+    "index": 76
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 77,
+    "index": 77
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 78,
+    "index": 78
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 79,
+    "index": 79
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 80,
+    "index": 80
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 81,
+    "index": 81
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 82,
+    "index": 82
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 83,
+    "index": 83
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 84,
+    "index": 84
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 85,
+    "index": 85
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 86,
+    "index": 86
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 87,
+    "index": 87
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 88,
+    "index": 88
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 89,
+    "index": 89
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 90,
+    "index": 90
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 91,
+    "index": 91
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 92,
+    "index": 92
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 93,
+    "index": 93
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 94,
+    "index": 94
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 95,
+    "index": 95
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 96,
+    "index": 96
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 97,
+    "index": 97
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 98,
+    "index": 98
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 99,
+    "index": 99
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 100,
+    "index": 100
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 101,
+    "index": 101
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 102,
+    "index": 102
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 103,
+    "index": 103
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 104,
+    "index": 104
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 105,
+    "index": 105
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 106,
+    "index": 106
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 107,
+    "index": 107
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 108,
+    "index": 108
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 109,
+    "index": 109
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 110,
+    "index": 110
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 111,
+    "index": 111
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 112,
+    "index": 112
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 113,
+    "index": 113
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 114,
+    "index": 114
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 115,
+    "index": 115
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 116,
+    "index": 116
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 117,
+    "index": 117
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 118,
+    "index": 118
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 119,
+    "index": 119
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 120,
+    "index": 120
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 121,
+    "index": 121
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 122,
+    "index": 122
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 123,
+    "index": 123
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 124,
+    "index": 124
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 125,
+    "index": 125
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 126,
+    "index": 126
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 127,
+    "index": 127
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 128,
+    "index": 128
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 129,
+    "index": 129
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 130,
+    "index": 130
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 131,
+    "index": 131
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 132,
+    "index": 132
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 133,
+    "index": 133
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 134,
+    "index": 134
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 135,
+    "index": 135
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 136,
+    "index": 136
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 137,
+    "index": 137
+   },
+   {
+    "body_indices": [
+     0
+    ],
+    "caller_index": 138,
+    "index": 138
+   }
+  ],
+  "features": [
+   {
+    "constituent_faces": [
+     73,
+     74
+    ],
+    "defining_faces": [
+     74
+    ],
+    "family": "holes",
+    "index": 0,
+    "record": {
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "bottom": "drill_point",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        75,
+        76
+       ],
+       "defining_faces": [
+        76
+       ],
+       "feature_index": 1,
+       "relation": "pair_sibling"
+      }
+     ],
+     "depth": 45.0,
+     "diameter": 20.0,
+     "location": [
+      7.2985292053,
+      -123.64631668,
+      27.652378732
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     75,
+     76
+    ],
+    "defining_faces": [
+     76
+    ],
+    "family": "holes",
+    "index": 1,
+    "record": {
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "bottom": "drill_point",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        73,
+        74
+       ],
+       "defining_faces": [
+        74
+       ],
+       "feature_index": 0,
+       "relation": "pair_sibling"
+      }
+     ],
+     "depth": 45.0,
+     "diameter": 20.0,
+     "location": [
+      7.2985292053,
+      -123.64631668,
+      -32.347621268
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     77
+    ],
+    "defining_faces": [
+     77
+    ],
+    "family": "holes",
+    "index": 2,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        78
+       ],
+       "defining_faces": [
+        78
+       ],
+       "feature_index": 3,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        79
+       ],
+       "defining_faces": [
+        79
+       ],
+       "feature_index": 4,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        80
+       ],
+       "defining_faces": [
+        80
+       ],
+       "feature_index": 5,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 100.0,
+     "diameter": 35.0,
+     "location": [
+      32.298529205,
+      -173.64631668,
+      322.65237873
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     78
+    ],
+    "defining_faces": [
+     78
+    ],
+    "family": "holes",
+    "index": 3,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        77
+       ],
+       "defining_faces": [
+        77
+       ],
+       "feature_index": 2,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        79
+       ],
+       "defining_faces": [
+        79
+       ],
+       "feature_index": 4,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        80
+       ],
+       "defining_faces": [
+        80
+       ],
+       "feature_index": 5,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 100.0,
+     "diameter": 35.0,
+     "location": [
+      32.298529205,
+      176.35368332,
+      322.65237873
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     79
+    ],
+    "defining_faces": [
+     79
+    ],
+    "family": "holes",
+    "index": 4,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        77
+       ],
+       "defining_faces": [
+        77
+       ],
+       "feature_index": 2,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        78
+       ],
+       "defining_faces": [
+        78
+       ],
+       "feature_index": 3,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        80
+       ],
+       "defining_faces": [
+        80
+       ],
+       "feature_index": 5,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 100.0,
+     "diameter": 35.0,
+     "location": [
+      32.298529205,
+      -173.64631668,
+      -327.34762127
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     80
+    ],
+    "defining_faces": [
+     80
+    ],
+    "family": "holes",
+    "index": 5,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        77
+       ],
+       "defining_faces": [
+        77
+       ],
+       "feature_index": 2,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        78
+       ],
+       "defining_faces": [
+        78
+       ],
+       "feature_index": 3,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        79
+       ],
+       "defining_faces": [
+        79
+       ],
+       "feature_index": 4,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 100.0,
+     "diameter": 35.0,
+     "location": [
+      32.298529205,
+      176.35368332,
+      -327.34762127
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     81
+    ],
+    "defining_faces": [
+     81
+    ],
+    "family": "holes",
+    "index": 6,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        82
+       ],
+       "defining_faces": [
+        82
+       ],
+       "feature_index": 7,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        83
+       ],
+       "defining_faces": [
+        83
+       ],
+       "feature_index": 8,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        84
+       ],
+       "defining_faces": [
+        84
+       ],
+       "feature_index": 9,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 50.0,
+     "diameter": 25.0,
+     "location": [
+      32.298529205,
+      -43.646316681,
+      157.65237873
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     82
+    ],
+    "defining_faces": [
+     82
+    ],
+    "family": "holes",
+    "index": 7,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        81
+       ],
+       "defining_faces": [
+        81
+       ],
+       "feature_index": 6,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        83
+       ],
+       "defining_faces": [
+        83
+       ],
+       "feature_index": 8,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        84
+       ],
+       "defining_faces": [
+        84
+       ],
+       "feature_index": 9,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 50.0,
+     "diameter": 25.0,
+     "location": [
+      32.298529205,
+      46.353683319,
+      157.65237873
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     83
+    ],
+    "defining_faces": [
+     83
+    ],
+    "family": "holes",
+    "index": 8,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        81
+       ],
+       "defining_faces": [
+        81
+       ],
+       "feature_index": 6,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        82
+       ],
+       "defining_faces": [
+        82
+       ],
+       "feature_index": 7,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        84
+       ],
+       "defining_faces": [
+        84
+       ],
+       "feature_index": 9,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 50.0,
+     "diameter": 25.0,
+     "location": [
+      32.298529205,
+      -43.646316681,
+      -162.34762127
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     84
+    ],
+    "defining_faces": [
+     84
+    ],
+    "family": "holes",
+    "index": 9,
+    "record": {
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "bottom": "through",
+     "cbore": null,
+     "csink": null,
+     "dependents": [
+      {
+       "constituent_faces": [
+        81
+       ],
+       "defining_faces": [
+        81
+       ],
+       "feature_index": 6,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        82
+       ],
+       "defining_faces": [
+        82
+       ],
+       "feature_index": 7,
+       "relation": "pattern_sibling"
+      },
+      {
+       "constituent_faces": [
+        83
+       ],
+       "defining_faces": [
+        83
+       ],
+       "feature_index": 8,
+       "relation": "pattern_sibling"
+      }
+     ],
+     "depth": 50.0,
+     "diameter": 25.0,
+     "location": [
+      32.298529205,
+      46.353683319,
+      -162.34762127
+     ],
+     "named_dimensions": {},
+     "spotface": null
+    },
+    "record_type": "HoleRecord"
+   },
+   {
+    "constituent_faces": [
+     61,
+     62,
+     63,
+     64,
+     65,
+     66,
+     67
+    ],
+    "defining_faces": [
+     61,
+     62,
+     63,
+     64,
+     65,
+     66
+    ],
+    "family": "polygonal_bosses",
+    "index": 10,
+    "record": {
+     "across_flats": 100.0,
+     "axis": "x",
+     "base": 32.2985,
+     "center": [
+      57.2985,
+      1.3537,
+      -2.3476
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        102
+       ],
+       "defining_faces": [
+        102
+       ],
+       "feature_index": 26,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        101
+       ],
+       "defining_faces": [
+        101
+       ],
+       "feature_index": 27,
+       "relation": "edge_treatment"
+      }
+     ],
+     "flat_centres": [
+      [
+       57.299,
+       -41.948,
+       -27.348
+      ],
+      [
+       57.299,
+       1.354,
+       -52.348
+      ],
+      [
+       57.299,
+       44.655,
+       -27.348
+      ],
+      [
+       57.299,
+       44.655,
+       22.652
+      ],
+      [
+       57.299,
+       1.354,
+       47.652
+      ],
+      [
+       57.299,
+       -41.948,
+       22.652
+      ]
+     ],
+     "flat_directions": [
+      [
+       0.0,
+       -0.866,
+       -0.5
+      ],
+      [
+       0.0,
+       0.0,
+       -1.0
+      ],
+      [
+       0.0,
+       0.866,
+       -0.5
+      ],
+      [
+       0.0,
+       0.866,
+       0.5
+      ],
+      [
+       0.0,
+       0.0,
+       1.0
+      ],
+      [
+       0.0,
+       -0.866,
+       0.5
+      ]
+     ],
+     "named_dimensions": {
+      "axial_length": 50.00000000000001,
+      "height_above_base": 50.00000000000001
+     },
+     "side_count": 6,
+     "top": 82.2985
+    },
+    "record_type": "PolygonalBoss"
+   },
+   {
+    "constituent_faces": [
+     4,
+     5,
+     6,
+     59
+    ],
+    "defining_faces": [
+     4,
+     5,
+     6,
+     59
+    ],
+    "family": "slots",
+    "index": 11,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "corner_radius": null,
+     "d_hi": 32.3,
+     "d_lo": -17.7,
+     "dependents": [],
+     "end_radius": 20.0,
+     "hi": 342.65,
+     "length": 120.0,
+     "lo": 222.65,
+     "long_axis": "z",
+     "named_dimensions": {},
+     "w_center": 1.35,
+     "width": 40.0,
+     "width_axis": "y"
+    },
+    "record_type": "Slot"
+   },
+   {
+    "constituent_faces": [
+     10,
+     57
+    ],
+    "defining_faces": [
+     10,
+     57
+    ],
+    "family": "slots",
+    "index": 12,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "corner_radius": 10.0,
+     "d_hi": 32.3,
+     "d_lo": -17.7,
+     "dependents": [],
+     "end_radius": null,
+     "hi": -237.35,
+     "length": 100.0,
+     "lo": -337.35,
+     "long_axis": "z",
+     "named_dimensions": {},
+     "w_center": 1.35,
+     "width": 50.0,
+     "width_axis": "y"
+    },
+    "record_type": "Slot"
+   },
+   {
+    "constituent_faces": [
+     125,
+     138
+    ],
+    "defining_faces": [
+     125,
+     138
+    ],
+    "family": "step_levels",
+    "index": 13,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        122
+       ],
+       "defining_faces": [
+        122
+       ],
+       "feature_index": 70,
+       "relation": "edge_treatment"
+      }
+     ],
+     "named_dimensions": {},
+     "x_span": [
+      -3.951470794735849,
+      19.183131827959873
+     ],
+     "y_span": [
+      -113.646316680939,
+      -28.34522730661577
+     ],
+     "z": -400.34762126793254
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     12
+    ],
+    "defining_faces": [
+     12
+    ],
+    "family": "step_levels",
+    "index": 14,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [],
+     "named_dimensions": {},
+     "x_span": [
+      -17.701470794735748,
+      32.29852920526426
+     ],
+     "y_span": [
+      -13.646316680938666,
+      16.353683319061332
+     ],
+     "z": -337.34762126793254
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     20,
+     28
+    ],
+    "defining_faces": [
+     20,
+     28
+    ],
+    "family": "step_levels",
+    "index": 15,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        21
+       ],
+       "defining_faces": [
+        21
+       ],
+       "feature_index": 64,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        27
+       ],
+       "defining_faces": [
+        27
+       ],
+       "feature_index": 67,
+       "relation": "edge_treatment"
+      }
+     ],
+     "named_dimensions": {},
+     "x_span": [
+      -67.70147079473574,
+      32.29852920526426
+     ],
+     "y_span": [
+      -173.64631668093867,
+      176.35368331906133
+     ],
+     "z": -252.34762126793257
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     8
+    ],
+    "defining_faces": [
+     8
+    ],
+    "family": "step_levels",
+    "index": 16,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [],
+     "named_dimensions": {},
+     "x_span": [
+      -17.701470794735748,
+      32.29852920526426
+     ],
+     "y_span": [
+      -13.646316680938668,
+      16.353683319061332
+     ],
+     "z": -237.34762126793257
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     31
+    ],
+    "defining_faces": [
+     31
+    ],
+    "family": "step_levels",
+    "index": 17,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [],
+     "named_dimensions": {},
+     "x_span": [
+      -17.701470794735748,
+      32.29852920526426
+     ],
+     "y_span": [
+      111.35368331906433,
+      126.35368331906133
+     ],
+     "z": -194.84762126793257
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     35
+    ],
+    "defining_faces": [
+     35
+    ],
+    "family": "step_levels",
+    "index": 18,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [],
+     "named_dimensions": {},
+     "x_span": [
+      -17.701470794735748,
+      32.29852920526426
+     ],
+     "y_span": [
+      111.35368331906433,
+      126.35368331906133
+     ],
+     "z": -109.84762126793257
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     64
+    ],
+    "defining_faces": [
+     64
+    ],
+    "family": "step_levels",
+    "index": 19,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        102
+       ],
+       "defining_faces": [
+        102
+       ],
+       "feature_index": 26,
+       "relation": "edge_treatment"
+      }
+     ],
+     "named_dimensions": {},
+     "x_span": [
+      37.29852920526425,
+      77.29852920526426
+     ],
+     "y_span": [
+      -27.51383014041997,
+      30.221196778542634
+     ],
+     "z": -52.34762126793256
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     61
+    ],
+    "defining_faces": [
+     61
+    ],
+    "family": "step_levels",
+    "index": 20,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        101
+       ],
+       "defining_faces": [
+        101
+       ],
+       "feature_index": 27,
+       "relation": "edge_treatment"
+      }
+     ],
+     "named_dimensions": {},
+     "x_span": [
+      37.29852920526425,
+      77.29852920526426
+     ],
+     "y_span": [
+      -27.51383014041997,
+      30.221196778542634
+     ],
+     "z": 47.65237873206744
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     37
+    ],
+    "defining_faces": [
+     37
+    ],
+    "family": "step_levels",
+    "index": 21,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [],
+     "named_dimensions": {},
+     "x_span": [
+      -17.701470794735748,
+      32.29852920526426
+     ],
+     "y_span": [
+      111.35368331906133,
+      126.35368331906133
+     ],
+     "z": 105.15237873206743
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     41
+    ],
+    "defining_faces": [
+     41
+    ],
+    "family": "step_levels",
+    "index": 22,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [],
+     "named_dimensions": {},
+     "x_span": [
+      -17.701470794735748,
+      32.29852920526426
+     ],
+     "y_span": [
+      111.35368331906133,
+      126.35368331906133
+     ],
+     "z": 190.15237873206743
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     44,
+     52
+    ],
+    "defining_faces": [
+     44,
+     52
+    ],
+    "family": "step_levels",
+    "index": 23,
+    "record": {
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        51
+       ],
+       "defining_faces": [
+        51
+       ],
+       "feature_index": 65,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        45
+       ],
+       "defining_faces": [
+        45
+       ],
+       "feature_index": 68,
+       "relation": "edge_treatment"
+      }
+     ],
+     "named_dimensions": {},
+     "x_span": [
+      -67.70147079473574,
+      32.29852920526426
+     ],
+     "y_span": [
+      -173.64631668093867,
+      176.35368331906133
+     ],
+     "z": 247.65237873206743
+    },
+    "record_type": "FaceLevel"
+   },
+   {
+    "constituent_faces": [
+     3
+    ],
+    "defining_faces": [
+     3
+    ],
+    "family": "risers",
+    "index": 24,
+    "record": {
+     "axis": "x",
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "body_levels": [
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -3.951470794735849,
+        19.183131827959873
+       ],
+       "y_span": [
+        -113.646316680939,
+        -28.34522730661577
+       ],
+       "z": -400.34762126793254
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -17.701470794735748,
+        32.29852920526426
+       ],
+       "y_span": [
+        -13.646316680938666,
+        16.353683319061332
+       ],
+       "z": -337.34762126793254
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -67.70147079473574,
+        32.29852920526426
+       ],
+       "y_span": [
+        -173.64631668093867,
+        176.35368331906133
+       ],
+       "z": -252.34762126793257
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -17.701470794735748,
+        32.29852920526426
+       ],
+       "y_span": [
+        -13.646316680938668,
+        16.353683319061332
+       ],
+       "z": -237.34762126793257
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -17.701470794735748,
+        32.29852920526426
+       ],
+       "y_span": [
+        111.35368331906433,
+        126.35368331906133
+       ],
+       "z": -194.84762126793257
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -17.701470794735748,
+        32.29852920526426
+       ],
+       "y_span": [
+        111.35368331906433,
+        126.35368331906133
+       ],
+       "z": -109.84762126793257
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        37.29852920526425,
+        77.29852920526426
+       ],
+       "y_span": [
+        -27.51383014041997,
+        30.221196778542634
+       ],
+       "z": -52.34762126793256
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        37.29852920526425,
+        77.29852920526426
+       ],
+       "y_span": [
+        -27.51383014041997,
+        30.221196778542634
+       ],
+       "z": 47.65237873206744
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -17.701470794735748,
+        32.29852920526426
+       ],
+       "y_span": [
+        111.35368331906133,
+        126.35368331906133
+       ],
+       "z": 105.15237873206743
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -17.701470794735748,
+        32.29852920526426
+       ],
+       "y_span": [
+        111.35368331906133,
+        126.35368331906133
+       ],
+       "z": 190.15237873206743
+      },
+      {
+       "body_key": [
+        -67.701471,
+        -223.646317,
+        -402.347621,
+        82.298529,
+        226.353683,
+        397.652379,
+        14642823.5574,
+        807968.557755
+       ],
+       "x_span": [
+        -67.70147079473574,
+        32.29852920526426
+       ],
+       "y_span": [
+        -173.64631668093867,
+        176.35368331906133
+       ],
+       "z": 247.65237873206743
+      }
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        25
+       ],
+       "defining_faces": [
+        25
+       ],
+       "feature_index": 25,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        23
+       ],
+       "defining_faces": [
+        23
+       ],
+       "feature_index": 63,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        21
+       ],
+       "defining_faces": [
+        21
+       ],
+       "feature_index": 64,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        51
+       ],
+       "defining_faces": [
+        51
+       ],
+       "feature_index": 65,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        49
+       ],
+       "defining_faces": [
+        49
+       ],
+       "feature_index": 66,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        27
+       ],
+       "defining_faces": [
+        27
+       ],
+       "feature_index": 67,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        45
+       ],
+       "defining_faces": [
+        45
+       ],
+       "feature_index": 68,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        47
+       ],
+       "defining_faces": [
+        47
+       ],
+       "feature_index": 69,
+       "relation": "edge_treatment"
+      }
+     ],
+     "hi_at_envelope": true,
+     "lo_at_envelope": true,
+     "named_dimensions": {},
+     "other_axis": "y",
+     "other_positions": [],
+     "positions": [
+      32.299
+     ],
+     "tol": 0.5,
+     "vertical": true,
+     "z_hi": 397.65237873206746,
+     "z_lo": -402.34762126793254
+    },
+    "record_type": "RiserEvidence"
+   },
+   {
+    "constituent_faces": [
+     25
+    ],
+    "defining_faces": [
+     25
+    ],
+    "family": "chamfers",
+    "index": 25,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      -17.701,
+      201.354,
+      -377.348
+     ],
+     "axis": "x",
+     "corner": [
+      -17.701,
+      226.354,
+      -402.348
+     ],
+     "dependents": [],
+     "leg1": 50.0,
+     "leg2": 50.0,
+     "named_dimensions": {},
+     "turned": false
+    },
+    "record_type": "Chamfer"
+   },
+   {
+    "constituent_faces": [
+     102
+    ],
+    "defining_faces": [
+     102
+    ],
+    "family": "chamfers",
+    "index": 26,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      79.755,
+      1.354,
+      -49.891
+     ],
+     "axis": "y",
+     "corner": [
+      82.299,
+      1.354,
+      -52.348
+     ],
+     "dependents": [],
+     "leg1": 5.0,
+     "leg2": 5.0,
+     "named_dimensions": {},
+     "turned": false
+    },
+    "record_type": "Chamfer"
+   },
+   {
+    "constituent_faces": [
+     101
+    ],
+    "defining_faces": [
+     101
+    ],
+    "family": "chamfers",
+    "index": 27,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      79.755,
+      1.354,
+      45.196
+     ],
+     "axis": "y",
+     "corner": [
+      82.299,
+      1.354,
+      47.652
+     ],
+     "dependents": [],
+     "leg1": 5.0,
+     "leg2": 5.0,
+     "named_dimensions": {},
+     "turned": false
+    },
+    "record_type": "Chamfer"
+   },
+   {
+    "constituent_faces": [
+     100
+    ],
+    "defining_faces": [
+     100
+    ],
+    "family": "oriented_chamfers",
+    "index": 28,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      79.755,
+      -39.821,
+      -26.12
+     ],
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "corner": [
+      82.299,
+      -41.948,
+      -27.348
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        102
+       ],
+       "defining_faces": [
+        102
+       ],
+       "feature_index": 26,
+       "relation": "edge_treatment"
+      }
+     ],
+     "leg1": 5.0,
+     "leg1_direction": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "leg2": 5.0,
+     "leg2_direction": [
+      0.0,
+      0.866025,
+      0.5
+     ],
+     "length": 51.962,
+     "named_dimensions": {},
+     "run": [
+      0.0,
+      0.5,
+      -0.866025
+     ],
+     "support_spans": [
+      [
+       -28.868,
+       28.868
+      ],
+      [
+       -25.981,
+       25.981
+      ]
+     ]
+    },
+    "record_type": "OrientedChamfer"
+   },
+   {
+    "constituent_faces": [
+     103
+    ],
+    "defining_faces": [
+     103
+    ],
+    "family": "oriented_chamfers",
+    "index": 29,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      79.755,
+      42.528,
+      21.424
+     ],
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "corner": [
+      82.299,
+      44.655,
+      22.652
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        101
+       ],
+       "defining_faces": [
+        101
+       ],
+       "feature_index": 27,
+       "relation": "edge_treatment"
+      }
+     ],
+     "leg1": 5.0,
+     "leg1_direction": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "leg2": 5.0,
+     "leg2_direction": [
+      0.0,
+      -0.866025,
+      -0.5
+     ],
+     "length": 51.962,
+     "named_dimensions": {},
+     "run": [
+      0.0,
+      0.5,
+      -0.866025
+     ],
+     "support_spans": [
+      [
+       -28.868,
+       28.868
+      ],
+      [
+       -25.981,
+       25.981
+      ]
+     ]
+    },
+    "record_type": "OrientedChamfer"
+   },
+   {
+    "constituent_faces": [
+     99
+    ],
+    "defining_faces": [
+     99
+    ],
+    "family": "oriented_chamfers",
+    "index": 30,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      79.755,
+      -39.821,
+      21.424
+     ],
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "corner": [
+      82.299,
+      -41.948,
+      22.652
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        101
+       ],
+       "defining_faces": [
+        101
+       ],
+       "feature_index": 27,
+       "relation": "edge_treatment"
+      }
+     ],
+     "leg1": 5.0,
+     "leg1_direction": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "leg2": 5.0,
+     "leg2_direction": [
+      0.0,
+      0.866025,
+      -0.5
+     ],
+     "length": 51.962,
+     "named_dimensions": {},
+     "run": [
+      0.0,
+      0.5,
+      0.866025
+     ],
+     "support_spans": [
+      [
+       -28.868,
+       28.868
+      ],
+      [
+       -25.981,
+       25.981
+      ]
+     ]
+    },
+    "record_type": "OrientedChamfer"
+   },
+   {
+    "constituent_faces": [
+     104
+    ],
+    "defining_faces": [
+     104
+    ],
+    "family": "oriented_chamfers",
+    "index": 31,
+    "record": {
+     "angle": 45.0,
+     "at": [
+      79.755,
+      42.528,
+      -26.12
+     ],
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "corner": [
+      82.299,
+      44.655,
+      -27.348
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        102
+       ],
+       "defining_faces": [
+        102
+       ],
+       "feature_index": 26,
+       "relation": "edge_treatment"
+      }
+     ],
+     "leg1": 5.0,
+     "leg1_direction": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "leg2": 5.0,
+     "leg2_direction": [
+      0.0,
+      -0.866025,
+      0.5
+     ],
+     "length": 51.962,
+     "named_dimensions": {},
+     "run": [
+      0.0,
+      0.5,
+      0.866025
+     ],
+     "support_spans": [
+      [
+       -28.868,
+       28.868
+      ],
+      [
+       -25.981,
+       25.981
+      ]
+     ]
+    },
+    "record_type": "OrientedChamfer"
+   },
+   {
+    "constituent_faces": [
+     86
+    ],
+    "defining_faces": [
+     86
+    ],
+    "family": "blends",
+    "index": 32,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       -27.701,
+       -129.48,
+       -242.348
+      ],
+      "direction": [
+       0.0,
+       1.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     90
+    ],
+    "defining_faces": [
+     90
+    ],
+    "family": "blends",
+    "index": 33,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       -27.701,
+       -129.48,
+       237.652
+      ],
+      "direction": [
+       0.0,
+       1.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     85
+    ],
+    "defining_faces": [
+     85
+    ],
+    "family": "blends",
+    "index": 34,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       -27.701,
+       -113.646,
+       -325.5
+      ],
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     89
+    ],
+    "defining_faces": [
+     89
+    ],
+    "family": "blends",
+    "index": 35,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       -27.701,
+       -113.646,
+       320.805
+      ],
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     87
+    ],
+    "defining_faces": [
+     87
+    ],
+    "family": "blends",
+    "index": 36,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       -27.701,
+       116.354,
+       -325.5
+      ],
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     91
+    ],
+    "defining_faces": [
+     91
+    ],
+    "family": "blends",
+    "index": 37,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       -27.701,
+       116.354,
+       320.805
+      ],
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     88
+    ],
+    "defining_faces": [
+     88
+    ],
+    "family": "blends",
+    "index": 38,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       -27.701,
+       132.188,
+       -242.348
+      ],
+      "direction": [
+       0.0,
+       1.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     92
+    ],
+    "defining_faces": [
+     92
+    ],
+    "family": "blends",
+    "index": 39,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       -27.701,
+       132.188,
+       237.652
+      ],
+      "direction": [
+       0.0,
+       1.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     106
+    ],
+    "defining_faces": [
+     106
+    ],
+    "family": "blends",
+    "index": 40,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       2.342,
+       -74.681,
+       -401.348
+      ],
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     },
+     "radius": 6.294,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     19
+    ],
+    "defining_faces": [
+     19
+    ],
+    "family": "blends",
+    "index": 41,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       6.086,
+       -148.646,
+       -227.348
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 25.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     53
+    ],
+    "defining_faces": [
+     53
+    ],
+    "family": "blends",
+    "index": 42,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       6.086,
+       -148.646,
+       222.652
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 25.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     29
+    ],
+    "defining_faces": [
+     29
+    ],
+    "family": "blends",
+    "index": 43,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       6.086,
+       151.354,
+       -227.348
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 25.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     43
+    ],
+    "defining_faces": [
+     43
+    ],
+    "family": "blends",
+    "index": 44,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       6.086,
+       151.354,
+       222.652
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 25.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     16
+    ],
+    "defining_faces": [
+     16
+    ],
+    "family": "blends",
+    "index": 45,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       -93.646,
+       -112.348
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     56
+    ],
+    "defining_faces": [
+     56
+    ],
+    "family": "blends",
+    "index": 46,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       -93.646,
+       107.652
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     13
+    ],
+    "defining_faces": [
+     13
+    ],
+    "family": "blends",
+    "index": 47,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       -13.646,
+       -327.348
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     7
+    ],
+    "defining_faces": [
+     7
+    ],
+    "family": "blends",
+    "index": 48,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       -13.646,
+       -247.348
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     11
+    ],
+    "defining_faces": [
+     11
+    ],
+    "family": "blends",
+    "index": 49,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       16.354,
+       -327.348
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     9
+    ],
+    "defining_faces": [
+     9
+    ],
+    "family": "blends",
+    "index": 50,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       16.354,
+       -247.348
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     32
+    ],
+    "defining_faces": [
+     32
+    ],
+    "family": "blends",
+    "index": 51,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       111.354,
+       -184.848
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     34
+    ],
+    "defining_faces": [
+     34
+    ],
+    "family": "blends",
+    "index": 52,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       111.354,
+       -119.848
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     38
+    ],
+    "defining_faces": [
+     38
+    ],
+    "family": "blends",
+    "index": 53,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       111.354,
+       115.152
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     40
+    ],
+    "defining_faces": [
+     40
+    ],
+    "family": "blends",
+    "index": 54,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       7.299,
+       111.354,
+       180.152
+      ],
+      "direction": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 10.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     129
+    ],
+    "defining_faces": [
+     129
+    ],
+    "family": "blends",
+    "index": 55,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       12.914,
+       -108.183,
+       -401.348
+      ],
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     },
+     "radius": 0.81,
+     "side": "convex"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     137
+    ],
+    "defining_faces": [
+     137
+    ],
+    "family": "blends",
+    "index": 56,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       14.292,
+       -108.755,
+       -401.348
+      ],
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     },
+     "radius": 4.891,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     95
+    ],
+    "defining_faces": [
+     95
+    ],
+    "family": "blends",
+    "index": 57,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       37.299,
+       -46.278,
+       -29.848
+      ],
+      "direction": [
+       0.0,
+       -0.5,
+       0.866025
+      ]
+     },
+     "radius": 5.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     97
+    ],
+    "defining_faces": [
+     97
+    ],
+    "family": "blends",
+    "index": 58,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       37.299,
+       -46.278,
+       25.152
+      ],
+      "direction": [
+       0.0,
+       0.5,
+       0.866025
+      ]
+     },
+     "radius": 5.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     93
+    ],
+    "defining_faces": [
+     93
+    ],
+    "family": "blends",
+    "index": 59,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       37.299,
+       1.354,
+       -57.348
+      ],
+      "direction": [
+       0.0,
+       1.0,
+       0.0
+      ]
+     },
+     "radius": 5.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     98
+    ],
+    "defining_faces": [
+     98
+    ],
+    "family": "blends",
+    "index": 60,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       37.299,
+       1.354,
+       52.652
+      ],
+      "direction": [
+       0.0,
+       1.0,
+       0.0
+      ]
+     },
+     "radius": 5.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     94
+    ],
+    "defining_faces": [
+     94
+    ],
+    "family": "blends",
+    "index": 61,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       37.299,
+       48.985,
+       -29.848
+      ],
+      "direction": [
+       0.0,
+       0.5,
+       0.866025
+      ]
+     },
+     "radius": 5.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     96
+    ],
+    "defining_faces": [
+     96
+    ],
+    "family": "blends",
+    "index": 62,
+    "record": {
+     "dependents": [],
+     "named_dimensions": {},
+     "path": {
+      "at": [
+       37.299,
+       48.985,
+       25.152
+      ],
+      "direction": [
+       0.0,
+       -0.5,
+       0.866025
+      ]
+     },
+     "radius": 5.0,
+     "side": "concave"
+    },
+    "record_type": "Blend"
+   },
+   {
+    "constituent_faces": [
+     23
+    ],
+    "defining_faces": [
+     23
+    ],
+    "family": "fillets",
+    "index": 63,
+    "record": {
+     "at": [
+      -17.701,
+      -209.002,
+      -387.703
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 50.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     21
+    ],
+    "defining_faces": [
+     21
+    ],
+    "family": "fillets",
+    "index": 64,
+    "record": {
+     "at": [
+      -17.701,
+      -209.002,
+      -266.992
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 50.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     51
+    ],
+    "defining_faces": [
+     51
+    ],
+    "family": "fillets",
+    "index": 65,
+    "record": {
+     "at": [
+      -17.701,
+      -209.002,
+      262.297
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 50.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     49
+    ],
+    "defining_faces": [
+     49
+    ],
+    "family": "fillets",
+    "index": 66,
+    "record": {
+     "at": [
+      -17.701,
+      -209.002,
+      383.008
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 50.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     27
+    ],
+    "defining_faces": [
+     27
+    ],
+    "family": "fillets",
+    "index": 67,
+    "record": {
+     "at": [
+      -17.701,
+      211.709,
+      -266.992
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 50.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     45
+    ],
+    "defining_faces": [
+     45
+    ],
+    "family": "fillets",
+    "index": 68,
+    "record": {
+     "at": [
+      -17.701,
+      211.709,
+      262.297
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 50.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     47
+    ],
+    "defining_faces": [
+     47
+    ],
+    "family": "fillets",
+    "index": 69,
+    "record": {
+     "at": [
+      -17.701,
+      211.709,
+      383.008
+     ],
+     "axis": "x",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 50.0,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     122
+    ],
+    "defining_faces": [
+     122
+    ],
+    "family": "fillets",
+    "index": 70,
+    "record": {
+     "at": [
+      1.183,
+      -75.796,
+      -401.348
+     ],
+     "axis": "z",
+     "dependents": [],
+     "named_dimensions": {},
+     "radius": 1.639,
+     "side": "convex",
+     "turned": false
+    },
+    "record_type": "Fillet"
+   },
+   {
+    "constituent_faces": [
+     3,
+     68
+    ],
+    "defining_faces": [
+     3,
+     68
+    ],
+    "family": "plates",
+    "index": 71,
+    "record": {
+     "axis": "x",
+     "body_key": [
+      -67.701471,
+      -223.646317,
+      -402.347621,
+      82.298529,
+      226.353683,
+      397.652379,
+      14642823.5574,
+      807968.557755
+     ],
+     "dependents": [
+      {
+       "constituent_faces": [
+        25
+       ],
+       "defining_faces": [
+        25
+       ],
+       "feature_index": 25,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        23
+       ],
+       "defining_faces": [
+        23
+       ],
+       "feature_index": 63,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        21
+       ],
+       "defining_faces": [
+        21
+       ],
+       "feature_index": 64,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        51
+       ],
+       "defining_faces": [
+        51
+       ],
+       "feature_index": 65,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        49
+       ],
+       "defining_faces": [
+        49
+       ],
+       "feature_index": 66,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        27
+       ],
+       "defining_faces": [
+        27
+       ],
+       "feature_index": 67,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        45
+       ],
+       "defining_faces": [
+        45
+       ],
+       "feature_index": 68,
+       "relation": "edge_treatment"
+      },
+      {
+       "constituent_faces": [
+        47
+       ],
+       "defining_faces": [
+        47
+       ],
+       "feature_index": 69,
+       "relation": "edge_treatment"
+      }
+     ],
+     "hi": 32.299,
+     "lo": -17.701,
+     "named_dimensions": {
+      "thickness": 50.0
+     },
+     "u": 0.1451301585128219,
+     "v": -1.0139348158441985
+    },
+    "record_type": "Plate"
+   },
+   {
+    "constituent_faces": [
+     105,
+     106,
+     107,
+     108,
+     109,
+     110,
+     111,
+     112,
+     113,
+     114,
+     115,
+     116,
+     117,
+     118,
+     119,
+     120,
+     121,
+     122,
+     123,
+     124,
+     125
+    ],
+    "defining_faces": [
+     105,
+     106,
+     107,
+     108,
+     109,
+     110,
+     111,
+     112,
+     113,
+     114,
+     115,
+     116,
+     117,
+     118,
+     119,
+     120,
+     121,
+     122,
+     123,
+     124
+    ],
+    "family": "section_recesses",
+    "index": 72,
+    "record": {
+     "body": 0,
+     "classification": {
+      "feature_kind": "pocket",
+      "section_shape": "general"
+     },
+     "dependents": [
+      {
+       "constituent_faces": [
+        122
+       ],
+       "defining_faces": [
+        122
+       ],
+       "feature_index": 70,
+       "relation": "edge_treatment"
+      }
+     ],
+     "evidence": {
+      "constituent_faces": [
+       105,
+       106,
+       107,
+       108,
+       109,
+       110,
+       111,
+       112,
+       113,
+       114,
+       115,
+       116,
+       117,
+       118,
+       119,
+       120,
+       121,
+       122,
+       123,
+       124,
+       125
+      ],
+      "defining_faces": [
+       105,
+       106,
+       107,
+       108,
+       109,
+       110,
+       111,
+       112,
+       113,
+       114,
+       115,
+       116,
+       117,
+       118,
+       119,
+       120,
+       121,
+       122,
+       123,
+       124
+      ]
+     },
+     "geometry": {
+      "ends": {
+       "high": {
+        "condition": "capped",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       },
+       "low": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       }
+      },
+      "frame": {
+       "origin": [
+        8.097,
+        -57.609,
+        0.0
+       ],
+       "run": [
+        0.0,
+        0.0,
+        1.0
+       ],
+       "u": [
+        1.0,
+        0.0,
+        0.0
+       ],
+       "v": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      },
+      "profile": {
+       "boundary": [
+        {
+         "bulge": 0.414213562373,
+         "point": [
+          -12.049,
+          -17.072
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -5.755,
+          -23.365
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          10.451,
+          -23.365
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          10.451,
+          -18.667
+         ]
+        },
+        {
+         "bulge": -0.414213562373,
+         "point": [
+          -5.755,
+          -18.667
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -7.394,
+          -17.028
+         ]
+        },
+        {
+         "bulge": -0.898212774164,
+         "point": [
+          -7.394,
+          5.039
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -3.169,
+          4.953
+         ]
+        },
+        {
+         "bulge": 1.038592228113,
+         "point": [
+          -3.169,
+          -8.625
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          10.451,
+          -9.141
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          10.451,
+          29.264
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          5.71,
+          29.264
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          5.71,
+          19.65
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -12.049,
+          19.65
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -12.049,
+          14.997
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          5.71,
+          14.997
+         ]
+        },
+        {
+         "bulge": -1.041664453279,
+         "point": [
+          5.71,
+          -8.539
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          1.486,
+          -8.711
+         ]
+        },
+        {
+         "bulge": 0.85335558379,
+         "point": [
+          1.486,
+          5.729
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -12.049,
+          5.729
+         ]
+        }
+       ],
+       "closure": "closed"
+      },
+      "run_interval": [
+       -402.348,
+       -400.348
+      ],
+      "type": "section_recess"
+     },
+     "index": 0,
+     "named_dimensions": {}
+    },
+    "record_type": "SectionRecess"
+   },
+   {
+    "constituent_faces": [
+     126,
+     127,
+     128,
+     129,
+     130,
+     131,
+     132,
+     133,
+     134,
+     135,
+     136,
+     137,
+     138
+    ],
+    "defining_faces": [
+     126,
+     127,
+     128,
+     129,
+     130,
+     131,
+     132,
+     133,
+     134,
+     135,
+     136,
+     137
+    ],
+    "family": "section_recesses",
+    "index": 73,
+    "record": {
+     "body": 0,
+     "classification": {
+      "feature_kind": "pocket",
+      "section_shape": "general"
+     },
+     "dependents": [],
+     "evidence": {
+      "constituent_faces": [
+       126,
+       127,
+       128,
+       129,
+       130,
+       131,
+       132,
+       133,
+       134,
+       135,
+       136,
+       137,
+       138
+      ],
+      "defining_faces": [
+       126,
+       127,
+       128,
+       129,
+       130,
+       131,
+       132,
+       133,
+       134,
+       135,
+       136,
+       137
+      ]
+     },
+     "geometry": {
+      "ends": {
+       "high": {
+        "condition": "capped",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       },
+       "low": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       }
+      },
+      "frame": {
+       "origin": [
+        7.489,
+        -98.979,
+        0.0
+       ],
+       "run": [
+        0.0,
+        0.0,
+        1.0
+       ],
+       "u": [
+        1.0,
+        0.0,
+        0.0
+       ],
+       "v": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      },
+      "profile": {
+       "boundary": [
+        {
+         "bulge": 0.0,
+         "point": [
+          -11.44,
+          -14.667
+         ]
+        },
+        {
+         "bulge": 0.68240722844,
+         "point": [
+          6.803,
+          -14.667
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          10.124,
+          -6.184
+         ]
+        },
+        {
+         "bulge": -0.713547793515,
+         "point": [
+          -6.527,
+          9.213
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -6.052,
+          10.289
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          11.06,
+          10.289
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          11.06,
+          14.988
+         ]
+        },
+        {
+         "bulge": 0.708879398905,
+         "point": [
+          -6.164,
+          14.988
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -9.461,
+          5.593
+         ]
+        },
+        {
+         "bulge": -0.683329299324,
+         "point": [
+          5.973,
+          -8.608
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          5.425,
+          -10.013
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -11.44,
+          -10.013
+         ]
+        }
+       ],
+       "closure": "closed"
+      },
+      "run_interval": [
+       -402.348,
+       -400.348
+      ],
+      "type": "section_recess"
+     },
+     "index": 1,
+     "named_dimensions": {}
+    },
+    "record_type": "SectionRecess"
+   },
+   {
+    "constituent_faces": [
+     107,
+     121,
+     125
+    ],
+    "defining_faces": [
+     107,
+     121
+    ],
+    "family": "section_recesses",
+    "index": 74,
+    "record": {
+     "body": 0,
+     "classification": {
+      "feature_kind": "channel",
+      "section_shape": "rectangular"
+     },
+     "dependents": [
+      {
+       "constituent_faces": [
+        122
+       ],
+       "defining_faces": [
+        122
+       ],
+       "feature_index": 70,
+       "relation": "edge_treatment"
+      }
+     ],
+     "evidence": {
+      "constituent_faces": [
+       107,
+       121,
+       125
+      ],
+      "defining_faces": [
+       107,
+       121
+      ]
+     },
+     "geometry": {
+      "ends": {
+       "high": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       },
+       "low": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       }
+      },
+      "frame": {
+       "origin": [
+        -1.624,
+        0.0,
+        -401.348
+       ],
+       "run": [
+        0.0,
+        1.0,
+        0.0
+       ],
+       "u": [
+        0.0,
+        0.0,
+        1.0
+       ],
+       "v": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      },
+      "profile": {
+       "boundary": [
+        {
+         "bulge": 0.0,
+         "point": [
+          -1.0,
+          -2.3274
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          1.0,
+          -2.3274
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          1.0,
+          2.3274
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -1.0,
+          2.3274
+         ]
+        }
+       ],
+       "closure": "open",
+       "material_side": "right",
+       "opening": [
+        [
+         -1.0,
+         2.3274
+        ],
+        [
+         -1.0,
+         -2.3274
+        ]
+       ]
+      },
+      "run_interval": [
+       -74.637,
+       -52.57
+      ],
+      "type": "section_recess"
+     },
+     "index": 2,
+     "named_dimensions": {}
+    },
+    "record_type": "SectionRecess"
+   },
+   {
+    "constituent_faces": [
+     126,
+     128,
+     138
+    ],
+    "defining_faces": [
+     126,
+     128
+    ],
+    "family": "section_recesses",
+    "index": 75,
+    "record": {
+     "body": 0,
+     "classification": {
+      "feature_kind": "channel",
+      "section_shape": "rectangular"
+     },
+     "dependents": [],
+     "evidence": {
+      "constituent_faces": [
+       126,
+       128,
+       138
+      ],
+      "defining_faces": [
+       126,
+       128
+      ]
+     },
+     "geometry": {
+      "ends": {
+       "high": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       },
+       "low": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       }
+      },
+      "frame": {
+       "origin": [
+        0.0,
+        -111.319,
+        -401.348
+       ],
+       "run": [
+        1.0,
+        0.0,
+        0.0
+       ],
+       "u": [
+        0.0,
+        1.0,
+        0.0
+       ],
+       "v": [
+        0.0,
+        0.0,
+        1.0
+       ]
+      },
+      "profile": {
+       "boundary": [
+        {
+         "bulge": 0.0,
+         "point": [
+          -2.3269,
+          -1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -2.3269,
+          1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          2.3268,
+          1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          2.3268,
+          -1.0
+         ]
+        }
+       ],
+       "closure": "open",
+       "material_side": "left",
+       "opening": [
+        [
+         2.3268,
+         -1.0
+        ],
+        [
+         -2.3269,
+         -1.0
+        ]
+       ]
+      },
+      "run_interval": [
+       -3.951,
+       12.914
+      ],
+      "type": "section_recess"
+     },
+     "index": 3,
+     "named_dimensions": {}
+    },
+    "record_type": "SectionRecess"
+   },
+   {
+    "constituent_faces": [
+     112,
+     114,
+     125
+    ],
+    "defining_faces": [
+     112,
+     114
+    ],
+    "family": "section_recesses",
+    "index": 76,
+    "record": {
+     "body": 0,
+     "classification": {
+      "feature_kind": "channel",
+      "section_shape": "rectangular"
+     },
+     "dependents": [
+      {
+       "constituent_faces": [
+        122
+       ],
+       "defining_faces": [
+        122
+       ],
+       "feature_index": 70,
+       "relation": "edge_treatment"
+      }
+     ],
+     "evidence": {
+      "constituent_faces": [
+       112,
+       114,
+       125
+      ],
+      "defining_faces": [
+       112,
+       114
+      ]
+     },
+     "geometry": {
+      "ends": {
+       "high": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       },
+       "low": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       }
+      },
+      "frame": {
+       "origin": [
+        0.0,
+        -40.286,
+        -401.348
+       ],
+       "run": [
+        1.0,
+        0.0,
+        0.0
+       ],
+       "u": [
+        0.0,
+        1.0,
+        0.0
+       ],
+       "v": [
+        0.0,
+        0.0,
+        1.0
+       ]
+      },
+      "profile": {
+       "boundary": [
+        {
+         "bulge": 0.0,
+         "point": [
+          -2.3269,
+          -1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -2.3269,
+          1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          2.3269,
+          1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          2.3269,
+          -1.0
+         ]
+        }
+       ],
+       "closure": "open",
+       "material_side": "left",
+       "opening": [
+        [
+         2.3269,
+         -1.0
+        ],
+        [
+         -2.3269,
+         -1.0
+        ]
+       ]
+      },
+      "run_interval": [
+       -3.951,
+       13.807
+      ],
+      "type": "section_recess"
+     },
+     "index": 4,
+     "named_dimensions": {}
+    },
+    "record_type": "SectionRecess"
+   },
+   {
+    "constituent_faces": [
+     109,
+     119,
+     125
+    ],
+    "defining_faces": [
+     109,
+     119
+    ],
+    "family": "section_recesses",
+    "index": 77,
+    "record": {
+     "body": 0,
+     "classification": {
+      "feature_kind": "channel",
+      "section_shape": "rectangular"
+     },
+     "dependents": [
+      {
+       "constituent_faces": [
+        122
+       ],
+       "defining_faces": [
+        122
+       ],
+       "feature_index": 70,
+       "relation": "edge_treatment"
+      }
+     ],
+     "evidence": {
+      "constituent_faces": [
+       109,
+       119,
+       125
+      ],
+      "defining_faces": [
+       109,
+       119
+      ]
+     },
+     "geometry": {
+      "ends": {
+       "high": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       },
+       "low": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       }
+      },
+      "frame": {
+       "origin": [
+        7.255,
+        0.0,
+        -401.348
+       ],
+       "run": [
+        0.0,
+        1.0,
+        0.0
+       ],
+       "u": [
+        0.0,
+        0.0,
+        1.0
+       ],
+       "v": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      },
+      "profile": {
+       "boundary": [
+        {
+         "bulge": 0.0,
+         "point": [
+          -1.0,
+          -2.3275
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          1.0,
+          -2.3275
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          1.0,
+          2.3275
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -1.0,
+          2.3275
+         ]
+        }
+       ],
+       "closure": "open",
+       "material_side": "right",
+       "opening": [
+        [
+         -1.0,
+         2.3275
+        ],
+        [
+         -1.0,
+         -2.3275
+        ]
+       ]
+      },
+      "run_interval": [
+       -66.234,
+       -52.656
+      ],
+      "type": "section_recess"
+     },
+     "index": 5,
+     "named_dimensions": {}
+    },
+    "record_type": "SectionRecess"
+   },
+   {
+    "constituent_faces": [
+     105,
+     123,
+     125
+    ],
+    "defining_faces": [
+     105,
+     123
+    ],
+    "family": "section_recesses",
+    "index": 78,
+    "record": {
+     "body": 0,
+     "classification": {
+      "feature_kind": "channel",
+      "section_shape": "rectangular"
+     },
+     "dependents": [
+      {
+       "constituent_faces": [
+        122
+       ],
+       "defining_faces": [
+        122
+       ],
+       "feature_index": 70,
+       "relation": "edge_treatment"
+      }
+     ],
+     "evidence": {
+      "constituent_faces": [
+       105,
+       123,
+       125
+      ],
+      "defining_faces": [
+       105,
+       123
+      ]
+     },
+     "geometry": {
+      "ends": {
+       "high": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       },
+       "low": {
+        "condition": "open",
+        "surface": {
+         "gradient": [
+          0.0,
+          0.0
+         ],
+         "type": "plane"
+        }
+       }
+      },
+      "frame": {
+       "origin": [
+        0.0,
+        -78.626,
+        -401.348
+       ],
+       "run": [
+        1.0,
+        0.0,
+        0.0
+       ],
+       "u": [
+        0.0,
+        1.0,
+        0.0
+       ],
+       "v": [
+        0.0,
+        0.0,
+        1.0
+       ]
+      },
+      "profile": {
+       "boundary": [
+        {
+         "bulge": 0.0,
+         "point": [
+          -2.3492,
+          -1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          -2.3492,
+          1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          2.3492,
+          1.0
+         ]
+        },
+        {
+         "bulge": 0.0,
+         "point": [
+          2.3492,
+          -1.0
+         ]
+        }
+       ],
+       "closure": "open",
+       "material_side": "left",
+       "opening": [
+        [
+         2.3492,
+         -1.0
+        ],
+        [
+         -2.3492,
+         -1.0
+        ]
+       ]
+      },
+      "run_interval": [
+       2.342,
+       18.549
+      ],
+      "type": "section_recess"
+     },
+     "index": 6,
+     "named_dimensions": {}
+    },
+    "record_type": "SectionRecess"
+   }
+  ],
+  "format": "quiddity-recognition",
+  "format_version": 3,
+  "frame": {
+   "gauge": "full",
+   "origin": [
+    -2.3476212679325617,
+    -1.353683319061334,
+    -32.29852920526425
+   ],
+   "x": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "y": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "z": [
+    -1.0,
+    0.0,
+    0.0
+   ]
+  },
+  "package": {
+   "name": "quiddity",
+   "version": "0.4.0.dev0"
+  },
+  "proof": "whole_solid",
+  "rotational": false
+ },
+ "recogniser": "quiddity 0.4.0.dev0",
+ "source_sha256": "e081d518484d5c708c6729353237f94a7d97da2b74a10d60d4c0d146d67a5855"
+}

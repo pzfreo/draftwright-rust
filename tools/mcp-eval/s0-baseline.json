@@ -1,0 +1,319 @@
+{
+ "format": "draftwright-editor.mcp-eval-result/1",
+ "agent": "scripted (scripts/mcp-eval/run-scripted.mjs)",
+ "server": {
+  "name": "draftwright",
+  "version": "0.1.0-alpha.1",
+  "protocol": "2025-06-18"
+ },
+ "tokens_estimate": "ceil(bytes / 4) of the tool arguments as JSON and the result text; no tokenizer",
+ "fixed_context": {
+  "instructions_bytes": 593,
+  "tools_bytes": 9839,
+  "tokens_estimate": 2609
+ },
+ "summary": {
+  "tasks": 7,
+  "succeeded": 4,
+  "tool_calls": 23,
+  "tokens_estimate": 140744
+ },
+ "results": [
+  {
+   "task": "plate-callouts-right-pinned",
+   "part": "plate",
+   "success": false,
+   "tool_calls": 2,
+   "refused_calls": 1,
+   "request_bytes": 708,
+   "response_bytes": 24938,
+   "tokens_estimate": 6412,
+   "refusal": {
+    "code": "invalid",
+    "message": "The edited spec is not valid: unknown field `place`, expected `omit` or `tolerance`."
+   },
+   "failed_conditions": [
+    {
+     "type": "placed",
+     "why": [
+      "the Spec has no entry for f:hole_pattern:1/bore.diameter"
+     ]
+    },
+    {
+     "type": "placed",
+     "why": [
+      "the Spec has no entry for f:hole:4/bore.diameter"
+     ]
+    },
+    {
+     "type": "placed",
+     "why": [
+      "the Spec has no entry for f:hole:7/bore.diameter"
+     ]
+    },
+    {
+     "type": "dimension",
+     "why": [
+      "d:f:hole_pattern:1/bore.diameter@plan's label is not right of v:plan's centre"
+     ]
+    }
+   ],
+   "calls": [
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 95,
+     "response_bytes": 24793
+    },
+    {
+     "tool": "edit",
+     "isError": true,
+     "request_bytes": 613,
+     "response_bytes": 145,
+     "refusal": {
+      "code": "invalid",
+      "message": "The edited spec is not valid: unknown field `place`, expected `omit` or `tolerance`."
+     }
+    }
+   ]
+  },
+  {
+   "task": "m10127-hide-width",
+   "part": "m10127",
+   "success": true,
+   "tool_calls": 3,
+   "refused_calls": 0,
+   "request_bytes": 794,
+   "response_bytes": 71825,
+   "tokens_estimate": 18156,
+   "refusal": null,
+   "failed_conditions": [],
+   "calls": [
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 94,
+     "response_bytes": 36545
+    },
+    {
+     "tool": "edit",
+     "isError": false,
+     "request_bytes": 318,
+     "response_bytes": 346
+    },
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 382,
+     "response_bytes": 34934
+    }
+   ]
+  },
+  {
+   "task": "ctc01-fix-problems-near-slot",
+   "part": "ctc01",
+   "success": false,
+   "tool_calls": 7,
+   "refused_calls": 0,
+   "request_bytes": 2170,
+   "response_bytes": 288161,
+   "tokens_estimate": 72584,
+   "refusal": null,
+   "failed_conditions": [
+    {
+     "type": "no_problems",
+     "why": [
+      "problem annotation_outside_area: d:f:slot:1/slot_length.length@plan (120) runs up to 0.1 mm past the area reserved for the v:plan view and its bands; it may crowd what lies beyond.",
+      "problem annotation_outside_area: d:f:slot:1/location_slot.length@plan (55) runs up to 21.1 mm past the area reserved for the v:plan view and its bands; it may crowd what lies beyond."
+     ]
+    }
+   ],
+   "calls": [
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 123,
+     "response_bytes": 71365
+    },
+    {
+     "tool": "edit",
+     "isError": false,
+     "request_bytes": 298,
+     "response_bytes": 295
+    },
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 377,
+     "response_bytes": 71464
+    },
+    {
+     "tool": "edit",
+     "isError": false,
+     "request_bytes": 309,
+     "response_bytes": 295
+    },
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 377,
+     "response_bytes": 72236
+    },
+    {
+     "tool": "edit",
+     "isError": false,
+     "request_bytes": 309,
+     "response_bytes": 295
+    },
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 377,
+     "response_bytes": 72211
+    }
+   ]
+  },
+  {
+   "task": "grm03-sheet-scale-keep-intent",
+   "part": "grm03",
+   "success": true,
+   "tool_calls": 4,
+   "refused_calls": 0,
+   "request_bytes": 1539,
+   "response_bytes": 47726,
+   "tokens_estimate": 12317,
+   "refusal": null,
+   "failed_conditions": [],
+   "calls": [
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 142,
+     "response_bytes": 23502
+    },
+    {
+     "tool": "edit",
+     "isError": false,
+     "request_bytes": 409,
+     "response_bytes": 443
+    },
+    {
+     "tool": "edit",
+     "isError": false,
+     "request_bytes": 462,
+     "response_bytes": 483
+    },
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 526,
+     "response_bytes": 23298
+    }
+   ]
+  },
+  {
+   "task": "m10127-fit-through-hole",
+   "part": "m10127",
+   "success": true,
+   "tool_calls": 3,
+   "refused_calls": 0,
+   "request_bytes": 745,
+   "response_bytes": 73573,
+   "tokens_estimate": 18581,
+   "refusal": null,
+   "failed_conditions": [],
+   "calls": [
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 94,
+     "response_bytes": 36545
+    },
+    {
+     "tool": "edit",
+     "isError": false,
+     "request_bytes": 293,
+     "response_bytes": 322
+    },
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 358,
+     "response_bytes": 36706
+    }
+   ]
+  },
+  {
+   "task": "plate-a4-title-no-iso",
+   "part": "plate",
+   "success": true,
+   "tool_calls": 2,
+   "refused_calls": 0,
+   "request_bytes": 541,
+   "response_bytes": 24851,
+   "tokens_estimate": 6349,
+   "refusal": null,
+   "failed_conditions": [],
+   "calls": [
+    {
+     "tool": "edit",
+     "isError": false,
+     "request_bytes": 287,
+     "response_bytes": 228
+    },
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 254,
+     "response_bytes": 24623
+    }
+   ]
+  },
+  {
+   "task": "plate-width-in-plan",
+   "part": "plate",
+   "success": false,
+   "tool_calls": 2,
+   "refused_calls": 1,
+   "request_bytes": 440,
+   "response_bytes": 24938,
+   "tokens_estimate": 6345,
+   "refusal": {
+    "code": "invalid",
+    "message": "The edited spec is not valid: unknown field `place`, expected `omit` or `tolerance`."
+   },
+   "failed_conditions": [
+    {
+     "type": "dimension",
+     "why": [
+      "d:envelope/width.length@front is in v:front, not v:plan"
+     ]
+    },
+    {
+     "type": "placed",
+     "why": [
+      "the Spec has no entry for envelope/width.length"
+     ]
+    }
+   ],
+   "calls": [
+    {
+     "tool": "plan",
+     "isError": false,
+     "request_bytes": 95,
+     "response_bytes": 24793
+    },
+    {
+     "tool": "edit",
+     "isError": true,
+     "request_bytes": 345,
+     "response_bytes": 145,
+     "refusal": {
+      "code": "invalid",
+      "message": "The edited spec is not valid: unknown field `place`, expected `omit` or `tolerance`."
+     }
+    }
+   ]
+  }
+ ]
+}
