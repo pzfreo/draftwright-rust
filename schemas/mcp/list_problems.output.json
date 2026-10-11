@@ -11,135 +11,13 @@
           "items": {
             "anyOf": [
               {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string"
-                  },
-                  "severity": {
-                    "type": "string"
-                  },
-                  "message": {
-                    "type": "string"
-                  },
-                  "subjects": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "refs": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "fix": {
-                    "type": "array",
-                    "items": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "op": {
-                              "enum": [
-                                "set",
-                                "add"
-                              ]
-                            },
-                            "path": {
-                              "type": "string"
-                            },
-                            "value": {}
-                          },
-                          "required": [
-                            "op",
-                            "path",
-                            "value"
-                          ],
-                          "additionalProperties": false
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "op": {
-                              "const": "remove"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "op",
-                            "path"
-                          ],
-                          "additionalProperties": false
-                        }
-                      ]
-                    }
-                  }
-                },
-                "required": [
-                  "id",
-                  "code",
-                  "severity",
-                  "message",
-                  "subjects"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/problem"
               },
               {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string"
-                  },
-                  "severity": {
-                    "type": "string"
-                  },
-                  "subjects": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "id",
-                  "code",
-                  "severity",
-                  "subjects"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/problem_small"
               },
               {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "detail_ref": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "detail_ref"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/stub"
               }
             ]
           }
@@ -181,6 +59,131 @@
     }
   ],
   "$defs": {
+    "problem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "subjects": {
+          "$ref": "#/$defs/shared0"
+        },
+        "refs": {
+          "$ref": "#/$defs/shared0"
+        },
+        "fix": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/op"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "severity",
+        "message",
+        "subjects"
+      ],
+      "additionalProperties": false
+    },
+    "op": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "enum": [
+                "set",
+                "add"
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "op",
+            "path",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "remove"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "problem_small": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "subjects": {
+          "$ref": "#/$defs/shared0"
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "severity",
+        "subjects"
+      ],
+      "additionalProperties": false
+    },
+    "stub": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detail_ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "detail_ref"
+      ],
+      "additionalProperties": false
+    },
     "error": {
       "type": "object",
       "properties": {
@@ -194,10 +197,7 @@
           "type": "string"
         },
         "choices": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         }
       },
       "required": [
@@ -205,6 +205,12 @@
         "message"
       ],
       "additionalProperties": false
+    },
+    "shared0": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     }
   }
 }

@@ -24,3 +24,6 @@ uuid = { version = "1", default-features = false }
 [dev-dependencies]
 flate2 = "1.1.10"
 serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
+
+[build-dependencies]
+sha2 = "0.11.0"

@@ -10,10 +10,7 @@
           "type": "string"
         },
         "operations": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "placements": {
           "type": "array",
@@ -66,16 +63,10 @@
           }
         },
         "view_anchors": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "scales": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         }
       },
       "required": [
@@ -114,10 +105,7 @@
           "type": "string"
         },
         "choices": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/shared0"
         }
       },
       "required": [
@@ -125,6 +113,12 @@
         "message"
       ],
       "additionalProperties": false
+    },
+    "shared0": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     }
   }
 }

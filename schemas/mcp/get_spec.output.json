@@ -86,28 +86,16 @@
           "additionalProperties": false
         },
         "views": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "dimensions": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "annotations": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "features": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/shared0"
         },
         "dimension_source": {
           "enum": [
@@ -155,6 +143,12 @@
         "message"
       ],
       "additionalProperties": false
+    },
+    "shared0": {
+      "additionalProperties": {
+        "type": "object"
+      },
+      "type": "object"
     }
   }
 }

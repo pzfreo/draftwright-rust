@@ -2566,3 +2566,93 @@ Result: **605 passed, 0 failed, 0 ignored across 66 result groups**, including a
 nine new editor Session tests. The final exhaustive reading, coverage, dimensions,
 drawings and labels comparisons all pass with their original invariant assertions.
 Both worktrees also pass `git diff --check`, with empty staged diffs.
+
+## D1: go/no-go instruments and MCP gaps (2026-10-11)
+
+Overturnable judgement calls made unattended:
+
+- Random-pin sampling ranks drawable dimension, PMI annotation and non-root view IDs by
+  SHA-256 of `seed:part:item`. N selects a prefix, without replacement, so samples are
+  independent of Plan ordering and nested across N. A bare annotation `{pinned:true}`
+  retains canonical automatic geometry. View intent requires another view, a side and a
+  named alignment: retain `front` as the unpinned root (or the first ID if absent), use
+  the dominant side from footprint centres, a legal existing gap and the nearest named
+  alignment to that root, and exclude the root from sampling
+  to avoid cycles. This tests pinning existing placements, rather than random manual
+  relocation; it is an overturnable interpretation of section 6. IDs and complete Specs
+  are kept with every run. A missing part or insufficient candidates is an instrument
+  error, never a smaller silent sample. Zero baseline ink requires zero pinned ink.
+- `tools/quality.py` reports a measured no-go with exit 0 so all nine measurements can
+  complete; `--require-go` enforces failure on any part, including a zero-ink baseline
+  that acquires ink. Totals do not hide individual failures. Off-sheet subjects are
+  retained as well as counts, to detect replacement with a different off-sheet item.
+- The engine fingerprint includes `src/`, Cargo.lock, Cargo.toml, build scripts, schemas
+  and fonts, sorted by relative path with length-delimited contents. Directory watches
+  catch new/deleted files. Paths and mtimes do not affect identity. It conservatively
+  invalidates caches even for a source comment or schema-only change; this supersedes
+  S7's hand-bumped suffix judgement above. It describes the source and locked dependencies,
+  not external compiler/environment reproducibility. No production cache was migrated.
+- The real-model client targets the existing loopback JSON-response HTTP mode. It logs
+  exact UTF-8 JSON-RPC body bytes and S0-compatible argument/text bytes per call, with
+  `ceil(bytes/4)` estimates. Actual model tokens must be supplied by the evaluator.
+  Judge calls are excluded. The seven task conditions remain unchanged. CLI PNG calls
+  print the structured text metadata; `--image-out` saves MCP image content for a vision
+  model's image reader. D1 supplies instruments, not a claimed Claude run.
+
+### Diagnosis: plate-callouts-right-pinned remains a no-go
+
+Reproduced with the pre-D1 release binary, the unchanged scripted ops and S0 feature
+bridge. The A4 1:1 plan reserves plan-view area `[10,77,150,175]`. Its three right-pin
+shoulders end at x=175.793, 163.719 and 174.319 mm (lanes 0,1,2, along start/middle/end).
+They exceed the right band by **25.793, 13.719 and 24.319 mm**. The location-Y dimension
+`d:f:hole:4/location.length.y` has its dimension line at x=140, y=95..125 and witnesses
+at y=95 and y=125. The pattern pin's leader ends at `[140,95]`; hole-4's leader/shoulder
+runs along y=125 from x=84 to 163.719. Both intersect the location dimension's ink,
+reported as two `annotation_leader_crossing` problems. The pin geometry is retained,
+not dropped; all other task conditions pass.
+
+Evidence is reproducible with:
+
+```sh
+node tools/mcp-eval/run-scripted.mjs --out target/d1-mcp-eval.json --documents-dir target/d1-eval-documents
+tools/mcp-eval/check plate-callouts-right-pinned --spec target/d1-eval-documents/plate-callouts-right-pinned/spec.json --plan target/d1-eval-documents/plate-callouts-right-pinned/plan.json --baseline target/d1-eval-documents/plate-callouts-right-pinned/baseline.json
+```
+
+The first instrument and the task checker exit 1. Inspect the emitted Plan's placed
+lines and problems; the old-binary evidence is also in `target/d1-diagnosis-documents/`.
+
+Cause: `model::plan_with` computes demand/reservations before resolving explicit pin
+ink and restores canonical anchor areas for pins; `dims::placement::intent` uses the
+ordinary lane grid plus a full horizontal label shoulder regardless of available band
+width. `avoid_fixed` checks label/label and line/label collisions only, and searches
+larger lanes on the same side; it has no line/line constraints or alternate-side solve.
+The leader solver skips already placed pins. Moving the free location dimension to
+another lane on the right does not address every crossing; the witnesses still traverse
+that strip. A joint choice of its side and the callouts' reserved width is needed.
+Expanding the reported area after placement alone would hide the reservation finding,
+change areas used as pin anchors, and leave crossings. Therefore no layout patch was
+made: the small-change route cannot establish the unchanged pin-geometry and quality
+invariants. Carry forward section 6's constraint-based lane redesign. No task conditions,
+collision reporting, pins or quality bars were weakened to obtain a pass.
+
+Final measurements and verification are in `docs/status-2026-10-10.md`'s D1 entry.
+
+The 30 native-recognition quality parts produced no eligible PMI annotation IDs:
+across the nine runs, 895 selected pins are dimensions and 185 are views (1,080
+selected items in 270 experiments). The instrument supports PMI and tests that
+Spec path with a drawable PMI fixture shape; the existing S3 AP242 property tests
+also cover real PMI pins. The section 6 corpus measurement therefore establishes
+no new PMI-layout distribution. Adding an AP242 quality corpus is a future decision,
+not an excuse to replace the prescribed thirty parts here.
+
+One Node live-client test invocation reported `fetch failed` on its first registration
+request while the full corpus suite was running. An immediate unchanged-code rerun
+passed all three tests, including online checking and PNG export. The underlying
+connection failure was not identified; no retries, skips or weaker assertions were
+added. Keep this as a possible harness/host-load flake if it recurs.
+
+An initial source-mutation probe reused the working target directory. It was corrected
+to use a disposable isolated target. The working build script was forced to rerun,
+and the engine-version test verified the compiled identifier against the working
+source before the complete 615-test run. Final artifacts and measurements use the
+verified working engine; there was no layout code difference in the initial probe.
