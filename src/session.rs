@@ -339,10 +339,18 @@ impl Session {
         Self::new(part, analysis, spec)
     }
     pub fn new(part: Part, analysis: Analysis, spec: Spec) -> Result<Self, Error> {
+        Self::with_projections(part, analysis, spec, Projections::default())
+    }
+    /// Reconstruct a session from immutable documents and a persisted projection cache.
+    pub fn with_projections(
+        part: Part,
+        analysis: Analysis,
+        spec: Spec,
+        mut projections: Projections,
+    ) -> Result<Self, Error> {
         let font = Font::new(api::MONO.to_vec()).expect("the bundled font parses");
         let mut planner = Planner::default();
         let plan = planner.plan(&analysis, &spec)?;
-        let mut projections = Projections::default();
         let geometry = model::render_geometry(&part, &analysis, &plan, &mut projections)
             .map_err(|e| Error::failed(format!("cannot render session: {e}")))?;
         let annotations = ink(&plan, None);
@@ -370,6 +378,9 @@ impl Session {
             stats,
             planner,
         })
+    }
+    pub fn projections(&self) -> &Projections {
+        &self.projections
     }
     pub fn part(&self) -> &Part {
         &self.part
@@ -513,7 +524,7 @@ impl Session {
             .near
             .as_ref()
             .and_then(|id| self.item(id).ok())
-            .and_then(|i| bbox(&i));
+            .and_then(|i| item_bounds(&i));
         let region = filter.region.or_else(|| {
             near.map(|[a, b, c, d]| {
                 let r = filter.radius.unwrap_or(10.0).max(0.0);
@@ -539,7 +550,7 @@ impl Session {
                         .is_none_or(|f| i.features.contains(f))
                     && (filter.near.is_none() || near.is_some())
                     && region.is_none_or(|r| {
-                        bbox(i).is_some_and(|b| {
+                        item_bounds(i).is_some_and(|b| {
                             b[0] <= r[2] && b[2] >= r[0] && b[1] <= r[3] && b[3] >= r[1]
                         })
                     })
@@ -567,6 +578,15 @@ impl Session {
             let view = crate::placement_intent::carrier(self.plan(), id);
             [Side::Above, Side::Below, Side::Left, Side::Right]
                 .into_iter()
+                .filter(|side| {
+                    if item.dimension_kind.as_deref() != Some("linear") {
+                        return true;
+                    }
+                    let Some(Placement::Dimension(p)) = &item.placement else {
+                        return false;
+                    };
+                    matches!(side, Side::Left | Side::Right) == (p.rotation == 90.0)
+                })
                 .filter_map(|side| {
                     view.as_ref().map(|view| Place {
                         view: Some(view.trim_start_matches("v:").into()),
@@ -767,7 +787,7 @@ fn expand_box<'a>(b: [f64; 4], points: impl Iterator<Item = &'a [f64; 2]>) -> [f
         ]
     })
 }
-fn bbox(i: &ItemAnswer) -> Option<[f64; 4]> {
+pub fn item_bounds(i: &ItemAnswer) -> Option<[f64; 4]> {
     match i.placement.as_ref()? {
         Placement::Dimension(p) => Some(expand_box(
             p.label_box,

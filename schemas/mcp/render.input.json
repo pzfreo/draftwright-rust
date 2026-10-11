@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://draftwright.io/schemas/mcp/render.input.json",
+  "type": "object",
+  "properties": {
+    "part_ref": {
+      "type": "string"
+    },
+    "spec": {
+      "$ref": "#/$defs/spec"
+    },
+    "spec_version": {
+      "type": "string"
+    },
+    "drawing_ref": {
+      "type": "string"
+    },
+    "step": {
+      "type": "string"
+    },
+    "features": {
+      "type": "string"
+    },
+    "format": {
+      "enum": [
+        "png",
+        "pdf"
+      ]
+    },
+    "region": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "overlay_ids": {
+      "type": "boolean"
+    },
+    "dpi": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 400
+    }
+  },
+  "required": [],
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": [
+        "step"
+      ]
+    },
+    {
+      "required": [
+        "part_ref"
+      ]
+    }
+  ],
+  "$defs": {
+    "spec": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "enum": [
+            "draftwright.spec/1",
+            "draftwright.spec/2"
+          ]
+        },
+        "binding": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sheet": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "views": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "dimension_source": {
+          "enum": [
+            "auto",
+            "authored"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  }
+}

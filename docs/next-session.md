@@ -2398,3 +2398,63 @@ Overturnable judgement calls made unattended:
   encoding after open, ten repetitions of nine edits (eight for GRM-03). Undo restores the
   starting state between repetitions and is not timed. Opening (including HLR) is recorded separately.
   WASM/UI display-rate drag checks remain in S5; no editor or MCP files were touched.
+
+## Thin slice S7: stateless MCP (2026-10-11)
+
+Overturnable judgement calls made unattended:
+
+- Use std's sequential loopback HTTP, OS file locks and adjacent staged/renamed files rather
+  than add an HTTP framework or an MCP SDK. The local adapter uses Streamable HTTP's JSON
+  response mode (GET 405, no sticky session), with synchronous cold computation. Leased cold
+  jobs, distributed head CAS, authenticated handles and cache hydration belong to the
+  draftwright-io integration design in `docs/mcp.md`; no production code was changed.
+- Keep the existing `draftwright-mcp` executable as a compatibility adapter, so its existing
+  document-passing tests and callers remain valid. New stateless tools live in `draftwright
+  mcp-stdio` and `draftwright mcp-http`, and are also available as `mcp_<tool>` in `serve`.
+  The legacy tools can be retired with the production rollout, rather than during this slice.
+- The engine key combines package version, an explicit cache-format/behaviour revision and
+  Cargo.lock. Bump `stateless::ENGINE_VERSION` whenever engine behaviour changes before a
+  release; unversioned source changes are not automatically reflected in that revision.
+- Retain the first source basename for a STEP content key, since Analysis uses it for the
+  title/binding. Registering an alias reuses that analysis. Refuse different recognition JSON
+  for an already-registered STEP+engine key: native and S0 bridge evaluation caches have
+  separate roots. The key must stay STEP SHA plus engine version, so recognition mode is
+  not silently added as a third key component. A future artifact registration API may make
+  the canonical name and recognition policy explicit.
+- Persist Analysis, raw kernel HLR/sections and the latest placed curves/visible bounds per
+  direction, following S4's cache policy. STEP B-rep still parses in a fresh process; no
+  recognition/semantic PMI or HLR/bounds work is repeated for warm, unchanged views. Enable
+  serde_json's float_roundtrip feature to preserve exact doubles; no new Rust crate is added.
+  Python jsonschema 4.25.1 is only an independent acceptance-check dependency.
+- Default list/delta JSON budgets are 4096 bytes, with offsets against immutable inputs and
+  ID/label/state rows. Explicit detail records that exceed the record budget become artifact
+  references. Lossless Plan/Delta documents, images and complete Specs are explicit reads
+  and may be larger. Further committed delta pages use resources/read rather than repeating
+  apply_ops. The production adapter should map those content refs to its authenticated artifact
+  handles. Initial Spec hashes identify content; applied version hashes include parent and ops,
+  preserving a new immutable version even for a no-op.
+- Restore S0 fixtures from editor origin/thin-slice, not its main checkout. Preserve tasks.json,
+  all four feature files and the exact scripted baseline. Adapt only check.mjs's import/path;
+  all success conditions, including info-level problems, remain unchanged. Token estimates
+  are ceil(bytes/4), with judge calls excluded and fixed context reported separately as in S0.
+- The scripted pin task reveals an upstream layout limit: right-side pinned plate callouts
+  extend beyond the plan view's reserved right band (`annotation_outside_area`), and leaders
+  can cross existing location dimensions. Placement ops keep the requested right-side pins
+  and all other dimensions; MCP must report these problems, not filter them or weaken the
+  task's `no_problems` condition. S7 does not change the planner's reservation policy. The
+  scripted runner exits nonzero for an unsatisfied task, so this remains a measured go/no-go
+  limitation for Stage D. The slot task uses ordinary above/lane-0/middle placement for both
+  affected dimensions. A planner fix must preserve S3's pin invariance and unpinned quality.
+- The S7 parity oracle covers native Session, live serve and stateless HTTP using all nine
+  S4B S0 operations (eight on GRM-03). The editor's WASM session joins in S5. Production
+  wiring and a real-model evaluation remain explicitly deferred; neither was attempted.
+
+- Review correction: count the complete MCP JSON-RPC text/structured response in the default
+  4 KB budget, reserving transport overhead in paging. Add explicit `type: object` roots to
+  published output schemas as required by MCP's Tool definition; an independent schema
+  check and the transport tests guard it. ID overlay text uses the bundled mono font at
+  1.8 mm above each resolved item's ink bounds; it is review-only, not Spec intent.
+- Tighten Session's linear placement options to the two sides parallel to the measured span.
+  This is shared by the editor/core as well as MCP; it changes suggestions, not planning,
+  geometry or accepted Spec operations. Callouts retain all four strip choices and collisions
+  are still reported by preview/apply.

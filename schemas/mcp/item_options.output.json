@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://draftwright.io/schemas/mcp/item_options.output.json",
+  "type": "object",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "view": {
+                "enum": [
+                  "front",
+                  "plan",
+                  "side"
+                ]
+              },
+              "side": {
+                "enum": [
+                  "above",
+                  "below",
+                  "left",
+                  "right"
+                ]
+              },
+              "lane": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "along": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "start",
+                      "middle",
+                      "end",
+                      "outside"
+                    ]
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                ]
+              },
+              "pinned": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        "view_anchors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scales": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "operations",
+        "placements",
+        "view_anchors",
+        "scales"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/error"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid",
+            "failed"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -48,6 +48,18 @@ const PROTOCOL: u32 = 1;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args
+        .first()
+        .is_some_and(|s| ["mcp-stdio", "mcp-http"].contains(&s.as_str()))
+    {
+        return match draftwright::mcp::run(&args) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if args.first().map(String::as_str) == Some("serve") {
         return serve();
     }
@@ -224,7 +236,7 @@ fn reply(request: &Value, service: &mut api::Service) -> Value {
     let id = fields.get("id").cloned().unwrap_or(Value::Null);
     let result = match fields.get("op").and_then(Value::as_str) {
         Some("hello") => Ok(
-            json!({ "protocol": PROTOCOL, "ops": api::OPERATIONS.iter().chain(api::SESSION_OPERATIONS.iter()).collect::<Vec<_>>() }),
+            json!({ "protocol": PROTOCOL, "ops": api::OPERATIONS.iter().chain(api::SESSION_OPERATIONS.iter()).chain(api::STATELESS_OPERATIONS.iter()).collect::<Vec<_>>() }),
         ),
         Some(op) => service.call(op, request),
         None => Err(Error::invalid("a request needs \"op\"")),

@@ -40,11 +40,29 @@ impl Drawing {
     /// The PNG at *dpi*, or why there is none: a *dpi* that is not positive, or a page too large
     /// at it.
     pub fn png(&self, dpi: f64) -> Result<Vec<u8>, String> {
+        self.png_region(dpi, None)
+    }
+    /// Render a paper region directly, keeping the full drawing's embedded Spec.
+    pub fn png_region(&self, dpi: f64, region: Option<[f64; 4]>) -> Result<Vec<u8>, String> {
         if !(dpi > 0.0 && dpi.is_finite()) {
             return Err(format!("png export needs dpi > 0, got {dpi}"));
         }
-        let [w, h] = size(self.page, dpi);
-        if w * h > MAX_PIXELS {
+        let [left, bottom, right, top] = region.unwrap_or([0.0, 0.0, self.page[0], self.page[1]]);
+        if ![left, bottom, right, top].iter().all(|x| x.is_finite())
+            || left < 0.0
+            || bottom < 0.0
+            || right > self.page[0]
+            || top > self.page[1]
+            || right <= left
+            || top <= bottom
+        {
+            return Err(format!(
+                "region must be [left,bottom,right,top] within page {:?}, with positive width and height",
+                self.page
+            ));
+        }
+        let [w, h] = size([right - left, top - bottom], dpi);
+        if w.checked_mul(h).is_none_or(|pixels| pixels > MAX_PIXELS) {
             return Err(format!(
                 "a {w} × {h} pixel PNG at {dpi} dpi is more than {MAX_PIXELS} pixels; choose a lower dpi"
             ));
@@ -53,11 +71,11 @@ impl Drawing {
             .ok_or_else(|| format!("cannot make a {w} × {h} pixel raster"))?;
         pixmap.fill(Color::WHITE);
         let k = dpi / 25.4;
-        let page_h = self.page[1];
+        let page_h = top;
         // Page mm, y up, to pixels, y down, on the 1/256-pixel grid.
         let at = |p: P| {
             let q = |v: f64| ((v * 256.0).round() / 256.0) as f32;
-            (q(p[0] * k), q((page_h - p[1]) * k))
+            (q((p[0] - left) * k), q((page_h - p[1]) * k))
         };
         for layer in &self.layers {
             let st = &layer.style;

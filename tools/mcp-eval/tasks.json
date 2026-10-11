@@ -1,0 +1,92 @@
+{
+  "format": "draftwright-editor.mcp-eval-tasks/1",
+  "about": "The S7 drawing tasks (docs/THIN_SLICE_PLAN.md, 3.2 S7) on the thin slice's parts. Each task's success is checked by scripts/mcp-eval/check.mjs on the resulting Spec and its Plan. A quantity is a dimension's ID without its 'd:' prefix and '@<view>' suffix (d:<feature>/<parameter>), so the checks hold for the view-free IDs S1 introduces too.",
+  "parts": {
+    "plate": { "step": "public/samples/plate.step", "features": "scripts/mcp-eval/features/plate.features.json" },
+    "m10127": { "step": "bench/samples/10127.step", "features": "scripts/mcp-eval/features/10127.features.json" },
+    "grm03": { "step": "bench/samples/GRM-03_thumbwheel_drive_screw.step", "features": "scripts/mcp-eval/features/GRM-03_thumbwheel_drive_screw.features.json" },
+    "ctc01": { "step": "bench/samples/nist_ctc_01_asme1_rd.stp", "features": "scripts/mcp-eval/features/nist_ctc_01_asme1_rd.features.json" }
+  },
+  "tasks": [
+    {
+      "id": "plate-callouts-right-pinned",
+      "part": "plate",
+      "source": "S7 example: move the hole callouts to the right of the plan view and pin them",
+      "prompt": "On the mounting plate's drawing, move the three hole callouts of the plan view (6× ⌀6.6 THRU, ⌀8 THRU and ⌀4.2 THRU) to the right of the plan view and pin them there, so that later layout changes do not move them.",
+      "success": [
+        { "type": "placed", "quantity": "f:hole_pattern:1/bore.diameter", "view": "plan", "side": "right", "pinned": true },
+        { "type": "placed", "quantity": "f:hole:4/bore.diameter", "view": "plan", "side": "right", "pinned": true },
+        { "type": "placed", "quantity": "f:hole:7/bore.diameter", "view": "plan", "side": "right", "pinned": true },
+        { "type": "dimension", "quantity": "f:hole_pattern:1/bore.diameter", "planned": true, "view": "v:plan", "right_of_view_centre": true },
+        { "type": "dimension", "quantity": "f:hole:4/bore.diameter", "planned": true, "view": "v:plan", "right_of_view_centre": true },
+        { "type": "dimension", "quantity": "f:hole:7/bore.diameter", "planned": true, "view": "v:plan", "right_of_view_centre": true },
+        { "type": "no_problems", "about": ["f:hole_pattern:1/bore.diameter", "f:hole:4/bore.diameter", "f:hole:7/bore.diameter"] },
+        { "type": "kept_others", "except": [] }
+      ]
+    },
+    {
+      "id": "m10127-hide-width",
+      "part": "m10127",
+      "source": "S7 example: hide the redundant width dimension",
+      "prompt": "On part 10127's drawing, hide the overall width dimension (28.8): it is not wanted on this drawing. Every other dimension must stay.",
+      "success": [
+        { "type": "dimension", "quantity": "envelope/width.length", "planned": false },
+        { "type": "kept_others", "except": ["envelope/width.length"] }
+      ]
+    },
+    {
+      "id": "ctc01-fix-problems-near-slot",
+      "part": "ctc01",
+      "source": "S7 example: fix every problem near the bore (here, near the first slot)",
+      "prompt": "On NIST CTC-01's drawing, fix every problem reported against the first slot's dimensions (f:slot:1) without hiding any dimension: change placement, sheet or scale as needed.",
+      "success": [
+        { "type": "no_problems", "about": ["f:slot:1"] },
+        { "type": "kept_others", "except": [] }
+      ]
+    },
+    {
+      "id": "grm03-sheet-scale-keep-intent",
+      "part": "grm03",
+      "source": "S7 example: change sheet and scale and keep intent",
+      "prompt": "On GRM-03's drawing, put a ±0.02 tolerance on the ø5 step diameter and leave out the isometric view. Then change the drawing to an A3 sheet at 5:1, keeping both decisions.",
+      "success": [
+        { "type": "sheet", "size": "A3", "scale": "5:1" },
+        { "type": "dimension", "quantity": "f:turned_step:1/step.diameter", "planned": true, "label_includes": "±0.02" },
+        { "type": "view_absent", "view": "v:iso" },
+        { "type": "kept_others", "except": [] }
+      ]
+    },
+    {
+      "id": "m10127-fit-through-hole",
+      "part": "m10127",
+      "source": "own: a fit on a hole, read back from the drawn label",
+      "prompt": "On part 10127's drawing, give the ⌀8.1 through hole an H7 fit, so that its callout shows the fit.",
+      "success": [
+        { "type": "dimension", "quantity": "f:hole:1/bore.diameter", "planned": true, "label_includes": "H7" },
+        { "type": "kept_others", "except": [] }
+      ]
+    },
+    {
+      "id": "plate-a4-title-no-iso",
+      "part": "plate",
+      "source": "own: sheet, title block and view choice in one request",
+      "prompt": "On the mounting plate's drawing, leave out the isometric view, use an A4 sheet at 1:1, and fill the title block with the title MOUNTING PLATE and drawing number DW-0001.",
+      "success": [
+        { "type": "sheet", "size": "A4", "scale": "1:1", "title": { "title": "MOUNTING PLATE", "number": "DW-0001" } },
+        { "type": "view_absent", "view": "v:iso" },
+        { "type": "kept_others", "except": [] }
+      ]
+    },
+    {
+      "id": "plate-width-in-plan",
+      "part": "plate",
+      "source": "S7 example: moving a callout or dimension to another view",
+      "prompt": "On the mounting plate's drawing, show the overall width (100) in the plan view instead of the front view, on the side of the plan view away from the front view.",
+      "success": [
+        { "type": "dimension", "quantity": "envelope/width.length", "planned": true, "view": "v:plan" },
+        { "type": "placed", "quantity": "envelope/width.length", "view": "plan", "side": "above" },
+        { "type": "kept_others", "except": [] }
+      ]
+    }
+  ]
+}

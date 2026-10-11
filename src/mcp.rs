@@ -1,0 +1,640 @@
+//! Thin local MCP transports over the stateless Session API.
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::path::Path;
+
+use crate::api::Error;
+use crate::model::Spec;
+use crate::session::{Delta, ItemAnswer, ItemFilter, ProblemFilter};
+use crate::stateless::{Cache, PAGE_BYTES, spec_hash};
+use serde_json::{Value, json};
+
+pub const TOOLS: [&str; 12] = [
+    "inspect_part",
+    "list_items",
+    "get_item",
+    "list_problems",
+    "item_options",
+    "preview_ops",
+    "apply_ops",
+    "view_sheet",
+    "render_pdf",
+    "get_spec",
+    "analyse",
+    "render",
+];
+pub const VERSIONS: [&str; 3] = ["2025-11-25", "2025-06-18", "2025-03-26"];
+pub const INSTRUCTIONS: &str = "Register STEP with inspect_part {step}; keep part_ref. The Spec is state: pass spec or immutable spec_version to each query. get_spec loads a drawing's current head; apply_ops requires that parent and returns a new version. preview_ops keeps no version. Lists and delta events are paged below 4096 bytes; follow next_cursor. Delta artifacts are lossless and readable with resources/read (events may be paged there without applying again). get_item explains basis and valid operations. view_sheet gives PNG, render_pdf delivery PDF. No live session or authentication; localhost development only.";
+
+pub fn schema(tool: &str, output: bool) -> Option<Value> {
+    macro_rules! files { ($($name:literal),*) => {match (tool,output) {$(( $name, false) => Some(include_str!(concat!("../schemas/mcp/",$name,".input.json"))),($name,true)=>Some(include_str!(concat!("../schemas/mcp/",$name,".output.json"))),)* _=>None}}; }
+    let text = files!(
+        "inspect_part",
+        "list_items",
+        "get_item",
+        "list_problems",
+        "item_options",
+        "preview_ops",
+        "apply_ops",
+        "view_sheet",
+        "render_pdf",
+        "get_spec",
+        "analyse",
+        "render"
+    )?;
+    Some(serde_json::from_str(text).expect("published schema"))
+}
+/// Validate the vocabulary used by our standalone draft-2020-12 schemas.
+pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
+    fn visit(root: &Value, s: &Value, v: &Value, path: &str) -> Result<(), String> {
+        let bad = || format!("{path}: accepted shape is {s}");
+        if let Some(r) = s["$ref"].as_str() {
+            return visit(
+                root,
+                root.pointer(r.trim_start_matches('#')).ok_or_else(bad)?,
+                v,
+                path,
+            );
+        }
+        if let Some(list) = s["anyOf"].as_array()
+            && !list.iter().any(|s| visit(root, s, v, path).is_ok())
+        {
+            return Err(bad());
+        }
+        if let Some(t) = s["type"].as_str() {
+            let valid = match t {
+                "object" => v.is_object(),
+                "array" => v.is_array(),
+                "string" => v.is_string(),
+                "number" => v.is_number(),
+                "integer" => v.as_u64().is_some() || v.as_i64().is_some(),
+                "boolean" => v.is_boolean(),
+                "null" => v.is_null(),
+                _ => false,
+            };
+            if !valid {
+                return Err(bad());
+            }
+        }
+        if s.get("const").is_some_and(|c| c != v)
+            || s["enum"].as_array().is_some_and(|l| !l.contains(v))
+        {
+            return Err(bad());
+        }
+        if let Some(n) = v.as_f64() {
+            for (k, valid) in [
+                ("minimum", s["minimum"].as_f64().is_none_or(|b| n >= b)),
+                ("maximum", s["maximum"].as_f64().is_none_or(|b| n <= b)),
+                (
+                    "exclusiveMinimum",
+                    s["exclusiveMinimum"].as_f64().is_none_or(|b| n > b),
+                ),
+            ] {
+                if !valid {
+                    return Err(format!("{path}: choose {k} {}", s[k]));
+                }
+            }
+        }
+        if let Some(o) = v.as_object() {
+            if let Some(r) = s["required"].as_array() {
+                for key in r {
+                    if !o.contains_key(key.as_str().unwrap()) {
+                        return Err(format!("{path}: provide required field {key}"));
+                    }
+                }
+            }
+            for (key, val) in o {
+                if let Some(p) = s["properties"].get(key) {
+                    visit(root, p, val, &format!("{path}/{key}"))?;
+                } else if s["additionalProperties"] == false {
+                    return Err(format!(
+                        "{path}: {key:?} is unknown; accepted fields: {}",
+                        s["properties"]
+                    ));
+                } else if s["additionalProperties"].is_object() {
+                    visit(
+                        root,
+                        &s["additionalProperties"],
+                        val,
+                        &format!("{path}/{key}"),
+                    )?;
+                }
+            }
+        }
+        if let Some(a) = v.as_array() {
+            if s["minItems"].as_u64().is_some_and(|n| a.len() < n as usize)
+                || s["maxItems"].as_u64().is_some_and(|n| a.len() > n as usize)
+            {
+                return Err(bad());
+            }
+            if let Some(item) = s.get("items") {
+                for (i, val) in a.iter().enumerate() {
+                    visit(root, item, val, &format!("{path}/{i}"))?;
+                }
+            }
+        }
+        Ok(())
+    }
+    visit(schema, schema, value, "input")
+}
+fn value<T: serde::Serialize>(v: &T) -> Value {
+    serde_json::to_value(v).expect("document serialises")
+}
+fn text<'a>(args: &'a Value, key: &str) -> Result<&'a str, Error> {
+    args[key]
+        .as_str()
+        .ok_or_else(|| Error::invalid(format!("provide {key}, a string")))
+}
+fn spec(cache: &Cache, args: &Value) -> Result<Spec, Error> {
+    if args.get("spec").is_some() && args.get("spec_version").is_some() {
+        return Err(Error::invalid(
+            "provide spec or spec_version, rather than both",
+        ));
+    }
+    if let Some(k) = args["spec_version"].as_str() {
+        cache.get_version(k)
+    } else {
+        serde_json::from_value(args.get("spec").cloned().unwrap_or_else(|| json!({})))
+            .map_err(|e| Error::invalid(format!("provide a valid Spec: {e}")))
+    }
+}
+fn compact(i: &ItemAnswer) -> Value {
+    json!({"id":i.item.id,"kind":i.item.kind,"label":i.item.label,"view":i.item.view,"state":i.item.state})
+}
+fn small(cache: &Cache, row: Value) -> Result<Value, Error> {
+    if value_bytes(&row) < PAGE_BYTES / 4 {
+        return Ok(row);
+    }
+    let detail = cache.artifact(&serde_json::to_vec(&row).unwrap(), "json")?;
+    let id = row
+        .get("id")
+        .or_else(|| row.pointer("/item/id"))
+        .filter(|id| id.as_str().is_some_and(|s| s.len() <= 256));
+    Ok(json!({"id":id,"detail_ref":detail}))
+}
+fn value_bytes(v: &Value) -> usize {
+    serde_json::to_vec(v).unwrap().len()
+}
+pub fn page(cache: &Cache, rows: Vec<Value>, args: &Value) -> Result<Value, Error> {
+    let start = args["cursor"].as_u64().unwrap_or(0) as usize;
+    let limit = args["limit"].as_u64().unwrap_or(20) as usize;
+    if !(1..=100).contains(&limit) || args.get("cursor").is_some_and(|v| v.as_u64().is_none()) {
+        return Err(Error::invalid(
+            "use a nonnegative cursor and limit between 1 and 100",
+        ));
+    }
+    if start > rows.len() {
+        return Err(Error::invalid(format!(
+            "cursor must be between 0 and {}",
+            rows.len()
+        )));
+    }
+    let mut selected = Vec::new();
+    let mut end = start;
+    for row in rows.iter().skip(start).take(limit) {
+        let row = small(cache, row.clone())?;
+        selected.push(row);
+        if value_bytes(&json!({"items":selected,"total":rows.len(),"next_cursor":end+1}))
+            > PAGE_BYTES / 3
+        {
+            selected.pop();
+            break;
+        }
+        end += 1;
+    }
+    Ok(
+        json!({"items":selected,"total":rows.len(),"next_cursor":if end<rows.len(){Some(end)}else{None}}),
+    )
+}
+fn delta_page(cache: &Cache, delta: &Delta, args: &Value) -> Result<Value, Error> {
+    let detail = args["detail"].as_bool().unwrap_or(false);
+    let mut rows = Vec::new();
+    for (change, items) in [("changed", &delta.changed), ("added", &delta.added)] {
+        for item in items {
+            rows.push(json!({"change":change,"item":if detail{value(item)}else{compact(item)}}));
+        }
+    }
+    for id in &delta.removed {
+        rows.push(json!({"change":"removed","id":id}));
+    }
+    for (change, problems) in [
+        ("problem_added", &delta.problems_added),
+        ("problem_resolved", &delta.problems_resolved),
+    ] {
+        for p in problems {
+            rows.push(json!({"change":change,"problem":if detail{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects})}}));
+        }
+    }
+    Ok(
+        json!({"events":page(cache,rows,args)?,"delta_ref":cache.artifact(&serde_json::to_vec(delta).unwrap(),"json")?,"plans":delta.plans}),
+    )
+}
+pub fn call(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
+    let Some(input) = schema(tool, false) else {
+        return Err(Error {
+            choices: TOOLS.map(str::to_string).to_vec(),
+            ..Error::invalid("choose a published tool")
+        });
+    };
+    validate(&input, args).map_err(Error::invalid)?;
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dispatch(cache, tool, args)))
+        .unwrap_or_else(|_| {
+            Err(Error::failed(
+                "engine stopped; retry with a valid STEP and Spec",
+            ))
+        })
+}
+fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
+    let registered;
+    let part_ref = if let Some(step) = args["step"].as_str() {
+        if !["inspect_part", "analyse", "render"].contains(&tool) {
+            return Err(Error::invalid(
+                "register step with inspect_part, then pass part_ref",
+            ));
+        }
+        if args.get("part_ref").is_some() {
+            return Err(Error::invalid(
+                "provide step to register or part_ref to query, rather than both",
+            ));
+        }
+        registered = cache.register(Path::new(step), args["features"].as_str().map(Path::new))?;
+        &registered
+    } else {
+        text(args, "part_ref")?
+    };
+    let given = spec(cache, args)?;
+    match tool {
+        "analyse" => Ok(value(cache.session(part_ref, &given)?.analysis())),
+        "inspect_part" => {
+            let mut summary = cache.summary(part_ref, &given)?;
+            let session = cache.session(part_ref, &given)?;
+            cache.version(session.spec())?;
+            if let Some(version) = args["spec_version"].as_str() {
+                summary["spec_version"] = json!(version);
+            }
+            cache.head(part_ref, args["drawing_ref"].as_str().unwrap_or("default"))?;
+            if args["detail"] == true {
+                summary["plan_ref"] =
+                    json!(cache.artifact(&serde_json::to_vec(session.plan()).unwrap(), "json")?);
+            }
+            Ok(summary)
+        }
+        "get_spec" => {
+            let version = if let Some(version) = args["spec_version"].as_str() {
+                version.to_string()
+            } else if args.get("spec").is_some() {
+                cache.version(cache.session(part_ref, &given)?.spec())?
+            } else {
+                cache.head(part_ref, args["drawing_ref"].as_str().unwrap_or("default"))?
+            };
+            let s = cache.get_version(&version)?;
+            // A version handle is accepted only for the part it is bound to.
+            cache.session(part_ref, &s)?;
+            Ok(json!({"spec_version":version,"spec":s}))
+        }
+        "list_items" => {
+            let filter: ItemFilter =
+                serde_json::from_value(args.get("filter").cloned().unwrap_or_else(|| json!({})))
+                    .map_err(|e| Error::invalid(e.to_string()))?;
+            if let Some(id) = &filter.near {
+                cache.item(part_ref, &given, id)?;
+            }
+            page(
+                cache,
+                cache
+                    .items(part_ref, &given, &filter)?
+                    .iter()
+                    .map(|i| {
+                        if args["detail"] == true {
+                            value(i)
+                        } else {
+                            compact(i)
+                        }
+                    })
+                    .collect(),
+                args,
+            )
+        }
+        "get_item" => {
+            let i = cache.item(part_ref, &given, text(args, "id")?)?;
+            let answer = if args["detail"] == true {
+                value(&i)
+            } else {
+                let mut c = compact(&i);
+                c["basis"] = json!(i.basis);
+                c["value"] = json!(i.value);
+                c["operations"] = json!(i.operations);
+                c
+            };
+            Ok(json!({"item":answer}))
+        }
+        "list_problems" => {
+            let filter: ProblemFilter =
+                serde_json::from_value(args.get("filter").cloned().unwrap_or_else(|| json!({})))
+                    .map_err(|e| Error::invalid(e.to_string()))?;
+            page(cache,cache.problems(part_ref,&given,&filter)?.iter().map(|p|if args["detail"]==true{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects})}).collect(),args)
+        }
+        "item_options" => Ok(value(&cache.options(
+            part_ref,
+            &given,
+            text(args, "id")?,
+        )?)),
+        "preview_ops" => {
+            let ops: Vec<crate::items::Op> = serde_json::from_value(args["ops"].clone())
+                .map_err(|e| Error::invalid(format!("valid ops: {e}")))?;
+            delta_page(cache, &cache.preview(part_ref, &given, &ops)?, args)
+        }
+        "apply_ops" => {
+            if args.get("spec").is_some() || args.get("spec_version").is_some() {
+                return Err(Error::invalid(
+                    "apply_ops takes parent (the current Spec version); omit spec and spec_version",
+                ));
+            }
+            if args.get("cursor").is_some_and(|v| v != 0) {
+                return Err(Error::invalid(
+                    "read further delta pages using resources/read {uri: draftwright:<delta_ref>, events: true, cursor: <next_cursor>}; do not apply the ops again",
+                ));
+            }
+            let ops: Vec<crate::items::Op> = serde_json::from_value(args["ops"].clone())
+                .map_err(|e| Error::invalid(format!("valid ops: {e}")))?;
+            let (version, applied) = cache.apply_version(
+                part_ref,
+                args["drawing_ref"].as_str().unwrap_or("default"),
+                text(args, "parent")?,
+                &ops,
+            )?;
+            Ok(json!({"spec_version":version,"delta":delta_page(cache,&applied.delta,args)?}))
+        }
+        "view_sheet" | "render_pdf" | "render" => {
+            let format = if tool == "render_pdf" {
+                "pdf"
+            } else {
+                args["format"].as_str().unwrap_or("png")
+            };
+            let region = args
+                .get("region")
+                .map(|r| serde_json::from_value(r.clone()))
+                .transpose()
+                .map_err(|e| Error::invalid(format!("valid region: {e}")))?;
+            let bytes = cache.render(
+                part_ref,
+                &given,
+                region,
+                format,
+                args["overlay_ids"] == true,
+                args["dpi"].as_f64().unwrap_or(crate::png::DPI),
+            )?;
+            Ok(
+                json!({"artifact_ref":cache.artifact(&bytes,format)?,"mime_type":if format=="png"{"image/png"}else{"application/pdf"},"bytes":bytes.len(),"spec_version":spec_hash(cache.session(part_ref,&given)?.spec())}),
+            )
+        }
+        _ => unreachable!(),
+    }
+}
+fn rpc_error(id: Value, code: i32, message: &str) -> Value {
+    json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message}})
+}
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for b in bytes.chunks(3) {
+        let n = ((b[0] as u32) << 16)
+            | ((b.get(1).copied().unwrap_or(0) as u32) << 8)
+            | b.get(2).copied().unwrap_or(0) as u32;
+        for (k, shift) in [18, 12, 6, 0].into_iter().enumerate() {
+            out.push(if k > b.len() {
+                '='
+            } else {
+                ALPHABET[((n >> shift) & 63) as usize] as char
+            });
+        }
+    }
+    out
+}
+pub fn reply(cache: &Cache, request: &Value) -> Option<Value> {
+    let id = request.get("id").cloned().unwrap_or(Value::Null);
+    if request["jsonrpc"] != "2.0" || !request.is_object() {
+        return Some(rpc_error(id, -32600, "use a JSON-RPC 2.0 object"));
+    }
+    let method = request["method"].as_str();
+    if method.is_none() && (request.get("result").is_some() || request.get("error").is_some()) {
+        return None;
+    }
+    if request.get("id").is_none()
+        && (method.is_some() || request.get("result").is_some() || request.get("error").is_some())
+    {
+        return None;
+    }
+    let params = &request["params"];
+    let result = match method {
+        Some("initialize") => {
+            json!({"protocolVersion":params["protocolVersion"].as_str().filter(|v|VERSIONS.contains(v)).unwrap_or(VERSIONS[0]),"capabilities":{"tools":{},"resources":{}},"serverInfo":{"name":"draftwright-stateless","version":env!("CARGO_PKG_VERSION")},"instructions":INSTRUCTIONS})
+        }
+        Some("ping") => json!({}),
+        Some("tools/list") => {
+            json!({"tools":TOOLS.iter().map(|name|json!({"name":name,"description":format!("{name}: stateless drawing operation; see docs/mcp.md. {}",if *name=="apply_ops"{"Requires the current parent version; stale parents are refused."}else{"Pass part_ref and spec or spec_version; register with inspect_part first."}),"inputSchema":schema(name,false),"outputSchema":schema(name,true)})).collect::<Vec<_>>()})
+        }
+        Some("tools/call") => {
+            let Some(tool) = params["name"].as_str().filter(|n| TOOLS.contains(n)) else {
+                return Some(rpc_error(id, -32602, "choose a tool from tools/list"));
+            };
+            let called = call(cache, tool, params.get("arguments").unwrap_or(&json!({})));
+            let (result, failed) = match called {
+                Ok(v) => (v, false),
+                Err(e) => (json!({"error":e}), true),
+            };
+            let mut content =
+                vec![json!({"type":"text","text":serde_json::to_string(&result).unwrap()})];
+            if tool == "view_sheet"
+                && !failed
+                && let Ok(bytes) = cache.artifact_bytes(result["artifact_ref"].as_str().unwrap())
+            {
+                content.push(json!({"type":"image","mimeType":"image/png","data":base64(&bytes)}));
+            }
+            json!({"content":content,"structuredContent":result,"isError":failed})
+        }
+        Some("resources/list") => json!({"resources":[]}),
+        Some("resources/read") => {
+            let uri = params["uri"].as_str().unwrap_or("");
+            let read = uri
+                .strip_prefix("draftwright:")
+                .ok_or_else(|| Error::invalid("use draftwright:<artifact_ref> returned by a tool"))
+                .and_then(|key| cache.artifact_bytes(key));
+            match read {
+                Ok(bytes) if params["events"] == true => {
+                    let parsed: Result<Delta, _> = serde_json::from_slice(&bytes);
+                    match parsed.and_then(|d| {
+                        delta_page(cache, &d, params).map_err(serde::de::Error::custom)
+                    }) {
+                        Ok(events) => {
+                            json!({"contents":[{"uri":uri,"mimeType":"application/json","text":events.to_string()}]})
+                        }
+                        Err(e) => return Some(rpc_error(id, -32602, &e.to_string())),
+                    }
+                }
+                Ok(bytes) => {
+                    if uri.ends_with(".json") {
+                        json!({"contents":[{"uri":uri,"mimeType":"application/json","text":String::from_utf8_lossy(&bytes)}]})
+                    } else {
+                        json!({"contents":[{"uri":uri,"mimeType":if uri.ends_with(".png"){"image/png"}else{"application/pdf"},"blob":base64(&bytes)}]})
+                    }
+                }
+                Err(e) => return Some(rpc_error(id, -32602, &e.to_string())),
+            }
+        }
+        _ => {
+            return Some(rpc_error(
+                id,
+                -32601,
+                "supported methods: initialize, ping, tools/list, tools/call, resources/read",
+            ));
+        }
+    };
+    Some(json!({"jsonrpc":"2.0","id":id,"result":result}))
+}
+pub fn stdio(cache: &Cache) -> std::io::Result<()> {
+    let mut stdout = std::io::stdout().lock();
+    for line in std::io::stdin().lock().lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let response = match serde_json::from_str(&line) {
+            Ok(request) => reply(cache, &request),
+            Err(e) => Some(rpc_error(Value::Null, -32700, &e.to_string())),
+        };
+        if let Some(response) = response {
+            writeln!(stdout, "{response}")?;
+            stdout.flush()?;
+        }
+    }
+    Ok(())
+}
+/// Sequential local HTTP keeps expensive geometry work within the memory guard.
+pub fn http(cache: &Cache, listener: TcpListener) -> std::io::Result<()> {
+    for mut stream in listener.incoming().flatten() {
+        let _ = connection(cache, &mut stream);
+    }
+    Ok(())
+}
+fn send(stream: &mut TcpStream, status: &str, body: &[u8]) -> std::io::Result<()> {
+    write!(
+        stream,
+        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\nAllow: POST, GET\r\n\r\n",
+        body.len()
+    )?;
+    stream.write_all(body)
+}
+fn connection(cache: &Cache, stream: &mut TcpStream) -> std::io::Result<()> {
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(10)))?;
+    let mut reader = BufReader::new(stream.try_clone()?);
+    let mut line = String::new();
+    reader.read_line(&mut line)?;
+    let first = line.clone();
+    let mut headers = std::collections::BTreeMap::new();
+    let mut header_bytes = line.len();
+    loop {
+        line.clear();
+        reader.read_line(&mut line)?;
+        header_bytes += line.len();
+        if header_bytes > 16384 {
+            return send(stream, "431 Request Header Fields Too Large", b"");
+        }
+        if line == "\r\n" {
+            break;
+        }
+        if line.is_empty() {
+            return send(stream, "400 Bad Request", b"");
+        }
+        if let Some((k, v)) = line.split_once(':') {
+            headers.insert(k.to_ascii_lowercase(), v.trim().to_string());
+        } else {
+            return send(stream, "400 Bad Request", b"");
+        }
+    }
+    if headers
+        .get("origin")
+        .is_some_and(|o| !origin_allowed(o, stream.local_addr().ok()))
+    {
+        return send(stream, "403 Forbidden", b"");
+    }
+    if headers
+        .get("mcp-protocol-version")
+        .is_some_and(|v| !VERSIONS.contains(&v.as_str()))
+    {
+        return send(stream, "400 Bad Request", b"");
+    }
+    let words: Vec<_> = first.split_whitespace().collect();
+    if words.len() != 3 || words[1] != "/mcp" {
+        return send(stream, "404 Not Found", b"");
+    }
+    if words[0] != "POST" {
+        return send(stream, "405 Method Not Allowed", b"");
+    }
+    if headers
+        .get("content-type")
+        .is_none_or(|v| v.split(';').next() != Some("application/json"))
+    {
+        return send(stream, "415 Unsupported Media Type", b"");
+    }
+    if headers
+        .get("accept")
+        .is_none_or(|v| !v.contains("application/json") || !v.contains("text/event-stream"))
+    {
+        return send(stream, "406 Not Acceptable", b"");
+    }
+    if headers.contains_key("transfer-encoding") {
+        return send(stream, "400 Bad Request", b"");
+    }
+    let Some(length) = headers
+        .get("content-length")
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| *n <= 8 * 1024 * 1024)
+    else {
+        return send(stream, "413 Content Too Large", b"");
+    };
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body)?;
+    let response = match serde_json::from_slice(&body) {
+        Ok(request) => reply(cache, &request),
+        Err(e) => Some(rpc_error(Value::Null, -32700, &e.to_string())),
+    };
+    match response {
+        Some(response) => send(stream, "200 OK", &serde_json::to_vec(&response).unwrap()),
+        None => send(stream, "202 Accepted", b""),
+    }
+}
+fn origin_allowed(origin: &str, address: Option<std::net::SocketAddr>) -> bool {
+    address.is_some_and(|address| {
+        origin == format!("http://localhost:{}", address.port())
+            || origin == format!("http://127.0.0.1:{}", address.port())
+    })
+}
+pub fn run(args: &[String]) -> Result<(), Error> {
+    let cache = Cache::environment();
+    match args.first().map(String::as_str) {
+        Some("mcp-stdio") => stdio(&cache).map_err(|e| Error::failed(e.to_string())),
+        Some("mcp-http") => {
+            let addr = args.get(1).map(String::as_str).unwrap_or("127.0.0.1:8765");
+            let socket: std::net::SocketAddr = addr.parse().map_err(|_| {
+                Error::invalid("mcp-http accepts a loopback address, e.g. 127.0.0.1:8765")
+            })?;
+            if !socket.ip().is_loopback() {
+                return Err(Error::invalid(
+                    "mcp-http accepts only loopback addresses, e.g. 127.0.0.1:8765",
+                ));
+            }
+            let listener = TcpListener::bind(socket).map_err(|e| Error::failed(e.to_string()))?;
+            eprintln!(
+                "draftwright MCP listening on http://{}/mcp",
+                listener
+                    .local_addr()
+                    .map_err(|e| Error::failed(e.to_string()))?
+            );
+            http(&cache, listener).map_err(|e| Error::failed(e.to_string()))
+        }
+        _ => Err(Error::invalid(
+            "choose mcp-stdio or mcp-http [127.0.0.1:8765]",
+        )),
+    }
+}

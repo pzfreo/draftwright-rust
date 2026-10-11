@@ -1,0 +1,228 @@
+{
+  "format": "draftwright.mcp-eval-result/1",
+  "agent": "scripted, stateless HTTP; S0 task conditions unchanged",
+  "tokens_estimate": "ceil(bytes / 4) of tool arguments and result text; no tokenizer; judge calls excluded as in S0",
+  "server": {
+    "name": "draftwright-stateless",
+    "version": "0.1.0-alpha.1"
+  },
+  "fixed_context": {
+    "instructions_bytes": 594,
+    "tools_bytes": 41668,
+    "tokens_estimate": 10566
+  },
+  "summary": {
+    "tasks": 7,
+    "succeeded": 6,
+    "tool_calls": 16,
+    "tokens_estimate": 4254
+  },
+  "results": [
+    {
+      "task": "plate-callouts-right-pinned",
+      "part": "plate",
+      "success": false,
+      "tool_calls": 2,
+      "refused_calls": 0,
+      "request_bytes": 1096,
+      "response_bytes": 1907,
+      "tokens_estimate": 751,
+      "failed_conditions": [
+        {
+          "condition": {
+            "type": "no_problems",
+            "about": [
+              "f:hole_pattern:1/bore.diameter",
+              "f:hole:4/bore.diameter",
+              "f:hole:7/bore.diameter"
+            ]
+          },
+          "pass": false,
+          "why": [
+            "problem annotation_outside_area: d:f:hole_pattern:1/bore.diameter (6× ⌀6.6 THRU (2×3)) runs up to 25.8 mm past the area reserved for the v:plan view and its bands; it may crowd what lies beyond.",
+            "problem annotation_outside_area: d:f:hole:4/bore.diameter (⌀8 THRU) runs up to 13.7 mm past the area reserved for the v:plan view and its bands; it may crowd what lies beyond.",
+            "problem annotation_outside_area: d:f:hole:7/bore.diameter (⌀4.2 THRU) runs up to 24.3 mm past the area reserved for the v:plan view and its bands; it may crowd what lies beyond.",
+            "problem annotation_leader_crossing: The leader of d:f:hole_pattern:1/bore.diameter (6× ⌀6.6 THRU (2×3)) crosses a line of d:f:hole:4/location.length.y (30).",
+            "problem annotation_leader_crossing: The leader of d:f:hole:4/bore.diameter (⌀8 THRU) crosses a line of d:f:hole:4/location.length.y (30)."
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "tool": "inspect_part",
+          "isError": false,
+          "request_bytes": 388,
+          "response_bytes": 441
+        },
+        {
+          "tool": "apply_ops",
+          "isError": false,
+          "request_bytes": 708,
+          "response_bytes": 1466
+        }
+      ]
+    },
+    {
+      "task": "m10127-hide-width",
+      "part": "m10127",
+      "success": true,
+      "tool_calls": 2,
+      "refused_calls": 0,
+      "request_bytes": 616,
+      "response_bytes": 839,
+      "tokens_estimate": 364,
+      "failed_conditions": [],
+      "calls": [
+        {
+          "tool": "inspect_part",
+          "isError": false,
+          "request_bytes": 278,
+          "response_bytes": 460
+        },
+        {
+          "tool": "apply_ops",
+          "isError": false,
+          "request_bytes": 338,
+          "response_bytes": 379
+        }
+      ]
+    },
+    {
+      "task": "ctc01-fix-problems-near-slot",
+      "part": "ctc01",
+      "success": true,
+      "tool_calls": 3,
+      "refused_calls": 0,
+      "request_bytes": 1113,
+      "response_bytes": 1635,
+      "tokens_estimate": 688,
+      "failed_conditions": [],
+      "calls": [
+        {
+          "tool": "inspect_part",
+          "isError": false,
+          "request_bytes": 315,
+          "response_bytes": 456
+        },
+        {
+          "tool": "list_problems",
+          "isError": false,
+          "request_bytes": 281,
+          "response_bytes": 221
+        },
+        {
+          "tool": "apply_ops",
+          "isError": false,
+          "request_bytes": 517,
+          "response_bytes": 958
+        }
+      ]
+    },
+    {
+      "task": "grm03-sheet-scale-keep-intent",
+      "part": "grm03",
+      "success": true,
+      "tool_calls": 3,
+      "refused_calls": 0,
+      "request_bytes": 1122,
+      "response_bytes": 3579,
+      "tokens_estimate": 1176,
+      "failed_conditions": [],
+      "calls": [
+        {
+          "tool": "inspect_part",
+          "isError": false,
+          "request_bytes": 337,
+          "response_bytes": 463
+        },
+        {
+          "tool": "apply_ops",
+          "isError": false,
+          "request_bytes": 417,
+          "response_bytes": 1558
+        },
+        {
+          "tool": "apply_ops",
+          "isError": false,
+          "request_bytes": 368,
+          "response_bytes": 1558
+        }
+      ]
+    },
+    {
+      "task": "m10127-fit-through-hole",
+      "part": "m10127",
+      "success": true,
+      "tool_calls": 2,
+      "refused_calls": 0,
+      "request_bytes": 609,
+      "response_bytes": 844,
+      "tokens_estimate": 364,
+      "failed_conditions": [],
+      "calls": [
+        {
+          "tool": "inspect_part",
+          "isError": false,
+          "request_bytes": 284,
+          "response_bytes": 460
+        },
+        {
+          "tool": "apply_ops",
+          "isError": false,
+          "request_bytes": 325,
+          "response_bytes": 384
+        }
+      ]
+    },
+    {
+      "task": "plate-a4-title-no-iso",
+      "part": "plate",
+      "success": true,
+      "tool_calls": 2,
+      "refused_calls": 0,
+      "request_bytes": 916,
+      "response_bytes": 963,
+      "tokens_estimate": 470,
+      "failed_conditions": [],
+      "calls": [
+        {
+          "tool": "inspect_part",
+          "isError": false,
+          "request_bytes": 382,
+          "response_bytes": 441
+        },
+        {
+          "tool": "apply_ops",
+          "isError": false,
+          "request_bytes": 534,
+          "response_bytes": 522
+        }
+      ]
+    },
+    {
+      "task": "plate-width-in-plan",
+      "part": "plate",
+      "success": true,
+      "tool_calls": 2,
+      "refused_calls": 0,
+      "request_bytes": 747,
+      "response_bytes": 1015,
+      "tokens_estimate": 441,
+      "failed_conditions": [],
+      "calls": [
+        {
+          "tool": "inspect_part",
+          "isError": false,
+          "request_bytes": 380,
+          "response_bytes": 441
+        },
+        {
+          "tool": "apply_ops",
+          "isError": false,
+          "request_bytes": 367,
+          "response_bytes": 574
+        }
+      ]
+    }
+  ]
+}
