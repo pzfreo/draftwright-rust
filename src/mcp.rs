@@ -1,7 +1,8 @@
 //! Thin local MCP transports over the stateless Session API.
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use crate::api::Error;
 use crate::model::Spec;
@@ -732,33 +733,80 @@ pub fn http(cache: &Cache, listener: TcpListener) -> std::io::Result<()> {
     Ok(())
 }
 fn send(stream: &mut TcpStream, status: &str, body: &[u8]) -> std::io::Result<()> {
-    write!(
-        stream,
+    // Closing with unread input can reset queued fragments of a formatted write.
+    let head = format!(
         "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\nAllow: POST, GET\r\n\r\n",
         body.len()
-    )?;
-    stream.write_all(body)
+    );
+    stream.write_all(head.as_bytes())?;
+    stream.write_all(body)?;
+    stream.shutdown(Shutdown::Both)
+}
+const HTTP_HEAD_BYTES: usize = 16 * 1024;
+const HTTP_READ_DEADLINE: Duration = Duration::from_secs(10);
+
+fn read_timeout(reader: &BufReader<TcpStream>, deadline: Instant) -> std::io::Result<()> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return Err(std::io::ErrorKind::TimedOut.into());
+    }
+    reader.get_ref().set_read_timeout(Some(remaining))
+}
+fn read_head(reader: &mut BufReader<TcpStream>, deadline: Instant) -> std::io::Result<String> {
+    let mut head = Vec::with_capacity(HTTP_HEAD_BYTES);
+    let mut line_start = 0;
+    loop {
+        if head.len() == HTTP_HEAD_BYTES {
+            return Err(std::io::ErrorKind::InvalidInput.into());
+        }
+        read_timeout(reader, deadline)?;
+        let available = reader.fill_buf()?;
+        if available.is_empty() {
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
+        }
+        let bounded = &available[..available.len().min(HTTP_HEAD_BYTES - head.len())];
+        let n = bounded
+            .iter()
+            .position(|b| *b == b'\n')
+            .map_or(bounded.len(), |i| i + 1);
+        head.extend_from_slice(&bounded[..n]);
+        reader.consume(n);
+        if head.last() == Some(&b'\n') {
+            if line_start != 0 && &head[line_start..] == b"\r\n" {
+                return String::from_utf8(head)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e));
+            }
+            line_start = head.len();
+        }
+    }
+}
+fn read_refusal(stream: &mut TcpStream, error: std::io::Error) -> std::io::Result<()> {
+    match error.kind() {
+        std::io::ErrorKind::InvalidInput => {
+            send(stream, "431 Request Header Fields Too Large", b"")
+        }
+        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock => {
+            send(stream, "408 Request Timeout", b"")
+        }
+        std::io::ErrorKind::InvalidData | std::io::ErrorKind::UnexpectedEof => {
+            send(stream, "400 Bad Request", b"")
+        }
+        _ => Err(error),
+    }
 }
 fn connection(cache: &Cache, stream: &mut TcpStream) -> std::io::Result<()> {
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(10)))?;
+    let deadline = Instant::now() + HTTP_READ_DEADLINE;
     let mut reader = BufReader::new(stream.try_clone()?);
-    let mut line = String::new();
-    reader.read_line(&mut line)?;
-    let first = line.clone();
+    let head = match read_head(&mut reader, deadline) {
+        Ok(head) => head,
+        Err(e) => return read_refusal(stream, e),
+    };
+    let mut lines = head.split_inclusive('\n');
+    let first = lines.next().unwrap();
     let mut headers = std::collections::BTreeMap::new();
-    let mut header_bytes = line.len();
-    loop {
-        line.clear();
-        reader.read_line(&mut line)?;
-        header_bytes += line.len();
-        if header_bytes > 16384 {
-            return send(stream, "431 Request Header Fields Too Large", b"");
-        }
+    for line in lines {
         if line == "\r\n" {
             break;
-        }
-        if line.is_empty() {
-            return send(stream, "400 Bad Request", b"");
         }
         if let Some((k, v)) = line.split_once(':') {
             headers.insert(k.to_ascii_lowercase(), v.trim().to_string());
@@ -808,7 +856,17 @@ fn connection(cache: &Cache, stream: &mut TcpStream) -> std::io::Result<()> {
         return send(stream, "413 Content Too Large", b"");
     };
     let mut body = vec![0; length];
-    reader.read_exact(&mut body)?;
+    let mut remaining = body.as_mut_slice();
+    while !remaining.is_empty() {
+        if let Err(e) = read_timeout(&reader, deadline) {
+            return read_refusal(stream, e);
+        }
+        match reader.read(remaining) {
+            Ok(0) => return send(stream, "400 Bad Request", b""),
+            Ok(n) => remaining = &mut remaining[n..],
+            Err(e) => return read_refusal(stream, e),
+        }
+    }
     let response = match serde_json::from_slice(&body) {
         Ok(request) => reply(cache, &request),
         Err(e) => Some(rpc_error(Value::Null, -32700, &e.to_string())),

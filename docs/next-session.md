@@ -3264,3 +3264,110 @@ and `target/s2-fix-*`. No commit or push was made.
   S2's test table has no `ink`). Columns absent from the baseline are skipped.
 - S1's mocked crossing test in `tools/test_quality.py` writes an empty `part.svg`
   so S2's SVG metric can read it; the assertion is unchanged.
+
+## Stage H issue #4: bounded local HTTP reads (2026-10-11)
+
+Verified the source-review claims against current Stage F main (`b999b13`): both
+request-line/header `read_line` calls still grew buffers before checking the
+16 KiB cap, and the per-read 10-second timeout still allowed incremental input
+to hold the sequential adapter. Loopback-only CLI binding was already enforced.
+
+`src/mcp.rs` now reads the complete head using `fill_buf`/`consume` into a
+16 KiB-capacity buffer, copying at most the remaining budget. The request line,
+all headers, line endings and final blank line share that byte budget. A complete
+head at exactly the cap is accepted; a head that exhausts it before termination
+gets 431 without waiting for a newline. Header parsing follows the bounded read.
+The response head is formatted before writing it: an early refusal with unread
+client input can reset queued fragments from `write!` and truncate the status
+line. The exact-cap-plus-one control exposed this on the first bounded build;
+the boundary assertion is unchanged. Response bytes are identical.
+After writing a response, shut down both socket halves before dropping the
+connection. The existing transport test's read-through-EOF assertion exposed
+a reset when a refusal left request-body bytes unread. The HTTP script now
+also reads through EOF for completed hostile writes and subsequent pings, so
+this failure is caught directly. All eight existing stateless tests pass after this correction;
+the extra 500-request check now requires clean EOF as well as an intact 431.
+One absolute deadline supplies the remaining timeout before every head/body
+read; expiry gets 408 and the next connection can proceed. No dependencies were
+added, and no planner, layout or renderer code changed.
+
+Overturnable unattended judgement calls:
+
+- Retain the existing 10-second duration, but apply it to the complete request
+  read (head and body), starting when the sequential adapter accepts it for
+  handling. Covering the body also prevents an under-cap body trickle from
+  retaining the server indefinitely. Tool computation remains outside this
+  deadline, and handling stays sequential to preserve the memory guard.
+- Treat an exhausted budget without a terminating blank line as 431 even when
+  no extra byte has arrived: the head cannot finish within the advertised cap.
+  Count raw bytes before UTF-8 decoding; preserve exact-cap valid heads.
+- The black-box prompt-rejection gate is 750 ms, with a two-second allowance
+  beyond the 10-second deadline for scheduling. These are test tolerances,
+  not extra server timeouts.
+- Require clean EOF for completed requests/refusals and all queued valid pings.
+  For an actively trickling hostile sender, require the complete 408 status
+  line and queued ping instead: its next write can race the server's close and
+  cause a TCP reset after the response. This occurred in the stronger EOF check;
+  the original regression assertions and existing Rust tests remain intact.
+
+`tools/check_http_limits.py` exercises the actual executable, requiring a queued
+valid JSON-RPC ping after each hostile input. All six new regressions failed on
+the unchanged release executable: oversized request line, oversized individual
+header, aggregate overflow, newline-free input, slow head and slow body. All
+preservation controls passed before the change, including exactly 16 KiB heads
+with multibyte UTF-8, split final CRLF, exactly 8 MiB bodies, excessive body
+length, allowed/refused Origins, refused chunking, loopback binding and ping
+response content. Baseline recovery required disconnecting each stalled sender.
+The script returns nonzero if any check fails; its JSON report records refusal
+latency and the following request's status.
+
+Before/after HTTP measurements (same machine, actual release executables):
+
+| Input | Before (`b999b13`) | After |
+| --- | --- | --- |
+| Oversized request line | Pending at 0.752 s | 431, <1 ms |
+| Oversized individual header | Pending at 0.752 s | 431, <1 ms |
+| Aggregate overflow | Pending at 0.752 s | 431, <1 ms |
+| Newline-free input | Pending at 0.752 s | 431, <1 ms |
+| Incremental head | Pending at 12.002 s | 408 at 10.002 s |
+| Incremental body | Pending at 12.002 s | 408 at 10.002 s |
+
+| Check | Before | After |
+| --- | --- | --- |
+| New regressions | 0/6 | 6/6 |
+| Preservation check group | 1/1 | 1/1 |
+| Queued valid pings served without client disconnecting first | 0/6 | 6/6 |
+
+All six following pings returned 200 in both runs, but before the change the
+test had to disconnect each hostile client first. After the change those
+clients stayed connected until their following ping succeeded. Separate final
+response-integrity repetition: **500/500** oversized complete heads returned
+an intact 431 status line and clean EOF. The first bounded build's fragmented
+response write returned resets on the same repeated check. Formatting the
+response head first and shutting down the socket halves preserve the full
+response and EOF without altering bytes or weakening the boundary assertion.
+Reports: `target/http-limits-before.json`, `target/http-limits-after.json`;
+the intermediate boundary failure is `target/http-limits-first-bounded.json`.
+
+Validation note: one full-suite attempt hit the existing NIST session timing
+gate at 152.253 ms against 150 ms (the other eight samples were 24.653–98.103 ms).
+No drawing code or test threshold was changed. The complete session target
+immediately passed **8/8** with the same eight test threads. The full required
+suite is rerun unchanged; the failed timing attempt is retained in
+`target/http-release-tests-timing-failure.log`.
+
+Final checks on the finished source, Cargo commands serial with
+`CARGO_BUILD_JOBS=8` and `RUST_TEST_THREADS=8`:
+
+- `cargo fmt --check`: pass.
+- `cargo clippy --all-targets --release -- -D warnings`: pass.
+- Required-corpus `cargo test --release`: **664 passed, 0 failed, 0 ignored,
+  71 result groups**, including the unchanged 150 ms NIST session gate and all
+  eight stateless tests. Log: `target/http-release-tests-final.log`.
+- HTTP acceptance script: **7/7 check groups**, including all six regressions
+  that failed on the unchanged executable; completed-request EOF repetition
+  **500/500**. Exact-cap heads/bodies, Origins, chunking, loopback binding and
+  valid JSON-RPC behavior are preserved.
+
+No commit or push was made. The source-review findings still held on the Stage F
+baseline; none had already been fixed before this stream.

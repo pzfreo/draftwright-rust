@@ -14,8 +14,15 @@ Accepted notifications/responses return 202 without a body. GET returns 405: the
 unsolicited SSE stream. Initialization negotiates 2025-11-25, 2025-06-18 or 2025-03-26;
 subsequent requests may send `MCP-Protocol-Version`, with unknown versions refused.
 No `Mcp-Session-Id` or live drawing session is retained. Origins must match the local endpoint.
-The local adapter handles requests sequentially, caps bodies at 8 MiB and headers at 16 KiB,
-and refuses chunked bodies. Cold computation runs synchronously here; production jobs are below.
+The local adapter handles requests sequentially, caps bodies at 8 MiB and the complete
+request head at 16 KiB (request line, headers, line endings and final blank line, counted
+as wire bytes), and refuses chunked bodies. Head reads copy only the remaining budget
+into a fixed-capacity buffer; exhausting it before the final blank line returns 431,
+including input without a newline. A complete head of exactly 16 KiB is accepted.
+One absolute 10-second deadline covers reading the head and body after the connection
+is accepted for handling; incremental delivery does not reset it. Expiry returns 408
+and releases the adapter for the next connection. This read deadline excludes tool
+computation. Cold computation runs synchronously here; production jobs are below.
 
 ## Tools and documents
 
@@ -152,6 +159,10 @@ here covers the complete shared S4B S0 op sequence on all four slice parts.
 
 ## Reproducible acceptance
 
+- `python3 tools/check_http_limits.py target/release/draftwright --report target/http-limits.json`
+  checks oversized request lines/headers, aggregate overflow, newline-free input, head/body
+  trickles and a queued valid ping after each refusal. It also checks the exact head-budget
+  boundary with multibyte UTF-8, body cap, Origin rules, loopback binding and valid JSON-RPC.
 - `DRAFTWRIGHT_CORPUS=... DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release --test stateless -- --nocapture`
   checks schema contracts, 4 KB budgets, fresh-process warm-cache equality, Session/serve/HTTP
   op-sequence parity, refusal/concurrency behaviour, transports and render embedding.
