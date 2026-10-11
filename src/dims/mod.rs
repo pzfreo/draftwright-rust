@@ -1289,6 +1289,62 @@ pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
     })
 }
 
+/// Geometry-backed placement choices for the editor, including omitted dimensions.
+pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<String, Value> {
+    let (mut wants, ..) = wants(analysis);
+    let original = wants.clone();
+    let frames: BTreeMap<&str, Frame> = views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            NAMES
+                .contains(&name)
+                .then(|| (name, Frame::new(analysis, v)))
+        })
+        .collect();
+    route(&mut wants, &frames, analysis);
+    wants
+        .iter()
+        .zip(original)
+        .map(|(w, original)| {
+            let options = original
+                .views
+                .iter()
+                .filter_map(|&name| {
+                    let frame = frames.get(name)?;
+                    let mut probe = original.clone();
+                    probe.views = vec![name];
+                    let (chosen, _) = route(std::slice::from_mut(&mut probe), &frames, analysis);
+                    if chosen[0] != Some(name) {
+                        return None;
+                    }
+                    let sides = match probe.shape {
+                        Shape::Linear { axis, .. } => {
+                            if across(frame, axis)? {
+                                vec!["above", "below"]
+                            } else {
+                                vec!["left", "right"]
+                            }
+                        }
+                        Shape::Callout { .. } => vec!["above", "below", "left", "right"],
+                        Shape::Angular { .. } => return None,
+                    };
+                    Some(serde_json::json!({"view": name, "sides": sides}))
+                })
+                .collect::<Vec<_>>();
+            (
+                w.id.clone(),
+                serde_json::json!({"label": w.terms.join(" "), "views": options}),
+            )
+        })
+        .collect()
+}
+
+/// A readable symbolic class on proven internal cylinders, with no numeric limits inferred.
+pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
+    pmi_dimensions::symbolic_bore(r)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

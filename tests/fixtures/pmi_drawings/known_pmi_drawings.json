@@ -540,31 +540,6 @@
  },
  {
   "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:3",
-  "port": "dimension:#1360",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "6× ⌀6.6 THRU (2×3)",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#1360 (ø6.6) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (assembly_plate_pin.step, which states its limits, drawn by the port). draftwright's drawing states the plain size '6× ⌀6.6 THRU (2×3)' (on bore.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#1360 (ø6.6) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
   "record": "dimension:0:1:4:14",
   "port": "dimension:#1416",
   "field": "drawing",
@@ -1046,56 +1021,6 @@
  },
  {
   "file": "hw_spool_fits_intent.step",
-  "record": "dimension:0:1:4:1",
-  "port": "dimension:#6386",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "⌀62",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6386 (ø62) as the class H7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6333 'ø62 +0.03/0', drawn by the port). draftwright's drawing states the plain size '⌀62' (standalone) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6386 (ø62) is not drawn: the ISO 286 class H7 is stated without limits; they are not computed\"."
- },
- {
-  "file": "hw_spool_fits_intent.step",
-  "record": "dimension:0:1:4:2",
-  "port": "dimension:#6392",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "6× ⌀10 THRU EQ SP ON ⌀90 BC",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6392 (ø10) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6360 'ø10 +0.09/0', drawn by the port). draftwright's drawing states the plain size '6× ⌀10 THRU EQ SP ON ⌀90 BC' (on bore.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6392 (ø10) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
- },
- {
-  "file": "hw_spool_fits_intent.step",
   "record": "dimension:0:1:4:3",
   "port": "dimension:#6398",
   "field": "drawing",
@@ -1168,31 +1093,6 @@
   },
   "verdict": "undetermined",
   "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6410 (ø70) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6390 'ø70 -0.03/-0.06', drawn by the port). draftwright's drawing states the plain size '⌀70 OD' (on step.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6410 (ø70) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
- },
- {
-  "file": "hw_string_post_tapped_intent.step",
-  "record": "dimension:0:1:4:2",
-  "port": "dimension:#3116",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "⌀1.7 ↧ 5.4",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#3116 (ø1.7) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (string_post_tapped.step, which states its limits, drawn by the port). draftwright's drawing states the plain size '⌀1.7 ↧ 5.4' (on bore.diameter) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#3116 (ø1.7) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
  },
  {
   "file": "hw_string_post_tapped_intent.step",
@@ -8060,5 +7960,209 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved, pmi_not_extracted); the port's: '⌀10 -0.013 -0.028' (dimension, front view, on od.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#1360",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "6× ⌀6.6 THRU (2×3)",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "6× ⌀6.6 H11 THRU (2×3)",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "manufacturing_requirement:#1444",
+  "port": "manufacturing_requirement:#1444",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "codes": [
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "kind": "internal_thread",
+    "label": "internal thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "manufacturing_requirement:#1543",
+  "port": "manufacturing_requirement:#1543",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "codes": [
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "kind": "internal_thread",
+    "label": "internal thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:1",
+  "port": "dimension:#6386",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "⌀62",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀62 H7 THRU ⌴SF ⌀70 ↧ 10",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:2",
+  "port": "dimension:#6392",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "6× ⌀10 THRU EQ SP ON ⌀90 BC",
+     "view": "plan"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "6× ⌀10 H11 THRU EQ SP ON ⌀90 BC",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner."
+ },
+ {
+  "file": "hw_string_post_tapped_intent.step",
+  "record": "dimension:0:1:4:2",
+  "port": "dimension:#3116",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.7 ↧ 5.4",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.7 H11 ↧ 5.4",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner."
+ },
+ {
+  "file": "hw_string_post_tapped_intent.step",
+  "record": "manufacturing_requirement:#3143",
+  "port": "manufacturing_requirement:#3143",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "codes": [
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "kind": "internal_thread",
+    "label": "internal thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
+ },
+ {
+  "file": "hw_thumbwheel_thread_knurl_intent.step",
+  "record": "manufacturing_requirement:#704",
+  "port": "manufacturing_requirement:#704",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "codes": [
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "kind": "internal_thread",
+    "label": "internal thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
  }
 ]

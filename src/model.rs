@@ -1604,6 +1604,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             &mut problems,
         );
     }
+    crate::dims::gdt::validate_placements(analysis, spec, &views)?;
     let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
     let mut fixed_spec = spec.clone();
     fixed_spec

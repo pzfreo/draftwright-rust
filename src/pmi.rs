@@ -589,6 +589,18 @@ pub fn report(
             _ => None,
         };
     }
+    for r in &mut records {
+        if crate::dims::symbolic_bore(r)
+            && r.blockers
+                == [format!(
+                    "the ISO 286 class {} is stated without limits; they are not computed",
+                    r.fit.as_deref().expect("symbolic class")
+                )]
+        {
+            // The literal class is understood. Other reading/geometry blockers remain fatal.
+            r.blockers.clear();
+        }
+    }
     records.sort_by_key(|r| (r.category, r.part));
     let mut record_sources: Vec<Source> = records
         .iter()
@@ -722,6 +734,7 @@ struct Used {
     notes: Vec<bool>,
     general: Vec<bool>,
     attributes: Vec<bool>,
+    threads: Vec<bool>,
 }
 
 /// A structured requirement: a user defined attribute set described 'pmi-assist'.
@@ -769,7 +782,11 @@ impl PartReader<'_> {
             notes: vec![false; self.pmi.notes.len()],
             general: vec![false; self.pmi.general.len()],
             attributes: vec![false; self.pmi.attributes.len()],
+            threads: vec![false; self.pmi.threads.len()],
         };
+        for r in self.semantic_threads(&mut used) {
+            self.keep(r, records, sources);
+        }
         // Structured requirements first: their attribute sets are not labels.
         for r in self.requirements(sources, &mut used) {
             self.keep(r, records, sources);
@@ -778,6 +795,94 @@ impl PartReader<'_> {
             self.keep(r, records, sources);
         }
         self.not_projected(sources, &used);
+    }
+
+    // Semantic threads use their stated manufacturing fields and the native lowering rules.
+    fn semantic_threads(&self, used: &mut Used) -> Vec<Record> {
+        let mut out = Vec::new();
+        for (index, thread) in self.pmi.threads.iter().enumerate() {
+            if thread.side != pmi::ThreadSide::Internal || thread.form != "M" {
+                continue;
+            }
+            let attributes: Vec<_> = self
+                .pmi
+                .attributes
+                .iter()
+                .enumerate()
+                .filter(|(_, a)| {
+                    a.name == "thread manufacturing"
+                        && a.on == Some(NoteOwner::Feature(thread.feature))
+                })
+                .collect();
+            let [(attribute_index, attribute)] = attributes.as_slice() else {
+                continue;
+            };
+            let own = self
+                .prov
+                .threads
+                .get(index)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let mut instances = own.to_vec();
+            instances.extend(
+                self.prov
+                    .attributes
+                    .get(*attribute_index)
+                    .into_iter()
+                    .flatten(),
+            );
+            instances.sort_unstable();
+            instances.dedup();
+            let mut r = self.record(
+                Category::ManufacturingRequirement,
+                own.first().copied().unwrap_or(0),
+                &instances,
+                self.support(&[thread.feature]),
+                Vec::new(),
+            );
+            r.source_id = format!("manufacturing_requirement:#{}", r.part21_id);
+            r.kind = "internal_thread".into();
+            let designation = thread.qualifier.clone().unwrap_or_default();
+            r.label = "internal thread".into();
+            r.fields = vec![
+                ("thread side".into(), Field::Text("internal".into())),
+                ("designation".into(), Field::Text(designation)),
+                (
+                    "nominal size".into(),
+                    Field::Text(format!("M{}", thread.major_diameter.mm())),
+                ),
+                ("fit class".into(), Field::Text(thread.fit_class.clone())),
+                (
+                    "hand".into(),
+                    Field::Text(
+                        if thread.hand == pmi::Hand::Left {
+                            "left"
+                        } else {
+                            "right"
+                        }
+                        .into(),
+                    ),
+                ),
+            ];
+            if thread.fit_class.is_empty() {
+                r.blockers
+                    .push("semantic thread has no stated fit class".into());
+            }
+            for (name, value) in &attribute.items {
+                let value = match value {
+                    AttributeValue::Text(s) => Some(Field::Text(s.clone())),
+                    AttributeValue::Measure(v) => v.as_length().map(|l| Field::Length(l.mm())),
+                    _ => None,
+                };
+                if let Some(value) = value {
+                    r.fields.push((name.clone(), value));
+                }
+            }
+            used.threads[index] = true;
+            used.attributes[*attribute_index] = true;
+            out.push(r);
+        }
+        out
     }
 
     /// Keeps a read record, or reports the one whose support does not resolve.
@@ -824,7 +929,7 @@ impl PartReader<'_> {
                 Category::ManufacturingRequirement,
                 pmi.threads.len(),
                 &prov.threads,
-                &none,
+                &used.threads,
             ),
             (
                 "knurl",

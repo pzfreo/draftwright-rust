@@ -1489,7 +1489,7 @@ fn svg_item(item: &Item) -> String {
             && (t1 - t0).abs() >= 2.0 * PI - 1e-12 =>
         {
             format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" />",
+                "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"none\" />",
                 num(centre[0]),
                 num(centre[1]),
                 radii[0]
@@ -1499,7 +1499,7 @@ fn svg_item(item: &Item) -> String {
             let s = curve.start();
             let mut d = format!("M {},{}", num(s[0]), num(s[1]));
             svg_segments(curve, &mut d);
-            format!("<path d=\"{d}\" />")
+            format!("<path d=\"{d}\" fill=\"none\" />")
         }
         Item::Face(wires) => {
             let mut d = String::new();
@@ -1804,7 +1804,7 @@ mod tests {
         };
         let curve = Curve::from(&exact);
         let svg = svg_item(&Item::Edge(curve.clone()));
-        let d = &svg[svg.find("d=\"").unwrap() + 3..svg.rfind('"').unwrap()];
+        let d = svg.split("d=\"").nth(1).unwrap().split('"').next().unwrap();
         let tokens: Vec<&str> = d.split([' ', ',']).filter(|t| !t.is_empty()).collect();
         let mut i = 0;
         while i < tokens.len() {

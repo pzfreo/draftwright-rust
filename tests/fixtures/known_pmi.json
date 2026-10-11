@@ -3926,5 +3926,61 @@
     "rust": 10.0,
     "verdict": "rust-correct",
     "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "manufacturing_requirement:#1444",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "internal_thread",
+      "label": "internal thread"
+    },
+    "verdict": "rust-correct",
+    "evidence": "S5 projects semantic internal metric thread #1444 with its uniquely paired thread manufacturing attribute into a native requirement. The Python reader leaves the semantic thread as an unextracted census source. tests/editor_session.rs independently checks the thread designation, fit, support and complete thread/attribute provenance against haecceity for all four records."
+  },
+  {
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "record": "manufacturing_requirement:#1543",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "internal_thread",
+      "label": "internal thread"
+    },
+    "verdict": "rust-correct",
+    "evidence": "S5 projects semantic internal metric thread #1543 with its uniquely paired thread manufacturing attribute into a native requirement. The Python reader leaves the semantic thread as an unextracted census source. tests/editor_session.rs independently checks the thread designation, fit, support and complete thread/attribute provenance against haecceity for all four records."
+  },
+  {
+    "file": "hw_string_post_tapped_intent.step.gz",
+    "record": "manufacturing_requirement:#3143",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "internal_thread",
+      "label": "internal thread"
+    },
+    "verdict": "rust-correct",
+    "evidence": "S5 projects semantic internal metric thread #3143 with its uniquely paired thread manufacturing attribute into a native requirement. The Python reader leaves the semantic thread as an unextracted census source. tests/editor_session.rs independently checks the thread designation, fit, support and complete thread/attribute provenance against haecceity for all four records."
+  },
+  {
+    "file": "hw_thumbwheel_thread_knurl_intent.step.gz",
+    "record": "manufacturing_requirement:#704",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "internal_thread",
+      "label": "internal thread"
+    },
+    "verdict": "rust-correct",
+    "evidence": "S5 projects semantic internal metric thread #704 with its uniquely paired thread manufacturing attribute into a native requirement. The Python reader leaves the semantic thread as an unextracted census source. tests/editor_session.rs independently checks the thread designation, fit, support and complete thread/attribute provenance against haecceity for all four records."
   }
 ]

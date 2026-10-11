@@ -2398,3 +2398,108 @@ Overturnable judgement calls made unattended:
   encoding after open, ten repetitions of nine edits (eight for GRM-03). Undo restores the
   starting state between repetitions and is not timed. Opening (including HLR) is recorded separately.
   WASM/UI display-rate drag checks remain in S5; no editor or MCP files were touched.
+
+## S5 editor integration ports (2026-10-11)
+
+The library now exposes geometry-backed dimension/PMI placement choices through Session
+options (batched once for browser reads), transactional PMI/spec replacement against the retained part/cache, typed-source PMI
+coverage, and SVG fragments partitioned into views, annotations and sheet furniture.
+Authored PMI carriers are validated geometrically before placement; a datum
+view change chooses its outward side. Curved SVG edges explicitly disable fill while glyph faces retain it. Semantic internal
+metric threads with a uniquely paired `thread manufacturing` attribute use native
+manufacturing records/lowering, not a post-plan replacement. Symbolic ISO bore fits are
+printed verbatim on uniquely matched bore owners (uppercase bore classes only); unstated numeric limits are not computed.
+
+Overturnable judgements: an explicit manual title/fit/tolerance keeps the core's documented
+precedence over imported defaults. Semantic thread nominal size is retained from its entity and checked against the designation;
+missing fit classes remain blocked. The fork's strict outward-side rejection is dropped: S3
+permits explicit pinned strip choices while preserving the attachment, as protected by its
+existing seeded placement and export tests. Options/automatic sides retain outward normals. Unsupported, contradictory or ambiguous manufacturing
+fields remain refused by native lowering. Semantic thread source IDs use their Part 21
+instance as other record sources do, while their **item IDs** use S1 semantic identity;
+the existing rewrite-stability test checks both. The editor carries its joint intent/drawing
+history and sends Spec operations for restoration; Session PMI replacement clears its local
+history because prior Specs alone cannot undo a different PMI reading. Browser packets omit
+raw cached curves and carry changed SVG ink; full Session deltas remain available unchanged.
+
+Added `tests/editor_session.rs` and its captured editor PMI fixture. The existing quintic
+SVG test retains every geometry assertion and reads the d attribute independently of fill.
+Validation and quality comparison are appended after the final checks.
+
+Exact PMI ledgers are updated, with their exhaustive/no-stale-entry tests intact: four
+semantic thread records are added to known_pmi.json. known_pmi_coverage.json removes
+16 stale findings (consumed thread/attribute sources and bore fits now drawn symbolically)
+and adds four exact not-lowered findings for historical `full thread depth` attributes.
+That field is not reinterpreted as `minimum full thread`; the old editor fallback also
+required the latter. These requirements remain read, supported and visibly reported.
+
+The fit reading now treats a sole "class without limits" notice as understood only for a
+valid uppercase symbolic class on geometrically proven internal principal cylinders.
+It infers no numeric limits, and keeps every other reading or geometry blocker. Lowering
+still requires one recognised owner. This fixes the unchanged no-blocked-records-drawn
+invariant test; NIST's malformed G6/nonconformance case stays refused. Four obsolete
+known_pmi_dimensions outcome entries are replaced by four exact differences that retain
+the literal class, with evidence. The comparison and exact-one-outcome tests are unchanged.
+
+## Changed files in this worktree
+
+```text
+docs/next-session.md
+src/dims/gdt.rs
+src/dims/mod.rs
+src/dims/pmi_dimensions.rs
+src/dims/tolerance.rs
+src/model.rs
+src/output.rs
+src/pmi.rs
+src/session.rs
+tests/editor_session.rs
+tests/fixtures/known_pmi.json
+tests/fixtures/known_pmi_coverage.json
+tests/fixtures/known_pmi_dimensions.json
+tests/fixtures/parts/editor_pmi.step
+tests/fixtures/pmi_drawings/known_pmi_drawings.json
+tools/quality_gate.py
+```
+
+The exhaustive drawing ledger also replaces four stale fit refusals with four exact
+class-bearing drawing differences and adds four historical thread record refusals.
+Its comparison test is unchanged (332 exact differences after these ports).
+
+## S5 verification and quality
+
+`cargo fmt --check`, `cargo clippy --all-targets --release -- -D warnings`, and
+`cargo build --release` pass. All Cargo commands were serialized, with
+`CARGO_BUILD_JOBS=8` and `RUST_TEST_THREADS=8`; no memory-guard kill occurred.
+The editor checks and isolated WASM latency measurements are recorded in its
+`docs/next-session.md` and `results/session-wasm.csv`.
+
+The required release quality pipeline passed:
+
+```sh
+C=/Users/paul/repos/quiddity/tests/corpus
+sed "s#^#$C/#" tools/quality_parts.txt | tr '\n' '\0' | xargs -0 python3 -I tools/quality.py target/release/draftwright target/quality-s5
+python3 -I tools/quality_gate.py docs/status-2026-10-10.md target/quality-s5/baseline.json
+```
+
+All 30 parts are identical to the latest status table on every metric. Totals:
+off_sheet 0, repeated_label 18, repeated_measure 0, views_overlap 0,
+view_on_title_block 0, ink 282. The output is `target/quality-s5/baseline.json`.
+A deliberately increased 1000.step ink count fails the new gate.
+
+Before-change regression evidence: the nine-test editor Session suite has 11
+missing-API compile errors against the original S4. Six focused probes using only
+that original API all fail before and all pass after the ports: geometry choices,
+semantic-thread native ownership, literal bore fits, unfilled curves/filled faces,
+historical thread fields/support/provenance, and refusal of a face-on datum A.
+The nine tracked tests additionally exercise transactional PMI+Ops, fragment
+partition/caching, refusal rollback, batched options, stable IDs and contradictory
+thread nominal sizes. Existing S3 pin tests and exact PMI comparison invariants are
+unchanged. The new suite does not add an adapter for S7. No commit or push was made.
+
+The final required corpus test command passed:
+`DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release`.
+Result: **605 passed, 0 failed, 0 ignored across 66 result groups**, including all
+nine new editor Session tests. The final exhaustive reading, coverage, dimensions,
+drawings and labels comparisons all pass with their original invariant assertions.
+Both worktrees also pass `git diff --check`, with empty staged diffs.

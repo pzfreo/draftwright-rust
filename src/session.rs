@@ -12,7 +12,7 @@ use crate::model::{
     self, Analysis, AnnotationItem, GeometryLayer, Plan, Projections, RenderedItem, Spec,
 };
 use crate::output::Drawing;
-use crate::placement_intent::{Along, Place, Side, Slot};
+use crate::placement_intent::{Along, Place, Slot};
 use crate::text::Font;
 
 const COLLECTIONS: [&str; 9] = [
@@ -418,6 +418,199 @@ impl Session {
         }
         Ok(delta)
     }
+    /// Replace PMI against the original geometry, transactionally. Geometry caches survive.
+    pub fn set_pmi(&mut self, bytes: &[u8]) -> Result<Delta, Error> {
+        self.set_pmi_ops(bytes, &[])
+    }
+    /// Install PMI and its accompanying spec edits as one transaction and one plan.
+    pub fn set_pmi_ops(&mut self, bytes: &[u8], ops: &[Op]) -> Result<Delta, Error> {
+        let spec = model::edit(
+            self.spec(),
+            &serde_json::to_value(ops).expect("ops serialise"),
+        )?;
+        let reading = crate::pmi::read(bytes, &self.part).map_err(Error::invalid)?;
+        let previous = self
+            .analysis
+            .pmi
+            .replace(crate::pmi::Reading::Read(reading));
+        let evaluated = match self.evaluate(&spec) {
+            Ok(value) => value,
+            Err(error) => {
+                self.analysis.pmi = previous;
+                return Err(error);
+            }
+        };
+        let delta = difference(&self.state, &evaluated.state, &self.analysis, 1);
+        self.install(evaluated);
+        self.undo.clear();
+        self.redo.clear();
+        Ok(delta)
+    }
+    /// SVG fragments in sheet coordinates, sharing the full renderer's styles and text.
+    pub fn svg_fragments(&self, delta: Option<&Delta>) -> BTreeMap<String, String> {
+        let mut out = BTreeMap::new();
+        let blank = || Drawing {
+            page: self.drawing.page,
+            layers: self
+                .drawing
+                .layers
+                .iter()
+                .map(|l| crate::output::Layer {
+                    name: l.name.clone(),
+                    style: l.style.clone(),
+                    items: Vec::new(),
+                })
+                .collect(),
+            link: None,
+            text: Vec::new(),
+            annotations: Vec::new(),
+            sheet: crate::output::Sheet::default(),
+            problems: Vec::new(),
+            spec: None,
+        };
+        for (id, geometry) in &self.state.geometry.views {
+            if delta.is_some_and(|d| !d.geometry.views.iter().any(|(v, _)| v == id)) {
+                continue;
+            }
+            let mut d = blank();
+            d.layers[0].items = geometry.visible.clone();
+            d.layers[1].items = geometry.hidden.clone();
+            out.insert(id.clone(), d.svg());
+        }
+        for (id, item) in &self.state.annotations {
+            if delta.is_some_and(|d| !d.annotations.contains_key(id)) {
+                continue;
+            }
+            let mut d = blank();
+            d.layers[2].items = item.items.clone();
+            d.text = item.text.clone();
+            out.insert(id.clone(), d.svg());
+        }
+        let furniture_changed = delta.is_none_or(|d| {
+            d.plan.fields.keys().any(|k| k != "spec")
+                || d.plan.collections.keys().any(|k| {
+                    !matches!(
+                        k.as_str(),
+                        "dimensions" | "gdt" | "omitted" | "views" | "problems"
+                    )
+                })
+        });
+        if furniture_changed {
+            let mut d = self.drawing.clone();
+            let visible: usize = self
+                .state
+                .geometry
+                .views
+                .iter()
+                .map(|(_, g)| g.visible.len())
+                .sum();
+            let hidden: usize = self
+                .state
+                .geometry
+                .views
+                .iter()
+                .map(|(_, g)| g.hidden.len())
+                .sum();
+            let ink: usize = self.state.annotations.values().map(|a| a.items.len()).sum();
+            let text: usize = self.state.annotations.values().map(|a| a.text.len()).sum();
+            d.layers[0].items.drain(..visible);
+            d.layers[1].items.drain(..hidden);
+            d.layers[2].items.drain(..ink);
+            d.text.drain(..text);
+            out.insert("furniture".into(), d.svg());
+        }
+        out
+    }
+    pub fn pmi_report(&self) -> Value {
+        let mut lowered = Vec::new();
+        let mut unresolved = Vec::new();
+        if let Some(crate::pmi::Reading::Read(report)) = &self.analysis().pmi {
+            let identities = report.identities();
+            for record in &report.records {
+                let ids: Vec<_> = self
+                    .plan()
+                    .dimensions
+                    .iter()
+                    .filter(|d| {
+                        d.placed.is_some()
+                            && d.measurements.iter().any(|m| {
+                                identities
+                                    .id(&record.source_id)
+                                    .is_ok_and(|id| m.feature == id)
+                            })
+                    })
+                    .map(|d| {
+                        let kind = d
+                            .measurements
+                            .iter()
+                            .find(|m| matches!(m.parameter.as_str(), "thread" | "knurl"))
+                            .map(|m| m.parameter.clone())
+                            .unwrap_or_else(|| d.kind.clone());
+                        (d.id.clone(), d.label.clone(), kind)
+                    })
+                    .chain(
+                        self.plan()
+                            .gdt
+                            .iter()
+                            .filter(|g| g.source == record.source_id && g.placed.is_some())
+                            .map(|g| (g.id.clone(), g.label.clone(), g.kind.clone())),
+                    )
+                    .chain(
+                        self.plan()
+                            .requirements
+                            .iter()
+                            .filter(|r| {
+                                r.source == record.source_id
+                                    && matches!(r.state, crate::items::State::Shown)
+                            })
+                            .map(|r| (r.id.clone(), r.text.clone(), r.kind.clone())),
+                    )
+                    .collect();
+                if ids.is_empty() {
+                    let related = identities.id(&record.source_id).ok();
+                    let reasons: Vec<_> = self
+                        .state
+                        .problems
+                        .iter()
+                        .filter(|p| {
+                            p.refs.contains(&record.source_id)
+                                || related.is_some_and(|id| p.subjects.iter().any(|s| s == id))
+                        })
+                        .map(|p| p.message.as_str())
+                        .collect();
+                    let reason = if reasons.is_empty() {
+                        record.blockers.join("; ")
+                    } else {
+                        reasons.join("; ")
+                    };
+                    unresolved.push(serde_json::json!({"source_id":record.source_id,"label":record.label,"kind":record.kind,"reason":reason}));
+                }
+                for (feature_id, label, kind) in ids {
+                    lowered.push(serde_json::json!({"source_id":record.source_id,"feature_id":feature_id,"label":label,"kind":kind,"fit":record.fit}));
+                }
+            }
+            if let Some(material) = report.title_material()
+                && self
+                    .plan()
+                    .sheet
+                    .title
+                    .get("material")
+                    .is_some_and(|m| m == material.designation.trim())
+            {
+                lowered.push(serde_json::json!({"source_id":material.census_id(),"feature_id":"part","label":material.designation.trim(),"kind":"material"}));
+            }
+            for source in &report.sources {
+                if source.outcome == crate::pmi::Outcome::NotExtracted
+                    && !lowered.iter().any(|r| r["source_id"] == source.id)
+                {
+                    unresolved.push(serde_json::json!({"source_id":source.id,"label":source.entity,"kind":source.category,"reason":source.reason}));
+                }
+            }
+            serde_json::json!({"extraction":report,"lowered":lowered,"unresolved":unresolved})
+        } else {
+            serde_json::json!({"lowered":[],"unresolved":[]})
+        }
+    }
     pub fn undo(&mut self) -> Result<Delta, Error> {
         self.history(false)
     }
@@ -562,25 +755,48 @@ impl Session {
             .collect()
     }
     pub fn options(&self, id: &str) -> Result<Options, Error> {
-        let item = self.item(id)?;
-        let placements = if item.operations.contains(&"place".into()) && item.item.kind != "view" {
-            let view = crate::placement_intent::carrier(self.plan(), id);
-            [Side::Above, Side::Below, Side::Left, Side::Right]
-                .into_iter()
-                .filter_map(|side| {
-                    view.as_ref().map(|view| Place {
-                        view: Some(view.trim_start_matches("v:").into()),
-                        side: Some(side),
-                        lane: None,
-                        along: Some(Along::Slot(Slot::Middle)),
-                        pinned: false,
-                    })
+        Ok(self.options_for(self.item(id)?, &self.placement_choices()))
+    }
+    /// All item options, computing the shared geometry choices once and without planning.
+    pub fn all_options(&self) -> BTreeMap<String, Options> {
+        let choices = self.placement_choices();
+        answers(self.plan(), &self.analysis)
+            .into_iter()
+            .map(|item| (item.item.id.clone(), self.options_for(item, &choices)))
+            .collect()
+    }
+    fn placement_choices(&self) -> BTreeMap<String, Value> {
+        let mut choices = crate::dims::placement_options(&self.analysis, &self.plan().views);
+        choices.extend(crate::dims::gdt::placement_options(
+            &self.analysis,
+            &self.plan().views,
+        ));
+        choices
+    }
+    fn options_for(&self, item: ItemAnswer, choices: &BTreeMap<String, Value>) -> Options {
+        let id = item.item.id.as_str();
+        let placements = choices
+            .get(id)
+            .into_iter()
+            .flat_map(|c| {
+                c["views"].as_array().into_iter().flatten().flat_map(|v| {
+                    v["sides"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|side| {
+                            Some(Place {
+                                view: Some(v["view"].as_str()?.into()),
+                                side: serde_json::from_value(side.clone()).ok(),
+                                lane: None,
+                                along: Some(Along::Slot(Slot::Middle)),
+                                pinned: false,
+                            })
+                        })
                 })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        Ok(Options {
+            })
+            .collect();
+        Options {
             id: id.into(),
             operations: item.operations,
             placements,
@@ -599,7 +815,7 @@ impl Session {
             } else {
                 Vec::new()
             },
-        })
+        }
     }
 }
 fn depends_on(spec: &Spec, view: &str, id: &str) -> bool {
