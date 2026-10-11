@@ -124,3 +124,24 @@ use bare pins that retain automatic geometry; views use the nearest named relati
 placement to a fixed root. It does not measure random manual relocation to placements
 from `item_options`. This narrower interpretation is recorded as overturnable in
 `docs/next-session.md`; a passing grid would not establish relocation quality.
+
+E2 reduces discovery calls: `inspect_part` includes a bounded `key_items` index and
+accepts `problem_filter`, for example `{"feature":"f:slot:1"}`, to return a paged
+`problem_page` during registration. `list_problems` accepts the same feature filter;
+default problem rows include corrective ops, so `detail` is only needed for explanations.
+`item_options.settable` gives escaped Spec paths, accepted choices/ranges and tolerance
+forms. A descriptor's `paths` shares its choices across those paths. Fits belong to
+features, tolerance strings to dimensions, and view paths use bare names.
+
+Compare scripted efficiency against a saved pre-change report:
+
+```sh
+node tools/mcp-eval/run-scripted.mjs --out target/e2-mcp-after.json
+node tools/mcp-eval/check-efficiency.mjs target/e2-mcp-before.json target/e2-mcp-after.json
+```
+
+The comparison requires fewer calls and preserves every previously successful task;
+it does not replace the runner's stricter all-seven-tasks gate. The existing plate
+placement failure still makes the runner exit 1 until E1 fixes layout. The E2 runner
+uses summary IDs and offered fits/fixes; the GRM-03 request is one batch of Spec ops.
+No real-model performance is inferred from this scripted instrument.

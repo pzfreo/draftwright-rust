@@ -2752,3 +2752,68 @@ Logs are in `target/d1-fix-logs/`.
   the survivor, which claims its measurement. 15 records per PMI oracle are verdicted
   rust-correct (draftwright draws them all). Judgement call: a default dimension the spec has
   toleranced keeps its own line beside the PMI one.
+
+## E2 MCP call efficiency (2026-10-11)
+
+Overturnable judgements made unattended:
+
+- Keep twelve tools and the stateless Spec/version contract. Extend `inspect_part` with an
+  optional `problem_filter`, returning the same bounded `problem_page` as `list_problems`.
+  Registration plus a feature's corrective answer is one question, so it can share a call.
+  Default problem rows include fixes; `detail` still adds the human explanation.
+- Feature problem filtering uses the Session's typed item/feature associations and direct
+  feature subjects, rather than a string prefix or a guessed spatial radius. It combines with
+  existing code/severity/subject filters. Paging and lossless artifacts remain available.
+- Summary `key_items` prioritises envelope dimensions, then diameters, then a representative
+  dimension per feature, with stable ID ordering and a 700-byte cap. It is a useful index,
+  not an exhaustive list; `list_items` remains the complete, paged query. This policy can be
+  overturned if model evaluations demonstrate another general ordering is more useful.
+- `Options.settable` is shared by Session and MCP: escaped paths, choices, ranges, tolerance
+  forms, sheet title keys, bare view names, and fits from the existing validation table at the
+  recognised nominal diameter. A grouped fit descriptor's `paths` shares its choices across
+  every listed feature path (a consolidated mark still needs a fit on each member). Place
+  fields are candidates, with view/side compatibility in `placements`; preview/apply still
+  resolves collisions. A view relation needs `relative_to` and `side` together.
+- Refusals retain the invalid request and append an explicit `Corrected op: {JSON}` for
+  unambiguous translations: a supported fit misfiled on its diameter dimension, a bare view
+  key, a title cell's canonical Spec key, or an explicit one-field `{symmetric: magnitude}`
+  tolerance and the existing ASCII tolerance spellings. The caller must review/retry it.
+  Never infer a tolerance magnitude, choose a member of a pattern, or alter stale-head choices.
+- The scripted runner now discovers IDs from summary and H7 from options, reads slot fixes
+  from the opening answer, and batches the GRM-03 edits already expressed in one user request.
+  Its unchanged judge checks the final drawing; shared Session/stateless parity tests separately
+  retain sequential edit/scale coverage. Scripted call savings are not a prediction of a
+  real model's choices. The driver owns the real-model run after integration.
+- No placement/layout algorithms or drafting outputs were changed. The existing plate pin
+  task's failure cannot be fixed within E2: E1 owns placement. Retain its strict failure and
+  report the full scripted go/no-go separately from E2's fewer-calls/preserved-success gate.
+- Schema factoring uses short local definition names and omits empty `required` lists, with
+  identical JSON Schema semantics, to keep the existing 39,500-byte session limit. No schema
+  budget, test condition, or task success condition was relaxed.
+
+The read-only Python `origin/main:src/draftwright/fits.py` confirms holes H/G/F, shafts
+h/g/f/js/k/n/p, grades 5–11 and sizes over zero through 250 mm. Options enumerate the Rust
+validator's same table; there is no new drafting difference requiring a known-differences
+ledger entry. Full parity and quality verification are recorded in the E2 status entry.
+
+E2 verification note: copying a before checkout into the current Cargo target initially
+reused newer library artifacts because of restored source timestamps. That probe is invalid
+and is superseded by the package-clean rebuild. In the clean original build all seven new
+tests and the description guard fail for the intended missing capabilities, while its engine
+fingerprint test passes. Final checks rebuild the actual worktree. No baseline claims rely on
+reused artifacts.
+
+When inspection requests problems, that answer takes priority over the summary's optional
+key-item index: shorten `key_items` first to fit the complete MCP envelope, then page problems
+if necessary. The original paging regression correctly caught truncating a two-fix answer
+while keeping all index hints; its assertions remain unchanged. Broad queries still follow
+`problem_page.next_cursor` through `list_problems` with the same filter.
+
+E2 final verification: required-corpus release suite **627/627**, 69 result groups, no
+failures/ignored; fmt, release Clippy and build pass. Node tests **5/5**, Python instrument
+tests **5/5**, all twelve tool schemas/refusals and 24 served/file documents pass independent
+validation. Required quality: **30/30 parts**, all **180 cells identical**, no part worse.
+Scripted calls **16 → 15**, all six previous successes retained; its strict all-task runner
+still exits 1 for the unchanged plate layout failure. E1 must resolve that condition before
+claiming the global seven-task gate. No real-model evaluation, commits or pushes were made.
+Per-task counts, byte/token measurements and artifact paths are in the E2 status section.

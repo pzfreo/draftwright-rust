@@ -10,7 +10,7 @@
           "type": "string"
         },
         "operations": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "placements": {
           "type": "array",
@@ -58,15 +58,47 @@
                 "type": "boolean"
               }
             },
-            "required": [],
             "additionalProperties": false
           }
         },
         "view_anchors": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "scales": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
+        },
+        "settable": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "choices": {
+                "type": "array",
+                "items": {}
+              },
+              "range": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "integer": {
+                "type": "boolean"
+              },
+              "forms": {
+                "$ref": "#/$defs/A"
+              },
+              "fields": {
+                "$ref": "#/$defs/A"
+              },
+              "paths": {
+                "$ref": "#/$defs/A"
+              }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -74,7 +106,8 @@
         "operations",
         "placements",
         "view_anchors",
-        "scales"
+        "scales",
+        "settable"
       ],
       "additionalProperties": false
     },
@@ -82,7 +115,7 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/error"
+          "$ref": "#/$defs/e"
         }
       },
       "required": [
@@ -92,7 +125,7 @@
     }
   ],
   "$defs": {
-    "error": {
+    "e": {
       "type": "object",
       "properties": {
         "code": {
@@ -105,7 +138,7 @@
           "type": "string"
         },
         "choices": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -114,7 +147,7 @@
       ],
       "additionalProperties": false
     },
-    "shared0": {
+    "A": {
       "items": {
         "type": "string"
       },

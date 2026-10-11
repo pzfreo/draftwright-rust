@@ -9,7 +9,7 @@
         "item": {
           "anyOf": [
             {
-              "$ref": "#/$defs/item"
+              "$ref": "#/$defs/i"
             },
             {
               "type": "object",
@@ -21,13 +21,13 @@
                   "type": "string"
                 },
                 "label": {
-                  "$ref": "#/$defs/shared1"
+                  "$ref": "#/$defs/B"
                 },
                 "view": {
-                  "$ref": "#/$defs/shared1"
+                  "$ref": "#/$defs/B"
                 },
                 "state": {
-                  "$ref": "#/$defs/state"
+                  "$ref": "#/$defs/t"
                 },
                 "basis": {
                   "type": "string"
@@ -43,7 +43,7 @@
                   ]
                 },
                 "operations": {
-                  "$ref": "#/$defs/shared0"
+                  "$ref": "#/$defs/A"
                 }
               },
               "required": [
@@ -70,7 +70,7 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/error"
+          "$ref": "#/$defs/e"
         }
       },
       "required": [
@@ -80,7 +80,7 @@
     }
   ],
   "$defs": {
-    "item": {
+    "i": {
       "type": "object",
       "properties": {
         "item": {
@@ -97,7 +97,7 @@
           ]
         },
         "dimension_kind": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/B"
         },
         "placement": {
           "anyOf": [
@@ -110,16 +110,16 @@
           ]
         },
         "anchors": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "features": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "basis": {
           "type": "string"
         },
         "operations": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -134,7 +134,7 @@
       ],
       "additionalProperties": false
     },
-    "state": {
+    "t": {
       "anyOf": [
         {
           "type": "object",
@@ -186,7 +186,7 @@
         }
       ]
     },
-    "error": {
+    "e": {
       "type": "object",
       "properties": {
         "code": {
@@ -199,7 +199,7 @@
           "type": "string"
         },
         "choices": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -208,13 +208,13 @@
       ],
       "additionalProperties": false
     },
-    "shared0": {
+    "A": {
       "items": {
         "type": "string"
       },
       "type": "array"
     },
-    "shared1": {
+    "B": {
       "anyOf": [
         {
           "type": "string"

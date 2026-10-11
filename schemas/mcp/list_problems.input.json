@@ -7,7 +7,7 @@
       "type": "string"
     },
     "spec": {
-      "$ref": "#/$defs/spec"
+      "$ref": "#/$defs/s"
     },
     "spec_version": {
       "type": "string"
@@ -31,7 +31,7 @@
       "type": "object",
       "properties": {
         "code": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/B"
         },
         "severity": {
           "anyOf": [
@@ -48,10 +48,12 @@
           ]
         },
         "subject": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/B"
+        },
+        "feature": {
+          "$ref": "#/$defs/B"
         }
       },
-      "required": [],
       "additionalProperties": false
     }
   },
@@ -60,7 +62,7 @@
   ],
   "additionalProperties": false,
   "$defs": {
-    "spec": {
+    "s": {
       "type": "object",
       "properties": {
         "schema": {
@@ -83,10 +85,10 @@
           "type": "object",
           "properties": {
             "size": {
-              "$ref": "#/$defs/shared1"
+              "$ref": "#/$defs/B"
             },
             "scale": {
-              "$ref": "#/$defs/shared1"
+              "$ref": "#/$defs/B"
             },
             "title": {
               "type": "object",
@@ -105,20 +107,19 @@
               ]
             }
           },
-          "required": [],
           "additionalProperties": false
         },
         "views": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "dimensions": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "annotations": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "features": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "dimension_source": {
           "enum": [
@@ -139,16 +140,15 @@
           }
         }
       },
-      "required": [],
       "additionalProperties": false
     },
-    "shared0": {
+    "A": {
       "additionalProperties": {
         "type": "object"
       },
       "type": "object"
     },
-    "shared1": {
+    "B": {
       "anyOf": [
         {
           "type": "string"

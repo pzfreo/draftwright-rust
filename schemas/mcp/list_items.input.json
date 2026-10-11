@@ -7,7 +7,7 @@
       "type": "string"
     },
     "spec": {
-      "$ref": "#/$defs/spec"
+      "$ref": "#/$defs/s"
     },
     "spec_version": {
       "type": "string"
@@ -31,15 +31,15 @@
       "type": "object",
       "properties": {
         "view": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/A"
         },
         "kind": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/A"
         },
         "state": {
           "anyOf": [
             {
-              "$ref": "#/$defs/state"
+              "$ref": "#/$defs/t"
             },
             {
               "type": "null"
@@ -47,7 +47,7 @@
           ]
         },
         "feature": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/A"
         },
         "region": {
           "anyOf": [
@@ -65,7 +65,7 @@
           ]
         },
         "near": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/A"
         },
         "radius": {
           "anyOf": [
@@ -79,7 +79,6 @@
           ]
         }
       },
-      "required": [],
       "additionalProperties": false
     }
   },
@@ -88,7 +87,7 @@
   ],
   "additionalProperties": false,
   "$defs": {
-    "spec": {
+    "s": {
       "type": "object",
       "properties": {
         "schema": {
@@ -111,10 +110,10 @@
           "type": "object",
           "properties": {
             "size": {
-              "$ref": "#/$defs/shared1"
+              "$ref": "#/$defs/A"
             },
             "scale": {
-              "$ref": "#/$defs/shared1"
+              "$ref": "#/$defs/A"
             },
             "title": {
               "type": "object",
@@ -133,20 +132,19 @@
               ]
             }
           },
-          "required": [],
           "additionalProperties": false
         },
         "views": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/B"
         },
         "dimensions": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/B"
         },
         "annotations": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/B"
         },
         "features": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/B"
         },
         "dimension_source": {
           "enum": [
@@ -167,10 +165,9 @@
           }
         }
       },
-      "required": [],
       "additionalProperties": false
     },
-    "state": {
+    "t": {
       "anyOf": [
         {
           "type": "object",
@@ -222,13 +219,7 @@
         }
       ]
     },
-    "shared0": {
-      "additionalProperties": {
-        "type": "object"
-      },
-      "type": "object"
-    },
-    "shared1": {
+    "A": {
       "anyOf": [
         {
           "type": "string"
@@ -237,6 +228,12 @@
           "type": "null"
         }
       ]
+    },
+    "B": {
+      "additionalProperties": {
+        "type": "object"
+      },
+      "type": "object"
     }
   }
 }

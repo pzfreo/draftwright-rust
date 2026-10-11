@@ -82,7 +82,7 @@ use crate::text::{Font, Segment};
 pub use leaders::clear_routes;
 use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
-pub(crate) use tolerance::check as check_tolerances;
+pub(crate) use tolerance::{check as check_tolerances, choices as fit_choices};
 
 /// Checks the view every dimension entry of the spec names (`dimensions/<id>/view`) is one a
 /// dimension can be carried by: the form, never the part (that is [`plan`]'s).

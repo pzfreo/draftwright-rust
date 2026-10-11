@@ -1,3 +1,4 @@
+import { checkEfficiency } from './check-efficiency.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -135,4 +136,19 @@ test('real HTTP adapter accepts a call and checker scores final and initial vers
     }
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+
+test('efficiency gate requires fewer calls and retains every previous success', () => {
+  const before = JSON.parse(readFileSync('tools/mcp-eval/s7-result.json', 'utf8'));
+  assert.equal(checkEfficiency(before, before).pass, false);
+  const after = structuredClone(before);
+  const edited = after.results.find(result => result.success && result.tool_calls > 1);
+  edited.calls.pop(); edited.tool_calls--;
+  assert.equal(checkEfficiency(before, after).pass, true);
+  edited.success = false;
+  assert.equal(checkEfficiency(before, after).pass, false);
+  edited.success = true;
+  after.results.push(structuredClone(edited));
+  assert.equal(checkEfficiency(before, after).pass, false);
 });

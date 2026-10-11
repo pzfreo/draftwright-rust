@@ -273,13 +273,41 @@ impl Cache {
     }
     pub fn summary(&self, part_ref: &str, spec: &Spec) -> Result<Value, Error> {
         let s = self.session(part_ref, spec)?;
+        let mut items = s.items(&ItemFilter {
+            kind: Some("dimension".into()),
+            ..ItemFilter::default()
+        });
+        items.sort_by_key(|i| {
+            (
+                !i.item.id.starts_with("d:envelope/"),
+                !i.item.id.ends_with(".diameter"),
+                i.item.id.clone(),
+            )
+        });
+        let mut features = std::collections::BTreeSet::new();
+        let mut keys = Vec::new();
+        for item in &items {
+            if !item.item.id.starts_with("d:envelope/")
+                && !item.features.iter().any(|f| !features.contains(f))
+            {
+                continue;
+            }
+            let row = json!({"id":item.item.id,"label":item.item.label});
+            keys.push(row);
+            if encode(&keys).len() > 700 {
+                keys.pop();
+                continue;
+            }
+            features.extend(item.features.iter().cloned());
+        }
         Ok(
             json!({"part_ref":part_ref,"part":s.analysis().binding.part,"face_count":s.analysis().binding.face_count,
             "envelope":s.analysis().envelope,"sheet":{"size":s.plan().sheet.size,"scale":s.plan().sheet.scale,"page":s.plan().sheet.page},
             "views":s.plan().views.iter().map(|v|&v.id).collect::<Vec<_>>(),"items":s.items(&ItemFilter::default()).len(),
-            "problems":s.state().problems.len(),"spec_version":spec_hash(s.spec())}),
+            "key_items":keys,"problems":s.state().problems.len(),"spec_version":spec_hash(s.spec())}),
         )
     }
+
     pub fn render(
         &self,
         part_ref: &str,

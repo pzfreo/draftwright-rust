@@ -25,13 +25,13 @@
                       "item": {
                         "anyOf": [
                           {
-                            "$ref": "#/$defs/compact"
+                            "$ref": "#/$defs/c"
                           },
                           {
-                            "$ref": "#/$defs/item"
+                            "$ref": "#/$defs/i"
                           },
                           {
-                            "$ref": "#/$defs/stub"
+                            "$ref": "#/$defs/u"
                           }
                         ]
                       }
@@ -70,13 +70,13 @@
                       "problem": {
                         "anyOf": [
                           {
-                            "$ref": "#/$defs/problem"
+                            "$ref": "#/$defs/p"
                           },
                           {
-                            "$ref": "#/$defs/problem_small"
+                            "$ref": "#/$defs/r"
                           },
                           {
-                            "$ref": "#/$defs/stub"
+                            "$ref": "#/$defs/u"
                           }
                         ]
                       }
@@ -88,7 +88,7 @@
                     "additionalProperties": false
                   },
                   {
-                    "$ref": "#/$defs/stub"
+                    "$ref": "#/$defs/u"
                   }
                 ]
               }
@@ -135,7 +135,7 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/error"
+          "$ref": "#/$defs/e"
         }
       },
       "required": [
@@ -145,7 +145,7 @@
     }
   ],
   "$defs": {
-    "compact": {
+    "c": {
       "type": "object",
       "properties": {
         "id": {
@@ -155,13 +155,13 @@
           "type": "string"
         },
         "label": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/B"
         },
         "view": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/B"
         },
         "state": {
-          "$ref": "#/$defs/state"
+          "$ref": "#/$defs/t"
         }
       },
       "required": [
@@ -173,7 +173,7 @@
       ],
       "additionalProperties": false
     },
-    "state": {
+    "t": {
       "anyOf": [
         {
           "type": "object",
@@ -225,7 +225,7 @@
         }
       ]
     },
-    "item": {
+    "i": {
       "type": "object",
       "properties": {
         "item": {
@@ -242,7 +242,7 @@
           ]
         },
         "dimension_kind": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/B"
         },
         "placement": {
           "anyOf": [
@@ -255,16 +255,16 @@
           ]
         },
         "anchors": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "features": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "basis": {
           "type": "string"
         },
         "operations": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -279,11 +279,11 @@
       ],
       "additionalProperties": false
     },
-    "stub": {
+    "u": {
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/$defs/shared1"
+          "$ref": "#/$defs/B"
         },
         "detail_ref": {
           "type": "string"
@@ -295,7 +295,7 @@
       ],
       "additionalProperties": false
     },
-    "problem": {
+    "p": {
       "type": "object",
       "properties": {
         "id": {
@@ -311,16 +311,13 @@
           "type": "string"
         },
         "subjects": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "refs": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         },
         "fix": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/op"
-          }
+          "$ref": "#/$defs/C"
         }
       },
       "required": [
@@ -373,7 +370,7 @@
         }
       ]
     },
-    "problem_small": {
+    "r": {
       "type": "object",
       "properties": {
         "id": {
@@ -386,7 +383,10 @@
           "type": "string"
         },
         "subjects": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
+        },
+        "fix": {
+          "$ref": "#/$defs/C"
         }
       },
       "required": [
@@ -397,7 +397,7 @@
       ],
       "additionalProperties": false
     },
-    "error": {
+    "e": {
       "type": "object",
       "properties": {
         "code": {
@@ -410,7 +410,7 @@
           "type": "string"
         },
         "choices": {
-          "$ref": "#/$defs/shared0"
+          "$ref": "#/$defs/A"
         }
       },
       "required": [
@@ -419,13 +419,13 @@
       ],
       "additionalProperties": false
     },
-    "shared0": {
+    "A": {
       "items": {
         "type": "string"
       },
       "type": "array"
     },
-    "shared1": {
+    "B": {
       "anyOf": [
         {
           "type": "string"
@@ -434,6 +434,12 @@
           "type": "null"
         }
       ]
+    },
+    "C": {
+      "items": {
+        "$ref": "#/$defs/op"
+      },
+      "type": "array"
     }
   }
 }

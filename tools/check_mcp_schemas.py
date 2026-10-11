@@ -55,6 +55,12 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
     }
     for name, args in cases.items():
         call(name, args)
+    call('inspect_part', {'part_ref': part, 'problem_filter': {'feature': 'f:hole:4'}})
+    call('list_problems', {'part_ref': part, 'filter': {'feature': 'f:hole:4'}})
+    corrected = rpc('tools/call', {'name': 'preview_ops', 'arguments': {
+        'part_ref': part, 'ops': [{'op': 'set', 'path': 'views/v:iso/omit', 'value': True}]}})
+    assert corrected['isError'] and 'Corrected op:' in corrected['structuredContent']['error']['message']
+    validators['preview_ops', 'output'].validate(corrected['structuredContent'])
     for tool in tools:
         result = rpc('tools/call', {'name': tool['name'], 'arguments': {'unknown_field': True}})
         assert result['isError']
