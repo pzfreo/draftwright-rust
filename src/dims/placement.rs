@@ -1417,19 +1417,46 @@ impl<'a> Page<'a> {
 }
 
 /// What the simple placement collides with: each a problem on the dimension's ID.
+#[cfg(test)]
 pub(super) fn collisions(
     analysis: &Analysis,
     dims: &[PlannedDimension],
     sheet: &PlannedSheet,
     views: &[PlannedView],
 ) -> Vec<Problem> {
+    collisions_cached(
+        analysis,
+        dims,
+        sheet,
+        views,
+        &super::footprints::Cache::default(),
+    )
+}
+
+pub(super) fn collisions_cached(
+    analysis: &Analysis,
+    dims: &[PlannedDimension],
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    cache: &super::footprints::Cache,
+) -> Vec<Problem> {
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
     let outlines = outlines(analysis, views);
+    let footprints: BTreeMap<_, _> = views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            super::NAMES
+                .contains(&name)
+                .then(|| (v.id.as_str(), cache.get(analysis, v)))
+        })
+        .collect();
     let placed: Vec<(&PlannedDimension, &Placed)> = dims
         .iter()
         .filter_map(|d| d.placed.as_ref().map(|p| (d, p)))
         .collect();
+    let mut feature_problems = Vec::new();
     let mut problem = |code: &str, severity: &str, subjects: Vec<String>, message: String| {
         problems.push(Problem {
             id: format!("p:{code}:{}", subjects.join("|")),
@@ -1441,6 +1468,45 @@ pub(super) fn collisions(
         });
     };
     for (d, p) in &placed {
+        if let Some(f) = footprints.get(d.view.as_str()) {
+            let (code, shafts): (&str, &[[P2; 2]]) = match d.kind.as_str() {
+                "callout" => ("leader_through_feature", &p.lines[..p.lines.len().min(1)]),
+                "linear" => (
+                    "extension_through_feature",
+                    &p.lines[..p.lines.len().min(2)],
+                ),
+                _ => ("", &[]),
+            };
+            for (n, shaft) in shafts.iter().enumerate() {
+                let crossed = if d.kind == "callout" {
+                    f.crossed(*shaft, &d.measurements)
+                } else {
+                    f.crossed_extension(*shaft, &d.measurements)
+                };
+                for feature in crossed {
+                    let subjects = vec![d.id.clone(), feature];
+                    feature_problems.push(Problem {
+                        id: format!("p:{code}:{}:line:{n}", subjects.join("|")),
+                        code: code.into(),
+                        severity: "warning".into(),
+                        message: format!(
+                            "The {} {} of {} ({}) crosses {}.",
+                            if d.kind == "callout" {
+                                "leader shaft"
+                            } else {
+                                "dimension extension"
+                            },
+                            n + 1,
+                            d.id,
+                            d.label,
+                            subjects[1]
+                        ),
+                        subjects,
+                        ..Default::default()
+                    });
+                }
+            }
+        }
         // Its ink past its view's reserved area (the box and its bands).
         if let Some(v) = views.iter().find(|v| v.id == d.view) {
             let a = v.area;
@@ -1569,6 +1635,7 @@ pub(super) fn collisions(
             }
         }
     }
+    problems.extend(feature_problems);
     problems
 }
 

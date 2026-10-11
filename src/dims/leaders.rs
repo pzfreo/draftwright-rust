@@ -21,7 +21,8 @@
 //!   directions, the elbow a little past where the ray leaves the view.
 //!
 //! Each candidate is measured analytically (`leader_callout_geometry`): its cost is its ink's
-//! length (leader and shoulder, draftwright's objective), in micrometres so sub-micron noise
+//! length (leader and shoulder, plus travel inside the solid bounds to prefer a near exit),
+//! in micrometres so sub-micron noise
 //! cannot reorder candidates (ISSUE-740-b). Its blockers are counted in two tiers:
 //! - **hard** (`_hard_fixed_blockers`): ink off the drawing area; the label or a line in the
 //!   title block; the label or shoulder over any view (the exterior region); the leader across
@@ -31,13 +32,17 @@
 //!   plan's collision checks report one problem per pair and code: an item whose line the
 //!   leader or shoulder crosses or runs along, and (again) one whose ink and the label meet (its
 //!   line through the label, the label on its label, a leader line through its label);
+//!   each other feature footprint crossed by the shaft and ink outside the reserved area also
+//!   count in this tier. The original assignment is retained when the measured candidates and their pair
+//!   contacts find more annotation defects in the new assignment;
 //!   the dimensions are placed first and fixed (ARCH0014-3: principal dimensions claim their
 //!   strips; the callouts yield);
 //! - **text**: of the items met, those whose ink and the label meet, below the crossings:
 //!   between as many crossings, a leader across a line is kept over text on a line (draftwright
 //!   protects text both ways, `annotation_text_ink_clear`);
-//! - **area**: ink outside the view's reserved area (its box and bands), below the text and
-//!   above any length.
+//!
+//! The original assignment keeps its area tier below text; the footprint-aware assignment
+//! counts it with crossings, because either contact is an annotation defect.
 //!
 //! The jobs are then assigned jointly (ISSUE-740-a, `_assign_by_view`): each takes one candidate,
 //! minimising first the hard blockers, then the crossings (with the fixed ink and between the
@@ -60,13 +65,15 @@
 //! Not ported: draftwright's interior candidates (labels inside a view over blank face,
 //! `interior_leader_candidates`) need the view's projected line-work, which the plan, made from
 //! the Analysis alone (ADR R1), does not have; the port keeps every label outside the views, as
-//! draftwright's `--leader-region exterior`. For the same reason the view's material is its box:
-//! draftwright's material re-entry cost (ADR2-8) is the leader re-entering the box. Arrowheads
+//! draftwright's `--leader-region exterior`. Feature footprints from the Analysis count crossings inside the box, shared with the
+//! plan collision checks. The incomplete principal outer wires use solid bounds for re-entry
+//! and distance to an exit; projected material remains unavailable (ADR2-8). Arrowheads
 //! are tested by their shafts (ISSUE-367-a).
 
 use std::collections::BTreeMap;
 
 use super::PlannedDimension;
+use super::footprints::Footprints;
 use super::placement::{Frame, Page, Side, arrow, boxes_overlap, crosses, label_box};
 use super::{CAP, P2, Placed, SHOULDER, Shape, Want, font, label_ink};
 use crate::model::Problem;
@@ -134,6 +141,9 @@ struct Candidate {
     cost: i64,
     hard: u32,
     crossings: u32,
+    feature_crossings: u32,
+    inside: i64,
+    aware: bool,
     /// Of its crossings, those that touch text: a line through a label, or two labels together.
     text: u32,
     /// Whether its ink leaves its view's reserved area (1) or not (0).
@@ -149,15 +159,22 @@ impl Candidate {
 
     fn score(&self) -> i64 {
         i64::from(self.hard) * HARD
-            + i64::from(self.crossings) * CROSSING
-            + i64::from(self.text) * TEXT_INK
-            + i64::from(self.outside) * AREA
-            + self.cost
+            + if self.aware {
+                i64::from(self.crossings + self.outside + self.feature_crossings) * CROSSING
+                    + i64::from(self.text) * TEXT_INK
+                    + self.cost
+                    + self.inside
+            } else {
+                i64::from(self.crossings) * CROSSING
+                    + i64::from(self.text) * TEXT_INK
+                    + i64::from(self.outside) * AREA
+                    + self.cost
+            }
     }
 
     /// Whether it is clear: no hard blocker and nothing crossed.
     fn clear(&self) -> bool {
-        self.hard == 0 && self.crossings == 0
+        self.hard == 0 && self.crossings == 0 && (!self.aware || self.feature_crossings == 0)
     }
 
     fn placed(&self) -> Placed {
@@ -351,6 +368,7 @@ fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
 /// box about its baseline origin, and how far past each edge the strip's dimensions reach.
 struct Job<'a> {
     view: &'a str,
+    footprints: &'a Footprints,
     outline: [f64; 4],
     /// The view's reserved area (box and bands), when the sheet has it.
     area: Option<[f64; 4]>,
@@ -379,7 +397,11 @@ fn side_index(side: Side) -> usize {
 /// back across its own view or longer than [`MAX_LEADER`] (every candidate it had was blocked),
 /// and a group of callouts whose search stopped at [`NODE_BUDGET`] (its assignment is the best
 /// found, not proved the best).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn place(
+    analysis: &crate::model::Analysis,
+    cache: &super::footprints::Cache,
+    views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
     views_of: &[Option<&'static str>],
@@ -387,11 +409,25 @@ pub(super) fn place(
     placed: &mut [Option<Placed>],
     page: &Page,
 ) -> Vec<Problem> {
-    place_with_obstacles(frames, items, views_of, sides, placed, page, &[])
+    place_with_obstacles(
+        analysis,
+        cache,
+        views,
+        frames,
+        items,
+        views_of,
+        sides,
+        placed,
+        page,
+        &[],
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_with_obstacles(
+    analysis: &crate::model::Analysis,
+    cache: &super::footprints::Cache,
+    views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
     views_of: &[Option<&'static str>],
@@ -433,6 +469,10 @@ pub(super) fn place_with_obstacles(
         let e = reach.entry((view, side_index(side))).or_insert(0.0);
         *e = e.max(far);
     }
+    let footprints: BTreeMap<_, _> = views
+        .iter()
+        .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
+        .collect();
     let mut jobs: Vec<(usize, Job)> = Vec::new();
     for (i, w) in items.iter().enumerate() {
         let (Shape::Callout { sites }, Some(view)) = (&w.shape, views_of[i]) else {
@@ -452,6 +492,7 @@ pub(super) fn place_with_obstacles(
             i,
             Job {
                 view,
+                footprints: &footprints[view],
                 outline: f.outline(),
                 area: page.area(view),
                 sites: page_sites(f, sites),
@@ -461,11 +502,39 @@ pub(super) fn place_with_obstacles(
             },
         ));
     }
-    let inventories: Vec<Vec<Candidate>> = jobs
+    let (mut inventories, original): (Vec<_>, Vec<_>) = jobs
         .iter()
         .map(|(_, job)| inventory(job, &fixed, page))
-        .collect();
-    let (choice, capped) = assign(&inventories);
+        .unzip();
+    // Semantic PMI claims its strips after dimensions. Until those strips participate in the
+    // joint solve, retain the established objective rather than planning PMI twice as a probe.
+    let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
+        .0
+        .is_empty();
+    let (old_choice, old_capped) = assign(&original);
+    let (mut choice, mut capped) = if semantic_pmi {
+        (old_choice.clone(), old_capped.clone())
+    } else {
+        assign(&inventories)
+    };
+    // Keep the annotation floor using the already measured candidates and their pair contacts.
+    // No dimensions, feature projections or dependent PMI placements are rebuilt here.
+    let defects = |inv: &[Vec<Candidate>], selected: &[usize]| {
+        let mut count = 0;
+        for (k, &c) in selected.iter().enumerate() {
+            let a = &inv[k][c];
+            count += a.hard + a.crossings + a.outside;
+            for (j, &other) in selected.iter().enumerate().take(k) {
+                count += conflict(a, &inv[j][other]);
+            }
+        }
+        count
+    };
+    if semantic_pmi || defects(&inventories, &choice) > defects(&original, &old_choice) {
+        inventories = original;
+        choice = old_choice;
+        capped = old_capped;
+    }
     let mut problems = Vec::new();
     let named = |i: usize| format!("{} ({})", items[i].id, items[i].terms.join(" "));
     for ((i, job), (inv, c)) in jobs.iter().zip(inventories.iter().zip(choice)) {
@@ -566,6 +635,107 @@ pub(super) fn intent_tip(frame: &Frame, sites: &[(super::P3, f64)], elbow: P2) -
     rim_tip(nearest(&page_sites(frame, sites), elbow), elbow)
 }
 
+/// Keep a prescribed strip and lane. Prefer its station; shift only to reduce feature
+/// crossings without increasing contacts with other prescribed pins. Free ink yields later.
+pub(super) fn route_intent(
+    footprints: &Footprints,
+    frame: &Frame,
+    w: &Want,
+    p: &mut Placed,
+    side: crate::placement_intent::Side,
+    obstacles: &[(&str, &Placed)],
+) {
+    let Shape::Callout { sites } = &w.shape else {
+        return;
+    };
+    let Some(&[tip, elbow]) = p.lines.first() else {
+        return;
+    };
+    let before = footprints.crossed([tip, elbow], &w.measurements).len();
+    if before == 0 {
+        return;
+    }
+    let k = usize::from(matches!(
+        side,
+        crate::placement_intent::Side::Left | crate::placement_intent::Side::Right
+    ));
+    let o = frame.outline();
+    let sites = page_sites(frame, sites);
+    let contacts = |tip: P2, next: P2| {
+        let shift = [next[0] - elbow[0], next[1] - elbow[1]];
+        let label = [
+            p.label_box[0] + shift[0],
+            p.label_box[1] + shift[1],
+            p.label_box[2] + shift[0],
+            p.label_box[3] + shift[1],
+        ];
+        let lines = [
+            [tip, next],
+            [
+                next,
+                [p.lines[1][1][0] + shift[0], p.lines[1][1][1] + shift[1]],
+            ],
+        ];
+        obstacles
+            .iter()
+            .filter(|(id, _)| *id != w.id)
+            .map(|(_, p)| *p)
+            .map(|q| {
+                usize::from(
+                    boxes_overlap(label, q.label_box)
+                        || lines.iter().any(|line| crosses(*line, q.label_box))
+                        || q.lines
+                            .iter()
+                            .chain(&q.arrows)
+                            .any(|line| crosses(*line, label)),
+                ) + usize::from(lines.iter().any(|line| {
+                    q.lines
+                        .iter()
+                        .chain(&q.arrows)
+                        .any(|other| lines_meet(*line, *other))
+                }))
+            })
+            .sum::<usize>()
+    };
+    let old_contacts = contacts(tip, elbow);
+    let mut best = (before, 0.0, tip, elbow);
+    for station in stations(elbow[k], o[k].min(elbow[k]), o[k + 2].max(elbow[k])) {
+        let mut next = elbow;
+        next[k] = station;
+        for &site in &sites {
+            let tip = rim_tip(site, next);
+            let n = footprints.crossed([tip, next], &w.measurements).len();
+            let shift = (station - elbow[k]).abs();
+            if contacts(tip, next) > old_contacts {
+                continue;
+            }
+            if n < best.0
+                || (n == best.0 && (shift < best.1 || (shift == best.1 && station < best.3[k])))
+            {
+                best = (n, shift, tip, next);
+            }
+        }
+    }
+    if best.0 >= before {
+        return;
+    }
+    let delta = [best.3[0] - elbow[0], best.3[1] - elbow[1]];
+    for line in p.lines.iter_mut().skip(1) {
+        for point in line {
+            for k in 0..2 {
+                point[k] += delta[k];
+            }
+        }
+    }
+    p.lines[0] = [best.2, best.3];
+    p.arrows = vec![arrow(best.2, best.3)];
+    for (k, shift) in delta.iter().enumerate() {
+        p.label_at[k] += shift;
+        p.label_box[k] += shift;
+        p.label_box[k + 2] += shift;
+    }
+}
+
 /// The candidate stations along one side: the natural one (clamped into `[lo, hi]`) first, then
 /// alternately past and before it, [`STEP`] apart, at most [`MAX_STATIONS`].
 fn stations(natural: f64, lo: f64, hi: f64) -> Vec<f64> {
@@ -623,7 +793,7 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 
 /// Every candidate of *job* measured, the best [`KEEP`] kept (fewest hard blockers, then fewest
 /// crossings, then shortest, then generation order), near-duplicates dropped.
-fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Vec<Candidate> {
+fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> (Vec<Candidate>, Vec<Candidate>) {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -701,16 +871,24 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Vec<Candidate> {
             }
         }
     }
+    let aware = keep(&measured);
+    for c in &mut measured {
+        c.aware = false;
+    }
+    (aware, keep(&measured))
+}
+
+fn keep(measured: &[Candidate]) -> Vec<Candidate> {
     // Ordered by their keys alone (each key distinct, by its generation order), not moving the
     // candidates themselves.
     let mut order: Vec<_> = measured
         .iter()
         .enumerate()
-        .map(|(n, c)| (c.hard, c.crossings, c.text, c.outside, c.cost, n))
+        .map(|(n, c)| (c.score(), n))
         .collect();
     order.sort_unstable();
     let mut kept: Vec<Candidate> = Vec::new();
-    for (.., n) in order {
+    for (_, n) in order {
         let c = &measured[n];
         if kept.len() >= KEEP {
             break;
@@ -869,6 +1047,7 @@ fn measure(
         v.dedup();
     }
     let crossings = (crossed.len() + text.len()) as u32;
+    let feature_crossings = job.footprints.crossing_count(segs[0]) as u32;
     // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
     let outside = job.area.is_some_and(|a| {
         [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]
@@ -878,6 +1057,7 @@ fn measure(
             })
     });
     let cost = ((shaft + SHOULDER) * 1000.0).round() as i64;
+    let inside = (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64;
     Some(Candidate {
         tip,
         elbow,
@@ -887,6 +1067,9 @@ fn measure(
         cost,
         hard,
         crossings,
+        feature_crossings,
+        inside,
+        aware: true,
         text: text.len() as u32,
         outside: u32::from(outside),
         bounds,
@@ -953,8 +1136,10 @@ pub fn clear_routes(
     let f = frames.get(view)?;
     let page = Page::new(analysis, sheet, views);
     let ink = label_ink(&d.terms, font());
+    let footprints = Footprints::new(analysis, f, view);
     let job = Job {
         view,
+        footprints: &footprints,
         outline: f.outline(),
         area: page.area(view),
         sites: page_sites(f, sites),
@@ -1535,6 +1720,9 @@ mod tests {
             cost,
             hard: 0,
             crossings: 0,
+            feature_crossings: 0,
+            inside: 0,
+            aware: false,
             text: 0,
             outside: 0,
             bounds: [

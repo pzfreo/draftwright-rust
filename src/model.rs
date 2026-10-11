@@ -1609,6 +1609,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         );
     }
     crate::dims::gdt::validate_placements(analysis, spec, &views)?;
+    let footprint_cache = crate::dims::footprints::Cache::default();
     let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
     let mut fixed_spec = spec.clone();
     fixed_spec
@@ -1624,6 +1625,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             &views,
             &[],
             canonical.as_ref(),
+            &footprint_cache,
         )
         .0
         .iter()
@@ -1631,8 +1633,15 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         .filter_map(crate::dims::gdt::proxy)
         .collect()
     };
-    let (mut dimensions, mut omitted, mut more) =
-        crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed, &held)?;
+    let (mut dimensions, mut omitted, mut more) = crate::dims::plan_with_obstacles(
+        analysis,
+        spec,
+        &sheet,
+        &views,
+        &fixed,
+        &held,
+        &footprint_cache,
+    )?;
     let obstacles = crate::placement_intent::obstacles(spec, &dimensions, &fixed);
     if !obstacles.is_empty() {
         let before: Vec<_> = views.iter().map(|v| (v.at, v.area, v.scale)).collect();
@@ -1683,8 +1692,15 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 .collect::<Vec<_>>()
         {
             let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
-            (dimensions, omitted, more) =
-                crate::dims::plan_with_obstacles(analysis, spec, &sheet, &views, &fixed, &held)?;
+            (dimensions, omitted, more) = crate::dims::plan_with_obstacles(
+                analysis,
+                spec,
+                &sheet,
+                &views,
+                &fixed,
+                &held,
+                &footprint_cache,
+            )?;
         }
     }
     problems.extend(more);
@@ -1696,14 +1712,20 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         &views,
         &dimensions,
         canonical.as_ref(),
+        &footprint_cache,
     );
     problems.extend(more);
     let mut ink = dimensions.clone();
     ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
     // The default finish's symbol beside the title block: what it meets, and kept clear of.
     for r in &requirements {
-        problems.extend(crate::dims::gdt::finish_collisions(
-            analysis, &sheet, &views, &ink, r,
+        problems.extend(crate::dims::gdt::finish_collisions_cached(
+            analysis,
+            &sheet,
+            &views,
+            &ink,
+            r,
+            &footprint_cache,
         ));
         ink.extend(crate::dims::gdt::finish_proxy(r));
     }

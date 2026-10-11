@@ -186,3 +186,16 @@ test('scripted plate request requires every task callout despite a shortened ind
     assert.throws(() => pinCallouts(task, items.filter((_, n) => n !== i)), /missing required callout/);
   }
 });
+
+test('report-only extension repair is an explicit script edit derived from geometry', async () => {
+  const { oppositeExtension } = await import('./scripted-ops.mjs');
+  const item = { item: { id: 'd:test/span', view: 'v:plan' },
+    placement: { kind: 'dimension', geometry: { rotation: 0, lines: [[[1,2],[1,8]]] } } };
+  assert.deepEqual(oppositeExtension(item, 0), { op: 'set', path: 'dimensions/d:test~1span/place',
+    value: { view: 'plan', side: 'below', lane: 0 } });
+  item.placement.geometry.rotation = 90;
+  item.placement.geometry.lines = [[[8,2],[1,2]]];
+  assert.equal(oppositeExtension(item, 0).value.side, 'right');
+  assert.throws(() => oppositeExtension(item, 1), /line is missing/);
+  assert.throws(() => oppositeExtension({ item: item.item }, 0), /no dimension geometry/);
+});
