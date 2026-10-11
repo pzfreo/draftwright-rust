@@ -527,24 +527,6 @@
  {
   "code": "pmi_not_extracted",
   "file": "hw_assembly_plate_pin_intent.step",
-  "python": null,
-  "rust": "info",
-  "source": "attribute_set:0:0",
-  "verdict": "rust-correct",
-  "evidence": "The 'thread manufacturing' attribute set haecceity's writer puts on the thread's feature (GENERAL_PROPERTY 'thread manufacturing', user defined attribute; its lengths are the thread's drill and depth data). draftwright's census does not hold it; the port reports it as info, not projected (as it reports other attribute sets, e.g. string_post_tapped.step's finding:#3221, rust-correct). It belongs to the thread the port also reports unprojected (thread:0:0); it would be consumed with that thread when haecceity's thread features are projected (docs/next-session.md)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_assembly_plate_pin_intent.step",
-  "python": null,
-  "rust": "info",
-  "source": "attribute_set:1:0",
-  "verdict": "rust-correct",
-  "evidence": "The 'thread manufacturing' attribute set haecceity's writer puts on the thread's feature (GENERAL_PROPERTY 'thread manufacturing', user defined attribute; its lengths are the thread's drill and depth data). draftwright's census does not hold it; the port reports it as info, not projected (as it reports other attribute sets, e.g. string_post_tapped.step's finding:#3221, rust-correct). It belongs to the thread the port also reports unprojected (thread:1:0); it would be consumed with that thread when haecceity's thread features are projected (docs/next-session.md)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_assembly_plate_pin_intent.step",
   "python": {
    "id": "datum_definition:#1299",
    "severity": "error"
@@ -688,15 +670,6 @@
   "file": "hw_assembly_plate_pin_intent.step",
   "python": null,
   "rust": "error",
-  "source": "dimension:#1360",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#1360 (ø6.6) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (assembly_plate_pin.step, which states its limits, drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#1360 (ø6.6) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_assembly_plate_pin_intent.step",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#1524",
   "verdict": "undetermined",
   "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#1524 (ø6) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (assembly_plate_pin.step dimension:#1436, which states its limits, drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#1524 (ø6) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\". The pin is also placed twice in the assembly (the second open question, as assembly_plate_pin.step's dimension:#1436)."
@@ -736,24 +709,6 @@
   "source": "material:1:0",
   "verdict": "equivalent",
   "evidence": "The file states two materials, each on its own part ('Aluminium 6082-T6' #1466 on product definition #35, 'Steel C45' #1563 on #972). Neither draftwright nor the port states a material in the title block (both report step_material_ambiguous, which agrees). The port's reading also lists each material as a source not projected to a record (info), which is true and claims nothing draftwright contradicts: as assembly_plate_pin.step's material:0:0 (equivalent)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_assembly_plate_pin_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "thread:0:0",
-  "verdict": "rust-correct",
-  "evidence": "An internal thread (the plate's tapped hole) haecceity's writer states as an AP242 THREAD feature (#1444; with its 'thread manufacturing' attribute set where the file has one), the form specify-core-rust writes. draftwright never sees it: its Part 21 pass reads specify-core's 'manufacturing requirement' properties and XCAF has no thread or knurl, so its census holds no source and its drawing silently lacks it. The port's reading holds it (haecceity reads it) and reports it pmi_not_extracted as an error because src/pmi.rs projects only the requirement-property form to a record: true, and the honest outcome. Neither draws it; projecting haecceity's thread and knurl features to records (so they can be drawn as the requirement records are) is a gap recorded in docs/next-session.md."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_assembly_plate_pin_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "thread:1:0",
-  "verdict": "rust-correct",
-  "evidence": "A thread (the pin's) haecceity's writer states as an AP242 THREAD feature (#1543; with its 'thread manufacturing' attribute set where the file has one), the form specify-core-rust writes. draftwright never sees it: its Part 21 pass reads specify-core's 'manufacturing requirement' properties and XCAF has no thread or knurl, so its census holds no source and its drawing silently lacks it. The port's reading holds it (haecceity reads it) and reports it pmi_not_extracted as an error because src/pmi.rs projects only the requirement-property form to a record: true, and the honest outcome. Neither draws it; projecting haecceity's thread and knurl features to records (so they can be drawn as the requirement records are) is a gap recorded in docs/next-session.md."
  },
  {
   "code": "pmi_not_lowered",
@@ -871,15 +826,6 @@
   "source": "datum:0:1:4:31",
   "verdict": "rust-correct",
   "evidence": "draftwright keeps an XCAF occurrence of datum B (face #980, the pin (part 1)) that it could not project onto the datum's Part 21 definition (Part21 has 2 datum definitions for letter 'B': the plate's and the pin's), beside its record for the datum; the port reads one record per datum from Part 21: datum:#1481 is paired with draftwright's definition record for it. draftwright lowers this repeat to nothing (raw), so neither side draws it twice. The same cause as assembly_plate_pin.step's datum:0:1:4:31 (rust-correct), whose datums specify-core wrote the same way. draftwright: \"Part21 has 2 datum definitions for letter 'B'\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_assembly_plate_pin_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#1360",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#1360 (ø6.6) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (assembly_plate_pin.step, which states its limits, drawn by the port). draftwright draws the plain size (no finding). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#1360 (ø6.6) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
  },
  {
   "code": "pmi_not_lowered",
@@ -1153,24 +1099,6 @@
   "file": "hw_spool_fits_intent.step",
   "python": null,
   "rust": "error",
-  "source": "dimension:#6386",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6386 (ø62) as the class H7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6333 'ø62 +0.03/0', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6386 (ø62) is not drawn: the ISO 286 class H7 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6392",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6392 (ø10) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6360 'ø10 +0.09/0', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6392 (ø10) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#6398",
   "verdict": "undetermined",
   "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6398 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6370 'ø130 -0.014/-0.039', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6398 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
@@ -1192,24 +1120,6 @@
   "source": "dimension:#6410",
   "verdict": "undetermined",
   "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6410 (ø70) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6390 'ø70 -0.03/-0.06', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6410 (ø70) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6386",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6386 (ø62) as the class H7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6333 'ø62 +0.03/0', drawn by the port). draftwright draws the plain size (no finding). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6386 (ø62) is not drawn: the ISO 286 class H7 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6392",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6392 (ø10) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6360 'ø10 +0.09/0', drawn by the port). draftwright draws the plain size (no finding). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6392 (ø10) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
  },
  {
   "code": "pmi_not_lowered",
@@ -1241,24 +1151,6 @@
  {
   "code": "pmi_not_extracted",
   "file": "hw_string_post_tapped_intent.step",
-  "python": null,
-  "rust": "info",
-  "source": "attribute_set:0:0",
-  "verdict": "rust-correct",
-  "evidence": "The 'thread manufacturing' attribute set haecceity's writer puts on the thread's feature (GENERAL_PROPERTY 'thread manufacturing', user defined attribute; its lengths are the thread's drill and depth data). draftwright's census does not hold it; the port reports it as info, not projected (as it reports other attribute sets, e.g. string_post_tapped.step's finding:#3221, rust-correct). It belongs to the thread the port also reports unprojected (thread:0:0); it would be consumed with that thread when haecceity's thread features are projected (docs/next-session.md)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_string_post_tapped_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#3116",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#3116 (ø1.7) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (string_post_tapped.step, which states its limits, drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#3116 (ø1.7) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_string_post_tapped_intent.step",
   "python": {
    "id": "dimension:0:1:4:3",
    "severity": "error"
@@ -1267,24 +1159,6 @@
   "source": "dimension:#3122",
   "verdict": "equivalent",
   "evidence": "The same statement and cause as string_post_tapped.step's dimension:#3115 (specify-core's): Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness'. draftwright: \"linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_string_post_tapped_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "thread:0:0",
-  "verdict": "rust-correct",
-  "evidence": "An internal thread (the tapped hole) haecceity's writer states as an AP242 THREAD feature (#3143; with its 'thread manufacturing' attribute set where the file has one), the form specify-core-rust writes. draftwright never sees it: its Part 21 pass reads specify-core's 'manufacturing requirement' properties and XCAF has no thread or knurl, so its census holds no source and its drawing silently lacks it. The port's reading holds it (haecceity reads it) and reports it pmi_not_extracted as an error because src/pmi.rs projects only the requirement-property form to a record: true, and the honest outcome. Neither draws it; projecting haecceity's thread and knurl features to records (so they can be drawn as the requirement records are) is a gap recorded in docs/next-session.md."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_string_post_tapped_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#3116",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#3116 (ø1.7) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (string_post_tapped.step, which states its limits, drawn by the port). draftwright draws the plain size (no finding). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#3116 (ø1.7) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
  },
  {
   "code": "pmi_not_lowered",
@@ -1357,15 +1231,6 @@
   "file": "hw_thumbwheel_thread_knurl_intent.step",
   "python": null,
   "rust": "info",
-  "source": "attribute_set:0:0",
-  "verdict": "rust-correct",
-  "evidence": "The 'thread manufacturing' attribute set haecceity's writer puts on the thread's feature (GENERAL_PROPERTY 'thread manufacturing', user defined attribute; its lengths are the thread's drill and depth data). draftwright's census does not hold it; the port reports it as info, not projected (as it reports other attribute sets, e.g. string_post_tapped.step's finding:#3221, rust-correct). It belongs to the thread the port also reports unprojected (thread:0:0); it would be consumed with that thread when haecceity's thread features are projected (docs/next-session.md)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "python": null,
-  "rust": "info",
   "source": "attribute_set:0:1",
   "verdict": "rust-correct",
   "evidence": "The 'thread manufacturing' attribute set haecceity's writer puts on the thread's feature (GENERAL_PROPERTY 'thread manufacturing', user defined attribute; its lengths are the thread's drill and depth data). draftwright's census does not hold it; the port reports it as info, not projected (as it reports other attribute sets, e.g. string_post_tapped.step's finding:#3221, rust-correct). It belongs to the thread the port also reports unprojected (thread:0:1); it would be consumed with that thread when haecceity's thread features are projected (docs/next-session.md)."
@@ -1378,15 +1243,6 @@
   "source": "dimension:#685",
   "verdict": "undetermined",
   "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#685 (ø10) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (thumbwheel_thread_knurl.step dimension:#651 'ø10 -0.013/-0.028', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#685 (ø10) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "thread:0:0",
-  "verdict": "rust-correct",
-  "evidence": "A thread haecceity's writer states as an AP242 THREAD feature (#704; with its 'thread manufacturing' attribute set where the file has one), the form specify-core-rust writes. draftwright never sees it: its Part 21 pass reads specify-core's 'manufacturing requirement' properties and XCAF has no thread or knurl, so its census holds no source and its drawing silently lacks it. The port's reading holds it (haecceity reads it) and reports it pmi_not_extracted as an error because src/pmi.rs projects only the requirement-property form to a record: true, and the honest outcome. Neither draws it; projecting haecceity's thread and knurl features to records (so they can be drawn as the requirement records are) is a gap recorded in docs/next-session.md."
  },
  {
   "code": "pmi_not_extracted",
@@ -13078,5 +12934,41 @@
   "source": "finding:#825",
   "verdict": "rust-correct",
   "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "hw_assembly_plate_pin_intent.step",
+  "python": null,
+  "rust": "error",
+  "source": "manufacturing_requirement:#1444",
+  "verdict": "rust-correct",
+  "evidence": "S5 reads semantic metric thread #1444 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "hw_assembly_plate_pin_intent.step",
+  "python": null,
+  "rust": "error",
+  "source": "manufacturing_requirement:#1543",
+  "verdict": "rust-correct",
+  "evidence": "S5 reads semantic metric thread #1543 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "hw_string_post_tapped_intent.step",
+  "python": null,
+  "rust": "error",
+  "source": "manufacturing_requirement:#3143",
+  "verdict": "rust-correct",
+  "evidence": "S5 reads semantic metric thread #3143 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "hw_thumbwheel_thread_knurl_intent.step",
+  "python": null,
+  "rust": "error",
+  "source": "manufacturing_requirement:#704",
+  "verdict": "rust-correct",
+  "evidence": "S5 reads semantic metric thread #704 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
  }
 ]

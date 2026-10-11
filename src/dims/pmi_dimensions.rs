@@ -25,8 +25,9 @@
 //!   different requirements (draftwright splits it; the port splits count groups, grids and
 //!   lines), a counted turned diameter a record names only one of (`pmi_dimensions_not_ported`).
 //!
-//! Two open questions for the maintainer stay refused, as the reading refuses them: a dimension
-//! on supplemental (invisible) geometry, and an ISO 286 class stated without its limits.
+//! Dimensions on supplemental (invisible) geometry stay refused. A stated ISO 286 class
+//! without limits is printed symbolically only on a uniquely matched recognised bore owner;
+//! no unstated limits are computed.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -61,17 +62,18 @@ struct Req {
     upper: f64,
     lower: f64,
     limits: Option<(f64, f64)>,
+    fit: Option<([u8; 2], u8)>,
 }
 
 /// A requirement as a comparable key (its numbers' bits).
-type Key = (u64, u64, u64, u64);
+type Key = (u64, u64, u64, u64, Option<([u8; 2], u8)>);
 
 impl Req {
     fn key(&self) -> Key {
         let (lo, hi) = self
             .limits
             .map_or((u64::MAX, u64::MAX), |(l, h)| (l.to_bits(), h.to_bits()));
-        (self.upper.to_bits(), self.lower.to_bits(), lo, hi)
+        (self.upper.to_bits(), self.lower.to_bits(), lo, hi, self.fit)
     }
 
     /// Puts it on *w*'s label: a symmetric band as `±T`, an asymmetric limit pair as the limits
@@ -80,11 +82,23 @@ impl Req {
     fn print(&self, w: &mut Want) -> Option<Note> {
         let before = w.terms.clone();
         let symmetric = self.upper > 0.0 && self.upper == -self.lower;
-        let (ok, band) = match self.limits {
-            Some((lo, hi)) if !symmetric => (tolerance::limits(w, lo, hi), format!("{lo} - {hi}")),
-            _ => {
-                let text = tolerance::band(self.upper, self.lower);
-                (tolerance::insert(w, &text), text)
+        let (ok, band) = if let Some((letters, grade)) = self.fit {
+            let text = format!(
+                "{}{grade}",
+                std::str::from_utf8(&letters)
+                    .unwrap()
+                    .trim_end_matches('\0')
+            );
+            (tolerance::insert(w, &text), text)
+        } else {
+            match self.limits {
+                Some((lo, hi)) if !symmetric => {
+                    (tolerance::limits(w, lo, hi), format!("{lo} - {hi}"))
+                }
+                _ => {
+                    let text = tolerance::band(self.upper, self.lower);
+                    (tolerance::insert(w, &text), text)
+                }
             }
         };
         ok.then_some(Note {
@@ -152,14 +166,49 @@ fn requirement(r: &Record, value: f64) -> Option<Req> {
             upper: decimal_sub(hi, value),
             lower: decimal_sub(lo, value),
             limits: Some((lo, hi)),
+            fit: None,
         }),
         (_, _, lo, hi) if lo.is_some() || hi.is_some() => Some(Req {
             upper: hi.unwrap_or(0.0),
             lower: lo.unwrap_or(0.0),
             limits: None,
+            fit: None,
         }),
-        _ => None,
+        _ => symbolic_fit(r).map(|fit| Req {
+            upper: 0.0,
+            lower: 0.0,
+            limits: None,
+            fit: Some(fit),
+        }),
     }
+}
+
+// Preserve a stated ISO class as a symbol, without computing unstated limits.
+fn symbolic_fit(r: &Record) -> Option<([u8; 2], u8)> {
+    let code = r.fit.as_deref()?;
+    let (letters, grade) = tolerance::fit(code).ok()?;
+    let mut chars = [0; 2];
+    if letters.len() > chars.len() || !letters.bytes().all(|b| b.is_ascii_uppercase()) {
+        return None;
+    }
+    chars[..letters.len()].copy_from_slice(letters.as_bytes());
+    Some((chars, grade as u8))
+}
+
+pub(super) fn symbolic_bore(r: &Record) -> bool {
+    r.kind == "diameter"
+        && r.lower_tol.is_none()
+        && r.upper_tol.is_none()
+        && r.lower_bound.is_none()
+        && r.upper_bound.is_none()
+        && symbolic_fit(r).is_some()
+        && r.geometry.as_ref().is_some_and(|g| {
+            g.reasons.is_empty()
+                && !g.cylinders.is_empty()
+                && g.cylinders
+                    .iter()
+                    .all(|c| c.internal && c.principal().is_some())
+        })
 }
 
 /// *a* − *b* in decimal, as Python's `Decimal(str(a)) - Decimal(str(b))`: each from its
@@ -668,6 +717,7 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
 /// One record's outcome against the planners' items (and the part's turning, when it is turned
 /// whole).
 fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
+    let symbolic = symbolic_bore(r);
     if !r.blockers.is_empty() {
         return Outcome::Refused(not_lowered(r.blockers.join("; ")));
     }
@@ -753,6 +803,11 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
                 if band.is_some() || canonical(r, value) {
                     return Outcome::Hole(i, members, band);
                 }
+            }
+            if symbolic {
+                return Outcome::Refused(not_lowered(
+                    "a symbolic fit requires a uniquely matched recognised bore callout",
+                ));
             }
             if !r.basic && !internal {
                 match external_owner(wants, &g.cylinders, value, turned) {
@@ -1155,6 +1210,7 @@ mod tests {
             upper: decimal_sub(hi, 35.0),
             lower: decimal_sub(lo, 35.0),
             limits: Some((lo, hi)),
+            fit: None,
         };
         let mut w = callout();
         assert_eq!(limits(34.8, 35.2).print(&mut w).unwrap().band, "±0.2");
@@ -1168,6 +1224,7 @@ mod tests {
             upper: -0.009,
             lower: -0.025,
             limits: None,
+            fit: None,
         };
         shaft.print(&mut w).unwrap();
         assert_eq!(w.terms, ["2×", "⌀35", "-0.009 -0.025", "THRU"]);

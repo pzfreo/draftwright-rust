@@ -45,24 +45,6 @@
  },
  {
   "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:3",
-  "port": "dimension:#1360",
-  "field": "outcome",
-  "python": {
-   "detail": "6× ⌀6.6 THRU (2×3)",
-   "outcome": "absorbed"
-  },
-  "rust": {
-   "detail": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#1360 (ø6.6) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (assembly_plate_pin.step, which states its limits, drawn by the port). draftwright states the plain size ('6× ⌀6.6 THRU (2×3)', absorbed by a recognised feature's callout) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#1360 (ø6.6) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
   "record": "dimension:0:1:4:14",
   "port": "dimension:#1416",
   "field": "outcome",
@@ -94,42 +76,6 @@
   },
   "verdict": "undetermined",
   "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#1524 (ø6) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (assembly_plate_pin.step dimension:#1436, which states its limits, drawn by the port). draftwright states the plain size ('⌀6', drawn standalone) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#1524 (ø6) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\". The pin is also placed twice in the assembly (the second open question, as assembly_plate_pin.step's dimension:#1436)."
- },
- {
-  "file": "hw_spool_fits_intent.step",
-  "record": "dimension:0:1:4:1",
-  "port": "dimension:#6386",
-  "field": "outcome",
-  "python": {
-   "detail": "⌀62",
-   "outcome": "standalone"
-  },
-  "rust": {
-   "detail": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6386 (ø62) as the class H7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6333 'ø62 +0.03/0', drawn by the port). draftwright states the plain size ('⌀62', drawn standalone) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6386 (ø62) is not drawn: the ISO 286 class H7 is stated without limits; they are not computed\"."
- },
- {
-  "file": "hw_spool_fits_intent.step",
-  "record": "dimension:0:1:4:2",
-  "port": "dimension:#6392",
-  "field": "outcome",
-  "python": {
-   "detail": "6× ⌀10 THRU EQ SP ON ⌀90 BC",
-   "outcome": "absorbed"
-  },
-  "rust": {
-   "detail": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6392 (ø10) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6360 'ø10 +0.09/0', drawn by the port). draftwright states the plain size ('6× ⌀10 THRU EQ SP ON ⌀90 BC', absorbed by a recognised feature's callout) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6392 (ø10) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -184,24 +130,6 @@
   },
   "verdict": "undetermined",
   "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6410 (ø70) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6390 'ø70 -0.03/-0.06', drawn by the port). draftwright states the plain size ('⌀70 OD', absorbed by a recognised feature's callout) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6410 (ø70) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
- },
- {
-  "file": "hw_string_post_tapped_intent.step",
-  "record": "dimension:0:1:4:2",
-  "port": "dimension:#3116",
-  "field": "outcome",
-  "python": {
-   "detail": "⌀1.7 ↧ 5.4",
-   "outcome": "absorbed"
-  },
-  "rust": {
-   "detail": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#3116 (ø1.7) as the class H11 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (string_post_tapped.step, which states its limits, drawn by the port). draftwright states the plain size ('⌀1.7 ↧ 5.4', absorbed by a recognised feature's callout) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#3116 (ø1.7) is not drawn: the ISO 286 class H11 is stated without limits; they are not computed\"."
  },
  {
   "file": "hw_thumbwheel_notes_add.step",
@@ -1158,5 +1086,51 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+ },
+ {
+  "file": "hw_assembly_plate_pin_intent.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#1360",
+  "field": "label",
+  "python": "6× ⌀6.6 THRU (2×3)",
+  "rust": "6× ⌀6.6 H11 THRU (2×3)",
+  "verdict": "rust-correct",
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed verbatim on that owner, with no unstated limits computed and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:1",
+  "port": "dimension:#6386",
+  "field": "outcome",
+  "python": {
+   "detail": "⌀62",
+   "outcome": "standalone"
+  },
+  "rust": {
+   "detail": "⌀62 H7 THRU ⌴SF ⌀70 ↧ 10",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed verbatim on that owner, with no unstated limits computed and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "dimension:0:1:4:2",
+  "port": "dimension:#6392",
+  "field": "label",
+  "python": "6× ⌀10 THRU EQ SP ON ⌀90 BC",
+  "rust": "6× ⌀10 H11 THRU EQ SP ON ⌀90 BC",
+  "verdict": "rust-correct",
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed verbatim on that owner, with no unstated limits computed and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+ },
+ {
+  "file": "hw_string_post_tapped_intent.step",
+  "record": "dimension:0:1:4:2",
+  "port": "dimension:#3116",
+  "field": "label",
+  "python": "⌀1.7 ↧ 5.4",
+  "rust": "⌀1.7 H11 ↧ 5.4",
+  "verdict": "rust-correct",
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed verbatim on that owner, with no unstated limits computed and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  }
 ]

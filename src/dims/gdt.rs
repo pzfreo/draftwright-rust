@@ -688,6 +688,14 @@ pub(crate) fn plan_anchored(
             }
             if let Some(side) = p.side {
                 item.side = side.name();
+            } else if matches!(item.glyph, Glyph::Datum { .. })
+                && let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi
+                && let Some(record) = report.records.iter().find(|r| r.source_id == item.source)
+                && let Some((_, sides)) = placement_choices(item, record, views)
+                    .into_iter()
+                    .find(|(view, _)| *view == item.view)
+            {
+                item.side = sides[0];
             }
         }
     }
@@ -1192,4 +1200,129 @@ pub fn render(
         runs: (first..text.len()).collect(),
         claims: Vec::new(),
     })
+}
+
+fn placement_choices(
+    item: &Lowered,
+    record: &crate::pmi::Record,
+    views: &[PlannedView],
+) -> Vec<(&'static str, Vec<&'static str>)> {
+    views
+        .iter()
+        .filter_map(|view| {
+            let name = match view.id.as_str() {
+                "v:front" => "front",
+                "v:plan" => "plan",
+                "v:side" => "side",
+                _ => return None,
+            };
+            match &item.glyph {
+                Glyph::ControlFrame { .. } | Glyph::Label { .. } => {
+                    (name == item.view).then(|| (name, vec!["above", "below", "left", "right"]))
+                }
+                Glyph::Datum { surface, .. } if surface == "plane" => {
+                    let normal = record.geometry.as_ref()?.normal?;
+                    let dot: f64 = normal.iter().zip(view.direction).map(|(a, b)| a * b).sum();
+                    if dot.abs() > 1e-6 {
+                        return None;
+                    }
+                    let projected = haecceity::hlr::View::new(view.direction, view.up)?.map(normal);
+                    let side = if projected[0].abs() > 0.9 {
+                        if projected[0] > 0.0 { "right" } else { "left" }
+                    } else if projected[1].abs() > 0.9 {
+                        if projected[1] > 0.0 { "above" } else { "below" }
+                    } else {
+                        return None;
+                    };
+                    Some((name, vec![side]))
+                }
+                Glyph::Datum { .. } => (name == item.view).then(|| (name, vec![item.side])),
+            }
+        })
+        .collect()
+}
+
+/// Authored carriers must prove the attachment before placement.
+pub(crate) fn validate_placements(
+    analysis: &Analysis,
+    spec: &Spec,
+    views: &[PlannedView],
+) -> Result<(), crate::model::Invalid> {
+    if spec.annotations.is_empty() {
+        return Ok(());
+    }
+    let shown = |name: &str| views.iter().any(|v| v.id == format!("v:{name}"));
+    let (items, _) = crate::pmi_lowering::lower(analysis, &shown);
+    let all: Vec<_> = PRINCIPALS
+        .iter()
+        .map(|(name, direction, up)| PlannedView {
+            id: format!("v:{name}"),
+            direction: *direction,
+            up: *up,
+            at: [0.0; 2],
+            scale: 1.0,
+            area: [0.0; 4],
+            default: true,
+            basis: String::new(),
+            state: State::Shown,
+            cut: None,
+        })
+        .collect();
+    let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
+        return Ok(());
+    };
+    for item in items {
+        let Some(entry) = spec.annotations.get(&item.id).filter(|e| !e.omit) else {
+            continue;
+        };
+        let Some(place) = &entry.place else {
+            continue;
+        };
+        let Some(record) = report.records.iter().find(|r| r.source_id == item.source) else {
+            continue;
+        };
+        let choices = placement_choices(&item, record, &all);
+        let view = place.view.as_deref().unwrap_or(item.view);
+        let Some(_) = choices.iter().find(|(name, _)| *name == view) else {
+            return Err(crate::model::Invalid {
+                message: format!(
+                    "{} cannot attach in the {view} view; choose a compatible view.",
+                    record.label
+                ),
+                choices: choices.iter().map(|(name, _)| name.to_string()).collect(),
+            });
+        };
+    }
+    Ok(())
+}
+
+pub fn placement_options(
+    analysis: &Analysis,
+    views: &[PlannedView],
+) -> BTreeMap<String, serde_json::Value> {
+    let (items, _) = crate::pmi_lowering::lower(analysis, &|name| {
+        views.iter().any(|view| view.id == format!("v:{name}"))
+    });
+    let identities = match analysis.pmi.as_ref() {
+        Some(crate::pmi::Reading::Read(report)) => report.identities(),
+        _ => return BTreeMap::new(),
+    };
+    items
+        .into_iter()
+        .filter_map(|item| {
+            let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
+                return None;
+            };
+            let record = report.records.iter().find(|r| r.source_id == item.source)?;
+            let id = identities.id(&record.source_id).ok()?;
+            let choices = placement_choices(&item, record, views)
+                .into_iter()
+                .map(|(view, sides)| serde_json::json!({"view": view, "sides": sides}))
+                .collect::<Vec<_>>();
+            Some((
+                id.to_string(),
+                serde_json::json!({"label": record.label, "views": choices}),
+            ))
+        })
+        .collect()
 }

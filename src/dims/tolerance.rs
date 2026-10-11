@@ -96,7 +96,7 @@ fn tolerance(text: &str) -> Result<(String, bool), String> {
 }
 
 /// An ISO 286 class from draftwright's table: its letters and grade, or why not.
-fn fit(code: &str) -> Result<(&str, u32), String> {
+pub(super) fn fit(code: &str) -> Result<(&str, u32), String> {
     let letters = code.trim_end_matches(|c: char| c.is_ascii_digit());
     let grade = &code[letters.len()..];
     if letters.is_empty() || grade.is_empty() || !letters.chars().all(|c| c.is_ascii_alphabetic()) {
