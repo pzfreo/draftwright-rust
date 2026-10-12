@@ -209,7 +209,9 @@ existing view footprint. It may skip one occupied dimension rung, so the absolut
 limit is two lanes (14 paper mm); a fixed-ink obstruction alone never permits that skip.
 Settlement traverses the inventory once and tests span endpoints, centres and obstacle
 boundaries rather than sampling the whole span. Cleared text/line contacts leave at least
-1 paper mm. Its witness origins and measured value stay fixed. Candidates cannot add
+1 paper mm, and a moved label (or its moved lines) may not come within 1 paper mm of another
+item's stroke or label that was clear by 1 mm before the move. Inside the span comes first;
+with outside arrows, text just past an arrow tail (ARROW + 1 mm) is the fallback. Its witness origins and measured value stay fixed. Candidates cannot add
 label/line contact, share an overlapping measured span on another dimension line,
 cross a settled GD&T leader, or introduce a band overrun. Pins stay fixed;
 an infeasible label keeps its reported collision. `tools/quality.py` counts detached text

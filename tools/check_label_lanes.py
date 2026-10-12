@@ -65,6 +65,22 @@ def cleared_labels(before, after):
     return count
 
 
+def newly_near(before, after):
+    """Moved labels that come within 1 mm of another item's stroke they were clear of."""
+    def near(plan, id_):
+        items = {d['id']: d for d in plan['dimensions'] + plan.get('gdt', []) if d.get('placed')}
+        b = items[id_]['placed']['label_box']
+        pad = [b[0]-1, b[1]-1, b[2]+1, b[3]+1]
+        return {j for j, d in items.items() if j != id_
+                and any(crosses(l, pad) and not crosses(l, b)
+                        for l in d['placed']['lines'] + d['placed']['arrows'])}
+    old = {d['id']: d for d in before['dimensions'] if d.get('placed')}
+    return [(d['id'], sorted(near(after, d['id']) - near(before, d['id'])))
+            for d in after['dimensions'] if d.get('placed') and d['id'] in old
+            and d['placed']['label_box'] != old[d['id']]['placed']['label_box']
+            and near(after, d['id']) - near(before, d['id'])]
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('before', type=Path, nargs='?')
 parser.add_argument('after', type=Path, nargs='?')
@@ -144,6 +160,7 @@ assert plans[0]['gdt'] and plans[0]['gdt'] == plans[1]['gdt'], 'stc09 GD&T chang
 assert plans[0]['sheet'] == plans[1]['sheet'], 'stc09 sheet changed'
 assert plans[0]['views'] == plans[1]['views'], 'stc09 views changed'
 print('stc09 stroke/label contacts cleared with >=1 mm:', cleared_labels(*plans))
+assert not newly_near(*plans), ('stc09 label moved within 1 mm of a new stroke', newly_near(*plans))
 old = {d['id']: d for d in plans[0]['dimensions']}
 promoted = []
 for d in plans[1]['dimensions']:

@@ -4378,3 +4378,39 @@ or GD&T rerouting is proposed. All final evidence is in `target/h3-fix/` and
 the status entry. Release SHA-256:
 `497a6bf043e1791be295208af0ec7751a225aac52d57462302e2cba639a11bbc`.
 No commit or push.
+
+
+## H3 review fix 2 (2026-10-12): clearance from newly approached strokes
+
+The second review found moved labels landing flush against strokes they had never
+touched (STC-09's 63.5 against the perpendicularity frame's leader at 0.04 mm;
+string_post's 5.5 on the hole location's dimension line at 0.02 mm). The 1 mm
+floor had only applied to strokes the label crossed before the move. Now
+`clears_with_margin` also rejects a candidate when another item's stroke or label
+comes within 1 paper mm of the moved label, or the moved dimension's lines come
+within 1 mm of another item's label, unless that stroke was already within 1 mm
+before the move. Regression tests: `tests/label_lanes.rs`
+(`a_moved_label_keeps_clear_of_strokes_it_never_touched`, and the 63.5 check in
+the STC-09 test); both fail at 7a060ae. `tools/check_label_lanes.py` before/after
+mode now also asserts that no STC-09 label moves within 1 mm of a new stroke.
+
+Overturnable unattended choices:
+
+- With outside arrows, the candidates now also include text just past an arrow tail
+  (ARROW + 1 mm, the planner's ordinary outside place), tried only after every
+  inside position. Without it, string_post 5.5 and 10038 6.3 fell back to the old
+  5.7 mm place and the quality table regressed by one off-span label each.
+  Effect: no label now sits at exactly 5.7 mm, so the inclusive and strict
+  text-off-span counts agree: **16** (pre-H3 151 inclusive / 43 strict; the
+  reviewed fix1 had 23 / 16). On STC-09 10.2–49.5 now sit 2 mm nearer their arrows.
+- Inside-span clearance from the dimension's own witness lines stays 0.5 mm.
+  Raising it to 1 mm (the review's minor suggestion for the STC-09 height tower)
+  made 10047, nist_ctc_01 and nist_ctc_04 each one off-span label worse, so it
+  was not kept. The STC-09 tower is still mixed: 44.5–66.7 inside their spans
+  (now >= 1 mm from the shared baseline line, since those lines are another
+  item's strokes), 10.2–41.3 just past their arrows. Readable; not uniform.
+- The reviewer's scan still lists three nist_ctc_03 labels newly within 1 mm of a
+  stroke (⌀38.1 THRU, 19.0 slot width, 2× R9.5). They come from the recovered
+  sheet changing A2 → A3 between pre-H3 and H3, not from label moves: at a fixed
+  A3 1:5 sheet the same scan finds none. Two of them are callouts, which
+  settlement never moves.

@@ -104,6 +104,32 @@ fn clears_with_margin(p: &Placed, c: &Placed, q: &PlannedDimension) -> bool {
     {
         return false;
     }
+    // Paper that was clear before the move stays clear: a stroke of another item that was
+    // not already within CLEAR of the label may not be approached closer than CLEAR now.
+    let (near, was) = (pad(c.label_box), pad(p.label_box));
+    if boxes_overlap(c.label_box, pad(qp.label_box))
+        && !boxes_overlap(p.label_box, pad(qp.label_box))
+    {
+        return false;
+    }
+    if qp
+        .lines
+        .iter()
+        .chain(&qp.arrows)
+        .any(|l| crosses(*l, near) && !crosses(*l, was))
+    {
+        return false;
+    }
+    if c.lines
+        .iter()
+        .chain(&c.arrows)
+        .zip(p.lines.iter().chain(&p.arrows))
+        .any(|(after, before)| {
+            crosses(*after, pad(qp.label_box)) && !crosses(*before, pad(qp.label_box))
+        })
+    {
+        return false;
+    }
     p.lines.iter().zip(&c.lines).all(|(before, after)| {
         !crosses(*before, qp.label_box)
             || crosses(*after, qp.label_box)
@@ -160,7 +186,7 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
     let clear = if outside_arrows { 0.5 } else { ARROW + 0.5 };
     let low = (lo + clear).max(drawable[k]);
     let high = (hi - clear - width).min(drawable[k + 2] - width);
-    let mut positions = Vec::new();
+    let (mut positions, mut tail) = (Vec::new(), Vec::new());
     if low <= high {
         let centre = (0.5 * (lo + hi - width)).clamp(low, high);
         positions.extend([centre, low, high]);
@@ -172,6 +198,10 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
             }
         }
         positions.retain(|at| *at >= low && *at <= high);
+        if outside_arrows {
+            // Text inside the span comes first; failing that, just past an arrow tail.
+            tail.extend([hi + ARROW + 1.0, lo - ARROW - 1.0 - width]);
+        }
     } else {
         let gap = if outside_arrows { ARROW + 1.0 } else { 1.0 };
         positions.extend([hi + gap, lo - gap - width]);
@@ -185,6 +215,7 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
     positions.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
     positions
         .into_iter()
+        .chain(tail)
         .filter(|at| *at >= drawable[k] && at + width <= drawable[k + 2])
         .map(|at| label_at(p, at))
         .collect()

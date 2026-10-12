@@ -19,6 +19,72 @@ fn adjacent(d: &draftwright::dims::PlannedDimension) -> bool {
         || (b[k] >= hi && b[k] - hi < 5.7 - 1e-6)
 }
 
+type Seg = [[f64; 2]; 2];
+
+/// Whether segment *s* passes through the open box *b* (endpoint touches are not crossings).
+fn crosses([p, q]: Seg, b: [f64; 4]) -> bool {
+    let (mut lo, mut hi) = (0.0f64, 1.0f64);
+    for k in 0..2 {
+        let s = q[k] - p[k];
+        if s.abs() < 1e-12 {
+            if !(b[k] < p[k] && p[k] < b[k + 2]) {
+                return false;
+            }
+        } else {
+            let (a, z) = ((b[k] - p[k]) / s, (b[k + 2] - p[k]) / s);
+            lo = lo.max(a.min(z));
+            hi = hi.min(a.max(z));
+        }
+    }
+    hi - lo > 1e-9
+}
+
+/// Ids of other items (dimensions and GD&T leaders) with a stroke within 1 paper mm of
+/// *id*'s label.
+fn strokes_near(p: &model::Plan, id: &str) -> Vec<String> {
+    let mut items: Vec<(&str, Vec<Seg>)> = p
+        .dimensions
+        .iter()
+        .filter(|d| d.id != id)
+        .filter_map(|d| {
+            let q = d.placed.as_ref()?;
+            Some((
+                d.id.as_str(),
+                q.lines.iter().chain(&q.arrows).copied().collect(),
+            ))
+        })
+        .collect();
+    items.extend(p.gdt.iter().filter_map(|g| {
+        let q = g.placed.as_ref()?;
+        Some((
+            g.id.as_str(),
+            q.lines.iter().chain(&q.arrows).copied().collect(),
+        ))
+    }));
+    let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
+    let b = d.placed.as_ref().unwrap().label_box;
+    let pad = [b[0] - 1.0, b[1] - 1.0, b[2] + 1.0, b[3] + 1.0];
+    items
+        .into_iter()
+        .filter(|(_, strokes)| strokes.iter().any(|l| crosses(*l, pad)))
+        .map(|(i, _)| i.to_string())
+        .collect()
+}
+
+#[test]
+fn a_moved_label_keeps_clear_of_strokes_it_never_touched() {
+    // string_post's 5.5 stood clear above its span; moving it inside put it on the hole
+    // location's dimension line (gap 0.02 mm). Newly approached strokes need 1 mm too.
+    let Some(p) = plan("gramel/string_post.step") else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    assert_eq!(
+        strokes_near(&p, "d:f:turned_step:1/step.length"),
+        Vec::<String>::new()
+    );
+}
+
 #[test]
 fn short_native_dimensions_keep_their_text_on_their_span() {
     for (name, labels) in [
@@ -85,4 +151,11 @@ fn stc09_slot_length_stays_beside_its_peer_and_gdt_corridors() {
         "the size must not gain witnesses running across the location tower"
     );
     assert_eq!(p.gdt.len(), 28);
+    // The 63.5 location sat clear outside its arrow; a move may not butt its text against
+    // the perpendicularity frame's leader (x = 154.40 against a box from 154.44).
+    assert_eq!(
+        strokes_near(&p, "d:f:hole:23/location.length.x"),
+        Vec::<String>::new(),
+        "a moved label must keep 1 mm from a GD&T leader it never touched"
+    );
 }
