@@ -286,43 +286,37 @@ reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.
 - **Automatic sheet and scale are chosen on finished drawings** (maintainer, 2026-10-12,
-  H6; `model::plan_recovered` / `model::recover`). Find the smallest standard sheet with
-  a valid, complete drawing at a legible standard scale, and its largest such scale.
-  Only that sheet and its immediate larger neighbour may compete; the neighbour requires
-  a larger scale. Among candidates in `sheet_fit::FILL_BAND` (initially 60–85%), prefer
-  the larger scale, then smaller sheet. If none reaches the band, choose the fullest valid
-  drawing, breaking ties by scale and sheet. Hard layout findings, dropped items, lost
-  supported measurements and extra conflicts over other views veto a candidate.
-  Explicit sheet/scale choices override this rule; a named sheet alone still chooses its
-  scale by fill. Pins preserve their canonical sheet and frames. Nothing is clipped.
+  H6; `model::plan_recovered` / `model::recover`, policy in `sheet_fit::choose`). Each
+  standard sheet and scale at or above the legibility floor is planned and judged. A
+  candidate is valid and complete when it has no hard layout finding, its drawn items and
+  views fit inside the border and off the title block, it drops or loses no measurement
+  the first plan carried, every GD&T item is drawn, and it lays no more annotations over
+  another view than the first plan. The smallest fit is the smallest sheet with a valid
+  complete candidate, at its largest such scale. Only that pair and the next larger sheet
+  at a larger scale compete. Against a valid first plan, an allowed pair that adds material
+  crossings (a leader or witness through a feature) is set aside; this never changes which
+  pair is the smallest fit, and if every allowed pair adds them the valid first plan is
+  kept. Among the rest, in
+  `sheet_fit::FILL_BAND` (initially 60–85%) the larger scale wins, then the smaller sheet;
+  if none reaches the band, the fullest wins. A Spec-named sheet keeps its sheet and
+  chooses its scale by the same ranking; a named scale or pinned placement is not
+  re-planned. On the larger neighbour the orientation view keeps the smallest fit's
+  paper scale, so the extra paper goes to the dimensioned views.
   `sheet.fill` is the union of each drawn item's bounding footprint (view envelopes,
-  dimensions including witnesses, leaders and arrows, GD&T, notes, tables and balloons),
-  with 1 mm clearance, clipped inside the border and excluding the drawn title grid (its 8 mm furniture reservation is usable paper). Unused
-  reservation bands never contribute. `sheet.basis` reports every measured candidate's
-  fill and findings; impossible principal envelopes are rejected before placement.
-  Search is bounded by five sheets and the standard scales at or above a geometric
-  legibility floor (`sheet_fit::min_legible_scale`): visible hole/slot openings of
-  at least 0.8 mm, longest extent at least 20 mm, and no reduction below 1:10. On finding the smallest fit, search stops
-  after its neighbour. A GD&T layout may also be composed from settled view blocks at
-  the same scale on a roomy A0 template (at most one template per scale). Each block
-  includes the actual annotations and frames; their witnesses, leaders, text and feature
-  attachments move together, with projection alignment preserved. Page-anchored blocks,
-  sections, pins and authored view relations retain their existing planner. An alternative
-  must improve validity/crossings before it competes by fill. A candidate adding material
-  crossings is vetoed only against an already valid seed: a complete valid candidate
-  beats an invalid seed regardless of this secondary count. Additional conflicts over
-  other views remain vetoed. The largest valid scale on the smallest sheet defines
-  its competing pair; avoidable annotation conflicts are compared before fill. If none is valid and complete, the initial drawing and findings stay,
-  with `layout_recovery_exhausted` (info); the residual problems still require attention.
-  An initial scale below the automatic floor is instead redrawn at the floor on A0 (or
-  the named sheet), retaining overflow findings rather than silently using illegible ink.
-  One measured correction may lift an unpinned projection row together and refit its
-  orientation view, preserving all dimension geometry relative to its carrier. It only
-  applies to a failed estimate with no page-anchored annotation blocks. An estimate warning
-  is discharged only after actual footprints and view areas prove the drawing fits.
+  dimensions with witnesses, leaders and arrows, GD&T, notes, tables, balloons and the
+  scale/projection/section furniture), with 1 mm clearance, inside the border and
+  excluding the drawn title grid. Reserved bands never count. `sheet.basis` lists every
+  measured candidate's fill and findings. The legibility floor
+  (`sheet_fit::min_legible_scale`) keeps the smallest hole or slot opening at least
+  0.8 mm and the longest extent at least 20 mm on paper, and never goes below 1:10. If
+  no candidate is valid and complete, the first drawing and its findings are kept on
+  its own sheet, with `layout_recovery_exhausted`: a warning when that drawing is below
+  the legibility floor, otherwise info. Only a first drawing below 1:10 is redrawn at
+  1:10 on its sheet. A GD&T layout may also be composed from settled view blocks of a
+  same-scale A0 template, moving witnesses, leaders and frames with their view; one
+  measured correction may lift a free projection row and refit its orientation view.
   Every title-block collision lifts the row, even when the resulting overflow must be
-  reported. GD&T collision retries reserve beyond all dimension lanes, using the frame's
-  actual width and height rather than a uniform frame-count allowance.
+  reported. Nothing is clipped.
 - **A hole item with no place on the sheet is dropped and escalated** (the maintainer's decision
   of 2026-10-09, draftwright's `_prepare_hole_table_run`; `src/hole_table.rs`, applied to every
   plan the recovery judges by `model::plan_escalated`). A hole callout or hole location that

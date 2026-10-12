@@ -83,6 +83,8 @@ fn invalid_high_fill_never_beats_a_valid_complete_sheet() {
 
 #[path = "common/corpus.rs"]
 mod corpus;
+#[path = "common/sheet_rule.rs"]
+mod sheet_rule;
 
 #[test]
 fn grm03_enlarges_into_the_fill_band_without_losing_measurements() {
@@ -101,6 +103,7 @@ fn grm03_enlarges_into_the_fill_band_without_losing_measurements() {
         ("A3", "10:1")
     );
     assert!((0.60..=0.85).contains(&fill), "{fill}");
+    sheet_rule::assert_rule("grm03", &p);
     assert!(!p.problems.iter().any(|p| matches!(
         p.code.as_str(),
         "annotation_off_sheet"
@@ -130,12 +133,25 @@ fn manufacturing_plate() -> Analysis {
     model::analyse_native(&path).unwrap().1
 }
 
+/// The supplied plate: its smallest fit is A3 at 1:1 (no A4 candidate is valid: at 1:1 the
+/// stacked views and their annotations need more height above the title block than A4 has).
+/// The rule allows A3 1:1 and A2 2:1; on A2 the orientation view keeps A3's paper scale, so the
+/// extra paper only enlarges the dimensioned views and A3 1:1 is the fuller. Before H6 it was
+/// A2 at 1:1, a fifth of the sheet.
 #[test]
 fn specify_plate_pmi_fits_a3_at_full_size_with_every_frame_clear() {
     let a = manufacturing_plate();
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert!(matches!(p.sheet.size.as_str(), "A4" | "A3"));
-    assert!(p.sheet.scale_factor >= 1.0);
+    assert!(
+        p.sheet.basis.starts_with("smallest fit A3 at 1:1;"),
+        "{}",
+        p.sheet.basis
+    );
+    sheet_rule::assert_rule("manufacturing-pmi", &p);
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A3", "1:1")
+    );
     assert_eq!(p.gdt.len(), 6);
     assert!(p.gdt.iter().all(|g| g.placed.is_some()));
     assert!(!p.problems.iter().any(|p| matches!(

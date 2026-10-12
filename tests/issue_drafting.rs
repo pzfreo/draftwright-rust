@@ -8,6 +8,8 @@
 mod corpus;
 #[path = "common/facts.rs"]
 mod facts;
+#[path = "common/sheet_rule.rs"]
+mod sheet_rule;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
@@ -1711,8 +1713,11 @@ fn a_label_over_the_isometric_is_reported() {
     )
     .unwrap();
     assert!(codes(&crowded).contains("annotation_off_sheet"));
-    // The title-block lift now clears this historical overlap. Make a fixed, impossible
-    // orientation view so the reporting guard still exercises an actual label overlap.
+    // Since H6 lifts every view clear of the title block, this case no longer crowds a label
+    // onto the isometric, and no natural case is left: the five fixtures on A4 and A3 at 10:1 to
+    // 1:1, and on A3 and A2 with the isometric pinned at zero gap beside each view, place none
+    // (probed 2026-10-12). So the placement runs again, for real, around an isometric enlarged
+    // to cover the plan's bands, which keeps the reporting check exercised on placed labels.
     crowded
         .views
         .iter_mut()
@@ -2054,26 +2059,26 @@ fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
         .collect()
 }
 
-/// H6 replaces the old recovery order: smallest complete fit, with at most one paper step
-/// and only with an enlargement. Every measurement carried before selection survives it.
+/// H6 replaces the old recovery order (ISSUE-1338-a's same-page-first ladder) with the
+/// maintainer's rule of 2026-10-12, checked by an independent oracle over the candidates each
+/// basis records (`common/sheet_rule.rs`): smallest complete fit, at most one paper step and only
+/// with an enlargement, then fill. Every hole and turned-shoulder outcome the first plan placed
+/// survives the choice. A plan with no valid complete candidate keeps its first sheet and scale.
 #[test]
 fn sheet_selection_is_bounded_and_keeps_every_outcome() {
     for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
         let kept = hole_and_shoulder_outcomes(after);
-        assert!(hole_and_shoulder_outcomes(first).is_subset(&kept), "{name}");
-        if let Some(rest) = after.sheet.basis.strip_prefix("smallest fit ") {
-            let words: Vec<_> = rest.split_whitespace().collect();
-            let smallest = words[0];
-            let largest_scale = words[2].trim_end_matches(';');
-            let index = |n: &str| layout_index(n);
-            assert!(index(&after.sheet.size) <= index(smallest) + 1, "{name}");
-            if index(&after.sheet.size) > index(smallest) {
-                let scale = |n: &str| {
-                    let (a, b) = n.split_once(':').unwrap();
-                    a.parse::<f64>().unwrap() / b.parse::<f64>().unwrap()
-                };
-                assert!(after.sheet.scale_factor > scale(largest_scale), "{name}");
-            }
+        assert!(
+            hole_and_shoulder_outcomes(first).is_subset(&kept),
+            "{name}: {:?}",
+            hole_and_shoulder_outcomes(first).difference(&kept)
+        );
+        if after.sheet.basis.starts_with("smallest fit ") {
+            sheet_rule::assert_follows(
+                name,
+                after,
+                (first.sheet.size.as_str(), first.sheet.scale.as_str()),
+            );
         } else {
             assert!(codes(after).contains("layout_recovery_exhausted"), "{name}");
             assert_eq!(
@@ -2083,13 +2088,6 @@ fn sheet_selection_is_bounded_and_keeps_every_outcome() {
             );
         }
     }
-}
-
-fn layout_index(name: &str) -> usize {
-    draftwright::layout::PAGES
-        .iter()
-        .position(|p| p.0 == name)
-        .unwrap()
 }
 
 /// Selection is honest: either a valid complete candidate is justified by measured fill,

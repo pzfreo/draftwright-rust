@@ -913,6 +913,11 @@ fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
         && p.views
             .iter()
             .all(|v| inside(v.area) && !rect_overlap(v.area, p.sheet.title_block))
+        && p.views.iter().enumerate().all(|(i, a)| {
+            p.views[i + 1..]
+                .iter()
+                .all(|b| !rect_overlap(a.area, b.area))
+        })
 }
 
 fn undrawn_gdt(p: &Plan) -> usize {
@@ -975,6 +980,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     let mut tried = Vec::new();
     let mut candidates = Vec::new();
     let mut smallest = None;
+    let mut smallest_iso: Option<f64> = None;
     let mut recipes = BTreeMap::new();
     for (i, (name, _, _)) in layout::PAGES.iter().enumerate() {
         if spec.sheet.size.as_ref().is_some_and(|n| n != name) {
@@ -1043,16 +1049,6 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     }
                 }
             }
-            // Enlargement is for the dimensioned views. Keep the orientation view's paper
-            // scale when it fits, rather than spending the extra sheet on decorative growth.
-            if !spec.views.contains_key("iso")
-                && let Some(seed) = first.views.iter().find(|v| v.id == "v:iso")
-                && let Some(iso) = p.views.iter_mut().find(|v| v.id == "v:iso")
-                && iso.scale > seed.scale
-            {
-                iso.scale = seed.scale;
-                iso.basis += "; orientation scale retained while dimensioned views enlarge";
-            }
             if !p.gdt.is_empty() {
                 let recipe = recipes.entry(scale.to_bits()).or_insert_with(|| {
                     let mut roomy = spec.clone();
@@ -1082,6 +1078,26 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     p = packed;
                 }
             }
+            // Enlargement is for the dimensioned views. On the smallest fit's larger neighbour
+            // the orientation view keeps the smallest fit's paper scale, rather than spending the
+            // extra sheet on decorative growth.
+            if !spec.views.contains_key("iso")
+                && let Some((fit, Some(cap))) = smallest.map(|(j, _)| (j, smallest_iso))
+                && i > fit
+                && let Some(iso) = p.views.iter_mut().find(|v| v.id == "v:iso")
+                && iso.scale > cap
+            {
+                // Shrink about the drawn box's centre, so it stays inside its old footprint.
+                let b = analysis.iso_bounds;
+                let centre = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
+                iso.at = [
+                    iso.at[0] + (iso.scale - cap) * centre[0],
+                    iso.at[1] + (iso.scale - cap) * centre[1],
+                ];
+                iso.scale = cap;
+                iso.basis +=
+                    "; the smallest fit's orientation scale kept while dimensioned views enlarge";
+            }
             crate::sheet_fit::correct_estimate(analysis, &mut p);
             // An estimate's iso budget can refuse a sheet whose finished drawing fits.
             // Only discharge that estimate when all actual item bounds and reserved views fit.
@@ -1105,59 +1121,104 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 ink_findings(&p),
                 p.sheet.arrangement
             ));
-            if !crate::sheet_fit::admitted(f.clean(), over, crossings, seed_clean) {
+            // Valid and complete: no hard finding, nothing dropped or undrawn, and no more
+            // annotations over another view than the seed (the port's own gate).
+            if !f.clean() || over > 0 {
                 continue;
             }
             if smallest.is_none() {
                 smallest = Some((i, scale));
+                smallest_iso = p.views.iter().find(|v| v.id == "v:iso").map(|v| v.scale);
             }
-            candidates.push(p);
+            candidates.push((
+                crate::sheet_fit::Candidate {
+                    sheet: i,
+                    scale,
+                    width: p.sheet.page[0],
+                    fill: p.sheet.fill,
+                    extra_crossings: crossings,
+                },
+                p,
+            ));
         }
     }
-    if spec.sheet.size.is_none()
-        && let Some((i, s)) = smallest
-    {
-        candidates.retain(|p| p.sheet.size != layout::PAGES[i].0 || p.sheet.scale_factor == s);
-    }
-    // Among complete fits, do not buy fill with avoidable annotation conflicts.
-    let least_ink = candidates.iter().map(ink_findings).min();
-    candidates.retain(|p| Some(ink_findings(p)) == least_ink);
-    candidates.sort_by(|a, b| {
-        crate::sheet_fit::rank(
-            (a.sheet.scale_factor, a.sheet.page[0], a.sheet.fill),
-            (b.sheet.scale_factor, b.sheet.page[0], b.sheet.fill),
-        )
-    });
-    let Some(mut chosen) = candidates.into_iter().next() else {
-        if first.sheet.scale_factor < min_legible_scale {
+    let keys: Vec<_> = candidates.iter().map(|(c, _)| *c).collect();
+    let Some((choice, (i, s))) =
+        crate::sheet_fit::choose(&keys, spec.sheet.size.is_some(), seed_clean)
+    else {
+        // No valid complete pair: keep the initial drawing and its findings, on its own paper.
+        // Only a seed below the absolute floor (1:10, the smallest scale the automatic choice
+        // ever offers) is redrawn at that floor; a seed between it and the feature floor is
+        // kept and the shortfall reported, as no legible candidate drew more validly.
+        let floor = crate::sheet_fit::ABSOLUTE_FLOOR;
+        if first.sheet.scale_factor < floor {
             let mut named = spec.clone();
-            named.sheet.size = Some(spec.sheet.size.clone().unwrap_or_else(|| "A0".into()));
-            named.sheet.scale = Some(scale_name(min_legible_scale.min(layout::SCALES[0])));
+            named.sheet.size = Some(first.sheet.size.clone());
+            named.sheet.scale = Some(scale_name(floor));
             first = plan_escalated_with(analysis, &named, true, None)?;
             first.sheet.default = true;
             first.spec = spec.clone();
+            first.sheet.basis = format!(
+                "{} at {}, the smallest automatic scale, as nothing smaller is legible",
+                first.sheet.size, first.sheet.scale
+            ) + first
+                .sheet
+                .basis
+                .rsplit_once("; drawn-item fill ")
+                .map(|(_, f)| format!("; drawn-item fill {f}"))
+                .unwrap_or_default()
+                .as_str();
         }
+        let illegible = first.sheet.scale_factor < min_legible_scale;
         first.sheet.basis += &format!(
-            "; no valid complete smallest fit at or above {}; drawn-item fill {:.1}%; candidates: {}",
+            "; no valid complete smallest fit at or above {}; candidates: {}",
             scale_name(min_legible_scale),
-            first.sheet.fill * 100.0,
             tried.join("; ")
         );
+        let below = if illegible {
+            format!(
+                "; it is below {}, the smallest scale at which its smallest opening stays legible",
+                scale_name(min_legible_scale)
+            )
+        } else {
+            String::new()
+        };
         first.problems.push(Problem {
             id: "p:layout_recovery_exhausted:sheet".into(),
             code: "layout_recovery_exhausted".into(),
-            severity: if first.sheet.scale_factor < min_legible_scale { "warning" } else { "info" }.into(),
-            message: format!("{} at {} has {}; no standard sheet and legible scale yields a valid complete drawing; the initial drawing and its findings are retained. Tried {}.",
-                first.sheet.size, first.sheet.scale, said(findings(&first), drops(&first)), tried.join("; ")),
+            severity: if illegible { "warning" } else { "info" }.into(),
+            message: format!(
+                "{} at {} has {}{below}; no standard sheet and legible scale yields a valid complete drawing, so this drawing and its findings are kept. Tried {}.",
+                first.sheet.size,
+                first.sheet.scale,
+                said(findings(&first), drops(&first)),
+                tried.join("; ")
+            ),
             subjects: vec!["sheet".into()],
             ..Default::default()
         });
         first.status = crate::completeness::status(&first.problems);
         return Ok(first);
     };
-    let (i, s) = smallest.expect("a selected valid candidate has a smallest fit");
+    let estimate = format!(
+        "first estimate {} at {} ({})",
+        first.sheet.size,
+        first.sheet.scale,
+        if seed_clean {
+            "valid and complete"
+        } else {
+            "not valid and complete"
+        }
+    );
+    let (mut chosen, kept) = match choice {
+        Some(index) => (candidates.swap_remove(index).1, ""),
+        None => (
+            first.clone(),
+            "; every allowed pair adds material crossings to the valid first estimate, which is kept",
+        ),
+    };
     chosen.sheet.basis = format!(
-        "smallest fit {} at {}; at most one larger sheet only with enlargement; drawn-item fill {:.1}%, target {:.0}–{:.0}% (validity and completeness first); candidates: {}",
+        "smallest fit {} at {}; at most one larger sheet only with enlargement; drawn-item fill {:.1}%, target {:.0}–{:.0}% (validity and completeness first); {estimate}{kept}; candidates: {}",
         layout::PAGES[i].0,
         scale_name(s),
         chosen.sheet.fill * 100.0,

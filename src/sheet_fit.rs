@@ -9,6 +9,8 @@ pub const FILL_CLEARANCE: f64 = 1.0;
 /// Minimum visible opening across a hole or slot, page mm. Small edge treatments do
 /// not set the whole-sheet scale; their sizes are stated by callouts.
 pub const MIN_OPENING: f64 = 0.8;
+/// The smallest scale the automatic choice offers, whatever the part (1:10).
+pub const ABSOLUTE_FLOOR: f64 = 0.1;
 
 pub fn min_legible_scale(analysis: &Analysis) -> f64 {
     let opening = analysis
@@ -31,7 +33,7 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
         .fold(0.0, f64::max);
     let needed = (MIN_OPENING / opening)
         .max(20.0 / longest.max(1e-12))
-        .max(0.1);
+        .max(ABSOLUTE_FLOOR);
     crate::layout::SCALES
         .into_iter()
         .rev()
@@ -641,14 +643,48 @@ pub(crate) fn rank(a: (f64, f64, f64), b: (f64, f64, f64)) -> std::cmp::Ordering
     })
 }
 
-/// A secondary material count can veto extra defects only against an already valid seed.
-pub(crate) fn admitted(
-    clean: bool,
-    extra_view_conflicts: usize,
-    extra_material_crossings: usize,
+/// A finished valid, complete pair as the sheet choice sees it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Candidate {
+    /// Index into [`crate::layout::PAGES`].
+    pub sheet: usize,
+    pub scale: f64,
+    /// Page width, mm: the paper preference.
+    pub width: f64,
+    pub fill: f64,
+    /// Leaders and witnesses through material beyond the first estimate's.
+    pub extra_crossings: usize,
+}
+
+/// The maintainer's rule (2026-10-12) over valid, complete candidates only. The smallest fit is
+/// the smallest sheet with a valid complete drawing, at its largest such scale; unless the Spec
+/// names the sheet, only that pair and its next larger sheet at a larger scale compete, and
+/// [`rank`] decides between them by fill. Against a valid first estimate (*seed_clean*), a pair
+/// that adds material crossings is set aside (the quality ratchet); it still defines the smallest
+/// fit. Returns the smallest fit, and the chosen index, or `None` when every allowed pair adds
+/// crossings to the valid first estimate, which is then kept. `None` overall: no candidate.
+pub(crate) fn choose(
+    candidates: &[Candidate],
+    named_sheet: bool,
     seed_clean: bool,
-) -> bool {
-    clean && extra_view_conflicts == 0 && (!seed_clean || extra_material_crossings == 0)
+) -> Option<(Option<usize>, (usize, f64))> {
+    let smallest = candidates
+        .iter()
+        .map(|c| (c.sheet, c.scale))
+        .min_by(|a, b| a.0.cmp(&b.0).then(b.1.total_cmp(&a.1)))?;
+    let key = |c: &Candidate| (c.scale, c.width, c.fill);
+    let chosen = candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| {
+            named_sheet
+                || (c.sheet == smallest.0 && c.scale == smallest.1)
+                || (c.sheet == smallest.0 + 1 && allowed(smallest, c.sheet, c.scale))
+        })
+        .filter(|(_, c)| !seed_clean || c.extra_crossings == 0)
+        .min_by(|a, b| rank(key(a.1), key(b.1)))
+        .map(|(i, _)| i);
+    Some((chosen, smallest))
 }
 
 #[cfg(test)]
@@ -656,6 +692,18 @@ mod tests {
     use super::*;
     fn candidate(scale: f64, width: f64, fill: f64) -> (f64, f64, f64) {
         (scale, width, fill)
+    }
+    fn c(sheet: usize, scale: f64, fill: f64) -> Candidate {
+        x(sheet, scale, fill, 0)
+    }
+    fn x(sheet: usize, scale: f64, fill: f64, extra_crossings: usize) -> Candidate {
+        Candidate {
+            sheet,
+            scale,
+            width: crate::layout::PAGES[sheet].1,
+            fill,
+            extra_crossings,
+        }
     }
     #[test]
     fn band_prefers_scale_then_smaller_paper_otherwise_fullest() {
@@ -666,23 +714,61 @@ mod tests {
         assert!(rank(candidate(1.0, 297.0, 0.59), candidate(2.0, 420.0, 0.40)).is_lt());
     }
     #[test]
-    fn validity_beats_fill_and_an_invalid_seeds_material_count() {
-        let invalid_in_band = candidate(5.0, 420.0, 0.75);
-        let valid_underfilled = candidate(1.0, 297.0, 0.20);
-        let mut candidates = [(invalid_in_band, false, 0), (valid_underfilled, true, 3)]
-            .into_iter()
-            .filter(|(_, clean, crossings)| admitted(*clean, 0, *crossings, false))
-            .map(|(p, _, _)| p)
-            .collect::<Vec<_>>();
-        candidates.sort_by(|a, b| rank(*a, *b));
-        assert_eq!(candidates, vec![valid_underfilled]);
-        assert!(!admitted(true, 0, 3, true));
-    }
-    #[test]
     fn neighbour_requires_enlargement_and_two_steps_are_forbidden() {
         assert!(allowed((0, 1.0), 0, 0.5));
         assert!(!allowed((0, 1.0), 1, 1.0));
         assert!(allowed((0, 1.0), 1, 2.0));
         assert!(!allowed((0, 1.0), 2, 5.0));
+    }
+    /// 10060 as measured: A4 1:1 17.0% and A3 2:1 14.9%, both valid and below the band.
+    #[test]
+    fn below_the_band_the_fullest_valid_pair_wins_on_less_paper() {
+        let set = [c(0, 1.0, 0.170), c(1, 2.0, 0.149)];
+        assert_eq!(choose(&set, false, true), Some((Some(0), (0, 1.0))));
+    }
+    #[test]
+    fn only_the_smallest_fits_largest_scale_and_one_enlarged_step_compete() {
+        // A4 1:1 fits. A4 1:2, A3 1:1 and every A2 pair are not allowed, however full.
+        let set = [
+            c(0, 1.0, 0.30),
+            c(0, 0.5, 0.31),
+            c(1, 1.0, 0.70),
+            c(1, 2.0, 0.40),
+            c(2, 5.0, 0.75),
+        ];
+        assert_eq!(choose(&set, false, true), Some((Some(3), (0, 1.0))));
+        // In the band, the larger scale wins, then the smaller sheet.
+        let set = [c(0, 1.0, 0.65), c(1, 2.0, 0.62)];
+        assert_eq!(choose(&set, false, true).unwrap().0, Some(1));
+        let set = [c(0, 2.0, 0.65), c(1, 2.0, 0.70)];
+        assert_eq!(choose(&set, false, true).unwrap().0, Some(0));
+    }
+    /// assembly_plate_pin as measured: a valid A3 1:2 adding two crossings still defines the
+    /// smallest fit, so A1 is never reached; A2 1:1, its allowed enlargement, is chosen.
+    /// spool_fits: every allowed pair adds crossings, so the valid first estimate is kept.
+    #[test]
+    fn a_material_veto_never_moves_the_smallest_fit() {
+        let set = [
+            x(1, 0.5, 0.194, 2),
+            x(2, 1.0, 0.245, 0),
+            x(2, 0.5, 0.096, 1),
+            x(3, 2.0, 0.251, 0),
+        ];
+        assert_eq!(choose(&set, false, true), Some((Some(1), (1, 0.5))));
+        // An invalid first estimate's crossing count vetoes nothing.
+        assert_eq!(choose(&set, false, false), Some((Some(1), (1, 0.5))));
+        let spool = [
+            x(0, 0.2, 0.226, 4),
+            x(1, 0.5, 0.311, 2),
+            x(2, 1.0, 0.475, 0),
+        ];
+        assert_eq!(choose(&spool, false, true), Some((None, (0, 0.2))));
+        assert_eq!(choose(&spool, false, false), Some((Some(1), (0, 0.2))));
+    }
+    #[test]
+    fn a_named_sheet_chooses_its_scale_by_fill() {
+        let set = [c(2, 1.0, 0.30), c(2, 0.5, 0.12)];
+        assert_eq!(choose(&set, true, true).unwrap().0, Some(0));
+        assert_eq!(choose(&[], true, true), None);
     }
 }

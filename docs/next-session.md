@@ -4320,6 +4320,10 @@ mentioned a different editor A4 1:1 capture); measured after is A3 10:1.
 
 ## Stage H6 fix round (2026-10-12)
 
+Superseded where it conflicts by "Stage H6 fix round 2" below: the least-annotation-conflict
+filter is removed, the material veto no longer moves the smallest fit, and STC-09 is no
+longer redrawn at A0 1:2.
+
 Reviewer blockers confirmed: the original crossing veto could keep an invalid seed
 instead of the only complete valid page (CTC-03), and the fixed 1:10 floor did not
 measure legibility. Recovery now admits a clean complete drawing despite extra
@@ -4373,3 +4377,49 @@ replays `plan_escalated` (all its existing assertions retained), and a separate
 automatic-plan regression verifies actual opening size, needs-attention status and
 honest exhaustion. This fixture still needs tables/details/additional sheets, outside
 H6. No severity or acceptance threshold was relaxed.
+
+
+## Stage H6 fix round 2 (2026-10-12, Claude after two Codex attempts)
+
+The review's blockers and majors are fixed. Evidence is in `docs/h6-sheet-policy.md`, which
+was rewritten from this build's measurements.
+
+- **Least-annotation-conflict filter removed.** Below the band the fullest valid allowed pair
+  wins, as the rule says. 10060, 10063, 10000 and string_post_tapped are back on A4.
+- **Smallest fit is defined by validity alone:** no hard finding, nothing dropped or undrawn,
+  no extra annotations over another view, and now also no overlapping view areas (CTC-01 had
+  picked A4 1:10 with overlapping areas).
+- **The material-crossing veto is part of the selection.** Against a valid first estimate,
+  allowed pairs adding crossings are set aside. If all of them do, the valid first estimate is
+  kept and the basis says so. assembly_plate_pin stays on A2 1:1 (its smallest fit is A3 1:2,
+  which adds two crossings); spool_fits keeps A2 1:1 (both allowed pairs, A4 1:5 and A3 1:2,
+  add crossings).
+- **Exhausted search keeps the first drawing on its own paper.** It is redrawn only when that
+  drawing is below 1:10. STC-09 stays on A1 1:5, with a warning that 1:5 is below its 1:2
+  feature floor.
+- **Orientation view on the larger neighbour** keeps the smallest fit's paper scale, shrunk
+  about its own centre. This replaces the first estimate's scale, which shrank STC-06 to a
+  thumbnail, and the uncapped growth, which raised hidden-line counts on CTC-03 and cgb207.
+  It also removes the plate's A2 2:1 advantage, so the plate lands on A3 1:1 by the rule.
+- **Basis** now states whether the first estimate was valid ("first estimate A2 at 1:1 (valid
+  and complete)"), so an oracle can check the veto.
+- **Tests.** The independent oracle `tests/common/sheet_rule.rs` replaces the pinned outputs.
+  The m1000 and 1004 assertions and STC-09's `plan_recovered` band test are restored. See the
+  report for the list and for the tests that fail on 4751b9f.
+
+Overturnable judgement calls:
+
+- The material ratchet keeps a valid first estimate when every allowed pair adds crossings,
+  even though that estimate may be more than one sheet above the smallest fit (spool_fits: A2
+  against an A4 1:5 smallest fit). The alternative, the fewest-crossing allowed pair, raises
+  spool_fits' material count 10→12 and breaks "no part worse".
+- If no candidate is valid and complete, a first drawing between 1:10 and the feature floor is
+  kept, with a warning, rather than redrawn at the floor on larger paper (STC-09).
+- The neighbour's orientation view takes the smallest fit's scale. It never grows faster than
+  the smallest fit's, so extra paper goes to the dimensioned views.
+- The isometric-label reporting test keeps its enlarged-isometric construction because no
+  natural case remains (probed: the five fixtures on A4 and A3 at 10:1 to 1:1, and with the
+  isometric pinned at zero gap beside each view on A3 and A2).
+- Still open, as before: GRM-03 reaches the band only through the measured correction's
+  isometric growth (about 45% without it). Paper economy for gains of about one point is the
+  maintainer's call. Footprints are axis-aligned boxes.

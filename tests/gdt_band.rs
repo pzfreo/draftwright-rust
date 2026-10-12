@@ -115,9 +115,7 @@ fn frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views() {
 #[test]
 fn stc_09_datum_symbols_are_inside_their_bands_and_frames_past_them_had_no_clear_strip() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
-    // Replay the band reservation before automatic scale policy: the policy now refuses
-    // this fixture's old 1:5 scale for its small holes (checked separately below).
-    let plan = model::plan_escalated(&a, &Spec::default()).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert!(
         plan.sheet
             .basis
@@ -197,29 +195,40 @@ fn the_reservation_stacks_overlapping_items_in_tiers_beyond_the_dimensions() {
     assert_eq!(s, base);
 }
 
+/// H6 review: with no valid complete candidate at or above its legibility floor, STC-09 keeps
+/// its first drawing on its own paper (A1 at 1:5) rather than a larger, still invalid sheet, and
+/// says honestly that the scale is below the floor its smallest hole needs.
 #[test]
-fn stc09_automatic_scale_keeps_small_holes_visible_and_reports_unresolved_layout() {
+fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
+    let first = model::plan_escalated(&a, &Spec::default()).unwrap();
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    let smallest = a
-        .features
-        .iter()
-        .filter(|f| f.kind == "hole")
-        .filter_map(|f| {
-            f.parameters
-                .get("diameter")
-                .and_then(serde_json::Value::as_f64)
-        })
-        .fold(f64::INFINITY, f64::min);
-    assert!(smallest * p.sheet.scale_factor >= draftwright::sheet_fit::MIN_OPENING);
-    assert!(
-        p.problems
-            .iter()
-            .any(|q| q.code == "layout_recovery_exhausted")
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        (first.sheet.size.as_str(), first.sheet.scale.as_str())
     );
+    assert_eq!(
+        serde_json::to_value(&p.views).unwrap(),
+        serde_json::to_value(&first.views).unwrap()
+    );
+    assert!(p.sheet.scale_factor < draftwright::sheet_fit::min_legible_scale(&a));
+    let said = p
+        .problems
+        .iter()
+        .find(|q| q.code == "layout_recovery_exhausted")
+        .expect("the exhausted search is said");
+    assert_eq!(said.severity, "warning");
+    assert!(said.message.contains("below 1:2"), "{}", said.message);
     assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
-    assert!(p.problems.iter().any(|q| matches!(
-        q.code.as_str(),
-        "annotation_off_sheet" | "annotation_ink_overlap"
-    )));
+    assert_eq!(
+        p.sheet.basis.matches("drawn-item fill").count(),
+        1,
+        "{}",
+        p.sheet.basis
+    );
+    assert!(
+        !p.sheet.basis.contains("as the spec asks"),
+        "{}",
+        p.sheet.basis
+    );
 }

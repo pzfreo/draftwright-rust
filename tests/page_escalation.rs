@@ -9,6 +9,8 @@
 mod corpus;
 #[path = "common/facts.rs"]
 mod facts;
+#[path = "common/sheet_rule.rs"]
+mod sheet_rule;
 
 use draftwright::api::{self, Features};
 use draftwright::layout::{self, Attempt, Findings, Retry};
@@ -282,22 +284,40 @@ fn hole_locations_closer_than_draftwrights_spacing_are_counted() {
     assert_eq!(layout::crowded_locations(&[], 1.0), 0);
 }
 
-/// Complete drawings still compete by fill; only enlargement can spend the next sheet.
+/// Complete drawings still compete by fill, and the choice is checked against the rule over the
+/// candidates each basis records (`common/sheet_rule.rs`), not against a pinned output.
+/// draftwright took GRM-03 to 5:1 and m10127 to A3 at 2:1; both now must be what the rule picks.
 #[test]
 fn a_valid_plan_is_reconsidered_for_fill() {
-    for (name, kept) in [("grm03", ("A3", "10:1")), ("m10127", ("A3", "2:1"))] {
+    for name in ["grm03", "m10127"] {
         let Some(analysis) = corpus_part(name) else {
             eprintln!("SKIPPED: the corpus is not found");
             return;
         };
         let plan = recovered(&analysis, &Spec::default());
-        assert_eq!(sheet(&plan), kept, "{name}");
-        assert!(
-            plan.sheet.basis.starts_with("smallest fit")
-                && (name != "grm03" || codes(&plan).contains(&"layout_replanned")),
-            "{name}: {:?}",
-            codes(&plan)
-        );
+        sheet_rule::assert_rule(name, &plan);
+        assert!(plan.sheet.default, "{name}");
+    }
+}
+
+/// H6 review (2026-10-12): below the fill band the fullest valid allowed pair wins, so a valid
+/// A4 drawing is not traded for an emptier A3 one with one annotation conflict fewer. Measured:
+/// 10060 A4 1:1 17.0% against A3 2:1 14.9%; 10063 A4 1:1 22.6% against A3 2:1 20.8%; 10000
+/// A4 1:1 24.0% against A3 2:1 23.8%; string_post_tapped (AP242) A4 2:1 against A3 5:1.
+#[test]
+fn below_the_band_the_fullest_valid_pair_wins_on_real_candidates() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    for (file, expected) in [
+        ("mfcadpp/10060.step", ("A4", "1:1")),
+        ("mfcadpp/10063.step", ("A4", "1:1")),
+        ("mfcadpp/10000.step", ("A4", "1:1")),
+    ] {
+        let plan = api::plan_from(&dir.join(file), Features::Native, &Spec::default()).unwrap();
+        sheet_rule::assert_rule(file, &plan);
+        assert_eq!(sheet(&plan), expected, "{file}: {}", plan.sheet.basis);
     }
 }
 
@@ -314,18 +334,23 @@ fn an_info_or_view_box_finding_is_not_a_hard_failure() {
         return;
     };
     let expected = recovered(&analysis, &Spec::default());
-    assert_eq!(sheet(&expected), ("A4", "2:1"));
+    sheet_rule::assert_rule("m1000", &expected);
+    assert!(!codes(&expected).contains(&"layout_recovery_exhausted"));
+
+    let id = "d:f:section_recess:4/seat_location.location.z";
     let mut first = model::plan_escalated(&analysis, &Spec::default()).unwrap();
     first.problems.push(model::Problem {
-        id: "p:annotation_over_view:stand-in".into(),
+        id: format!("p:annotation_over_view:{id}:v:side"),
         code: "annotation_over_view".into(),
         severity: "warning".into(),
-        subjects: vec!["stand-in".into()],
+        message: format!("{id} lies over the v:side view."),
+        subjects: vec![id.into(), "v:side".into()],
         ..Default::default()
     });
     let kept = model::recover(&analysis, &Spec::default(), first).unwrap();
     assert_eq!(sheet(&kept), sheet(&expected));
-    assert!(!codes(&kept).contains(&"layout_recovery_exhausted"));
+    let found = codes(&kept);
+    assert!(!found.contains(&"layout_recovery_exhausted"), "{found:?}");
 }
 
 /// The maintainer's directive of 2026-10-09 (nothing off the sheet: escalate scale or sheet as
@@ -381,6 +406,7 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
     assert_eq!(sheet(&plan), ("A1", "1:1"));
     assert!(plan.sheet.basis.contains("smallest fit A2 at 1:2"));
+    sheet_rule::assert_rule("ftc07", &plan);
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
@@ -441,5 +467,10 @@ fn a_try_with_more_ink_over_the_views_than_the_first_is_not_taken() {
         ("A4", "1:1"),
         "the gated proposal must still be rejected"
     );
-    assert!(plan.sheet.basis.contains("2 additional view conflicts"));
+    let gate = sheet_rule::tried(&plan.sheet.basis)
+        .into_iter()
+        .find(|t| t.size == "A4" && t.scale == "1:1")
+        .expect("A4 at 1:1 is tried");
+    assert!(gate.valid && gate.over == 2, "{}", plan.sheet.basis);
+    sheet_rule::assert_follows("1004 stand-in", &plan, ("A4", "2:1"));
 }

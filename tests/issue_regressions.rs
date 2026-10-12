@@ -573,6 +573,10 @@ fn the_title_block_keeps_dimensions_out_without_dropping_them() {
             .iter()
             .any(|q| q.code == "annotation_off_sheet" && q.subjects[0] == depth)
     );
+    let tb = crowded.sheet.title_block;
+    for v in &crowded.views {
+        assert!(!overlap(v.area, tb), "{} is over the title block", v.id);
+    }
 }
 
 /// The section recesses of *analysis* that the reader takes as hexagonal pockets: each one's
