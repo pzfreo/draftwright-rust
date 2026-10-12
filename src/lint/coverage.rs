@@ -549,13 +549,15 @@ pub fn sites(analysis: &Analysis, marks: &[Mark]) -> Vec<Site> {
         .filter(|g| g.pattern)
         .flat_map(|g| g.members)
         .collect();
-    let claimed = |id: &str| {
+    let claimed = |id: &str, at: [f64; 3]| {
         [0, 1, 2].map(|k| {
             let parameter = format!("location.length.{}", AXES[k]);
             marks.iter().any(|m| {
                 m.claims
                     .iter()
                     .any(|c| c.feature == id && c.parameter == parameter)
+                    && (!m.name.starts_with("hole_schedule_")
+                        || super::holes::states(&m.text, at[k] - analysis.envelope[0][k]))
             })
         })
     };
@@ -573,7 +575,7 @@ pub fn sites(analysis: &Analysis, marks: &[Mark]) -> Vec<Site> {
                 at,
                 patterned: false,
                 projections: Vec::new(),
-                claimed: claimed(&f.id),
+                claimed: claimed(&f.id, at),
             })
         });
     holes::read(analysis)
@@ -590,7 +592,7 @@ pub fn sites(analysis: &Analysis, marks: &[Mark]) -> Vec<Site> {
                 at: h.at,
                 patterned: patterned.contains(&f.id),
                 projections: Vec::new(),
-                claimed: claimed(&f.id),
+                claimed: claimed(&f.id, h.at),
             }
         })
         .chain(bores)

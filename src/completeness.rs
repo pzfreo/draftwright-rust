@@ -50,6 +50,14 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         .filter(|d| d.placed.is_some() || matches!(d.state, State::Covered { .. }))
         .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
         .collect();
+    // Table-owned scalar spans live in the covered-item ledger; the schedule retains their
+    // measurement provenance while lint independently verifies its printed member cells.
+    stated.extend(
+        plan.hole_tables
+            .iter()
+            .flat_map(|t| t.covered.iter())
+            .map(|m| m.feature.as_str()),
+    );
     for p in analysis.recognition.iter().flat_map(|r| &r.patterns) {
         if stated.contains(p.id.as_str()) {
             stated.extend(p.members.iter().map(String::as_str));

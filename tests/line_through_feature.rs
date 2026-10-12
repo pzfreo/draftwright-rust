@@ -163,7 +163,14 @@ fn hex_leader_avoids_the_blind_hole_band_it_previously_crossed() {
 fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only() {
     let Some(c) = corpus::dir() else { return };
     let (_, a) = model::analyse_native(&c.join("nist/nist_ftc_08_asme1_rc.stp")).unwrap();
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = model::plan_recovered(
+        &a,
+        &Spec {
+            hole_table: draftwright::hole_table::Setting::Never,
+            ..Spec::default()
+        },
+    )
+    .unwrap();
     let callouts = [
         "d:f:hole_pattern:2/bore.diameter",
         "d:f:hole_pattern:3/bore.diameter",

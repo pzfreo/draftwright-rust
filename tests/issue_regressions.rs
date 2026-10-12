@@ -1047,7 +1047,14 @@ fn issue_1187_a_retained_leader_crossings_have_no_clear_route() {
 
 fn retained_leader_crossings_have_no_clear_route(path: &Path) {
     let (_, analysis) = model::analyse_native(path).unwrap();
-    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let plan = model::plan_recovered(
+        &analysis,
+        &Spec {
+            hole_table: draftwright::hole_table::Setting::Never,
+            ..Spec::default()
+        },
+    )
+    .unwrap();
     let callouts: BTreeSet<&str> = plan
         .dimensions
         .iter()

@@ -665,7 +665,16 @@ fn route(
 /// merged boss heights were what kept the front's lowest lanes inside it (counted without them,
 /// ink 11 to 13 and 9 to 11; `docs/quality-2026-10-09.md`, "After merged-away lanes").
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
+    lanes_excluding(analysis, views, &BTreeSet::new())
+}
+
+pub(crate) fn lanes_excluding(
+    analysis: &Analysis,
+    views: &[(&str, P3, P3)],
+    excluded: &BTreeSet<String>,
+) -> crate::layout::Lanes {
     let (mut wants, ..) = wants(analysis);
+    wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter(|(name, ..)| NAMES.contains(name))
@@ -800,6 +809,29 @@ pub(crate) fn plan_with_obstacles(
     held: &[PlannedDimension],
     cache: &footprints::Cache,
 ) -> Result<Planned, Invalid> {
+    plan_with_obstacles_excluding(
+        analysis,
+        spec,
+        sheet,
+        views,
+        obstacles,
+        held,
+        cache,
+        &BTreeSet::new(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn plan_with_obstacles_excluding(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    obstacles: &[PlannedDimension],
+    held: &[PlannedDimension],
+    cache: &footprints::Cache,
+    excluded: &BTreeSet<String>,
+) -> Result<Planned, Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -812,7 +844,7 @@ pub(crate) fn plan_with_obstacles(
         .collect();
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
-    let (chosen, end_on) = route(&mut wants, &frames, analysis);
+    let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
     // bug, checked in every build.
@@ -850,6 +882,26 @@ pub(crate) fn plan_with_obstacles(
             });
         }
     }
+    // Table-owned measurements keep their IDs, but reserve no leader or ladder lane.
+    let keep: Vec<_> = wants.iter().map(|w| !excluded.contains(&w.id)).collect();
+    let mut index = 0;
+    wants.retain(|_| {
+        let k = keep[index];
+        index += 1;
+        k
+    });
+    let mut index = 0;
+    chosen.retain(|_| {
+        let k = keep[index];
+        index += 1;
+        k
+    });
+    let mut index = 0;
+    end_on.retain(|_| {
+        let k = keep[index];
+        index += 1;
+        k
+    });
     // The spec chooses what is drawn, and states the tolerances and fits on the kept labels.
     let all = wants.clone();
     let owner = placement::owners(analysis, &all, &chosen);
@@ -1574,6 +1626,7 @@ pub fn render(
             v_align: VAlign::Baseline,
         });
         annotations.push(Annotation {
+            coordinate_origin: None,
             name: d.id.clone(),
             view: Some(d.view.clone()),
             runs: (first..text.len()).collect(),

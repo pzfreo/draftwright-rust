@@ -15,7 +15,7 @@ use crate::output::Drawing;
 use crate::placement_intent::{Along, Place, Slot};
 use crate::text::Font;
 
-const COLLECTIONS: [&str; 9] = [
+const COLLECTIONS: [&str; 10] = [
     "views",
     "dimensions",
     "omitted",
@@ -23,6 +23,7 @@ const COLLECTIONS: [&str; 9] = [
     "requirements",
     "notes",
     "tables",
+    "hole_tables",
     "balloons",
     "problems",
 ];
@@ -865,6 +866,10 @@ fn settable(
         _ => String::new(),
     };
     let choices = |values: Value| json!({"choices":values});
+    fields.insert(
+        "hole_table".into(),
+        choices(json!(["auto", "always", "never"])),
+    );
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
         if item.item.kind == "view" {
@@ -1103,10 +1108,15 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.basis = t.basis.clone();
                 a.placement = t.placed.as_ref().map(|p| Placement::Box(p.cells));
             }
-            if let Some(t) = plan.hole_table.as_ref().filter(|t| &t.id == id) {
+            if let Some(t) = plan
+                .hole_table
+                .iter()
+                .chain(&plan.hole_tables)
+                .find(|t| &t.id == id)
+            {
                 a.basis = t.basis.clone();
                 a.features = t.rows.iter().map(|r| r.feature.clone()).collect();
-                a.anchors = vec!["v:plan".into()];
+                a.anchors = vec![t.view.clone().unwrap_or_else(|| "v:plan".into())];
             }
             if let Some(b) = plan.balloons.iter().find(|b| &b.id == id) {
                 a.features = b.features.clone();

@@ -264,7 +264,11 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let plan = recovered(&analysis, &Spec::default());
+    let no_tables = Spec {
+        hole_table: draftwright::hole_table::Setting::Never,
+        ..Spec::default()
+    };
+    let plan = recovered(&analysis, &no_tables);
     assert_eq!(sheet(&plan), ("A2", "1:2"));
     assert!(!codes(&plan).contains(&"annotation_off_sheet"));
     let said = plan
@@ -383,23 +387,27 @@ fn every_planning_entry_point_applies_the_recovery() {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let plan = api::plan_analysed(&analysis, &Spec::default()).unwrap();
+    let no_tables = Spec {
+        hole_table: draftwright::hole_table::Setting::Never,
+        ..Spec::default()
+    };
+    let plan = api::plan_analysed(&analysis, &no_tables).unwrap();
     let as_json = serde_json::to_value(&plan).unwrap();
     assert_eq!(
         as_json,
-        serde_json::to_value(recovered(&analysis, &Spec::default())).unwrap()
+        serde_json::to_value(recovered(&analysis, &no_tables)).unwrap()
     );
     assert_eq!(sheet(&plan), ("A2", "1:2"));
     assert!(codes(&plan).contains(&"layout_recovery_exhausted"));
-    let again = api::plan_analysed(&analysis, &Spec::default()).unwrap();
+    let again = api::plan_analysed(&analysis, &no_tables).unwrap();
     assert_eq!(serde_json::to_value(&again).unwrap(), as_json);
-    let reply = api::call("plan", &json!({ "analysis": analysis })).unwrap();
+    let reply = api::call("plan", &json!({ "analysis": analysis, "spec": no_tables })).unwrap();
     assert_eq!(reply, as_json);
 
     let step = corpus::dir()
         .unwrap()
         .join(facts::load("cgb245").binding.file);
-    let review = api::review_analysed(&step, &analysis, &Spec::default()).unwrap();
+    let review = api::review_analysed(&step, &analysis, &no_tables).unwrap();
     let said: Vec<&str> = review.problems.iter().map(|p| p.code.as_str()).collect();
     assert!(said.contains(&"layout_recovery_exhausted"), "{said:?}");
 

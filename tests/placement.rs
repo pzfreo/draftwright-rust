@@ -861,7 +861,15 @@ fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
         ("nist/nist_ftc_08_asme1_rc.stp", &["4@plan"][..]),
         ("nist/nist_ftc_09_asme1_rd.stp", &["1@front", "3@front"][..]),
     ] {
-        let plan = api::plan_from(&dir.join(file), Features::Native, &Spec::default()).unwrap();
+        let plan = api::plan_from(
+            &dir.join(file),
+            Features::Native,
+            &Spec {
+                hole_table: draftwright::hole_table::Setting::Never,
+                ..Spec::default()
+            },
+        )
+        .unwrap();
         let off: Vec<&str> = plan
             .problems
             .iter()

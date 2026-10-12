@@ -149,8 +149,14 @@ pub fn items(plan: &Plan) -> Vec<Item> {
     for t in &plan.tables {
         out.push(item(&t.id, "table", None, &t.state, None));
     }
-    if let Some(t) = &plan.hole_table {
-        out.push(item(&t.id, "hole_table", Some("v:plan"), &t.state, None));
+    for t in plan.hole_table.iter().chain(&plan.hole_tables) {
+        out.push(item(
+            &t.id,
+            "hole_table",
+            Some(t.view.as_deref().unwrap_or("v:plan")),
+            &t.state,
+            None,
+        ));
     }
     for b in &plan.balloons {
         let label = Some(b.tag.clone());

@@ -311,3 +311,11 @@ The unchanged scripted MCP evaluation succeeds **7/7** before and after, with
 The complete required-corpus suite passes **671 tests / 71 groups**, zero
 failures/ignored; fmt, strict all-target release Clippy, the six actual-transport
 checks and all 24 independently validated schemas pass.
+
+
+H1 adds `hole_table: "auto" | "always" | "never"` to the Spec (default auto).
+Use `{ "op": "set", "path": "hole_table", "value": "always" }` in
+`preview_ops`/`apply_ops`, or remove the field to restore auto. `item_options`
+includes these choices. Generated standalone schemas accept the same field.
+Scheduled dimensions remain inspectable as covered items; schedules and tags
+are ordinary item records and participate in Session deltas.

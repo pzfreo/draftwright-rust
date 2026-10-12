@@ -1223,6 +1223,7 @@ pub fn render(
         });
     }
     Some(Annotation {
+        coordinate_origin: None,
         name: g.id.clone(),
         view: Some(g.view.clone()),
         runs: (first..text.len()).collect(),
