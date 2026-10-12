@@ -37,9 +37,9 @@
  {
   "part": "ftc06",
   "code": "annotation_outside_area",
-  "count": 16,
+  "count": 14,
   "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, the step shoulder d:step_level/step_position.length.y46_99, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels) and the front's width (in the one lane above the front, an overall extent's first claim). Two front callouts (2× ⌀6.3 ↧ 12.7, 2× ø31.8, 2.1 mm each). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 28 before stream d-placement-fit, 26 before d-callout-leaders (its callouts' labels ran right along their lanes), 18 before d-quality-repeated-dims (each pair of side-view boss heights on one span, 12.1 and 16.3, is now one counted item, src/dims/mod.rs::share, so two of these four items are gone)."
+  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, the step shoulder d:step_level/step_position.length.y46_99, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels) and the front's width (in the one lane above the front, an overall extent's first claim). Two front callouts (2× ⌀6.3 ↧ 12.7, 2× ø31.8, 2.1 mm each). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 28 before stream d-placement-fit, 26 before d-callout-leaders (its callouts' labels ran right along their lanes), 18 before d-quality-repeated-dims (each pair of side-view boss heights on one span, 12.1 and 16.3, is now one counted item, src/dims/mod.rs::share, so two of these four items are gone). G2 adds a counted plate statement and routes the two front callouts inside their area. The exact remaining fourteen overruns are checked by tests/placement.rs; no outside-area finding is waived."
  },
  {
   "part": "grm03",
@@ -53,7 +53,7 @@
   "code": "annotation_outside_area",
   "count": 3,
   "verdict": "rust-wrong",
-  "reason": "d:envelope/depth.length (12.6) is too short for its label between its arrows, so its arrows point in from outside and the left one runs 4.7 mm left of the side's area (the side view has no left band, as in draftwright); along its lane only; the seat's y location d:f:section_recess:4/seat_location.location.y (6.3) in the same way. One recess callout beside its view: the side's hex pocket (11.5 mm, its long label). Since stream d-quality-lanes the band right of the front holds the height ladder's lanes, so the seat's z location d:f:section_recess:4/seat_location.location.z (23.1), in the lane beyond the rungs, lies inside the front's area (4 before). Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). 7 before stream d-placement-fit, 6 before d-callout-leaders."
+  "reason": "G2 review fix: the wall now uses solid plan-profile edges and its added plan lane reserves the shared linear band. The seat-diameter callout's new 2.1 mm front overrun is fixed. The three pre-existing side-band overruns remain: overall depth (4.7 mm), HEX 1.9 A/F × 2.1 DEEP (14.5 mm) and seat Y location (10.7 mm). Exact findings remain rust-wrong; no severity or checking tolerance changes."
  },
  {
   "part": "m10046",
@@ -78,16 +78,9 @@
  },
  {
   "part": "ftc06",
-  "code": "annotation_leader_search_capped",
-  "count": 1,
-  "verdict": "undetermined",
-  "reason": "The plan's 10 callouts conflict as one group (src/dims/leaders.rs::assign), and its branch and bound stops at NODE_BUDGET (200 000 nodes) from the descent-improved greedy start, so the assignment is the best found, not proved the best. In a one-off check (no test) a budget 100 times larger (20 000 000 nodes) gave the same leaders and the same crossings (none on ftc06); before the pairwise descent (stream d-callout-leaders' review round) the bounded search kept an assignment 28 mm longer in total (2× R12.7 28.6 mm against 7.7, 4× 31.8 × 25° 19.4 against 6.4). Whether the optimum is shorter still is not known."
- },
- {
-  "part": "ftc06",
   "code": "annotation_leader_crossing",
   "count": 2,
   "verdict": "rust-wrong",
-  "reason": "The leaders of the front's callouts d:f:hole:11/bore.diameter (2× ⌀6.3 ↧ 12.7) and d:f:boss:5/boss.diameter (2× ø31.8) cross each other. They came with drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the isometric no longer lies beyond the front's band, so the front's locations no longer run into it (the 2 annotation_line_over_view listed before are gone), and the front's callout assignment (src/dims/leaders.rs) now takes routes that cross; the crossing is reported and kept, never a callout dropped (ADR2-D6)."
+  "reason": "The two front callouts (hole:11, 2× ⌀6.3 ↧ 12.7; boss:5, 2× ø31.8) cross reciprocally. The G2 review fix moves the counted plate thickness to its exposed side profile, removing a front leader obstacle; this returns the pre-G2 reciprocal crossing. The measured corner reservation keeps both callouts inside their bands, so the fourteen other band overruns are unchanged. Both exact crossings remain rust-wrong and are checked by tests/leaders.rs. This captured-recognition residual is recorded separately from the no-worse native quality gate."
  }
 ]

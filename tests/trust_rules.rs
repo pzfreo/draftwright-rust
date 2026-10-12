@@ -570,7 +570,12 @@ fn every_planned_dimension_can_be_addressed() {
             let promoted: Vec<&str> = plan
                 .omitted
                 .iter()
-                .filter(|o| o.basis.starts_with(&format!("conveyed by {id}: ")))
+                .filter(|o| {
+                    o.basis.starts_with(&format!("conveyed by {id}: "))
+                        || o.basis
+                            .split_once("; dependencies: ")
+                            .is_some_and(|(_, owners)| owners.split(", ").any(|owner| owner == *id))
+                })
                 .map(|o| o.id.as_str())
                 .collect();
             let kept: Vec<&str> = ids(&without)

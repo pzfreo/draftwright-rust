@@ -319,6 +319,61 @@ pub(super) fn across(frame: &Frame, axis: usize) -> Option<bool> {
     }
 }
 
+/// A plate thickness's default strip: Python's fixed axis map, with the front's vertical walls
+/// on its left and the side's horizontal walls above it.
+pub(super) fn thickness_strip(view: &str, axis: usize, horizontal: bool) -> Side {
+    match (view, axis) {
+        ("front", 2) => Side::Left,
+        ("side", 1) => Side::Above,
+        _ => strip(view, horizontal),
+    }
+}
+
+/// How near (page mm) a point must be to the view's silhouette to lie on it.
+pub(super) const ON_SILHOUETTE: f64 = 0.05;
+
+/// How far (page mm) a plate thickness's witnesses may run over the part before leaving it at
+/// the silhouette, when no pair of its solid edges reaches the silhouette in any view: about an
+/// arrowhead, as where a flange ends just short of a chamfer that forms the outline.
+pub(super) const NEAR_SILHOUETTE: f64 = 3.0;
+
+/// The view's silhouette edge nearest page point *p* across a dimension that runs horizontally
+/// (*horizontal*) or vertically, and the distance to it: the strip whose extension lines leave
+/// the part there.
+pub(super) fn silhouette_gap(frame: &Frame, p: P3, horizontal: bool) -> (Side, f64) {
+    let o = frame.outline();
+    let c = usize::from(horizontal);
+    let q = frame.page(p)[c];
+    let (low, high) = if horizontal {
+        (Side::Below, Side::Above)
+    } else {
+        (Side::Left, Side::Right)
+    };
+    let (dl, dh) = ((q - o[c]).abs(), (q - o[c + 2]).abs());
+    if dl <= dh { (low, dl) } else { (high, dh) }
+}
+
+/// The strip a plate thickness takes: where its witnesses meet the silhouette when they are
+/// anchored on solid profile edges ([`super::plates::prefer_readable`]), else its default strip.
+fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Side {
+    match shape {
+        Shape::Linear {
+            a,
+            axis,
+            a_edge,
+            b_edge,
+            ..
+        } => (!a_edge && !b_edge)
+            .then(|| silhouette_gap(frame, *a, horizontal))
+            .filter(|(_, d)| *d <= NEAR_SILHOUETTE)
+            .map_or_else(
+                || thickness_strip(view, *axis, horizontal),
+                |(side, _)| side,
+            ),
+        _ => strip(view, horizontal),
+    }
+}
+
 /// For each item, the item whose lane it shares, when the defaults merge it away: one span, one
 /// dimension (ARCH0009-6; [`super::bosses::consolidate`], [`super::holes::consolidate`],
 /// [`super::share`]) leaves one dimension on a span that several items measure, so the others
@@ -326,6 +381,7 @@ pub(super) fn across(frame: &Frame, axis: usize) -> Option<bool> {
 /// placed while its winner is). The merges are decided among every item the part would have,
 /// under the defaults' labels, so no spec edit changes them (ARCH0003-2): an item the spec brings
 /// back by omitting its survivor is drawn in the survivor's lane, where the span already was.
+/// Counted walls on different projected axes keep a parallel strip of their own.
 pub(super) fn owners(
     analysis: &Analysis,
     items: &[Want],
@@ -338,24 +394,24 @@ pub(super) fn owners(
         .collect();
     let mut given = vec![Vec::new(); kept.len()];
     let mut omitted = Vec::new();
+    super::plates::consolidate(analysis, &mut kept, &mut omitted);
     super::bosses::consolidate(analysis, &mut kept, &mut omitted);
     super::holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    super::plates::share(analysis, &mut kept, &mut given, &mut omitted);
     super::share(&mut kept, &mut given, &mut omitted);
     let index: BTreeMap<&str, usize> = items
         .iter()
         .enumerate()
         .map(|(i, w)| (w.id.as_str(), i))
         .collect();
-    // Each merge records its survivor as `conveyed by <ID>: ...` (IDs hold no spaces).
+    // Covered items name their survivor independently of the explanatory text.
     let mut owner = vec![None; items.len()];
     for o in &omitted {
-        let survivor = o
-            .basis
-            .strip_prefix("conveyed by ")
-            .and_then(|rest| rest.split_once(": "))
-            .and_then(|(id, _)| index.get(id));
-        // A basis worded otherwise names no survivor: that item keeps a lane of its own, as
-        // every item did before merged items shared lanes.
+        let survivor = match &o.state {
+            crate::items::State::Covered { by } => index.get(by.as_str()),
+            _ => None,
+        };
+        // An owner outside the linear inventory reserves no shared lane here.
         if let (Some(&i), Some(&s)) = (index.get(o.id.as_str()), survivor) {
             owner[i] = Some(s);
         }
@@ -377,7 +433,7 @@ pub(super) fn owners(
 /// Each item's strip and lane in its carrying view (none when it has no view, or its view looks
 /// along it): per view and strip, sizes nearest, then locations by distance, overall outermost
 /// (ARCH0009-5), then callouts by their tips, right to left. An item merged away ([`owners`])
-/// takes its survivor's strip and lane.
+/// takes its survivor's lane number and, when parallel, its strip.
 pub(super) fn lanes<'a>(
     frames: &BTreeMap<&str, Frame>,
     items: impl ExactSizeIterator<Item = (&'a Want, Option<&'static str>)>,
@@ -388,9 +444,6 @@ pub(super) fn lanes<'a>(
     let mut sides: Vec<Option<Side>> = vec![None; n];
     for (i, (w, view)) in items.enumerate() {
         let Some(view) = view else { continue };
-        if owner[i].is_some() {
-            continue;
-        }
         let f = &frames[view];
         let (side, rank) = match &w.shape {
             Shape::Linear {
@@ -400,7 +453,14 @@ pub(super) fn lanes<'a>(
                     continue;
                 };
                 (
-                    strip(view, horizontal),
+                    if w.measurements
+                        .iter()
+                        .any(|m| m.parameter == "thickness.length")
+                    {
+                        plate_strip(f, view, &w.shape, horizontal)
+                    } else {
+                        strip(view, horizontal)
+                    },
                     (*order, key((b[*axis] - a[*axis]).abs())),
                 )
             }
@@ -413,10 +473,12 @@ pub(super) fn lanes<'a>(
             Shape::Angular { .. } => continue,
         };
         sides[i] = Some(side);
-        strips
-            .entry((view, side))
-            .or_default()
-            .push((rank.0, rank.1, i));
+        if owner[i].is_none() {
+            strips
+                .entry((view, side))
+                .or_default()
+                .push((rank.0, rank.1, i));
+        }
     }
     let mut lane = vec![0usize; n];
     for list in strips.values_mut() {
@@ -429,11 +491,16 @@ pub(super) fn lanes<'a>(
     (sides, lane)
 }
 
-/// Gives each item merged away its survivor's strip and lane.
+/// Gives each item merged away its survivor's lane number and a parallel strip.
+/// Equal walls on different projected axes keep their own strip orientation.
 fn share_lanes(owner: &[Option<usize>], sides: &mut [Option<Side>], lanes: &mut [usize]) {
     for (i, s) in owner.iter().enumerate() {
         if let Some(s) = *s {
-            sides[i] = sides[s];
+            if let (Some(a), Some(b)) = (sides[i], sides[s])
+                && matches!(a, Side::Above | Side::Below) == matches!(b, Side::Above | Side::Below)
+            {
+                sides[i] = Some(b);
+            }
             lanes[i] = lanes[s];
         }
     }
@@ -497,6 +564,11 @@ pub(super) fn band_lanes<'a>(
             ("front", Side::Right) => &mut out.front_right,
             ("plan", Side::Above) => &mut out.plan_above,
             ("plan", Side::Left) => &mut out.plan_left,
+            ("front", Side::Left) => &mut out.plate_front_left,
+            ("front", Side::Above) => &mut out.plate_front_above,
+            ("plan", Side::Right) => &mut out.plate_plan_right,
+            ("plan", Side::Below) => &mut out.plate_plan_below,
+            ("side", Side::Left) => &mut out.plate_side_left_lanes,
             ("side", Side::Below) => &mut out.side_below,
             ("side", Side::Above) => &mut out.side_above,
             ("side", Side::Right) => &mut out.side_right,
@@ -1641,6 +1713,14 @@ pub(super) fn collisions_cached(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn front_left_lanes_do_not_reserve_the_plan_band() {
+        let front = Some("front");
+        let bands = super::band_lanes([((&front, Some(super::Side::Left)), 2)].into_iter());
+        assert_eq!(bands.plate_front_left, 3);
+        assert_eq!(bands.plan_left, 0);
+    }
+
     use super::*;
 
     /// `slides` stays bounded by the sheet however long the dimension line: a 200 km line at 1:1

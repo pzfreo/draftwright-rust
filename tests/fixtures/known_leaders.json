@@ -267,16 +267,16 @@
  },
  {
   "part": "ftc06",
-  "callout": "d:f:boss:5/boss.diameter",
-  "crossing": "line:d:f:hole:11/bore.diameter",
-  "verdict": "rust-wrong",
-  "reason": "On ftc06 the leaders of the front's callouts d:f:hole:11/bore.diameter and d:f:boss:5/boss.diameter cross each other; they came with drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md), when the isometric moved off the front's band, and the callout assignment (src/dims/leaders.rs) took routes that cross (known_placement.json's ftc06 annotation_leader_crossing). Reported as annotation_leader_crossing and kept (ADR2-D6)."
- },
- {
-  "part": "ftc06",
   "callout": "d:f:hole:11/bore.diameter",
   "crossing": "line:d:f:boss:5/boss.diameter",
   "verdict": "rust-wrong",
-  "reason": "On ftc06 the leaders of the front's callouts d:f:hole:11/bore.diameter and d:f:boss:5/boss.diameter cross each other; they came with drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md), when the isometric moved off the front's band, and the callout assignment (src/dims/leaders.rs) took routes that cross (known_placement.json's ftc06 annotation_leader_crossing). Reported as annotation_leader_crossing and kept (ADR2-D6)."
+  "reason": "The front hole:11 and boss:5 leaders cross reciprocally. Moving the counted plate thickness from the hidden front profile to the exposed side removes its former front obstacle; the pre-G2 reciprocal crossing returns. Both exact crossings are retained as rust-wrong. Thickness corner bands keep their labels inside their areas. Native quality is checked independently."
+ },
+ {
+  "part": "ftc06",
+  "callout": "d:f:boss:5/boss.diameter",
+  "crossing": "line:d:f:hole:11/bore.diameter",
+  "verdict": "rust-wrong",
+  "reason": "The front hole:11 and boss:5 leaders cross reciprocally. Moving the counted plate thickness from the hidden front profile to the exposed side removes its former front obstacle; the pre-G2 reciprocal crossing returns. Both exact crossings are retained as rust-wrong. Thickness corner bands keep their labels inside their areas. Native quality is checked independently."
  }
 ]

@@ -63,6 +63,7 @@ pub mod oriented_slots;
 pub mod pads;
 pub mod paired_ramp_steps;
 pub mod parameters;
+pub mod plates;
 pub mod pmi_coverage;
 pub mod pockets;
 pub mod polygonal;
@@ -209,6 +210,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(slots::coverage(analysis, marks));
     issues.extend(holes::coverage(analysis, marks));
     issues.extend(channels::coverage(analysis, marks));
+    issues.extend(plates::coverage(analysis, marks));
     issues.extend(polygonal::stock_coverage(analysis, marks));
     issues.extend(pockets::coverage(analysis, marks));
     issues.extend(pmi_coverage::coverage(analysis, marks));

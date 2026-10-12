@@ -776,6 +776,58 @@ fn every_recognised_feature_is_dimensioned_or_reported() {
                     .flat_map(|p| p.subjects.iter().map(String::as_str)),
             )
             .collect();
+        // Derived plate items remain traced only with a live owner and physical
+        // exclusion or every dependency independently stated by the rendered ink.
+        let mut ink = Vec::new();
+        let mut text = Vec::new();
+        let marks: Vec<_> = draftwright::dims::render(&plan.dimensions, &mut ink, &mut text)
+            .into_iter()
+            .map(|a| Mark {
+                name: a.name,
+                view: a.view,
+                text: a
+                    .runs
+                    .iter()
+                    .map(|i| text[*i].text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                claims: a.claims,
+            })
+            .collect();
+        for o in &plan.omitted {
+            let Some(id) =
+                o.id.strip_prefix("d:")
+                    .and_then(|id| id.strip_suffix("/thickness.length"))
+            else {
+                continue;
+            };
+            let draftwright::items::State::Covered { by } = &o.state else {
+                continue;
+            };
+            let f = analysis.features.iter().find(|f| f.id == id).unwrap();
+            assert!(
+                marks.iter().any(|m| m.name == *by),
+                "{name}: {} has no live owner",
+                o.id
+            );
+            assert!(
+                lint::plates::exclusion(&analysis, f).is_some()
+                    || lint::plates::alternatives(&analysis, f)
+                        .iter()
+                        .any(|terms| terms.iter().all(|t| t.stated(&marks)))
+                    || marks.iter().any(|m| m
+                        .claims
+                        .iter()
+                        .any(|c| c.feature == id && c.parameter == "thickness.length")
+                        && lint::holes::states(
+                            &m.text,
+                            lint::plates::read(&analysis, f).unwrap().thickness()
+                        )),
+                "{name}: {} has no proven printed thickness",
+                o.id
+            );
+            traced.insert(f.id.as_str());
+        }
         let patterns: BTreeMap<&str, &[String]> = analysis
             .recognition
             .iter()

@@ -91,6 +91,7 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
         }
         "od.diameter" => Some("envelope".into()),
         "step.diameter" | "step.length" => Some("turned_step".into()),
+        "thickness.length" if kind == "plate" => Some("plate".into()),
         "fillet.radius" => Some("fillet".into()),
         "chamfer.length" => Some("chamfer".into()),
         "step_height.length" => Some("step_height".into()),
@@ -147,6 +148,8 @@ fn rust_family(d: &PlannedDimension) -> String {
     let parameter = d.id.split('/').nth(1).unwrap_or("");
     if d.id.starts_with("d:envelope/") {
         "envelope".into()
+    } else if parameter == "thickness.length" {
+        "plate".into()
     } else if parameter == "step.diameter" || parameter == "step.length" {
         "turned_step".into()
     } else if let Some(family) = [

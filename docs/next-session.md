@@ -3410,3 +3410,234 @@ independent pattern lint. Preserve `target/g1-fix-checks/test-session-timing-fai
 and `session-serial.log`; the repeated required eight-thread full run passes
 **678/678 in 72 groups, none ignored**, including NIST timing and HTTP/stdio
 transport, on the same final source. No assertion, threshold, transport or session code was changed.
+
+## G2 plate and wall thickness (2026-10-11)
+
+Ported ISSUE-1373-a, LINT-plate_coverage-thickness,
+LINT-plate_coverage-exclusions and LINT-code-plate_requirement_state. Catalogue
+YAML is deliberately left to G4. `src/dims/plates.rs` creates stable
+`d:f:plate:<n>/thickness.length` items: z left of front, y above side, x below
+front, with ordinary omission, tolerance, view and placement edits. Equal
+thicknesses of one provider body share a counted statement, claiming every slab.
+`src/lint/plates.rs` reads the Analysis and rendered annotation provenance only.
+A count or tolerance number cannot confirm the nominal thickness. Authored plate
+omissions reach the consumer as zero-ink `suppressed:<dimension id>` annotations;
+they never count as measured facts. The drawing's metadata distinguishes
+missing, suppressed and unverifiable without letting lint read the Spec.
+
+Overturnable judgements made during this unattended run:
+
+- Require native single-axis slabs too when no printed alternative states their
+  interval. Python's multi-axis conversion gate alone proves no thickness; 1000,
+  10033, 10047, 10049 and 10060 expose the gap. Retain native records, rather than
+  importing Python's IR conversion into the Analysis. Python comparisons record
+  the m1000 difference in `tests/fixtures/known_dimensions.json`.
+- Equal raw thicknesses (within 1e-6 mm) on exactly the same provider body key
+  share `N× size`, even across axes; different authored bands do not merge.
+  ftc06's two Python `31.8` dimensions become `2× 31.8` with both claims, with an
+  equivalent verdict in the known-dimensions comparison. In multi-axis parts
+  explicit thickness takes priority over subtracting two ladder heights.
+  Single-axis slabs retain Python's proven ladder alternatives: e.g. 10047's
+  y interval [23.144,31.800] is stated by its located shoulder and overall depth.
+  That avoids adding a closed dimension chain; it is derived thickness evidence,
+  rather than a separate 8.7 label. This is an overturnable interpretation of
+  'stated once' and is reported explicitly in the final sheet audit.
+- Interval matches use 1e-3 mm because Plate lo/hi are quantised to three
+  decimals while the envelope and ladder retain kernel precision. Alternative
+  credit still requires the actual owners' claimed and printed measurements.
+- Supporting polygonal slabs require the witness inside the support polygon and
+  one solid (Analysis principal profiles), or matching body keys. Slot-pattern
+  webs require identical body scope and a cut crossing the witness; disconnected
+  lookalikes receive no exclusion. If old bridged analyses lack that proof, keep
+  the thickness requirement. Upper U-channel walls require a unique lower slab,
+  matching witnesses, a full-span opening and all three printed dependencies.
+- Plate corner reservations cover short-span outside arrows and text. They do
+  not change the general policy for other families' open-paper bands. A family
+  whose own annotation carries a native plate interval (a turned band or through
+  leg) may cover it only when the retained measurement states the interval.
+
+Evidence and final checks are recorded in the G2 entry of
+`docs/status-2026-10-10.md`; working artifacts use `target/g2-*`.
+
+The Y-wall default falls back from side to plan when its projected width is
+less than two arrowheads; the plan uses the same proven interval in its left
+band. A Spec view request wins. This is a deliberate, overturnable placement
+difference from Python's fixed Y-to-side map (FTC-07's 5.08 mm back wall). The
+front's extra band counts actual linear lanes, excluding leader callouts that
+share the lower strip but do not stack in linear lanes. Corner reach uses the
+actual counted label width and the existing arrow/text gap, avoiding fixed
+part-specific clearances.
+
+Counted walls promoted after an omission retain a strip parallel to their own
+projected interval; copying an orthogonal owner's strip had collapsed the
+promoted FTC-06 Y thickness to zero. The strengthened omission test checks the
+native face-to-face span through the rendered arrow tips and still requires all
+unrelated ink to stay fixed. Multi-measurement alternatives list all owners in
+`conveyed by` evidence; the merge tests now exercise each dependency ID separately.
+The exact FTC-06 comparison ledgers retain its remaining leader crossing and
+fourteen band overruns; the disappeared reciprocal crossing and bounded-search
+finding are removed. Captured m1000's seat callout newly overruns its front band
+by 2.1 mm (four exact overruns rather than three); this remains `rust-wrong` in
+known_placement.json. Native quality and raster checks are separate evidence,
+so that residual is not presented as fixed. GRM-03 gains a 2.5 head thickness;
+its separate 0.5 and 2 turned bands do not alone state that aggregate interval.
+
+A Covered item's leading `conveyed by <ID>:` phrase names the single stable
+representative in its typed state. Multiple printed dependencies follow after
+`; dependencies:`; they are not a fabricated comma-separated item ID. The old
+prose-versus-typed review comparison stays unchanged and checks this convention.
+Aggregate ladders and derived opposite walls now require Analysis evidence of
+one solid: those aggregate records cannot establish body-local ownership in an
+assembly, or in an older Analysis without principal-profile evidence. Turned
+bands read their provider body key from the profile, and contradictory known
+body keys reject polygonal support even if other metadata says one solid. The
+six coverage tests include negative disconnected/unknown-body cases; absent
+ownership evidence conservatively keeps an explicit thickness requirement.
+Null body keys do not join equal thicknesses into a counted statement. The
+public planning regression also checks matching, distinct and unknown bodies.
+
+Final G2 verification: 673/673 Rust tests, 73 result groups,
+zero failed/ignored; fmt and strict release all-target clippy pass. Final release
+quality passes 30 parts / 300 cells against the prior Stage F table, with three
+improvements and 297 unchanged cells. Ink 278 → 273; through-feature lines
+212 → 211; every other total unchanged. Final --require-go pin grid is 270/270 GO,
+zero off-sheet; scripted MCP is 7/7. Python quality tests 20/20, Node client 8/8.
+All thirty final SVGs match the reviewed raster-input hashes; the eleven relevant
+sheets were also inspected individually. The final binary SHA is in the G2 status
+entry. No commit or push was made.
+
+## G2 review fix round (2026-10-11, unattended)
+
+The fixed axis order put 1000's 4.2 wall on a hidden front edge and 10038's
+4.4 flange on absent front geometry. Principal-profile Analysis evidence now
+retains optional straight outer boundary edges. The plate planner prefers a
+facing boundary profile containing both thickness edges with a shared span,
+then attaches witnesses to the end nearest its carrying strip. No part names
+enter planning. Spec view requests win; old Analyses retain the earlier routing
+(axis map plus the existing narrow-Y readability preference).
+The isolated-solid restriction avoids claiming visibility across an assembly.
+Recognition-frame body bounds are transformed before matching the evidence.
+
+Removed the multi-axis exception to interval consolidation. 10007's 3.9 is
+covered by 28.0 and 31.9; its 11.7 is covered by the through-step's 2.3 baseline
+leg and the 14.0 rung. A through-step leg can replace a ladder rung only with
+body-local interval proof and both printed dependencies. Omitting either owner
+restores the plate dimension. This applies the existing 10047 policy consistently.
+
+Overturnable judgement calls: exposed boundary profiles take priority over
+Python origin/main `_thin_profiles.register_plate_thickness`'s fixed map;
+absent evidence retains that map. A thickness derived from two retained,
+proven stations is covered, avoiding a redundant closed chain; this replaces
+the earlier multi-axis judgement. Short Y walls still prefer the plan when
+its profile is available. Outside thickness text reserves its adjacent corner;
+the aligned front/side row shares an upper corner reservation, like its lower
+band. A new plate lane above plan reserves the actual linear lanes sharing it.
+Front-left lanes now feed `plate_front_left`, separately from `plan_left`.
+
+Regression evidence and final verification: see the appended G2 review entry in
+`docs/status-2026-10-10.md`; artifacts are under `target/g2-fix-*`.
+
+The captured m1000 seat-diameter overrun is fixed (4 → 3 exact band findings).
+FTC-06's captured reciprocal leader crossing returns (1 → 2) when the counted
+thickness moves from front to its exposed side profile; both are explicitly
+`rust-wrong` in the unchanged exact comparison predicates. Its fourteen band
+findings remain unchanged after the corner reservation. No source severity,
+quality predicate, blend logic or catalogue YAML changed.
+
+The minor FTC-07 A3 1:5 recovery observation remains 16 more items over another
+view at the rejected A3 1:1 alternative (14 before thickness planning). The
+three thickness statements are required manufacturing information; that try
+remains rejected and the final A2 1:2 drawing has unchanged native quality.
+Do not hide required thicknesses or relax the recovery gate to improve a rejected
+alternative's count. Fixing that alternative needs broader lane packing, which
+is deferred as an overturnable scope judgement; its exact test remains intact.
+
+The visual audit also exposed 10038's 7.2 + 4.4 = 11.6 chain. For a retained
+top slab, its thickness and the printed overall height now cover its underside
+ladder station; 7.2 is withdrawn while 4.4 remains on the exposed side profile.
+This is the inverse of the existing base-slab ownership of its top station.
+A station borrowed by another plate stays retained, and omitting the thickness
+restores its underside station. This characteristic-size preference is an
+explicit, overturnable judgement; the regression checks both the chain removal
+and the restored station. Endpoint coverage keeps every valid rung/through-step
+alternative, so an unprinted recognised replacement cannot displace a printed
+ladder owner.
+
+The same top-slab rule withdraws FTC-06's 215.9 underside rung: the exposed
+side's counted 31.8 and front overall 247.7 convey it. The Python difference
+has a `rust-correct` verdict with the interval evidence in known_dimensions.
+The old sampled-step regression now checks both printed owners, all other
+Python heights unchanged, and restoration of 215.9 when either owner is omitted.
+The placement omission test checks the restored datum-to-underside span in
+front for this inverse ownership, rather than requiring a noncoincident rung
+to reuse the omitted side slab's lane; unrelated view and ink identities stay
+asserted. Native FTC-06 quality is unchanged. Its captured reciprocal crossing
+is the pre-G2 crossing restored when the front thickness obstacle is removed;
+this residual remains `rust-wrong`, rather than being accepted as good drafting.
+
+The editability/trust regression now recognises every exact ID in the recorded
+coverage dependencies, in addition to the first `conveyed by` owner. Its former
+prefix-only lookup missed restoration after omitting the overall-height owner.
+Exact surviving item sets, restoration of all promoted items, omission counts
+and individually authored dimensions remain asserted. The focused twelve-test
+trust group passes with both owners treated consistently.
+
+Final fix-round verification (completed 2026-10-12): 678/678 Rust tests in
+73 groups, zero failed/ignored; fmt and strict release clippy pass. Release
+quality: 30 parts / 300 cells identical to preceding G2 table, no part worse;
+ink 273, through-feature 211. Pin grid 270/270 GO, zero off-sheet; scripted MCP
+7/7; Python 20/20, Node 8/8; plate audit passes. Twelve sheets inspected;
+all changed native SVGs match the reviewed hashes. Grid/MCP binary SHA and
+baseline match final output; see the appended G2 fix-round status entry and
+`target/g2-fix-evidence/final-verification.json`. No commit or push.
+
+## G2 review round 3: thickness witnesses leave through the silhouette (2026-10-12, unattended)
+
+Review found 10033's 8.3 (plan) and 10049's 4.5 (front) with extension lines
+starting mid-view and running across the part to a strip fixed by Python's axis
+map. 10038's 10.1 had the same defect above the side view. `prefer_readable` now
+anchors the witnesses at an end of the two solid edges' overlap that lies on the
+view's silhouette (`placement::silhouette_gap`, within 0.05 mm), preferring the
+default strip's end. If no view has such a pair, it takes the pair whose end lies
+nearest the silhouette, provided that is within 3 mm on the page
+(`NEAR_SILHOUETTE`); otherwise the fixed-map fallback applies as before.
+`placement::lanes` puts a profile-anchored thickness in the strip on the
+silhouette side nearest its anchor, so a thickness can now take the front's upper
+band, the plan's right or lower band, or the side's left band. Those bands are
+reserved in `Lanes` and `Strips::reserve`. Results:
+10049's 4.5 sits above the front. 10038's 10.1 sits below the side, inside the
+29.7. 10033's 8.3 sits above the side, because the plan foot's lower edge ends at
+a chamfer, so the plan cannot carry it cleanly. FTC-06's counted 2× 31.8 stays
+right of the side (second tier). Its flange end faces stop 2.5 mm short of the
+outline, and the witnesses run over the middle section's top and underside
+object lines to the silhouette. With the strict rule alone it fell back to the
+fixed map's front-left, where the lower witness lands on a hidden line. A
+horizontal side thickness's outside arrow now reserves the side's left gap below
+the view as well as above it. Without that, 10038 showed a new 4.7 mm band overrun.
+
+Overturnable judgement calls:
+- Silhouette means the view's projected envelope (frame outline, 0.05 mm). A wall
+  whose faces end at a local notch rather than the outer box is not anchored there.
+- The 3 mm second tier (`NEAR_SILHOUETTE`) is a tuned allowance: about one
+  arrowhead of witness over the part. Today it applies only to FTC-06.
+- 10033's 8.3 goes to side rather than plan-right as the reviewer suggested,
+  because plan's lower edge stops at the C3.4 chamfer. Residual: the R6.1 callout
+  in side now sits between the 8.3 witnesses with its shoulder ending on the right
+  witness (a touch, not a counted crossing). Counting a line within LABEL_PAD of a
+  label as text contact would move it, but changes leader placement corpus-wide
+  (4 fixture tests); left for the leader stream.
+- The minor coverage policy point stands as before and is NOT counted as
+  acceptance: on 10007 (3.9 = 31.9 - 28.0, 11.7 = 14.0 - 2.3), 10047 (31.8 - 23.1)
+  and FTC-07 plates 2 and 5 the thickness is only derivable from two retained
+  stations, matching Python's lint (`_step_level_dependencies`). That contradicts
+  the brief's lesson as written and the inverse top-slab rule (10038, FTC-06);
+  the brief owner should decide which way it goes.
+- FTC-07's rejected A3 1:1 alternative still has 16 items over a view (14 before
+  G2); unchanged by this round and recorded, not fixed.
+
+Also fixed: the HTTP MCP server closed connections with an unread request body
+after early refusals (405/403/400), so the kernel could reset the connection
+before the client read the response (tests/stateless.rs:103 ConnectionReset).
+It now half-closes and drains (bounded, 2 s) before closing. Before the fix the
+test failed in both of this round's runs (full suite and a six-binary subset);
+after it, 5/5 isolated runs and the final full run pass.

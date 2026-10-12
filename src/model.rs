@@ -2796,6 +2796,30 @@ pub fn render_annotations_with_items(
         runs,
         claims: Vec::new(),
     }));
+    // Authored plate omissions are consumer provenance, with no ink or claimed value.
+    annotations.extend(
+        plan.omitted
+            .iter()
+            .filter(|o| {
+                o.id.ends_with("/thickness.length")
+                    && matches!(
+                        o.state,
+                        crate::items::State::OmittedByUser | crate::items::State::NotAuthored
+                    )
+            })
+            .filter_map(|o| {
+                let (feature, parameter) = o.id.strip_prefix("d:")?.split_once('/')?;
+                Some(Annotation {
+                    name: format!("suppressed:{}", o.id),
+                    view: None,
+                    runs: Vec::new(),
+                    claims: vec![crate::output::Claim {
+                        feature: feature.into(),
+                        parameter: parameter.into(),
+                    }],
+                })
+            }),
+    );
     Ok(Drawing {
         page: plan.sheet.page,
         layers,

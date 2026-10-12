@@ -71,6 +71,13 @@ edited.
   scan draftwright's lint makes for undimensionable openings and toothed outlines, made here when
   the part is analysed because lint never sees the part (`src/lint/profiles.rs`). `plan` reads
   older analyses with none; `review` judges only this version.
+  Principal faces now also retain optional `outer_lines` (straight outer boundary edges).
+  Plate planning can choose a boundary profile whose two thickness faces have overlapping
+  solid edges, and anchor its witnesses there. This is model-space Analysis evidence;
+  no projected line-work is added to the Plan. Older analyses default to no straight-edge
+  evidence and keep the axis-map fallback. Profile visibility is proved only for one solid;
+  body bounds are transformed from the recognition frame before matching.
+
 - **PMI** (`draftwright.analysis/7`, `pmi`): the part's AP242 semantic PMI as `src/pmi.rs`
   reads it (`read`, the report: records with their faces, and every source not read with its
   reason), each geometric tolerance and datum with where it attaches (`geometry`: a datum's site
@@ -365,6 +372,18 @@ basis, placed}`:
     instead). A tolerance on a dimension the plan leaves out, or a fit on a feature no planned
     callout states, is a `tolerance_not_shown` warning on its ID. Across a revision, feature
     entries are kept inactive like the other feature-keyed entries.
+
+Plate and wall thicknesses (`src/dims/plates.rs`, ISSUE-1373-a) are ordinary
+`d:f:plate:<n>/thickness.length` items: z slabs on the front-left strip, y walls
+above the side view and x walls below front. Equal thicknesses on one recognised
+body share a counted statement with every slab's claim. Proven envelope, step,
+turned-band and channel statements may cover an item; supporting polygonal slabs
+and slot-pattern webs require physical ownership evidence. Single-axis native
+slabs are retained when the ladder does not already state their interval. Plate
+coverage (`src/lint/plates.rs`) checks claimed, printed nominal values independently;
+zero-ink `suppressed:<id>` consumer annotations record authored omissions without
+stating a thickness or letting lint read the Spec. Outcomes use
+`plate_requirement_missing`, `_suppressed` and `_unverifiable`.
 
 Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `slots`, `bosses`,
 `edges`), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised

@@ -378,13 +378,10 @@ fn a_cylindrical_mouth_states_its_greatest_depth() {
 /// as draftwright does; the holes' callouts are draftwright's (`2× ⌀8 THRU`, `⌀4 THRU ⌴ ⌀12 ↧ 4`).
 /// A pocket bounded on all sides is dimensioned as a pocket (`20 × 30 × 8 DEEP`, no channel
 /// width), and a rebate centred across a block is left to the height ladder (shoulders 20 and 40,
-/// as draftwright's sheet), its recess reported, not dimensioned. Not ported: the independent
-/// wall thickness (draftwright's `12.5`, or `10` with the opposite wall derived) and the base's
-/// `12`: plate thickness is not dimensioned, and each plate is reported `dimensions_not_ported`.
-/// Lint says so on the port's own drawing: its one finding is the channel's wall,
-/// `channel_requirement_missing` for the plate's `thickness.length` (12.5, or 10), where
-/// draftwright's drawing states it and its lint finds nothing of the channel (rust-wrong in the
-/// plan, reported honestly).
+/// as draftwright's sheet), its recess reported, not dimensioned. The independent wall
+/// thickness (`12.5`, or `10` with the opposite wall derived) and the base's `12` are
+/// plate items. Their printed claims cover both the channel and plate requirements;
+/// severing those claims loses that evidence in both consumers.
 #[test]
 fn an_open_channel_is_one_feature_with_one_width() {
     let labels = |plan: &Plan, part: &str| -> Vec<String> {
@@ -416,36 +413,55 @@ fn an_open_channel_is_one_feature_with_one_width() {
             .collect();
         assert_eq!(callouts, ["2× ⌀8 THRU", "⌀4 THRU ⌴ ⌀12 ↧ 4"], "{part}");
         assert!(
-            plan.dimensions
-                .iter()
-                .all(|d| !d.id.contains("/pocket_") && !d.id.contains("plate")),
+            plan.dimensions.iter().all(|d| !d.id.contains("/pocket_")),
             "{part}"
         );
-        let plates: Vec<_> = plan
-            .problems
+        assert!(!plan.problems.iter().any(|q| q.code == "dimensions_not_ported" && q.subjects[0].starts_with("f:plate:")), "{part}");
+        let (shape, analysis) = analysed(part);
+        let plates: Vec<_> = analysis
+            .features
             .iter()
-            .filter(|q| q.code == "dimensions_not_ported" && q.subjects[0].starts_with("f:plate:"))
+            .filter(|f| f.kind == "plate")
             .collect();
         assert_eq!(plates.len(), 3, "{part}");
-        let (shape, analysis) = analysed(part);
-        let drawing = model::render(&shape, &analysis, &plan, &font()).unwrap();
+        for plate in &plates {
+            let count = plan
+                .dimensions
+                .iter()
+                .flat_map(|d| &d.measurements)
+                .filter(|m| m.feature == plate.id && m.parameter == "thickness.length")
+                .count();
+            let covered = plan.omitted.iter().any(|o| {
+                o.id == format!("d:{}/thickness.length", plate.id)
+                    && matches!(o.state, draftwright::items::State::Covered { .. })
+            });
+            assert!(
+                count == 1 || count == 0 && covered,
+                "{part}: {} is stated once or derived",
+                plate.id
+            );
+        }
+        let mut drawing = model::render(&shape, &analysis, &plan, &font()).unwrap();
+        assert!(findings(&analysis, &drawing).is_empty(), "{part}");
+        // Severing a wall's claim loses both the plate and channel evidence.
+        for annotation in &mut drawing.annotations {
+            annotation
+                .claims
+                .retain(|c| c.parameter != "thickness.length");
+        }
         let issues = lint::lint(&analysis, &drawing);
-        assert_eq!(
-            findings(&analysis, &drawing),
-            BTreeSet::from(["channel_requirement_missing f:plate:1 thickness.length".to_string()]),
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == "channel_requirement_missing"
+                    && i.requirements
+                        .iter()
+                        .any(|r| r.parameter == "thickness.length")),
             "{part}"
         );
-        let wall = if part == "u_channel" {
-            "(12.5)"
-        } else {
-            "(10)"
-        };
         assert!(
-            issues[0]
-                .message
-                .contains(&format!("plate.thickness.length {wall}")),
-            "{part}: {}",
-            issues[0].message
+            issues.iter().any(|i| i.code == "plate_requirement_missing"),
+            "{part}"
         );
     }
 
