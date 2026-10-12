@@ -730,7 +730,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them"
-  rust_note: "Ported for hole callouts: lint's requirements come from the Analysis alone (it never reads the Spec), so omitting a callout or every dimension leaves every requirement counted and reported missing, and without recognition there are none. Locations, in part: a lone hole off the part's centre whose location is left out is reported by the coverage backstop (feature_not_located, naming each axis's location.length.<axis>), and one whose callout is left out by feature_not_dimensioned besides hole coverage, as draftwright reports them on its single hole (tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported). Not ported: hole coverage's own location requirements (draftwright's ledger also reports hole_requirement_missing location.location.<axis>; src/lint/holes.rs counts no locations), so leaving out a pattern's location or a location shared with a hole on the part's centre line costs no finding (draftwright's _pattern_and_central_bore test); a completeness score."
+  rust_note: "Ported for hole callouts: lint's requirements come from the Analysis alone (it never reads the Spec), so omitting a callout or every dimension leaves every requirement counted and reported missing, and without recognition there are none. Locations, in part: a lone hole off the part's centre whose location is left out is reported by the coverage backstop (feature_not_located, naming each axis's location.length.<axis>), and one whose callout is left out by feature_not_dimensioned besides hole coverage, as draftwright reports them on its single hole (tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported). Not ported: hole coverage's own location requirements (draftwright's ledger also reports hole_requirement_missing location.location.<axis>; src/lint/holes.rs counts no locations), so leaving out a pattern's location or a location shared with a hole on the part's centre line costs no finding (draftwright's _pattern_and_central_bore test); a completeness score. Stage G1: hole coverage now counts pattern locations and pitches (tests/completeness.rs::hole_pattern_missing_location_is_reported_per_axis), and the plan reports raw completeness counts; still no completeness score, and a single hole's own location.location.<axis> requirement (LINT-hole_coverage-location) is not counted."
   port_note: "Keep: completeness problems computed from Analysis, not from Spec; property test on spec deletions."
 
 - id: ISSUE-1143-b
@@ -747,7 +747,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims"
-  rust_note: "Partly ported. Checked: a callout claiming every member of one group does not certify another group of the same size; text with no claim certifies no hole; a callout claiming one member of a group certifies its common sizes (one truthful statement, as draftwright's _state) but not its quantity, whatever it prints: grouping.count is reported missing, naming the members no callout counts (draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). src/lint/holes.rs::uncounted: a member is counted by a diameter callout whose leading n× (or one) equals the holes it claims, all of them the group's. Holes drilled from opposite faces are separate groups (holes_drilled_from_opposite_faces_are_separate_groups). The port has no declarations or IR to join, so there is no tool-centre fallback. Not ported: hole locations (LINT-hole_coverage-location). Difference: draftwright credits a callout whose label was rewritten while its IDs survive; lint also needs the text to state the value (rust-correct, ISSUE-1217-a)."
+  rust_note: "Partly ported. Checked: a callout claiming every member of one group does not certify another group of the same size; text with no claim certifies no hole; a callout claiming one member of a group certifies its common sizes (one truthful statement, as draftwright's _state) but not its quantity, whatever it prints: grouping.count is reported missing, naming the members no callout counts (draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). src/lint/holes.rs::uncounted: a member is counted by a diameter callout whose leading n× (or one) equals the holes it claims, all of them the group's. Holes drilled from opposite faces are separate groups (holes_drilled_from_opposite_faces_are_separate_groups). The port has no declarations or IR to join, so there is no tool-centre fallback. Not ported: hole locations (LINT-hole_coverage-location). Difference: draftwright credits a callout whose label was rewritten while its IDs survive; lint also needs the text to state the value (rust-correct, ISSUE-1217-a). Stage G1: pattern locations are now checked from member claims (tests/completeness.rs::member_ordinates_prove_pattern_location_and_spacing); single-hole locations remain unported."
   port_note: "Keep: hole ownership by stable analysis IDs; mismatch -> 'unverifiable' problem."
 
 - id: ISSUE-1143-c
@@ -967,9 +967,9 @@
       - "tests/test_issue_1157_no_implicit_general_tolerance.py::test_the_unspecified_text_clears_its_own_cell"
       - "tests/test_issue_1157_no_implicit_general_tolerance.py::test_explicit_title_tolerance_does_not_borrow_imported_source_provenance"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/trust_rules.rs::no_document_infers_manufacturing_intent"
-  rust_note: "Partly ported: no document defaults a tolerance or a standard (the title holds only the name and drawing number unless the spec gives more, and no term prints a tolerance). Not ported: the title block's GEN. TOL. cell (src/title_block.rs) is filled from sheet/title/tolerance when it is given, but an unauthored tolerance leaves it blank instead of stating UNSPECIFIED, so an explicit empty value cannot be told from none."
+  status: ported
+  rust_test: a_blank_general_tolerance_is_flagged_with_an_explicit_acknowledgement_fix
+  rust_note: "Stage G5: never defaulted (tests/trust_rules.rs::no_document_infers_manufacturing_intent). Difference by maintainer decision: an unauthored tolerance leaves GEN. TOL. blank and raises general_tolerance_missing, whose fix op sets UNSPECIFIED (an overturnable judgement in docs/next-session.md), rather than printing UNSPECIFIED by default. PMI supplies the tolerance when the Spec does not (pmi_supplies_the_general_tolerance_but_a_spec_blank_still_needs_attention)."
   port_note: "Keep: Spec general tolerance is Option; plan title block shows 'unspecified' when None."
 
 - id: ISSUE-1166-a
@@ -1843,7 +1843,8 @@
       - "tests/test_issue_1349_precision_display.py::test_precision_boundaries_and_negative_zero_are_stable"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: the spec has no precision; numbers print by draftwright's _fmt (dims::fmt), which prints negative zero as 0."
+  rust_test: formatting_rounds_negative_zero_without_a_sign
+  rust_note: "Not ported: the spec has no precision; numbers print by draftwright's _fmt (dims::fmt), which prints negative zero as 0. Stage G1: negative rounded zero prints without a sign (tests/completeness.rs::formatting_rounds_negative_zero_without_a_sign). Precision conflicts are moot until the Spec has a precision."
   port_note: "Keep."
 
 - id: ISSUE-1350-a
@@ -2108,8 +2109,9 @@
       - "tests/test_issue_1373_plate_completeness_evidence.py::test_wrong_plate_ink_loses_drawing_credit"
       - "tests/test_issue_1373_plate_completeness_evidence.py::test_deleting_provider_plates_cannot_shrink_the_independent_denominator"
     corpus_parts: ["plate-single-negative.step", "plate-t-xz.step", "plate-t-yz.step", "plate-u-additive.step"]
-  status: pending
-  rust_note: "Not ported: plates are not dimensioned beyond the envelope and lint has no plate coverage (LINT-plate_coverage-thickness)."
+  status: ported
+  rust_test: plate_evidence_is_claimed_printed_and_typed
+  rust_note: "Stage G2 (src/lint/plates.rs, src/dims/plates.rs): one thickness requirement per plate occurrence, credited only by a claim that prints the value; ownership needs the same body (body_key); equal plates share one 2x statement. Some thicknesses (10007, 10047, FTC-07 plates 2 and 5) are still credited only through two other stated dimensions, as Python's lint allows."
   port_note: "Keep."
 
 - id: ISSUE-1374-a
@@ -2205,7 +2207,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_trust.rs::every_recognised_feature_is_dimensioned_or_reported"
-  rust_note: "Partly ported: on the fixtures and thirteen sampled parts (ctc04 among them), every recognised feature is stated by a planned dimension (a pattern's for its member holes, a groove's for the boss that is its floor) or is a problem's subject, except kinds draftwright leaves undimensioned by design (dims::UNDRAFTED; the test keeps its own copy). An angled step is reported by the plan as unsupported (ISSUE-1247-a). A kind not yet ported is reported at info severity (dimensions_not_ported), where draftwright's lint warns (pad_footprint_not_defined). Not ported: framed recognition, which is quiddity's (quiddity-rust's tests/frames.rs and tests/invariance.rs)."
+  rust_note: "Partly ported: on the fixtures and thirteen sampled parts (ctc04 among them), every recognised feature is stated by a planned dimension (a pattern's for its member holes, a groove's for the boss that is its floor) or is a problem's subject, except kinds draftwright leaves undimensioned by design (dims::UNDRAFTED; the test keeps its own copy). An angled step is reported by the plan as unsupported (ISSUE-1247-a). A kind not yet ported is reported at info severity (dimensions_not_ported), where draftwright's lint warns (pad_footprint_not_defined). Not ported: framed recognition, which is quiddity's (quiddity-rust's tests/frames.rs and tests/invariance.rs). Stage G1: a wholly omitted supported feature makes the plan need attention (tests/completeness.rs::wholly_omitted_supported_feature_needs_attention)."
   port_note: "Keep: every Analysis feature appears in Plan or in problems."
 
 - id: ISSUE-1395-a
@@ -2365,7 +2367,7 @@
       - "tests/test_issue_1460_step_inspection.py::test_evaluated_empty_families_are_not_reported_as_unavailable_or_not_applicable"
     corpus_parts: ["nist_ctc_01_asme1_ap203", "nist_ctc_01_asme1_ap242", "grm04_drive_plate.step", "issue_1058_wheel_rh.step"]
   status: pending
-  rust_note: "Not ported: there is no inspection report. The Analysis carries every accepted record (features, evidence, and refusals with quiddity's reasons) and the plan reports kinds it does not dimension (dimensions_not_ported), but nothing states a disposition per finding."
+  rust_note: "Not ported: there is no inspection report. The Analysis carries every accepted record (features, evidence, and refusals with quiddity's reasons) and the plan reports kinds it does not dimension (dimensions_not_ported), but nothing states a disposition per finding. Stage G1: inspect_part reports counts of claimed faces and unplanned features, not a disposition per finding."
   port_note: "Keep: Analysis report API (feature list + disposition per feature)."
 
 - id: ISSUE-1460-b

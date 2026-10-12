@@ -597,7 +597,7 @@
     tests: ["test_occurrence_recognition_ownership.py", "test_pattern_ownership.py", "test_nested_recognition_ownership.py", "test_channel_ownership.py", "test_turned_step_ownership.py", "test_through_step_ownership.py", "test_boss_ownership.py", "test_plate_ownership.py"]
   status: pending
   port_note: "Keep: analyse records, per recognised occurrence, its disposition and owning feature id at conversion time; Analysis carries the ledger."
-  rust_note: "Not ported: the bridge gives every quiddity record one home (feature, evidence or refusal) and refuses one it has none for, but the Analysis carries no per-occurrence disposition or owning feature, so an occurrence the plan then does not use (a record type draftwright leaves undimensioned) is not accounted for as such."
+  rust_note: "Not ported: the bridge gives every quiddity record one home (feature, evidence or refusal) and refuses one it has none for, but the Analysis carries no per-occurrence disposition or owning feature, so an occurrence the plan then does not use (a record type draftwright leaves undimensioned) is not accounted for as such. Stage G1: the Plan counts unplanned features, but still no per-occurrence disposition."
 
 - id: ADR3-8
   statement: "Ownerless policy is explicit per occurrence and comes from one source: families not drawn carry unsupported, deferred or evidence_only with a closed reason code."
@@ -1004,7 +1004,7 @@
     tests: ["test_quality_components.py (test_the_audited_score_carries_its_qualifier_in_its_own_name)", "test_issue_1176_quality_fidelity.py"]
   status: pending
   port_note: "Keep: quality report fields with the same names and bounds."
-  rust_note: "Not ported: there is no quality report and no audited_score; the plan's problems and lint's findings are the only measures."
+  rust_note: "Not ported: there is no quality report and no audited_score; the plan's problems and lint's findings are the only measures. Stage G1: the Plan carries raw completeness counts and tools/quality.py reports them as their own columns; there is still no audited_score."
 
 - id: ADR5-6
   statement: "A claim on the sheet is checked against the compiler, not against a pattern: a measurement the plan never approved is reported, and an approved tolerance reaches the ink verbatim."
@@ -1099,9 +1099,10 @@
     adr: "ADR 5 invariant 13"
     issues: []
     tests: ["test_report_projection.py", "test_sheet_generation_snapshot.py"]
-  status: pending
+  status: ported
+  rust_test: inspect_summary_carries_the_plans_status_and_completeness
   port_note: "Keep: same status vocabulary in the report/Plan summary."
-  rust_note: "Not ported: neither the plan nor review has a summary status (bounded-clear, needs-attention). Where it lives (the Plan or a report) is open; question in docs/next-session.md."
+  rust_note: "Stage G1 (src/completeness.rs): the Plan and inspect_part carry status clear or needs_attention with bounded counts (claimed_faces, faces, unplanned_features); docs/mcp.md says neither establishes manufacturing readiness. The vocabulary is clear rather than bounded-clear. While stock faces count as unclaimed, single-solid parts are always needs_attention (docs/next-session.md)."
 
 - id: ADR5-14
   statement: "Read-only evidence is a projection, never a build: inspection returns what recognition found and what was done with it without a drawing, plan, placement, render, export or score."
@@ -1146,8 +1147,9 @@
     issues: []
     tests: ["test_issue_1460_step_inspection.py"]
   status: pending
+  rust_test: unclaimed_faces_and_unplanned_features_need_attention
   port_note: "Keep: Analysis has explicit 'unavailable' fields rather than empty lists for unknowns."
-  rust_note: "In part: an Analysis made without recognition has no recognition field, and one made with it has the field even when nothing was recognised; quiddity's refusals are kept (recognition.refusals; tests/bridge.rs::refusals_and_evidence_are_not_features). Not ported: faces no feature claims are not stated, and nothing says which recognised families draftwright cannot draw."
+  rust_note: "In part: an Analysis made without recognition has no recognition field, and one made with it has the field even when nothing was recognised; quiddity's refusals are kept (recognition.refusals; tests/bridge.rs::refusals_and_evidence_are_not_features). Not ported: faces no feature claims are not stated, and nothing says which recognised families draftwright cannot draw. Stage G1: unclaimed faces are now stated (unclaimed_geometry, whose message says they are not a count of missed features) and unplanned supported features need attention. Not ported: a per-family statement of what recognition rejected or what draftwright cannot draw beyond dimensions_not_ported."
 
 - id: ADR5-U1
   statement: "Lint's coverage of everything a competent reviewer would flag is a goal, not a property; visual-channel defects are outside lint by definition."
@@ -1771,6 +1773,8 @@
     issues: []
     tests: []
   status: pending
+  rust_test: projection_symbol_states_third_angle_and_clears_the_reserved_band
+  rust_note: "Partial (Stage G5): the title block draws the ISO third-angle projection symbol, the convention the native layout uses. Not ported: first-angle planning, a Spec projection input, and enforcing authored view relations."
   port_note: "Keep: Spec projection_convention input; planner enforces arrangement; no Python guard yet."
 
 - id: ARCH0018-2

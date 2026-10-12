@@ -296,7 +296,9 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1370_hole_pattern_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: member_ordinates_prove_pattern_location_and_spacing
+  rust_note: "Stage G1 (src/lint/hole_patterns.rs): a missing pattern location is reported per in-plane axis (hole_pattern_missing_location_is_reported_per_axis); a location ordinate claimed on a member hole counts towards the pattern. As in Python, a bolt circle concentric with turned stock gets no centreline credit (spool132, undetermined in known_lint.json)."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-pattern_spacing
@@ -308,7 +310,9 @@
     module: "linting/hole_coverage.py"
     issues: [1143]
     tests: [tests/test_issue_1370_hole_pattern_completeness_evidence.py]
-  status: pending
+  status: ported
+  rust_test: hole_pattern_pitch_needs_truthful_printed_evidence
+  rust_note: "Stage G1 (src/lint/hole_patterns.rs): spacing needs a claim whose text prints the value; pitch is implied when every member's ordinates are drawn (member_ordinates_also_prove_linear_pattern_spacing, member_ordinates_prove_a_grid_without_an_axis_aligned_lattice)."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-opposed_bores_distinct
@@ -609,7 +613,7 @@
     tests: [tests/test_issue_1560_envelope_axes.py]
   status: pending
   rust_test: ledgers_on_pythons_sheets_match_pythons_or_are_known
-  rust_note: "Partial (src/lint/envelope.rs): a ledger, lint::envelope::outcomes, placed or missing per non-zero axis of the Analysis's box; as in Python it gives no lint finding, so lint::check does not run it, and no completeness report reads it yet. Carriers: an envelope extent claim, a centred turned-step, boss or overall (envelope od.diameter) diameter, or a contiguous chain of turned-step lengths on one axis line, each only when its text prints the value. Not ported: any other measurement whose span runs end to end, profile_group chains, and the suppressed, dropped and satisfied states (omissions and drops live outside the drawing). Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers)."
+  rust_note: "Partial (src/lint/envelope.rs): a ledger, lint::envelope::outcomes, placed or missing per non-zero axis of the Analysis's box; as in Python it gives no lint finding, so lint::check does not run it, and no completeness report reads it yet. Carriers: an envelope extent claim, a centred turned-step, boss or overall (envelope od.diameter) diameter, or a contiguous chain of turned-step lengths on one axis line, each only when its text prints the value. Not ported: any other measurement whose span runs end to end, profile_group chains, and the suppressed, dropped and satisfied states (omissions and drops live outside the drawing). Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers). Stage G1: lint now reports a missing extent as a finding (tests/completeness.rs::omitted_overall_extents_are_lint_findings), where Python's ledger feeds completeness only; the other carriers above remain unported."
   port_note: "Keep."
 
 - id: LINT-code-missing_principal_dimension
@@ -647,8 +651,9 @@
     module: "linting/plate_coverage.py"
     issues: [1373]
     tests: [tests/test_issue_1373_plate_completeness_evidence.py]
-  status: pending
-  rust_note: "Not ported: blocked on data the Analysis does not carry. (1) Python's denominator is draftwright's own conversion of quiddity's Plate records into PlateFeatures (detect.py): a plate it does not convert is unverifiable ('no IR feature claimed', ctc01's and m1000's captured sheets) unless an alternative grammar states it; the port has no such conversion, the Analysis holding quiddity's plates as they are. (2) The alternative grammars need draftwright's step-level ladder (StepLevelFeature: base, levels, shoulders, datum, derived from quiddity's FaceLevel evidence), which the Analysis keeps only as raw evidence records. (3) The polygonal-boss exclusion proves the slab and the boss share one solid by point-in-solid tests on the part (_shares_one_solid); lint reads the Analysis and the drawing only. (4) The slot-pattern exclusion needs quiddity's derived slot_patterns, which the bridge drops (stream d-bridge-slot-patterns). Question for the maintainer: should the Analysis carry draftwright's plate conversion and step ladder (so lint can judge plates as Python does), or should the port's lint require every quiddity plate's thickness, with the exclusions it can prove?"
+  status: ported
+  rust_test: plate_evidence_is_claimed_printed_and_typed
+  rust_note: "Stage G2: the planner states each plate thickness (tests/dims_plates.rs) and lint checks it with Python's alternatives (overall size on the same interval, step ladder, derived channel wall). Thicknesses derivable from two stated dimensions are accepted as Python's lint accepts them."
   port_note: "Keep."
 
 - id: LINT-plate_coverage-exclusions
@@ -659,8 +664,9 @@
     module: "linting/plate_coverage.py"
     issues: [1373]
     tests: [tests/test_issue_1373_plate_completeness_evidence.py]
-  status: pending
-  rust_note: "Not ported: see LINT-plate_coverage-thickness. The polygonal-boss exclusion needs point-in-solid tests on the part, which lint does not receive; the slot-pattern exclusion needs quiddity's derived slot_patterns, which the bridge drops; the derived opposite wall needs draftwright's converted channel and plates."
+  status: ported
+  rust_test: polygonal_support_exclusion_needs_body_and_witness_proof
+  rust_note: "Stage G2 (src/lint/plates.rs): polygonal-boss support, slot-pattern web (slot_pattern_web_exclusion_needs_the_exact_material_interval_and_body) and derived opposite channel wall (opposite_channel_wall_needs_every_printed_dependency_and_a_full_span), each proved from the Analysis and the drawn claims."
   port_note: "Keep."
 
 - id: LINT-code-plate_requirement_state
@@ -671,8 +677,9 @@
     module: "linting/plate_coverage.py"
     issues: [1373]
     tests: [tests/test_issue_1373_plate_completeness_evidence.py]
-  status: pending
-  rust_note: "Not ported: see LINT-plate_coverage-thickness."
+  status: ported
+  rust_test: plate_evidence_is_claimed_printed_and_typed
+  rust_note: "Stage G2: plate_requirement_missing, _suppressed (an authored omission) and _unverifiable (wrong or unreadable printed value, unreadable plate record)."
   port_note: "Keep."
 
 - id: LINT-channel_coverage-width_scheme
@@ -826,7 +833,7 @@
     tests: [tests/test_issue_1374_turned_step_completeness_evidence.py]
   status: pending
   rust_test: ledgers_on_pythons_sheets_match_pythons_or_are_known
-  rust_note: "Partial (src/lint/turned.rs): a ledger, lint::turned::outcomes, step.length and step.diameter per turned band not owned by a groove (groove_owns_turned_step_band; ambiguous ownership makes every band unverifiable), placed when a claiming annotation prints the value, the diameter also by the overall OD for a profile's unique largest band. The port's own plan claims each band's step.length and step.diameter (src/dims/turned.rs), its overall diameter the band or two flanges it stands for. As in Python it gives no lint finding, so lint::check does not run it. Not ported: the suppressed, dropped and satisfied states, and Python's IR-join unverifiable. Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers)."
+  rust_note: "Partial (src/lint/turned.rs): a ledger, lint::turned::outcomes, step.length and step.diameter per turned band not owned by a groove (groove_owns_turned_step_band; ambiguous ownership makes every band unverifiable), placed when a claiming annotation prints the value, the diameter also by the overall OD for a profile's unique largest band. The port's own plan claims each band's step.length and step.diameter (src/dims/turned.rs), its overall diameter the band or two flanges it stands for. As in Python it gives no lint finding, so lint::check does not run it. Not ported: the suppressed, dropped and satisfied states, and Python's IR-join unverifiable. Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers). Stage G1: lint now reports an unstated band length or diameter as a finding (tests/completeness.rs::unstated_turned_band_length_and_diameter_are_lint_findings); the states above remain unported."
   port_note: "Keep."
 
 - id: LINT-groove_coverage-width_and_floor
@@ -2018,9 +2025,10 @@
     lint_code: "step_material_disagreement"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
-  status: pending
+  status: ported
+  rust_test: a_spec_material_contradiction_warns_with_both_values_and_keeps_the_spec
   port_note: "Keep."
-  rust_note: "Not ported: as step_material_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). The port fills the title block's material from the file as draftwright does, a spec's material winning (tests/title_block_material.rs)."
+  rust_note: "Stage G5: raised at planning, where the Spec is read (lint still never reads it, R1), as a warning naming both values; the Spec value wins. Difference: a blank Spec material also warns, where Python exempts explicit blank overrides (docs/next-session.md)."
 
 - id: LINT-code-step_material_unavailable
   statement: "An unreadable or unusable STEP material is reported."
@@ -2096,6 +2104,7 @@
     issues: [1127, 1176]
     tests: [tests/test_quality_components.py, tests/test_issue_1176_quality_fidelity.py]
   status: pending
+  rust_note: "Partial (Stage G1): raw completeness counts (claimed faces, faces, unplanned features) are reported in the Plan and as quality.py columns, never composed into one score; no audited completeness, fidelity, legibility or restraint component."
   port_note: "Keep the separation; decide scoring later."
 
 - id: LINT-quality-fidelity_codes

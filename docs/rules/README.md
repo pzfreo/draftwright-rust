@@ -11,14 +11,15 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 | `issues.yaml` | the 142 issue-numbered regression test files (`test_issue_*.py`) | 190 | 93 | 85 | 3 | 9 |
 | **All** | | **515** | **271** | **179** | **16** | **49** |
 
-Status, as brought up to date from the rules assessment of 2026-10-11:
+Status, as brought up to date from the rules assessment of 2026-10-11 and the Stage G
+integration of 2026-10-12 (G1 completeness, G2 plates, G5 title block):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 55 | 46 | 33 | 26 |
-| `lint.yaml` | 64 | 86 | 0 | 15 |
-| `issues.yaml` | 117 | 46 | 6 | 21 |
-| **All** | **236** | **178** | **39** | **62** |
+| `adr.yaml` | 54 | 47 | 33 | 26 |
+| `lint.yaml` | 58 | 92 | 0 | 15 |
+| `issues.yaml` | 115 | 48 | 6 | 21 |
+| **All** | **227** | **187** | **39** | **62** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a
