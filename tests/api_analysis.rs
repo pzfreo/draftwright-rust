@@ -37,7 +37,7 @@ fn edited() -> Spec {
 /// through the typed API, and through `api::call` with the Analysis carried inline.
 fn same_from_analysis(step: &Path, features: Option<&Path>) {
     let analysis = api::analyse(step, features).unwrap();
-    let formats = ["svg", "dxf", "pdf", "png"];
+    let formats = ["svg", "pdf", "png"];
     for spec in [Spec::default(), edited()] {
         let plan = api::plan(step, features, &spec).unwrap();
         let from = api::plan_analysed(&analysis, &spec).unwrap();
@@ -53,7 +53,7 @@ fn same_from_analysis(step: &Path, features: Option<&Path>) {
             serde_json::to_string(&plan).unwrap(),
             serde_json::to_string(&from).unwrap()
         );
-        assert_eq!(files.len(), 4);
+        assert_eq!(files.len(), formats.len());
         assert_eq!(files, from_files, "{}", step.display());
 
         let review = api::review(step, features, &spec).unwrap();
@@ -102,7 +102,7 @@ fn same_from_analysis(step: &Path, features: Option<&Path>) {
             .collect();
         written.push((reply["problems"].clone(), files));
     }
-    assert_eq!(written[0].1.len(), 3);
+    assert_eq!(written[0].1.len(), api::DEFAULT_FORMATS.len());
     assert_eq!(written[0], written[1]);
 }
 

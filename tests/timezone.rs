@@ -27,7 +27,7 @@ fn render(tz: &str) -> Vec<(String, Vec<u8>)> {
         .arg(root.join("tests/fixtures/recognition/plate.json"))
         .arg("-o")
         .arg(dir.join("plate"))
-        .args(["--formats", "svg,dxf,pdf"])
+        .args(["--formats", "svg,pdf"])
         .output()
         .unwrap();
     assert!(
@@ -35,7 +35,7 @@ fn render(tz: &str) -> Vec<(String, Vec<u8>)> {
         "{tz}: {}",
         String::from_utf8_lossy(&out.stdout)
     );
-    ["svg", "dxf", "pdf"]
+    ["svg", "pdf"]
         .map(|f| {
             (
                 f.to_string(),

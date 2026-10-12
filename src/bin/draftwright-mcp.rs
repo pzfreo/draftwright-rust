@@ -128,7 +128,7 @@ fn tools() -> Value {
         {
             "name": "render",
             "description": "Draw a STEP file under a spec and write the drawing beside the \
-                output stem, one file per format (out.svg, out.dxf, out.pdf, out.png). Each file embeds \
+                output stem, one file per format (out.svg, out.pdf, out.png; DXF export is disabled until it is fixed). Each file embeds \
                 the spec. Returns the paths written and the problems (the plan's, and what could not \
                 be drawn as planned).",
             "inputSchema": {
@@ -143,7 +143,7 @@ fn tools() -> Value {
                     "formats": {
                         "type": "array",
                         "items": { "type": "string", "enum": api::FORMATS },
-                        "description": "Which formats to write; svg, dxf and pdf if omitted.",
+                        "description": "Which formats to write; svg and pdf if omitted.",
                     },
                     "dpi": {
                         "type": "number",

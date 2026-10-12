@@ -28,11 +28,15 @@ use crate::text::Font;
 /// The drawing's font (IBM Plex Mono), bundled.
 pub const MONO: &[u8] = include_bytes!("../fonts/IBMPlexMono-Regular.ttf");
 
-/// The formats [`render`] writes.
-pub const FORMATS: [&str; 4] = ["svg", "dxf", "pdf", "png"];
+/// The formats [`render`] writes. DXF export is disabled until it is fixed; [`Drawing::dxf`]
+/// itself is kept, and a DXF drawing's embedded spec is still read.
+pub const FORMATS: [&str; 3] = ["svg", "pdf", "png"];
 
 /// The formats written when none are named: the drawing's vector files.
-pub const DEFAULT_FORMATS: [&str; 3] = ["svg", "dxf", "pdf"];
+pub const DEFAULT_FORMATS: [&str; 2] = ["svg", "pdf"];
+
+/// Drawing extensions [`write`] replaces on an output path, DXF included.
+const EXTENSIONS: [&str; 4] = ["svg", "dxf", "pdf", "png"];
 
 /// The PNG's resolution when none is given, pixels per inch (draftwright's).
 pub use crate::png::DPI;
@@ -282,6 +286,12 @@ fn rendered(
     formats: &[&str],
     dpi: f64,
 ) -> Result<(Plan, Files), Error> {
+    if formats.contains(&"dxf") {
+        return Err(Error {
+            choices: FORMATS.map(String::from).to_vec(),
+            ..Error::invalid("DXF export is disabled until it is fixed.".to_string())
+        });
+    }
     if let Some(other) = formats.iter().find(|f| !FORMATS.contains(f)) {
         return Err(Error {
             choices: FORMATS.map(String::from).to_vec(),
@@ -299,7 +309,6 @@ fn rendered(
         .map(|&format| {
             let bytes = match format {
                 "svg" => drawing.svg().into_bytes(),
-                "dxf" => drawing.dxf(),
                 "png" => drawing.png(dpi).map_err(Error::invalid)?,
                 _ => drawing.pdf(&|name| match name {
                     "IBMPlexMono-Regular.ttf" => Some(MONO.to_vec()),
@@ -323,7 +332,7 @@ fn rendered(
 /// later failure leaves already published formats in place.
 pub fn write(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<String>, Error> {
     let stem = match out.extension().and_then(|e| e.to_str()) {
-        Some(e) if FORMATS.contains(&e) => out.with_extension(""),
+        Some(e) if EXTENSIONS.contains(&e) => out.with_extension(""),
         _ => out.to_path_buf(),
     };
     let named = |suffix: &str| {
@@ -795,7 +804,7 @@ mod export_tests {
         assert_eq!(fs::read(&foreign).unwrap(), b"another invocation");
         assert_eq!(
             dir.entries().len(),
-            5,
+            FORMATS.len() + 1,
             "only destinations and the foreign staging file"
         );
     }

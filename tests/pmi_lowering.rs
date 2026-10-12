@@ -975,7 +975,7 @@ fn the_same_bytes_in_every_time_zone() {
             .arg("--no-features")
             .arg("-o")
             .arg(out_dir.join("ctc01"))
-            .args(["--formats", "svg,dxf,pdf"])
+            .args(["--formats", "svg,pdf"])
             .output()
             .unwrap();
         assert!(
@@ -983,7 +983,7 @@ fn the_same_bytes_in_every_time_zone() {
             "{tz}: {}",
             String::from_utf8_lossy(&out.stdout)
         );
-        ["svg", "dxf", "pdf"].map(|f| std::fs::read(out_dir.join(format!("ctc01.{f}"))).unwrap())
+        ["svg", "pdf"].map(|f| std::fs::read(out_dir.join(format!("ctc01.{f}"))).unwrap())
     };
     let utc = render("UTC");
     assert!(String::from_utf8_lossy(&utc[0]).contains("0.75"));

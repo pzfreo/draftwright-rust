@@ -183,7 +183,7 @@ fn a_drawing_is_planned_edited_rendered_and_resumed() {
             1,
             "render",
             json!({ "step": step, "spec": spec,
-            "output": out.display().to_string(), "formats": ["svg", "dxf", "pdf"] }),
+            "output": out.display().to_string(), "formats": ["svg", "pdf", "png"] }),
         ),
         call(2, "review", json!({ "step": step, "spec": spec })),
     ]);
