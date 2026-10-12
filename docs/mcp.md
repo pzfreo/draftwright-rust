@@ -195,3 +195,13 @@ The message identifies the replaced zero-based `ops[index]`; the correction is
 previewed through Session and corresponds to the reported refusal. A batch with multiple
 invalid operations can still require another retry. Review and resubmit the correction. Ambiguous feature ownership and missing engineering
 magnitudes are not guessed. Batch all edits for one request in `apply_ops.ops`.
+
+
+`inspect_part` exposes the Plan's bounded completeness counts (`claimed_faces`, `faces`,
+`unplanned_features`) and a `status` of `clear` or `needs_attention`. Warning/error Plan
+or render problems require attention; informational findings do not. Coverage gaps on
+single solids warn, while several solids keep Python's informational severity. Face
+coverage names the Analysis inventory's bound: stock faces can be unclaimed, and a
+fully claimed inventory does not establish manufacturing readiness. The independent
+finished-drawing lint is available from `review`; inspect does not silently mix that
+separate assessment into its Plan problem collection.

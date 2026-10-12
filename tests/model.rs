@@ -40,7 +40,15 @@ fn every_default_says_why_and_the_views_fit_the_sheet_apart() {
         assert!(plan.sheet.default && !plan.sheet.basis.is_empty());
         assert_eq!(plan.views.len(), 4);
         assert!(plan.views.iter().all(|v| v.default && !v.basis.is_empty()));
-        assert!(plan.problems.is_empty(), "{:?}", plan.problems);
+        assert_eq!(plan.problems.len(), 1, "{:?}", plan.problems);
+        assert_eq!(plan.problems[0].code, "unclaimed_geometry");
+        assert_eq!(plan.problems[0].severity, "warning");
+        assert_eq!(plan.completeness.claimed_faces, 0);
+        assert_eq!(plan.completeness.faces, a.binding.face_count);
+        assert_eq!(
+            plan.status,
+            draftwright::completeness::Status::NeedsAttention
+        );
         // Every view's ink lies inside the border, and no two views' boxes meet.
         let drawing =
             model::render(&model::analyse(&part(name)).unwrap().0, &a, &plan, &font()).unwrap();

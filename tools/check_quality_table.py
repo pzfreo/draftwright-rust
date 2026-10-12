@@ -8,7 +8,7 @@ from pathlib import Path
 
 keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap",
         "view_on_title_block", "ink", "repeated_span", "line_through_feature",
-        "hidden_on_visible", "section_hidden"]
+        "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features"]
 tables = []
 rows = None
 columns = []
@@ -29,7 +29,8 @@ assert tables and tables[-1][1], "no complete quality table in status document"
 columns, reference = tables[-1]
 actual = json.loads(Path(sys.argv[2]).read_text())
 assert len(actual) == len(reference), "part count differs from status table"
-keys = [key for key in columns if all(key in m for m in actual.values())]
+keys = [key for key in columns if key in keys]
+assert all(key in m for key in keys for m in actual.values()), "missing quality column"
 seen = set()
 worse = []
 totals = [0] * len(keys)
@@ -41,7 +42,9 @@ for part, measurements in sorted(actual.items()):
     for i, key in enumerate(keys):
         value = measurements[key]
         totals[i] += value
-        if value > reference[name][key]:
+        if (value < reference[name][key] if key == "claimed_faces" else
+                value != reference[name][key] if key == "faces" else
+                value > reference[name][key]):
             worse.append(f"{part}: {key} {reference[name][key]} -> {value}")
 assert not worse, "quality regressed:\n" + "\n".join(worse)
 print(f"{len(actual)} parts, {len(actual) * len(keys)} cells: no part worse")

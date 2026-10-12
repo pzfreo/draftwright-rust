@@ -1883,23 +1883,31 @@ fn lint_reads_the_drawings_annotations() {
             .map(|i| (i.code, i.requirements[0].parameter.clone()))
             .collect::<Vec<_>>()
     };
-    assert_eq!(with("4× ⌀6 THRU"), []);
     let s = |a: &str, b: &str| (a.to_string(), b.to_string());
+    // Clearing every annotation also removes envelope, pattern location and pitch proof.
+    let missing = vec![
+        s("missing_principal_dimension", "width.length"),
+        s("missing_principal_dimension", "depth.length"),
+        s("missing_principal_dimension", "height.length"),
+        s("hole_pattern_requirement_missing", "location.length.x"),
+        s("hole_pattern_requirement_missing", "location.length.y"),
+        s("hole_pattern_requirement_missing", "grid_pitch.length.col"),
+        s("hole_pattern_requirement_missing", "grid_pitch.length.row"),
+    ];
+    assert_eq!(with("4× ⌀6 THRU"), missing);
     // The misprinted ⌀6.5 leaves the ø6 uncovered by the diameter backstop as well.
-    assert_eq!(
-        with("4× ⌀6.5 THRU"),
-        [
-            s("feature_not_dimensioned", "bore.diameter"),
-            s("hole_requirement_unverifiable", "bore.diameter")
-        ]
-    );
-    assert_eq!(
-        with("⌀6"),
-        [
-            s("hole_requirement_missing", "bore.through"),
-            s("hole_requirement_missing", "grouping.count")
-        ]
-    );
+    let mut wrong = vec![
+        s("feature_not_dimensioned", "bore.diameter"),
+        s("hole_requirement_unverifiable", "bore.diameter"),
+    ];
+    wrong.extend(missing.clone());
+    assert_eq!(with("4× ⌀6.5 THRU"), wrong);
+    let mut partial = vec![
+        s("hole_requirement_missing", "bore.through"),
+        s("hole_requirement_missing", "grouping.count"),
+    ];
+    partial.extend(missing);
+    assert_eq!(with("⌀6"), partial);
 }
 
 /// On a captured sheet, taking a callout away or misprinting it is found, in every family: lint is

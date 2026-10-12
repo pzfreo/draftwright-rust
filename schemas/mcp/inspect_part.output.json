@@ -16,6 +16,35 @@
           "type": "integer",
           "minimum": 0
         },
+        "status": {
+          "enum": [
+            "clear",
+            "needs_attention"
+          ]
+        },
+        "completeness": {
+          "type": "object",
+          "properties": {
+            "claimed_faces": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "faces": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unplanned_features": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "claimed_faces",
+            "faces",
+            "unplanned_features"
+          ],
+          "additionalProperties": false
+        },
         "envelope": {
           "type": "array",
           "items": {
@@ -137,6 +166,8 @@
         "part_ref",
         "part",
         "face_count",
+        "status",
+        "completeness",
         "envelope",
         "sheet",
         "views",

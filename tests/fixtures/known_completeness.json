@@ -1,0 +1,119 @@
+{
+  "schema": "draftwright.known-completeness/1",
+  "reference": "Python draftwright origin/main inspected with git show, 2026-10-11",
+  "reporting": [
+    {
+      "rule": "ADR5-13",
+      "python": "bounded-clear / needs-attention report projection",
+      "rust": "clear / needs_attention Plan and inspect summary",
+      "verdict": "equivalent",
+      "reason": "User explicitly requests these spellings and a Plan-level status. Clear names the assessed Plan/render-problem bound in model and MCP documentation; independent lint remains in review. No composite score or readiness claim."
+    },
+    {
+      "rule": "ADR5-17 / ISSUE-1460-a",
+      "python": "inspection reports provider association face counts and unclaimed geometry, without asserting missed features",
+      "rust": "unclaimed_geometry at warning for single solids and info for multiple solids; counts refer to Analysis feature face inventory",
+      "verdict": "rust-correct",
+      "reason": "G1 explicitly requests warning reporting against face_count. Native bridging does not expose provider-wide accepted-occurrence dispositions, so the field is bounded to the Analysis inventory. Ordinary stock faces can be unclaimed. 1000 has 3/52 claimed faces and 10046 0/35; this is a review floor rather than recall."
+    },
+    {
+      "rule": "ISSUE-1392-a",
+      "python": "uncovered feature coverage warns; assembly coverage is informational",
+      "rust": "dimensions_not_ported and features without drawn measurement evidence warn, or info with solid_count > 1",
+      "verdict": "rust-correct",
+      "reason": "An unported dimension family is a sheet completeness gap. Retain known pattern/groove absorption and deliberately undrafted records. tests/completeness.rs tests unsupported features and multi-solid severity explicitly."
+    },
+    {
+      "rule": "ADR R1 migration oracle",
+      "verdict": "equivalent",
+      "reason": "tests/fixtures/identity/plate.plan1.json.gz remains the literal historical geometry oracle. plate.reporting.json is a separate literal expectation for the new status/counts/unclaimed warning, added without filtering any old geometry or weakening the comparison."
+    }
+  ],
+  "formatting": [
+    {
+      "rule": "ISSUE-1349-b",
+      "input": -0.04,
+      "python_auto": "-0.0",
+      "python_explicit_decimals_1": "0.0",
+      "rust_before": "-0.0",
+      "rust_after": "0.0",
+      "verdict": "rust-correct",
+      "reason": "User explicitly requests fixing negative zero. Python _geometry.py::_fmt normalises rounded zero only with an explicit decimal policy; its automatic branch still prints -0.0. Rust preserves one decimal for rounded noninteger zero and suppresses the meaningless minus sign. Exact zero remains 0; -0.06 remains -0.1. tests/completeness.rs::formatting_rounds_negative_zero_without_a_sign and the updated exact formatter regression cover it."
+    }
+  ],
+  "visual_evidence": [
+    {
+      "finding": "unclaimed_geometry",
+      "parts": [
+        "1000",
+        "10046",
+        "10049"
+      ],
+      "verdict": "rust-correct",
+      "evidence": "All thirty default sheets rasterised at width 2400 and inspected. 1000: visible recess without its size (3/52); 10046: intricate stock profile and only overall dimensions (0/35); 10049: walls/pocket without complete sizes (5/33). Counts match face inventories. Unclaimed stock faces are not themselves missing features."
+    },
+    {
+      "finding": "dimensions_not_ported / feature_not_dimensioned",
+      "parts": [
+        "1000",
+        "10038",
+        "10049"
+      ],
+      "verdict": "rust-correct",
+      "evidence": "Default full-sheet inspection: 1000 has an un-sized rectangular recess; 10038 has a stepped L-shaped web without all its local sizes; 10049 has a pocket/walls without complete sizes. Whole-feature unplanned counts 1,3,2; no claim that these counts measure independent physical recall."
+    },
+    {
+      "finding": "missing_principal_dimension",
+      "parts": [
+        "GRM-03_thumbwheel_drive_screw",
+        "10049",
+        "1000"
+      ],
+      "verdict": "rust-correct",
+      "evidence": "tools/check_completeness.py renders controlled authored omissions. GRM03: length-chain labels 0.5,2,3,18 removed; remaining diameter callouts cannot locate the axial ends. 10049: omitted 11.5,32.8,44.0 overall spans; remaining 17.3,31.9,33.9 local spans are insufficient. 1000: omitted 48.4,12.6,29.1 extents; remaining local recess heights cannot prove overall size. PNGs and review records are under target/g1-evidence."
+    },
+    {
+      "finding": "axial_length_missing / turned_step_requirement_missing",
+      "parts": [
+        "GRM-05_depth_lock_bolt",
+        "string_post",
+        "GRM-03_thumbwheel_drive_screw"
+      ],
+      "verdict": "rust-correct",
+      "evidence": "Authored omission variants retain the other bands. GRM05: lower-body OD/length absent despite other OD6/13,6.2/5 callouts. string_post: upper-cylinder OD6/length5.5 absent despite other ledge/location sizes. GRM03: collar OD5/length3 absent despite remaining 0.5,2,18 length statements. Each full PNG inspected at width2400."
+    },
+    {
+      "finding": "hole_pattern_requirement_missing (location and pitch)",
+      "parts": [
+        "nist_ftc_08_asme1_rc",
+        "nist_ftc_09_asme1_rd",
+        "nist_ctc_01_asme1_rd"
+      ],
+      "verdict": "rust-correct",
+      "evidence": "Authored omission variants retain sizes/counts. FTC08: four outer mounting holes retain the 4x OD6 THRU (2x2) callout but no chosen-pattern location/pitch annotations. FTC09: outer mounting four-hole set retains 4x OD5.9 THRU (2x2); plate envelope and unrelated ordinates do not state its selected pattern. CTC01: outer four-hole grid retains 4x OD35 THRU (2x2), with its 650/350 pitches and centre ordinates missing; the 635/225 nearby dimensions relate to other features. Each full PNG inspected. Also inspected the unchanged default sheets: FTC08 pattern2 Y=167.0 is not drawn (location_ref_dropped); FTC09 pattern2 X=76.2 and pattern3 X=123.2 are not drawn (off_axis_location_dropped). The original G1 report incorrectly claimed exactly these three gaps and omitted twelve false member-pattern warnings on CTC02/CTC05. The fix-round inventory checks all thirty default sheets; see the member-ordinate verdict below."
+    },
+    {
+      "finding": "member ordinates satisfy pattern location and pitch",
+      "parts": [
+        "nist_ctc_02_asme1_rc",
+        "nist_ctc_05_asme1_rd"
+      ],
+      "verdict": "rust-correct",
+      "evidence": "Reviewer correctly identified twelve false pattern warnings, omitted by the original G1 evidence. CTC05 holes 11..16 carry y/z ordinates 230.7/238.4/246.2 and 171.4/206.4/241.3. CTC02 pattern9 holes 62/52/53 and pattern11 holes 59/60/70/69 carry x/y ordinates 265.4,266,315,365,414.6 and 168,492. Exact member claims and truthful printed numbers now prove the spacing. All thirty default reviews are inventoried by tools/check_completeness.py; final rasters under target/g1-fix-evidence. Both fresh release-rendered sheets inspected at width 2400: each stated ordinate terminates on its member-hole station, and every member is located in both in-plane axes. CTC02 remains crowded; this fix corrects reporting, not legibility. All thirty release SVGs are byte-identical to the reviewed G1 drawings (target/g1-fix-checks/svg-comparison.log)."
+    }
+  ],
+  "not_done": [
+    "A provider occurrence-disposition ledger and independent expected-feature denominator are not available in Analysis; face claims describe only imported features.",
+    "The requested raw completeness counts do not implement the full four-component audited-score report; fidelity and restraint scoring remain unavailable.",
+    "Existing envelope ledger cannot credit arbitrary other end-to-end measurements or declared profile-group chains; its parity verdicts remain in known_lint.json/ledgers.",
+    "Pattern lint currently establishes principal-axis patterns from recognition; patterns with oblique drilling axes are unassessed, and unproved principal-axis lattice spacing is reported unverifiable unless every physical member is located by truthful ordinates. No centred-hole exemption is invented without drawn location evidence.",
+    "spool132 default has six missing numerical pattern-centre coordinates. The sheet looks concentric with turned stock; no certified pattern-centreline carrier exists in the mark inventory. This visual ambiguity is undetermined in known_lint.json, rather than claimed as six separate machining defects."
+  ],
+  "assessment_corrections": [
+    {
+      "part": "GRM-03_thumbwheel_drive_screw",
+      "verdict": "rust-correct",
+      "evidence": "Its default sheet has no separate overall-length dimension, but the complete contiguous turned-length chain 0.5+2+3+18=23.5 proves the physical axial extent under the existing ledger. Default review owes no overall axis. Breaking that chain yields missing_principal_dimension in the evidence script. Requiring an additional label would duplicate a proven measure. An overall label is still normally desirable for tolerance stack-up; maintainer confirmation is recorded in next-session."
+    }
+  ]
+}

@@ -38,9 +38,9 @@
 //! (LINT-_parameter_coverage-report_uncovered_only). Lint cannot see the author's omissions or
 //! placement drops, so the `suppressed` and `dropped` outcomes are not reached here.
 //!
-//! Not yet ported: hole and pattern locations, pattern spacing, threads and profiled bores, the
-//! assembly severity (the Analysis does not say whether the part is several bodies), and the
-//! `suppressed` outcome.
+//! Pattern locations and spacing are checked by [`super::hole_patterns`]. Not yet ported here:
+//! loose-hole location requirements (the location backstop runs separately), threads and
+//! profiled bores, the assembly severity for these size findings, and the `suppressed` outcome.
 
 use std::collections::{BTreeMap, BTreeSet};
 
