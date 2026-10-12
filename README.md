@@ -43,7 +43,7 @@ draftwright plan --analysis part.analysis.json         # the Plan, without analy
                                                        # too checks the Analysis was made from it
 draftwright edit part.drawing.json ops.json            # apply edits to a Spec
 draftwright render part.step --spec part.drawing.json -o out
-                                                       # out.svg, out.dxf, out.pdf
+                                                       # out.svg, out.pdf
 draftwright render part.step -o out --formats svg,pdf,png --dpi 150
                                                        # choose the formats; PNG at --dpi
 draftwright review part.step --spec part.drawing.json  # the drawing as SVG text, with problems and lint
@@ -113,7 +113,8 @@ yet been tried in a real client.
   silently. Checked record by record against Python draftwright's drawings of 22 AP242 files
   (NIST CTC/FTC/STC models and files written by specify-core and by haecceity's PMI writer):
   every difference has a verdict, and none is rust-wrong.
-- **Output:** SVG, DXF, PDF and PNG (`src/output.rs`, `src/png.rs`). The PDF embeds subset
+- **Output:** SVG, PDF and PNG (`src/output.rs`, `src/png.rs`); DXF is drawn but its export is
+  disabled until it is fixed. The PDF embeds subset
   fonts and carries every label as searchable text, callout symbols included; the SVG carries
   the text too. Every format embeds the Spec, which `draftwright spec` reads back.
 - **Deterministic:** the same input gives the same bytes, run to run and in every time zone

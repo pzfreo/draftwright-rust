@@ -23,6 +23,26 @@ fn fixture(name: &str) -> PathBuf {
 /// `output::bezier_pieces` took the span index past the poles and the render panicked ("range
 /// end index 28 out of range for slice of length 25"). Each stretch is now wrapped into the
 /// domain and drawn, so the part renders in every format with no edge left out.
+/// DXF export is disabled until it is fixed: asking for it is refused before anything is drawn.
+#[test]
+fn dxf_export_is_disabled() {
+    let e = api::render_from(
+        std::path::Path::new("no-such.step"),
+        Features::Native,
+        &Spec::default(),
+        &["svg", "dxf"],
+        api::DPI,
+    )
+    .unwrap_err();
+    assert_eq!(e.code, "invalid");
+    assert!(
+        e.message.contains("DXF export is disabled"),
+        "{}",
+        e.message
+    );
+    assert_eq!(e.choices, ["svg", "pdf", "png"]);
+}
+
 #[test]
 fn nist_stc_10_renders() {
     let step = fixture("nist_stc_10_asme1_ap242-e2.stp");
@@ -30,7 +50,7 @@ fn nist_stc_10_renders() {
         &step,
         Features::Native,
         &Spec::default(),
-        &["svg", "dxf", "pdf"],
+        &["svg", "pdf", "png"],
         api::DPI,
     )
     .unwrap();

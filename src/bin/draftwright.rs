@@ -6,8 +6,9 @@
 //!   or `draftwright plan [part.step] --analysis a.json [--spec s.json]`, from an Analysis
 //!   without analysing again
 //! - `draftwright render part.step [--features r.json | --no-features | --analysis a.json]
-//!   [--spec s.json] -o out [--formats svg,dxf,pdf,png] [--dpi 150]`: writes the files
-//!   (`out.svg`, …; svg, dxf and pdf unless named, a PNG at `--dpi` pixels per inch) and prints
+//!   [--spec s.json] -o out [--formats svg,pdf,png] [--dpi 150]`: writes the files
+//!   (`out.svg`, …; svg and pdf unless named, a PNG at `--dpi` pixels per inch; DXF export is
+//!   disabled until it is fixed) and prints
 //!   what was written, with the problems: the plan's, and what could not be drawn as planned
 //! - `draftwright review part.step [--features r.json | --no-features | --analysis a.json]
 //!   [--spec s.json]`: the drawing as SVG text, with the problems and lint's findings on the
@@ -120,7 +121,7 @@ fn run(args: &[String]) -> Result<Value, Error> {
     let output = || flag(args, "-o").ok_or_else(|| Error::invalid("render needs -o <output stem>"));
     let formats = || {
         flag(args, "--formats")
-            .unwrap_or("svg,dxf,pdf")
+            .unwrap_or("svg,pdf")
             .split(',')
             .collect::<Vec<_>>()
     };

@@ -276,7 +276,7 @@ fn corpus_parts_render_natively_naming_what_is_not_recognised() {
         let out = scratch(name);
         let (code, r) = run(&["render", step, "-o", out.to_str().unwrap()]);
         assert_eq!(code, Some(0), "{name}: {r}");
-        assert_eq!(r["written"].as_array().unwrap().len(), 3, "{name}");
+        assert_eq!(r["written"].as_array().unwrap().len(), 2, "{name}");
         let p = not_recognised(&r["problems"]).unwrap();
         assert_eq!(p["refs"], serde_json::to_value(&expected).unwrap());
 
