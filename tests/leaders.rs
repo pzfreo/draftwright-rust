@@ -378,17 +378,12 @@ fn a_leader_has_a_horizontal_shoulder_and_reads_outward() {
     for (name, analysis) in &parts {
         let plan = model::plan(analysis, &Spec::default()).unwrap();
         for d in plan.dimensions.iter().filter(|d| d.kind == "callout") {
-            // Blend groups fail closed when no safe leader identifies them. Other callouts
-            // retain ISSUE-798-a: only an item no shown view carries is unplaced.
+            // ISSUE-798-a: only an item no shown view carries is unplaced.
             let Some(p) = d.placed.as_ref() else {
                 let draftwright::items::State::NotDrawable { reason_code } = &d.state else {
                     panic!("{name}: {} has no explicit refusal state", d.id);
                 };
-                assert!(
-                    reason_code == "view_plan_incomplete"
-                        || (reason_code == "blend_callout_dropped"
-                            && d.measurements.iter().any(|m| m.parameter == "blend.radius"))
-                );
+                assert!(reason_code == "view_plan_incomplete");
                 assert!(
                     plan.problems
                         .iter()

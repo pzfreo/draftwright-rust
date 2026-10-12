@@ -224,8 +224,10 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
                     || plan
                         .notes
                         .iter()
-                        .any(|n| n.id == *by && !n.measurements.is_empty()),
-                "{what}: {} is covered by {by}, no planned dimension or structured note",
+                        .any(|n| n.id == *by && !n.measurements.is_empty())
+                    || plan.radius_table.as_ref().is_some_and(|t| t.table.id == *by
+                        && t.table.placed.is_some() && t.rows.iter().any(|r| r.dimension == o.id)),
+                "{what}: {} is covered by {by}, no placed radius table, planned dimension or structured note",
                 o.id
             ),
             s => panic!("{what}: {} is omitted as {s:?}", o.id),

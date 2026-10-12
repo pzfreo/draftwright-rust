@@ -2,6 +2,7 @@
 
 Usage: python3 -I tools/check_blend_quality.py BINARY BEFORE_DIR AFTER_DIR CORPUS
 Reads quality plans/baselines; native reviews independently check rendered coverage.
+Radius-centre tables locate every occurrence; shallow relief grants no radius credit.
 """
 import json
 from pathlib import Path
@@ -50,7 +51,28 @@ for relative in Path("tools/quality_parts.txt").read_text().splitlines():
     if name in {"cgb245", "string_post"}:
         assert not missing, (name, "required radius coverage", sorted(missing))
     if name == "nist_ctc_01_asme1_rd":
-        assert missing and all(not n.get("placed") for n in notes), (name, "unlocated exceptions falsely credited")
+        assert not missing, (name, "real corners and default must be stated")
+        assert any(n.get("placed") and n["text"] == "ALL UNSPECIFIED RADII R10" for n in notes), (name, "R10 default")
+        table = plan.get("radius_table", {})
+        assert table.get("table", {}).get("placed"), (name, "located radius table")
+        assert sum(r["radius"] == 25 for r in table["rows"]) == 4, (name, "four real R25 corners")
+    analysis = json.loads(subprocess.check_output([binary, "analyse", str(Path(corpus) / relative)]))
+    relief = [f for f in analysis["features"] if f["kind"] in {"blend", "fillet"} and f["faces"]
+              and any(set(f["faces"]) <= set(r["faces"]) for r in analysis.get("radius_reliefs", []))]
+    claimed = {m["feature"] for d in plan["dimensions"] for m in d.get("measurements", [])}
+    claimed.update(m["feature"] for n in plan.get("notes", []) for m in n.get("measurements", []))
+    assert all(f["id"] not in claimed for f in relief), (name, "relief must not receive radius claims")
+    if name == "nist_ftc_06_asme1_rd":
+        assert len(relief) >= 4, (name, "lettering relief")
+    table = plan.get("radius_table")
+    if table:
+        assert table["table"].get("placed"), (name, "radius table drawn")
+        covered_dimensions = {d["id"] for d in plan["omitted"]
+                              if d.get("state") == {"kind": "covered", "by": "t:radius-centres"}}
+        covered = {r["feature"] for r in table["rows"] if r["dimension"] in covered_dimensions}
+        located = [r["feature"] for r in table["rows"]]
+        assert len(located) == len(set(located)) and set(located) == covered, (name, "one locator per occurrence")
+        assert not covered & missing, (name, "radius table not credited")
     unverified = {s for problem in plan["problems"] if problem["code"] == "feature_not_dimensioned"
                   for s in problem.get("subjects", [])}
     unverified.update(m["feature"] for d in plan["dimensions"]
@@ -58,7 +80,9 @@ for relative in Path("tools/quality_parts.txt").read_text().splitlines():
                       for m in d.get("measurements", []) if m["parameter"] == "blend.radius")
     assert missing <= unverified, (name, "missing radii without an explicit refusal", sorted(missing - unverified))
     rows.append({"part": name, "before": len(features), "after": len(missing),
-                 "general_notes": sum(bool(n.get("placed")) for n in notes), "refused": sorted(unverified)})
+                 "general_notes": sum(bool(n.get("placed")) for n in notes),
+                 "relief_excluded": sum(f["kind"] == "blend" for f in relief),
+                 "radius_table_rows": len(table["rows"]) if table else 0, "refused": sorted(unverified)})
 
 print("part | blend_requirement_missing before | after | general radius notes")
 for r in rows:

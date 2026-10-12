@@ -39,17 +39,21 @@ fn many_blends_are_stated_without_counted_radius_clutter() {
         } else {
             assert_eq!(
                 missing(&a, &p, &part),
-                23,
-                "unlocated CTC-01 exceptions and their default stay missing"
+                0,
+                "real CTC-01 radii are stated and geometric relief is excluded"
             );
-            assert!(p.notes.iter().all(|n| n.placed.is_none()));
+            assert!(p.notes.iter().all(|n| n.placed.is_some()));
         }
         assert!(
             p.notes
                 .iter()
                 .all(|n| !n.text.contains("REF SITE") && !n.text.contains("UNSTATED"))
         );
-        for note in p.notes.iter().filter(|n| n.placed.is_some()) {
+        for note in p
+            .notes
+            .iter()
+            .filter(|n| n.placed.is_some() && !n.measurements.is_empty())
+        {
             for d in p.dimensions.iter().filter(|d| d.placed.is_some()) {
                 assert!(!d.measurements.iter().any(|m| matches!(
                     m.parameter.as_str(),
@@ -72,11 +76,12 @@ fn many_blends_are_stated_without_counted_radius_clutter() {
     }
     let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
     let p = model::plan(&a, &Spec::default()).unwrap();
-    assert!(
-        missing(&a, &p, &part) >= 21,
-        "the 18 unlocated R10 blends cannot receive note credit"
+    assert_eq!(
+        missing(&a, &p, &part),
+        0,
+        "CTC-02 real exceptions and defaults are stated; oblique relief is excluded"
     );
-    assert!(p.notes.iter().all(|n| n.placed.is_none()));
+    assert!(p.notes.iter().all(|n| n.placed.is_some()));
     assert!(
         p.notes
             .iter()
@@ -397,4 +402,292 @@ fn a_bare_pin_keeps_a_shared_radius_leader_and_its_default() {
             .collect::<Vec<_>>()
     );
     assert_eq!(missing(&a, &pinned, &part), 0);
+}
+
+/// Real corners must remain dimensioned when grouped shallow relief is excluded.
+#[test]
+fn ctc01_states_real_corners_and_the_radius_default_without_logo_callouts() {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert!(p.omitted.iter().any(|d| d.label == "4× R25" && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")));
+    let table = serde_json::to_value(&p).unwrap();
+    assert_eq!(
+        table["radius_table"]["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["radius"] == 25.0)
+            .count(),
+        4
+    );
+    assert!(
+        p.notes
+            .iter()
+            .any(|n| n.text == "ALL UNSPECIFIED RADII R10" && n.placed.is_some())
+    );
+    assert_eq!(missing(&a, &p, &part), 0);
+    let excluded = ["f:blend:29", "f:blend:30", "f:blend:31", "f:fillet:8"];
+    assert!(
+        !p.dimensions
+            .iter()
+            .flat_map(|d| &d.measurements)
+            .chain(p.notes.iter().flat_map(|n| &n.measurements))
+            .any(|m| excluded.contains(&m.feature.as_str()))
+    );
+    assert!(
+        p.notes
+            .iter()
+            .any(|n| n.text == "SHALLOW RELIEF PROFILES PER MODEL"
+                && n.placed.is_some()
+                && n.measurements.is_empty())
+    );
+}
+
+/// The same geometric relief decision works on different carriers and preserves real radii.
+#[test]
+fn grouped_relief_radii_are_excluded_on_several_parts_with_explicit_evidence() {
+    let Some(dir) = corpus::dir() else { return };
+    for file in [
+        "nist/nist_ctc_01_asme1_rd.stp",
+        "nist/nist_ctc_04_asme1_rd.stp",
+        "nist/nist_ctc_02_asme1_rc.stp",
+        "nist/nist_ftc_06_asme1_rd.stp",
+        "nist/nist_ftc_08_asme1_rc.stp",
+    ] {
+        let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
+        let p = model::plan(&a, &Spec::default()).unwrap();
+        let evidence = serde_json::to_value(&a).unwrap();
+        let reliefs = evidence["radius_reliefs"]
+            .as_array()
+            .expect("geometry-owned relief evidence");
+        assert!(!reliefs.is_empty(), "{file}");
+        let faces: Vec<_> = reliefs
+            .iter()
+            .flat_map(|r| r["faces"].as_array().unwrap())
+            .filter_map(|v| v.as_u64())
+            .collect();
+        let excluded: Vec<_> = a
+            .features
+            .iter()
+            .filter(|f| {
+                matches!(f.kind.as_str(), "blend" | "fillet")
+                    && !f.faces.is_empty()
+                    && f.faces.iter().all(|f| faces.contains(&(*f as u64)))
+            })
+            .collect();
+        assert!(excluded.len() >= 4, "{file}");
+        assert!(
+            !p.dimensions
+                .iter()
+                .flat_map(|d| &d.measurements)
+                .chain(p.notes.iter().flat_map(|n| &n.measurements))
+                .any(|m| excluded.iter().any(|f| f.id == m.feature)),
+            "{file}: relief has no radius claims"
+        );
+        let drawing = model::render(
+            &part,
+            &a,
+            &p,
+            &draftwright::text::Font::new(
+                include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            !draftwright::lint::lint(&a, &drawing)
+                .iter()
+                .any(|i| matches!(
+                    i.code.as_str(),
+                    "blend_requirement_missing" | "fillet_requirement_missing"
+                ) && excluded.iter().any(|f| i.subjects.contains(&f.id))),
+            "{file}: relief is an explicit exclusion, never fabricated radius credit"
+        );
+        assert!(
+            p.dimensions.iter().any(|d| d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))),
+            "{file}: real radii survive"
+        );
+    }
+    for file in ["cadgenbench_inputs/cgb245.step", "gramel/string_post.step"] {
+        let (_, a) = model::analyse_native(&dir.join(file)).unwrap();
+        let evidence = serde_json::to_value(&a).unwrap();
+        assert!(
+            evidence
+                .get("radius_reliefs")
+                .is_none_or(|r| r.as_array().unwrap().is_empty()),
+            "{file}: real corners are retained"
+        );
+    }
+}
+
+/// Routing cost may be reported, but cannot erase an otherwise drawable radius.
+#[test]
+fn radius_exceptions_are_stated_despite_routing_cost() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&dir.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    for label in ["4× R15", "6× R18"] {
+        assert!(p.omitted.iter().any(|d| d.label == label && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")), "{label} survives routing in a fully located table");
+    }
+    assert!(!p.problems.iter().any(|p| p.code == "blend_callout_dropped"));
+}
+
+/// Hiding the model-governing relief note cannot apply the blanket corner radius to relief.
+#[test]
+fn relief_profile_note_is_required_for_the_default_and_independent_lint() {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let relief = p
+        .notes
+        .iter()
+        .find(|n| n.text == "SHALLOW RELIEF PROFILES PER MODEL")
+        .expect("explicit relief profile requirement");
+    let spec = model::edit(&Spec::default(), &json!([{"op":"set", "path":format!("annotations/{}/omit", draftwright::items::key(&relief.id)), "value":true}])).unwrap();
+    let hidden = model::plan(&a, &spec).unwrap();
+    assert!(
+        hidden
+            .notes
+            .iter()
+            .filter(|n| n.text.starts_with("ALL UNSPECIFIED RADII"))
+            .all(|n| n.placed.is_none())
+    );
+    assert_eq!(missing(&a, &hidden, &part), 18);
+    let font =
+        draftwright::text::Font::new(include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec())
+            .unwrap();
+    let mut drawing = model::render(&part, &a, &p, &font).unwrap();
+    drawing.annotations.retain(|n| n.name != relief.id);
+    let lint = draftwright::lint::lint(&a, &drawing);
+    assert_eq!(
+        lint.iter()
+            .filter(|i| i.code == "blend_requirement_missing")
+            .count(),
+        18
+    );
+    assert!(
+        lint.iter()
+            .any(|i| i.code == "relief_profile_requirement_missing")
+    );
+}
+
+/// A deeper version of the same relief must keep its radius requirements. The judgement
+/// depends on measured depth and topology, even when names and feature families are identical.
+#[test]
+fn deep_profiles_are_not_exempted_as_shallow_relief() {
+    let Some(dir) = corpus::dir() else { return };
+    let path = dir.join("nist/nist_ctc_01_asme1_rd.stp");
+    let bytes = std::fs::read_to_string(&path).unwrap();
+    let (_, a) = model::analyse_native_step(&path, bytes.as_bytes()).unwrap();
+    let evidence = serde_json::to_value(&a).unwrap();
+    assert!(
+        !evidence["radius_reliefs"]
+            .as_array()
+            .expect("shallow profile evidence")
+            .is_empty()
+    );
+    // Move the whole pocket floor from 398 to 388 mm; only model-space Cartesian points
+    // change. Analytic cylinder axes remain valid along x, and all trim curves move with it.
+    let deep = bytes.replace("CARTESIAN_POINT('',(398.,", "CARTESIAN_POINT('',(388.,");
+    assert_ne!(deep, bytes);
+    let (_, a) = model::analyse_native_step(&path, deep.as_bytes()).unwrap();
+    let evidence = serde_json::to_value(&a).unwrap();
+    assert!(
+        evidence
+            .get("radius_reliefs")
+            .is_none_or(|r| r.as_array().unwrap().is_empty())
+    );
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let doc = serde_json::to_value(&p).unwrap();
+    assert!(p.dimensions.iter().flat_map(|d| &d.measurements).any(|m| m.feature == "f:blend:29")
+        || doc["radius_table"]["rows"].as_array().is_some_and(|rs| rs.iter().any(|r| r["feature"] == "f:blend:29")));
+}
+
+/// Every row locates one occurrence; changing or deleting its locator loses that occurrence
+/// and the dependent default. Copying another row cannot replace its exact identity.
+#[test]
+fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators() {
+    let Some(dir) = corpus::dir() else { return };
+    for file in [
+        "nist/nist_ctc_01_asme1_rd.stp",
+        "nist/nist_ctc_02_asme1_rc.stp",
+        "nist/nist_ftc_08_asme1_rc.stp",
+    ] {
+        let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
+        let p = model::plan(&a, &Spec::default()).unwrap();
+        let doc = serde_json::to_value(&p).unwrap();
+        let table = doc["radius_table"]
+            .as_object()
+            .expect("located radius table");
+        let rows = table["rows"].as_array().unwrap();
+        assert!(rows.len() >= 4);
+        assert!(table["table"].get("placed").is_some());
+        let table_features: Vec<_> = rows
+            .iter()
+            .map(|r| r["feature"].as_str().unwrap())
+            .collect();
+        let covered: Vec<_> = rows.iter().filter(|r| p.omitted.iter().any(|d| d.id == r["dimension"].as_str().unwrap() && matches!(&d.state, State::Covered { by } if by == "t:radius-centres"))).map(|r| r["feature"].as_str().unwrap()).collect();
+        assert_eq!(table_features.len(), covered.len());
+        assert!(
+            covered
+                .iter()
+                .all(|f| table_features.iter().filter(|g| *g == f).count() == 1)
+        );
+        assert_eq!(missing(&a, &p, &part), 0, "{file}");
+        let font = draftwright::text::Font::new(
+            include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec(),
+        )
+        .unwrap();
+        let drawing = model::render(&part, &a, &p, &font).unwrap();
+        let index = drawing
+            .annotations
+            .iter()
+            .position(|n| n.name.starts_with("t:radius-centres/"))
+            .unwrap();
+        let default_count = p
+            .notes
+            .iter()
+            .filter(|n| n.placed.is_some())
+            .flat_map(|n| &n.measurements)
+            .filter(|m| m.parameter == "blend.radius")
+            .count();
+        let mut wrong = drawing.clone();
+        let x = wrong.annotations[index].runs[1];
+        wrong.text[x].text = "99999".into();
+        assert_eq!(
+            draftwright::lint::lint(&a, &wrong)
+                .iter()
+                .filter(|i| i.code == "blend_requirement_missing")
+                .count(),
+            1 + default_count,
+            "{file}: wrong centre cannot state the radius"
+        );
+        let mut lost = drawing.clone();
+        lost.annotations.remove(index);
+        lost.annotations.push(
+            lost.annotations
+                .iter()
+                .find(|n| n.name.starts_with("t:radius-centres/"))
+                .unwrap()
+                .clone(),
+        );
+        assert_eq!(
+            draftwright::lint::lint(&a, &lost)
+                .iter()
+                .filter(|i| i.code == "blend_requirement_missing")
+                .count(),
+            1 + default_count,
+            "{file}: duplicate row cannot borrow occurrence credit"
+        );
+        let restored: model::Analysis =
+            serde_json::from_value(serde_json::to_value(&a).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(model::plan(&restored, &Spec::default()).unwrap()).unwrap(),
+            doc
+        );
+    }
 }

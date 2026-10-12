@@ -1075,8 +1075,11 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
             }
             if let Some(o) = plan.omitted.iter().find(|o| &o.id == id) {
                 a.basis = o.basis.clone();
+                if let Some(t) = &plan.radius_table {
+                    a.features.extend(t.rows.iter().filter(|r| r.dimension == *id).map(|r| r.feature.clone()));
+                }
                 if let Some((feature, _)) = id.strip_prefix("d:").and_then(|s| s.rsplit_once('/')) {
-                    a.features.push(feature.into());
+                    if !a.features.iter().any(|f| f == feature) { a.features.push(feature.into()); }
                 }
                 a.operations = vec!["omit".into()];
                 if let ItemState::Covered { by } = &o.state {
@@ -1115,6 +1118,11 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
             if let Some(t) = plan.tables.iter().find(|t| &t.id == id) {
                 a.basis = t.basis.clone();
                 a.placement = t.placed.as_ref().map(|p| Placement::Box(p.cells));
+            }
+            if let Some(t) = plan.radius_table.as_ref().filter(|t| &t.table.id == id) {
+                a.basis = t.table.basis.clone();
+                a.placement = t.table.placed.as_ref().map(|p| Placement::Box(p.cells));
+                a.features = t.rows.iter().map(|r| r.feature.clone()).collect();
             }
             if let Some(t) = plan.hole_table.as_ref().filter(|t| &t.id == id) {
                 a.basis = t.basis.clone();
@@ -1166,6 +1174,11 @@ fn item_records(plan: &Plan) -> BTreeMap<String, Vec<Value>> {
         for (id, record) in records(&doc[name]) {
             out.entry(id).or_default().push(record);
         }
+    }
+    if let Some(id) = doc["radius_table"]["table"]["id"].as_str() {
+        out.entry(id.into())
+            .or_default()
+            .push(doc["radius_table"].clone());
     }
     if let Some(id) = doc["hole_table"]["id"].as_str() {
         out.entry(id.into())

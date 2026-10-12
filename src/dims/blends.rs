@@ -13,11 +13,16 @@ pub(super) const PLANNER: Planner = Planner {
     wants,
 };
 const GENERAL_COUNT: usize = 5;
+pub(crate) use crate::lint::blends::{RELIEF_NOTE, RADIUS_TABLE};
 type ViewSites<'a> = BTreeMap<(&'static str, usize), Vec<([f64; 3], &'a Feature)>>;
 
 fn groups(a: &Analysis) -> Vec<Vec<&Feature>> {
     let mut groups = BTreeMap::<String, Vec<&Feature>>::new();
-    for f in a.features.iter().filter(|f| f.kind == "blend") {
+    for f in a
+        .features
+        .iter()
+        .filter(|f| f.kind == "blend" && !crate::lint::blends::is_relief(a, f))
+    {
         if let Some(r) = radius(f) {
             groups.entry(fmt(r)).or_default().push(f);
         }
@@ -93,17 +98,27 @@ fn sites_by_view<'a>(a: &Analysis, group: &[&'a Feature]) -> ViewSites<'a> {
 /// Automatic notes carry explicit measurement identities; prose authored in Spec never does.
 pub(crate) fn notes(a: &Analysis) -> Vec<(NoteSpec, Vec<Measurement>)> {
     let groups = groups(a);
-    let Some(i) = general(&groups) else {
-        return Vec::new();
-    };
-    let group = &groups[i];
-    vec![(
-        NoteSpec {
-            id: format!("n:{}/blend.radius", group[0].id),
-            text: format!("ALL UNSPECIFIED RADII R{}", fmt(radius(group[0]).unwrap())),
-        },
-        measurements(group),
-    )]
+    let mut out = Vec::new();
+    if let Some(i) = general(&groups) {
+        let group = &groups[i];
+        out.push((
+            NoteSpec {
+                id: format!("n:{}/blend.radius", group[0].id),
+                text: format!("ALL UNSPECIFIED RADII R{}", fmt(radius(group[0]).unwrap())),
+            },
+            measurements(group),
+        ));
+    }
+    if !a.radius_reliefs.is_empty() {
+        out.push((
+            NoteSpec {
+                id: RELIEF_NOTE.into(),
+                text: "SHALLOW RELIEF PROFILES PER MODEL".into(),
+            },
+            Vec::new(),
+        ));
+    }
+    out
 }
 
 /// Sampling along a cylinder's axis produces the same attachment in its end view.
@@ -185,10 +200,13 @@ fn problem(f: &Feature, why: &str) -> Problem {
 
 /// All possible automatic radius-note identities, independent of layout or omission.
 pub(crate) fn note_ids(a: &Analysis) -> Vec<String> {
-    let ids: Vec<_> = groups(a)
+    let mut ids: Vec<_> = groups(a)
         .iter()
         .map(|g| format!("n:{}/blend.radius", g[0].id))
         .collect();
+    if !a.radius_reliefs.is_empty() {
+        ids.push(RELIEF_NOTE.into());
+    }
     ids
 }
 
@@ -207,12 +225,14 @@ pub(crate) fn exceptions_unstated(
     };
     a.features
         .iter()
-        .filter(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+        .filter(|f| {
+            matches!(f.kind.as_str(), "blend" | "fillet") && !crate::lint::blends::is_relief(a, f)
+        })
         .any(|f| {
             radius(f).is_none_or(|r| fmt(r) != fmt(value))
                 && !dimensions
                     .iter()
-                    .any(|d| d.placed.is_some() && d.measurements.iter().any(|m| m.feature == f.id))
+                    .any(|d| (d.placed.is_some() || matches!(&d.state, crate::items::State::Covered { by } if by == RADIUS_TABLE)) && d.measurements.iter().any(|m| m.feature == f.id))
         })
 }
 
@@ -232,49 +252,17 @@ fn leader_problem(code: &str) -> bool {
     )
 }
 
-/// Withdraw unsafe free leaders. A reference point cannot locate an equal-radius group.
-pub(crate) fn withdraw_unsafe(
-    spec: &crate::model::Spec,
-    dimensions: &mut [super::PlannedDimension],
+/// Consolidation removes only the redundant leader's diagnostics. Required exceptions
+/// retain Policy B: routing cost is reported against their drawn ink, never withdrawn.
+pub(crate) fn clear_covered_findings(
+    dimensions: &[super::PlannedDimension],
     problems: &mut Vec<Problem>,
 ) {
-    for d in dimensions
-        .iter_mut()
-        .filter(|d| d.measurements.iter().any(|m| m.parameter == "blend.radius"))
-    {
-        if matches!(d.state, crate::items::State::Covered { .. }) {
-            problems.retain(|p| !p.subjects.contains(&d.id) || !leader_problem(&p.code));
-        }
-        if d.placed.is_none()
-            || spec
-                .dimensions
-                .get(&d.id)
-                .is_some_and(|s| s.place.is_some() || s.tolerance.is_some())
-        {
-            continue;
-        }
-        if !problems
-            .iter()
-            .any(|p| p.subjects.contains(&d.id) && leader_problem(&p.code))
-        {
-            continue;
-        }
-        d.placed = None;
-        d.state = crate::items::State::NotDrawable {
-            reason_code: "blend_callout_dropped".into(),
-        };
+    for d in dimensions.iter().filter(|d| {
+        matches!(d.state, crate::items::State::Covered { .. })
+            && d.measurements.iter().any(|m| m.parameter == "blend.radius")
+    }) {
         problems.retain(|p| !p.subjects.contains(&d.id) || !leader_problem(&p.code));
-        problems.push(Problem {
-            id: format!("p:blend_callout_dropped:{}", d.id),
-            code: "blend_callout_dropped".into(),
-            severity: "warning".into(),
-            message: format!(
-                "{} cannot safely identify its radius group with a leader.",
-                d.id
-            ),
-            subjects: vec![d.id.clone()],
-            ..Default::default()
-        });
     }
 }
 
@@ -378,3 +366,126 @@ pub(crate) fn cover_fillets(
         }
     }
 }
+
+/// Unlike a representative site, each row locates exactly one physical radius centre.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RadiusRow {
+    pub dimension: String,
+    pub feature: String,
+    pub view: String,
+    pub centre: [f64; 2],
+    pub radius: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RadiusTable {
+    pub rows: Vec<RadiusRow>,
+    pub table: crate::tables::PlannedTable,
+}
+
+/// Tables replace obstructed automatic exception leaders only when every member has a
+/// proven straight radius axis seen end-on. All centres are listed: no representative
+/// XYZ point is allowed to locate an arbitrary equal-radius subset. Authored ink stays literal.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn tabulate_obstructed(
+    a: &Analysis,
+    spec: &crate::model::Spec,
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+    dimensions: &mut [super::PlannedDimension],
+    gdt: &[crate::dims::gdt::PlannedGdt],
+    problems: &mut Vec<Problem>,
+) -> Option<RadiusTable> {
+    let mut indices = Vec::new();
+    let mut rows = Vec::new();
+    for (i, d) in dimensions.iter().enumerate() {
+        if d.placed.is_none()
+            || d.measurements.is_empty()
+            || !d.measurements.iter().all(|m| m.parameter == "blend.radius")
+            || spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|s| s.place.is_some() || s.tolerance.is_some())
+            || !problems
+                .iter()
+                .any(|p| p.subjects.contains(&d.id) && leader_problem(&p.code))
+        {
+            continue;
+        }
+        let mut group = Vec::new();
+        for m in &d.measurements {
+            let f = a.features.iter().find(|f| f.id == m.feature)?;
+            let Some((view, centre)) = crate::lint::blends::table_centre(a, f) else {
+                break;
+            };
+            if !views.iter().any(|v| v.id == format!("v:{view}")) {
+                break;
+            }
+            group.push(RadiusRow {
+                dimension: d.id.clone(),
+                feature: f.id.clone(),
+                view: format!("v:{view}"),
+                centre,
+                radius: m.value,
+            });
+        }
+        if group.len() == d.measurements.len() {
+            indices.push(i);
+            rows.extend(group);
+        }
+    }
+    if rows.is_empty() {
+        return None;
+    }
+    rows.sort_by(|a, b| {
+        a.view
+            .cmp(&b.view)
+            .then(a.radius.total_cmp(&b.radius))
+            .then(a.centre[0].total_cmp(&b.centre[0]))
+            .then(a.centre[1].total_cmp(&b.centre[1]))
+            .then(a.feature.cmp(&b.feature))
+    });
+    let mut cells = vec![vec![
+        "RADIUS CENTRES".into(),
+        "X FROM VIEW LEFT".into(),
+        "Y FROM VIEW BOTTOM".into(),
+        "RADIUS".into(),
+    ]];
+    cells.extend(rows.iter().map(|r| {
+        vec![
+            r.view.trim_start_matches("v:").to_uppercase(),
+            fmt(r.centre[0]),
+            fmt(r.centre[1]),
+            format!("R{}", fmt(r.radius)),
+        ]
+    }));
+    let specs = [crate::tables::TableSpec {
+        id: RADIUS_TABLE.into(),
+        rows: cells.into_iter().map(serde_json::Value::from).collect(),
+        prefer: Some("tr".into()),
+    }];
+    let mut remaining: Vec<_> = dimensions
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !indices.contains(i))
+        .map(|(_, d)| d.clone())
+        .collect();
+    remaining.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
+    let (mut tables, _) = crate::tables::plan(&specs, a, sheet, views, &remaining, None);
+    let mut table = tables.pop()?;
+    table.placed.as_ref()?;
+    table.default = true;
+    table.basis = "every obstructed radius occurrence has its own centre, in model millimetres from the left and bottom of its named view's envelope; no location is borrowed from a representative".into();
+    for i in indices {
+        let d = &mut dimensions[i];
+        d.placed = None;
+        d.state = crate::items::State::Covered {
+            by: RADIUS_TABLE.into(),
+        };
+        problems.retain(|p| !p.subjects.contains(&d.id) || !leader_problem(&p.code));
+    }
+    Some(RadiusTable { rows, table })
+}
+

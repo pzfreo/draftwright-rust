@@ -149,6 +149,9 @@ pub fn items(plan: &Plan) -> Vec<Item> {
     for t in &plan.tables {
         out.push(item(&t.id, "table", None, &t.state, None));
     }
+    if let Some(t) = &plan.radius_table {
+        out.push(item(&t.table.id, "table", None, &t.table.state, None));
+    }
     if let Some(t) = &plan.hole_table {
         out.push(item(&t.id, "hole_table", Some("v:plan"), &t.state, None));
     }

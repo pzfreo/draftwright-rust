@@ -345,13 +345,6 @@
       "count": 6,
       "verdict": "undetermined",
       "reason": "Three physical bolt circles have no numerical centre-coordinate marks: the six new per-axis location checks find them missing. The default sheet looks concentric with the turned stock and states its PCDs, but the current mark inventory does not carry a certified pattern-centreline witness. Python structured pattern locations also require the physical centre; its singleton turned-hole centreline witness is separate. Retain warning evidence without asserting these are six independent machining defects. G2/G3 may add a proved concentricity carrier; scope and uncertainty are recorded in next-session and known_completeness.json."
-    },
-    {
-      "part": "ctc01",
-      "code": "blend_requirement_missing",
-      "count": 19,
-      "verdict": "rust-correct",
-      "reason": "A representative XYZ point cannot locate an equal-radius group. Unsafe exception leaders and their dependent default are withdrawn; exact missing findings are retained. The captured Python recognition path differs from native CTC-01 (23 missing)."
     }
   ],
   "ledgers": [

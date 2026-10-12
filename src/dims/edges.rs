@@ -172,7 +172,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     // A group is one requirement: fillets that print the same radius, chamfers with the same
     // legs and angle.
     let mut groups: BTreeMap<Key, Vec<Edge>> = BTreeMap::new();
-    for f in &analysis.features {
+    for f in analysis
+        .features
+        .iter()
+        .filter(|f| !crate::lint::blends::is_relief(analysis, f))
+    {
         let family = match f.kind.as_str() {
             "chamfer" => 0,
             "fillet" => 1,

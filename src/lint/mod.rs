@@ -179,7 +179,33 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 
 /// Every ported rule's findings on *drawing*, a drawing of the part *analysis* describes.
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
-    let marks = marks(drawing);
+    let marks: Vec<_> = marks(drawing)
+        .into_iter()
+        .filter(|m| blends::verified_row(analysis, m))
+        .collect();
+    let mut relief_issues = Vec::new();
+    if !blends::relief_stated(analysis, drawing) {
+        relief_issues.push(LintIssue {
+            code: "relief_profile_requirement_missing".into(),
+            severity: Severity::Warning,
+            message: "Grouped shallow relief profiles have no placed model-governing note.".into(),
+            subjects: vec![blends::RELIEF_NOTE.into()],
+            id: "l:relief_profile_requirement_missing".into(),
+            fix: Some(
+                "Restore the automatic relief-profile note or state the profiles explicitly."
+                    .into(),
+            ),
+            requirements: Vec::new(),
+            at: None,
+            view: None,
+            measurements: Vec::new(),
+            sources: Vec::new(),
+            stage: None,
+            annotation: None,
+            related: Vec::new(),
+            evidence: None,
+        });
+    }
     let satisfied: std::collections::BTreeSet<_> = drawing
         .annotations
         .iter()
@@ -198,13 +224,17 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
             let radius = radius.trim();
             // A blanket default must identify its value, and every different radius must
             // have a real callout. Scoped or representative-point notes grant no authority.
-            radius
-                .parse::<f64>()
-                .is_ok_and(|r| r.is_finite() && r > 0.0)
+            blends::relief_stated(analysis, drawing)
+                && radius
+                    .parse::<f64>()
+                    .is_ok_and(|r| r.is_finite() && r > 0.0)
                 && analysis
                     .features
                     .iter()
-                    .filter(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+                    .filter(|f| {
+                        matches!(f.kind.as_str(), "blend" | "fillet")
+                            && !blends::is_relief(analysis, f)
+                    })
                     .all(|f| {
                         f.parameters
                             .get("radius")
@@ -260,11 +290,18 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 .iter()
                 .all(|r| satisfied.contains(&(&r.feature, &r.parameter)))
         })
+        .chain(relief_issues)
         .collect()
 }
 
 /// Every ported rule's findings on a drawing whose annotations are *marks*.
 pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let verified: Vec<_> = marks
+        .iter()
+        .filter(|m| blends::verified_row(analysis, m))
+        .cloned()
+        .collect();
+    let marks = &verified;
     let mut issues = coverage::feature_coverage(analysis, marks);
     issues.extend(bosses::coverage(analysis, marks));
     issues.extend(coverage::located(analysis, marks));

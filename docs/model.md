@@ -985,8 +985,14 @@ Blends with equal displayed radii share exact occurrence credit. Fewer than five
 blends use compact `R` / `n× R` leaders. On a denser part, its most frequent repeated radius is
 one `ALL UNSPECIFIED RADII R…` note, including fillets with the same displayed value.
 Other radii retain explicit exception leaders, combining equal blend and fillet groups.
-An unsafe free exception leader is withdrawn; an undrawn or omitted exception withdraws
-the blanket default. Scoped counts and representative XYZ points cannot locate a group
+Obstructed straight exception groups use an optional `radius_table` (`t:radius-centres`):
+every occurrence has its own named view, radius and centre X/Y in model millimetres from
+the left/bottom of that view's envelope. The blend's own trimmed-surface samples must prove
+that centre. Dimensions represented there keep their IDs and become `covered` table rows.
+Independent lint validates the printed view, X, Y and radius against each exact occurrence.
+A wrong, missing or duplicated locator cannot borrow credit or unlock the default. If a
+complete table cannot fit, the required leader remains with its routing findings (Policy B).
+An undrawn or omitted exception withdraws the blanket default. Scoped counts and representative XYZ points cannot locate a group
 and grant no coverage. Explicit dimension placements and tolerances remain author choices
 and retain their geometry findings.
 
@@ -998,6 +1004,17 @@ existing ruled table, with a separate optional `radius_notes_block` for automati
 both are present. An omitted or unplaced note grants no radius credit. The rendered
 annotation's `satisfies` list identifies the exact feature/parameter requirements; the printed default must agree with those claims and other radii need explicit callouts.
 Text alone never infers authority. General authored notes still carry no satisfaction claims.
+
+Analysis also optionally carries `radius_reliefs`: geometry-owned evidence of grouped tiny,
+complex shallow profiles on a common broad carrier (`src/blends.rs`). Recognition features
+remain intact. Every defining face of an excluded radius must belong to one proved region;
+lone/simple/deep pockets and large faces are retained. Old Analyses have no exclusions.
+The companion automatic note `n:f:blend:relief/profiles` says
+`SHALLOW RELIEF PROFILES PER MODEL`, carries no fabricated radius claims and accepts the
+same omit/place edits. With relief present, a blanket radius default requires that note to
+be drawn; hiding/removing its annotation withdraws default authority in planning and lint.
+The geometric thresholds and the single-solid restriction are overturnable drafting policy,
+recorded with positive and negative evidence in `docs/next-session.md`.
 
 Same-face boss/blend precedence uses one shared predicate for planning and lint. A uniquely
 proven blend radius replaces that face's duplicate boss diameter; the independent boss height

@@ -4358,3 +4358,59 @@ step levels). Excluding lettering needs semantic recognition evidence.
 Also removed the dead `n:blend-sites/` handling (notes.rs note_rows, session.rs,
 model.rs, tests/notes.rs) left from the rejected REF SITE fallback, and trimmed the
 first G3 section above to what still holds.
+
+
+## G3 carry-over: complete radii without relief clutter (2026-10-12, unattended)
+
+Supersedes the G3 fail-closed routing and semantic-lettering-only judgements above.
+The original ISSUE-798-a leader assertion is restored; the unrelated SESSION_TIMINGS
+and median output changes are removed. No rule YAML, task inputs or shared router changed.
+
+Overturnable judgements and evidence:
+
+- Treat a **group** of tiny complex shallow profiles as relief governed by the model.
+  Retain every recognition feature; store the topology evidence in Analysis.radius_reliefs.
+  Require one solid, at least two planar floors with at least 12 adjacent walls each,
+  one common broad parallel carrier, every floor/wall area <=1% of the largest envelope
+  face area, walls spanning the same carrier/floor levels, depth <=1% of the longest
+  part extent, and the entire group footprint <=2% of the largest envelope face area.
+  Every defining face of a radius must belong to one proved group. These scale-relative
+  bounds are conservative clutter policy, not lettering semantics. No part-name list,
+  radius-size shortcut or semantic claim is used. CTC-01/02/04 and FTC-06/08 are positive
+  controls (including CTC-02's oblique carrier); CGB245 and string_post are negative
+  controls. Deepening the same CTC-01 relief from 2 to 12 mm restores its radii.
+  A lone/simple pocket or large wall remains a radius requirement. Assemblies receive
+  no exclusions until a per-solid policy is reviewed.
+- The drawing explicitly says SHALLOW RELIEF PROFILES PER MODEL. This makes the
+  exception to the general radius default readable and grants no fabricated radius
+  credit. The note has a stable automatic annotation ID and omit/place options.
+  Omitting/removing it also withholds the blanket default in planning/independent lint.
+- On an obstructed straight radius group, use a radius-centre table **listing every
+  occurrence**, not one representative XYZ point for a subset. Its header identifies
+  named orthographic views and centre coordinates in model millimetres from the view
+  envelope's left and bottom. All centres must agree with that blend's own trimmed
+  cylinder samples within 0.005 mm before tabulation. The drawing already shows the
+  named views and their overall envelope; no new datum or coordinate geometry is
+  invented. CTC-01's four R25 centres are (175,75), (175,375), (625,75), (625,375)
+  in PLAN. Tables replace the crossing 4x R25, 4x R15/6x R18 and 4x R3.2 leaders
+  on CTC-01, CTC-02 and FTC-08 respectively. Existing clear leaders stay compact.
+  A complete table must fit clear of existing ink; otherwise Policy B retains the
+  required leader with diagnostics. Authored placements/tolerances stay literal.
+  This follows the maintainer's tables-first direction while keeping this stream
+  within radius planning; it does not implement new sheets, hole tables or routing.
+- Radius-centre rows keep one exact occurrence identity each. Lint independently
+  validates every printed locator and radius cell. Wrong/missing rows and duplicated
+  identities lose their own credit and the dependent general note. A table never
+  gains authority from descriptive prose. Session/MCP can inspect the automatic
+  table and replay it through the existing lossless Plan field patch.
+- Once placed, exact radius notes/tables and geometric relief exclusions resolve
+  their earlier dimension-only feature_not_dimensioned warnings. No severity was
+  reduced; unrelated findings and all MCP task inputs remain intact.
+
+All six new focused tests failed on an isolated HEAD source build before these
+changes (4 passed / 7 failed, including the strengthened existing many-blends test):
+target/g3-carry/red-all-tests.log. They cover CTC-01 completeness/no logo claims,
+five relief parts and two negative controls, retained real exception requirements,
+relief note omission/independent lint, depth conservatism, and every-occurrence
+radius tables with wrong/missing/duplicate locator and deterministic round-trip checks.
+The focused final suite is 11/11. Full acceptance results will follow below.

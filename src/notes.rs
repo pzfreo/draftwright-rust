@@ -458,8 +458,16 @@ pub(crate) fn radius_notes(
             });
         let n = &mut notes[index];
         n.measurements = measurements.clone();
+        if n.id == crate::dims::blends::RELIEF_NOTE {
+            // This profile requirement prints no measured number, including a note index.
+            n.rows = vec![n.text.clone()];
+        }
         n.default = !spec.annotations.contains_key(&n.id);
-        n.basis = "a true default states the most frequent equal radius once; other radii need explicit callouts, and exact identities retain coverage authority".into();
+        n.basis = if n.id == crate::dims::blends::RELIEF_NOTE {
+            "grouped tiny, complex relief floors and their short walls share a shallow layer on one broad carrier; their profiles are governed by the model, with no radius credit".into()
+        } else {
+            "a true default states the most frequent equal radius once; other radii need explicit callouts, and exact identities retain coverage authority".into()
+        };
         let entry = spec.annotations.get(&n.id);
         if spec.dimension_source == crate::model::DimensionSource::Authored && entry.is_none() {
             n.placed = None;

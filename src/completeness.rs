@@ -50,6 +50,15 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         .filter(|d| d.placed.is_some() || matches!(d.state, State::Covered { .. }))
         .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
         .collect();
+    // Radius coverage may be carried by a general note or a located radius table.
+    stated.extend(plan.notes.iter().filter(|n| n.placed.is_some())
+        .flat_map(|n| &n.measurements)
+        .filter(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        .map(|m| m.feature.as_str()));
+    stated.extend(plan.radius_table.iter().flat_map(|t| &t.rows).map(|r| r.feature.as_str()));
+    if plan.notes.iter().any(|n| n.id == crate::lint::blends::RELIEF_NOTE && n.placed.is_some()) {
+        stated.extend(analysis.features.iter().filter(|f| crate::lint::blends::is_relief(analysis, f)).map(|f| f.id.as_str()));
+    }
     for p in analysis.recognition.iter().flat_map(|r| &r.patterns) {
         if stated.contains(p.id.as_str()) {
             stated.extend(p.members.iter().map(String::as_str));
