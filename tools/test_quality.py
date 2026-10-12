@@ -93,15 +93,18 @@ class CentreLineInk(unittest.TestCase):
     def test_a_real_label_centreline_contact_counts_as_ink(self):
         plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'problems': [],
                 'views': [{'line_work': [{'kind': 'cross'}]}]}
-        replies = [subprocess.CompletedProcess([], 0, '{}', ''),
-            subprocess.CompletedProcess([], 0, json.dumps(plan), ''),
-            subprocess.CompletedProcess([], 0, json.dumps({'structural': [
-                {'code': 'label_centerline_overlap', 'annotation': 'd:a'}], 'lint': []}), '')]
-        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
-            (Path(out) / 'part.svg').write_text('<svg/>')
-            _, result = quality.one('part.step', 'dw', out)
-        self.assertEqual(result['ink'], 1)
-        self.assertEqual(result['ink_by_code'], {'label_centerline_overlap': 1})
+        for code in ('label_centerline_overlap', 'leader_centerline_overlap',
+                     'label_section_furniture_overlap'):
+            with self.subTest(code=code):
+                replies = [subprocess.CompletedProcess([], 0, '{}', ''),
+                    subprocess.CompletedProcess([], 0, json.dumps(plan), ''),
+                    subprocess.CompletedProcess([], 0, json.dumps({'structural': [
+                        {'code': code, 'annotation': 'd:a'}], 'lint': []}), '')]
+                with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
+                    (Path(out) / 'part.svg').write_text('<svg/>')
+                    _, result = quality.one('part.step', 'dw', out)
+                self.assertEqual(result['ink'], 1)
+                self.assertEqual(result['ink_by_code'], {code: 1})
 
 
 class FeatureCrossings(unittest.TestCase):

@@ -636,10 +636,10 @@ pub fn segments(w: &LineWork) -> Vec<[P; 2]> {
 }
 
 pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
-    views
-        .iter()
-        .flat_map(|v| {
-            v.line_work.iter().map(|w| PlannedDimension {
+    let mut out = Vec::new();
+    for v in views {
+        for w in &v.line_work {
+            let mut obstacle = PlannedDimension {
                 id: w.id.clone(),
                 kind: "ink".into(),
                 view: v.id.clone(),
@@ -662,9 +662,60 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                     rotation: 0.,
                     label_box: [0.; 4],
                 }),
-            })
-        })
-        .collect()
+            };
+            if w.kind == "cutting_plane"
+                && let Curve::Line(a, b) = w.curves[0]
+                && let Some(cut) = views.iter().filter_map(|v| v.cut.as_ref()).find(|c| {
+                    c.marked_in == v.id && w.id == format!("ink:{}:cut:{}", v.id, c.label)
+                })
+            {
+                let (ink, letters) = crate::section::cutting_plane(a[0], b[0], a[1]);
+                // Use the renderer's wing and filled arrow outlines, after its chain spans.
+                for item in &ink[ink.len() - 4..] {
+                    if let crate::output::Item::Face(loops) = item {
+                        obstacle
+                            .placed
+                            .as_mut()
+                            .unwrap()
+                            .lines
+                            .extend(loops.iter().flatten().map(|c| [c.start(), c.end()]));
+                    }
+                }
+                for k in 0..2 {
+                    let mut arrow = obstacle.clone();
+                    arrow.id = format!("{}:arrow:{k}", w.id);
+                    let bounds = crate::output::items_bbox(
+                        &ink[ink.len() - 4 + 2 * k..ink.len() - 2 + 2 * k],
+                    )
+                    .unwrap();
+                    let placed = arrow.placed.as_mut().unwrap();
+                    placed.lines.clear();
+                    placed.label_box = bounds;
+                    out.push(arrow);
+                }
+                let laid = crate::dims::font().text(&cut.label, crate::section::FONT_SIZE);
+                for (k, at) in letters.into_iter().enumerate() {
+                    let mut letter = obstacle.clone();
+                    letter.id = format!("{}:letter:{k}", w.id);
+                    letter.placed = Some(Placed {
+                        lines: Vec::new(),
+                        arrows: Vec::new(),
+                        label_at: at,
+                        rotation: 0.,
+                        label_box: [
+                            at[0] + laid.min[0],
+                            at[1] + laid.min[1],
+                            at[0] + laid.max[0],
+                            at[1] + laid.max[1],
+                        ],
+                    });
+                    out.push(letter);
+                }
+            }
+            out.push(obstacle);
+        }
+    }
+    out
 }
 
 /// Only a transverse attachment in the arrow neighbourhood of a marked global

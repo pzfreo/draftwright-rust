@@ -1,9 +1,1 @@
-[
- {
-  "part": "ftc06",
-  "code": "annotation_ink_overlap",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "The leader of the plan's callout d:f:hole:5/bore.diameter (2× ⌀14.3 THRU ⌴ ⌀20.6 ↧ 14.3) runs 1.6 mm through the cutting plane's letter section_a_right: src/dims/leaders.rs places callout leaders clear of the plan's dimensions and labels, but the section line's letters are drawn by model::render after planning, so the leader search cannot see them (the plan reports nothing). Before stream d-callout-leaders the one finding was the leader of d:f:boss:6/boss.diameter running 3.8 mm through the label of d:f:hole_pattern:1/bore.diameter in the front's callout lanes; that is gone. draftwright's sheet has ten crossings of its own, between its differently placed items."
- }
-]
+[]

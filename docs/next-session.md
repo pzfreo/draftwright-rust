@@ -4298,4 +4298,92 @@ furniture/section reviews zero missing centres or label/centre contacts; random
 pins 270/270 GO; scripted MCP 7/7. All thirty sheets were rasterised and reviewed,
 with seven detailed sheet inspections; final benchmark rasters match those
 reviewed. Exact tables, file list, red evidence and executable SHA are in the
-G6 status entry. No commit or push was made.
+G6 status entry. The agent did not commit or push; the driver subsequently committed
+the first attempt as `0dbba2f`. Its visual-clearance claim was superseded by the
+G6 review and fix below.
+
+
+## Stage G / G6 review fix (2026-10-11)
+
+- Section cutting-plane obstacles now include the renderer's arrowhead and wing
+  outlines and the actual mono-font boxes of both letters. The strengthened
+  string_post test requires labels to clear letter and arrow boxes. Captured
+  pre-G6 collinear leaders and first-G6 letter collisions on string_post/CTC-05
+  are retained in `tests/fixtures/g6_section_contacts.json`; independent drawing
+  lint must detect them, while the final drawings must clear them.
+- Overturnable judgement: a label touching a section letter/arrow box by more
+  than numerical roundoff is an ink defect, even below Python's general 0.5 mm
+  overlap threshold. A leader sharing more than 0.5 mm of a centre/cutting stroke
+  is also an ink defect. Transverse crossings are not included in this new metric.
+  `quality.py` counts both codes from rendered structural review. The original
+  label/centreline metric alone never measured string_post's collinear leaders;
+  the former zero-finding/278-ink totals did not prove section clearance.
+- The obstacle-only fallback in `dims/leaders.rs` keeps the prior assignment's
+  ordinary-ink floor, then repairs only routes with hard furniture contacts, accepting candidates
+  against all currently chosen routes within that floor. The previous all-or-nothing fallback reinstated
+  CTC-05's `527.05 A/F`/`A` collision. Ordinary candidate generation, dimensional content,
+  linear lanes and the G2/G3 feature-routing rules are unchanged. This hook is a
+  small shared-file merge point; the fix removes fallback remeasurement rather
+  than adding another inventory or planning pass.
+- Actual-label centreline lint deliberately differs from Python's whole-ink
+  fallback. The new test uses string_post's real section hatch extent
+  `[182.00003333342593,81.1,193.99996666657407,107.6]` and proves that treating it as
+  text would invent a label/axis contact. The module documentation now agrees.
+  Python's captured sheets have 17 collinear leader/centre contacts on eight
+  parts, separately checked in `g6_python_fixed_ink.json`; the original twelve
+  ported-code comparisons remain intact. Verdicts are in known_centrelines.json.
+- Centre/hidden precedence means paint order only: hidden and visible ink are
+  drawn above thin chain lines. Coincident hidden dashes cover the centre stroke
+  at their painted spans; the chain can remain visible in the gaps. No claim of
+  geometric suppression of the entire hidden span is made. The recognised-feature
+  boundary remains overturnable: raw round outlines on the seven previously
+  listed parts, including 10038, still do not establish hole/axis facts.
+
+The driver committed the earlier attempt as `0dbba2f`; this fix run makes no
+commit or push. Validation and visual evidence are recorded in the appended G6
+fix status entry.
+
+- Final obstacle-only repair (2026-10-12): retain the incumbent and repeat local
+  improvements within its whole-assignment ordinary-ink floor. Only an incumbent
+  blocked by fixed ink gains extra variants: three shortened horizontal shoulders
+  with the original text endpoint, three opposite outward shelves, and two nearby
+  points on its existing round-opening rim (one existing 22.5-degree direction
+  step either side). All use the same footprint check and may not increase that
+  callout's feature crossings. Ordinary candidate generation and the joint solver
+  remain unchanged. The variants fit its existing 64-bit candidate representation.
+- Overturnable difference from Python's nearest radial attachment: for fixed-ink
+  avoidance alone, an automatic leader may use a nearby proven round rim point.
+  FTC-10's hole:17 cannot shift toward its old label side without intersecting four
+  other features; its alternative rim point keeps the label and elbow fixed, clears
+  the hole's centre stroke and preserves zero feature crossings. The regression
+  checks the actual rim radius and an outward departure. Bare pins and explicitly
+  authored placement retain their established attachment rules. No machining fact,
+  dimension value or new site is inferred.
+- Hard furniture travel now tests collinearity explicitly. The shared annotation
+  predicate's one-mm proximity rule previously promoted transverse crossings of
+  short centre crosses to hard travel; it remains unchanged for ordinary ink.
+  This keeps the obstacle hook from unnecessarily moving unaffected callouts.
+- The expanded structural metric exposed six previously uncounted shared strokes
+  on CTC-02, CTC-04 and FTC-10. The new corpus regression fails before these routing
+  alternatives and requires all three sheets to clear centre strokes and section
+  furniture. The first expanded quality probe is retained in `target/g6-fix/quality/`;
+  its increased ink was rejected, not rebaselined.
+
+- Final visual check caught string_post's left shoulder crossing the section arrow
+  after its letter collision was cleared. Both ends' complete arrow/wing ink boxes
+  now use the existing fixed occupied-box channel (no text is invented or exported).
+  The section regression also requires every callout segment to clear each rendered
+  arrow and wing box. Their provenance IDs are diagnostic refs on the carrier view.
+
+Final G6 fix validation (2026-10-12): fmt, strict release clippy, all **676**
+corpus-required Rust tests (none ignored), **21** Python tests, **8** Node client
+tests, the **300-cell** quality comparison, **270/270 GO** pin runs and **7/7**
+scripted MCP tasks pass. Ink stays **278** and feature crossings improve
+**210 → 202**. All 30 final SVGs match the visually inspected render byte-for-byte;
+all were rasterised again at 2400 px. NIST isolated serial p90s are
+**59.551 / 80.857 / 57.344 ms** against the unchanged **150 ms** gate, on a busy
+shared host (load **31.27 / 29.81 / 26.84**), not a quiet-machine claim. Evidence
+and per-seed pin results are in the latest G6 fix entry of
+`docs/status-2026-10-10.md` and `target/g6-fix/`. The remaining recognized-feature
+and paint-order limits above are explicit, overturnable decisions. This run
+did not commit or push.

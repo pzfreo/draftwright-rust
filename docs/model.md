@@ -334,17 +334,20 @@ dimensional omissions. Bolt-circle crosses run radially and tangentially.
 The centre layer uses thin black long-dash-dot ink; a long dash meets at the
 cross centre. Crosses extend approximately 3 mm beyond the edge, proportionately
 less for very small holes and more for very large ones. Local axes extend beyond
-their ends; the whole turning axis extends 5 mm. Visible and hidden edges have
-precedence. Sections omit axes wholly on the removed side and retain axes of
+their ends; the whole turning axis extends 5 mm. Visible and hidden ink is painted above
+centre ink; this is paint order, so chain ink can remain in hidden-dash gaps. Sections omit axes wholly on the removed side and retain axes of
 cut holes and cylinders.
 
-This furniture, including the finite cutting-plane line, enters the existing
+This furniture, including the finite cutting-plane line, its arrowhead/wing
+outlines and both letters measured in the rendering font, enters the existing
 fixed-ink placement hook before dimensions and PMI. Labels and travel along a
 line are hard conflicts; transverse crossings are routing costs, with only a
 local transverse tip exemption on an explicitly marked global turning axis.
 Furniture provenance appears in problem `refs`; its carrier view is a subject.
 Drawing lint checks the actual marked centres against independent projections
-of the Analysis's holes, including pattern members and double-D bores.
+of the Analysis's holes, including pattern members and double-D bores. Structural
+review separately counts collinear leader travel along fixed chain strokes and
+actual labels touching section letters or arrows; quality includes those in ink.
 
 ### Dimensions (first cut)
 

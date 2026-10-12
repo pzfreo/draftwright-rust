@@ -563,10 +563,60 @@ pub(super) fn place_with_obstacles(
                 && c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside <= ceiling
         });
         let right = b.end[0] > b.elbow[0];
-        if let Some(mut c) = measure(job, b.tip, b.elbow, right, &fixed, page) {
-            c.aware = !semantic_pmi;
-            inventories[k].push(c);
+        let mut prior = measure(job, b.tip, b.elbow, right, &fixed, page).expect("existing route");
+        // Keep the text anchored when escaping fixed ink: nearby rim points, shorter shelves,
+        // or the opposite outward side, all measured against the same feature evidence.
+        if prior.furniture_hard > 0 {
+            let site = nearest(&job.sites, b.elbow);
+            if site.1 > 1e-9 {
+                let radial = rim_tip(site, b.elbow);
+                let u = [radial[0] - site.0[0], radial[1] - site.0[1]];
+                for angle in [
+                    -std::f64::consts::TAU / DIRECTIONS as f64,
+                    std::f64::consts::TAU / DIRECTIONS as f64,
+                ] {
+                    let (sin, cos) = angle.sin_cos();
+                    let tip = [
+                        site.0[0] + cos * u[0] - sin * u[1],
+                        site.0[1] + sin * u[0] + cos * u[1],
+                    ];
+                    if let Some(mut c) = measure_at(job, tip, b.elbow, b.end, right, &fixed, page)
+                        && c.feature_crossings <= b.feature_crossings
+                    {
+                        c.aware = !semantic_pmi;
+                        inventories[k].push(c);
+                    }
+                }
+            }
+            for offset in [SHOULDER / 4., SHOULDER / 2., 3. * SHOULDER / 4.] {
+                let elbow = [
+                    b.elbow[0] + if right { offset } else { -offset },
+                    b.elbow[1],
+                ];
+                let tip = rim_tip(nearest(&job.sites, elbow), elbow);
+                let across = [
+                    b.elbow[0] + if right { -offset } else { offset },
+                    b.elbow[1],
+                ];
+                let other_tip = rim_tip(nearest(&job.sites, across), across);
+                if let Some(mut c) = measure(job, other_tip, across, !right, &fixed, page)
+                    && c.feature_crossings <= b.feature_crossings
+                {
+                    c.aware = !semantic_pmi;
+                    inventories[k].push(c);
+                }
+                if let Some(mut c) = measure_at(job, tip, elbow, b.end, right, &fixed, page) {
+                    if c.feature_crossings > b.feature_crossings {
+                        continue;
+                    }
+
+                    c.aware = !semantic_pmi;
+                    inventories[k].push(c);
+                }
+            }
         }
+        prior.aware = !semantic_pmi;
+        inventories[k].push(prior);
     }
     if semantic_pmi {
         for inv in &mut inventories {
@@ -577,21 +627,42 @@ pub(super) fn place_with_obstacles(
     }
     let (mut choice, mut capped) = assign(&inventories);
     if defects(&inventories, &choice) > defects(&baseline, &baseline_choice) {
-        // The bounded joint solve may introduce pair conflicts even when every job keeps its
-        // own floor. Preserve the prior assignment, with its fixed-ink scoring retained.
-        inventories = jobs
-            .iter()
-            .enumerate()
-            .map(|(k, (_, job))| {
-                let b = &baseline[k][baseline_choice[k]];
-                vec![
-                    measure(job, b.tip, b.elbow, b.end[0] > b.elbow[0], &fixed, page)
-                        .expect("existing route"),
-                ]
-            })
-            .collect();
-        choice = vec![0; inventories.len()];
+        // Restore the incumbent when the bounded joint solve spends its ordinary ink floor.
+        choice = inventories.iter().map(|inv| inv.len() - 1).collect();
         capped = baseline_capped;
+    }
+    let floor = defects(&baseline, &baseline_choice);
+    for _ in 0..DESCENT {
+        let before = choice.clone();
+        for k in 0..inventories.len() {
+            if inventories[k][choice[k]].furniture_hard == 0 {
+                continue;
+            }
+            let ordinary = |c: &Candidate| {
+                c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside
+            };
+            let local = |c: &Candidate| {
+                ordinary(c)
+                    + choice
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != k)
+                        .map(|(j, &n)| conflict(c, &inventories[j][n]))
+                        .sum::<u32>()
+            };
+            let ceiling =
+                local(&inventories[k][choice[k]]) + floor - defects(&inventories, &choice);
+            choice[k] = inventories[k]
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| local(c) <= ceiling)
+                .min_by_key(|(n, c)| (c.score() + i64::from(local(c) - ordinary(c)) * CROSSING, *n))
+                .map(|(n, _)| n)
+                .expect("the prior route meets its own floor");
+        }
+        if choice == before {
+            break;
+        }
     }
     let mut problems = Vec::new();
     let named = |i: usize| format!("{} ({})", items[i].id, items[i].terms.join(" "));
@@ -996,12 +1067,26 @@ fn measure(
     fixed: &Fixed,
     page: &Page,
 ) -> Option<Candidate> {
+    let end = [
+        elbow[0] + if right { SHOULDER } else { -SHOULDER },
+        elbow[1],
+    ];
+    measure_at(job, tip, elbow, end, right, fixed, page)
+}
+
+fn measure_at(
+    job: &Job,
+    tip: P2,
+    elbow: P2,
+    end: P2,
+    right: bool,
+    fixed: &Fixed,
+    page: &Page,
+) -> Option<Candidate> {
     let shaft = (elbow[0] - tip[0]).hypot(elbow[1] - tip[1]);
     if shaft < MIN_LEADER {
         return None;
     }
-    let out = if right { 1.0 } else { -1.0 };
-    let end = [elbow[0] + out * SHOULDER, elbow[1]];
     let at_x = if right {
         end[0] + 1.0 - job.ink_min[0]
     } else {
@@ -1090,7 +1175,7 @@ fn measure(
         if meets {
             if fixed.furniture.contains_key(i) {
                 furniture.push(*i);
-                if lines.iter().any(|s| s.along(*f)) {
+                if lines.iter().any(|s| s.collinear(*f)) {
                     hard += 1;
                     furniture_hard += 1;
                 }
@@ -1131,6 +1216,11 @@ fn measure(
         }
         if boxes_overlap(padded, *l) || segs.iter().chain(&own_head).any(|s| crosses(*s, *l)) {
             text.push(*i);
+            if fixed.furniture.contains_key(i) {
+                hard += 1;
+                furniture_hard += 1;
+                furniture_text.push(*i);
+            }
         }
     });
     // An item both crossed and met by the label counts in each: the plan reports a crossing
@@ -1149,7 +1239,7 @@ fn measure(
                 p[0] < a[0] - 1e-6 || p[0] > a[2] + 1e-6 || p[1] < a[1] - 1e-6 || p[1] > a[3] + 1e-6
             })
     });
-    let cost = ((shaft + SHOULDER) * 1000.0).round() as i64;
+    let cost = ((shaft + (end[0] - elbow[0]).hypot(end[1] - elbow[1])) * 1000.0).round() as i64;
     let inside = (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64;
     Some(Candidate {
         tip,
@@ -1341,6 +1431,14 @@ impl Line {
         segments_cross(self.a, b) || self.along(b)
     }
 
+    fn collinear(&self, b: [P2; 2]) -> bool {
+        let Some((u, _)) = self.dir else {
+            return false;
+        };
+        let v = [b[1][0] - b[0][0], b[1][1] - b[0][1]];
+        (u[0] * v[1] - u[1] * v[0]).abs() <= 1e-9 * v[0].hypot(v[1]) && self.along(b)
+    }
+
     /// [`segments_along`] of this line and *b*.
     fn along(&self, b: [P2; 2]) -> bool {
         let (a, Some((u, len))) = (self.a, self.dir) else {
@@ -1458,14 +1556,14 @@ fn assign(inventories: &[Vec<Candidate>]) -> (Vec<usize>, Vec<Vec<usize>>) {
 /// The conflicts between a group's jobs, dense: for jobs *k* and *l* of the group (local
 /// indices), `of[k * m + l][w][c]` holds, bit *d*, whether candidate *c* of *k* and candidate *d*
 /// of *l* conflict by more than *w* crossings, one layer per crossing up to the pair's most;
-/// none for a pair that never does. Inventories hold at most [`KEEP`] candidates, so one word
-/// covers each.
+/// none for a pair that never does. The shortlist, incumbent and furniture-only variants
+/// fit in one word.
 struct Conflicts {
     m: usize,
     of: Vec<Option<Vec<Vec<u64>>>>,
 }
 
-const _: () = assert!(KEEP <= 64);
+const _: () = assert!(KEEP + 2 + 2 * ESCAPES.len() < 64);
 
 impl Conflicts {
     fn new(

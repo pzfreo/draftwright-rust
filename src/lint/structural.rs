@@ -23,9 +23,13 @@
 //!   thing's straight line-work running at least 0.5 mm through another's label box, measured as
 //!   the longest connected stroke inside it, for each pair whose labels clear each other; both
 //!   directions. Warning.
-//! - `label_centerline_overlap` (`_lint_centerline_dim_overlap`): a label (or a label-less
-//!   thing's ink) overlapping a centreline's line by more than 0.5 mm both ways, a line measured
+//! - `label_centerline_overlap` (`_lint_centerline_dim_overlap`): an actual label
+//!   overlapping a centreline's line by more than 0.5 mm both ways, a line measured
 //!   across its stroke by how deep it runs into the box. Warning.
+//! - `leader_centerline_overlap`: a callout shares over 0.5 mm of a fixed chain stroke.
+//!   Transverse crossings and contact outside the finite stroke are excluded. Warning.
+//! - `label_section_furniture_overlap`: actual text touches a section letter, arrow or
+//!   wing box beyond numerical roundoff, including shallow contacts. Warning.
 //! - `annotation_out_of_bounds` (`_lint_annotation_bounds`): any ink past the drawable area,
 //!   the title block allowed its border's half stroke. Error, once per side overshot.
 //! - `view_annotation_overlap` and `view_annotation_inside_extents`
@@ -46,7 +50,7 @@
 //! - The port draws every label along or across the page, so a label's box is its text's own:
 //!   no label polygon, and no diagonal dimension to leave uncrossable.
 //! - A centreline without line-work (draftwright's centre circle) is judged by its whole ink's
-//!   box; draftwright then checks its drawn edges. The port draws none.
+//!   box; draftwright then checks its drawn edges. Planned pitch circles carry sampled strokes.
 //! - A curved view edge is sampled at draftwright's spacing by its own parameter (a conic's
 //!   angle, a Bézier's), where build123d samples its edge's parameter.
 //! - The messages name the port's annotations and leave out draftwright's API advice
@@ -95,6 +99,7 @@ pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     issues.extend(scale_stated(drawing));
     issues.extend(annotation_items(drawing));
     issues.extend(annotation_pairs(drawing));
+    issues.extend(fixed_ink_contacts(drawing));
     issues.extend(annotation_bounds(drawing));
     issues.extend(view_annotations(drawing));
     issues.extend(view_boxes(drawing));
@@ -390,6 +395,73 @@ fn centreline_overlap(d: &Drawn, cl: &Drawn) -> Option<(f64, f64)> {
                 .total_cmp(&(q.0 * q.1))
                 .then(p.0.total_cmp(&q.0))
         })
+}
+
+/// Independently judge fixed furniture from the rendered inventory. A collinear leader
+/// cannot borrow a cutting stroke; section letters and arrows are ink even at a shallow touch.
+fn fixed_ink_contacts(drawing: &Drawing) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    for d in drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|d| d.kind == Kind::Dimension)
+    {
+        for fixed in &drawing.sheet.items {
+            let code = if fixed.kind == Kind::Centreline && d.elbow.is_some() {
+                let along = d.lines.iter().any(|[a, b]| {
+                    let u = [b[0] - a[0], b[1] - a[1]];
+                    let length = u[0].hypot(u[1]);
+                    length > MIN_CROSSING
+                        && fixed.lines.iter().any(|[p, q]| {
+                            let distance =
+                                |p: P| ((p[0] - a[0]) * u[1] - (p[1] - a[1]) * u[0]).abs() / length;
+                            if distance(*p) > 1e-6 || distance(*q) > 1e-6 {
+                                return false;
+                            }
+                            let t = |p: P| ((p[0] - a[0]) * u[0] + (p[1] - a[1]) * u[1]) / length;
+                            t(*p).max(t(*q)).min(length) - t(*p).min(t(*q)).max(0.) > MIN_CROSSING
+                        })
+                });
+                if !along {
+                    continue;
+                }
+                "leader_centerline_overlap"
+            } else if fixed.kind == Kind::CuttingPlane
+                || (fixed.kind == Kind::Caption
+                    && fixed.name.starts_with("section_")
+                    && (fixed.name.ends_with("_left") || fixed.name.ends_with("_right")))
+            {
+                let Some(b) = d.label else {
+                    continue;
+                };
+                let f = fixed.label.unwrap_or(fixed.ink);
+                if b[2].min(f[2]) - b[0].max(f[0]) <= 1e-6
+                    || b[3].min(f[3]) - b[1].max(f[1]) <= 1e-6
+                {
+                    continue;
+                }
+                "label_section_furniture_overlap"
+            } else {
+                continue;
+            };
+            let mut i = issue(
+                format!("l:{code}:{}+{}", d.name, fixed.name),
+                code,
+                Severity::Warning,
+                format!(
+                    "'{}' touches fixed ink '{}'",
+                    called(drawing, d),
+                    fixed.name
+                ),
+            );
+            i.annotation = Some(d.name.clone());
+            i.related = vec![fixed.name.clone()];
+            i.fix = Some("move the annotation clear of the fixed ink".into());
+            issues.push(i);
+        }
+    }
+    issues
 }
 
 /// The pairwise checks, each pair once in drawing order (draftwright's `_lint_annotation_pairs`):

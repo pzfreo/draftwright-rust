@@ -1856,11 +1856,11 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     }
     for p in &mut plan.problems {
         for subject in &mut p.subjects {
-            if let Some(v) = plan
-                .views
-                .iter()
-                .find(|v| v.line_work.iter().any(|w| w.id == *subject))
-            {
+            if let Some(v) = plan.views.iter().find(|v| {
+                annotation_obstacles
+                    .iter()
+                    .any(|w| w.kind == "ink" && w.view == v.id && w.id == *subject)
+            }) {
                 p.refs.push(subject.clone());
                 *subject = v.id.clone();
             }

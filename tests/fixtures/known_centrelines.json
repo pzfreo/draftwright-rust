@@ -43,5 +43,20 @@
   "rule": "ARCH0016-4 oblique projected furniture",
   "verdict": "rust-correct",
   "reason": "Python origin/main annotations/from_model.py::render_centermarks uses _END_ON[feat.frame.axis], the nearest principal axis, even for oblique bores. Rust follows that view choice and emits projected side axes, but sizes and orients each end cross to the opening ellipse rather than Python's square diameter-sized mark. Native CTC-03/04 and FTC-07 initially reported 17 missing marks at 1 to 45 degrees; the generic oblique ellipse/axis regression failed before this change. The existing nearest-axis centre-mark lint is retained without exemption."
+ },
+ {
+  "rule": "G6 fix / section furniture and captured Python centre leader",
+  "verdict": "rust-correct",
+  "reason": "Section letters now use the same bundled mono glyph boxes as rendering, and arrow/wing outlines come from section::cutting_plane. The previous known_structural.json FTC-06 entry (hole:5 leader through section_a_right by 1.6 mm) is removed because the hook clears it; its exhaustive structural test still requires exact inventory equality. Captured Python cgb245 hc_plan3 has collinear travel on m_cm8: structural_checks_on_what_draftwright_read_agree_with_what_it_found retains all 12 original ported-code assertions and separately requires all 17 additional collinear contacts on eight captured Python sheets, named in g6_python_fixed_ink.json. ARCH0014-1 does not exempt collinear travel. tests/centrelines.rs replays captured string_post and CTC-05 placements and requires their defects to be detected. Real string_post section_hatch ink is [182.00003333342593,81.1,193.99996666657407,107.6]; an_actual_section_hatch_is_not_a_label_on_its_axis proves the whole-ink fallback creates a label_centerline_overlap finding on that unchanged hatch, while actual-label lint does not."
+ },
+ {
+  "rule": "G6 fix / CTC-04 route with complete section furniture",
+  "verdict": "rust-correct",
+  "reason": "Real section letters and arrow/wing outlines force a different route for native CTC-04 hole_pattern:11. Three slot-ladder extension contacts disappear (slot:2/location_slot_across, slot:3/location_slot, slot:3/slot_length); three other existing ladder contacts replace them (hole:10/location.x, hole:11/location.x, slot:2/slot_length). The underlying ladder crossings remain rust-wrong in known_leaders.json. No collision predicate is weakened: its exhaustive test checks exactly 39 contacts. The fallback repairs only hard furniture contacts, leaving unrelated routes at their prior assignment."
+ },
+ {
+  "rule": "ARCH0014-1 / round-rim fixed-ink avoidance",
+  "verdict": "rust-correct",
+  "reason": "Python's normal automatic/pinned attachment uses the nearest radial rim point. Rust adds two nearby rim points only when the automatic incumbent is blocked by fixed ink, using the existing 16-direction angular step. FTC-10 hole:17's rightward elbow shifts intersect four other features; a nearby point on the same radius leaves its original label and elbow fixed, clears its centre stroke and preserves zero feature crossings. The independent corpus regression checks the tip's radius and outward departure; all ordinary-ink and per-callout feature-crossing floors remain enforced. No new physical site, dimension value or Spec address is added."
  }
 ]

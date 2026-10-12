@@ -17,7 +17,8 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 
 INK = {"annotation_ink_overlap", "annotation_over_view", "annotation_line_over_view",
-       "annotation_leader_crossing", "annotation_outside_area", "label_centerline_overlap"}
+       "annotation_leader_crossing", "annotation_outside_area", "label_centerline_overlap",
+       "leader_centerline_overlap", "label_section_furniture_overlap"}
 
 
 def line_through_features(plan):
@@ -268,8 +269,9 @@ def one(f, dw, out, spec=None, timeout=600):
             return name, {"error": (q.stdout + q.stderr)[:200]}
         if q.returncode or "structural" not in review:
             return name, {"error": json.dumps(review)[:200]}
-        codes["label_centerline_overlap"] = max(codes["label_centerline_overlap"],
-            sum(i["code"] == "label_centerline_overlap" for i in review["structural"]))
+        for code in ("label_centerline_overlap", "leader_centerline_overlap",
+                     "label_section_furniture_overlap"):
+            codes[code] = max(codes[code], sum(i["code"] == code for i in review["structural"]))
         with open(f"{out}/{name}.review.json", "w") as output:
             json.dump({k: review[k] for k in ("lint", "structural")}, output, indent=1, sort_keys=True)
     # Repeated dimensions: the same measured quantity (feature, parameter) stated more than once,

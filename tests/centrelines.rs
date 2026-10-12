@@ -119,7 +119,7 @@ fn bolt_circle_furniture_is_radial_and_tangential() {
 #[test]
 fn section_cutting_line_is_planned_and_labels_keep_clear() {
     let Some(dir) = corpus::dir() else { return };
-    let (_, p, _) = drawing(&dir.join("gramel/string_post.step"));
+    let (_, p, drawn) = drawing(&dir.join("gramel/string_post.step"));
     let cutting = work(&p, "cutting_plane");
     assert_eq!(cutting.len(), 1);
     let ends = cutting[0]["curves"][0]["Line"].as_array().unwrap();
@@ -133,6 +133,41 @@ fn section_cutting_line_is_planned_and_labels_keep_clear() {
             && let Some(g) = &d.placed
         {
             let b = g.label_box;
+            for letter in drawn.sheet.items.iter().filter(|i| {
+                i.kind == draftwright::output::Kind::CuttingPlane
+                    || (i.kind == draftwright::output::Kind::Caption
+                        && matches!(i.name.as_str(), "section_a_left" | "section_a_right"))
+            }) {
+                let l = letter.label.unwrap_or(letter.ink);
+                if letter.kind == draftwright::output::Kind::CuttingPlane && d.kind == "callout" {
+                    for [a, z] in &g.lines {
+                        // The section glyph's full ink box is a hard reservation, including its wing.
+                        let mut lo: f64 = 0.;
+                        let mut hi: f64 = 1.;
+                        for k in 0..2 {
+                            let delta = z[k] - a[k];
+                            if delta.abs() < 1e-9 {
+                                if a[k] <= l[k] || a[k] >= l[k + 2] {
+                                    hi = -1.;
+                                    break;
+                                }
+                            } else {
+                                let x = (l[k] - a[k]) / delta;
+                                let y = (l[k + 2] - a[k]) / delta;
+                                lo = lo.max(x.min(y));
+                                hi = hi.min(x.max(y));
+                            }
+                        }
+                        assert!(hi <= lo, "{} leader touches {}", d.id, letter.name);
+                    }
+                }
+                assert!(
+                    b[2] < l[0] || l[2] < b[0] || b[3] < l[1] || l[3] < b[1],
+                    "{} label touches {}",
+                    d.id,
+                    letter.name
+                );
+            }
             assert!(
                 b[1] > y || b[3] < y || b[2] < x0 || b[0] > x1,
                 "{} label lies on A-A",
@@ -157,4 +192,136 @@ fn section_cutting_line_is_planned_and_labels_keep_clear() {
             .as_array()
             .is_some_and(|w| w.iter().any(|w| w["kind"] == "axis"))
     }));
+}
+
+#[test]
+fn fixed_ink_review_catches_the_captured_section_defects() {
+    let Some(dir) = corpus::dir() else { return };
+    let cases: Vec<Value> =
+        serde_json::from_str(include_str!("fixtures/g6_section_contacts.json")).unwrap();
+    for case in cases {
+        let (_, _, mut drawn) = drawing(&dir.join(case["step"].as_str().unwrap()));
+        let code = case["code"].as_str().unwrap();
+        assert!(
+            !draftwright::lint::structural::check(&drawn)
+                .iter()
+                .any(|i| i.code == code),
+            "{}: fixed sheet still has {code}: {:?}",
+            case["step"],
+            draftwright::lint::structural::check(&drawn)
+                .iter()
+                .filter(|i| i.code == code)
+                .collect::<Vec<_>>()
+        );
+        for captured in case["dimensions"].as_array().unwrap() {
+            let g: draftwright::dims::Placed =
+                serde_json::from_value(captured["placed"].clone()).unwrap();
+            let item = drawn
+                .sheet
+                .items
+                .iter_mut()
+                .find(|i| i.name == captured["id"].as_str().unwrap())
+                .unwrap();
+            item.label = Some(g.label_box);
+            item.lines = g.lines;
+            item.elbow = Some(item.lines[0][1]);
+        }
+        let found: Vec<_> = draftwright::lint::structural::check(&drawn)
+            .into_iter()
+            .filter(|i| i.code == code)
+            .collect();
+        assert!(
+            !found.is_empty(),
+            "{}: captured {} was missed",
+            case["source"],
+            code
+        );
+        if code == "leader_centerline_overlap" {
+            assert_eq!(
+                found
+                    .iter()
+                    .filter(|i| i.related == ["section_line"])
+                    .count(),
+                2,
+                "both original string_post leaders must be counted"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_actual_section_hatch_is_not_a_label_on_its_axis() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, _, mut drawn) = drawing(&dir.join("gramel/string_post.step"));
+    let contacts = |d: &draftwright::output::Drawing| {
+        draftwright::lint::structural::check(d)
+            .into_iter()
+            .filter(|i| {
+                i.code == "label_centerline_overlap"
+                    && i.annotation.as_deref() == Some("section_hatch")
+            })
+            .count()
+    };
+    assert_eq!(contacts(&drawn), 0);
+    let hatch = drawn
+        .sheet
+        .items
+        .iter_mut()
+        .find(|i| i.name == "section_hatch")
+        .unwrap();
+    eprintln!("CAPTURED_HATCH {} {:?}", hatch.name, hatch.ink);
+    // Emulate Python's fallback on the same captured geometry, without changing any ink.
+    hatch.label = Some(hatch.ink);
+    assert!(
+        contacts(&drawn) > 0,
+        "the whole-ink fallback should flag this hatch as text"
+    );
+}
+
+#[test]
+fn callouts_do_not_borrow_hole_centre_strokes() {
+    let Some(dir) = corpus::dir() else { return };
+    for file in [
+        "nist/nist_ctc_02_asme1_rc.stp",
+        "nist/nist_ctc_04_asme1_rd.stp",
+        "nist/nist_ftc_10_asme1_rb.stp",
+    ] {
+        let (_, p, drawn) = drawing(&dir.join(file));
+        let contacts: Vec<_> = draftwright::lint::structural::check(&drawn)
+            .into_iter()
+            .filter(|i| {
+                matches!(
+                    i.code.as_str(),
+                    "leader_centerline_overlap" | "label_section_furniture_overlap"
+                )
+            })
+            .collect();
+        assert!(contacts.is_empty(), "{file}: {contacts:?}");
+        if file.ends_with("nist_ftc_10_asme1_rb.stp") {
+            let d = p
+                .dimensions
+                .iter()
+                .find(|d| d.id == "d:f:hole:17/bore.diameter")
+                .unwrap();
+            let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+            let centre = v
+                .line_work
+                .iter()
+                .find(|w| w.id == "ink:v:side:f:hole:17")
+                .unwrap()
+                .centre
+                .unwrap();
+            let [tip, elbow] = d.placed.as_ref().unwrap().lines[0];
+            let radius = d.value * v.scale / 2.;
+            let u = [tip[0] - centre[0], tip[1] - centre[1]];
+            assert!(
+                (u[0].hypot(u[1]) - radius).abs() < 1e-6,
+                "the revised tip must stay on the opening rim"
+            );
+            assert!(
+                u[0] * (elbow[0] - tip[0]) + u[1] * (elbow[1] - tip[1]) > 0.,
+                "the leader must leave the opening outward"
+            );
+        }
+    }
 }
