@@ -239,12 +239,15 @@ def svg_linework(path, plan):
     return counts
 
 
-def one(f, dw, out, spec=None):
+def one(f, dw, out, spec=None, timeout=600):
     name = os.path.basename(f).split(".")[0]
     os.makedirs(out, exist_ok=True)
     extra = ["--spec", spec] if spec else []
-    r = subprocess.run([dw, "render", f, "-o", f"{out}/{name}", "--formats", "svg", *extra], capture_output=True, text=True, timeout=600)
-    p = subprocess.run([dw, "plan", f, *extra], capture_output=True, text=True, timeout=600)
+    try:
+        r = subprocess.run([dw, "render", f, "-o", f"{out}/{name}", "--formats", "svg", *extra], capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run([dw, "plan", f, *extra], capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        return name, {"error": str(error)}
     try:
         rend, plan = json.loads(r.stdout), json.loads(p.stdout)
     except Exception:

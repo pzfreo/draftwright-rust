@@ -21,8 +21,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary')
     parser.add_argument('out', type=Path)
+    parser.add_argument('--timeout', type=int, default=600, help='Per render/plan timeout in seconds')
     parser.add_argument('--before', type=Path, help='Verify the recorded pre-E3 patterns against this baseline')
     args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error('--timeout must be positive')
     verdicts = json.loads(Path('tests/fixtures/known_repeated_spans.json').read_text())
     assert all(v['verdict'] == 'rust-correct' and v['evidence'].strip() for v in verdicts)
     if args.before:
@@ -52,7 +55,7 @@ def main():
     assert len({p.stem for p in files}) == len(files), 'ambiguous output basenames'
     (args.out / 'inputs.txt').write_text(''.join(f'{p}\n' for p in files))
     with ThreadPoolExecutor(4) as executor:
-        results = dict(executor.map(lambda p: quality.one(str(p), args.binary, str(args.out)), files))
+        results = dict(executor.map(lambda p: quality.one(str(p), args.binary, str(args.out), timeout=args.timeout), files))
     (args.out / 'baseline.json').write_text(json.dumps(results, indent=1, sort_keys=True) + '\n')
     quality.table(results)
     return int(any('error' in p or p['repeated_span'] for p in results.values()))
