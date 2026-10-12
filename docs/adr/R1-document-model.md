@@ -65,3 +65,21 @@ Each invariant gets its guard test as the code lands. Until then, R4 tracks it a
 - **Datums and GD&T:** whether they live in the spec or are taken from specify-core's intent
   (joining the two documents).
 - **Whether the spec also lives inside the STEP file**, as specify-core's answers do.
+
+## Decision note: projected evidence for interior placement (2026-10-12)
+
+The planner may now read the Analysis's optional `projected_views`: the renderer's
+HLR visible and hidden curves in each standard principal projection, plus complete
+sampled boundaries of planar material faces parallel to that projection. Analysis
+obtains these from the same kernel projection and curve lowering as rendering;
+rendering reuses them and applies its existing paper-space hidden-line precedence.
+Missing, incomplete or incompatible evidence cannot establish blank face.
+
+This deliberately replaces the earlier exterior-only interpretation of "no
+line-work in the plan": projected ink is regenerable Analysis evidence, not authored
+Spec geometry or a second annotation renderer. It lets the planner prove a complete
+label clear over material inside its own view, retaining Python's automatic interior
+callouts and whole-dimension corridor fallback. Resolved dimensions carry typed
+`region: interior` provenance and a basis sentence; the Plan does not copy the HLR
+inventory. All nine invariants above remain in force, including deterministic JSON,
+relative author intent, stable IDs, and renderers drawing resolved annotations only.

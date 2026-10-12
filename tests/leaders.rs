@@ -200,7 +200,21 @@ fn crossings(plan: &Plan, analysis: &Analysis) -> BTreeMap<String, BTreeSet<Stri
         let mut found = BTreeSet::new();
         let (shaft, shoulder) = (p.lines[0], p.lines[1]);
         for (view, b) in &boxes {
-            if overlap(p.label_box, *b) || crosses(shoulder, *b) {
+            let interior =
+                *view == d.view && d.region == Some(draftwright::dims::CandidateRegion::Interior);
+            if interior {
+                // Intentional own-view placement replaces the exterior-only rule. Keep a
+                // separate containment check; rendered-ink clearance is independently guarded
+                // by tests/interior_placement.rs and the structural/quality checks.
+                assert!(
+                    p.label_box[0] >= b[0]
+                        && p.label_box[1] >= b[1]
+                        && p.label_box[2] <= b[2]
+                        && p.label_box[3] <= b[3]
+                );
+                assert!(analysis.projected_views.contains_key(view));
+            }
+            if !interior && (overlap(p.label_box, *b) || crosses(shoulder, *b)) {
                 found.insert(format!("view:{view}"));
             }
             if *view != d.view {

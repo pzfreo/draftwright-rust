@@ -811,6 +811,43 @@ fn place_linear(
     side: Side,
     lane: usize,
 ) -> Option<Placed> {
+    place_linear_at(
+        frame,
+        shape,
+        terms,
+        side,
+        lane_at(frame.outline, side, lane),
+    )
+}
+
+pub(super) fn interior_lanes(frame: &Frame, w: &Want, side: Side) -> Vec<Placed> {
+    let o = frame.outline();
+    let (edge, inward) = match side {
+        Side::Below => (o[1], 1.0),
+        Side::Above => (o[3], -1.0),
+        Side::Left => (o[0], 1.0),
+        Side::Right => (o[2], -1.0),
+    };
+    (1..=8)
+        .filter_map(|lane| {
+            place_linear_at(
+                frame,
+                &w.shape,
+                &w.terms,
+                side,
+                (edge + inward * lane as f64 * LANE, inward),
+            )
+        })
+        .collect()
+}
+
+fn place_linear_at(
+    frame: &Frame,
+    shape: &Shape,
+    terms: &[String],
+    side: Side,
+    position: (f64, f64),
+) -> Option<Placed> {
     let Shape::Linear {
         a,
         b,
@@ -826,7 +863,7 @@ fn place_linear(
     let w = ink.max[0] - ink.min[0];
     let o = frame.outline;
     let (pa, pb) = (frame.page(*a), frame.page(*b));
-    let (t_line, out) = lane_at(o, side, lane);
+    let (t_line, out) = position;
     // Work along the line (s) and across it (t), then map to the page.
     let k = usize::from(horizontal); // the page coordinate across the line
     let map = |s: f64, t: f64| if horizontal { [s, t] } else { [t, s] };
@@ -1472,8 +1509,18 @@ impl<'a> Page<'a> {
 
     /// Whether *p*, an item of view *own*, fits the page: its ink on the sheet, its label off
     /// every view and the title block, and no line through the title block or another view.
-    fn fits(&self, p: &Placed, own: &str) -> bool {
+    pub(super) fn fits(&self, p: &Placed, own: &str) -> bool {
         self.on_sheet(p) && self.clear_of_furniture(p) && self.crossed(p, own).next().is_none()
+    }
+
+    pub(super) fn fits_interior(&self, p: &Placed, own: &str) -> bool {
+        self.on_sheet(p)
+            && !boxes_overlap(p.label_box, self.title_block)
+            && !p.lines.iter().any(|l| crosses(*l, self.title_block))
+            && self.crossed(p, own).next().is_none()
+            && self.views.iter().all(|(id, b)| {
+                id.strip_prefix("v:") == Some(own) || !boxes_overlap(p.label_box, *b)
+            })
     }
 
     /// Whether *p*'s label is off every view and the title block, and no line of it runs through
@@ -1514,6 +1561,7 @@ pub(super) fn collisions_cached(
 ) -> Vec<Problem> {
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
+    let interior_proofs = super::interior::proofs(analysis, views);
     let outlines = outlines(analysis, views);
     let footprints: BTreeMap<_, _> = views
         .iter()
@@ -1629,7 +1677,14 @@ pub(super) fn collisions_cached(
             );
         }
         for (view, b) in &outlines {
-            if boxes_overlap(lb, *b) {
+            if boxes_overlap(lb, *b)
+                && !(*view == d.view
+                    && views.iter().find(|v| v.id == d.view).is_some_and(|v| {
+                        interior_proofs
+                            .get(&v.id)
+                            .is_some_and(|proof| proof.blank(v, lb))
+                    }))
+            {
                 problem(
                     "annotation_over_view",
                     "warning",
@@ -1777,6 +1832,7 @@ mod tests {
         }))
         .unwrap();
         let item = |id: &str, kind: &str, placed: Placed| PlannedDimension {
+            region: None,
             id: id.into(),
             kind: kind.into(),
             view: "v:plan".into(),

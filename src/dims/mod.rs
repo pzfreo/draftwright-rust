@@ -59,6 +59,7 @@ pub(crate) mod footprints;
 pub mod gdt;
 mod grooves;
 mod holes;
+pub(crate) mod interior;
 mod leaders;
 pub(crate) mod levels;
 mod placement;
@@ -237,9 +238,18 @@ pub(crate) fn font() -> &'static Font {
 }
 
 /// A dimension or callout the sheet will carry.
+/// A resolved candidate's region; author intent still contains no page coordinates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CandidateRegion {
+    Interior,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlannedDimension {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<CandidateRegion>,
     /// `d:<feature>/<parameter>`; the feature is `envelope` for the overall extents, and
     /// `pmi:<identity>` for a PMI dimension standing on its own. It never names the view.
     pub id: String,
@@ -1099,6 +1109,26 @@ pub(crate) fn plan_with_obstacles(
         &mut placed,
         &page,
     );
+    let interior = interior::place(
+        analysis,
+        spec,
+        views,
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &mut placed,
+        &page,
+        obstacles,
+        cache,
+    );
+    // Interior candidates already clear all settled ink. Remove only stale leader findings
+    // involving replaced geometry; collisions below independently inspect the finished ink.
+    let leader_problems: Vec<_> = leader_problems
+        .into_iter()
+        .filter(|p| !p.subjects.iter().any(|s| interior.contains(s)))
+        .collect();
+    let interior_proofs = interior::proofs(analysis, views);
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
@@ -1127,12 +1157,29 @@ pub(crate) fn plan_with_obstacles(
                 .or_default()
                 .push(w.id.clone());
         }
-        let basis = if default {
+        let mut basis = if default {
             w.basis
         } else {
             format!("listed in the spec; {}", w.basis)
         };
+        let region = placed
+            .as_ref()
+            .filter(|p| {
+                views
+                    .iter()
+                    .find(|v| v.id == format!("v:{view}"))
+                    .is_some_and(|v| {
+                        interior_proofs
+                            .get(&v.id)
+                            .is_some_and(|proof| proof.blank(v, p.label_box))
+                    })
+            })
+            .map(|_| CandidateRegion::Interior);
+        if region.is_some() {
+            basis += interior::BASIS;
+        }
         out.push(PlannedDimension {
+            region,
             id: w.id,
             kind: match w.shape {
                 Shape::Linear { .. } => "linear",

@@ -1057,6 +1057,7 @@ pub(crate) fn plan_anchored(
 pub fn proxy(g: &PlannedGdt) -> Option<PlannedDimension> {
     let p = g.placed.as_ref()?;
     Some(PlannedDimension {
+        region: None,
         id: g.id.clone(),
         kind: "callout".into(),
         view: g.view.clone(),
@@ -1084,6 +1085,7 @@ pub fn proxy(g: &PlannedGdt) -> Option<PlannedDimension> {
 pub fn finish_proxy(r: &crate::pmi_lowering::PlannedRequirement) -> Option<PlannedDimension> {
     let p = r.placed.as_ref()?;
     Some(PlannedDimension {
+        region: None,
         id: r.id.clone(),
         kind: "symbol".into(),
         view: String::new(),

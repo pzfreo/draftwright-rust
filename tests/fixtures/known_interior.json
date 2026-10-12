@@ -1,0 +1,17 @@
+[
+ {
+  "rule": "ADR2-17",
+  "verdict": "equivalent",
+  "reason": "Python _leader_candidates.py supplies eight rotated rays and eight text-lane stations, with 64 candidates shared over grouped anchors. Rust uses the same bounds and radial targets, against the complete settled annotation inventory. tests/interior_placement.rs guards interior callouts, whole linear-dimension retries, replay and foreign views. The established exterior solver remains the fallback."
+ },
+ {
+  "rule": "LINT-code-view_annotation_inside_extents",
+  "verdict": "rust-correct",
+  "reason": "Intentional interior provenance suppresses the blank-region info only in the annotation's own view. The independent visible-ink warning remains active; the planner also protects hidden projected edges. This is stricter than Python view_label_clearance's visible-edge guard and follows the maintainer's no-line-work-overlap acceptance."
+ },
+ {
+  "rule": "LINT-code-interior_label_on_narrow_material",
+  "verdict": "undetermined",
+  "reason": "The planner proves complete-label containment with 0.5 paper mm clearance using parallel planar face boundaries. Python material_fields triangulates all material and label_on_narrow_material also measures a connected band's width. Curved-only material, sections and cutting-plane carrier views retain exterior labels in Rust; the full connected-band lint is not ported. This conservative restriction avoids claiming blank material without evidence. tests/interior_placement.rs::empty_space_without_projected_material_is_refused guards that refusal."
+ }
+]

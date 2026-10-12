@@ -89,6 +89,24 @@ class RepeatedSpans(unittest.TestCase):
                     self.assertEqual(quality.main(), repeated)
 
 
+class InteriorLabels(unittest.TestCase):
+    def test_counts_only_drawn_interior_candidates(self):
+        self.assertEqual(quality.interior_labels({'dimensions': [
+            {'placed': {}, 'region': 'interior'},
+            {'placed': None, 'region': 'interior'},
+            {'placed': {}, 'region': None},
+            {'placed': {}, 'basis': 'some interior words'},
+        ]}), 1)
+
+
+class SheetEscalations(unittest.TestCase):
+    def test_counts_larger_sheets_but_not_a_scale_retry(self):
+        for size, expected in [('A3', 0), ('A2', 1)]:
+            plan = {'sheet': {'size': size}, 'problems': [{
+                'code': 'layout_replanned', 'message': 'The sheet was re-planned: A3 at 1:1 has a collision; larger standard sheets were tried.'}]}
+            self.assertEqual(quality.sheet_escalations(plan), expected)
+
+
 class FeatureCrossings(unittest.TestCase):
     def test_counts_plan_feature_pairs_and_extension_lines(self):
         plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'views': [],

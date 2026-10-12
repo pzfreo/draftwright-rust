@@ -74,9 +74,18 @@ edited.
   Principal faces now also retain optional `outer_lines` (straight outer boundary edges).
   Plate planning can choose a boundary profile whose two thickness faces have overlapping
   solid edges, and anchor its witnesses there. This is model-space Analysis evidence;
-  no projected line-work is added to the Plan. Older analyses default to no straight-edge
+  the Plan does not copy the projected line-work inventory. Older analyses default to no straight-edge
   evidence and keep the axis-map fallback. Profile visibility is proved only for one solid;
   body bounds are transformed from the recognition frame before matching.
+
+- **Projected ink** (optional `projected_views`, added to `draftwright.analysis/7`):
+  principal views' visible and hidden curves from the renderer's kernel projection,
+  in projection coordinates at 1:1, plus complete sampled boundaries of planar
+  material faces parallel to each view. Planning reads this regenerable evidence to
+  prove interior label clearance; rendering reuses the curves and retains its existing
+  paper-space precedence. Older documents default to no evidence and exterior placement.
+  The Spec carries none of this geometry; the Plan records only the resolved annotation's
+  `region: interior` and basis. See [R1's decision note](adr/R1-document-model.md).
 
 - **PMI** (`draftwright.analysis/7`, `pmi`): the part's AP242 semantic PMI as `src/pmi.rs`
   reads it (`read`, the report: records with their faces, and every source not read with its
@@ -973,3 +982,25 @@ successful `open` replaces the connection's part/history; a failed one preserves
 correlation ID. The original six operations and protocol/reply shapes are unchanged, and may
 be interleaved with session requests. `api::call` remains stateless; `api::Service::call` owns
 the connection state. Editor integration and MCP adapters belong to S5 and S7.
+
+
+### Interior placement (Stage H7)
+
+Automatic callouts contribute Python's bounded eight rays and eight text-lane
+stations, sharing at most 64 alternatives across a grouped feature's anchors.
+Circular targets stay radial. A complete interior label must fit over proven
+projected material, with half a paper millimetre of clearance from every visible
+and hidden edge and all settled annotation text/ink. The candidate's entire
+leader/dimension geometry stays off other views and page furniture. Pins and
+explicit placement retain precedence. Linear dimensions retry up to eight inward
+lanes after their settled exterior placement fails; the whole dimension moves,
+including witnesses, arrows and label. Labels inside their own view are accepted
+by placement checks only after re-proving blank face; rendered structural lint
+still checks projected ink and suppresses the blank-region notice only for the
+owning view's deliberately interior annotation.
+
+Interior placement currently requires a complete parallel planar face boundary.
+Curved-only material and section hatch have no proof, and a view carrying a
+render-time cutting-plane rider keeps exterior labels. These conservative limits
+and the difference from Python's projected material field are recorded in
+`tests/fixtures/known_interior.json` and `docs/next-session.md`.

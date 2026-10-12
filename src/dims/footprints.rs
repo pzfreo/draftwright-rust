@@ -642,6 +642,7 @@ mod tests {
         let frame = Frame::new(&a, &view);
         let line = [frame.page([-2.0, 0.0, 3.0]), frame.page([6.0, 0.0, 3.0])];
         let dim = |id: &str, kind: &str, lines| PlannedDimension {
+            region: None,
             id: id.into(),
             kind: kind.into(),
             view: "v:plan".into(),

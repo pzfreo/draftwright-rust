@@ -86,6 +86,9 @@ pub struct Analysis {
     /// about the projection of the envelope's centre: what the isometric is fitted by. All zero
     /// when the projection has no edges (the plan then reports `iso_projection_empty`).
     pub iso_bounds: [f64; 4],
+    /// Regenerable HLR ink and exposed face boundaries for blank-region placement.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub projected_views: BTreeMap<String, projected_ink::ProjectedInk>,
     /// The heights (z, mm) of the part's horizontal face levels: what a prismatic part's height
     /// ladder dimensions ([`crate::demand::face_levels`]).
     #[serde(default)]
@@ -557,6 +560,7 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
         recognition: None,
         features: Vec::new(),
         iso_bounds: [0.0; 4],
+        projected_views: BTreeMap::new(),
         levels: crate::demand::face_levels(&part),
         level_supports,
         risers,
@@ -597,6 +601,7 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
     if bounds[0].is_finite() {
         analysis.iso_bounds = bounds;
     }
+    analysis.projected_views = projected_ink::evidence(&part);
     Ok((part, analysis))
 }
 
@@ -2083,28 +2088,51 @@ impl Projections {
                 v.at[1] + v.scale * (q[1] - centre[1]),
             ]
         };
-        for piece in self.view(part, v)? {
-            let mut moved = piece.clone();
-            moved.points = piece.points.iter().map(|q| place(*q)).collect();
-            moved.exact = piece
-                .exact
-                .as_ref()
-                .map(|e| placed(e, v.scale, centre, v.at));
-            match projected(&moved) {
-                Some(curve) => {
-                    let curve = if v.id == "v:iso" {
-                        curve
-                    } else {
-                        crate::linework::stable_curve(curve)
-                    };
-                    let items = if piece.visible {
-                        &mut geometry.visible
-                    } else {
-                        &mut geometry.hidden
-                    };
-                    items.push(Item::Edge(curve));
+        if let Some(ink) = analysis.projected_views.get(&v.id)
+            && projected_ink::matches(v)
+        {
+            geometry.visible = ink
+                .visible
+                .iter()
+                .map(|c| {
+                    Item::Edge(crate::linework::stable_curve(projected_ink::place(
+                        c, v.scale, centre, v.at,
+                    )))
+                })
+                .collect();
+            geometry.hidden = ink
+                .hidden
+                .iter()
+                .map(|c| {
+                    Item::Edge(crate::linework::stable_curve(projected_ink::place(
+                        c, v.scale, centre, v.at,
+                    )))
+                })
+                .collect();
+        } else {
+            for piece in self.view(part, v)? {
+                let mut moved = piece.clone();
+                moved.points = piece.points.iter().map(|q| place(*q)).collect();
+                moved.exact = piece
+                    .exact
+                    .as_ref()
+                    .map(|e| placed(e, v.scale, centre, v.at));
+                match projected(&moved) {
+                    Some(curve) => {
+                        let curve = if v.id == "v:iso" {
+                            curve
+                        } else {
+                            crate::linework::stable_curve(curve)
+                        };
+                        let items = if piece.visible {
+                            &mut geometry.visible
+                        } else {
+                            &mut geometry.hidden
+                        };
+                        items.push(Item::Edge(curve));
+                    }
+                    None => geometry.undrawn += 1,
                 }
-                None => geometry.undrawn += 1,
             }
         }
         if v.cut.is_some() {
@@ -2206,6 +2234,10 @@ impl RenderedItem {
 /// Draws a dimension, callout, feature control frame, datum symbol or PMI label from the plan.
 pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
     let mut out = RenderedItem::default();
+    let interior = match &item {
+        AnnotationItem::Dimension(d) => d.region == Some(crate::dims::CandidateRegion::Interior),
+        AnnotationItem::Gdt(_) => false,
+    };
     let (kind, label, lines, elbow) = match item {
         AnnotationItem::Dimension(d) => {
             out.annotations =
@@ -2240,7 +2272,7 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
             label,
             lines,
             elbow,
-            interior: false,
+            interior,
         });
     }
     out
@@ -3181,3 +3213,5 @@ fn pdf_spec(text: &str) -> Result<Option<String>, String> {
 }
 
 mod projection_store;
+
+pub mod projected_ink;

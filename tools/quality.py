@@ -32,6 +32,23 @@ def line_through_features(plan):
     return len(leaders) + len(extensions)
 
 
+def interior_labels(plan):
+    """Drawn labels with the planner's proven interior candidate provenance."""
+    return sum(d.get('placed') is not None and d.get('region') == 'interior'
+               for d in plan['dimensions'])
+
+
+def sheet_escalations(plan):
+    """Count selected larger sheets, independently of scale-only recovery trials."""
+    size = plan.get('sheet', {}).get('size', '')
+    for problem in plan.get('problems', []):
+        if problem['code'] == 'layout_replanned':
+            start = re.match(r'The sheet was re-planned: (A[0-4]) at ', problem.get('message', ''))
+            if start and re.fullmatch(r'A[0-4]', size) and int(size[1]) < int(start[1][1]):
+                return 1
+    return 0
+
+
 def overlap(a, b):
     return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
 
@@ -295,6 +312,9 @@ def one(f, dw, out, spec=None, timeout=600):
         "ink": sum(codes[c] for c in INK), "ink_by_code": {c: codes[c] for c in INK if codes[c]},
         "line_through_feature": line_through_features(plan),
         "dimensions": len(plan["dimensions"]),
+        "interior_labels": interior_labels(plan),
+        "outer_labels": sum(d.get("placed") is not None for d in plan["dimensions"]) - interior_labels(plan),
+        "sheet_escalations": sheet_escalations(plan),
         **{key: plan["completeness"][key]
            for key in ("claimed_faces", "faces", "unplanned_features")},
         **svg_linework(f"{out}/{name}.svg", plan),
@@ -302,15 +322,15 @@ def one(f, dw, out, spec=None, timeout=600):
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features", "interior_labels"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):
         if "error" in v:
             print(f"{n:28} ERROR {v['error'][:80]}"); continue
-        print(f"{n[:28]:28}" + "".join(f"{v[k]:13}" for k in keys))
+        print(f"{n[:28]:28}" + "".join(f"{v.get(k, 0):13}" for k in keys))
         for k in keys:
-            tot[k] += v[k]; bad[k] += v[k] > 0
+            tot[k] += v.get(k, 0); bad[k] += v.get(k, 0) > 0
     print(f"{'TOTAL':28}" + "".join(f"{tot[k]:13}" for k in keys))
     print(f"{'parts affected':28}" + "".join(f"{bad[k]:13}" for k in keys), f"of {sum('error' not in v for v in res.values())}")
 

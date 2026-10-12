@@ -4204,3 +4204,44 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 - The CI quality baseline's `source_commit` is `fd08c1d` (the commit whose status
   table it copies), as the Stage F baseline named `b999b13`; its executable SHA is the
   merged-tree release build that reproduced the table.
+
+## Stage H7: interior labels and dimensions (2026-10-12)
+
+The maintainer's answer to the 2026-10-09 "Interior labels" question is yes.
+R1 now permits the planner to read regenerable projected ink in Analysis. The
+Plan keeps only resolved annotations and typed interior candidate provenance;
+Spec intent, stable IDs, pinned geometry and deterministic output remain intact.
+
+Overturnable unattended judgements:
+
+- Keep `projected_views` optional in Analysis schema 7, like the existing optional
+  solid/profile evidence extensions. Older analyses fail closed to exterior
+  placement. File and byte-based analysis must both populate the evidence.
+- Use the renderer's HLR projection and curve lowering. Preserve page-space
+  precedence in rendering. Cache bounds per view before trying candidates.
+- Prove material containment from complete planar face loops parallel to the
+  principal projection, including inner openings, with 0.5 paper mm clearance
+  (at least twice the kernel boundary chord error). A planar face behind another
+  surface still establishes projected material; all visible and hidden ink must
+  independently clear the label. Curved-only silhouettes lack this proof and
+  retain exterior labels. Full triangulated material fields/connected-band lint
+  are not implemented here; see `tests/fixtures/known_interior.json`.
+- Keep interior candidates off section hatch and render-time cutting-plane carrier
+  views entirely until their fixed ink has a plan-time obstacle representation.
+  Fixed annotation proxies participate in the same candidate conflict check;
+  future centre-line furniture must provide its fixed ink there too.
+- Callouts consider bounded interior rays after the established exterior assignment;
+  their interior candidates clear every settled annotation, so there is no Policy B
+  fallback inside the view. Linear dimensions retry inward only when the settled
+  exterior label/page corridor fails. This deterministic conservative pass preserves
+  the existing shared solver and avoids changing other Stage H lane/table streams.
+
+Ported scope: ADR2-17's bounded candidates/provenance/whole-dimension fallback,
+LINT-code-view_annotation_inside_extents's own-view suppression, and projected ink
+protection under LINT-code-view_annotation_overlap. The narrow-material connected-band
+rule is only partly addressed by containment; no rules YAML was edited.
+
+`not_done`: curved material fields and connected-band narrow-material lint; interior
+placement in sections/cutting-plane carrier views; global joint interior/exterior
+assignment and annotation band repacking. These are deliberate conservative limits,
+not claims of complete Python layout parity.
