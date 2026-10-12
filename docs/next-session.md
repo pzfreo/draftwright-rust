@@ -4204,3 +4204,85 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 - The CI quality baseline's `source_commit` is `fd08c1d` (the commit whose status
   table it copies), as the Stage F baseline named `b999b13`; its executable SHA is the
   merged-tree release build that reproduced the table.
+
+
+## Stage H / H3 (G13): dimension text and lane promotion (2026-10-12)
+
+The local dimension-label settlement runs after the existing leader/GD&T assignment.
+GD&T frames and datum attachments are fixed obstacles. The complete dimension
+inventory (including authored omissions) keeps omission edits local; a text edit
+fixes unaffected peers on their canonical witnesses before solving edited/restored
+items. Explicit placement intent and pins are retained. Measurements, witness
+origins and measured-axis arrow stations are unchanged. Final placement problems
+are recomputed only for dimension/GD&T subjects, preserving title-block findings.
+
+Rules addressed: ISSUE-1334-a, ISSUE-1333-a and ADR2-10. The rule YAML catalogue is
+left to the stream integrator. Python origin/main `_dimension_ink_repair.py` and
+`test_issue_1334_prevent_ink.py` are the reference. Deliberate translations are in
+`tests/fixtures/known_label_lanes.json`. Existing stc_09 fixtures, `gdt_band.rs`,
+placement/pin tests, title tests and recovery tests are untouched.
+
+Overturnable unattended judgement calls:
+
+- Text needs 0.5 paper mm at each witness with outside arrows; inside arrows retain
+  their arrow length plus that margin. Adjacent outside text is arrow length +
+  1 mm from the tip.
+- `text_off_span` counts an outside gap of **at least** arrow length + 3 mm,
+  including the old canonical 5.7 mm position, or a foreign extension between
+  the text and its span. The Stage F examples require counting that old position.
+  The metric stores IDs and adds no new MCP problem rows.
+- Search at most sixty-four outward lanes, stopping at the existing footprint;
+  this follows the existing fixed-obstacle lane-search bound. Retry at most twice
+  the inventory length. Accept only a strict contact/association improvement,
+  with no new pair contact, detached peer or band-overrun item. A dimension line
+  may not share an overlapping measured span with another. Extension-line
+  crossings remain ordinary drafting; a common witness endpoint is allowed.
+- Keep the old geometry when no candidate is accepted. Existing findings retain
+  their severity; detached text is measured without claiming a lost machining
+  requirement. No finding is downgraded for MCP.
+- A proposed FTC-10 57 mm repair initially cleared three labels but shared the
+  10 mm step-height lane. Visual review and an independent shared-span audit
+  rejected it, along with six other new coincident lines. Those proposals are
+  not accepted, even though the original ink metric missed the ambiguity.
+  Native FTC-10's 57 mm warnings remain. The feasible synthetic promotion
+  instead skips a datum frame and an occupied lane; pins, witness origins and
+  measurements stay fixed, and a second settlement is identical.
+
+`not_done`: these default labels still have no accepted clear association within
+this search. Dense pitch regions need the other streams' tables or detail sheets;
+widening the footprint or rerouting GD&T is deferred.
+
+- 10047: `d:f:slot:1/slot_width.length`.
+- 10060: `d:envelope/width.length`.
+- cgb245: `d:f:slot:3/slot_length.length`.
+- nist_ctc_02_asme1_rc: `d:f:hole_pattern:1/pitch.length`, `d:f:hole_pattern:4/pitch.length`.
+- nist_ctc_03_asme1_rc: `d:f:slot:2/slot_width.length`.
+- nist_ctc_04_asme1_rd: `d:f:hole_pattern:1/pitch.length`, `d:f:hole_pattern:10/pitch.length`, `d:f:hole_pattern:6/pitch.length`.
+- nist_ftc_06_asme1_rd: `d:f:boss:5/boss_height.length`, `d:f:boss:6/boss_height.length`.
+- nist_ftc_07_asme1_rd: `d:f:plate:1/thickness.length`.
+- nist_ftc_08_asme1_rc: `d:f:slot:2/slot_width.length`, `d:f:slot:3/slot_width.length`.
+- nist_ftc_09_asme1_rd: `d:f:hole_pattern:2/pitch.length`, `d:f:hole_pattern:3/pitch.length`, `d:f:hole_pattern:4/pitch.length`, `d:f:slot:1/slot_width.length`, `d:f:slot:2/slot_width.length`, `d:f:slot:3/slot_width.length`.
+- nist_ftc_10_asme1_rb: `d:f:hole_pattern:5/pitch.length`, `d:f:hole_pattern:6/pitch.length`, `d:f:hole_pattern:7/pitch.length`.
+
+CTC-02's 38 mm location and FTC-10's 57 mm grid row retain their existing
+hole-callout collisions: no clear unoccupied lane was found inside the footprint.
+The existing CI machine baseline is left for the stream integrator to refresh
+after the combined acceptance pipeline; H3's independent script and status table
+provide the stricter new measurements. Recognition, coverage, chains, centreline
+and recess limitations remain outside H3. Final validation/evidence follows below.
+
+Final validation: **718/718 Rust tests / 75 groups**, fmt, strict release
+Clippy and release build pass. Quality: **273→268 ink**, **151→23 detached
+labels**, **211→208 feature crossings**, every part no worse, all measurements
+preserved, no new shared dimension lines. Actual final STC-09 GD&T/sheet/views
+match the original exactly. All **270/270** pin runs are GO with `--require-go`,
+all off-sheet counts zero. MCP **7/7**, **16 calls**, **5812** estimated
+byte-based tokens; seven judge PNG/document sets. Python **28/28**, Node **8/8**,
+acceptance tests **15/15**. Both new Rust and all five new Python checks fail
+with the original settlement/metric; scripts reject unchanged output and the
+initial shared-span regression. Original Rust tests and all STC-09 fixtures
+are unchanged. All 31 final sheets were rasterised; the five revised native
+sheets were re-reviewed after the shared-span fix. Full tables and failure
+evidence are in the H3 status entry and `target/h3/`. No isolated large-part
+latency comparison is claimed. Release SHA-256: `e7df4f934dd322d699a5e69cdd27ce7528990051c0bc260531272f4ba648dbd7`.
+No commit or push.

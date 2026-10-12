@@ -16,6 +16,55 @@ quality = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(quality)
 
 
+class TextOffSpan(unittest.TestCase):
+    def dimension(self, id_='a', box=(16, 51, 21, 53), ends=(10, 30), view='v:front', vertical=False):
+        point = lambda x, y: [y, x] if vertical else [x, y]
+        return {'id': id_, 'kind': 'linear', 'view': view, 'placed': {
+            'rotation': 90 if vertical else 0,
+            'arrows': [[point(x, 50), point(x, 50)] for x in ends],
+            'lines': [[point(x, 40), point(x, 54)] for x in ends],
+            'label_box': [box[1], box[0], box[3], box[2]] if vertical else list(box)}}
+
+    def test_inside_and_adjacent_are_allowed_but_detached_is_counted(self):
+        for vertical in (False, True):
+            for box, expected in [((16,51,21,53), []), ((33.7,51,38.7,53), []),
+                                  ((35.69,51,40.7,53), []), ((35.7,51,40.7,53), ['a']),
+                                  ((0,51,4,53), ['a'])]:
+                self.assertEqual(quality.text_off_span({'dimensions': [self.dimension(box=box, vertical=vertical)]}), expected)
+
+    def test_every_extension_segment_is_checked(self):
+        a = self.dimension(box=(33, 51, 38, 53))
+        b = self.dimension('b', ends=(32, 60), box=(40, 51, 45, 53))
+        b['placed']['lines'] = [[[32, 40], [32, 45]], [[60, 40], [60, 45]],
+                                [[32, 50], [60, 50]], [[32, 49], [32, 54]]]
+        self.assertEqual(quality.text_off_span({'dimensions': [a, b]}), ['a'])
+
+    def test_the_old_outside_gap_of_arrow_plus_3_counts(self):
+        # The planner used to park outside text exactly ARROW + 3 mm past the tip (10020 4.5).
+        a = self.dimension(box=(35.7, 51, 40.7, 53))
+        self.assertEqual(quality.text_off_span({'dimensions': [a]}), ['a'])
+        a['placed']['label_box'][0] -= 0.01
+        self.assertEqual(quality.text_off_span({'dimensions': [a]}), [])
+
+    def test_foreign_extension_between_label_and_span_in_same_view(self):
+        for vertical in (False, True):
+            a = self.dimension(box=(33,51,38,53), vertical=vertical)
+            b = self.dimension('b', ends=(32,60), box=(40,51,45,53), vertical=vertical)
+            self.assertEqual(quality.text_off_span({'dimensions': [a,b]}), ['a'])
+            b['view'] = 'v:plan'
+            self.assertEqual(quality.text_off_span({'dimensions': [a,b]}), [])
+
+    def test_remote_extension_and_non_linear_ink_do_not_count(self):
+        a = self.dimension(box=(33,51,38,53))
+        b = self.dimension('b', ends=(32,60), box=(40,51,45,53))
+        for line in b['placed']['lines']:
+            for p in line: p[1] += 30
+        self.assertEqual(quality.text_off_span({'dimensions': [a,b]}), [])
+        b['kind'] = 'callout'
+        self.assertEqual(quality.text_off_span({'dimensions': [a,b]}), [])
+
+
+
 class RepeatedSpans(unittest.TestCase):
     def dimension(self, id_, ends=(10, 30), lane=0, rotation=0, value=20, feature=None):
         tips = [[x, lane] if rotation == 0 else [lane, x] for x in ends]
@@ -77,7 +126,7 @@ class RepeatedSpans(unittest.TestCase):
         metrics = {k: 0 for k in ('off_sheet', 'repeated_label', 'repeated_measure',
                                  'views_overlap', 'view_on_title_block', 'ink', 'repeated_span',
                                  'line_through_feature', 'hidden_on_visible', 'section_hidden',
-                                 'claimed_faces', 'faces', 'unplanned_features')}
+                                 'claimed_faces', 'faces', 'unplanned_features', 'text_off_span')}
         with tempfile.TemporaryDirectory() as out:
             baseline = pathlib.Path(out) / 'source.json'
             for repeated in (0, 1):

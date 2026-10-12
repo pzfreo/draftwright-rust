@@ -202,6 +202,15 @@ Recovery cannot change them to repair another item's collision. Editing the pin'
 intent, sheet or scale deliberately re-resolves it. All original `place` entries remain in the
 embedded Spec, including entries that are covered, omitted, or cannot fit.
 
+Automatic linear labels settle against the completed dimension and GD&T ink. Text stays
+between its own witness stations when it fits, otherwise just beside an arrow. If no such
+label position clears ink, the whole dimension tries outward paper lanes within the existing
+view footprint. Its witness origins and measured value stay fixed. Candidates cannot add
+label/line contact, share an overlapping measured span on another dimension line,
+cross a settled GD&T leader, or introduce a band overrun. Pins stay fixed;
+an infeasible label keeps its reported collision. `tools/quality.py` counts detached text
+independently as `text_off_span`, with item IDs; this metric adds no MCP problem rows.
+
 Pinned annotations are obstacles to the free linear, leader and PMI solvers. Explicit pin ink
 reserves additional carrier bands before free views are packed; the carrier origin and scale
 stay fixed. Free linear labels start from their canonical settled geometry, then try slides,

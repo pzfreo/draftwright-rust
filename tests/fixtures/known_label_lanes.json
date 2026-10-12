@@ -1,0 +1,12 @@
+[
+  {
+    "part": "native-quality-parts",
+    "verdict": "rust-correct",
+    "reason": "ISSUE-1333-a / ISSUE-1334-a / ADR2-10: Python origin/main annotations/_dimension_ink_repair.py tests same-batch ink, immutable candidates and a perpendicular_step. Rust uses the finished label/leader predicates, plus a measured-span guard against coincident dimension lines; it tries adjacent own-span text then up to sixty-four outward paper lanes inside the existing footprint. Settlement uses the full dimension inventory after GD&T has claimed its corridors, so frames and datum leaders are not rerouted. Unresolved ink remains reported. Off-span text is independently measured by quality.py without a new MCP warning. tools/check_label_lanes.py enforces lower ink/detached-text totals, every part no worse, preserved measurements, no new shared dimension lines, and exact stc09 GD&T/sheet/view equality. tests/label_lanes.rs guards the native short labels; dims::label_lanes::tests guards genuine lane promotion, immutable pins, idempotence and fixed witnesses. Both fail with the original settlement. This deliberately preserves GD&T corridors that F3 broke."
+  },
+  {
+    "part": "nist_ctc_03_asme1_rc-native",
+    "verdict": "rust-correct",
+    "reason": "The same recovered planner now retains its first clean A3 sheet at 1:5 rather than escalating to A2 at 1:5. Text/ink settlement removes the rejection that caused escalation; no sheet ladder, scale or recovery threshold changed. Both Plans have identical measurement tuples (tools/check_label_lanes.py), native ink drops 24 to 20 and line-through-feature findings 8 to 5; the 2400-pixel before/after sheets were checked visually. This is the same first-choice effect documented in the final unmerged F3 review, with the GD&T guard added here."
+  }
+]

@@ -1663,7 +1663,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         .filter_map(crate::dims::gdt::proxy)
         .collect()
     };
-    let (mut dimensions, mut omitted, mut more) = crate::dims::plan_with_obstacles(
+    let ((mut dimensions, mut omitted, mut more), mut inventory) = crate::dims::plan_inventory(
         analysis,
         spec,
         &sheet,
@@ -1722,7 +1722,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 .collect::<Vec<_>>()
         {
             let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
-            (dimensions, omitted, more) = crate::dims::plan_with_obstacles(
+            ((dimensions, omitted, more), inventory) = crate::dims::plan_inventory(
                 analysis,
                 spec,
                 &sheet,
@@ -1745,6 +1745,117 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         &footprint_cache,
     );
     problems.extend(more);
+    // Settle labels after GD&T has claimed its corridors. Frames and datum attachments remain
+    // fixed obstacles; the full dimension inventory preserves omission locality.
+    for d in &mut inventory {
+        if let Some(shown) = dimensions.iter().find(|shown| shown.id == d.id) {
+            *d = shown.clone();
+        }
+    }
+    let reserved: Vec<_> = gdt.iter().filter_map(crate::dims::gdt::proxy).collect();
+    let mut label_spec = spec.clone();
+    if spec.dimensions.values().any(|d| d.tolerance.is_some())
+        || spec.features.values().any(|f| f.fit.is_some())
+    {
+        // Text edits retain unaffected peers' canonical settlement, just as lane assignment
+        // does. Fix peers on identical witnesses before solving the edited/restored items.
+        let base = Spec::default();
+        let (_, mut natural) = crate::dims::plan_inventory(
+            analysis,
+            &base,
+            &sheet,
+            &views,
+            &[],
+            &[],
+            &footprint_cache,
+        )?;
+        let before = natural.clone();
+        crate::dims::settle_inventory(analysis, &base, &sheet, &views, &mut natural, &reserved);
+        for d in &mut inventory {
+            if spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|e| e.place.is_some())
+            {
+                continue;
+            }
+            let original = before.iter().find(|b| {
+                b.id == d.id
+                    && b.terms == d.terms
+                    && b.view == d.view
+                    && b.placed
+                        .as_ref()
+                        .zip(d.placed.as_ref())
+                        .is_some_and(|(a, b)| {
+                            a.arrows == b.arrows
+                                && a.lines.iter().take(2).map(|l| l[0]).eq(b
+                                    .lines
+                                    .iter()
+                                    .take(2)
+                                    .map(|l| l[0]))
+                        })
+            });
+            let settled = natural.iter().find(|b| b.id == d.id);
+            if original.is_some()
+                && let (Some(_), Some(c)) =
+                    (d.placed.as_ref(), settled.and_then(|d| d.placed.as_ref()))
+            {
+                label_spec
+                    .dimensions
+                    .entry(d.id.clone())
+                    .or_default()
+                    .place
+                    .get_or_insert_with(Default::default)
+                    .pinned = true;
+                d.placed = Some(c.clone());
+            }
+        }
+    }
+    crate::dims::settle_inventory(
+        analysis,
+        &label_spec,
+        &sheet,
+        &views,
+        &mut inventory,
+        &reserved,
+    );
+    for d in &mut dimensions {
+        if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
+            d.placed = settled.placed.clone();
+        }
+    }
+    let settled_ids: BTreeSet<&str> = dimensions
+        .iter()
+        .chain(&reserved)
+        .map(|d| d.id.as_str())
+        .collect();
+    problems.retain(|p| {
+        !matches!(
+            p.code.as_str(),
+            "annotation_outside_area"
+                | "annotation_off_sheet"
+                | "annotation_over_title_block"
+                | "annotation_over_view"
+                | "annotation_line_over_view"
+                | "annotation_overlap"
+                | "annotation_ink_overlap"
+                | "annotation_leader_crossing"
+                | "leader_through_feature"
+                | "extension_through_feature"
+        ) || !p
+            .subjects
+            .iter()
+            .any(|id| settled_ids.contains(id.as_str()))
+    });
+    let mut ink = dimensions.clone();
+    ink.extend(reserved);
+    problems.extend(crate::dims::label_collisions(
+        analysis,
+        &ink,
+        &sheet,
+        &views,
+        &footprint_cache,
+    ));
     let mut ink = dimensions.clone();
     ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
     // The default finish's symbol beside the title block: what it meets, and kept clear of.
