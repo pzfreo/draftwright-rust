@@ -751,7 +751,11 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
                     .max(ink.max[0] - ink.min[0] + ARROW + 3.0);
             }
             (Some("front"), Some(placement::Side::Below)) => bands.plate_front_below = front_linear,
-            (Some("side"), Some(placement::Side::Above)) => bands.plate_side_left = ARROW + 2.0,
+            // A horizontal side thickness's outside arrow reaches past the side's left edge,
+            // above or below it.
+            (Some("side"), Some(placement::Side::Above | placement::Side::Below)) => {
+                bands.plate_side_left = ARROW + 2.0
+            }
             (Some("side"), Some(placement::Side::Right)) => {
                 let ink = label_ink(&w.terms, font());
                 bands.plate_side_top = bands

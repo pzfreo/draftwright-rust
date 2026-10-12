@@ -728,6 +728,15 @@ pub fn stdio(cache: &Cache) -> std::io::Result<()> {
 pub fn http(cache: &Cache, listener: TcpListener) -> std::io::Result<()> {
     for mut stream in listener.incoming().flatten() {
         let _ = connection(cache, &mut stream);
+        // An early refusal leaves the request body unread; closing with unread input makes the
+        // kernel reset the connection, which can discard the response before the client reads
+        // it. Half-close, then drain (bounded) until the client closes its side.
+        let _ = stream.shutdown(std::net::Shutdown::Write);
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+        let _ = std::io::copy(
+            &mut Read::take(&mut stream, 8 * 1024 * 1024 + 16384),
+            &mut std::io::sink(),
+        );
     }
     Ok(())
 }

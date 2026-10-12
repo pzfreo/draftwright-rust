@@ -10,6 +10,51 @@ use draftwright::{
 };
 use serde_json::json;
 
+/// A draftsman runs a thickness's extension lines out from where both faces meet the view's
+/// silhouette, never back across the part: each witness starts at the outline edge facing its
+/// dimension line, less the usual gap.
+fn witnesses_leave_through_the_silhouette(
+    name: &str,
+    a: &model::Analysis,
+    plan: &model::Plan,
+    d: &draftwright::dims::PlannedDimension,
+) {
+    let v = plan.views.iter().find(|v| v.id == d.view).unwrap();
+    let up = v.up;
+    let dir = v.direction;
+    let right = [
+        up[1] * dir[2] - up[2] * dir[1],
+        up[2] * dir[0] - up[0] * dir[2],
+        up[0] * dir[1] - up[1] * dir[0],
+    ];
+    let size: Vec<f64> = (0..3)
+        .map(|k| a.envelope[1][k] - a.envelope[0][k])
+        .collect();
+    let half = |e: [f64; 3]| 0.5 * v.scale * (0..3).map(|k| (e[k] * size[k]).abs()).sum::<f64>();
+    let outline = [
+        v.at[0] - half(right),
+        v.at[1] - half(up),
+        v.at[0] + half(right),
+        v.at[1] + half(up),
+    ];
+    let ink = d.placed.as_ref().unwrap();
+    for [start, end] in &ink.lines[..2] {
+        let k = usize::from((end[1] - start[1]).abs() > (end[0] - start[0]).abs());
+        let (edge, out) = if end[k] > start[k] {
+            (outline[k + 2], 1.0)
+        } else {
+            (outline[k], -1.0)
+        };
+        // Witnesses start a small gap clear of the object line.
+        let gap = out * (start[k] - edge);
+        assert!(
+            (-0.05..=1.05).contains(&gap),
+            "{name}: {} witness {start:?}->{end:?} starts inside the view (edge {edge:.2})",
+            d.id
+        );
+    }
+}
+
 fn thicknesses(name: &str) {
     let Some(dir) = corpus::dir() else { return };
     let (part, a) = model::analyse_native(&dir.join(format!("mfcadpp/{name}.step"))).unwrap();
@@ -41,6 +86,7 @@ fn thicknesses(name: &str) {
             "{} has its actual thickness span",
             d.id
         );
+        witnesses_leave_through_the_silhouette(name, &a, &plan, d);
         for m in d
             .measurements
             .iter()
@@ -246,6 +292,16 @@ fn m10007_states_its_plate_thicknesses_once() {
 #[test]
 fn m10038_states_its_ten_point_zero_nine_wall_once() {
     thicknesses("10038");
+}
+
+#[test]
+fn m10033_wall_witnesses_do_not_cross_the_view() {
+    thicknesses("10033");
+}
+
+#[test]
+fn m10060_states_its_plate_thickness_once() {
+    thicknesses("10060");
 }
 
 #[test]

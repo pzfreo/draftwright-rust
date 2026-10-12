@@ -299,6 +299,7 @@ pub(super) fn prefer_readable(
                 .iter()
                 .filter_map(|name| {
                     let frame = frames.get(name)?;
+                    let mut near: Option<(f64, [f64; 3], [f64; 3])> = None;
                     // Boundary faces prove visibility only for an isolated solid.
                     if analysis.principal_profiles.len() != 1 {
                         return None;
@@ -381,34 +382,66 @@ pub(super) fn prefer_readable(
                                     let mut pb = *b;
                                     pa[normal] = face.at;
                                     pb[normal] = face.at;
-                                    // Anchor at the end nearest the carrying strip, on both solid edges.
-                                    let mut q = pa;
-                                    q[across] = lo;
-                                    let mut r = pa;
-                                    r[across] = hi;
+                                    // Anchor where both solid edges meet the silhouette, so
+                                    // the witnesses leave the part without crossing it; take
+                                    // the default strip's end when both ends reach it.
                                     let horizontal = super::placement::across(frame, *axis)?;
-                                    let coordinate = usize::from(horizontal);
-                                    let positive =
-                                        *name == "side" || (*name == "plan" && horizontal);
-                                    let t = if (frame.page(q)[coordinate]
-                                        > frame.page(r)[coordinate])
-                                        == positive
-                                    {
-                                        lo
-                                    } else {
-                                        hi
+                                    let default =
+                                        super::placement::thickness_strip(name, *axis, horizontal);
+                                    let gap = |t: f64| {
+                                        let mut q = pa;
+                                        q[across] = t;
+                                        super::placement::silhouette_gap(frame, q, horizontal)
                                     };
-                                    pa[across] = t;
-                                    pb[across] = t;
-                                    return Some((*name, pa, pb));
+                                    let ends = [(lo, gap(lo)), (hi, gap(hi))];
+                                    let reach = |(_, (side, d)): &&(f64, (_, f64))| {
+                                        *d <= super::placement::ON_SILHOUETTE && *side == default
+                                    };
+                                    let anywhere = |e: &&(f64, (_, f64))| {
+                                        e.1.1 <= super::placement::ON_SILHOUETTE
+                                    };
+                                    if let Some((t, _)) = ends
+                                        .iter()
+                                        .find(reach)
+                                        .or_else(|| ends.iter().find(anywhere))
+                                    {
+                                        pa[across] = *t;
+                                        pb[across] = *t;
+                                        return Some((*name, pa, pb, 0.0));
+                                    }
+                                    // Otherwise remember the pair whose end lies nearest the
+                                    // silhouette, in case no view has one that reaches it.
+                                    let (t, (_, d)) = if ends[0].1.1 <= ends[1].1.1 {
+                                        ends[0]
+                                    } else {
+                                        ends[1]
+                                    };
+                                    if near.is_none_or(|(best, ..)| d < best) {
+                                        let (mut qa, mut qb) = (pa, pb);
+                                        qa[across] = t;
+                                        qb[across] = t;
+                                        near = Some((d, qa, qb));
+                                    }
                                 }
                             }
                         }
                     }
-                    None
+                    near.map(|(d, pa, pb)| (*name, pa, pb, d))
                 })
-                .next();
-            if let Some((view, pa, pb)) = profile {
+                .collect::<Vec<_>>();
+            // A pair reaching the silhouette in any view wins, in view order; failing that, a
+            // pair whose witnesses run over at most a short stretch of the part before leaving it.
+            let profile = profile
+                .iter()
+                .find(|(.., d)| *d == 0.0)
+                .or_else(|| {
+                    profile
+                        .iter()
+                        .filter(|(.., d)| *d <= super::placement::NEAR_SILHOUETTE)
+                        .min_by(|x, y| x.3.total_cmp(&y.3))
+                })
+                .copied();
+            if let Some((view, pa, pb, _)) = profile {
                 w.views.retain(|v| *v != view);
                 w.views.insert(0, view);
                 *a = pa;

@@ -229,6 +229,11 @@ pub struct Lanes {
     pub plate_side_left: f64,
     pub plate_side_top: f64,
     pub plate_plan_above: usize,
+    /// Plate thicknesses whose witnesses meet the silhouette on a side the fixed map never uses.
+    pub plate_front_above: usize,
+    pub plate_plan_right: usize,
+    pub plate_plan_below: usize,
+    pub plate_side_left_lanes: usize,
     pub plan_above: usize,
     pub plan_left: usize,
     pub side_below: usize,
@@ -294,6 +299,10 @@ impl Strips {
         if lanes.plate_plan_above > 0 {
             self.pv_authored_top = self.pv_authored_top.max(lane_band(lanes.plate_plan_above));
         }
+        widen(&mut self.fv_top, lanes.plate_front_above);
+        widen(&mut self.right, lanes.plate_plan_right);
+        widen(&mut self.pv_bottom, lanes.plate_plan_below);
+        widen(&mut self.sv_left, lanes.plate_side_left_lanes);
         widen(&mut self.fv_bottom, lanes.side_below);
         widen(&mut self.sv_bottom, lanes.side_below);
         widen(&mut self.sv_top, lanes.side_above);

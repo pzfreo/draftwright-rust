@@ -3444,3 +3444,54 @@ ink 273, through-feature 211. Pin grid 270/270 GO, zero off-sheet; scripted MCP
 all changed native SVGs match the reviewed hashes. Grid/MCP binary SHA and
 baseline match final output; see the appended G2 fix-round status entry and
 `target/g2-fix-evidence/final-verification.json`. No commit or push.
+
+## G2 review round 3: thickness witnesses leave through the silhouette (2026-10-12, unattended)
+
+Review found 10033's 8.3 (plan) and 10049's 4.5 (front) with extension lines
+starting mid-view and running across the part to a strip fixed by Python's axis
+map. 10038's 10.1 had the same defect above the side view. `prefer_readable` now
+anchors the witnesses at an end of the two solid edges' overlap that lies on the
+view's silhouette (`placement::silhouette_gap`, within 0.05 mm), preferring the
+default strip's end. If no view has such a pair, it takes the pair whose end lies
+nearest the silhouette, provided that is within 3 mm on the page
+(`NEAR_SILHOUETTE`); otherwise the fixed-map fallback applies as before.
+`placement::lanes` puts a profile-anchored thickness in the strip on the
+silhouette side nearest its anchor, so a thickness can now take the front's upper
+band, the plan's right or lower band, or the side's left band. Those bands are
+reserved in `Lanes` and `Strips::reserve`. Results:
+10049's 4.5 sits above the front. 10038's 10.1 sits below the side, inside the
+29.7. 10033's 8.3 sits above the side, because the plan foot's lower edge ends at
+a chamfer, so the plan cannot carry it cleanly. FTC-06's counted 2× 31.8 stays
+right of the side (second tier). Its flange end faces stop 2.5 mm short of the
+outline, and the witnesses run over the middle section's top and underside
+object lines to the silhouette. With the strict rule alone it fell back to the
+fixed map's front-left, where the lower witness lands on a hidden line. A
+horizontal side thickness's outside arrow now reserves the side's left gap below
+the view as well as above it. Without that, 10038 showed a new 4.7 mm band overrun.
+
+Overturnable judgement calls:
+- Silhouette means the view's projected envelope (frame outline, 0.05 mm). A wall
+  whose faces end at a local notch rather than the outer box is not anchored there.
+- The 3 mm second tier (`NEAR_SILHOUETTE`) is a tuned allowance: about one
+  arrowhead of witness over the part. Today it applies only to FTC-06.
+- 10033's 8.3 goes to side rather than plan-right as the reviewer suggested,
+  because plan's lower edge stops at the C3.4 chamfer. Residual: the R6.1 callout
+  in side now sits between the 8.3 witnesses with its shoulder ending on the right
+  witness (a touch, not a counted crossing). Counting a line within LABEL_PAD of a
+  label as text contact would move it, but changes leader placement corpus-wide
+  (4 fixture tests); left for the leader stream.
+- The minor coverage policy point stands as before and is NOT counted as
+  acceptance: on 10007 (3.9 = 31.9 - 28.0, 11.7 = 14.0 - 2.3), 10047 (31.8 - 23.1)
+  and FTC-07 plates 2 and 5 the thickness is only derivable from two retained
+  stations, matching Python's lint (`_step_level_dependencies`). That contradicts
+  the brief's lesson as written and the inverse top-slab rule (10038, FTC-06);
+  the brief owner should decide which way it goes.
+- FTC-07's rejected A3 1:1 alternative still has 16 items over a view (14 before
+  G2); unchanged by this round and recorded, not fixed.
+
+Also fixed: the HTTP MCP server closed connections with an unread request body
+after early refusals (405/403/400), so the kernel could reset the connection
+before the client read the response (tests/stateless.rs:103 ConnectionReset).
+It now half-closes and drains (bounded, 2 s) before closing. Before the fix the
+test failed in both of this round's runs (full suite and a six-binary subset);
+after it, 5/5 isolated runs and the final full run pass.

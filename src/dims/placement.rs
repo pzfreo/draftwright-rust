@@ -319,6 +319,61 @@ pub(super) fn across(frame: &Frame, axis: usize) -> Option<bool> {
     }
 }
 
+/// A plate thickness's default strip: Python's fixed axis map, with the front's vertical walls
+/// on its left and the side's horizontal walls above it.
+pub(super) fn thickness_strip(view: &str, axis: usize, horizontal: bool) -> Side {
+    match (view, axis) {
+        ("front", 2) => Side::Left,
+        ("side", 1) => Side::Above,
+        _ => strip(view, horizontal),
+    }
+}
+
+/// How near (page mm) a point must be to the view's silhouette to lie on it.
+pub(super) const ON_SILHOUETTE: f64 = 0.05;
+
+/// How far (page mm) a plate thickness's witnesses may run over the part before leaving it at
+/// the silhouette, when no pair of its solid edges reaches the silhouette in any view: about an
+/// arrowhead, as where a flange ends just short of a chamfer that forms the outline.
+pub(super) const NEAR_SILHOUETTE: f64 = 3.0;
+
+/// The view's silhouette edge nearest page point *p* across a dimension that runs horizontally
+/// (*horizontal*) or vertically, and the distance to it: the strip whose extension lines leave
+/// the part there.
+pub(super) fn silhouette_gap(frame: &Frame, p: P3, horizontal: bool) -> (Side, f64) {
+    let o = frame.outline();
+    let c = usize::from(horizontal);
+    let q = frame.page(p)[c];
+    let (low, high) = if horizontal {
+        (Side::Below, Side::Above)
+    } else {
+        (Side::Left, Side::Right)
+    };
+    let (dl, dh) = ((q - o[c]).abs(), (q - o[c + 2]).abs());
+    if dl <= dh { (low, dl) } else { (high, dh) }
+}
+
+/// The strip a plate thickness takes: where its witnesses meet the silhouette when they are
+/// anchored on solid profile edges ([`super::plates::prefer_readable`]), else its default strip.
+fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Side {
+    match shape {
+        Shape::Linear {
+            a,
+            axis,
+            a_edge,
+            b_edge,
+            ..
+        } => (!a_edge && !b_edge)
+            .then(|| silhouette_gap(frame, *a, horizontal))
+            .filter(|(_, d)| *d <= NEAR_SILHOUETTE)
+            .map_or_else(
+                || thickness_strip(view, *axis, horizontal),
+                |(side, _)| side,
+            ),
+        _ => strip(view, horizontal),
+    }
+}
+
 /// For each item, the item whose lane it shares, when the defaults merge it away: one span, one
 /// dimension (ARCH0009-6; [`super::bosses::consolidate`], [`super::holes::consolidate`],
 /// [`super::share`]) leaves one dimension on a span that several items measure, so the others
@@ -402,13 +457,7 @@ pub(super) fn lanes<'a>(
                         .iter()
                         .any(|m| m.parameter == "thickness.length")
                     {
-                        if *axis == 2 && view == "front" {
-                            Side::Left
-                        } else if *axis == 1 && view == "side" {
-                            Side::Above
-                        } else {
-                            strip(view, horizontal)
-                        }
+                        plate_strip(f, view, &w.shape, horizontal)
                     } else {
                         strip(view, horizontal)
                     },
@@ -516,6 +565,10 @@ pub(super) fn band_lanes<'a>(
             ("plan", Side::Above) => &mut out.plan_above,
             ("plan", Side::Left) => &mut out.plan_left,
             ("front", Side::Left) => &mut out.plate_front_left,
+            ("front", Side::Above) => &mut out.plate_front_above,
+            ("plan", Side::Right) => &mut out.plate_plan_right,
+            ("plan", Side::Below) => &mut out.plate_plan_below,
+            ("side", Side::Left) => &mut out.plate_side_left_lanes,
             ("side", Side::Below) => &mut out.side_below,
             ("side", Side::Above) => &mut out.side_above,
             ("side", Side::Right) => &mut out.side_right,
