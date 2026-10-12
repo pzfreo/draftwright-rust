@@ -56,7 +56,11 @@ fn multi_solid_completeness_findings_are_info() {
     let mut doc = serde_json::to_value(analysis(vec![feature("unported", 1, json!({}))])).unwrap();
     doc["solid_count"] = json!(2);
     let a = serde_json::from_value(doc).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    // A stated general tolerance keeps the title block's own warning out of the status.
+    let spec: Spec =
+        serde_json::from_value(json!({ "sheet": { "title": { "tolerance": "ISO 2768-m" } } }))
+            .unwrap();
+    let p = model::plan(&a, &spec).unwrap();
     assert_eq!(serde_json::to_value(&p).unwrap()["status"], "clear");
     let issues = lint::check(&a, &[]);
     let extents: Vec<_> = issues

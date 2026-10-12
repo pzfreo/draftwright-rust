@@ -116,18 +116,18 @@ fn the_service_answers_each_line() {
     let problems = replies[1]["result"]["problems"].as_array().unwrap();
     assert_eq!(problems.len(), 2, "{problems:?}");
     assert_eq!(
-        problems[0],
+        problems[1],
         json!({
             "id": "p:unclaimed_geometry:sheet", "code": "unclaimed_geometry", "severity": "warning",
             "message": "Analysis features claim 0 of 10 faces; 10 faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.",
             "subjects": ["sheet"]
         })
     );
-    assert_eq!(problems[1]["code"], "general_tolerance_missing");
-    assert_eq!(problems[1]["severity"], "warning");
-    assert_eq!(problems[1]["subjects"], json!(["sheet"]));
+    assert_eq!(problems[0]["code"], "general_tolerance_missing");
+    assert_eq!(problems[0]["severity"], "warning");
+    assert_eq!(problems[0]["subjects"], json!(["sheet"]));
     assert_eq!(
-        problems[1]["fix"],
+        problems[0]["fix"],
         json!([{ "op": "set", "path": "sheet/title/tolerance", "value": "UNSPECIFIED" }])
     );
     // No feature-size requirements; the sheet still proves every overall extent.

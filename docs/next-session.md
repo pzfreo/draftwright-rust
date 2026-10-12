@@ -3716,3 +3716,23 @@ All 30 title bands and three whole sheets were visually reviewed after resvg
 rasterization; all other SVG content is unchanged. The independent export check
 also passes all 270 pinned sheets (300/300 exports total). Full tables, source
 verdicts, binary SHA and evidence paths are in the G5 status entry.
+
+## Stage G integration (2026-10-12)
+
+Merged G4, G1, G2 and G5 (details in `docs/status-2026-10-10.md`, Stage G integration).
+G3 blends, G6 centre lines and G7b recesses were not merged. Overturnable unattended
+judgement calls made at integration:
+
+- **Catalogue: partial ports stay pending.** G1 lists ISSUE-1143-a and ISSUE-1143-b as
+  corrected, and its status entry says the predicates "support" ADR5-5, ADR5-17,
+  ADR3-7, ISSUE-1392-a, ISSUE-1460-a and the envelope/turned ledgers. Where the old
+  `rust_note` named a part still not done (single-hole locations, no completeness
+  score, no per-finding disposition), the rule stays `pending` with a `rust_note`
+  naming G1's test, per the catalogue README. ADR5-13 is marked ported although the
+  vocabulary is `clear`, not `bounded-clear`. ARCH0018-1 stays pending (symbol only).
+- **ISSUE-1157-a is marked ported** with the maintainer's blank-and-flag behaviour as
+  a recorded difference from Python's printed UNSPECIFIED.
+- **`multi_solid_completeness_findings_are_info`** now plans with a stated general
+  tolerance so G5's title-block warning does not mask the multi-solid status it tests.
+  If the maintainer prefers, `status` could instead exclude title-block warnings; that
+  would be a behaviour change and was not made.

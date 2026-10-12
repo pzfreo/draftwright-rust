@@ -46,10 +46,10 @@ fn every_default_says_why_and_the_views_fit_the_sheet_apart() {
                 .map(|p| (p.code.as_str(), p.severity.as_str()))
                 .collect::<Vec<_>>(),
             [
-                ("unclaimed_geometry", "warning"),
-                ("general_tolerance_missing", "warning")
+                ("general_tolerance_missing", "warning"),
+                ("unclaimed_geometry", "warning")
             ],
-            "stock faces are unclaimed and a default Spec supplies no manufacturing tolerance"
+            "a default Spec supplies no manufacturing tolerance and stock faces are unclaimed"
         );
         assert_eq!(plan.completeness.claimed_faces, 0);
         assert_eq!(plan.completeness.faces, a.binding.face_count);
