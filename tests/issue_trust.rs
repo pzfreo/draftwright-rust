@@ -320,16 +320,27 @@ fn asking_for_less_never_buys_silence() {
                 .measurements
                 .iter()
                 .any(|m| counted.contains(&(m.feature.clone(), m.parameter.clone())));
-            if states && d.measurements.iter().any(|m|m.feature=="envelope") && after==before {
+            if states && d.measurements.iter().any(|m| m.feature == "envelope") && after == before {
                 // A newly explicit overall may still be proven by its complete
                 // turned chain after omission; prove that alternate printed evidence.
-                let less=model::plan(&analysis,&omitting(&[&d.id])).unwrap();
-                let drawing=drawn(&part,&analysis,&less);
-                let marks=lint::marks(&drawing);
-                for m in d.measurements.iter().filter(|m|m.feature=="envelope" && m.parameter.ends_with(".length")) {
-                    let o=lint::envelope::outcomes(&analysis,&marks).into_iter().find(|o|o.parameter==m.parameter).unwrap();
-                    assert_eq!(o.state,lint::turned::State::Placed);
-                    assert!(o.annotations.len()>1,"{name}: {} has no independently drawn chain",d.id);
+                let less = model::plan(&analysis, &omitting(&[&d.id])).unwrap();
+                let drawing = drawn(&part, &analysis, &less);
+                let marks = lint::marks(&drawing);
+                for m in d
+                    .measurements
+                    .iter()
+                    .filter(|m| m.feature == "envelope" && m.parameter.ends_with(".length"))
+                {
+                    let o = lint::envelope::outcomes(&analysis, &marks)
+                        .into_iter()
+                        .find(|o| o.parameter == m.parameter)
+                        .unwrap();
+                    assert_eq!(o.state, lint::turned::State::Placed);
+                    assert!(
+                        o.annotations.len() > 1,
+                        "{name}: {} has no independently drawn chain",
+                        d.id
+                    );
                 }
                 continue;
             }

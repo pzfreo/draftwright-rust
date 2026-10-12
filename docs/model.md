@@ -415,7 +415,12 @@ a functional outside diameter or A/F can own an equal overall interval. Equal va
 alone prove nothing. A stated overall length keeps one otherwise redundant chain
 member as a parenthesized reference dimension. Independent drawing lint reports
 `duplicate_measurement` and `closed_dimension_chain` from printed claims and Analysis
-stations, excluding parenthesized references. A flush boss height is credited from
+stations, excluding parenthesized references. Point ordinates, height-ladder datums
+and counted/compound statements retain their existing ownership contracts. Reference
+choice does not change when another member gains a tolerance. Omission can make an
+unpinned reference controlling, reflowing its text at the same centre and witnesses.
+A pinned reference keeps its ink and raises `pinned_reference_chain_changed` if its
+controlling chain is edited; its offered fix releases the pin. A flush boss height is credited from
 the same stated envelope interval, without reading the omission.
 
 The Plan also carries `status` (`clear` or `needs_attention`) and `completeness`:

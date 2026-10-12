@@ -49,9 +49,9 @@ fn every_default_says_why_and_the_views_fit_the_sheet_apart() {
                 ("general_tolerance_missing", "warning"),
                 ("unclaimed_geometry", "warning")
             ],
-            "a default Spec supplies no manufacturing tolerance and stock faces are unclaimed"
+            "a default Spec supplies no manufacturing tolerance; unrecognised interior or curved faces still require review"
         );
-        assert_eq!(plan.completeness.claimed_faces, if name=="turned.step" {2} else {6});
+        assert_eq!(plan.completeness.claimed_faces, a.stock_faces.len());
         assert_eq!(plan.completeness.faces, a.binding.face_count);
         assert_eq!(
             plan.status,

@@ -44,7 +44,7 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         .flat_map(|f| f.faces.iter().copied())
         .filter(|&i| i < analysis.binding.face_count)
         .collect();
-    let feature_claims=claimed.len();
+    let feature_claims = claimed.len();
     let marks: Vec<_> = plan
         .dimensions
         .iter()
@@ -81,8 +81,16 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             && analysis.principal_profiles[0].faces.iter().all(|f| {
                 f.inner.is_empty() && f.outer_edges == 4 && f.outer_arcs.is_empty() && !f.unsplit
             })
-            && (0..3).all(|k| [0,1].iter().all(|&end|
-                analysis.principal_profiles[0].faces.iter().filter(|f|f.axis==k && (f.at-analysis.envelope[end][k]).abs()<=1e-5).count()==1));
+            && (0..3).all(|k| {
+                [0, 1].iter().all(|&end| {
+                    analysis.principal_profiles[0]
+                        .faces
+                        .iter()
+                        .filter(|f| f.axis == k && (f.at - analysis.envelope[end][k]).abs() <= 1e-5)
+                        .count()
+                        == 1
+                })
+            });
         if box_stock {
             claimed.extend(0..6);
         }

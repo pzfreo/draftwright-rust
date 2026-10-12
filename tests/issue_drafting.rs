@@ -1104,7 +1104,12 @@ fn eccentric_cylinders_are_not_one_turned_profile() {
     assert!(reported(&plan).is_empty(), "{:?}", plan.problems);
     assert_eq!(
         bands(&plan),
-        bands(&model::plan(analysis, &Spec::default()).unwrap())
+        [
+            item("f:turned_step:1", "step.diameter", "ø30"),
+            item("f:turned_step:1", "step.length", "40"),
+            item("f:turned_step:2", "step.diameter", "ø16"),
+            item("f:turned_step:2", "step.length", "30"),
+        ]
     );
     assert!(
         plan.dimensions

@@ -5,6 +5,9 @@
 //! its recognition edited) the rules one at a time. The item-by-item comparison over every
 //! captured sheet, with the differences' verdicts, is `tests/dimensions.rs`.
 
+#[path = "common/reference_geometry.rs"]
+mod reference_geometry;
+
 #[path = "common/corpus.rs"]
 mod corpus;
 #[path = "common/facts.rs"]
@@ -574,12 +577,11 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
     );
     for d in &less.dimensions {
         let same = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
-        assert_eq!(d.placed, same.placed, "{}", d.id);
+        reference_geometry::assert_local(same, d);
     }
     assert!(
-        !less
-            .dimensions
+        less.dimensions
             .iter()
-            .any(|d| d.id.starts_with("d:envelope/height"))
+            .any(|d| d.id == "d:envelope/height.length" && d.label == "70")
     );
 }

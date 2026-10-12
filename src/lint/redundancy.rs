@@ -61,6 +61,19 @@ pub(crate) fn path(edges: &[(Span, usize)], target: Span) -> Option<Vec<usize>> 
     None
 }
 
+pub(crate) fn level_span(a: &Analysis, parameter: &str) -> Option<Span> {
+    let h: f64 = parameter
+        .strip_prefix("step_height.length.h")?
+        .replace('_', ".")
+        .parse()
+        .ok()?;
+    let z = a
+        .levels
+        .iter()
+        .find(|z| (**z - a.envelope[0][2] - h).abs() <= TOL)?;
+    Some(Span::new(2, a.envelope[0][2], *z))
+}
+
 pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span> {
     if feature == "envelope" {
         let k = super::envelope::PARAMETERS
@@ -68,38 +81,10 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
             .position(|p| *p == parameter)?;
         return Some(Span::new(k, a.envelope[0][k], a.envelope[1][k]));
     }
-    if feature == "step_level" && parameter.starts_with("step_height.length.h") {
-        let h: f64 = parameter
-            .trim_start_matches("step_height.length.h")
-            .replace('_', ".")
-            .parse()
-            .ok()?;
-        let z = a
-            .levels
-            .iter()
-            .find(|z| (**z - a.envelope[0][2] - h).abs() <= TOL)?;
-        return Some(Span::new(2, a.envelope[0][2], *z));
-    }
-    if feature == "step_level" && parameter.starts_with("step_position.length.") {
-        let tail = parameter.trim_start_matches("step_position.length.");
-        let k = ["x", "y", "z"]
-            .iter()
-            .position(|axis| tail.starts_with(axis))?;
-        let at = tail[1..].replace('_', ".").parse::<f64>().ok()?;
-        return Some(Span::new(k, a.envelope[0][k], at));
+    if feature == "step_level" || parameter.starts_with("location.length.") {
+        return None;
     }
     let f = a.features.iter().find(|f| f.id == feature)?;
-    if f.kind == "hole" && parameter.starts_with("location.length.") {
-        let k = ["x", "y", "z"]
-            .iter()
-            .position(|k| Some(*k) == parameter.strip_prefix("location.length."))?;
-        let h = crate::bridge::holes::read(a)
-            .into_iter()
-            .find(|(f, _)| f.id == feature)?
-            .1
-            .ok()?;
-        return Some(Span::new(k, a.envelope[0][k], h.at[k]));
-    }
     if f.kind == "turned_step" && parameter == "step.length" && coaxial(a) {
         let b = super::turned::band(&frame(a), f).ok()?;
         return Some(Span::new(b.axis, b.lo, b.hi));
@@ -165,7 +150,8 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 issue.related = vec![marks[j].name.clone()];
                 issues.push(issue);
             }
-            if let Some(s) = span(a, &c.feature, &c.parameter)
+            if !m.text.contains('×')
+                && let Some(s) = span(a, &c.feature, &c.parameter)
                 && holes::states(&m.text, s.hi - s.lo)
                 && !own_spans.iter().any(|p: &Span| p.same(s))
             {
@@ -175,6 +161,25 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         for s in own_spans {
             if let Some(route) = path(&edges, s) {
                 let duplicate = route.len() == 1;
+                if duplicate
+                    && m.claims.iter().all(|c| c.parameter == "thickness.length")
+                    && marks[route[0]]
+                        .claims
+                        .iter()
+                        .all(|c| c.parameter == "thickness.length")
+                {
+                    let body = |m: &Mark| {
+                        m.claims
+                            .first()
+                            .and_then(|c| a.features.iter().find(|f| f.id == c.feature))
+                            .and_then(|f| f.parameters.get("body_key"))
+                            .filter(|key| !key.is_null())
+                    };
+                    if body(m).is_none() || body(m) != body(&marks[route[0]]) {
+                        edges.push((s, i));
+                        continue;
+                    }
+                }
                 if duplicate
                     && marks[route[0]].view != m.view
                     && m.claims.iter().all(|c| {
@@ -203,7 +208,7 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
 /// An outside size's physical support planes; a bore never supplies this evidence.
 pub(crate) fn external_span(a: &Analysis, id: &str, parameter: &str, k: usize) -> Option<Span> {
     let f = a.features.iter().find(|f| f.id == id)?;
-    if f.kind == "turned_step" && parameter == "step.diameter" {
+    if f.kind == "turned_step" && parameter == "step.diameter" && coaxial(a) {
         let b = super::turned::band(&frame(a), f).ok()?;
         if k == b.axis {
             return None;

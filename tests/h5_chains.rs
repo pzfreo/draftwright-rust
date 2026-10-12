@@ -1,3 +1,6 @@
+#[path = "common/reference_geometry.rs"]
+mod reference_geometry;
+
 #[path = "common/corpus.rs"]
 mod corpus;
 
@@ -90,6 +93,30 @@ fn slot_chain_keeps_overall_and_functional_length_without_closure() {
             .iter()
             .any(|d| d.id == "d:f:slot:1/location_slot.length" && !d.label.starts_with('('))
     );
+    let floor = p
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == "step_level" && m.parameter == "step_height.length.h5_133")
+        })
+        .unwrap();
+    assert_eq!(floor.id, "d:f:slot:1/location_slot.length");
+    assert_eq!(floor.label, "(5.1)");
+    assert!(p.omitted.iter().any(|d| d.id == "d:step_level/step_height.length.h5_133"
+        && matches!(&d.state, draftwright::items::State::Covered { by } if by == &floor.id)));
+    let spec = model::edit(&Spec::default(), &json!([{"op":"set", "path":"dimensions/d:f:slot:1~1location_slot.length/omit", "value":true}])).unwrap();
+    let p = model::plan(&a, &spec).unwrap();
+    let floor = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:step_level/step_height.length.h5_133")
+        .unwrap();
+    assert_eq!(
+        floor.label, "(5.1)",
+        "restoring the floor must not close the chain again"
+    );
 }
 #[test]
 fn concentric_bolt_circles_have_axis_location_credit() {
@@ -114,6 +141,18 @@ fn fully_dimensioned_box_is_clear() {
     let p = model::plan(&a, &spec).unwrap();
     assert_eq!(serde_json::to_value(&p).unwrap()["status"], "clear");
     assert!(!p.problems.iter().any(|p| p.code == "unclaimed_geometry"));
+    let less = model::edit(
+        &spec,
+        &json!([{"op":"set", "path":"dimensions/d:envelope~1width.length/omit", "value":true}]),
+    )
+    .unwrap();
+    let p = model::plan(&a, &less).unwrap();
+    assert_eq!(
+        serde_json::to_value(&p).unwrap()["status"],
+        "needs_attention"
+    );
+    assert_eq!(p.completeness.claimed_faces, 0);
+    assert!(p.problems.iter().any(|p| p.code == "unclaimed_geometry"));
 }
 #[test]
 fn lint_detects_duplicate_claims_and_closed_turned_chains() {
@@ -170,18 +209,17 @@ fn radius_leader_and_label_clear_thickness_extensions_including_pad() {
     let pad = [b[0] - 1., b[1] - 1., b[2] + 1., b[3] + 1.];
     for e in thickness.lines.iter().take(2) {
         assert!(!crosses(*e, pad), "extension within label pad: {radius:?}");
-        // Axis-aligned witnesses: a horizontal shoulder must not cross or touch one.
+        let witness = [
+            e[0][0].min(e[1][0]) - 1.,
+            e[0][1].min(e[1][1]) - 1.,
+            e[0][0].max(e[1][0]) + 1.,
+            e[0][1].max(e[1][1]) + 1.,
+        ];
         for l in &radius.lines {
-            let vertical = (e[0][0] - e[1][0]).abs() < 1e-8;
-            let horizontal = (l[0][1] - l[1][1]).abs() < 1e-8;
-            if vertical && horizontal {
-                assert!(
-                    !(e[0][0] >= l[0][0].min(l[1][0]) - 1e-6
-                        && e[0][0] <= l[0][0].max(l[1][0]) + 1e-6
-                        && l[0][1] >= e[0][1].min(e[1][1]) - 1e-6
-                        && l[0][1] <= e[0][1].max(e[1][1]) + 1e-6)
-                );
-            }
+            assert!(
+                !crosses(*l, witness),
+                "leader touches extension: {radius:?}"
+            );
         }
     }
 }
@@ -230,4 +268,105 @@ fn consolidated_flush_boss_height_is_not_reported_missing() {
             .any(|d| d.id == "d:f:boss:1/boss_height.length")
     );
     assert!(lint::bosses::coverage(&a, &marks(&p)).is_empty());
+}
+
+#[test]
+fn cross_view_locations_keep_single_claim_owners_and_controlling_labels() {
+    for file in [
+        "nist/nist_ctc_02_asme1_rc.stp",
+        "nist/nist_ftc_10_asme1_rb.stp",
+        "cadgenbench_inputs/cgb245.step",
+    ] {
+        let a = native(file);
+        let p = model::plan(&a, &Spec::default()).unwrap();
+        let mut owners = std::collections::BTreeMap::new();
+        for d in p.dimensions.iter().filter(|d| d.placed.is_some()) {
+            for m in &d.measurements {
+                assert!(
+                    owners.insert((&m.feature, &m.parameter), &d.id).is_none(),
+                    "{file}: duplicate claim {m:?} by {}",
+                    d.id
+                );
+                if m.parameter.starts_with("location.length.") {
+                    assert!(!d.label.starts_with('('), "{file}: {}", d.id);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn references_become_controlling_without_moving_other_ink() {
+    for (file, total) in [
+        ("mfcadpp/10047.step", "d:envelope/height.length"),
+        (
+            "gramel/GRM-03_thumbwheel_drive_screw.step",
+            "d:envelope/width.length",
+        ),
+        (
+            "gramel/GRM-05_depth_lock_bolt.step",
+            "d:envelope/height.length",
+        ),
+        ("gramel/string_post.step", "d:envelope/height.length"),
+    ] {
+        let a = native(file);
+        let full = model::plan(&a, &Spec::default()).unwrap();
+        let reference = full
+            .dimensions
+            .iter()
+            .find(|d| d.label.starts_with('('))
+            .unwrap();
+        let less = model::edit(&Spec::default(), &json!([{"op":"set", "path":format!("dimensions/{}/omit", draftwright::items::key(total)), "value":true}])).unwrap();
+        let p = model::plan(&a, &less).unwrap();
+        let controlling = p.dimensions.iter().find(|d| d.id == reference.id).unwrap();
+        assert_eq!(
+            reference.label,
+            format!("({})", controlling.label),
+            "{file}"
+        );
+        for now in &p.dimensions {
+            let was = full.dimensions.iter().find(|d| d.id == now.id).unwrap();
+            reference_geometry::assert_local(was, now);
+        }
+    }
+}
+
+#[test]
+fn a_pinned_reference_keeps_its_ink_and_reports_a_broken_controlling_chain() {
+    let a = native("gramel/GRM-03_thumbwheel_drive_screw.step");
+    let full = model::plan(&a, &Spec::default()).unwrap();
+    let reference = full.dimensions.iter().find(|d| d.label == "(0.5)").unwrap();
+    let spec = model::edit(&Spec::default(), &json!([
+        {"op":"set", "path":format!("dimensions/{}/place", draftwright::items::key(&reference.id)), "value":{"pinned":true}},
+        {"op":"set", "path":"dimensions/d:envelope~1width.length/omit", "value":true}
+    ])).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    let pinned = p.dimensions.iter().find(|d| d.id == reference.id).unwrap();
+    assert_eq!(pinned.label, reference.label);
+    assert_eq!(pinned.placed, reference.placed);
+    let finding = p
+        .problems
+        .iter()
+        .find(|p| p.code == "pinned_reference_chain_changed")
+        .unwrap();
+    assert_eq!(finding.severity, "warning");
+    assert_eq!(
+        finding.subjects.as_slice(),
+        std::slice::from_ref(&reference.id)
+    );
+    let released = model::edit(&spec, &serde_json::to_value(&finding.fix).unwrap()).unwrap();
+    let p = model::plan_recovered(&a, &released).unwrap();
+    assert!(
+        !p.problems
+            .iter()
+            .any(|p| p.code == "pinned_reference_chain_changed")
+    );
+    assert_eq!(
+        p.dimensions
+            .iter()
+            .find(|d| d.id == reference.id)
+            .unwrap()
+            .label,
+        "0.5"
+    );
 }
