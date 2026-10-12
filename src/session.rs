@@ -801,7 +801,7 @@ impl Session {
             &self.plan().views,
         ));
         for n in &self.plan().notes {
-            if n.id.starts_with("n:f:blend:") || n.id.starts_with("n:blend-sites/") {
+            if n.id.starts_with("n:f:blend:") {
                 choices.insert(n.id.clone(), serde_json::json!({"views":self.plan().views.iter().filter(|v| ["v:front","v:plan","v:side"].contains(&v.id.as_str())).map(|v| serde_json::json!({"view":v.id.trim_start_matches("v:"),"sides":["above","below","left","right"]})).collect::<Vec<_>>() }));
             }
         }
@@ -867,8 +867,7 @@ fn settable(
         "dimension" => format!("dimensions/{}", items::key(id)),
         "view" => format!("views/{}", items::key(id.trim_start_matches("v:"))),
         "control_frame" | "datum_feature" | "label" | "note"
-            if item.item.kind != "note"
-                || (id.starts_with("n:f:blend:") || id.starts_with("n:blend-sites/")) =>
+            if item.item.kind != "note" || id.starts_with("n:f:blend:") =>
         {
             format!("annotations/{}", items::key(id))
         }
@@ -1102,7 +1101,7 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.basis = n.basis.clone();
                 a.placement = n.placed.as_ref().map(|p| Placement::Box(p.cells));
                 a.features = n.measurements.iter().map(|m| m.feature.clone()).collect();
-                if n.id.starts_with("n:f:blend:") || n.id.starts_with("n:blend-sites/") {
+                if n.id.starts_with("n:f:blend:") {
                     a.operations = ["omit", "place"].map(String::from).into();
                 }
             }

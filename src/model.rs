@@ -2778,10 +2778,7 @@ pub fn render_annotations_with_items(
         interior: false,
     });
     // The general notes: the block's rules, and each row centred on its planned ink, searchable.
-    let mixed = plan
-        .notes
-        .iter()
-        .any(|n| !n.id.starts_with("n:f:blend:") && !n.id.starts_with("n:blend-sites/"));
+    let mixed = plan.notes.iter().any(|n| !n.id.starts_with("n:f:blend:"));
     for (i, block) in [plan.notes_block.as_ref(), plan.radius_notes_block.as_ref()]
         .into_iter()
         .enumerate()
@@ -2804,10 +2801,7 @@ pub fn render_annotations_with_items(
             );
         }
         for n in plan.notes.iter().filter(|n| {
-            n.placed.is_some()
-                && (!mixed
-                    || (i == 1)
-                        == (n.id.starts_with("n:f:blend:") || n.id.starts_with("n:blend-sites/")))
+            n.placed.is_some() && (!mixed || (i == 1) == n.id.starts_with("n:f:blend:"))
         }) {
             let p = n.placed.as_ref().unwrap();
             let runs: Vec<usize> = n

@@ -247,23 +247,11 @@ fn table(notes: &[NoteSpec]) -> (Vec<String>, Vec<Vec<String>>) {
     let per: Vec<Vec<String>> = notes
         .iter()
         .enumerate()
-        .map(|(i, n)| note_rows(n, i + 1))
+        .map(|(i, n)| rows(i + 1, &n.text))
         .collect();
     let mut all = vec![TITLE.to_string()];
     all.extend(per.iter().flatten().cloned());
     (all, per)
-}
-
-fn note_rows(note: &NoteSpec, number: usize) -> Vec<String> {
-    if note.id == "n:blend-sites/reference" {
-        // A coordinate legend is furniture, not a numbered manufacturing requirement.
-        wrap(&note.text)
-            .into_iter()
-            .map(|row| format!("   {row}"))
-            .collect()
-    } else {
-        rows(number, &note.text)
-    }
 }
 
 /// The block's width (its widest row's ink, the rows aligned on their pens, and the padding
@@ -459,7 +447,7 @@ pub(crate) fn radius_notes(
                     id: given.id.clone(),
                     text: given.text.clone(),
                     number: notes.len() + 1,
-                    rows: note_rows(given, notes.len() + 1),
+                    rows: rows(notes.len() + 1, &given.text),
                     default: true,
                     basis: String::new(),
                     state: State::OmittedByUser,

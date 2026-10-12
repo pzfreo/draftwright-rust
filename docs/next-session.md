@@ -4210,100 +4210,31 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 
 Ported the blend portions of ISSUE-1433-a, ARCH0015-1, ISSUE-1450-a,
 ISSUE-1351-a and LINT-_registry-structured_note_satisfaction. No catalogue YAML,
-quality.py completeness work, reporting severity, plate grammar, commit or push is changed.
+quality.py completeness work, reporting severity or plate grammar is changed.
+The note wording and exception handling are as settled in the fix rounds below;
+the first round's scoped and coordinate notes were rejected and removed.
 
 - A part with at least five recognised blends uses its most frequent repeated
-  displayed radius as `ALL UNSPECIFIED BLEND RADII R…`; ties use the smaller
-  radius. Smaller groups retain individual or counted leaders. This threshold
-  is an overturnable conservative clutter judgement, not tuned to a part name.
-  The note credits only its exact equal-radius occurrences; every other radius
-  needs an explicit exception. When an exception is refused or omitted, the note
-  instead states its exact group count and `OTHER BLEND RADII UNSTATED`, so its
-  prose cannot assign the default radius to unresolved geometry. A blanket note
-  is withdrawn if an exception note later cannot fit. Python origin/main currently groups displayed
-  radii as counted leaders rather than emitting this general note. G3's explicit
-  request takes precedence; evidence/verdicts are in `tests/fixtures/known_blends.json`.
-- Free exception leaders that cross ink or features become located notes with a
-  group count and one representative point on the group's own trimmed surface.
-  Reference XYZ offsets are from the model envelope's left/front/bottom faces;
-  the block prints that convention. No rolling-path centre is used as a surface
-  attachment. This is **undetermined manufacturing presentation**, an overturnable
-  fallback chosen to state exceptions without adding radius clutter. A future
-  detail-view/interior leader design may replace it. Explicit author placements
-  and tolerances stay literal, with their real geometry findings retained.
+  displayed radius as the default note; ties use the smaller radius. Other radii
+  keep individual or counted leaders. The threshold is an overturnable clutter
+  judgement, not tuned to a part name. The note credits only its exact
+  equal-radius occurrences.
 - Automatic-only notes use the existing 3 mm font on 5 mm plain rows, placed late
-  against actual view outlines and annotation ink. Authored/PMI notes keep the
-  original ruled 7 mm rows; authored tables retain their priority before automatic
-  radii are placed. When both note kinds are present, automatic radii have a separate
-  `radius_notes_block`, avoiding changes to the authored table's geometry. These
-  are optional additive Plan fields; ordinary ruled notes omit `ruled: true`,
-  retaining legacy serialization and version-1 plan comparison.
-- Same-face precedence replaces only the duplicate boss diameter, preserving
-  its independent height. Python's whole-boss absorption requires an emitted
-  envelope length; retaining height explicitly is the conservative Rust verdict.
-  Exact nonempty unique defining faces, axis and diameter/radius evidence are
-  shared by planning and coverage. Empty/ambiguous faces or equal scalars alone
-  never transfer ownership.
+  against view outlines and annotation ink. Authored/PMI notes keep the ruled
+  7 mm rows; when both kinds are present automatic radii get a separate
+  `radius_notes_block`. Ordinary ruled notes omit `ruled: true`, keeping legacy
+  serialization.
+- Same-face precedence replaces only the duplicate boss diameter, keeping its
+  independent height. Exact nonempty unique defining faces, axis and
+  diameter/radius evidence are shared by planning and coverage; empty/ambiguous
+  faces or equal scalars alone never transfer ownership.
 - Structured authority is explicit `Annotation.satisfies`, credited only from
-  real drawn text runs. Prose, hidden/unplaced notes and duplicated authority
-  cannot borrow another occurrence's radius credit. This ports **automatic blend
-  notes**, not Python's general authored per-feature satisfaction API or synthetic
-  hole count/THRU note roles. Mark-only `lint::check` retains its existing contract;
-  full drawings use `lint::lint` to include typed note authority.
-- Ten recognised blends remain genuinely unstated because no principal view has
-  a proven attachment: CGB207 (1), CTC-02 (3), CTC-03 (2), FTC-07 (4). Their exact
-  IDs are in the quality run's `blend-coverage.json`, with explicit
-  `feature_not_dimensioned` refusals. Those four parts use scoped notes with an explicit unstated-radius warning, rather
-  than a misleading blanket default. Missing coverage remains visible and no
-  severity is weakened. Old serialized analyses without `blend_sites` cannot
-  invent new leader attachments; reanalyse the STEP to obtain them.
-
-All fourteen affected sheets were rasterised at 2400 px with resvg and inspected.
-CGB245 has one R3 default note and three exception leaders, rather than an 82×
-radius label. CTC-01 has a compact R10 note and two located exceptions below the
-front view; its remaining leaders stay clear. The small string_post has one
-2× R0.2 leader. Other dense notes occupy clear upper-right regions; existing NIST
-linework/annotation defects outside this stream remain. Reference-site notes are
-legible but require coordinate lookup, hence the undetermined presentation verdict.
-
-The four new integration tests were first run against the unchanged source:
-0 passed, 4 failed (`/tmp/g3-red.log`). The new `tools/check_blend_quality.py`
-acceptance script also rejects the original binary (`/tmp/g3-script-red.log`).
-Existing numeric, feature-trace, item-state, leader, note-table and structural
-checks now validate the additional explicit note authority, including exact
-measurements and physical text within measured note ink. No ordinary assertion
-is dropped. Five resolved own-drawing lint ledger entries (142 missing blend
-radii) are removed; the ledger assertion remains exact.
-
-The NIST session benchmark also rejected undo replay before the fragment fix:
-two covered dimensions lost empty cached fragments when their note owners changed.
-Delta replay now retains a fragment for every dimension/control-frame record still
-in the patched Plan, including undrawn records. Its existing byte-for-byte
-preview/apply/undo/redo and 150 ms p90 assertions remain unchanged.
-
-The general note is also reconciled against explicit Spec omissions: hiding an
-exception changes the surviving automatic note to its scoped wording. If an
-exception note is subsequently undrawable, a blanket default is withheld rather
-than claiming the wrong physical radius. The coordinate legend is unnumbered
-furniture; all numbered automatic manufacturing notes retain exact authority.
-
-The final raster review also confirmed pre-existing clipped border/title furniture
-on FTC-07 and sm-hanger against `target/g3-final/rasters/*-before.png`; the new
-blend notes remain clear. G3 does not repair that unrelated baseline rendering
-condition. All fourteen final sheets and their exact hashes are recorded in
-`target/g3-final/reviewed-sheets.json`.
-
-Final G3 validation: 668 release tests passed, 0 failed; fmt, strict release
-clippy and release build passed. All 300 quality cells on 30 parts remain identical
-to Stage F. Blend requirements are 247 → 10; the required CGB245, CTC-01 and
-string_post regressions are 82 → 0, 31 → 0 and 2 → 0. The enforced 9-configuration
-pin grid is 270/270 GO, with no new off-sheet items; scripted MCP is 7/7 tasks
-in 16 calls. Final fourteen-sheet raster review and exact tables, rule verdicts,
-red-test evidence, file list and artifact locations are in the G3 entry of
-`docs/status-2026-10-10.md`. Final executable SHA-256: `758b7d6b851d785f18acb7058940ea7573a428a9d88debe7d79e2064d37184a0`.
-No commit/push was performed. No rules YAML, reporting severity or quality.py
-completeness logic was changed. The ten unsupported attachments and the located-note
-manufacturing presentation remain the documented uncertainties.
+  real drawn text runs; prose, hidden/unplaced notes and duplicated authority
+  borrow no credit. This ports automatic blend notes only, not Python's general
+  authored per-feature satisfaction API.
+- Session delta replay keeps a fragment for every dimension/control-frame record
+  still in the patched Plan, including undrawn records (found by the NIST undo
+  benchmark).
 
 ## G3 fix round (2026-10-11; supersedes the G3 presentation judgements above)
 
@@ -4383,3 +4314,47 @@ Final tables, validation history, rule verdicts and artifacts are in the G3
 fix-round entry of docs/status-2026-10-10.md and target/g3-fix/validation.json.
 Lettering ownership remains the documented minor; no heuristic exclusion was
 added. No commit/push, rule YAML, reporting severity or quality.py change.
+
+## G3 fix round 2 (2026-10-12, Claude; overturnable)
+
+Reviewer's major: the 105 remaining missing radii were reported as "genuinely
+unstated", but most are blocked by withdrawn leaders that veto the default note.
+Measured breakdown on the branch binary (`draftwright review` + plan states):
+
+| cause | radii |
+|---|---|
+| no principal view has a proven attachment (cgb207 1, ctc_02 3, ctc_03 2, ftc_07 4) | 10 |
+| exception leader withdrawn (`blend_callout_dropped`) | 26 |
+| default-note members withheld because an exception above is unstated | 69 |
+
+Withdrawn leaders, with the findings they would carry if retained: NIST logo
+lettering R0.8 (ctc_01), R0.5/R3.3/R4.2 (ctc_04), R0.5/R4.2 (ctc_05),
+R0.5/R3.3 (ftc_09) — 8 radii; real groups 4× R25 (ctc_01, crosses f:hole:3),
+4× R15 and 6× R18 (ctc_02, cross dimensions), 4× R3.2 (ftc_08, overlaps the slot
+dimension) — 18 radii. The 69 withheld default members are 12 behind no-view
+exceptions (cgb207, ctc_03, ftc_07), 18 on ctc_02 (both causes) and 39 behind
+withdrawn leaders (ctc_01 18, ctc_04 4, ctc_05 7, ftc_08 6, ftc_09 4).
+
+Judgement call (overturnable, maintainer's decision): fail-closed withdrawal is
+kept. I measured the reviewer's Policy B option (retain every required blend
+leader with its diagnostics, ISSUE-798-a): missing radii fall 105 → 40 (only the
+10 no-view radii and the 30 defaults they veto remain), and the CTC-01 sheet
+reads well with `ALL UNSPECIFIED RADII R10`. But it makes six parts worse in
+quality.py: ink 278 → 303 (ctc_01 11→13, ctc_02 36→44, ctc_04 54→57,
+ctc_05 8→12, ftc_08 46→48, ftc_09 20→26) and line_through 212 → 229 (ctc_01,
+ctc_04, ftc_08). The brief's gate is "no part worse; ink must not rise from radius
+clutter", so Policy B is not applied. The change is small:
+replace `dims::blends::withdraw_unsafe` with a pass that only clears the leader
+findings of blend dimensions `Covered` by consolidation. If the maintainer prefers
+stated radii over that ink, apply it and restore the ISSUE-798-a assertion in
+tests/leaders.rs.
+
+No engraved-lettering rule was added: the logo blends' recognition evidence
+(a cylinder between a concave floor edge and a convex top edge, ~2 mm deep) is the
+same as a shallow pocket corner, which does need its radius. Python draftwright
+has no lettering rule for blends either (only quiddity's level-area filter for
+step levels). Excluding lettering needs semantic recognition evidence.
+
+Also removed the dead `n:blend-sites/` handling (notes.rs note_rows, session.rs,
+model.rs, tests/notes.rs) left from the rejected REF SITE fallback, and trimmed the
+first G3 section above to what still holds.
