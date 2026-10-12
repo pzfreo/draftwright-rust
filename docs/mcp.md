@@ -236,3 +236,78 @@ value with the author's intended general tolerance. `step_material_disagreement`
 names `sheet`, includes both the authored and STEP material in its detail message,
 and retains the Spec value. Both warnings use source/Spec paths in `refs`; neither
 is attached to an unrelated feature.
+
+## Operation and correction bounds
+
+`preview_ops` and `apply_ops` accept at most **32 submitted operations**, including
+no-ops and duplicates. HTTP, stdio, `serve`'s `mcp_*` tools, the lossless
+`stateless_apply`/`stateless_preview` adapters, and Cache apply/preview/version calls
+share this limit. Refusal happens before part reconstruction or head lookup. The
+published input schemas use the same `maxItems`; regenerate them after changing
+`stateless::MAX_OPS`. Lists' separate 100-record page limit is unchanged.
+
+Corrective discovery has a separate **eight-operation validation budget** and
+**one noncommitting Session preview**. It uses the original refused Session, with
+no second reconstruction and no per-op planner replay. For an initialized drawing
+head, these edit-validation refusals use at most two complete recovered-planner
+invocations: the original Session reconstruction and,
+when offered, the correction preview. A refusal during the original apply planner
+adds that attempted invocation (at most three with a warm head). Initializing a new
+drawing head may add its existing one reconstruction. Corrective analysis itself
+still adds at most one plan. These counts include previews, unlike committed Session statistics, and exclude recovery's
+internal trials. Cold analysis/projection work and individual planner cost are not
+wall-clock bounded by this policy.
+
+The whole batch is still validated transactionally. Its temporary invalid values
+can be overwritten before final validation. The current Session/model refusal has
+no operation index, so discovery uses bounded pure edit validation and reports the
+matching zero-based index. An unknown `v:` view key is identified from the original
+planner refusal's exact message and valid choices, without a planner replay.
+Discovery keeps valid preceding edits for the candidate preview,
+without installing them. Unrelated invalid operations can still require another
+retry. If discovery runs out of operations, the candidate preview refuses, or options
+cannot establish a safe correction, the original structured code/message/choices
+are returned unchanged. Stale-parent refusals never enter corrective analysis.
+Longer batches may receive useful refusal choices without an explicit corrected op;
+use item_options and retry. Corrections remain suggestions requiring resubmission.
+
+The Stage F schemas/runtime already enforced 100 operations, satisfying the transport
+and schema portion of the first acceptance item. The reported corrective replay
+still existed without an independent work budget, up to that transport cap. Thirty-two
+reduces the input validation bound while retaining headroom for ordinary edits; eight discovery steps
+and one preview trade corrections late in a batch for deterministic planner work.
+These unattended choices can be changed following real request measurements.
+
+Reproduce the regression/latency instrument with required corpus and
+`cargo test --release --lib mcp::batch_tests -- --nocapture`, then check the actual
+transports with `python3 tools/check_mcp_batches.py target/release/draftwright`.
+The dense instrument uses native NIST CTC-04 (518 faces, 137 recognized features),
+a warmed disk cache, and one release sample per tool and refusal position. It times
+the complete tool call including test-only planner counting. The measurements below
+are observed maxima across these cases, not a percentile or a hard deadline.
+
+| Tool | Refusal index / submitted ops | Plans before | After | Latency before (ms) | After (ms) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| preview_ops | 0 / 32 | 3 | 2 | 10645.568 | 8127.861 |
+| apply_ops | 0 / 32 | 3 | 2 | 18240.143 | 6631.284 |
+| preview_ops | 7 / 32 | 10 | 2 | 55861.236 | 6627.409 |
+| apply_ops | 7 / 32 | 10 | 2 | 36974.945 | 6043.203 |
+| preview_ops | 31 / 32 | 34 | 1 | 144450.113 | 2938.937 |
+| apply_ops | 31 / 32 | 34 | 1 | 170866.449 | 3059.773 |
+| preview_ops | 32 / 33 | 35 | 0 | 187626.482 | 0.030 |
+| apply_ops | 32 / 33 | 35 | 0 | 255325.582 | 0.023 |
+
+The largest observed latency across these probes is **255,325.582 → 8,127.861 ms**.
+For batches within the new limit (32), it is **170,866.449 → 8,127.861 ms**.
+Single samples are sensitive to scheduling and do not establish a per-case timing
+guarantee. The 32/33-op probes were legal under the old 100-op limit; this does not
+claim to have measured the old maximum-size 100-op batch. The 33-op after probes
+stop before any Session reconstruction. Original/after logs and machine-readable
+measurements are in `target/h5/`; the tests assert planner bounds and refusal
+behavior, not timings.
+
+The unchanged scripted MCP evaluation succeeds **7/7** before and after, with
+**16 calls / 5,685 estimated tool tokens** in both runs on this checkout.
+The complete required-corpus suite passes **671 tests / 71 groups**, zero
+failures/ignored; fmt, strict all-target release Clippy, the six actual-transport
+checks and all 24 independently validated schemas pass.

@@ -15,7 +15,44 @@ use crate::session::{Delta, ItemAnswer, ItemFilter, Options, ProblemFilter, Sess
 /// Content fingerprint of the compiled engine source, lockfile and embedded assets.
 pub const ENGINE_VERSION: &str = env!("DRAFTWRIGHT_ENGINE_VERSION");
 pub const PAGE_BYTES: usize = 4096;
+pub const MAX_OPS: usize = 32;
 static STAGED: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(test)]
+pub(crate) mod work {
+    use std::cell::Cell;
+    thread_local! {
+        static PLANS: Cell<usize> = const { Cell::new(0) };
+    }
+    pub fn plan() {
+        PLANS.with(|n| n.set(n.get() + 1));
+    }
+    pub fn take() -> usize {
+        PLANS.with(|n| n.replace(0))
+    }
+}
+
+pub(crate) fn session_apply(
+    session: &mut Session,
+    ops: &[Op],
+    commit: bool,
+) -> Result<Delta, Error> {
+    // Session evaluates exactly once after whole-Spec edit validation succeeds.
+    #[cfg(test)]
+    if crate::model::edit(session.spec(), &serde_json::to_value(ops).unwrap()).is_ok() {
+        work::plan();
+    }
+    session.apply(ops, commit)
+}
+
+pub(crate) fn check_operation_count(count: usize) -> Result<(), Error> {
+    if count > MAX_OPS {
+        return Err(Error::invalid(format!(
+            "ops accepts at most {MAX_OPS} submitted operations; split the request into smaller batches"
+        )));
+    }
+    Ok(())
+}
 
 pub fn hash(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -215,6 +252,8 @@ impl Cache {
         } else {
             Projections::default()
         };
+        #[cfg(test)]
+        work::plan();
         Session::with_projections(part, analysis, spec.clone(), projections)
     }
     fn save(&self, dir: &Path, session: &Session) -> Result<(), Error> {
@@ -236,10 +275,21 @@ impl Cache {
         Ok(session)
     }
     pub fn apply(&self, part_ref: &str, spec: &Spec, ops: &[Op]) -> Result<Applied, Error> {
+        self.apply_with_refusal(part_ref, spec, ops, |_, error| error)
+    }
+    pub(crate) fn apply_with_refusal(
+        &self,
+        part_ref: &str,
+        spec: &Spec,
+        ops: &[Op],
+        refused: impl FnOnce(&mut Session, Error) -> Error,
+    ) -> Result<Applied, Error> {
+        check_operation_count(ops.len())?;
         let dir = self.dir(part_ref)?;
         let _lock = Self::lock(&dir)?;
         let mut session = self.session_unlocked(&dir, spec)?;
-        let delta = session.apply(ops, true)?;
+        let delta =
+            session_apply(&mut session, ops, true).map_err(|error| refused(&mut session, error))?;
         self.save(&dir, &session)?;
         Ok(Applied {
             spec: session.spec().clone(),
@@ -454,6 +504,17 @@ impl Cache {
         parent: &str,
         ops: &[Op],
     ) -> Result<(String, Applied), Error> {
+        self.apply_version_with_refusal(part_ref, drawing_ref, parent, ops, |_, error| error)
+    }
+    pub(crate) fn apply_version_with_refusal(
+        &self,
+        part_ref: &str,
+        drawing_ref: &str,
+        parent: &str,
+        ops: &[Op],
+        refused: impl FnOnce(&mut Session, Error) -> Error,
+    ) -> Result<(String, Applied), Error> {
+        check_operation_count(ops.len())?;
         let dir = self.dir(part_ref)?;
         let _lock = Self::lock(&dir)?;
         let head = self.head_unlocked(&dir, drawing_ref)?;
@@ -467,7 +528,7 @@ impl Cache {
         }
         let spec = self.get_version(parent)?;
         let mut s = self.session_unlocked(&dir, &spec)?;
-        let delta = s.apply(ops, true)?;
+        let delta = session_apply(&mut s, ops, true).map_err(|error| refused(&mut s, error))?;
         self.save(&dir, &s)?;
         let applied = Applied {
             spec: s.spec().clone(),

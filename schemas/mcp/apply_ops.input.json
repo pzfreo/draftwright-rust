@@ -32,7 +32,7 @@
       "items": {
         "$ref": "#/$defs/op"
       },
-      "maxItems": 100
+      "maxItems": 32
     },
     "parent": {
       "type": "string"
