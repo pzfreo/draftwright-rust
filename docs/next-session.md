@@ -4204,3 +4204,64 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 - The CI quality baseline's `source_commit` is `fd08c1d` (the commit whose status
   table it copies), as the Stage F baseline named `b999b13`; its executable SHA is the
   merged-tree release build that reproduced the table.
+
+## Stage H: multi-sheet design record (2026-10-12, overturnable judgement calls)
+
+`docs/adr/R5-multi-sheet.md` records the maintainer's sheet policy (2026-10-11) verbatim and
+proposes the technical design and the Stage I build plan (I1 model and allocation, I2 furniture
+and rendering, I3 MCP, I4 editor compatibility, I5 detail views). No code changed. Judgement
+calls, each overturnable:
+
+- Multi-sheet is opt-in: `sheets.max` absent means 1, so every existing spec plans byte for byte
+  as before (the migration requirement). The default could later become 2+.
+- A larger paper still comes before a further sheet (the 2026-10-09 ladder is kept); a further
+  sheet is preferred only to a scale below `smallest_scale` or an exhausted recovery.
+- Overflow order: isometric, sections, a long hole table, then detail views (I5).
+- One sheet size for the whole document; sections keep their parent's scale.
+- SHEET cell: `n OF m` does not fit today's 6 % cell on A4 (7.60 mm in 7.2 mm, measured with
+  `title_block::measure`), so multi-sheet documents widen it to 12 % and narrow APPROVED BY to
+  29 %; the single-sheet grid is unchanged. A spec `sheet.title.sheet` is replaced (info problem).
+- Grid zones (ISO 5457, in the margin outside the border) and cross-references only when m > 1.
+- SVG, DXF and PNG are one file per sheet (`<stem>.sheet<n>.<ext>`, sheet 1 keeps its name); PDF
+  is one file with a page per sheet.
+- "Move view to sheet n" is the edit `set views/<name>/sheet`, offered by `item_options` as
+  `move_to_sheet`; no new op kind (RFC 6902's `move` means something else).
+- Item `sheet` fields in MCP results are omitted when the plan has one sheet, keeping baselines
+  and byte budgets.
+- Severities: `datum_not_identified` and `cross_reference_missing` error;
+  `sheet_below_smallest_scale` and `gdt_not_on_sheet_1` warning.
+
+## Stage H: R5 revised after review (2026-10-12, overturnable judgement calls)
+
+`docs/adr/R5-multi-sheet.md` was revised for the review's major and minor points; the policy
+block is unchanged (diffed). Judgement calls, each overturnable:
+
+- GD&T, datum symbols and dimensions are carried only by principal views, which never leave
+  sheet 1, so in Stage I the datum rule and `gdt_on_sheet_1` hold by construction and are
+  *asserted*, not used as allocation rules. Dimension/annotation sheet assignment,
+  `gdt_not_on_sheet_1` and a live `datum_not_identified` move to Stage J (detail views), the
+  first stage with a non-principal carrier.
+- Detail views (old I5) are their own stage, Stage J, with a first design for the region, the
+  items that move, the carriers and 2D clipping of the parent's line work.
+- The floor goes into the existing recovery (`recover`/`layout::recover` gain `floor`), so the
+  ladder, not the allocation, picks paper; the allocation only decides what sheet 1 holds.
+- Allocation steps are cumulative prefixes (iso; +section; +long table): at most 4 sheet-1 runs,
+  28 `plan_escalated` calls. When no step is clean, the best by (hard, drops, scale, moves) is
+  kept, ties to the earlier step, so a sheet that does not help is never added.
+- An assignment to sheet 3 with nothing on sheet 2: sheets are renumbered with an info problem
+  (`sheet_renumbered`), not refused and not left empty.
+- `sheets.hole_table` does not force a table; with no table it does nothing and says so
+  (`sheet_assignment_unused`). `escalate` gains `table_sheet` and returns its outcome, so a long
+  table moves with its callout replacement and balloons kept on sheet 1.
+- An explicit `sheet.scale` below `smallest_scale` is refused (contradictory intents).
+- A view's `place.relative_to` acts as an implicit keep-together; placement-pinned views never
+  move. "Pin" for sheets is renamed "assign".
+- Lint coverage runs once over all sheets' marks; structural checks per sheet. The CI quality
+  baseline stays single-sheet; multi-sheet quality is held by `tests/sheets.rs`.
+- Byte-identity hashes (plan, SVG, PDF, DXF, PNG) are recorded on CI Linux and compared on Linux
+  only.
+- Editor I4 branches from `cxg-int/ed` and re-pins the draftwright git rev; editor `main`
+  (vendored alpha.1) is untouched.
+- APPROVED BY narrows to 29 % (34.8 mm on A4): measured values up to ~23 characters fit; longer
+  ones get the existing `title_field_overflow`. DATE could not give the width (`2026-10-12` is
+  15.1 mm, 12 % is 14.4 mm).
