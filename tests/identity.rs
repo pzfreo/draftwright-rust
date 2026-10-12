@@ -539,7 +539,7 @@ fn version_1_specs_migrate_and_plan_identically() {
         expected["spec"]["schema"] = model::SPEC_SCHEMA.into();
         if part == "plate" {
             // The G5 title-furniture additions are golden data beside the legacy capture;
-            // every pre-existing field still compares against the original alpha plan.
+            // the current migration oracle checks these against independent golden data.
             // Their geometry/reporting verdicts are in known_title_block.json.
             let furniture: Value = serde_json::from_str(
                 &std::fs::read_to_string(fixture("identity/plate.title_furniture.json")).unwrap(),

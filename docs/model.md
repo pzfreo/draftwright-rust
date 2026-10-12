@@ -351,6 +351,9 @@ actual labels touching section letters or arrows; quality includes those in ink.
 For a callout label blocked by a centre stroke, the furniture-only fallback also
 tries extending or shortening its horizontal shelf to leave 1 mm clear. Its tip
 and elbow stay fixed; ordinary annotation and feature-crossing floors still apply.
+A shelf ending within 1 mm of fixed chain ink is shortened toward its elbow,
+keeping the cleared text position, so its endpoint cannot form a joint with
+the stroke it cleared.
 
 ### Dimensions (first cut)
 

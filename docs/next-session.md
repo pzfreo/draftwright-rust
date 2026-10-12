@@ -4474,3 +4474,47 @@ Overturnable judgement calls made unattended during the rebase (tests not rerun)
   retained timing failures are in the last G6 carry-over status entry. The two
   unobserved depth-combination judgements above remain explicitly overturnable.
   No commit or push was made; the driver owns that step.
+
+## Stage H / G6 shelf endpoint review (2026-10-12)
+
+- Reproduced the reviewer's FTC-10 joint with a regression measuring the actual
+  shelf endpoint against every planned centre stroke: the old gap is exactly
+  zero. Preserve the cleared text position and shorten a near-touching shelf
+  endpoint to leave at least 1 mm of paper separation from fixed chain ink.
+  This is an overturnable clearance choice, using the existing label pad. It
+  changes no attachment, axis extent, label value, sheet policy or route search.
+  Oblique strokes use a conservative padded-row bound; shelves cannot reverse
+  through their elbow. Ordinary dimension ink does not trigger this clipping.
+- Overturnable migration-oracle judgement: `plate` remains in `REPLANNED`, as
+  introduced by G6 round 1. Its alpha-1 whole-plan geometry/reporting oracle
+  therefore no longer guards historical plate layout. The test still compares
+  migration with a hand-renamed v2 spec, and independently checks G5 projection
+  furniture and exactly one golden warning. Keeping that migration test valid
+  after deliberate furniture placement changes is useful, but is narrower than
+  the original historical regression. The old capture remains untouched; this
+  run neither claims historical layout parity nor broadens the exemption.
+- The cgb207 R5 shaft was parallel to hole:1's front axis for 36.464 mm,
+  only 0.775 mm away (the saved before-plan fails the new separation check).
+  The existing `Line::collinear` predicate already means exactly parallel with
+  at most 1 mm offset and at least 0.5 mm shared run. Invoke it directly for
+  furniture candidates, rather than only after an exact intersection. This
+  enables the existing hard-obstacle hook without new routing candidates and
+  keeps transverse touches soft. The 1 mm near-parallel clearance is an
+  overturnable drafting choice inherited from ordinary ink, not an asserted
+  ISO numerical requirement. Structural lint's exact-sharing metric is unchanged;
+  a separate corpus regression checks the actual R5 shaft separation.
+- Validation bookkeeping: an intermediate full suite stopped at its source-hash
+  guard because source was updated during that run (endpoint prefilter and the
+  parallel-contact probe). This was a sequencing mistake, not a cache exemption;
+  its log is retained as `target/g6-round4/tests-intermediate.log`. The final
+  source is rebuilt and the complete prescribed suite is run again without edits.
+- Final endpoint check uses the existing fixed-ink spatial grid, rather than
+  scanning every stroke for every leader candidate. After shortening, query the
+  new endpoint again; a neighbouring stroke cannot become the next joint. Reject
+  that candidate when the required gap would take the shelf through its elbow,
+  leaving the existing inventory to supply another route. Generic tests cover
+  adjacent strokes and insufficient space as well as both sides and oblique ink.
+  The full scanner-based run was deliberately interrupted during heavy PMI tests
+  to make this correction; its log is retained as tests-scanner-stopped.log.
+  Grid-based units (11), centreline regressions (8), exact leader checks (2) and
+  placement checks (9) all pass without changing the contact/overrun ledgers.

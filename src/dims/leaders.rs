@@ -1110,6 +1110,64 @@ fn clear_text(
         .collect()
 }
 
+/// Keep the free end of a shelf separate from fixed chain ink. Text retains its
+/// measured position; only a near-touching endpoint is shortened, never a shaft.
+fn shelf_end(elbow: P2, mut end: P2, fixed: &Fixed) -> Option<P2> {
+    let right = end[0] > elbow[0];
+    // Each shortening passes a stroke; query again where the new endpoint lands.
+    for _ in 0..=fixed.segments.len() {
+        let prior = end;
+        let near = [
+            end[0] - LABEL_PAD,
+            end[1] - LABEL_PAD,
+            end[0] + LABEL_PAD,
+            end[1] + LABEL_PAD,
+        ];
+        let mut blocked = false;
+        fixed.grid.near(0, near, |n| {
+            let (id, [a, b]) = &fixed.segments[n];
+            if !fixed.furniture.contains_key(id) || !segment_near([*a, *b], near) {
+                return;
+            }
+            let u = [b[0] - a[0], b[1] - a[1]];
+            let length2 = u[0] * u[0] + u[1] * u[1];
+            if length2 < 1e-12 {
+                return;
+            }
+            let t = (((end[0] - a[0]) * u[0] + (end[1] - a[1]) * u[1]) / length2).clamp(0., 1.);
+            if (end[0] - a[0] - t * u[0]).hypot(end[1] - a[1] - t * u[1]) >= LABEL_PAD - 1e-9 {
+                return;
+            }
+            // Clip to the padded shelf row, then expand horizontally too: the
+            // resulting bound leaves at least the same Euclidean gap for oblique ink.
+            let mut ts = [0., 1.];
+            if u[1].abs() > 1e-9 {
+                let low = (end[1] - LABEL_PAD - a[1]) / u[1];
+                let high = (end[1] + LABEL_PAD - a[1]) / u[1];
+                ts = [low.min(high).max(0.), low.max(high).min(1.)];
+            }
+            let xs = ts.map(|t| a[0] + t * u[0]);
+            let x = if right {
+                xs[0].min(xs[1]) - LABEL_PAD
+            } else {
+                xs[0].max(xs[1]) + LABEL_PAD
+            };
+            if (right && x > elbow[0] && x < end[0]) || (!right && x < elbow[0] && x > end[0]) {
+                end[0] = x;
+            } else {
+                blocked = true;
+            }
+        });
+        if blocked {
+            return None;
+        }
+        if end == prior {
+            return Some(end);
+        }
+    }
+    None
+}
+
 fn measure_at(
     job: &Job,
     tip: P2,
@@ -1136,6 +1194,7 @@ fn measure_at(
         max: job.ink_max,
     };
     let lb = label_box(&ink, label_at, 0.0);
+    let end = shelf_end(elbow, end, fixed)?;
     let segs = [[tip, elbow], [elbow, end]];
     let o = job.outline;
     let mut hard = 0u32;
@@ -1205,6 +1264,7 @@ fn measure_at(
             segs.iter()
                 .enumerate()
                 .any(|(k, s)| crate::centrelines::leader_conflict(*s, *f, global, k == 0))
+                || lines.iter().any(|s| s.collinear(*f))
         } else {
             lines.iter().any(|s| s.meets(*f))
         };
@@ -1912,6 +1972,58 @@ impl Search {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shelves_stop_short_of_fixed_strokes_on_either_side() {
+        for stroke in [
+            [[8., -10.], [8., 0.]],
+            [[8., 10.], [8., 0.]],
+            [[6., -2.], [10., 2.]],
+            [[8., 0.5], [8., 10.]],
+        ] {
+            let placed = Placed {
+                lines: vec![stroke],
+                arrows: Vec::new(),
+                label_at: [0.; 2],
+                rotation: 0.,
+                label_box: [0.; 4],
+            };
+            let mut fixed = Fixed::new(std::iter::once((0, &placed)));
+            fixed.furniture.insert(0, false);
+            for (elbow, end) in [([0., 0.], [8., 0.]), ([16., 0.], [8., 0.])] {
+                let shortened = shelf_end(elbow, end, &fixed).unwrap();
+                assert_eq!(shortened[1], end[1]);
+                assert!((shortened[0] - elbow[0]) * (end[0] - shortened[0]) > 0.);
+                let u = [stroke[1][0] - stroke[0][0], stroke[1][1] - stroke[0][1]];
+                let t = (((shortened[0] - stroke[0][0]) * u[0]
+                    + (shortened[1] - stroke[0][1]) * u[1])
+                    / (u[0] * u[0] + u[1] * u[1]))
+                    .clamp(0., 1.);
+                assert!(
+                    (shortened[0] - stroke[0][0] - t * u[0])
+                        .hypot(shortened[1] - stroke[0][1] - t * u[1])
+                        >= LABEL_PAD - 1e-9
+                );
+            }
+            fixed.furniture.clear();
+            assert_eq!(shelf_end([0., 0.], [8., 0.], &fixed), Some([8., 0.]));
+        }
+    }
+
+    #[test]
+    fn a_shortened_shelf_clears_the_next_stroke_or_yields_its_candidate() {
+        let placed = Placed {
+            lines: vec![[[7., -10.], [7., 0.]], [[8., -10.], [8., 0.]]],
+            arrows: Vec::new(),
+            label_at: [0.; 2],
+            rotation: 0.,
+            label_box: [0.; 4],
+        };
+        let mut fixed = Fixed::new(std::iter::once((0, &placed)));
+        fixed.furniture.insert(0, false);
+        assert_eq!(shelf_end([0., 0.], [8., 0.], &fixed), Some([6., 0.]));
+        assert_eq!(shelf_end([6.5, 0.], [8., 0.], &fixed), None);
+    }
 
     /// The tip lies on the rim, radial towards the elbow (`holes._rim_tip`): the leader points at
     /// the hole's centre whatever side it leaves by.

@@ -315,6 +315,19 @@ fn callouts_do_not_borrow_hole_centre_strokes() {
                 .unwrap()
                 .centre
                 .unwrap();
+            let shelf_end = d.placed.as_ref().unwrap().lines[1][1];
+            for stroke in v.line_work.iter().flat_map(|w| &w.curves) {
+                let (a, b) = (stroke.start(), stroke.end());
+                let u = [b[0] - a[0], b[1] - a[1]];
+                let length2 = u[0] * u[0] + u[1] * u[1];
+                if length2 < 1e-12 {
+                    continue;
+                }
+                let t = (((shelf_end[0] - a[0]) * u[0] + (shelf_end[1] - a[1]) * u[1]) / length2)
+                    .clamp(0., 1.);
+                let gap = (shelf_end[0] - a[0] - t * u[0]).hypot(shelf_end[1] - a[1] - t * u[1]);
+                assert!(gap >= 1. - 1e-6, "{file}: shelf endpoint gap {gap}");
+            }
             let [tip, elbow] = d.placed.as_ref().unwrap().lines[0];
             let radius = d.value * v.scale / 2.;
             let u = [tip[0] - centre[0], tip[1] - centre[1]];
@@ -328,4 +341,39 @@ fn callouts_do_not_borrow_hole_centre_strokes() {
             );
         }
     }
+}
+
+#[test]
+fn radius_leaders_do_not_run_beside_hole_axes() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, p, _) = drawing(&dir.join("cadgenbench_inputs/cgb207.step"));
+    let mut checked = 0;
+    for d in p.dimensions.iter().filter(|d| d.label == "R5") {
+        let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+        for [a, b] in &d.placed.as_ref().unwrap().lines {
+            let u = [b[0] - a[0], b[1] - a[1]];
+            let length = u[0].hypot(u[1]);
+            if length < 1e-9 {
+                continue;
+            }
+            for stroke in v.line_work.iter().flat_map(|w| &w.curves) {
+                let (c, e) = (stroke.start(), stroke.end());
+                let v = [e[0] - c[0], e[1] - c[1]];
+                if (u[0] * v[1] - u[1] * v[0]).abs() > 1e-9 * length * v[0].hypot(v[1]) {
+                    continue;
+                }
+                let at = |p: [f64; 2]| ((p[0] - a[0]) * u[0] + (p[1] - a[1]) * u[1]) / length;
+                if at(c).max(at(e)).min(length) - at(c).min(at(e)).max(0.) > 0.5 {
+                    let gap = ((c[0] - a[0]) * u[1] - (c[1] - a[1]) * u[0]).abs() / length;
+                    assert!(
+                        gap > 1. - 1e-6,
+                        "{}: parallel centre-stroke gap {gap}",
+                        d.id
+                    );
+                }
+            }
+        }
+        checked += 1;
+    }
+    assert!(checked > 0);
 }

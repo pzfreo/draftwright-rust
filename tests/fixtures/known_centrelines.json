@@ -63,5 +63,15 @@
   "rule": "ARCH0014-1 / full recessed-hole axes and label clearance",
   "verdict": "rust-correct",
   "reason": "The round-3 FTC-10 axis is the proven opening-to-bottom span: 10 counterbore + 55 bore + 6 overrun = 71 paper mm. Before the repair its hole:17 label box [354,314.83,372.108,317.08] crosses hole:13's axis x=358,y=245..316 (4.0x1.2 mm, detected by the strengthened six-sheet corpus regression). Python origin/main annotations/_leader_fixed_ink.py lowers centre strokes as fixed components and linting/structural.py::_label_centerline_overlap judges actual segment/text contacts. Rust's bounded furniture-only shelf endpoint repair preserves the full axis, attachment and elbow while leaving 1 mm text clearance; it retains the ordinary-ink and feature-crossing floors. The extra shelf endpoints are a deliberate layout difference from Python annotations/_hole_leader_placement.py::_build_hole_callout_leader, which supplies the physical tip, elbow and text_side without a shelf endpoint; they are not an exemption from its clearance rule. Captured before/after Plans, reviews and release rasters are in target/g6-carry/."
+ },
+ {
+  "rule": "ARCH0014-1 / shelf endpoint separation",
+  "verdict": "rust-correct",
+  "reason": "Python origin/main src/draftwright/annotations/leaders.py::_candidate_hits_component tests candidate ink polygons against unrelated centre furniture, including later shelf ink; its tip exemption does not exempt shelves. The previous Rust text repair moved FTC-10 hole:17 text clear but placed its shelf endpoint (358,316) exactly on hole:13 axis (358,245)..(358,316). The added distance assertion fails with gap zero on committed 8525b11. Rust now shortens only near-touching shelf endpoints, leaving the measured label position intact and a conservative one-mm paper gap; this chosen gap differs deliberately from Python's polygon-based check, with evidence in target/g6-round4/red.log and final release Plans/SVGs. The physical attachment, full axis extent and ordinary/feature-crossing floors remain intact."
+ },
+ {
+  "rule": "ARCH0014-1 / parallel furniture travel",
+  "verdict": "rust-correct",
+  "reason": "The saved cgb207 R5 front leader runs parallel to hole:1 axis for 36.464 mm at 0.775 mm offset (target/g6-round4/parallel-before.log). Rust now uses its existing exact-parallel Line::collinear proximity predicate directly for fixed furniture, with the established one-mm offset and half-mm shared-run limits, rather than first requiring a centre-stroke intersection. This deliberately inherits ordinary-ink proximity for furniture: it is not an ISO numerical requirement or a new routing search. Transverse crossings remain soft, the global-axis attachment rule is intact, and the existing ordinary/feature-crossing floors still constrain the route. Python origin/main annotations/leaders.py::_candidate_hits_component checks actual candidate ink against fixed-component polygons; Rust keeps its analytical clearance model, with the cgb207 corpus regression checking the real shaft and shelves independently."
  }
 ]
