@@ -109,6 +109,11 @@ and history are author state and should be retained.
 PNG uses the existing deterministic renderer, with a direct paper-region viewport (millimetres,
 y up: `[left,bottom,right,top]`). ID overlays use the bundled font over resolved item bounds;
 PDF uses the existing delivery renderer. All exports retain the bound Spec, including crops.
+File exports through `api::write` (CLI, JSON-lines `render` and the compatibility MCP server)
+use unique sibling staging files created exclusively, then atomic replacement per destination.
+Concurrent exports to one prefix use last-writer-wins per file (the last successful rename).
+Cleanup removes only the invocation's staged copy. A multi-format export is not transactional:
+formats may come from different callers, and a later failure leaves earlier published formats.
 
 No new Rust crate was added: std supplies sockets, OS locks and atomic files; existing serde,
 serde_json and sha2 supply serialization and hashes. `serde_json/float_roundtrip` is enabled
