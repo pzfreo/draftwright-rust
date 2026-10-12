@@ -33,7 +33,31 @@ fn many_blends_are_stated_without_counted_radius_clutter() {
         let p = model::plan(&a, &Spec::default()).unwrap();
         let n = a.features.iter().filter(|f| f.kind == "blend").count();
         assert!(n > 20);
-        assert_eq!(missing(&a, &p, &part), 0, "{file}");
+        if file.contains("cgb245") {
+            assert_eq!(missing(&a, &p, &part), 0, "{file}");
+            assert!(p.notes.iter().any(|n| n.placed.is_some()));
+        } else {
+            assert_eq!(
+                missing(&a, &p, &part),
+                23,
+                "unlocated CTC-01 exceptions and their default stay missing"
+            );
+            assert!(p.notes.iter().all(|n| n.placed.is_none()));
+        }
+        assert!(
+            p.notes
+                .iter()
+                .all(|n| !n.text.contains("REF SITE") && !n.text.contains("UNSTATED"))
+        );
+        for note in p.notes.iter().filter(|n| n.placed.is_some()) {
+            for d in p.dimensions.iter().filter(|d| d.placed.is_some()) {
+                assert!(!d.measurements.iter().any(|m| matches!(
+                    m.parameter.as_str(),
+                    "blend.radius" | "fillet.radius"
+                )
+                    && (m.value - note.measurements[0].value).abs() < 0.05));
+            }
+        }
         assert!(p.notes.iter().any(|n| n.text.contains("RADII R")), "{file}");
         assert!(
             p.dimensions
@@ -48,18 +72,15 @@ fn many_blends_are_stated_without_counted_radius_clutter() {
     }
     let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
     let p = model::plan(&a, &Spec::default()).unwrap();
-    assert_eq!(missing(&a, &p, &part), 3);
+    assert!(
+        missing(&a, &p, &part) >= 21,
+        "the 18 unlocated R10 blends cannot receive note credit"
+    );
+    assert!(p.notes.iter().all(|n| n.placed.is_none()));
     assert!(
         p.notes
             .iter()
-            .any(|n| n.text.contains("OTHER BLEND RADII UNSTATED")
-                && n.placed.is_some()
-                && !n.measurements.is_empty())
-    );
-    assert!(
-        !p.notes
-            .iter()
-            .any(|n| n.text.starts_with("ALL UNSPECIFIED BLEND RADII"))
+            .all(|n| !n.text.contains("UNSTATED") && !n.text.contains("REF SITE"))
     );
 }
 
@@ -130,17 +151,29 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
         .dimensions
         .iter()
         .find(|d| {
-            d.placed.is_some() && d.measurements.iter().any(|m| m.parameter == "blend.radius")
+            d.placed.is_some()
+                && d.measurements.iter().all(|m| m.parameter == "blend.radius")
+                && !d.measurements.is_empty()
         })
         .unwrap();
     let less = model::edit(&Spec::default(), &json!([
         {"op":"set", "path":format!("dimensions/{}/omit", draftwright::items::key(&exception.id)), "value":true}
     ])).unwrap();
     let less = model::plan(&a, &less).unwrap();
-    assert_eq!(missing(&a, &less, &part), exception.measurements.len());
-    assert!(less.notes.iter().any(|n| n.id == note.id
-        && n.placed.is_some()
-        && n.text.contains("OTHER BLEND RADII UNSTATED")));
+    assert_eq!(
+        missing(&a, &less, &part),
+        exception.measurements.len()
+            + note
+                .measurements
+                .iter()
+                .filter(|m| m.parameter == "blend.radius")
+                .count()
+    );
+    assert!(
+        less.notes
+            .iter()
+            .any(|n| n.id == note.id && n.placed.is_none())
+    );
     let spec = model::edit(
         &Spec::default(),
         &json!([
@@ -192,6 +225,22 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
         .iter()
         .position(|n| n.name == note.id)
         .unwrap();
+    for text in [
+        "R3, 33 BLENDS; OTHER BLEND RADII UNSTATED",
+        "R3, 33 BLENDS; REF SITE XYZ (1, 2, 3)",
+    ] {
+        let mut unlocated = drawing.clone();
+        for &run in &unlocated.annotations[index].runs {
+            unlocated.text[run].text = text.into();
+        }
+        assert_eq!(
+            draftwright::lint::lint(&a, &unlocated)
+                .iter()
+                .filter(|i| i.code == "blend_requirement_missing")
+                .count(),
+            33
+        );
+    }
     let mut annotation = serde_json::to_value(&drawing.annotations[index]).unwrap();
     assert!(annotation["claims"].as_array().unwrap().is_empty());
     let lost = annotation["satisfies"].as_array_mut().unwrap().remove(0)["feature"]
@@ -294,4 +343,58 @@ fn a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses() {
             .flat_map(|d| &d.measurements)
             .any(|m| m.feature == "f:boss:1" && m.parameter == "boss.diameter")
     );
+}
+
+/// A bare pin retains automatic presentation, including consolidated radius ownership.
+#[test]
+fn a_bare_pin_keeps_a_shared_radius_leader_and_its_default() {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = model::analyse_native(&dir.join("cadgenbench_inputs/cgb245.step")).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let shared = p
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements.iter().any(|m| m.parameter == "blend.radius")
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "fillet.radius")
+        })
+        .unwrap();
+    let spec = model::edit(
+        &Spec::default(),
+        &json!([{
+            "op":"set", "path":format!("dimensions/{}/place", draftwright::items::key(&shared.id)),
+            "value":{"pinned":true}
+        }]),
+    )
+    .unwrap();
+    let pinned = model::plan(&a, &spec).unwrap();
+    let held = pinned
+        .dimensions
+        .iter()
+        .find(|d| d.id == shared.id)
+        .unwrap();
+    assert_eq!(held.label, shared.label);
+    assert_eq!(held.placed, shared.placed);
+    assert_eq!(
+        serde_json::to_value(&held.measurements).unwrap(),
+        serde_json::to_value(&shared.measurements).unwrap()
+    );
+    assert_eq!(
+        pinned.dimensions.iter().map(|d| &d.id).collect::<Vec<_>>(),
+        p.dimensions.iter().map(|d| &d.id).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        pinned
+            .notes
+            .iter()
+            .map(|n| (&n.text, &n.placed))
+            .collect::<Vec<_>>(),
+        p.notes
+            .iter()
+            .map(|n| (&n.text, &n.placed))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(missing(&a, &pinned, &part), 0);
 }

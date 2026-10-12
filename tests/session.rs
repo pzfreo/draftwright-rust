@@ -50,7 +50,7 @@ fn benchmark(file: &str) {
             )]
         );
     }
-    for ops in &sequence {
+    for (edit_index, ops) in sequence.iter().enumerate() {
         let previous = serde_json::to_vec(s.state()).unwrap();
         let before = s.stats();
         let preview = s.apply(ops, false).unwrap();
@@ -61,6 +61,13 @@ fn benchmark(file: &str) {
         let delta = s.apply(ops, true).unwrap();
         assert_eq!(delta.plans, 1);
         times.push(start.elapsed().as_secs_f64() * 1000.0);
+        if std::env::var_os("SESSION_TIMINGS").is_some() {
+            eprintln!(
+                "SESSION_EDIT {file} {edit_index}: {:.3} ms {:?}",
+                times.last().unwrap(),
+                ops
+            );
+        }
         assert_eq!(
             serde_json::to_vec(&delta).unwrap(),
             serde_json::to_vec(&preview).unwrap()
@@ -106,9 +113,10 @@ fn benchmark(file: &str) {
     times.sort_by(f64::total_cmp);
     let p90 = times[(times.len() * 9).div_ceil(10) - 1];
     eprintln!(
-        "SESSION_LATENCY {file}: samples={} p90={p90:.3} ms max={:.3} ms",
+        "SESSION_LATENCY {file}: samples={} p90={p90:.3} ms max={:.3} ms median={:.3} ms",
         times.len(),
-        times.last().unwrap()
+        times.last().unwrap(),
+        times[times.len() / 2]
     );
     // The 150 ms p90 bound is a go/no-go latency gate measured on the development machine.
     // DRAFTWRIGHT_LATENCY_GATE=0 (set only by CI's hosted test job, whose runners are about

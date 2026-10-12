@@ -179,27 +179,86 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 
 /// Every ported rule's findings on *drawing*, a drawing of the part *analysis* describes.
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
+    let marks = marks(drawing);
     let satisfied: std::collections::BTreeSet<_> = drawing
         .annotations
         .iter()
+        .filter(|a| !a.satisfies.is_empty())
         .filter(|a| {
-            a.runs.iter().any(|&i| {
-                drawing
-                    .text
-                    .get(i)
-                    .is_some_and(|r| !r.text.trim().is_empty())
+            let text = a
+                .runs
+                .iter()
+                .filter_map(|&i| drawing.text.get(i))
+                .map(|r| r.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let Some((_, radius)) = text.split_once("ALL UNSPECIFIED RADII R") else {
+                return false;
+            };
+            let radius = radius.trim();
+            // A blanket default must identify its value, and every different radius must
+            // have a real callout. Scoped or representative-point notes grant no authority.
+            radius
+                .parse::<f64>()
+                .is_ok_and(|r| r.is_finite() && r > 0.0)
+                && analysis
+                    .features
+                    .iter()
+                    .filter(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+                    .all(|f| {
+                        f.parameters
+                            .get("radius")
+                            .and_then(|v| v.as_f64())
+                            .is_some_and(|r| {
+                                holes::states(radius, r)
+                                    || marks.iter().any(|m| {
+                                        m.view.is_some()
+                                            && holes::states(&m.text, r)
+                                            && m.claims.iter().any(|c| {
+                                                c.feature == f.id
+                                                    && c.parameter == format!("{}.radius", f.kind)
+                                            })
+                                    })
+                            })
+                    })
+        })
+        .flat_map(|a| {
+            let text = a
+                .runs
+                .iter()
+                .filter_map(|&i| drawing.text.get(i))
+                .map(|r| r.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let radius = text
+                .split_once("ALL UNSPECIFIED RADII R")
+                .unwrap()
+                .1
+                .trim()
+                .to_string();
+            a.satisfies.iter().filter(move |c| {
+                analysis.features.iter().any(|f| {
+                    f.id == c.feature
+                        && c.parameter == format!("{}.radius", f.kind)
+                        && f.parameters
+                            .get("radius")
+                            .and_then(|v| v.as_f64())
+                            .is_some_and(|r| holes::states(&radius, r))
+                })
             })
         })
-        .flat_map(|a| a.satisfies.iter().map(|c| (&c.feature, &c.parameter)))
+        .map(|c| (&c.feature, &c.parameter))
         .collect();
-    check(analysis, &marks(drawing))
+    check(analysis, &marks)
         .into_iter()
         .filter(|i| {
-            i.code != "blend_requirement_missing"
-                || !i
-                    .requirements
-                    .iter()
-                    .all(|r| satisfied.contains(&(&r.feature, &r.parameter)))
+            !matches!(
+                i.code.as_str(),
+                "blend_requirement_missing" | "fillet_requirement_missing"
+            ) || !i
+                .requirements
+                .iter()
+                .all(|r| satisfied.contains(&(&r.feature, &r.parameter)))
         })
         .collect()
 }

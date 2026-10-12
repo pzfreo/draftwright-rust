@@ -983,14 +983,12 @@ read with no sites and cannot supply a new blend leader without that evidence.
 
 Blends with equal displayed radii share exact occurrence credit. Fewer than five recognised
 blends use compact `R` / `n× R` leaders. On a denser part, its most frequent repeated radius is
-one `ALL UNSPECIFIED BLEND RADII R…` note; all other radii remain explicit exceptions.
-If an exception is refused or omitted, the note states its exact group count and
-`OTHER BLEND RADII UNSTATED` instead. A blanket default is never drawn with an undrawn exception. A free
-exception leader that crosses ink or features becomes a located structured note, identifying
-the group by a representative surface point. Its `XYZ` coordinates are reference offsets from
-the model envelope's left/front/bottom faces, explained by the block's reference legend. The
-original dimension stays `covered` by the note. Explicit dimension placements and tolerances
-remain author choices and are reported when they collide.
+one `ALL UNSPECIFIED RADII R…` note, including fillets with the same displayed value.
+Other radii retain explicit exception leaders, combining equal blend and fillet groups.
+An unsafe free exception leader is withdrawn; an undrawn or omitted exception withdraws
+the blanket default. Scoped counts and representative XYZ points cannot locate a group
+and grant no coverage. Explicit dimension placements and tolerances remain author choices
+and retain their geometry findings.
 
 Automatic notes have stable IDs `n:f:blend:<id>/blend.radius` and accept
 `annotations/<escaped-id>/{omit,place}`. Session/MCP item answers expose the claimed features
@@ -998,8 +996,8 @@ and the edit paths. Automatic radius-only blocks use the existing 3 mm font on c
 rows, clear of actual view outlines and placed annotation ink; authored/PMI notes keep the
 existing ruled table, with a separate optional `radius_notes_block` for automatic radii when
 both are present. An omitted or unplaced note grants no radius credit. The rendered
-annotation's `satisfies` list identifies the exact feature/parameter requirements; note prose
-is never parsed to infer authority. General authored notes still carry no satisfaction claims.
+annotation's `satisfies` list identifies the exact feature/parameter requirements; the printed default must agree with those claims and other radii need explicit callouts.
+Text alone never infers authority. General authored notes still carry no satisfaction claims.
 
 Same-face boss/blend precedence uses one shared predicate for planning and lint. A uniquely
 proven blend radius replaces that face's duplicate boss diameter; the independent boss height

@@ -369,7 +369,7 @@ fn callout_leaders_cross_nothing_unlisted() {
     );
 }
 
-/// Every callout is placed (or, with no view to carry it, reported), and its leader has a
+/// Every callout is placed or explicitly refused, and every drawn leader has a
 /// horizontal shoulder with its label beyond it, on the side the leader runs to (draftwright's
 /// `text_side`).
 #[test]
@@ -378,13 +378,21 @@ fn a_leader_has_a_horizontal_shoulder_and_reads_outward() {
     for (name, analysis) in &parts {
         let plan = model::plan(analysis, &Spec::default()).unwrap();
         for d in plan.dimensions.iter().filter(|d| d.kind == "callout") {
-            // Never dropped for want of a clear route (ISSUE-798-a): only an item no shown view
-            // can carry is unplaced, and it is reported.
+            // Blend groups fail closed when no safe leader identifies them. Other callouts
+            // retain ISSUE-798-a: only an item no shown view carries is unplaced.
             let Some(p) = d.placed.as_ref() else {
+                let draftwright::items::State::NotDrawable { reason_code } = &d.state else {
+                    panic!("{name}: {} has no explicit refusal state", d.id);
+                };
+                assert!(
+                    reason_code == "view_plan_incomplete"
+                        || (reason_code == "blend_callout_dropped"
+                            && d.measurements.iter().any(|m| m.parameter == "blend.radius"))
+                );
                 assert!(
                     plan.problems
                         .iter()
-                        .any(|q| q.code == "view_plan_incomplete" && q.subjects.contains(&d.id)),
+                        .any(|q| q.code == *reason_code && q.subjects.contains(&d.id)),
                     "{name}: {} is neither placed nor reported",
                     d.id
                 );

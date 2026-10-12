@@ -4304,3 +4304,82 @@ red-test evidence, file list and artifact locations are in the G3 entry of
 No commit/push was performed. No rules YAML, reporting severity or quality.py
 completeness logic was changed. The ten unsupported attachments and the located-note
 manufacturing presentation remain the documented uncertainties.
+
+## G3 fix round (2026-10-11; supersedes the G3 presentation judgements above)
+
+The reviewer is right: structured identities cannot locate an arbitrary subset of
+radii. Scoped `OTHER BLEND RADII UNSTATED` and representative `REF SITE XYZ`
+notes are removed. Unsafe free leaders stay undrawn; their exceptions and the
+dependent default stay missing. No manufacturing note prints the drawing's own
+incompleteness. A withdrawn automatic block leaves no orphan heading.
+
+The true default reads `ALL UNSPECIFIED RADII R…`. It absorbs equal fillet
+leaders only after it is drawable. Mixed fillet/blend exception groups use one
+established fillet leader and one combined count. Transferred dimensions enter
+the covered-item ledger; each measurement has one owner. Nominal authored listings retain the same grouping. Explicit tolerance, position and
+omission edits remain authoritative. Full drawing lint checks
+the printed default value as well as its exact claims and exception callouts.
+Automatic blocks have 6 mm clearance inside the 10 mm frame.
+
+Overturnable conservative choices:
+- Retain missing requirements rather than invent detail views or location prose.
+  Native CTC-01 now has 23 missing blends, rather than the earlier false zero.
+- Keep the five-blend threshold and displayed-radius grouping; this fix does not
+  redefine numeric display precision or intrinsic slot-end radius grammar.
+- Do not infer engraved lettering from radius, position, depth or a part name.
+  Recognition does not identify logo ownership. Safe R4.9/R6.3 leaders on CTC-01 and R3.3/R0.5/R4.2 on FTC-08
+  still land on lettering; similar existing lettering leaders occur on other NIST sheets. Removing coordinate notes eliminates the reported
+  coordinate-label instances; excluding lettering properly needs semantic
+  recognition evidence and remains a minor open item.
+- Keep the existing 150 ms session gate unchanged. A host outlier is a failure,
+  not permission to loosen it. Final measured results are in the status entry.
+
+Known differences now reject the previous undetermined located-note fallback and
+record the deliberate departure from Python Policy B for automatic blend additions.
+Other callout families keep their existing retention policy.
+The exact own-drawing lint ledger restores CTC-01 (19 missing on captured Python
+recognition) independently of its native recognition result. Projection deduplication
+restores a safe string_post leader on both recognition paths, so its obsolete
+missing-radius entry is removed. No reporting severity, rule YAML or quality.py is changed.
+
+G3 fix-round dependency and performance evidence:
+- Removing a different-radius exception withdraws its dependent default and may
+  restore a fillet leader that default covered. This is a required information
+  dependency, not permission to move unrelated ink. The placement and addressability regressions check
+  the restored label and exact geometry against hiding the note, and retains all
+  unrelated placement, frame and sheet assertions. The deliberate difference is
+  recorded under ARCH0003-2 in known_blends.json.
+- Unsafe drops use `blend_callout_dropped`, preserving warning severity and
+  keeping hole-table escalation independent. Unplaced defaults explicitly report
+  every affected feature.
+- Principal-view duplicate attachment projections are removed at 1e-9 mm,
+  retaining the first proven physical surface point. The view choice and all
+  distinct projections stay available. Known-invalid defaults skip note-box
+  placement rather than searching for a place and then withdrawing it.
+- The NIST gate stays at 150 ms. Before projection deduplication one focused audit
+  measured median 87.5 ms, maximum 330.5 ms. A subsequent isolated run measured
+  median 44.9 ms, maximum 148.8 ms; the next complete session target passed with
+  maximum 109.6 ms. Host outliers remain possible. Optional SESSION_TIMINGS=1
+  records per-edit timing without changing the assertion; final results follow
+  in the status entry.
+
+Bare-pin follow-up: a targeted CGB245 regression exposed a gap the random
+grid did not sample: pinning the combined radius leader changed 28× R4 to
+18× R4 and split its ownership. A bare pin now preserves the automatic group;
+only an explicit tolerance/view/position/omission choice overrides consolidation.
+The new test checks the exact label, geometry, measurement claims, dimension
+IDs, default-note placement and zero missing coverage. It failed on the prior
+fix-round binary (`/tmp/g3fix-bare-pin-red.log`). Explicit positioning and
+tolerance choices remain literal. Default sheets are unchanged.
+
+G3 fix-round final checks (2026-10-12): fmt, strict release clippy, release
+build and required-corpus tests pass: 669/0, with the 150 ms gate unchanged.
+Quality: all 300 cells identical; genuine missing blends 247 → 105, replacing
+the false 10. Radius presentation statements on affected sheets are 83 → 58.
+The enforced pin grid is 9/9 configurations and 270/270 GO; MCP is 7/7 in
+16 calls. All fourteen final SVG/PNG pairs match the inspected sheets exactly.
+The bare-pin test preserves 28× R4, all claims, geometry and the R3 default.
+Final tables, validation history, rule verdicts and artifacts are in the G3
+fix-round entry of docs/status-2026-10-10.md and target/g3-fix/validation.json.
+Lettering ownership remains the documented minor; no heuristic exclusion was
+added. No commit/push, rule YAML, reporting severity or quality.py change.

@@ -100,13 +100,31 @@ pub(crate) fn notes(a: &Analysis) -> Vec<(NoteSpec, Vec<Measurement>)> {
     vec![(
         NoteSpec {
             id: format!("n:{}/blend.radius", group[0].id),
-            text: format!(
-                "ALL UNSPECIFIED BLEND RADII R{}",
-                fmt(radius(group[0]).unwrap())
-            ),
+            text: format!("ALL UNSPECIFIED RADII R{}", fmt(radius(group[0]).unwrap())),
         },
         measurements(group),
     )]
+}
+
+/// Sampling along a cylinder's axis produces the same attachment in its end view.
+/// Keep the first physical point for each projection, without repeating the leader search.
+fn projected_sites(view: &str, sites: impl Iterator<Item = [f64; 3]>) -> Vec<[f64; 3]> {
+    let toward = match view {
+        "front" => 1,
+        "plan" => 2,
+        "side" => 0,
+        _ => unreachable!(),
+    };
+    let mut out: Vec<[f64; 3]> = Vec::new();
+    for p in sites {
+        if !out
+            .iter()
+            .any(|q| (0..3).all(|k| k == toward || (p[k] - q[k]).abs() < 1e-9))
+        {
+            out.push(p);
+        }
+    }
+    out
 }
 
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
@@ -149,7 +167,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             id: want_id(&group[0].id, "blend.radius"), views: vec![view], value: r,
             terms, measurements: measurements(group),
             basis: "equal displayed blend radii are stated once, with an exact measurement claim for every occurrence and a leader on a proven trimmed surface".into(),
-            shape: Shape::Callout { sites: sites.iter().map(|(p,_)| (*p,0.0)).collect() }, turning: None,
+            shape: Shape::Callout { sites: projected_sites(view, sites.iter().map(|(p, _)| *p)).into_iter().map(|p| (p, 0.0)).collect() }, turning: None,
         });
     }
     (wants, problems)
@@ -167,51 +185,35 @@ fn problem(f: &Feature, why: &str) -> Problem {
 
 /// All possible automatic radius-note identities, independent of layout or omission.
 pub(crate) fn note_ids(a: &Analysis) -> Vec<String> {
-    let mut ids: Vec<_> = groups(a)
+    let ids: Vec<_> = groups(a)
         .iter()
         .map(|g| format!("n:{}/blend.radius", g[0].id))
         .collect();
-    ids.push("n:blend-sites/reference".into());
     ids
 }
 
-/// An omitted exception must not be mistaken for the blanket default radius.
-pub(crate) fn qualify_notes(
+/// A default cannot be laid out until every radius exception has a callout.
+pub(crate) fn exceptions_unstated(
     a: &Analysis,
-    spec: &crate::model::Spec,
     dimensions: &[super::PlannedDimension],
-    notes: &mut [(NoteSpec, Vec<Measurement>)],
-) {
-    let stated: std::collections::BTreeSet<_> = dimensions
+    notes: &[(NoteSpec, Vec<Measurement>)],
+) -> bool {
+    let Some(value) = notes
+        .first()
+        .and_then(|(_, ms)| ms.first())
+        .map(|m| m.value)
+    else {
+        return false;
+    };
+    a.features
         .iter()
-        .filter(|d| d.placed.is_some())
-        .flat_map(|d| d.measurements.iter().map(|m| m.feature.clone()))
-        .chain(
-            notes
-                .iter()
-                .filter(|(n, _)| {
-                    !spec.annotations.get(&n.id).is_some_and(|e| e.omit)
-                        && (spec.dimension_source != crate::model::DimensionSource::Authored
-                            || spec.annotations.contains_key(&n.id))
-                })
-                .flat_map(|(_, ms)| ms.iter().map(|m| m.feature.clone())),
-        )
-        .collect();
-    if a.features
-        .iter()
-        .any(|f| f.kind == "blend" && !stated.contains(&f.id))
-    {
-        for (n, ms) in notes
-            .iter_mut()
-            .filter(|(n, _)| n.text.starts_with("ALL UNSPECIFIED"))
-        {
-            n.text = format!(
-                "R{}, {} BLENDS; OTHER BLEND RADII UNSTATED",
-                fmt(ms[0].value),
-                ms.len()
-            );
-        }
-    }
+        .filter(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+        .any(|f| {
+            radius(f).is_none_or(|r| fmt(r) != fmt(value))
+                && !dimensions
+                    .iter()
+                    .any(|d| d.placed.is_some() && d.measurements.iter().any(|m| m.feature == f.id))
+        })
 }
 
 fn leader_problem(code: &str) -> bool {
@@ -230,20 +232,19 @@ fn leader_problem(code: &str) -> bool {
     )
 }
 
-/// A free radius leader that crosses ink or features is replaced by a located structured
-/// note. Reference coordinates identify an actual surface point, from the model envelope's
-/// left/front/bottom faces; one representative point locates the group, which retains every occurrence's exact credit.
-pub(crate) fn located_notes(
-    a: &Analysis,
+/// Withdraw unsafe free leaders. A reference point cannot locate an equal-radius group.
+pub(crate) fn withdraw_unsafe(
     spec: &crate::model::Spec,
     dimensions: &mut [super::PlannedDimension],
     problems: &mut Vec<Problem>,
-) -> Vec<(NoteSpec, Vec<Measurement>)> {
-    let mut out = Vec::new();
+) {
     for d in dimensions
         .iter_mut()
         .filter(|d| d.measurements.iter().any(|m| m.parameter == "blend.radius"))
     {
+        if matches!(d.state, crate::items::State::Covered { .. }) {
+            problems.retain(|p| !p.subjects.contains(&d.id) || !leader_problem(&p.code));
+        }
         if d.placed.is_none()
             || spec
                 .dimensions
@@ -252,51 +253,128 @@ pub(crate) fn located_notes(
         {
             continue;
         }
-        let obstructed = problems
+        if !problems
             .iter()
-            .any(|p| p.subjects.contains(&d.id) && leader_problem(&p.code));
-        if !obstructed {
+            .any(|p| p.subjects.contains(&d.id) && leader_problem(&p.code))
+        {
             continue;
         }
-        let Some(site) = d.measurements.iter().find_map(|m| {
-            a.blend_sites
-                .get(&m.feature)
-                .and_then(|sites| sites.first())
+        d.placed = None;
+        d.state = crate::items::State::NotDrawable {
+            reason_code: "blend_callout_dropped".into(),
+        };
+        problems.retain(|p| !p.subjects.contains(&d.id) || !leader_problem(&p.code));
+        problems.push(Problem {
+            id: format!("p:blend_callout_dropped:{}", d.id),
+            code: "blend_callout_dropped".into(),
+            severity: "warning".into(),
+            message: format!(
+                "{} cannot safely identify its radius group with a leader.",
+                d.id
+            ),
+            subjects: vec![d.id.clone()],
+            ..Default::default()
+        });
+    }
+}
+
+fn overridden(spec: &crate::model::Spec, given: &crate::model::Spec, id: &str) -> bool {
+    // A bare pin gets a computed carrier in the effective Spec. Only authored placement
+    // choices override grouping; inactive entries in the original Spec have no authority.
+    spec.dimensions.get(id).is_some_and(|s| {
+        s.omit
+            || s.tolerance.is_some()
+            || s.view.is_some()
+            || given
+                .dimensions
+                .get(id)
+                .and_then(|d| d.place.as_ref())
+                .is_some_and(|p| {
+                    p.view.is_some() || p.side.is_some() || p.lane.is_some() || p.along.is_some()
+                })
+    })
+}
+
+/// The recogniser's fillet/blend distinction is not a second radius requirement on paper.
+/// Keep the established fillet leader and give it the equal blend group's exact claims.
+pub(crate) fn consolidate(
+    dimensions: &mut [super::PlannedDimension],
+    spec: &crate::model::Spec,
+    given: &crate::model::Spec,
+) {
+    for i in 0..dimensions.len() {
+        if !dimensions[i]
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "blend.radius")
+            || overridden(spec, given, &dimensions[i].id)
+        {
+            continue;
+        }
+        let Some(j) = dimensions.iter().position(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .all(|m| m.parameter == "fillet.radius")
+                && !d.measurements.is_empty()
+                && fmt(d.value) == fmt(dimensions[i].value)
+                && !overridden(spec, given, &d.id)
         }) else {
             continue;
         };
-        let p = [0, 1, 2].map(|k| crate::lint::parameters::fmt(site[k] - a.envelope[0][k]));
-        let id = d.id.replacen("d:", "n:", 1);
-        out.push((
-            NoteSpec {
-                id: id.clone(),
-                text: format!(
-                    "R{}, {} {}; REF SITE XYZ ({})",
-                    fmt(d.value),
-                    d.measurements.len(),
-                    if d.measurements.len() == 1 {
-                        "BLEND"
-                    } else {
-                        "BLENDS"
-                    },
-                    p.join(", ")
-                ),
-            },
-            d.measurements.clone(),
-        ));
-        d.placed = None;
-        d.state = crate::items::State::Covered { by: id };
-        d.basis += "; a crossing leader is replaced by a structured note identifying the equal-radius group by a representative reference surface point";
-        problems.retain(|p| !p.subjects.contains(&d.id) || !leader_problem(&p.code));
+        let ms = dimensions[i].measurements.clone();
+        dimensions[j].measurements.extend(ms);
+        let n = dimensions[j].measurements.len();
+        let was = dimensions[j].terms.clone();
+        dimensions[j].terms = vec![format!("{n}×"), format!("R{}", fmt(dimensions[j].value))];
+        dimensions[j].label = dimensions[j].terms.join(" ");
+        let placed = dimensions[j].placed.as_ref().unwrap();
+        let want = Want {
+            id: dimensions[j].id.clone(),
+            views: Vec::new(),
+            value: dimensions[j].value,
+            terms: dimensions[j].terms.clone(),
+            measurements: dimensions[j].measurements.clone(),
+            basis: dimensions[j].basis.clone(),
+            shape: Shape::Callout { sites: Vec::new() },
+            turning: None,
+        };
+        dimensions[j].placed = Some(super::placement::relabel(placed, &was, &want));
+        dimensions[i].placed = None;
+        dimensions[i].state = crate::items::State::Covered {
+            by: dimensions[j].id.clone(),
+        };
     }
-    if !out.is_empty() {
-        out.push((
-            NoteSpec {
-                id: "n:blend-sites/reference".into(),
-                text: "BLEND REFERENCE SITES: X/Y/Z FROM LEFT/FRONT/BOTTOM OF ENVELOPE".into(),
-            },
-            Vec::new(),
-        ));
+}
+
+/// Only after a default is proven drawable may it replace equal fillet leaders.
+pub(crate) fn cover_fillets(
+    notes: &mut [crate::notes::PlannedNote],
+    dimensions: &mut [super::PlannedDimension],
+    spec: &crate::model::Spec,
+    given: &crate::model::Spec,
+) {
+    for note in notes
+        .iter_mut()
+        .filter(|n| n.placed.is_some() && n.text.starts_with("ALL UNSPECIFIED RADII"))
+    {
+        let Some(value) = note.measurements.first().map(|m| m.value) else {
+            continue;
+        };
+        for d in dimensions.iter_mut().filter(|d| {
+            d.placed.is_some()
+                && !d.measurements.is_empty()
+                && d.measurements
+                    .iter()
+                    .all(|m| m.parameter == "fillet.radius")
+                && fmt(d.value) == fmt(value)
+                && !overridden(spec, given, &d.id)
+        }) {
+            note.measurements.extend(d.measurements.clone());
+            d.placed = None;
+            d.state = crate::items::State::Covered {
+                by: note.id.clone(),
+            };
+        }
     }
-    out
 }

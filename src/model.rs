@@ -1780,11 +1780,11 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         &footprint_cache,
     );
     problems.extend(more);
-    let located_notes =
-        crate::dims::blends::located_notes(analysis, spec, &mut dimensions, &mut problems);
+    crate::dims::blends::consolidate(&mut dimensions, spec, given);
+    crate::dims::blends::withdraw_unsafe(spec, &mut dimensions, &mut problems);
     for d in dimensions
         .iter()
-        .filter(|d| matches!(&d.state, crate::items::State::Covered { by } if by.starts_with("n:")))
+        .filter(|d| matches!(&d.state, crate::items::State::Covered { by } if by.starts_with("n:") || (by.starts_with("d:") && d.measurements.iter().any(|m| m.parameter == "blend.radius"))))
     {
         let crate::items::State::Covered { by } = &d.state else {
             unreachable!()
@@ -1796,27 +1796,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             state: d.state.clone(),
         });
     }
-    dimensions.retain(|d| !matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:")));
-    notes_given.extend(
-        located_notes
-            .iter()
-            .filter(|(n, _)| {
-                !spec.annotations.get(&n.id).is_some_and(|s| {
-                    s.omit
-                        || s.place.as_ref().is_some_and(|p| {
-                            p.side.is_some() || p.lane.is_some() || p.along.is_some()
-                        })
-                })
-            })
-            .map(|(n, _)| n.clone()),
-    );
-    radius_notes.extend(located_notes);
-    crate::dims::blends::qualify_notes(analysis, spec, &dimensions, &mut radius_notes);
-    for given in &mut notes_given {
-        if let Some((note, _)) = radius_notes.iter().find(|(n, _)| n.id == given.id) {
-            given.text = note.text.clone();
-        }
-    }
+    dimensions.retain(|d| !matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:") || (by.starts_with("d:") && d.measurements.iter().any(|m| m.parameter == "blend.radius"))));
     let mut ink = dimensions.clone();
     ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
     // The default finish's symbol beside the title block: what it meets, and kept clear of.
@@ -1835,7 +1815,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     let (schedule, more) = crate::tables::manufacturing(analysis, &sheet, &views, &ink);
     problems.extend(more);
     ink.extend(schedule.iter().filter_map(crate::tables::proxy));
-    let (automatic, authored): (Vec<_>, Vec<_>) = notes_given
+    let (mut automatic, authored): (Vec<_>, Vec<_>) = notes_given
         .into_iter()
         .partition(|n| radius_notes.iter().any(|(r, _)| r.id == n.id));
     let (mut notes, mut notes_block, more) =
@@ -1853,6 +1833,11 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     problems.extend(more);
     tables.extend(schedule);
     ink.extend(tables.iter().filter_map(crate::tables::proxy));
+    let exceptions_unstated =
+        crate::dims::blends::exceptions_unstated(analysis, &dimensions, &radius_notes);
+    if exceptions_unstated {
+        automatic.clear();
+    }
     let (extra, block, mut more) = crate::notes::plan_radii(
         &automatic,
         analysis,
@@ -1868,7 +1853,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     }
     notes.extend(extra);
     problems.extend(more);
-    let radius_notes_block = if authored.is_empty() {
+    let mut radius_notes_block = if authored.is_empty() {
         notes_block = block;
         None
     } else {
@@ -1892,15 +1877,24 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 .flat_map(|n| n.measurements.iter().map(|m| m.feature.as_str())),
         )
         .collect();
-    let unresolved = analysis
-        .features
-        .iter()
-        .any(|f| f.kind == "blend" && !stated.contains(f.id.as_str()));
+    let unresolved = analysis.features.iter().any(|f| {
+        matches!(f.kind.as_str(), "blend" | "fillet")
+            && !stated.contains(f.id.as_str())
+            && !radius_notes.iter().flat_map(|(_, ms)| ms).any(|m| {
+                f.kind == "fillet"
+                    && f.parameters
+                        .get("radius")
+                        .and_then(|v| v.as_f64())
+                        .is_some_and(|r| crate::dims::fmt(r) == crate::dims::fmt(m.value))
+            })
+    });
     if unresolved {
         for note in notes.iter_mut().filter(|n| {
-            n.placed.is_some()
+            (n.placed.is_some()
+                || (exceptions_unstated && matches!(n.state, ItemState::OmittedByUser)))
+                && !spec.annotations.get(&n.id).is_some_and(|e| e.omit)
                 && !n.measurements.is_empty()
-                && n.text.starts_with("ALL UNSPECIFIED BLEND RADII")
+                && n.text.starts_with("ALL UNSPECIFIED RADII")
         }) {
             note.placed = None;
             note.state = ItemState::NotDrawable {
@@ -1919,6 +1913,51 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             });
         }
     }
+    for note in notes
+        .iter()
+        .filter(|n| matches!(n.state, ItemState::NotDrawable { .. }))
+    {
+        for m in &note.measurements {
+            problems.push(Problem {
+                id: format!("p:feature_not_dimensioned:{}", m.feature),
+                code: "feature_not_dimensioned".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "{} is not dimensioned: {} cannot safely state its radius.",
+                    m.feature, note.id
+                ),
+                subjects: vec![m.feature.clone()],
+                ..Default::default()
+            });
+        }
+    }
+    if !notes
+        .iter()
+        .any(|n| n.placed.is_some() && radius_notes.iter().any(|(r, _)| r.id == n.id))
+    {
+        if authored.is_empty() {
+            notes_block = None;
+        } else {
+            radius_notes_block = None;
+        }
+    }
+    crate::dims::blends::cover_fillets(&mut notes, &mut dimensions, spec, given);
+    for d in dimensions
+        .iter()
+        .filter(|d| matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:")))
+    {
+        let ItemState::Covered { by } = &d.state else {
+            unreachable!()
+        };
+        omitted.push(crate::dims::Omitted {
+            id: d.id.clone(),
+            label: d.label.clone(),
+            basis: format!("conveyed by {by}: {}", d.basis),
+            state: d.state.clone(),
+        });
+    }
+    dimensions.retain(|d| !matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:")));
+
     // A drawing-wide requirement carried by a general note is drawn as that note is.
     for r in requirements.iter_mut().filter(|r| r.carrier == "notes") {
         if let Some(n) = notes.iter().find(|n| n.id == r.id) {

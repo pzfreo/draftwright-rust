@@ -1,9 +1,9 @@
 [
   {
     "rule": "ISSUE-1433-a / ARCH0015-1",
-    "difference": "Dense blends use a general radius note for the most frequent displayed radius, with explicit exception leaders or located notes.",
+    "difference": "Dense radii use a true ALL UNSPECIFIED RADII default only while all exceptions have callouts; matching fillets share the same presentation.",
     "verdict": "rust-correct",
-    "reason": "The stream explicitly requests general notes instead of large counted radius leaders. Python origin/main annotations/_edge_callouts.py::radius_jobs still prints n× R for every displayed-radius group. CGB245 has 82 blends of four radii (R2:32, R3:33, R4:10, R5:7); one R3 default note retains 33 exact identities without claiming that the other 49 blends are R3. CTC-01 has 18 of its 31 blends at R10. The small string_post group keeps 2× R0.2. tests/dims_blends.rs checks the default, exact rendered coverage, deterministic output and loss of occurrence credit on omission. Four parts with unsupported exceptions use a scoped equal-radius note and explicit OTHER BLEND RADII UNSTATED, avoiding a blanket default that would visually assign the wrong radius. Hiding an exception scopes the surviving note as well; exact missing coverage remains."
+    "reason": "The stream requests a general radius note. Python origin/main annotations/_edge_callouts.py::radius_jobs groups blend and fillet families separately into counted leaders. Rust combines equal displayed radius claims, preserves an established fillet leader for a mixed exception group, and removes same-value fillet leaders only after the default is drawable. An omitted or unsafe exception withdraws the default, restoring missing findings instead of assigning the wrong radius. CGB245 and CTC-01 regressions check this distinction. Bare pins preserve the consolidated owner and default; only original authored positioning choices override grouping, independently of the carrier filled into the effective Spec. The CGB245 bare-pin test checks exact label, geometry, claims, IDs and zero missing coverage, and failed with 18x R4 instead of 28x R4 before the correction."
   },
   {
     "rule": "ISSUE-1450-a",
@@ -15,12 +15,18 @@
     "rule": "ISSUE-1351-a / LINT-_registry-structured_note_satisfaction",
     "difference": "Automatic blend notes carry Annotation.satisfies identities rather than Python registry handles; authored prose carries none.",
     "verdict": "equivalent",
-    "reason": "Python linting/_registry.py accepts explicit exact feature/parameter satisfaction only from placed notes. Rust render emits satisfies only for drawn automatic notes, and lint credits their exact blend.radius identities without parsing prose. Missing source values stay unverifiable. Tests hide and move the stable note ID, omit its carrying view, remove one identity, duplicate the remaining authority and add identical unstructured prose; an unrelated or unstated occurrence never borrows credit. This ports blend-note authority, not the general authored per-feature note API or synthetic hole count/THRU roles."
+    "reason": "Exact satisfaction identities remain required, but are insufficient without an identifiable presentation. Full drawing lint accepts automatic ALL UNSPECIFIED RADII notes only with matching values and explicit callouts for other radii. Scoped and representative XYZ notes grant no authority. Authored prose has no satisfaction identities. Hide/move/unplaced, duplicate and removed-identity tests remain."
   },
   {
-    "rule": "G3 clutter-free exception fallback",
-    "difference": "A crossing free radius leader becomes a compact located note with the equal-radius group's count and one representative reference surface point.",
-    "verdict": "undetermined",
-    "reason": "Python origin/main annotations/_edge_callouts.py::radius_jobs uses only leader jobs and reports unsafe physical selection rather than this located-note fallback. Rust uses the same exact trimmed-face authority to sample surface points, keeps each occurrence's structured claim, and prints reference X/Y/Z offsets from the envelope's left/front/bottom faces. The general note applies only to the most frequent group; other radii are explicitly stated. Notes use 3 mm IBM Plex Mono on 5 mm rows and actual view/annotation obstacles, without repacking existing views. Quality gates reject any worse cell, and sheets are raster-reviewed. Whether representative point notes are the preferred manufacturing presentation for dense exceptions is an overturnable judgement; a future detail-view or interior-radius leader design could replace them. Explicit author placements and tolerances stay explicit rather than being converted."
+    "rule": "G3 unsafe exception presentation",
+    "difference": "Unsafe free blend leaders are withdrawn instead of replaced by representative XYZ notes. The default is withdrawn when any exception cannot be drawn.",
+    "verdict": "rust-correct",
+    "reason": "Python origin/main annotations/_edge_callouts.py::radius_jobs refuses missing physical surface selection. Python tests/test_issue_1187_unroutable_leaders.py documents Policy B: retain a required leader with a logged routing cost when no clear route exists. For automatic blend additions this stream instead requires no new radius clutter, so obstructed free blend leaders are withheld with blend_callout_dropped and exact missing coverage. Explicit author placement/tolerance choices remain literal, with their geometry findings. This is a deliberate conservative difference, not equivalence to Policy B; representative XYZ notes were an erroneous fallback and are removed."
+  },
+  {
+    "rule": "ARCH0003-2 / ARCH0016-2 / G3 default dependency",
+    "difference": "Removing a radius exception withdraws its dependent blanket default and restores any fillet leader that default conveyed; unrelated ink stays fixed.",
+    "verdict": "rust-correct",
+    "reason": "A true ALL UNSPECIFIED RADII default cannot survive an omitted exception of another value. Python origin/main annotations/_edge_callouts.py::radius_jobs has independent counted groups and no automatic default, so it has no such dependency. FTC-06 removing d:f:fillet:9/fillet.radius must withdraw the default and restore d:f:fillet:6/fillet.radius. tests/placement.rs and tests/trust_rules.rs check the exact restored label and geometry against hiding the note, requires an explicit note refusal caused by a radius exception, and retains every unrelated sheet/view/dimension placement assertion."
   }
 ]

@@ -494,18 +494,27 @@ fn every_number_on_the_sheet_carries_a_claim() {
                     a.name
                 );
                 for c in &a.satisfies {
-                    assert_eq!(c.parameter, "blend.radius");
+                    let f = analysis
+                        .features
+                        .iter()
+                        .find(|f| f.id == c.feature)
+                        .expect("a note's radius identity belongs to the analysis");
+                    assert!(matches!(f.kind.as_str(), "blend" | "fillet"));
+                    assert_eq!(c.parameter, format!("{}.radius", f.kind));
+                    let radius = f
+                        .parameters
+                        .get("radius")
+                        .and_then(|r| r.as_f64())
+                        .expect("a claimed radius has a source value");
+                    assert!(radius.is_finite() && radius > 0.0);
                     assert!(
-                        analysis.features.iter().any(|f| {
-                            f.id == c.feature
-                                && f.kind == "blend"
-                                && f.parameters
-                                    .get("radius")
-                                    .and_then(|r| r.as_f64())
-                                    .is_some()
-                        }),
-                        "{name}: {} carries an unknown radius identity",
+                        lint::holes::states(&text, radius),
+                        "{name}: {} misprints its claimed radius",
                         a.name
+                    );
+                    assert!(
+                        text.contains("ALL UNSPECIFIED RADII"),
+                        "a note needs an identifiable default"
                     );
                 }
             }

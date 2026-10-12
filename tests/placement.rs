@@ -287,8 +287,9 @@ fn placed(plan: &Plan) -> BTreeMap<&str, &PlannedDimension> {
 }
 
 /// ARCH0003-2 (edit locality, as R4 translates it: a small spec edit changes only the affected
-/// plan items). Omitting any one default dimension leaves every other item, its view, sheet and
-/// ink as they were; so does taking one out of an authored set. On plate.step this used to fail:
+/// plan items). Omitting a default or authored dimension leaves unrelated items, views, sheet
+/// and ink as they were. A blanket radius note depends on its explicit exceptions; losing one
+/// withdraws that note and restores the fillet leaders it conveyed. On plate.step this used to fail:
 /// lanes were packed in order, so omitting the column pitch moved the x location and the bore
 /// callout.
 #[test]
@@ -361,6 +362,59 @@ fn omitting_one_dimension_moves_no_other() {
                 ("left out of the authored set", authored(&listed), vec![]),
             ] {
                 let plan = model::plan(analysis, &spec).unwrap();
+                let mut promoted = promoted.clone();
+                // A blanket radius default depends on its exceptions. Withdrawing it
+                // restores the fillet leaders it conveyed; all unrelated ink stays fixed.
+                for o in &full.omitted {
+                    let draftwright::items::State::Covered { by } = &o.state else {
+                        continue;
+                    };
+                    if !by.starts_with("n:")
+                        || !plan.notes.iter().any(|n| {
+                            n.id == *by
+                                && matches!(n.state, draftwright::items::State::NotDrawable { .. })
+                        })
+                    {
+                        continue;
+                    }
+                    let Some(d) = plan
+                        .dimensions
+                        .iter()
+                        .find(|d| d.id == o.id && d.placed.is_some())
+                    else {
+                        continue;
+                    };
+                    assert!(
+                        full.dimensions
+                            .iter()
+                            .find(|d| d.id == *gone)
+                            .unwrap()
+                            .measurements
+                            .iter()
+                            .any(|m| matches!(
+                                m.parameter.as_str(),
+                                "blend.radius" | "fillet.radius"
+                            )),
+                        "only a radius exception can withdraw a radius default"
+                    );
+                    assert!(reported(&plan, "notes_not_placed", by));
+                    assert_eq!(d.label, o.label);
+                    let hidden = model::edit(&Spec::default(), &serde_json::json!([{
+                        "op":"set", "path":format!("annotations/{}/omit", draftwright::items::key(by)), "value":true
+                    }])).unwrap();
+                    let hidden = model::plan(analysis, &hidden).unwrap();
+                    assert_eq!(
+                        d.placed,
+                        hidden
+                            .dimensions
+                            .iter()
+                            .find(|d| d.id == o.id)
+                            .unwrap()
+                            .placed,
+                        "restored radius uses its established geometry"
+                    );
+                    promoted.push(o.id.as_str());
+                }
                 edits += 1;
                 assert_eq!(
                     serde_json::to_value(&plan.sheet).unwrap(),
@@ -696,11 +750,12 @@ fn what_does_not_fit_the_page_is_reported() {
         let boxes = view_boxes(&plan, analysis);
         for d in &plan.dimensions {
             let Some(p) = d.placed.as_ref() else {
+                let draftwright::items::State::NotDrawable { reason_code } = &d.state else {
+                    panic!("{name}: {} is unplaced without a not-drawable state", d.id);
+                };
                 assert!(
-                    plan.problems
-                        .iter()
-                        .any(|q| q.code == "view_plan_incomplete" && q.subjects.contains(&d.id)),
-                    "{name}: {} is neither placed nor reported",
+                    reported(&plan, reason_code, &d.id),
+                    "{name}: {} is neither placed nor reported for {reason_code}",
                     d.id
                 );
                 continue;

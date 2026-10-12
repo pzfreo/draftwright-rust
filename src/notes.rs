@@ -320,12 +320,19 @@ fn plan_with_rows(
     let (all, per) = table(notes);
     let (w, pen) = width(&all);
     let h = row_height * all.len() as f64;
-    let at = tables::place(
-        [w, h],
-        sheet,
-        &tables::obstacles(analysis, sheet, views, dims),
-        Corner::TopRight,
-    );
+    let obstacles = tables::obstacles(analysis, sheet, views, dims);
+    let at = if ruled {
+        tables::place([w, h], sheet, &obstacles, Corner::TopRight)
+    } else {
+        let [pw, ph] = sheet.page;
+        crate::layout::fit_auxiliary_box(
+            [w, h],
+            [16.0, 16.0, pw - 16.0, ph - 16.0],
+            &obstacles,
+            Corner::TopRight,
+            PAD,
+        )
+    };
     // Row *i*'s ink centre, counted from the heading, and its cell's bottom.
     let font = crate::dims::font();
     let centre = |x0: f64, top: f64, i: usize, row: &str| {
@@ -464,13 +471,7 @@ pub(crate) fn radius_notes(
         let n = &mut notes[index];
         n.measurements = measurements.clone();
         n.default = !spec.annotations.contains_key(&n.id);
-        n.basis = if n.text.contains("OTHER BLEND RADII UNSTATED") {
-            "this note states only its exact equal-radius group; no blanket default is asserted because another blend radius has no proven principal-view attachment"
-        } else if n.text.starts_with("ALL UNSPECIFIED") {
-            "the most frequent equal blend radius is stated once in a general note; other radii have explicit callouts or located notes, and each occurrence retains its exact measurement identity"
-        } else {
-            "a crossing radius leader is replaced by a structured note with a representative reference surface point for the equal-radius group, measured from the envelope's left/front/bottom faces"
-        }.into();
+        n.basis = "a true default states the most frequent equal radius once; other radii need explicit callouts, and exact identities retain coverage authority".into();
         let entry = spec.annotations.get(&n.id);
         if spec.dimension_source == crate::model::DimensionSource::Authored && entry.is_none() {
             n.placed = None;
