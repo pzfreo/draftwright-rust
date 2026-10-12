@@ -622,3 +622,164 @@ fn a_changed_entry_cell_is_reported_even_when_xy_is_correct() {
             .any(|i| i.code == "hole_table_entry_invalid" && i.subjects.contains(&feature))
     );
 }
+
+/// Every tag names one hole a reader can find: page positions come from the table's own X/Y
+/// cells and its drawn origin, as a reader would find them. A tag without a leader is nearer
+/// its own rim (and centre) than any other scheduled hole's; a leadered tag's arrow touches its
+/// own rim and no other.
+#[test]
+fn each_tag_is_beside_or_leadered_to_its_own_hole() {
+    let Some(corpus) = corpus::dir() else { return };
+    let number = |cell: &str| -> f64 {
+        cell.split_whitespace()
+            .find_map(|t| t.parse::<f64>().ok())
+            .unwrap()
+    };
+    let opening = |cell: &str| -> f64 {
+        cell.split('⌀')
+            .skip(1)
+            .filter_map(|t| t.split_whitespace().next()?.parse::<f64>().ok())
+            .fold(0.0, f64::max)
+    };
+    for name in [
+        "nist_ctc_02_asme1_rc",
+        "nist_ctc_04_asme1_rd",
+        "nist_ctc_05_asme1_rd",
+        "nist_ftc_06_asme1_rd",
+    ] {
+        let (_, analysis) =
+            model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
+        let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+        assert!(!p.hole_tables.is_empty(), "{name}");
+        for t in &p.hole_tables {
+            let view = p
+                .views
+                .iter()
+                .find(|v| Some(&v.id) == t.view.as_ref())
+                .unwrap();
+            let origin = p
+                .balloons
+                .iter()
+                .find(|b| b.id == format!("{}/origin", t.id))
+                .and_then(|b| b.leader)
+                .unwrap()[0];
+            let holes: Vec<(&str, [f64; 2], f64)> = t
+                .rows
+                .iter()
+                .map(|r| {
+                    (
+                        r.feature.as_str(),
+                        [
+                            origin[0] + view.scale * number(&r.cells[2]),
+                            origin[1] + view.scale * number(&r.cells[3]),
+                        ],
+                        opening(&r.cells[1]) * view.scale * 0.5,
+                    )
+                })
+                .collect();
+            let dist = |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).hypot(a[1] - b[1]);
+            for tag in p
+                .balloons
+                .iter()
+                .filter(|b| b.id.starts_with(&format!("{}/tag/", t.id)))
+            {
+                let own: Vec<_> = holes
+                    .iter()
+                    .filter(|h| tag.features.iter().any(|f| f == h.0))
+                    .collect();
+                let others: Vec<_> = holes
+                    .iter()
+                    .filter(|h| own.iter().all(|o| dist(o.1, h.1) > 1e-3))
+                    .collect();
+                let (_, centre, radius) = *own[0];
+                if let Some([tip, _]) = tag.leader {
+                    assert!(
+                        (dist(tip, centre) - radius).abs() < 0.3,
+                        "{name} {}: its leader does not end on its own rim",
+                        tag.tag
+                    );
+                    for (_, c, r) in &others {
+                        assert!(
+                            dist(tip, *c) - r > 1.0,
+                            "{name} {}: its leader ends at another hole",
+                            tag.tag
+                        );
+                    }
+                } else {
+                    let gap = dist(tag.at, centre) - radius;
+                    assert!(gap < 8.0, "{name} {}: {gap:.1} mm from its hole", tag.tag);
+                    for (_, c, r) in &others {
+                        assert!(
+                            dist(tag.at, *c) - r > gap * 1.15 + 0.5,
+                            "{name} {}: as near another hole as its own",
+                            tag.tag
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The entry column is in the view's frame (X right, Y up, Z out of the page), as X and Y
+/// are: a side or front view never states a part-frame axis there, and lint rejects one.
+#[test]
+fn entry_cells_use_the_view_frame_and_lint_checks_it() {
+    let Some(corpus) = corpus::dir() else { return };
+    let font = Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    for name in ["nist_ctc_02_asme1_rc", "nist_ftc_06_asme1_rd"] {
+        let (part, analysis) =
+            model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
+        let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+        let off_plan: Vec<_> = p
+            .hole_tables
+            .iter()
+            .filter(|t| t.view.as_deref() != Some("v:plan"))
+            .collect();
+        assert!(!off_plan.is_empty(), "{name}");
+        for t in &p.hole_tables {
+            assert_eq!(t.blocks[0].rows[1][4], "Z OUT / DIR");
+            for r in &t.rows {
+                assert!(
+                    r.cells[4].ends_with("/ +Z") || r.cells[4].ends_with("/ −Z"),
+                    "{name} {} {}",
+                    r.tag,
+                    r.cells[4]
+                );
+            }
+        }
+        let mut drawing = model::render(&part, &analysis, &p, &font).unwrap();
+        assert!(
+            !draftwright::lint::lint(&analysis, &drawing)
+                .iter()
+                .any(|i| i.code == "hole_table_entry_invalid"),
+            "{name}"
+        );
+        // The same number with the part-frame axis letter is wrong in this view's frame.
+        let entry = drawing
+            .annotations
+            .iter()
+            .find(|a| a.name.starts_with(&off_plan[0].id) && a.name.ends_with("/entry"))
+            .unwrap()
+            .clone();
+        let row = off_plan[0]
+            .rows
+            .iter()
+            .find(|r| entry.claims[0].feature == r.feature)
+            .unwrap();
+        let part_frame = row.cells[4].replace("Z", if name.contains("ctc_02") { "X" } else { "Y" });
+        for &run in &entry.runs {
+            drawing.text[run].text = part_frame.clone();
+        }
+        assert!(
+            draftwright::lint::lint(&analysis, &drawing)
+                .iter()
+                .any(|i| i.code == "hole_table_entry_invalid"),
+            "{name}: {part_frame}"
+        );
+    }
+}

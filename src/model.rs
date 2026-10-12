@@ -2928,7 +2928,19 @@ pub fn render_annotations_with_items(
                             runs,
                             claims: vec![Claim {
                                 feature: row.feature.clone(),
-                                parameter: "entry".into(),
+                                parameter: format!(
+                                    "entry.view.{}",
+                                    t.view
+                                        .as_ref()
+                                        .and_then(|v| plan.views.iter().find(|w| &w.id == v))
+                                        .map_or_else(String::new, |v| {
+                                            v.direction
+                                                .iter()
+                                                .map(|d| format!("{d:.6}"))
+                                                .collect::<Vec<_>>()
+                                                .join(",")
+                                        })
+                                ),
                             }],
                         });
                         continue;

@@ -938,6 +938,160 @@ fn crosses(s: [[f64; 2]; 2], b: Rect) -> bool {
     t0 < t1
 }
 
+/// Directions tried around a hole for its tag.
+const TAG_STEPS: usize = 32;
+/// Rings (1 mm apart) tried for a tag beside its hole, without a leader.
+const TAG_NEAR: usize = 4;
+/// Rings (1 mm apart) tried for a leadered tag.
+const TAG_FAR: usize = 36;
+/// Holes within this page distance (mm) set a leadered tag's outward direction.
+const TAG_NEIGHBOURS: f64 = 40.0;
+/// A leadered tag's cost, in mm of leader, of each model line its leader crosses.
+const TAG_CROSSING: f64 = 1.5;
+/// A leadered tag's cost, in mm of leader, per radian it turns from outward.
+const TAG_TURN: f64 = 2.0;
+/// Orders tried for a view's leadered tags before its schedule is given up.
+const TAG_ATTEMPTS: usize = 12;
+
+/// Page segments bucketed in square cells, for clearance queries near one place.
+struct Grid {
+    segments: Vec<Segment>,
+    cells: BTreeMap<(i64, i64), Vec<usize>>,
+    /// The query each segment was last judged in, so a query judges it once.
+    seen: std::cell::RefCell<(u32, Vec<u32>)>,
+}
+
+impl Grid {
+    const CELL: f64 = 5.0;
+
+    fn key(x: f64, y: f64) -> (i64, i64) {
+        (
+            (x / Self::CELL).floor() as i64,
+            (y / Self::CELL).floor() as i64,
+        )
+    }
+
+    fn new(segments: impl Iterator<Item = Segment>) -> Grid {
+        let segments: Vec<Segment> = segments.collect();
+        let mut cells: BTreeMap<(i64, i64), Vec<usize>> = BTreeMap::new();
+        for (i, s) in segments.iter().enumerate() {
+            let lo = Self::key(s[0][0].min(s[1][0]), s[0][1].min(s[1][1]));
+            let hi = Self::key(s[0][0].max(s[1][0]), s[0][1].max(s[1][1]));
+            for x in lo.0..=hi.0 {
+                for y in lo.1..=hi.1 {
+                    cells.entry((x, y)).or_default().push(i);
+                }
+            }
+        }
+        let seen = std::cell::RefCell::new((0, vec![0; segments.len()]));
+        Grid {
+            segments,
+            cells,
+            seen,
+        }
+    }
+
+    /// Whether *ok* holds for every segment whose cells meet box *b* (each judged once,
+    /// stopping at the first that fails).
+    fn all_clear(&self, b: Rect, mut ok: impl FnMut(Segment) -> bool) -> bool {
+        let (lo, hi) = (Self::key(b[0], b[1]), Self::key(b[2], b[3]));
+        let mut seen = self.seen.borrow_mut();
+        let (query, last) = &mut *seen;
+        *query += 1;
+        for x in lo.0..=hi.0 {
+            for y in lo.1..=hi.1 {
+                for &i in self.cells.get(&(x, y)).into_iter().flatten() {
+                    if last[i] == *query {
+                        continue;
+                    }
+                    last[i] = *query;
+                    if !ok(self.segments[i]) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
+/// Whether box *a* lies wholly inside box *b*.
+fn within(a: Rect, b: Rect) -> bool {
+    a[0] >= b[0] && a[1] >= b[1] && a[2] <= b[2] && a[3] <= b[3]
+}
+
+/// The gap between box *b* and the rim of radius *r* about *c* (negative inside the rim).
+fn rim_gap(b: Rect, c: [f64; 2], r: f64) -> f64 {
+    let dx = (b[0] - c[0]).max(c[0] - b[2]).max(0.0);
+    let dy = (b[1] - c[1]).max(c[1] - b[3]).max(0.0);
+    dx.hypot(dy) - r
+}
+
+/// Whether an unleadered tag at *at* (box *b*) plainly names the hole at *hole*: its box is
+/// nearer that rim than any other scheduled rim, and its centre markedly nearer that centre.
+fn names_own(
+    b: Rect,
+    at: [f64; 2],
+    hole: [f64; 2],
+    radius: f64,
+    others: &[([f64; 2], f64)],
+) -> bool {
+    let own_gap = rim_gap(b, hole, radius);
+    let own = (at[0] - hole[0]).hypot(at[1] - hole[1]);
+    others.iter().all(|&(c, r)| {
+        rim_gap(b, c, r) > own_gap + 1.0 && (at[0] - c[0]).hypot(at[1] - c[1]) > own * 1.3
+    })
+}
+
+/// A tag's leader: from the hole's rim (the arrow's tip) toward the tag's centre, ending at
+/// the tag box's side. None when the box reaches the rim.
+fn tag_leader(hole: [f64; 2], radius: f64, at: [f64; 2], b: Rect) -> Option<Segment> {
+    let d = [at[0] - hole[0], at[1] - hole[1]];
+    let len = d[0].hypot(d[1]);
+    if len < 1e-9 {
+        return None;
+    }
+    let u = [d[0] / len, d[1] / len];
+    let tip = [hole[0] + u[0] * radius, hole[1] + u[1] * radius];
+    // Where the ray from the centre leaves the box, walking back from its centre.
+    let half = [(b[2] - b[0]) * 0.5, (b[3] - b[1]) * 0.5];
+    let t = [
+        half[0] / u[0].abs().max(1e-12),
+        half[1] / u[1].abs().max(1e-12),
+    ]
+    .into_iter()
+    .fold(f64::INFINITY, f64::min);
+    let end = [at[0] - u[0] * (t + 0.4), at[1] - u[1] * (t + 0.4)];
+    let run = (end[0] - tip[0]) * u[0] + (end[1] - tip[1]) * u[1];
+    (run > crate::dims::ARROW + 0.5).then_some([tip, end])
+}
+
+/// Whether a tag's leader stays off other labels, other tags' leaders and every other
+/// scheduled hole's rim. Like any leader it may cross model lines and extension lines.
+fn leader_clear(
+    l: Segment,
+    labels: &[Rect],
+    leaders: &[Segment],
+    others: &[([f64; 2], f64)],
+) -> bool {
+    labels.iter().all(|b| !crosses(l, *b))
+        && leaders.iter().all(|m| !segments_cross(l, *m))
+        && others.iter().all(|&(c, r)| point_segment(c, l) > r + 0.6)
+}
+
+/// The distance from *p* to segment *s*.
+fn point_segment(p: [f64; 2], s: Segment) -> f64 {
+    let [a, b] = s;
+    let d = [b[0] - a[0], b[1] - a[1]];
+    let len2 = d[0] * d[0] + d[1] * d[1];
+    let t = if len2 < 1e-18 {
+        0.0
+    } else {
+        (((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1]) / len2).clamp(0.0, 1.0)
+    };
+    (p[0] - a[0] - t * d[0]).hypot(p[1] - a[1] - t * d[1])
+}
+
 /// The free stretches of [lo, hi] once each of *blocked* is taken out.
 fn carve(lo: f64, hi: f64, mut blocked: Vec<[f64; 2]>) -> Vec<[f64; 2]> {
     blocked.sort_by(|a, b| a[0].total_cmp(&b[0]));
@@ -1404,7 +1558,7 @@ fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
         "ø / DEPTH / THREAD".into(),
         "X".into(),
         "Y".into(),
-        "ENTRY / DIR".into(),
+        "Z OUT / DIR".into(),
     ];
     if let Some(pcd) = &t.pcd {
         let origin = t.origin.unwrap();
@@ -1429,6 +1583,27 @@ fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
     let mut cells = vec![title, header];
     cells.extend(t.rows.iter().map(|r| r.cells.clone()));
     cells
+}
+
+/// A row's entry cell in its view's frame: X right and Y up as the X and Y columns, Z out of
+/// the page toward the reader. The entry plane is measured from the part's rearmost face, as
+/// X and Y are from its minimum faces, and the drilling direction is `+Z` (toward the reader)
+/// or `−Z` (into the page).
+fn entry_cell(analysis: &Analysis, out: [f64; 3], at: [f64; 3], direction: [f64; 3]) -> String {
+    let dot = |p: [f64; 3]| p.iter().zip(out).map(|(a, b)| a * b).sum::<f64>();
+    let [lo, hi] = analysis.envelope;
+    let back = (0..8)
+        .map(|i| {
+            dot(std::array::from_fn(|k| {
+                if (i >> k) & 1 == 0 { lo[k] } else { hi[k] }
+            }))
+        })
+        .fold(f64::INFINITY, f64::min);
+    format!(
+        "{} / {}Z",
+        schedule_number(dot(at) - back),
+        if dot(direction) > 0.0 { "+" } else { "−" }
+    )
 }
 
 /// Size cells use the callout's drawn symbols, which the bundled text font does not contain.
@@ -1657,12 +1832,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                         value: distance,
                     });
                 }
-                cells.push(format!(
-                    "{} / {}{}",
-                    schedule_number(h.at[axis] - analysis.envelope[0][axis]),
-                    if h.direction[axis] > 0.0 { "+" } else { "−" },
-                    ["X", "Y", "Z"][axis]
-                ));
+                cells.push(entry_cell(analysis, view.direction, h.at, h.direction));
                 rows.push(HoleRow {
                     tag: String::new(),
                     feature: f.into(),
@@ -2001,6 +2171,35 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
                     )
             })
             .collect();
+        let fixed = fixed_obstacles(analysis, plan, view, Some(&t));
+        // Every scheduled hole of this view on the page: a tag must name its own hole, so
+        // it is judged against the others' rims as well as against clearance.
+        let scheduled: Vec<(&str, [f64; 2], f64)> = t
+            .rows
+            .iter()
+            .map(|r| {
+                let h = &read[r.feature.as_str()];
+                (
+                    r.feature.as_str(),
+                    frame.page(h.at),
+                    opening_diameter(h) * frame.s * 0.5,
+                )
+            })
+            .collect();
+        let lines = Grid::new(edge_segments.iter().chain(&annotation_lines).copied());
+        let mut leaders: Vec<Segment> = Vec::new();
+        // One tag per page position: coaxial rows (near and far face) share it.
+        struct Group {
+            tag: String,
+            text: String,
+            features: Vec<String>,
+            principal: Option<usize>,
+            hole: [f64; 2],
+            radius: f64,
+            others: Vec<([f64; 2], f64)>,
+            size: [f64; 2],
+        }
+        let mut groups: Vec<Group> = Vec::new();
         let mut tagged = BTreeSet::new();
         for row in &t.rows {
             if !tagged.insert(row.feature.clone()) {
@@ -2029,77 +2228,188 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
                 .fold(0.0, f64::max)
                 * frame.s
                 * 0.5;
+            let others = scheduled
+                .iter()
+                .filter(|(f, c, _)| {
+                    !members.iter().any(|m| m.feature == *f)
+                        && (c[0] - hole[0]).hypot(c[1] - hole[1]) > 1e-4
+                })
+                .map(|&(_, c, r)| (c, r))
+                .collect();
             let ink = crate::dims::label_ink(std::slice::from_ref(&text), crate::dims::font());
             let width = (ink.max[0] - ink.min[0]).max(text.len() as f64 * crate::dims::TEXT * 0.6);
-            let height = crate::dims::TEXT;
-            let mut tag = None;
-            for step in 0..512 {
-                let reach = 1.0 + (step / 16) as f64;
-                let angle =
-                    (step % 16) as f64 * std::f64::consts::TAU / 16.0 + std::f64::consts::FRAC_PI_4;
-                let (dx, dy) = (angle.cos(), angle.sin());
-                let at = [
-                    hole[0] + dx * (radius + width * 0.5 + reach),
-                    hole[1] + dy * (radius + height * 0.5 + reach),
-                ];
-                let b = [
-                    at[0] - width * 0.5,
-                    at[1] - height * 0.5,
-                    at[0] + width * 0.5,
-                    at[1] + height * 0.5,
-                ];
-                let padded = [b[0] - 0.6, b[1] - 0.6, b[2] + 0.6, b[3] + 0.6];
-                if labels.iter().chain(&curved).all(|q| !overlap(padded, *q))
-                    && edge_segments
-                        .iter()
-                        .chain(&annotation_lines)
-                        .all(|l| !crosses(*l, padded))
-                    && fixed_obstacles(analysis, plan, view, Some(&t))
-                        .iter()
-                        .all(|q| !overlap(padded, *q))
-                    && padded[0] >= crate::layout::MARGIN
-                    && padded[1] >= crate::layout::MARGIN
-                    && padded[2] <= plan.sheet.page[0] - crate::layout::MARGIN
-                    && padded[3] <= plan.sheet.page[1] - crate::layout::MARGIN
-                    && read.values().all(|other| {
-                        if other
-                            .principal
-                            .is_none_or(|(k, _)| h.principal.is_none_or(|(a, _)| a != k))
-                        {
-                            return true;
-                        }
-                        let c = frame.page(other.at);
-                        let r = opening_diameter(other) * frame.s * 0.5;
-                        // A circular seat's bounding-box corner is not material. Test the
-                        // nearest point of the label box against the actual rim instead.
-                        let dx = (b[0] - c[0]).max(c[0] - b[2]).max(0.0);
-                        let dy = (b[1] - c[1]).max(c[1] - b[3]).max(0.0);
-                        dx.hypot(dy) > r + RING * 0.5
-                            || (!members.iter().any(|m| m.feature == other.feature.id)
-                                && [b[0], b[2]]
-                                    .into_iter()
-                                    .flat_map(|x| [b[1], b[3]].map(|y| (x - c[0]).hypot(y - c[1])))
-                                    .all(|d| d < r - RING * 0.5))
-                    })
-                {
-                    tag = Some(at);
-                    labels.push(b);
-                    break;
+            groups.push(Group {
+                tag: row.tag.clone(),
+                text,
+                features: members.iter().map(|r| r.feature.clone()).collect(),
+                principal: h.principal.map(|(k, _)| k),
+                hole,
+                radius,
+                others,
+                size: [width, crate::dims::TEXT],
+            });
+        }
+        let boxed = |g: &Group, at: [f64; 2]| -> Rect {
+            [
+                at[0] - g.size[0] * 0.5,
+                at[1] - g.size[1] * 0.5,
+                at[0] + g.size[0] * 0.5,
+                at[1] + g.size[1] * 0.5,
+            ]
+        };
+        let clear = |g: &Group, b: Rect, labels: &[Rect], leaders: &[Segment]| -> bool {
+            let padded = [b[0] - 0.6, b[1] - 0.6, b[2] + 0.6, b[3] + 0.6];
+            labels.iter().all(|q| !overlap(padded, *q))
+                // A curved face's silhouette lies on its projected envelope's sides: the tag
+                // may sit wholly inside or outside that envelope, not across it.
+                && curved.iter().all(|q| !overlap(padded, *q) || within(padded, *q))
+                && lines.all_clear(padded, |l| !crosses(l, padded))
+                && leaders.iter().all(|l| !crosses(*l, padded))
+                && fixed.iter().all(|q| !overlap(padded, *q))
+                && padded[0] >= crate::layout::MARGIN
+                && padded[1] >= crate::layout::MARGIN
+                && padded[2] <= plan.sheet.page[0] - crate::layout::MARGIN
+                && padded[3] <= plan.sheet.page[1] - crate::layout::MARGIN
+                && read.values().all(|other| {
+                    if other
+                        .principal
+                        .is_none_or(|(k, _)| g.principal.is_none_or(|a| a != k))
+                    {
+                        return true;
+                    }
+                    let c = frame.page(other.at);
+                    let r = opening_diameter(other) * frame.s * 0.5;
+                    // A circular seat's bounding-box corner is not material. Test the
+                    // nearest point of the label box against the actual rim instead.
+                    rim_gap(b, c, r) > RING * 0.5
+                        || (!g.features.contains(&other.feature.id)
+                            && [b[0], b[2]]
+                                .into_iter()
+                                .flat_map(|x| [b[1], b[3]].map(|y| (x - c[0]).hypot(y - c[1])))
+                                .all(|d| d < r - RING * 0.5))
+                })
+        };
+        let around = |g: &Group, reach: f64, k: usize| -> [f64; 2] {
+            let angle =
+                k as f64 * std::f64::consts::TAU / TAG_STEPS as f64 + std::f64::consts::FRAC_PI_4;
+            [
+                g.hole[0] + angle.cos() * (g.radius + g.size[0] * 0.5 + reach),
+                g.hole[1] + angle.sin() * (g.radius + g.size[1] * 0.5 + reach),
+            ]
+        };
+        let mut placed: Vec<Option<([f64; 2], Option<Segment>)>> = vec![None; groups.len()];
+        // Beside the hole first, for every tag: no leader, so the tag must be plainly nearer
+        // its own hole than any other scheduled hole, by rim gap and by centre distance.
+        for (g, slot) in groups.iter().zip(&mut placed) {
+            'near: for ring in 0..TAG_NEAR {
+                for k in 0..TAG_STEPS {
+                    let at = around(g, 1.0 + ring as f64, k);
+                    let b = boxed(g, at);
+                    if names_own(b, at, g.hole, g.radius, &g.others)
+                        && clear(g, b, &labels, &leaders)
+                    {
+                        *slot = Some((at, None));
+                        labels.push(b);
+                        break 'near;
+                    }
                 }
             }
-            let Some(at) = tag else {
-                return false;
-            };
+        }
+        // The rest a short leader from the hole's rim, which says which hole the tag names.
+        // Placed greedily; a tag left without a place goes first on the next attempt.
+        let (near_labels, near_leaders, near_placed) =
+            (labels.clone(), leaders.clone(), placed.clone());
+        let mut order: Vec<usize> = (0..groups.len()).filter(|&i| placed[i].is_none()).collect();
+        let mut attempts = 0;
+        'attempt: loop {
+            labels.clone_from(&near_labels);
+            leaders.clone_from(&near_leaders);
+            placed.clone_from(&near_placed);
+            for n in 0..order.len() {
+                let g = &groups[order[n]];
+                // Leaders fan outward from their neighbours (radially, on a bolt circle).
+                let near: Vec<_> = g
+                    .others
+                    .iter()
+                    .filter(|(c, _)| (c[0] - g.hole[0]).hypot(c[1] - g.hole[1]) < TAG_NEIGHBOURS)
+                    .collect();
+                let outward = (!near.is_empty()).then(|| {
+                    let n = near.len() as f64;
+                    let mid = near
+                        .iter()
+                        .fold([0.0, 0.0], |a, (c, _)| [a[0] + c[0] / n, a[1] + c[1] / n]);
+                    (g.hole[1] - mid[1]).atan2(g.hole[0] - mid[0])
+                });
+                // The shortest leader that crosses fewest model lines, nearest outward.
+                let mut best: Option<(f64, [f64; 2], Segment)> = None;
+                for ring in 0..TAG_FAR {
+                    let r = 3.0 + ring as f64;
+                    if best.is_some_and(|(cost, _, _)| cost < r) {
+                        break;
+                    }
+                    for k in 0..TAG_STEPS {
+                        let at = around(g, r, k);
+                        let b = boxed(g, at);
+                        let Some(leader) = tag_leader(g.hole, g.radius, at, b) else {
+                            continue;
+                        };
+                        let length =
+                            (leader[1][0] - leader[0][0]).hypot(leader[1][1] - leader[0][1]);
+                        let turn = outward.map_or(0.0, |out| {
+                            let a = (at[1] - g.hole[1]).atan2(at[0] - g.hole[0]) - out;
+                            a.sin().atan2(a.cos()).abs()
+                        });
+                        let bound = best.map_or(f64::INFINITY, |(c, _, _)| c);
+                        let mut cost = length + TAG_TURN * turn;
+                        let span = [
+                            leader[0][0].min(leader[1][0]),
+                            leader[0][1].min(leader[1][1]),
+                            leader[0][0].max(leader[1][0]),
+                            leader[0][1].max(leader[1][1]),
+                        ];
+                        lines.all_clear(span, |e| {
+                            if segments_cross(leader, e) {
+                                cost += TAG_CROSSING;
+                            }
+                            cost < bound
+                        });
+                        if cost >= bound {
+                            continue;
+                        }
+                        if clear(g, b, &labels, &leaders)
+                            && leader_clear(leader, &labels, &leaders, &g.others)
+                        {
+                            best = Some((cost, at, leader));
+                        }
+                    }
+                }
+                let Some((_, at, leader)) = best else {
+                    attempts += 1;
+                    if attempts > order.len().min(TAG_ATTEMPTS) {
+                        return false;
+                    }
+                    let first = order.remove(n);
+                    order.insert(0, first);
+                    continue 'attempt;
+                };
+                placed[order[n]] = Some((at, Some(leader)));
+                labels.push(boxed(g, at));
+                leaders.push(leader);
+            }
+            break;
+        }
+        for (g, slot) in groups.into_iter().zip(placed) {
+            let (at, leader) = slot.expect("every tag placed");
             marks.push(Balloon {
-                id: format!("{}/tag/{}", t.id, row.tag),
-                tag: text,
+                id: format!("{}/tag/{}", t.id, g.tag),
+                tag: g.text,
                 view: view.id.clone(),
-                features: members.iter().map(|r| r.feature.clone()).collect(),
+                features: g.features,
                 certifying: true,
                 at,
                 radius: 0.0,
                 label_box: None,
-                leader: None,
+                leader,
                 state: crate::items::State::Shown,
             });
         }
@@ -2126,7 +2436,9 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
                 && edge_segments
                     .iter()
                     .chain(&annotation_lines)
+                    .chain(&leaders)
                     .all(|l| !crosses(*l, bounds))
+                && leaders.iter().all(|l| !segments_cross(*l, [origin, at]))
                 && labels.iter().all(|b| !crosses([origin, at], *b))
                 && !crosses(
                     [origin, at],

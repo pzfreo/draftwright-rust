@@ -650,22 +650,39 @@ pub fn schedule_entries(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             else {
                 continue;
             };
-            let Some((axis, sign)) = h.principal else {
-                continue;
-            };
             let name = size.name.trim_end_matches("/size").to_owned() + "/entry";
             let entry = marks.iter().find(|m| m.name == name);
+            // The entry cell is in its view's frame; the claim carries that view's out-of-page
+            // direction (`entry.view.x,y,z`).
             let correct = entry.is_some_and(|m| {
+                let Some(out) = m.claims.iter().find_map(|c| {
+                    let v: Vec<f64> = c
+                        .parameter
+                        .strip_prefix("entry.view.")?
+                        .split(',')
+                        .map(|x| x.parse().ok())
+                        .collect::<Option<_>>()?;
+                    <[f64; 3]>::try_from(v).ok()
+                }) else {
+                    return false;
+                };
+                // Recomputed from the geometry, independently of the planner: the distance
+                // from the rearmost face along view Z, and the drilling sense along it.
+                let dot = |p: [f64; 3]| p.iter().zip(out).map(|(a, b)| a * b).sum::<f64>();
+                let [lo, hi] = analysis.envelope;
+                let back = (0..8)
+                    .map(|i| {
+                        dot(std::array::from_fn(|k| {
+                            if (i >> k) & 1 == 0 { lo[k] } else { hi[k] }
+                        }))
+                    })
+                    .fold(f64::INFINITY, f64::min);
+                let want = dot(h.at) - back;
+                let want_dir = if dot(h.direction) > 0.0 { "+Z" } else { "−Z" };
                 let Some((position, direction)) = m.text.split_once('/') else {
                     return false;
                 };
-                super::holes::states(position.trim(), h.at[axis] - analysis.envelope[0][axis])
-                    && direction.trim()
-                        == format!(
-                            "{}{}",
-                            if sign > 0 { "+" } else { "−" },
-                            ["X", "Y", "Z"][axis]
-                        )
+                super::holes::states(position.trim(), want) && direction.trim() == want_dir
             });
             if !correct {
                 let mut issue = sheet_issue(

@@ -4377,3 +4377,47 @@ Additional fix-round evidence/choices:
   The interrupted first full run is retained in
   `target/h1-fix-checks/tests-first-interrupted.log`. Final results are recorded
   separately; an interrupted run is not claimed as a full pass.
+
+## Stage H1 fix round 2 (2026-10-12, unattended; supersedes the tag and entry choices above)
+
+Review found tags that a reader could not associate with their hole (CTC-02: 27 of 72
+as near another hole, 30 more than 12 mm away; FTC-06 plan B3; CTC-05 plan B1) and an
+entry column in the part frame beside X/Y columns in the view frame.
+
+- **Tags name their own hole.** A tag without a leader is accepted only within 4 mm
+  of its rim and only where its box is at least 1 mm nearer its own rim than any other
+  scheduled rim, and its centre at least 1.3× nearer its own centre. Every view's
+  unleadered tags are placed first; the rest take a short leader from the hole's rim
+  (arrow on the rim, ending at the tag box). The leader is the cheapest candidate
+  within 3–38 mm: length + 1.5 mm per line crossed + 2 mm per radian away from the
+  outward direction from neighbouring holes (radial on a bolt circle). A leader never
+  crosses a label, another tag's leader or within 0.6 mm of another scheduled rim; it
+  may cross model and extension lines, as any leader does. If a tag has no place,
+  the failed tag goes first and the view is retried (at most 12 orders); otherwise
+  the schedule is withdrawn as before. All constants are overturnable.
+- A curved face's projected bounds now block a tag only when the tag straddles them
+  (wholly inside or outside is allowed): the silhouette lies on the bounds' sides.
+  The old whole-rectangle block made CTC-02's elliptical flange face unusable.
+- Line clearance uses a 5 mm page grid; CTC-02 plans in about 10 s (11 s before).
+- **Entry column in the view frame.** Header `Z OUT / DIR`: X right, Y up (the X/Y
+  columns), Z out of the page toward the reader. The entry is measured from the
+  part's rearmost face along view Z (FROM MIN, as X/Y are); `−Z` is drilled into the
+  page, `+Z` from the far side. Plan tables are unchanged (view Z is part +Z). The
+  entry claim carries the view's out-of-page direction (`entry.view.x,y,z`) and lint's
+  `hole_table_entry_invalid` checks the cell in that frame, so a part-frame letter
+  (`75 / +X` on CTC-02's side view) is reported. A longer title (`FROM MIN, Z OUT`)
+  was tried and withdrawn: it widened the table and FTC-08's no longer fitted.
+- Regressions (each failed on 72dc53a): `each_tag_is_beside_or_leadered_to_its_own_hole`
+  (CTC-02, CTC-04, CTC-05, FTC-06; page positions from the table's own cells and origin)
+  and `entry_cells_use_the_view_frame_and_lint_checks_it` (CTC-02 side, FTC-06 front).
+
+Not done in this round (minor review items):
+
+- FTC-06 plan: `2× R12.7` still prints over the right-hand section letter `A`. It is a
+  dimension/section-furniture placement collision, not schedule furniture; neither
+  `annotation_overlap` nor `schedule_ink` reports it. Left for the layout stream.
+- Ordinate dimensioning (brief item b) is still not implemented; PCD is in-table only.
+- Bookkeeping: the H1 status section now exists in `docs/status-2026-10-10.md` (Stage H1
+  entry, with the before/after table). `tools/ci-quality-baseline.json` is refreshed per
+  "Baseline maintenance": 25 cells improve, none is worse, and `source_commit` reads
+  `0fc1c03+cxg/h-tables` until this branch merges. Update it to the merge commit then.

@@ -995,10 +995,18 @@ intersection of the carrying solid's minimum datum planes, including tangents
 at rounded corners. The solid's measured profile bounds must prove this origin.
 
 `Plan.hole_tables` carries each view's schedule, resolved model-space origin,
-rows and placed blocks. Columns are `TAG | ø / DEPTH / THREAD | X | Y | ENTRY / DIR`.
-The entry is the opening's axial distance from the minimum plane; direction uses
-the part-frame axis (for example `0 / +Z`). Each physical hole has a row;
-coaxial openings share one nearby tag such as `B1/B11`, with separate entry cells.
+rows and placed blocks. Columns are `TAG | ø / DEPTH / THREAD | X | Y | Z OUT / DIR`.
+All three coordinates are in the carrying view's frame: X right, Y up, Z out of
+the page toward the reader (the header says `Z OUT`). The entry is the
+opening's distance from the part's rearmost face along view Z; the direction is
+`−Z` (drilled into the page) or `+Z` (from the far side), for example `0 / +Z`.
+The entry claim carries the view's out-of-page direction (`entry.view.x,y,z`),
+which lint uses to check the cell. Each physical hole has a row;
+coaxial openings share one tag such as `B1/B11`, with separate entry cells.
+A tag sits beside its hole only where it is plainly nearer that hole's rim and
+centre than any other scheduled hole's; otherwise it takes a short leader from
+the hole's rim (shortest, fewest crossings, fanning outward from neighbours,
+never through another scheduled rim, label or tag leader).
 Tags are grouped by approved size wording; X/Y are the carrying view's two in-plane coordinates. The origin
 and positive coordinate directions are marked in that view. Size and location
 cells retain the planner's formatting and tolerances; an authored omission
