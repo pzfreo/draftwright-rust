@@ -1,0 +1,23 @@
+{
+  "policy": "maintainer 2026-10-12, H6",
+  "differences": [
+    {
+      "part": "GRM-03_thumbwheel_drive_screw",
+      "python": {
+        "sheet": "A4",
+        "scale": "5:1"
+      },
+      "rust": {
+        "sheet": "A3",
+        "scale": "10:1"
+      },
+      "verdict": "rust-correct",
+      "reason": "Deliberate policy override: Python test_issue_1299_page_escalation.py::test_crowded_head_uses_larger_scale_before_spending_the_sheet stops at A4 5:1. H6 permits A3 only with enlargement from the smallest complete fit A4 5:1. The measured lifted-row A3 10:1 candidate reaches the 60\u201385% band with every supported measurement and no hard finding; tests/sheet_fill.rs and tools/sheet_choices.py verify it."
+    },
+    {
+      "rule": "automatic sheet selection",
+      "verdict": "policy-override",
+      "reason": "Python compose.choose_scale and its historical bounded retry ladder are retained as the first estimate and reference replay. Final model::recover now exhausts the bounded eligible pairs and ranks measured content per the maintainer rule, rather than keeping a complete first estimate. docs/model.md and sheet_fill regressions state the new contract."
+    }
+  ]
+}

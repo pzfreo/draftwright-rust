@@ -212,7 +212,7 @@ pub const TEXT: f64 = 3.0;
 /// Arrowhead length, mm: draftwright's draft preset at its text height.
 pub const ARROW: f64 = 2.7;
 /// Half the arrowhead's width: a closed head of 1:3.
-const ARROW_HALF: f64 = ARROW / 6.0;
+pub(crate) const ARROW_HALF: f64 = ARROW / 6.0;
 /// The gap between an extension line and the point it extends from, and how far it runs past
 /// its dimension line (ISO 129-1: about 2 mm).
 const GAP: f64 = 1.0;

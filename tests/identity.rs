@@ -467,7 +467,9 @@ fn no_pmi_item_is_named_by_a_part_21_instance() {
 /// their new IDs. What the thin slice's stream S2 added is set aside ([`without_typed_state`]).
 /// Parts whose plan the planner has changed since 0.1.0-alpha.1: their oracle is the version 2
 /// spec renamed by hand ([`renamed`]), planned now, in place of the alpha 1 plan.
-const REPLANNED: [&str; 1] = ["bracket_positions"];
+// H6 changes the plate's open sheet/scale choice; migration must produce the same complete
+// geometry as the independently renamed version-2 intent under the current policy.
+const REPLANNED: [&str; 2] = ["bracket_positions", "plate"];
 
 #[test]
 fn version_1_specs_migrate_and_plan_identically() {
@@ -536,7 +538,7 @@ fn version_1_specs_migrate_and_plan_identically() {
                 .extend(report["problems"].as_array().unwrap().iter().cloned());
         }
         expected["spec"]["schema"] = model::SPEC_SCHEMA.into();
-        if part == "plate" {
+        if part == "plate" && !REPLANNED.contains(&part) {
             // The G5 title-furniture additions are golden data beside the legacy capture;
             // every pre-existing field still compares against the original alpha plan.
             // Their geometry/reporting verdicts are in known_title_block.json.

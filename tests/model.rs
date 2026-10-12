@@ -215,7 +215,7 @@ fn the_drawings_problems_reach_review_and_render() {
     )
     .unwrap();
     let (part, analysis) = model::analyse(&path).unwrap();
-    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
     let drawing = model::render(&part, &analysis, &plan, &font()).unwrap();
     assert!(
         codes(&drawing.problems).is_empty(),

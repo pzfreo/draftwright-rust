@@ -559,15 +559,20 @@ fn the_title_block_keeps_dimensions_out_without_dropping_them() {
             .iter()
             .any(|d| d.id == depth && d.placed.is_some())
     );
-    for code in ["annotation_over_title_block", "annotation_off_sheet"] {
-        assert!(
-            crowded
-                .problems
-                .iter()
-                .any(|q| q.code == code && q.subjects[0] == depth),
-            "{code}"
-        );
-    }
+    // H6 always lifts the row clear of the title block, even if the explicit scale then
+    // overflows the border. The depth stays drawn and its overflow stays reported.
+    assert!(
+        !crowded
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_over_title_block")
+    );
+    assert!(
+        crowded
+            .problems
+            .iter()
+            .any(|q| q.code == "annotation_off_sheet" && q.subjects[0] == depth)
+    );
 }
 
 /// The section recesses of *analysis* that the reader takes as hexagonal pockets: each one's

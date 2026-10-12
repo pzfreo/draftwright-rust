@@ -1705,12 +1705,25 @@ fn an_arrowhead_in_another_label_is_reported() {
 #[test]
 fn a_label_over_the_isometric_is_reported() {
     let plate = &fixtures().iter().find(|p| p.0 == "plate").unwrap().1;
-    let crowded = model::plan(
+    let mut crowded = model::plan(
         plate,
         &spec(json!({ "sheet": { "size": "A4", "scale": "5:1" } })),
     )
     .unwrap();
     assert!(codes(&crowded).contains("annotation_off_sheet"));
+    // The title-block lift now clears this historical overlap. Make a fixed, impossible
+    // orientation view so the reporting guard still exercises an actual label overlap.
+    crowded
+        .views
+        .iter_mut()
+        .find(|v| v.id == "v:iso")
+        .unwrap()
+        .scale = 100.0;
+    let (dims, omitted, problems) =
+        draftwright::dims::plan(plate, &Spec::default(), &crowded.sheet, &crowded.views).unwrap();
+    crowded.dimensions = dims;
+    crowded.omitted = omitted;
+    crowded.problems.extend(problems);
     let cases = planned()
         .iter()
         .map(|(n, a, p)| (n.as_str(), a, p))
@@ -2030,17 +2043,6 @@ fn recovered() -> &'static [(String, Plan)] {
     })
 }
 
-/// What the recovery said it tried, from its `layout_replanned` or `layout_recovery_exhausted`
-/// message.
-fn tried(message: &str) -> &str {
-    let from = message
-        .find("Tried ")
-        .or_else(|| message.find(": tried "))
-        .map(|i| i + message[i..].find("ried ").unwrap() + 5)
-        .unwrap_or_else(|| panic!("{message}"));
-    &message[from..]
-}
-
 /// The (feature, parameter) of every hole and turned-step measurement a placed dimension states.
 fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
     plan.dimensions
@@ -2052,118 +2054,78 @@ fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
         .collect()
 }
 
-/// ISSUE-1338-a, in part: the sheet is not the first lever. On every part whose first plan the
-/// recovery re-plans or tries to, the first thing tried is another scale on the same sheet, and a
-/// re-planned sheet keeps every hole and turned-shoulder outcome the first plan placed. On the
-/// captured parts that is cgb245 (A2 1:1 tried first, nothing taken, as in draftwright) and ctc04
-/// (A1 tried first, nothing taken, as in draftwright); ctc01 is kept on A3 at 1:5 with nothing
-/// tried, as in draftwright (until the layout kept the isometric off the plan's bands, a label the
-/// isometric displaced ran off the sheet and the recovery re-planned it at 1:10); GRM-03, the
-/// reported part, is kept on A4 at 2:1 with nothing tried, its four shoulders located
-/// (`grm03_locates_every_turned_shoulder_and_keeps_the_isometric`). Not ported: draftwright reaches
-/// 5:1 on A4 for GRM-03 by measuring larger scales against the recovery detail its estimate
-/// reserved, which the port does not plan (not-applicable); and the PMI-mode clause (the port
-/// lowers no PMI into the plan, not-applicable).
+/// H6 replaces the old recovery order: smallest complete fit, with at most one paper step
+/// and only with an enlargement. Every measurement carried before selection survives it.
 #[test]
-fn the_recovery_tries_the_same_page_first_and_keeps_every_outcome() {
-    let mut moved = BTreeSet::new();
+fn sheet_selection_is_bounded_and_keeps_every_outcome() {
     for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
-        let Some(said) = after
-            .problems
-            .iter()
-            .find(|p| p.code.starts_with("layout_re"))
-        else {
+        let kept = hole_and_shoulder_outcomes(after);
+        assert!(hole_and_shoulder_outcomes(first).is_subset(&kept), "{name}");
+        if let Some(rest) = after.sheet.basis.strip_prefix("smallest fit ") {
+            let words: Vec<_> = rest.split_whitespace().collect();
+            let smallest = words[0];
+            let largest_scale = words[2].trim_end_matches(';');
+            let index = |n: &str| layout_index(n);
+            assert!(index(&after.sheet.size) <= index(smallest) + 1, "{name}");
+            if index(&after.sheet.size) > index(smallest) {
+                let scale = |n: &str| {
+                    let (a, b) = n.split_once(':').unwrap();
+                    a.parse::<f64>().unwrap() / b.parse::<f64>().unwrap()
+                };
+                assert!(after.sheet.scale_factor > scale(largest_scale), "{name}");
+            }
+        } else {
+            assert!(codes(after).contains("layout_recovery_exhausted"), "{name}");
             assert_eq!(
                 (&after.sheet.size, &after.sheet.scale),
                 (&first.sheet.size, &first.sheet.scale),
                 "{name}"
             );
-            continue;
-        };
-        assert!(
-            tried(&said.message).starts_with(&format!("{} at ", first.sheet.size)),
-            "{name}: {}",
-            said.message
-        );
-        if said.code == "layout_replanned" {
-            let kept = hole_and_shoulder_outcomes(after);
-            assert!(
-                hole_and_shoulder_outcomes(first).is_subset(&kept),
-                "{name}: {:?}",
-                hole_and_shoulder_outcomes(first).difference(&kept)
-            );
         }
-        moved.insert((name.as_str(), said.code.as_str()));
     }
-    if sampled().is_empty() {
-        return;
-    }
-    assert!(!moved.iter().any(|m| m.0 == "ctc01"), "{moved:?}");
-    let ctc01 = &recovered().iter().find(|p| p.0 == "ctc01").unwrap().1;
-    assert_eq!(
-        (ctc01.sheet.size.as_str(), ctc01.sheet.scale.as_str()),
-        ("A3", "1:5")
-    );
-    assert!(
-        moved.contains(&("cgb245", "layout_recovery_exhausted")),
-        "{moved:?}"
-    );
-    let grm03 = &recovered().iter().find(|p| p.0 == "grm03").unwrap().1;
-    assert_eq!(
-        (grm03.sheet.size.as_str(), grm03.sheet.scale.as_str()),
-        ("A4", "2:1")
-    );
 }
 
-/// ISSUE-1146-b, in part: the recovery is honest about what it counts. On every part, a plan
-/// with no hard layout finding (at warning or error) is never moved for its other problems
-/// (validation findings, missing ports, an info observation): it is kept, sheet and problems,
-/// unless the recovery says hole locations are too close to read (the one required loss it
-/// counts, `layout::crowded_locations`, from the plan's dimensions whatever their problems'
-/// severity). A plan with one that no try clears keeps its sheet and says so
-/// (`layout_recovery_exhausted`, naming the codes), never silently. Not ported: a scale
-/// policy (strict, permissive) and its vocabulary; the rendering floor (the port's ladder ends
-/// at the largest standard sheet, and says so the same way); an unrelated build error (a plan
-/// that cannot be made is an error before any recovery).
+fn layout_index(name: &str) -> usize {
+    draftwright::layout::PAGES
+        .iter()
+        .position(|p| p.0 == name)
+        .unwrap()
+}
+
+/// Selection is honest: either a valid complete candidate is justified by measured fill,
+/// or the first drawing and its hard findings survive with an exhausted-search explanation.
 #[test]
-fn only_layout_findings_move_the_sheet_and_a_failed_recovery_is_said() {
+fn fill_selection_preserves_hard_findings_when_no_complete_candidate_exists() {
     for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
-        let hard: BTreeSet<&str> = first
+        let hard: BTreeSet<_> = after
             .problems
             .iter()
             .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
             .map(|p| p.code.as_str())
             .collect();
-        let said = after
-            .problems
-            .iter()
-            .find(|p| p.code.starts_with("layout_re"));
-        if hard.is_empty() {
-            match said {
-                None => assert_eq!(
-                    serde_json::to_value(after).unwrap(),
-                    serde_json::to_value(first).unwrap(),
-                    "{name}"
-                ),
-                Some(s) => assert!(
-                    s.message.contains("too close to read"),
-                    "{name}: {}",
-                    s.message
-                ),
-            }
-            continue;
-        }
-        let said = said.unwrap_or_else(|| panic!("{name}: {hard:?} and no recovery said"));
-        assert_eq!(said.severity, "info", "{name}");
-        if (&after.sheet.size, &after.sheet.scale) == (&first.sheet.size, &first.sheet.scale) {
-            assert_eq!(said.code, "layout_recovery_exhausted", "{name}");
-            assert!(
-                hard.iter().all(|c| said.message.contains(c)),
-                "{name}: {}",
-                said.message
+        if codes(after).contains("layout_recovery_exhausted") {
+            assert_eq!(
+                (&after.sheet.size, &after.sheet.scale),
+                (&first.sheet.size, &first.sheet.scale),
+                "{name}"
             );
+            let said = after
+                .problems
+                .iter()
+                .find(|p| p.code == "layout_recovery_exhausted")
+                .unwrap();
+            assert_eq!(said.severity, "info");
+            assert!(said.message.contains("Tried "), "{name}");
+            let before: BTreeSet<_> = first
+                .problems
+                .iter()
+                .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+                .map(|p| p.code.as_str())
+                .collect();
+            assert_eq!(hard, before, "{name}");
         } else {
-            assert_eq!(said.code, "layout_replanned", "{name}");
+            assert!(hard.is_empty(), "{name}: {hard:?}");
+            assert!(after.sheet.basis.contains("fill"), "{name}");
         }
     }
 }

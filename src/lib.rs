@@ -24,6 +24,7 @@ pub mod pmi_lowering;
 pub mod png;
 pub mod section;
 pub mod session;
+pub mod sheet_fit;
 pub use session::Session;
 pub mod tables;
 pub mod text;

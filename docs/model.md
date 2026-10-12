@@ -285,15 +285,40 @@ reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG
 - **Nothing the plan approves vanishes silently.** An item that can't be drawn is reported
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.
-- **The sheet and scale the spec leaves open are re-planned when the layout fails** (ISSUE-1299-a,
-  `model::plan_recovered`, which every caller of the library is given): a plan with a hard
-  layout finding (ink off the sheet, overlapping labels, a line through a label, an overflowing
-  title field, views that do not fit) or hole locations too close to read is planned again on
-  draftwright's bounded ladder (a scale each way, or two larger, on its sheet; then each larger
-  sheet), and the first valid, complete try that lays no more ink over the views is taken
-  (`layout_replanned`, info, and the sheet's basis say so); none found keeps the first plan and
-  says so (`layout_recovery_exhausted`). A scale the spec names is never re-planned and a sheet
-  it names never left. Nothing is clipped.
+- **Automatic sheet and scale are chosen on finished drawings** (maintainer, 2026-10-12,
+  H6; `model::plan_recovered` / `model::recover`). Find the smallest standard sheet with
+  a valid, complete drawing at a legible standard scale, and its largest such scale.
+  Only that sheet and its immediate larger neighbour may compete; the neighbour requires
+  a larger scale. Among candidates in `sheet_fit::FILL_BAND` (initially 60–85%), prefer
+  the larger scale, then smaller sheet. If none reaches the band, choose the fullest valid
+  drawing, breaking ties by scale and sheet. Hard layout findings, dropped items, lost
+  supported measurements and extra conflicts over other views veto a candidate.
+  Explicit sheet/scale choices override this rule; a named sheet alone still chooses its
+  scale by fill. Pins preserve their canonical sheet and frames. Nothing is clipped.
+  `sheet.fill` is the union of each drawn item's bounding footprint (view envelopes,
+  dimensions including witnesses, leaders and arrows, GD&T, notes, tables and balloons),
+  with 1 mm clearance, clipped inside the border and excluding the drawn title grid (its 8 mm furniture reservation is usable paper). Unused
+  reservation bands never contribute. `sheet.basis` reports every measured candidate's
+  fill and findings; impossible principal envelopes are rejected before placement.
+  Search is bounded by five sheets × seven scales (10:1 through the conservative automatic
+  floor, `sheet_fit::MIN_LEGIBLE_SCALE`, 1:10). On finding the smallest fit, search stops
+  after its neighbour. A GD&T layout may also be composed from settled view blocks at
+  the same scale on a roomy A0 template (at most one template per scale). Each block
+  includes the actual annotations and frames; their witnesses, leaders, text and feature
+  attachments move together, with projection alignment preserved. Page-anchored blocks,
+  sections, pins and authored view relations retain their existing planner. An alternative
+  must improve validity/crossings before it competes by fill. A candidate adding material
+  crossings is vetoed, as one adding conflicts over other views is. If none is valid and complete, the initial drawing and findings stay,
+  with `layout_recovery_exhausted` (info); the residual problems still require attention.
+  An initial scale below the automatic floor is instead redrawn at the floor on A0 (or
+  the named sheet), retaining overflow findings rather than silently using illegible ink.
+  One measured correction may lift an unpinned projection row together and refit its
+  orientation view, preserving all dimension geometry relative to its carrier. It only
+  applies to a failed estimate with no page-anchored annotation blocks. An estimate warning
+  is discharged only after actual footprints and view areas prove the drawing fits.
+  Every title-block collision lifts the row, even when the resulting overflow must be
+  reported. GD&T collision retries reserve beyond all dimension lanes, using the frame's
+  actual width and height rather than a uniform frame-count allowance.
 - **A hole item with no place on the sheet is dropped and escalated** (the maintainer's decision
   of 2026-10-09, draftwright's `_prepare_hole_table_run`; `src/hole_table.rs`, applied to every
   plan the recovery judges by `model::plan_escalated`). A hole callout or hole location that

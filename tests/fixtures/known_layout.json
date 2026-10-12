@@ -794,5 +794,23 @@
     },
     "verdict": "rust-correct",
     "reason": "The isometric's rectangle keeps clear of the principal views' full blocks, annotation bands included, as well as draftwright's DIM_PAD silhouettes: draftwright's estimate packs the iso around the silhouettes alone because its measure-and-repack pass then moves it clear of the measured blocks (#121, compose._pack_auxiliary_layout with blocks); the port plans from the estimate alone, so the estimate's rectangle lay on a view's bands (13 of the 30 quality parts at e0ad078, docs/quality-2026-10-09.md, 'after Quality 3')."
+  },
+  {
+    "fixture": "string_post",
+    "call": 2,
+    "rust": {
+      "fits": true
+    },
+    "verdict": "rust-correct",
+    "reason": "H6 maintainer policy 2026-10-12: validity uses the finished title-block lift, rather than rejecting the row at its pre-lift height. Its lifted blocks are inside the border and clear of the title block; tests/layout.rs replays and checks the exact geometry."
+  },
+  {
+    "fixture": "string_post",
+    "call": 5,
+    "rust": {
+      "fits": true
+    },
+    "verdict": "rust-correct",
+    "reason": "H6 maintainer policy 2026-10-12: validity uses the finished title-block lift, rather than rejecting the row at its pre-lift height. Its lifted blocks are inside the border and clear of the title block; tests/layout.rs replays and checks the exact geometry."
   }
 ]

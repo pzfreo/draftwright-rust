@@ -295,6 +295,8 @@ def one(f, dw, out, spec=None, timeout=600):
         "ink": sum(codes[c] for c in INK), "ink_by_code": {c: codes[c] for c in INK if codes[c]},
         "line_through_feature": line_through_features(plan),
         "dimensions": len(plan["dimensions"]),
+        "sheet": plan["sheet"].get("size"), "scale": plan["sheet"].get("scale"),
+        "fill": round(100 * plan["sheet"].get("fill", 0.0), 2),
         **{key: plan["completeness"][key]
            for key in ("claimed_faces", "faces", "unplanned_features")},
         **svg_linework(f"{out}/{name}.svg", plan),
@@ -302,15 +304,16 @@ def one(f, dw, out, spec=None, timeout=600):
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features", "fill"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):
         if "error" in v:
             print(f"{n:28} ERROR {v['error'][:80]}"); continue
-        print(f"{n[:28]:28}" + "".join(f"{v[k]:13}" for k in keys))
+        print(f"{n[:28]:28}" + "".join(f"{v.get(k, 0):13}" for k in keys))
         for k in keys:
-            tot[k] += v[k]; bad[k] += v[k] > 0
+            tot[k] += v.get(k, 0); bad[k] += v.get(k, 0) > 0
+    tot['fill'] = round(tot['fill'] / max(1, sum('error' not in v for v in res.values())), 2)
     print(f"{'TOTAL':28}" + "".join(f"{tot[k]:13}" for k in keys))
     print(f"{'parts affected':28}" + "".join(f"{bad[k]:13}" for k in keys), f"of {sum('error' not in v for v in res.values())}")
 

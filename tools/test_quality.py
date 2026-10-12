@@ -257,5 +257,22 @@ class RandomPins(unittest.TestCase):
                                         {'ink': 2, 'off_sheet': 1, 'off_sheet_items': ['b']}))
 
 
+
+class SheetFill(unittest.TestCase):
+    def test_fill_is_measured_and_printed_as_percent(self):
+        plan = {'sheet': {'scale': '1:1', 'size': 'A4', 'fill': .64},
+                'dimensions': [], 'views': [],
+                'completeness': {'claimed_faces': 0, 'faces': 0, 'unplanned_features': 0}}
+        replies = [subprocess.CompletedProcess([], 0, '{}', ''),
+                   subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
+            (Path(out) / 'part.svg').write_text('<svg/>')
+            _, result = quality.one('part.step', 'dw', out)
+        self.assertEqual(result['fill'], 64)
+        self.assertEqual((result['sheet'], result['scale']), ('A4', '1:1'))
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            quality.table({'part': result})
+        self.assertIn('fill', output.getvalue())
+
 if __name__ == '__main__':
     unittest.main()

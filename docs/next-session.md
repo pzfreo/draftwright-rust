@@ -4204,3 +4204,113 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 - The CI quality baseline's `source_commit` is `fd08c1d` (the commit whose status
   table it copies), as the Stage F baseline named `b999b13`; its executable SHA is the
   merged-tree release build that reproduced the table.
+
+## Stage H6: sheet and scale policy (2026-10-12)
+
+H6 implements the maintainer's new rule in `model::recover`: smallest valid,
+complete standard fit; only the next paper size, with a larger scale, may
+compete; rank finished footprint fill, targeting `sheet_fit::FILL_BAND`
+(60–85%), then scale and sheet. All supported measurements already carried by
+the seed survive, including hole-table replacements; GD&T, notes and tables
+must remain drawn. Explicit Spec choices and pin frames retain their authority.
+The old low-level Python ladder remains an estimate/reference replay; its
+historical `layout::recover` helper is retained for compatibility, while all
+public planning paths use the new model policy.
+
+Overturnable judgement calls (unattended work):
+
+- Until the Spec has the agreed smallest-scale control, the automatic floor is
+  the named `MIN_LEGIBLE_SCALE = 0.1` (1:10). This is conservative for the current
+  parts, not a universal manufacturing limit. An explicit scale overrides it.
+  If nothing fits legibly, A0 (or the named sheet) at the floor retains its
+  overflow findings rather than quietly producing a tiny drawing.
+- A footprint is the tight axis-aligned box of each drawn item, including a
+  dimension's witnesses and arrows, with 1 mm clearance. Union overlaps count
+  once. This measures occupied drawing territory rather than black-pixel ink;
+  unused reservation bands never count. Scale/projection furniture outside the
+  title block and section captions/cutting marks count. The denominator is
+  inside the 10 mm border less the drawn title grid (32 mm high). The
+  plan's 40 mm reservation also includes 8 mm of furniture space; that unused
+  reservation is not subtracted from usable area. Section hatch is
+  contained in its view's footprint. The target band is one named constant.
+- A failed fit estimate permits one measured correction of an unpinned free
+  projection row: move the row and every dimension together towards the top,
+  preserving alignment, then fit the automatic isometric once below it. This
+  is restricted to rows without GD&T, page-anchored notes/tables/balloons,
+  sections or authored isometric placement; those retain the existing solver.
+  Actual item bounds and view areas must prove the correction fits before the
+  estimate warning is discharged. No leader path is rerouted by this correction.
+- When enlarging the dimensioned views, retain the seed isometric's paper
+  scale if it fits and the seed has no hard layout finding; the measured correction may enlarge it into proven empty
+  space. This keeps an orientation view subordinate and avoids spending a
+  larger sheet merely on decorative growth. Spec isometric intent wins.
+- A GD&T reservation retry compares sheet/view clearance before label ink.
+  It may not trade frames over another view for fewer label crossings. The
+  existing estimate already derives glyph width/height from the actual
+  `control_frame` / datum / label geometry; H6 retains that sizing and adds
+  label crossings to the retry triggers. This resolves the supplied plate's
+  two frame-leader crossings at A3 1:1.
+
+New regression evidence: six Rust cases fail against an archived original
+source tree (`target/h6-before/six-tests.log`, 0/6), the scale-floor scenario
+fails through the original binary with the same fabricated Analysis
+(`target/h6-before/floor-test.log`, original A0 at 1:500), and the new quality
+column test fails against original `quality.py` (`target/h6-before-python/tests.log`).
+The final report will record the finishing checks and before/after tables.
+The archive used a shared Cargo output directory; its cached artifacts were
+cleared before rebuilding this worktree. Mixed/interrupted measurements in
+`h6-after2`, `h6-quality4` and `h6-pmi4` are diagnostic only, never final evidence.
+
+Rules covered: ADR2-D2, ADR2-3 / ISSUE-1299-a (maintainer-policy replacement),
+ADR2-16, ARCH0018-2, ISSUE-1338-a, LINT-quality-hard_layout_codes. Partial:
+ADR2-D4 / ISSUE-1216-a (measured correction and glyph sizing, not a general
+annotation repacker), ISSUE-563-b (existing lane reservations retained),
+ISSUE-1396-a (automatic floor only). Catalogue YAML is deliberately untouched
+because the Stage H streams are updating it concurrently. The policy difference
+from Python is recorded in `tests/fixtures/known_sheet_policy.json`; two
+string_post replay fit verdicts are in `known_layout.json`. Migration's plate
+oracle now uses independently renamed Spec intent under the new policy; its
+historical capture remains intact. Tests that asserted the old recovery order
+now assert the new paper bound, enlargement and retained measurements.
+
+Not done in H6: multi-sheet allocation/controls, section/detail creation,
+first-angle layout, extraction of the supplied plate's surface-texture and
+attribute-set records, and recognition/dimension gaps already reported by
+other streams. Their existing severities are retained. No MCP task definition,
+rules YAML, commit or push is changed.
+
+H6 final refinements: measured GD&T packing composes a same-scale A0 template's
+settled annotated view blocks onto the candidate page, at most once per scale.
+It moves witness/leader geometry with its carrier, without re-routing. Measured
+areas resolve the old reservation-overrun observations; page-anchored furniture,
+sections, pins and authored view relations stay with the existing planner.
+Candidate selection also vetoes additional leader/feature pairs or witness
+lines through material, using the same counts as quality.py. This retained
+bracket_positions/spool_fits at their original choices and removed the supplied
+plate's metric regression. A failed seed does not cap the enlarged isometric:
+STC-06's A0 1:1 orientation stays at its original 1.3 paper scale.
+
+A process-local memo holds at most 16 sheet-choice results, keyed by SHA-256
+of the full Analysis, Spec and initial Plan. It never holds a lock during
+planning and cannot reuse a seed with different findings or pin geometry.
+This preserves pure output and makes identical preview/commit planning cheap;
+the existing native p90 <=150 ms session bar is retained. Before the memo,
+turned/NIST p90 were 223/191 ms; after, all eight session tests pass. This
+bounded cache is an overturnable performance choice, not persisted state.
+Explicitly omitted, not-authored or covered GD&T is not a dropped layout item.
+
+The placement-locality regression still compares every sheet geometry field and
+all view/annotation placements exactly; only recomputed `fill` and its basis
+suffix are removed from that geometry comparison. Its omission now changes the
+reported occupied area as it should. The starvation regression uses cgb245 at
+A4 1:2 (A3 now fits its right strip); m1000's improved A3 arrangement must keep
+the overall height outside all four height rungs and the seat-location lane,
+with no finding against the extent. These update superseded inputs without
+relaxing placement or reporting assertions.
+
+Final allocation evidence also records CTC-03's incomplete-layout fallback on
+smaller paper: A2→A3 at the same 1:5 after the title-block estimate correction.
+The sheet-choice report enforces no paper growth and no scale reduction for
+these exhausted-search fallbacks; only valid candidates can spend a larger
+sheet. Native GRM-03's archived before binary actually draws A4 2:1 (the task
+mentioned a different editor A4 1:1 capture); measured after is A3 10:1.
