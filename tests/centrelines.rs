@@ -283,6 +283,9 @@ fn callouts_do_not_borrow_hole_centre_strokes() {
     for file in [
         "nist/nist_ctc_02_asme1_rc.stp",
         "nist/nist_ctc_04_asme1_rd.stp",
+        "nist/nist_ctc_05_asme1_rd.stp",
+        "nist/nist_ftc_06_asme1_rd.stp",
+        "nist/nist_ftc_07_asme1_rd.stp",
         "nist/nist_ftc_10_asme1_rb.stp",
     ] {
         let (_, p, drawn) = drawing(&dir.join(file));
@@ -291,7 +294,9 @@ fn callouts_do_not_borrow_hole_centre_strokes() {
             .filter(|i| {
                 matches!(
                     i.code.as_str(),
-                    "leader_centerline_overlap" | "label_section_furniture_overlap"
+                    "leader_centerline_overlap"
+                        | "label_centerline_overlap"
+                        | "label_section_furniture_overlap"
                 )
             })
             .collect();

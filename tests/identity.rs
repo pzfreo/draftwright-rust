@@ -545,11 +545,35 @@ fn version_1_specs_migrate_and_plan_identically() {
                 &std::fs::read_to_string(fixture("identity/plate.title_furniture.json")).unwrap(),
             )
             .unwrap();
-            expected["sheet"]["projection_symbol"] = furniture["projection_symbol"].clone();
-            expected["problems"].as_array_mut().unwrap().extend(
-                without_typed_state(json!({ "sheet": {}, "problems": furniture["problems"] }))["problems"]
-                    .as_array().unwrap().iter().cloned()
-            );
+            let problems =
+                without_typed_state(json!({ "sheet": {}, "problems": furniture["problems"] }));
+            if REPLANNED.contains(&part) {
+                // The current oracle already carries G5 furniture: verify the independent
+                // golden data once rather than adding its warning a second time.
+                assert_eq!(
+                    expected["sheet"]["projection_symbol"],
+                    furniture["projection_symbol"]
+                );
+                let current = without_typed_state(expected.clone());
+                for problem in problems["problems"].as_array().unwrap() {
+                    assert_eq!(
+                        current["problems"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .filter(|p| *p == problem)
+                            .count(),
+                        1,
+                        "{part}: title-furniture problem must occur exactly once"
+                    );
+                }
+            } else {
+                expected["sheet"]["projection_symbol"] = furniture["projection_symbol"].clone();
+                expected["problems"]
+                    .as_array_mut()
+                    .unwrap()
+                    .extend(problems["problems"].as_array().unwrap().iter().cloned());
+            }
         }
         if REPLANNED.contains(&part) {
             expected = without_typed_state(expected);

@@ -4399,3 +4399,78 @@ Overturnable judgement calls made unattended during the rebase (tests not rerun)
 - `known_leaders.json`: kept main's two reciprocal ftc06 entries and added G6's three ctc04
   entries; same verification owed.
 - Docs conflicts (model.md, next-session.md, status-2026-10-10.md) keep both sections.
+
+## Stage H / G6 carry-over clearance (2026-10-12)
+
+- Reproduced the round-3 blocker on the rebased source: FTC-10's hole:13 axis
+  spans page y=245..316 at x=358, through hole:17's `ø5.5 ↧ 35` label box
+  [354,314.83,372.108,317.08]. The strengthened centre-furniture regression
+  failed with the exact 4.0×1.2 mm structural finding. The before quality table
+  has FTC-10 ink 23, against the latest documented 22; that baseline is rejected.
+- Overturnable choice: preserve the proven full hole axis and shift the label's
+  text endpoint along its existing horizontal shelf, with 1 mm clearance from
+  the strokes it actually meets. This is a bounded addition to the existing
+  furniture-only hook (at most two endpoints for each of three existing tip
+  choices), retaining the attachment, elbow, ordinary-ink floor and feature
+  crossing floor. It adds no leader bends, physical sites, lanes or sheet policy.
+  The axis remains intact rather than being trimmed through text. Bare pins
+  retain their resolved automatic ink and explicitly authored placements keep
+  their existing rules. The six counterbored-hole sheets are now included in
+  the label/centre and leader/centre regression.
+- Round-3 axis judgement, now recorded: do not add a countersink depth to bore
+  depth. The cone enlarges the entrance within that axial bore interval; adding
+  it again can extend the axis past the physical bottom. The bridge reads its
+  major diameter and included angle, rather than a separate axial recess span.
+  Counterbore and spotface depths, when both exist, are summed before bore
+  depth, treating them as successive recess stages. The six reviewed native
+  analyses contain no hole with both stages or with a countersink, so this
+  simultaneous-stage interpretation remains overturnable and is not claimed
+  verified by those sheets. Missing any axial depth withholds a side axis;
+  the known opening still receives its end mark.
+- Rebase-only instrument repair: the G6 mocked Plan in tools/test_quality.py
+  now includes main's required completeness counts, like the other mocked
+  Plans. All three original centre/furniture ink assertions remain intact.
+  The original test failed with three KeyErrors; its complete 24-test suite
+  now passes. No rule catalogue YAML was edited. Final validation and sheet
+  evidence are recorded in the appended status entry.
+- Rebase verification settled the FTC-06 judgement above: the leader test finds
+  39 exact contacts on 106 callouts across 14 parts, and rejects the stale
+  boss:5-to-hole:11 direction. Removed that stale ledger entry; the reverse
+  remains rust-wrong. The placement ledger records one directional contact,
+  retaining its independent exact-count check and fourteen existing overruns.
+  Also removed one empty rebase artefact from the leaders ledger.
+- The migration test's plate oracle now uses current planning because G6 changed
+  its furniture layout. G5's legacy title warning was then being appended again.
+  For a current oracle, assert the independent golden projection geometry and
+  exactly one matching golden warning instead; for a historical oracle retain
+  the existing augmentation. The complete migration comparison is unchanged.
+  The initial required suite reproduced the duplicate-warning failure; the
+  corrected identity group passes 7/7.
+- The first complete prescribed eight-thread run stopped at the unchanged NIST
+  session gate: CTC-01 p90 154.902 ms against 150 ms; the other seven session
+  tests passed. An isolated sample then measured 156.255 ms (host load averages
+  49.66/46.45/44.56), followed on identical source by passing isolated samples
+  of 111.856 and 85.817 ms. These establish observed scheduling variability,
+  not a quiet-machine performance guarantee. Logs retain every result; no gate,
+  thread setting or test assertion was weakened. The complete prescribed run
+  is repeated; its final result is recorded in the status entry.
+- The second complete prescribed run also reached the session group with all
+  preceding groups passing, then measured NIST p90 250.786 ms; the other seven
+  session tests passed. The full failure is retained as tests-latency-failure-2.log.
+  Required remaining groups and final binary measurements are completed separately
+  before retrying the complete command. The 150 ms gate remains enabled throughout.
+- After final quality/MCP/pin measurements, the complete eight-thread session
+  group passed 8/8 on unchanged source; NIST p90 was 70.031 ms against 150 ms,
+  at host load 39.18/43.44/47.70. The prescribed whole-suite command is repeated
+  once more to obtain a single complete passing run. All 270 pin part-runs are
+  GO; quality, final raster equality and all seven MCP tasks already pass for
+  executable f498b7c614ebdf92338bd87f44d71e15472652e5f8f54f415892008d0e20b4f8.
+- Final complete prescribed run: 729/729 Rust tests pass, zero ignored, including
+  the unchanged NIST gate; fmt, strict release Clippy and release build pass.
+  Binary SHA is unchanged from all final quality/pin/MCP measurements. All
+  270 pin part-runs are GO and all seven MCP tasks succeed; quality has no worse
+  part against either reference. Six counterbored sheets plus changed cgb207
+  are inspected, with final raster byte equality. Full before/after tables and
+  retained timing failures are in the last G6 carry-over status entry. The two
+  unobserved depth-combination judgements above remain explicitly overturnable.
+  No commit or push was made; the driver owns that step.

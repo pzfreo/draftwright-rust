@@ -92,6 +92,7 @@ class RepeatedSpans(unittest.TestCase):
 class CentreLineInk(unittest.TestCase):
     def test_a_real_label_centreline_contact_counts_as_ink(self):
         plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'problems': [],
+                'completeness': {'claimed_faces': 0, 'faces': 0, 'unplanned_features': 0},
                 'views': [{'line_work': [{'kind': 'cross'}]}]}
         for code in ('label_centerline_overlap', 'leader_centerline_overlap',
                      'label_section_furniture_overlap'):

@@ -249,16 +249,7 @@
   "callout": "d:f:hole:11/bore.diameter",
   "crossing": "line:d:f:boss:5/boss.diameter",
   "verdict": "rust-wrong",
-  "reason": "The front hole:11 and boss:5 leaders cross reciprocally. Moving the counted plate thickness from the hidden front profile to the exposed side removes its former front obstacle; the pre-G2 reciprocal crossing returns. Both exact crossings are retained as rust-wrong. Thickness corner bands keep their labels inside their areas. Native quality is checked independently."
- },
- {
-  "part": "ftc06",
-  "callout": "d:f:boss:5/boss.diameter",
-  "crossing": "line:d:f:hole:11/bore.diameter",
-  "verdict": "rust-wrong",
-  "reason": "The front hole:11 and boss:5 leaders cross reciprocally. Moving the counted plate thickness from the hidden front profile to the exposed side removes its former front obstacle; the pre-G2 reciprocal crossing returns. Both exact crossings are retained as rust-wrong. Thickness corner bands keep their labels inside their areas. Native quality is checked independently."
- },
- {
+  "reason": "G6 fixed centre furniture reroutes boss:5, removing its directional leader contact with hole:11. The reverse contact from hole:11 to boss:5 remains rust-wrong. The rebase verification measures 39 exact contacts across 106 callouts on 14 parts and rejects the stale boss:5 entry; its inventory-equality assertion is unchanged. Native quality is checked separately. Evidence: target/g6-carry/rebase-tests.log."
  },
  {
   "part": "ctc04 (native)",

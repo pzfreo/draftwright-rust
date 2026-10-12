@@ -22,7 +22,7 @@
  {
   "rule": "ARCH0014-1 / ftc06 captured layout",
   "verdict": "rust-correct",
-  "reason": "Fixed centre furniture removes the directional boss:5 leader contact with hole:11, leaving its reverse contact. tests/leaders.rs rejects both unlisted contacts and stale ledger entries. known_leaders.json drops the stale direction and known_placement.json changes the pair count from two to one; no new collision is accepted. Native thirty-part quality retains ink 278 and improves feature crossings 212 to 210."
+  "reason": "Fixed centre furniture removes the directional boss:5 leader contact with hole:11, leaving its reverse contact. tests/leaders.rs rejects both unlisted contacts and stale ledger entries. known_leaders.json drops the stale direction and known_placement.json changes the pair count from two to one; no new collision is accepted. Native thirty-part quality retains ink 278 and improves feature crossings 212 to 210. Verified after rebasing onto Stage G main: target/g6-carry/rebase-tests.log independently finds the boss-to-hole entry stale, with 39 remaining contacts across 106 callouts on 14 parts. The reverse contact remains rust-wrong; the exact ledgers now agree with G6 geometry."
  },
  {
   "rule": "G6 genuine label/centreline contacts",
@@ -58,5 +58,10 @@
   "rule": "ARCH0014-1 / round-rim fixed-ink avoidance",
   "verdict": "rust-correct",
   "reason": "Python's normal automatic/pinned attachment uses the nearest radial rim point. Rust adds two nearby rim points only when the automatic incumbent is blocked by fixed ink, using the existing 16-direction angular step. FTC-10 hole:17's rightward elbow shifts intersect four other features; a nearby point on the same radius leaves its original label and elbow fixed, clears its centre stroke and preserves zero feature crossings. The independent corpus regression checks the tip's radius and outward departure; all ordinary-ink and per-callout feature-crossing floors remain enforced. No new physical site, dimension value or Spec address is added."
+ },
+ {
+  "rule": "ARCH0014-1 / full recessed-hole axes and label clearance",
+  "verdict": "rust-correct",
+  "reason": "The round-3 FTC-10 axis is the proven opening-to-bottom span: 10 counterbore + 55 bore + 6 overrun = 71 paper mm. Before the repair its hole:17 label box [354,314.83,372.108,317.08] crosses hole:13's axis x=358,y=245..316 (4.0x1.2 mm, detected by the strengthened six-sheet corpus regression). Python origin/main annotations/_leader_fixed_ink.py lowers centre strokes as fixed components and linting/structural.py::_label_centerline_overlap judges actual segment/text contacts. Rust's bounded furniture-only shelf endpoint repair preserves the full axis, attachment and elbow while leaving 1 mm text clearance; it retains the ordinary-ink and feature-crossing floors. The extra shelf endpoints are a deliberate layout difference from Python annotations/_hole_leader_placement.py::_build_hole_callout_leader, which supplies the physical tip, elbow and text_side without a shelf endpoint; they are not an exemption from its clearance rule. Captured before/after Plans, reviews and release rasters are in target/g6-carry/."
  }
 ]

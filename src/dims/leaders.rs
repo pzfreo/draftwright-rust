@@ -104,7 +104,8 @@ const MAX_SITES: usize = 64;
 const KEEP: usize = 40;
 /// A route escaping fixed ink also tries its tip turned by one lead direction either way
 /// ([`ROTATIONS`]) and, per shoulder fraction ([`SHOULDER_STEPS`]), a shorter shelf on its side
-/// and on the other: those and the incumbent join the job's [`KEEP`].
+/// and on the other. The incumbent and rotated tips also try moving just the text endpoint
+/// past a centre stroke: those and the incumbent join the job's [`KEEP`].
 const ROTATIONS: [f64; 2] = [-1.0, 1.0];
 const SHOULDER_STEPS: [f64; 3] = [0.25, 0.5, 0.75];
 /// The joint assignment's work bound per group of conflicting jobs, in search nodes.
@@ -569,9 +570,10 @@ pub(super) fn place_with_obstacles(
         });
         let right = b.end[0] > b.elbow[0];
         let mut prior = measure(job, b.tip, b.elbow, right, &fixed, page).expect("existing route");
-        // Keep the text anchored when escaping fixed ink: nearby rim points, shorter shelves,
-        // or the opposite outward side, all measured against the same feature evidence.
+        // Escape fixed ink with nearby rim points or shelf endpoints, all measured against
+        // the same feature evidence and ordinary-ink floor.
         if prior.furniture_hard > 0 {
+            inventories[k].extend(clear_text(job, &prior, right, &fixed, page));
             let site = nearest(&job.sites, b.elbow);
             if site.1 > 1e-9 {
                 let radial = rim_tip(site, b.elbow);
@@ -586,6 +588,7 @@ pub(super) fn place_with_obstacles(
                         && c.feature_crossings <= b.feature_crossings
                     {
                         c.aware = !semantic_pmi;
+                        inventories[k].extend(clear_text(job, &c, right, &fixed, page));
                         inventories[k].push(c);
                     }
                 }
@@ -1074,6 +1077,37 @@ fn measure(
         elbow[1],
     ];
     measure_at(job, tip, elbow, end, right, fixed, page)
+}
+
+/// Move text past the fixed strokes it meets, keeping the attachment and elbow. This
+/// furniture-only repair changes shelf length rather than adding another routing search.
+fn clear_text(
+    job: &Job,
+    prior: &Candidate,
+    right: bool,
+    fixed: &Fixed,
+    page: &Page,
+) -> Vec<Candidate> {
+    let mut shifts = [0.0f64; 2];
+    for (i, [a, b]) in &fixed.segments {
+        if fixed.furniture.contains_key(i) && crosses([*a, *b], prior.label_box) {
+            shifts[0] = shifts[0].min(a[0].min(b[0]) - prior.label_box[2] - LABEL_PAD);
+            shifts[1] = shifts[1].max(a[0].max(b[0]) - prior.label_box[0] + LABEL_PAD);
+        }
+    }
+    shifts
+        .into_iter()
+        .filter(|shift| shift.abs() > 1e-9)
+        .filter_map(|shift| {
+            let end = [prior.end[0] + shift, prior.end[1]];
+            if (end[0] > prior.elbow[0]) != right {
+                return None;
+            }
+            let mut c = measure_at(job, prior.tip, prior.elbow, end, right, fixed, page)?;
+            c.aware = prior.aware;
+            (c.feature_crossings <= prior.feature_crossings).then_some(c)
+        })
+        .collect()
 }
 
 fn measure_at(
@@ -1565,7 +1599,8 @@ struct Conflicts {
     of: Vec<Option<Vec<Vec<u64>>>>,
 }
 
-const _: () = assert!(KEEP + ROTATIONS.len() + 2 * SHOULDER_STEPS.len() < 64); // and the incumbent
+const _: () =
+    assert!(KEEP + ROTATIONS.len() + 2 * SHOULDER_STEPS.len() + 2 * (1 + ROTATIONS.len()) < 64); // and the incumbent
 
 impl Conflicts {
     fn new(
