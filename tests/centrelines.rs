@@ -343,37 +343,129 @@ fn callouts_do_not_borrow_hole_centre_strokes() {
     }
 }
 
-#[test]
-fn radius_leaders_do_not_run_beside_hole_axes() {
-    let Some(dir) = corpus::dir() else { return };
-    let (_, p, _) = drawing(&dir.join("cadgenbench_inputs/cgb207.step"));
-    let mut checked = 0;
-    for d in p.dimensions.iter().filter(|d| d.label == "R5") {
-        let v = p.views.iter().find(|v| v.id == d.view).unwrap();
-        for [a, b] in &d.placed.as_ref().unwrap().lines {
-            let u = [b[0] - a[0], b[1] - a[1]];
-            let length = u[0].hypot(u[1]);
-            if length < 1e-9 {
-                continue;
-            }
-            for stroke in v.line_work.iter().flat_map(|w| &w.curves) {
-                let (c, e) = (stroke.start(), stroke.end());
-                let v = [e[0] - c[0], e[1] - c[1]];
-                if (u[0] * v[1] - u[1] * v[0]).abs() > 1e-9 * length * v[0].hypot(v[1]) {
-                    continue;
-                }
-                let at = |p: [f64; 2]| ((p[0] - a[0]) * u[0] + (p[1] - a[1]) * u[1]) / length;
-                if at(c).max(at(e)).min(length) - at(c).min(at(e)).max(0.) > 0.5 {
-                    let gap = ((c[0] - a[0]) * u[1] - (c[1] - a[1]) * u[0]).abs() / length;
-                    assert!(
-                        gap > 1. - 1e-6,
-                        "{}: parallel centre-stroke gap {gap}",
-                        d.id
-                    );
-                }
-            }
-        }
-        checked += 1;
+/// The longest stretch of *line* lying within 1 mm of the stroke *c*–*e* at under ten degrees
+/// to it, sampled every 0.05 mm: a leader there reads as part of the centre line.
+fn beside_run(line: [[f64; 2]; 2], c: [f64; 2], e: [f64; 2]) -> f64 {
+    let [a, b] = line;
+    let (u, v) = ([b[0] - a[0], b[1] - a[1]], [e[0] - c[0], e[1] - c[1]]);
+    let (lu, lv) = (u[0].hypot(u[1]), v[0].hypot(v[1]));
+    if lu < 1e-9
+        || lv < 1e-9
+        || (u[0] * v[1] - u[1] * v[0]).abs() > 10f64.to_radians().sin() * lu * lv
+    {
+        return 0.;
     }
-    assert!(checked > 0);
+    let distance = |p: [f64; 2]| {
+        let t = (((p[0] - c[0]) * v[0] + (p[1] - c[1]) * v[1]) / (lv * lv)).clamp(0., 1.);
+        (p[0] - c[0] - t * v[0]).hypot(p[1] - c[1] - t * v[1])
+    };
+    let n = (lu / 0.05).ceil() as usize;
+    let (mut run, mut best) = (0f64, 0f64);
+    for i in 0..=n {
+        let t = i as f64 / n as f64;
+        if distance([a[0] + u[0] * t, a[1] + u[1] * t]) < 1. {
+            run += lu / n as f64;
+            best = best.max(run);
+        } else {
+            run = 0.;
+        }
+    }
+    best
+}
+
+/// cgb207's R5 ran 36.5 mm beside hole 1's axis (0.775 mm off, then tilted to converge on it)
+/// and string_post's ⌀1.6 8.9 mm along the A-A cutting line.
+/// No leader shaft on these sheets may run beside a centre stroke, at any small angle, other
+/// than its own hole's centre mark.
+#[test]
+fn leaders_do_not_run_beside_centre_lines() {
+    let Some(dir) = corpus::dir() else { return };
+    for file in [
+        "cadgenbench_inputs/cgb207.step",
+        "cadgenbench_inputs/cgb203.step",
+        "gramel/string_post.step",
+    ] {
+        let (_, p, _) = drawing(&dir.join(file));
+        let mut checked = 0;
+        for d in p.dimensions.iter() {
+            let Some(placed) = d.placed.as_ref().filter(|p| !p.arrows.is_empty()) else {
+                continue;
+            };
+            let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+            let shaft = placed.lines[0];
+            let [a, b] = shaft;
+            let n = (b[0] - a[0]).hypot(b[1] - a[1]);
+            // A radial leader leaving its own hole along that hole's centre mark is attached,
+            // not running along another line: the cross whose centre its line passes through.
+            let radial = |c: [f64; 2]| {
+                ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])).abs() / n < 1e-3
+            };
+            for stroke in v
+                .line_work
+                .iter()
+                .filter(|w| !(w.kind == "cross" && w.centre.is_some_and(radial)))
+                .flat_map(|w| &w.curves)
+            {
+                let run = beside_run(shaft, stroke.start(), stroke.end());
+                assert!(
+                    run <= 0.5,
+                    "{file}: {} runs {run:.2} mm beside a centre stroke",
+                    d.id
+                );
+            }
+            checked += 1;
+        }
+        assert!(checked > 0, "{file}");
+    }
+}
+
+/// A label that must stay across the end of an axis shortens that axis's overrun (ISO 128-24)
+/// rather than being parted from its shelf by the stroke: FTC-10's ⌀5.5 ↧ 35 keeps its round-3
+/// place, joined to its shelf, and hole 13's axis stops short of it, still past the hole.
+#[test]
+fn a_label_across_an_axis_end_trims_the_overrun() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, p, _) = drawing(&dir.join("nist/nist_ftc_10_asme1_rb.stp"));
+    let d = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:17/bore.diameter")
+        .unwrap();
+    let placed = d.placed.as_ref().unwrap();
+    let [elbow, end] = placed.lines[1];
+    let label = placed.label_box;
+    // The text follows its own shelf, a millimetre on, with nothing between them.
+    let gap = if end[0] > elbow[0] {
+        label[0] - end[0]
+    } else {
+        end[0] - label[2]
+    };
+    assert!((gap - 1.).abs() < 1e-6, "text gap {gap}");
+    let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+    let axis = v
+        .line_work
+        .iter()
+        .find(|w| w.id == "ink:v:side:f:hole:13")
+        .unwrap();
+    let (a, b) = (axis.curves[0].start(), axis.curves[0].end());
+    assert!((a[0] - b[0]).abs() < 1e-9, "a vertical axis");
+    let (low, high) = (a[1].min(b[1]), a[1].max(b[1]));
+    // The opening-to-bottom span is 65 mm with 3 mm overrun each end (round 3: y 245..316).
+    assert!(
+        (low - 245.).abs() < 1e-6,
+        "far end keeps its overrun: {low}"
+    );
+    assert!(
+        high < label[1] - 0.5 + 1e-6,
+        "axis end {high} below the label {}",
+        label[1]
+    );
+    assert!(
+        high >= 316. - 3. + 1. - 1e-6,
+        "at least 1 mm overrun stays: {high}"
+    );
+    assert!(
+        a[0] > label[0] && a[0] < label[2],
+        "the label still stands over the axis column"
+    );
 }

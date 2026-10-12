@@ -348,12 +348,17 @@ Drawing lint checks the actual marked centres against independent projections
 of the Analysis's holes, including pattern members and double-D bores. Structural
 review separately counts collinear leader travel along fixed chain strokes and
 actual labels touching section letters or arrows; quality includes those in ink.
-For a callout label blocked by a centre stroke, the furniture-only fallback also
-tries extending or shortening its horizontal shelf to leave 1 mm clear. Its tip
-and elbow stay fixed; ordinary annotation and feature-crossing floors still apply.
-A shelf ending within 1 mm of fixed chain ink is shortened toward its elbow,
-keeping the cleared text position, so its endpoint cannot form a joint with
-the stroke it cleared.
+A callout label that must stay across the end of a hole axis (its leader search
+found no place as good under the ordinary-ink and feature-crossing floors) is not
+moved off its shelf: the axis's overrun past the feature is shortened instead
+(ISO 128-24), stopping 0.5 mm short of the label and keeping at least 1 mm past
+the feature (`centrelines::trim`, after dimension placement). A label across the
+feature's own span is never trimmed around; lint still reports it.
+A leader shaft running within 1 mm of a centre stroke at under ten degrees, for
+more than 0.5 mm, reads as part of the centre line (`centrelines::runs_beside`).
+Exact collinear travel is a hard blocker; near-parallel shaft travel is weighted
+just below one crossing, so it is avoided whenever that costs no crossing. A
+radial leader leaving its own hole along that hole's centre-mark arm is exempt.
 
 ### Dimensions (first cut)
 

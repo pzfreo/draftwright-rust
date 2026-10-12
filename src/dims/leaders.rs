@@ -104,8 +104,7 @@ const MAX_SITES: usize = 64;
 const KEEP: usize = 40;
 /// A route escaping fixed ink also tries its tip turned by one lead direction either way
 /// ([`ROTATIONS`]) and, per shoulder fraction ([`SHOULDER_STEPS`]), a shorter shelf on its side
-/// and on the other. The incumbent and rotated tips also try moving just the text endpoint
-/// past a centre stroke: those and the incumbent join the job's [`KEEP`].
+/// and on the other: those and the incumbent join the job's [`KEEP`].
 const ROTATIONS: [f64; 2] = [-1.0, 1.0];
 const SHOULDER_STEPS: [f64; 3] = [0.25, 0.5, 0.75];
 /// The joint assignment's work bound per group of conflicting jobs, in search nodes.
@@ -127,6 +126,9 @@ const AREA: i64 = 1_000_000;
 /// `annotation_text_ink_clear`, and keeps shaft crossings under Policy B): above the area.
 /// A candidate meets text of fewer than a thousand items, so this stays below one crossing.
 const TEXT_INK: i64 = 1_000 * AREA;
+/// A leader running along or close beside a centre stroke reads as part of it
+/// ([`crate::centrelines::runs_beside`]): avoided at any cost short of one crossing.
+const BESIDE: i64 = 100 * TEXT_INK;
 /// The clear-route measurement (ISSUE-1187-a, after draftwright's test helper `_clear_routes`,
 /// which no placer uses): from each of a callout's [`SWEEP_SITES`] sites nearest its leader's
 /// tip, the leader leaves radially in [`SWEEP_DIRECTIONS`] directions, its elbow at each of
@@ -150,6 +152,8 @@ struct Candidate {
     furniture: u32,
     furniture_hard: u32,
     furniture_text: u32,
+    /// Of the centre strokes it meets, those it runs along or close beside ([`BESIDE`]).
+    beside: u32,
     feature_crossings: u32,
     inside: i64,
     aware: bool,
@@ -180,6 +184,7 @@ impl Candidate {
                     + self.cost
             }
             + i64::from(self.furniture) * 100_000
+            + i64::from(self.beside) * BESIDE
     }
 
     /// Whether it is clear: no hard blocker and nothing crossed.
@@ -213,6 +218,8 @@ struct Fixed {
     /// Where each of them lies, so a candidate tests only those near it.
     grid: Grid,
     furniture: BTreeMap<usize, bool>,
+    /// Of the furniture, the centre marks' crosses.
+    crosses: std::collections::BTreeSet<usize>,
 }
 
 impl Fixed {
@@ -246,6 +253,7 @@ impl Fixed {
             heads,
             grid,
             furniture: BTreeMap::new(),
+            crosses: Default::default(),
         }
     }
 }
@@ -471,6 +479,12 @@ pub(super) fn place_with_obstacles(
         .filter(|(_, d)| d.kind == "ink")
         .map(|(i, d)| (items.len() + i, d.basis == "global_axis"))
         .collect();
+    fixed.crosses = obstacles
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.kind == "ink" && d.basis == "cross")
+        .map(|(i, _)| items.len() + i)
+        .collect();
     // How far each view's strips reach with dimension ink, past the view's edges.
     let mut reach: BTreeMap<(&str, usize), f64> = BTreeMap::new();
     for i in 0..items.len() {
@@ -570,10 +584,9 @@ pub(super) fn place_with_obstacles(
         });
         let right = b.end[0] > b.elbow[0];
         let mut prior = measure(job, b.tip, b.elbow, right, &fixed, page).expect("existing route");
-        // Escape fixed ink with nearby rim points or shelf endpoints, all measured against
-        // the same feature evidence and ordinary-ink floor.
+        // Keep the text anchored when escaping fixed ink: nearby rim points, shorter shelves,
+        // or the opposite outward side, all measured against the same feature evidence.
         if prior.furniture_hard > 0 {
-            inventories[k].extend(clear_text(job, &prior, right, &fixed, page));
             let site = nearest(&job.sites, b.elbow);
             if site.1 > 1e-9 {
                 let radial = rim_tip(site, b.elbow);
@@ -588,7 +601,6 @@ pub(super) fn place_with_obstacles(
                         && c.feature_crossings <= b.feature_crossings
                     {
                         c.aware = !semantic_pmi;
-                        inventories[k].extend(clear_text(job, &c, right, &fixed, page));
                         inventories[k].push(c);
                     }
                 }
@@ -1016,6 +1028,7 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Inventories {
         c.furniture = 0;
         c.furniture_hard = 0;
         c.furniture_text = 0;
+        c.beside = 0;
     }
     let baseline_aware = keep(&baseline);
     for c in &mut baseline {
@@ -1079,95 +1092,6 @@ fn measure(
     measure_at(job, tip, elbow, end, right, fixed, page)
 }
 
-/// Move text past the fixed strokes it meets, keeping the attachment and elbow. This
-/// furniture-only repair changes shelf length rather than adding another routing search.
-fn clear_text(
-    job: &Job,
-    prior: &Candidate,
-    right: bool,
-    fixed: &Fixed,
-    page: &Page,
-) -> Vec<Candidate> {
-    let mut shifts = [0.0f64; 2];
-    for (i, [a, b]) in &fixed.segments {
-        if fixed.furniture.contains_key(i) && crosses([*a, *b], prior.label_box) {
-            shifts[0] = shifts[0].min(a[0].min(b[0]) - prior.label_box[2] - LABEL_PAD);
-            shifts[1] = shifts[1].max(a[0].max(b[0]) - prior.label_box[0] + LABEL_PAD);
-        }
-    }
-    shifts
-        .into_iter()
-        .filter(|shift| shift.abs() > 1e-9)
-        .filter_map(|shift| {
-            let end = [prior.end[0] + shift, prior.end[1]];
-            if (end[0] > prior.elbow[0]) != right {
-                return None;
-            }
-            let mut c = measure_at(job, prior.tip, prior.elbow, end, right, fixed, page)?;
-            c.aware = prior.aware;
-            (c.feature_crossings <= prior.feature_crossings).then_some(c)
-        })
-        .collect()
-}
-
-/// Keep the free end of a shelf separate from fixed chain ink. Text retains its
-/// measured position; only a near-touching endpoint is shortened, never a shaft.
-fn shelf_end(elbow: P2, mut end: P2, fixed: &Fixed) -> Option<P2> {
-    let right = end[0] > elbow[0];
-    // Each shortening passes a stroke; query again where the new endpoint lands.
-    for _ in 0..=fixed.segments.len() {
-        let prior = end;
-        let near = [
-            end[0] - LABEL_PAD,
-            end[1] - LABEL_PAD,
-            end[0] + LABEL_PAD,
-            end[1] + LABEL_PAD,
-        ];
-        let mut blocked = false;
-        fixed.grid.near(0, near, |n| {
-            let (id, [a, b]) = &fixed.segments[n];
-            if !fixed.furniture.contains_key(id) || !segment_near([*a, *b], near) {
-                return;
-            }
-            let u = [b[0] - a[0], b[1] - a[1]];
-            let length2 = u[0] * u[0] + u[1] * u[1];
-            if length2 < 1e-12 {
-                return;
-            }
-            let t = (((end[0] - a[0]) * u[0] + (end[1] - a[1]) * u[1]) / length2).clamp(0., 1.);
-            if (end[0] - a[0] - t * u[0]).hypot(end[1] - a[1] - t * u[1]) >= LABEL_PAD - 1e-9 {
-                return;
-            }
-            // Clip to the padded shelf row, then expand horizontally too: the
-            // resulting bound leaves at least the same Euclidean gap for oblique ink.
-            let mut ts = [0., 1.];
-            if u[1].abs() > 1e-9 {
-                let low = (end[1] - LABEL_PAD - a[1]) / u[1];
-                let high = (end[1] + LABEL_PAD - a[1]) / u[1];
-                ts = [low.min(high).max(0.), low.max(high).min(1.)];
-            }
-            let xs = ts.map(|t| a[0] + t * u[0]);
-            let x = if right {
-                xs[0].min(xs[1]) - LABEL_PAD
-            } else {
-                xs[0].max(xs[1]) + LABEL_PAD
-            };
-            if (right && x > elbow[0] && x < end[0]) || (!right && x < elbow[0] && x > end[0]) {
-                end[0] = x;
-            } else {
-                blocked = true;
-            }
-        });
-        if blocked {
-            return None;
-        }
-        if end == prior {
-            return Some(end);
-        }
-    }
-    None
-}
-
 fn measure_at(
     job: &Job,
     tip: P2,
@@ -1194,7 +1118,6 @@ fn measure_at(
         max: job.ink_max,
     };
     let lb = label_box(&ink, label_at, 0.0);
-    let end = shelf_end(elbow, end, fixed)?;
     let segs = [[tip, elbow], [elbow, end]];
     let o = job.outline;
     let mut hard = 0u32;
@@ -1254,24 +1177,40 @@ fn measure_at(
     let mut furniture = Vec::new();
     let mut furniture_hard = 0;
     let mut furniture_text = Vec::new();
+    let mut besides = Vec::new();
     let lines = segs.map(Line::new);
     fixed.grid.near(0, near, |n| {
         let (i, f) = &fixed.segments[n];
         if !segment_near(*f, near) {
             return;
         }
+        // Exact collinear travel stays hard; a shaft's near-parallel travel is weighted
+        // ([`BESIDE`]).
+        let mut beside = false;
+        let mut collinear = false;
         let meets = if let Some(&global) = fixed.furniture.get(i) {
-            segs.iter()
-                .enumerate()
-                .any(|(k, s)| crate::centrelines::leader_conflict(*s, *f, global, k == 0))
-                || lines.iter().any(|s| s.collinear(*f))
+            // The shaft only: a short shelf beside a stroke's end is not a run along it. A
+            // radial leader leaving its own hole along that hole's centre mark is its
+            // attachment, not travel along another feature's line.
+            beside = crate::centrelines::runs_beside(segs[0], *f)
+                && !(fixed.crosses.contains(i) && through(*f, nearest(&job.sites, tip).0));
+            collinear = lines.iter().any(|s| s.collinear(*f));
+            beside
+                || collinear
+                || segs
+                    .iter()
+                    .enumerate()
+                    .any(|(k, s)| crate::centrelines::leader_conflict(*s, *f, global, k == 0))
         } else {
             lines.iter().any(|s| s.meets(*f))
         };
         if meets {
             if fixed.furniture.contains_key(i) {
                 furniture.push(*i);
-                if lines.iter().any(|s| s.collinear(*f)) {
+                if beside {
+                    besides.push(*i);
+                }
+                if collinear {
                     hard += 1;
                     furniture_hard += 1;
                 }
@@ -1321,7 +1260,13 @@ fn measure_at(
     });
     // An item both crossed and met by the label counts in each: the plan reports a crossing
     // and a text contact as two problems of the pair.
-    for v in [&mut crossed, &mut text, &mut furniture, &mut furniture_text] {
+    for v in [
+        &mut crossed,
+        &mut text,
+        &mut furniture,
+        &mut furniture_text,
+        &mut besides,
+    ] {
         v.sort_unstable();
         v.dedup();
     }
@@ -1349,6 +1294,7 @@ fn measure_at(
         furniture: furniture.len() as u32,
         furniture_hard,
         furniture_text: furniture_text.len() as u32,
+        beside: besides.len() as u32,
         feature_crossings,
         inside,
         aware: true,
@@ -1550,6 +1496,13 @@ impl Line {
     }
 }
 
+/// Whether the line of segment *s* passes within a micrometre of *p*.
+fn through(s: [P2; 2], p: P2) -> bool {
+    let u = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
+    let n = u[0].hypot(u[1]);
+    n > 1e-9 && ((p[0] - s[0][0]) * u[1] - (p[1] - s[0][1]) * u[0]).abs() / n < 1e-3
+}
+
 /// Whether two segments cross at a point inside both (touching ends and collinear runs do not
 /// count).
 pub(super) fn segments_cross(a: [P2; 2], b: [P2; 2]) -> bool {
@@ -1659,8 +1612,7 @@ struct Conflicts {
     of: Vec<Option<Vec<Vec<u64>>>>,
 }
 
-const _: () =
-    assert!(KEEP + ROTATIONS.len() + 2 * SHOULDER_STEPS.len() + 2 * (1 + ROTATIONS.len()) < 64); // and the incumbent
+const _: () = assert!(KEEP + ROTATIONS.len() + 2 * SHOULDER_STEPS.len() < 64); // and the incumbent
 
 impl Conflicts {
     fn new(
@@ -1973,58 +1925,6 @@ impl Search {
 mod tests {
     use super::*;
 
-    #[test]
-    fn shelves_stop_short_of_fixed_strokes_on_either_side() {
-        for stroke in [
-            [[8., -10.], [8., 0.]],
-            [[8., 10.], [8., 0.]],
-            [[6., -2.], [10., 2.]],
-            [[8., 0.5], [8., 10.]],
-        ] {
-            let placed = Placed {
-                lines: vec![stroke],
-                arrows: Vec::new(),
-                label_at: [0.; 2],
-                rotation: 0.,
-                label_box: [0.; 4],
-            };
-            let mut fixed = Fixed::new(std::iter::once((0, &placed)));
-            fixed.furniture.insert(0, false);
-            for (elbow, end) in [([0., 0.], [8., 0.]), ([16., 0.], [8., 0.])] {
-                let shortened = shelf_end(elbow, end, &fixed).unwrap();
-                assert_eq!(shortened[1], end[1]);
-                assert!((shortened[0] - elbow[0]) * (end[0] - shortened[0]) > 0.);
-                let u = [stroke[1][0] - stroke[0][0], stroke[1][1] - stroke[0][1]];
-                let t = (((shortened[0] - stroke[0][0]) * u[0]
-                    + (shortened[1] - stroke[0][1]) * u[1])
-                    / (u[0] * u[0] + u[1] * u[1]))
-                    .clamp(0., 1.);
-                assert!(
-                    (shortened[0] - stroke[0][0] - t * u[0])
-                        .hypot(shortened[1] - stroke[0][1] - t * u[1])
-                        >= LABEL_PAD - 1e-9
-                );
-            }
-            fixed.furniture.clear();
-            assert_eq!(shelf_end([0., 0.], [8., 0.], &fixed), Some([8., 0.]));
-        }
-    }
-
-    #[test]
-    fn a_shortened_shelf_clears_the_next_stroke_or_yields_its_candidate() {
-        let placed = Placed {
-            lines: vec![[[7., -10.], [7., 0.]], [[8., -10.], [8., 0.]]],
-            arrows: Vec::new(),
-            label_at: [0.; 2],
-            rotation: 0.,
-            label_box: [0.; 4],
-        };
-        let mut fixed = Fixed::new(std::iter::once((0, &placed)));
-        fixed.furniture.insert(0, false);
-        assert_eq!(shelf_end([0., 0.], [8., 0.], &fixed), Some([6., 0.]));
-        assert_eq!(shelf_end([6.5, 0.], [8., 0.], &fixed), None);
-    }
-
     /// The tip lies on the rim, radial towards the elbow (`holes._rim_tip`): the leader points at
     /// the hole's centre whatever side it leaves by.
     #[test]
@@ -2066,6 +1966,7 @@ mod tests {
             furniture: 0,
             furniture_hard: 0,
             furniture_text: 0,
+            beside: 0,
             feature_crossings: 0,
             inside: 0,
             aware: false,

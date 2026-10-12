@@ -9,7 +9,7 @@ use crate::model::{Analysis, PlannedView, extent};
 use crate::output::{Curve, P};
 use haecceity::hlr::View;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LineWork {
     pub id: String,
     /// `cross`, `axis`, `pitch_circle` or `cutting_plane`.
@@ -21,6 +21,21 @@ pub struct LineWork {
     pub radial: bool,
     #[serde(default)]
     pub global_axis: bool,
+    /// How far an axis runs past its feature at each end, mm: what [`trim`] may shorten.
+    /// Planning state only, not part of the drawing's identity.
+    #[serde(skip)]
+    pub overrun: f64,
+}
+
+impl PartialEq for LineWork {
+    fn eq(&self, o: &Self) -> bool {
+        self.id == o.id
+            && self.kind == o.kind
+            && self.curves == o.curves
+            && self.centre == o.centre
+            && self.radial == o.radial
+            && self.global_axis == o.global_axis
+    }
 }
 
 pub fn overrun(radius: f64) -> f64 {
@@ -68,6 +83,7 @@ fn cross(id: String, c: P, radius: f64, radial: Option<P>) -> LineWork {
         centre: Some(c),
         radial: radial.is_some(),
         global_axis: false,
+        overrun: 0.,
     }
 }
 
@@ -146,6 +162,7 @@ fn axis(
         centre: None,
         radial: false,
         global_axis: global,
+        overrun: extra,
     })
 }
 
@@ -277,6 +294,7 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                 centre: None,
                 radial: false,
                 global_axis: false,
+                overrun: 0.,
             });
         }
         // Native recognition may publish the members without their bolt-circle record.
@@ -318,6 +336,7 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                     centre: None,
                     radial: false,
                     global_axis: false,
+                    overrun: 0.,
                 });
             }
         }
@@ -506,6 +525,7 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                 centre: None,
                 radial: false,
                 global_axis: false,
+                overrun: 0.,
             });
         }
     }
@@ -621,6 +641,8 @@ fn merge(work: &mut Vec<LineWork>) {
                     )
                 };
                 p.global_axis |= w.global_axis;
+                // Either end may be the other axis's: only the smaller overrun is sure.
+                p.overrun = p.overrun.min(w.overrun);
                 continue;
             }
         }
@@ -665,6 +687,8 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                 from_spec: Vec::new(),
                 basis: if w.global_axis {
                     "global_axis".into()
+                } else if w.kind == "cross" {
+                    "cross".into()
                 } else {
                     String::new()
                 },
@@ -730,6 +754,130 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
     out
 }
 
+/// The least an axis runs past its feature once [`trim`] has shortened it, and the gap it then
+/// keeps from the label, mm (the floor of [`overrun`]).
+const MIN_OVERRUN: f64 = 1.0;
+const LABEL_GAP: f64 = 0.5;
+
+/// Where a placed label must stay across the end of an axis, shorten that end's overrun past
+/// the feature (ISO 128-24) to stop [`LABEL_GAP`] short of the label, keeping at least
+/// [`MIN_OVERRUN`]. A label across the feature's own span is left in place and reported by lint.
+pub(crate) fn trim(views: &mut [PlannedView], dimensions: &[PlannedDimension]) {
+    let boxes: Vec<[f64; 4]> = dimensions
+        .iter()
+        .filter(|d| d.kind != "ink")
+        .filter_map(|d| d.placed.as_ref())
+        .map(|p| p.label_box)
+        .filter(|b| b[2] > b[0] && b[3] > b[1])
+        .map(|b| {
+            [
+                b[0] - LABEL_GAP,
+                b[1] - LABEL_GAP,
+                b[2] + LABEL_GAP,
+                b[3] + LABEL_GAP,
+            ]
+        })
+        .collect();
+    for w in views.iter_mut().flat_map(|v| &mut v.line_work) {
+        trim_axis(w, &boxes);
+    }
+}
+
+/// [`trim`] for one piece of line work against the labels' boxes, already grown by the gap.
+fn trim_axis(w: &mut LineWork, boxes: &[[f64; 4]]) {
+    let spare = w.overrun - MIN_OVERRUN;
+    if w.kind != "axis" || spare <= 1e-9 {
+        return;
+    }
+    let Curve::Line(a, b) = w.curves[0] else {
+        return;
+    };
+    let length = (b[0] - a[0]).hypot(b[1] - a[1]);
+    let (mut lo, mut hi) = (0.0f64, length);
+    for bx in boxes {
+        let Some([t0, t1]) = clip([a, b], *bx) else {
+            continue;
+        };
+        let (s0, s1) = (t0 * length, t1 * length);
+        if s1 <= spare {
+            lo = lo.max(s1);
+        } else if s0 >= length - spare {
+            hi = hi.min(s0);
+        }
+    }
+    if lo > 0. || hi < length {
+        let at = |s: f64| {
+            [
+                a[0] + (b[0] - a[0]) * s / length,
+                a[1] + (b[1] - a[1]) * s / length,
+            ]
+        };
+        w.curves[0] = Curve::Line(at(lo), at(hi));
+    }
+}
+
+/// The parameter range of segment *s* inside box *b* (Liang-Barsky), if it enters it.
+fn clip(s: [P; 2], b: [f64; 4]) -> Option<[f64; 2]> {
+    let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    for (p, q) in [
+        (-d[0], s[0][0] - b[0]),
+        (d[0], b[2] - s[0][0]),
+        (-d[1], s[0][1] - b[1]),
+        (d[1], b[3] - s[0][1]),
+    ] {
+        if p.abs() < 1e-12 {
+            if q < 0. {
+                return None;
+            }
+        } else if p < 0. {
+            t0 = t0.max(q / p);
+        } else {
+            t1 = t1.min(q / p);
+        }
+    }
+    (t1 - t0 > 1e-9).then_some([t0, t1])
+}
+
+/// Within this distance of a centre stroke, mm, and this close to parallel (sine of the angle),
+/// a leader reads as running along the stroke over any shared run longer than [`BESIDE_RUN`]:
+/// the leaders' own [`crate::dims`] proximity limits, with ten degrees for near-parallel travel.
+const BESIDE: f64 = 1.0;
+const BESIDE_SIN: f64 = 0.173_648_177_666_930_3;
+const BESIDE_RUN: f64 = 0.5;
+
+/// Whether *line* runs beside the centre stroke *fixed*: near-parallel and within [`BESIDE`]
+/// of it for more than [`BESIDE_RUN`] of the leader's length, measured across the leader.
+pub(crate) fn runs_beside(line: [P; 2], fixed: [P; 2]) -> bool {
+    let u = [line[1][0] - line[0][0], line[1][1] - line[0][1]];
+    let v = [fixed[1][0] - fixed[0][0], fixed[1][1] - fixed[0][1]];
+    let (lu, lv) = (u[0].hypot(u[1]), v[0].hypot(v[1]));
+    if lu < 1e-9 || lv < 1e-9 || (u[0] * v[1] - u[1] * v[0]).abs() > BESIDE_SIN * lu * lv {
+        return false;
+    }
+    let u = [u[0] / lu, u[1] / lu];
+    let at = |p: P| (p[0] - line[0][0]) * u[0] + (p[1] - line[0][1]) * u[1];
+    let off = |p: P| (p[0] - line[0][0]) * u[1] - (p[1] - line[0][1]) * u[0];
+    let (ta, tb, oa, ob) = (at(fixed[0]), at(fixed[1]), off(fixed[0]), off(fixed[1]));
+    if (tb - ta).abs() < 1e-9 {
+        return false;
+    }
+    let (mut lo, mut hi) = (ta.min(tb).max(0.), ta.max(tb).min(lu));
+    // The stroke's offset is linear in the leader's parameter: keep where it is within BESIDE.
+    let slope = (ob - oa) / (tb - ta);
+    let offset = |t: f64| oa + slope * (t - ta);
+    if slope.abs() < 1e-12 {
+        if oa.abs() >= BESIDE {
+            return false;
+        }
+    } else {
+        let [x, y] = [-BESIDE, BESIDE].map(|o| ta + (o - oa) / slope);
+        lo = lo.max(x.min(y));
+        hi = hi.min(x.max(y));
+    }
+    hi - lo > BESIDE_RUN && offset((lo + hi) / 2.).abs() < BESIDE
+}
+
 /// Only a transverse attachment in the arrow neighbourhood of a marked global
 /// turning axis is intentional. Shelf crossings and travel along the axis count.
 pub(crate) fn leader_conflict(line: [P; 2], fixed: [P; 2], global: bool, shaft: bool) -> bool {
@@ -760,6 +908,63 @@ pub(crate) fn leader_conflict(line: [P; 2], fixed: [P; 2], global: bool, shaft: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn axis_of(a: P, b: P, overrun: f64) -> LineWork {
+        LineWork {
+            id: "ink:v:side:f:hole:1".into(),
+            kind: "axis".into(),
+            curves: vec![Curve::Line(a, b)],
+            centre: None,
+            radial: false,
+            global_axis: false,
+            overrun,
+        }
+    }
+
+    fn ends(w: &LineWork) -> [P; 2] {
+        [w.curves[0].start(), w.curves[0].end()]
+    }
+
+    /// A label across an axis end shortens only that end's overrun, keeping [`MIN_OVERRUN`]
+    /// past the feature; across the feature's span, or beyond what the overrun allows, it stays.
+    #[test]
+    fn labels_trim_only_an_axis_overrun() {
+        // The feature spans y 3..68 with 3 mm overrun: the axis runs 0..71.
+        let mut w = axis_of([10., 0.], [10., 71.], 3.);
+        trim_axis(&mut w, &[[5., 69.8, 20., 72.]]);
+        assert_eq!(ends(&w), [[10., 0.], [10., 69.8]]);
+        let mut w = axis_of([10., 71.], [10., 0.], 3.);
+        trim_axis(&mut w, &[[5., -2., 20., 0.5], [5., 70., 20., 75.]]);
+        let [p, q] = ends(&w);
+        assert!(
+            (p[1] - 70.).abs() < 1e-9 && (q[1] - 0.5).abs() < 1e-9,
+            "{p:?} {q:?}"
+        );
+        for label in [[5., 30., 20., 33.], [5., 67.5, 20., 72.]] {
+            let mut w = axis_of([10., 0.], [10., 71.], 3.);
+            trim_axis(&mut w, &[label]);
+            assert_eq!(ends(&w), [[10., 0.], [10., 71.]], "{label:?}");
+        }
+        let mut w = axis_of([10., 0.], [10., 71.], 0.);
+        trim_axis(&mut w, &[[5., 69.8, 20., 72.]]);
+        assert_eq!(ends(&w), [[10., 0.], [10., 71.]]);
+    }
+
+    /// Near-parallel travel within a millimetre counts, however slightly the leader tilts;
+    /// a crossing at a real angle, or parallel travel further off, does not.
+    #[test]
+    fn leaders_beside_a_stroke_are_found_at_any_small_angle() {
+        let axis = [[121.431, 126.03], [121.431, 197.03]];
+        // cgb207's R5: 0.775 mm off and exactly parallel, then tilted onto the axis's end.
+        assert!(runs_beside([[122.206, 162.49], [122.206, 126.03]], axis));
+        assert!(runs_beside([[122.206, 162.49], [121.456, 126.03]], axis));
+        assert!(runs_beside([[121.431, 150.], [121.431, 130.]], axis));
+        assert!(!runs_beside([[123.5, 162.49], [123.5, 126.03]], axis));
+        assert!(!runs_beside([[115.206, 126.03], [122.206, 162.49]], axis));
+        assert!(!runs_beside([[110., 150.], [130., 150.]], axis));
+        // Beside only past the stroke's end does not count.
+        assert!(!runs_beside([[121.9, 120.], [121.9, 126.]], axis));
+    }
     #[test]
     fn oblique_holes_mark_the_projected_ellipse_and_axes() {
         let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

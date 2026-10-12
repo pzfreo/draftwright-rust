@@ -1745,6 +1745,11 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         }
     }
     problems.extend(more);
+    // A label that had to stay across an axis end shortens that axis's overrun; what follows
+    // keeps clear of the trimmed furniture.
+    crate::centrelines::trim(&mut views, &dimensions);
+    furniture = crate::centrelines::obstacles(&views);
+    furniture.extend(fixed.iter().cloned());
     // The part's PMI, placed beyond the dimensions; the notes and tables keep clear of both.
     let mut annotation_obstacles = dimensions.clone();
     annotation_obstacles.extend(furniture.into_iter().filter(|d| d.kind == "ink"));

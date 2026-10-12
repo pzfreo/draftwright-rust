@@ -4518,3 +4518,50 @@ Overturnable judgement calls made unattended during the rebase (tests not rerun)
   to make this correction; its log is retained as tests-scanner-stopped.log.
   Grid-based units (11), centreline regressions (8), exact leader checks (2) and
   placement checks (9) all pass without changing the contact/overrun ledgers.
+
+## Stage H / G6 round 5: trim the axis, not the shelf (2026-10-12)
+
+Supersedes the shelf-endpoint and exact-parallel bullets of the round-4 entry
+above and the 8525b11 text hop: both repairs are reverted in src/dims/leaders.rs.
+
+- FTC-10 `⌀5.5 ↧ 35` keeps its round-3 place, joined to its shelf; hole 13's axis
+  overrun is trimmed to stop 0.5 mm short of the label (y 245..316 becomes
+  245..314.33), still 1.33 mm past the hole. Overturnable judgement calls:
+  the label gap (0.5 mm, because a 1 mm gap would leave under 1 mm of overrun
+  here), the minimum kept overrun (1 mm, the floor of `overrun()`), and trimming
+  only against dimension labels (GD&T frames and notes are placed afterwards and
+  keep clear of the trimmed axes). A label across the feature's own span is never
+  trimmed around; it stays and lint reports it. Merged collinear axes trim by
+  the smaller of their overruns. Trims also apply on CTC-05 (5 axes, 0.49 mm),
+  FTC-07 (1), FTC-08 (2) and FTC-10's plan view (3), each where a label came
+  within 0.5 mm of an axis end.
+- Leader shafts running beside a centre stroke (within 1 mm, under 10 degrees,
+  over 0.5 mm) are weighted just below one crossing (`BESIDE` in leaders.rs);
+  exact collinear travel stays hard. Overturnable choices: the 10 degree / 1 mm /
+  0.5 mm limits (drafting choices, not ISO numbers); the weighted tier rather
+  than a hard blocker (hard was measured, with shelves still included: CTC-02
+  ink 36 to 37, CTC-04 54 to 55, CTC-05 8 to 10); shafts only (checking shelves
+  turned GRM-03's ø6 shelf into a stub); and exempting a radial leader leaving
+  its own hole along that hole's centre-mark arm. Counting that arm changed 18
+  of 30 sheets and moved CTC-02 AP242's two ⌀40 callouts into the GD&T tier, so
+  the flatness frame took the left strip and pushed datums E and J off the sheet
+  (tests/gdt_band.rs). Whether a leader may leave along its own centre mark is
+  a style question for the maintainer; main does it on many holes.
+- Final effect on the thirty quality parts: 8 sheets change. cgb207 R5 and
+  string_post's ⌀1.6 leave the axis / A-A line; FTC-10's `8× ⌀2.5` leaves a
+  vertical axis with a full shelf; FTC-06's `4× ⌀7.1` pattern callout leaves
+  boss 6's line but now runs down its own hole's arm (exempt), losing its 0.75 mm
+  stub. Other-feature shaft-beside runs: 30 to 27 (independent sampled count);
+  the remaining 27 cost a crossing to clear.
+- Residual, recorded rather than chased: GRM-03's ø6 now takes the existing
+  0.75 mm shoulder escape. Its former 3 mm shelf ran 1.0 mm beside hole 1's axis
+  (an existing hard collinear blocker; debug output shows it as the only hard
+  candidate, kept by the incumbent-restore fallback). With that fallback no
+  longer triggered on GRM-03, the solver picks its clear stub. Main has 31 such
+  0.75 mm stubs; this branch has 31. Dropping the 0.75 step was measured: it
+  brought back shaft-beside runs and 1.5 mm stubs on CTC-02/04, so it is left
+  for the stub/shelf policy.
+- Tried and not kept: a 3 mm same-row label gap in the joint search (it
+  enlarged CTC-02's capped search group from 11 to 16 callouts and raised its
+  ink 36 to 37). With the own-arm exemption the cgb241 same-row case that
+  prompted it no longer arises.
