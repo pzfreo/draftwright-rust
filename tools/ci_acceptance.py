@@ -180,6 +180,8 @@ class Run:
                 self.steps.append({'name': 'reject-deliberate-regression', 'passed': rejected.returncode == 1,
                                    'observed_exit_code': rejected.returncode, 'expected_exit_code': 1})
             cells = (args.pin_cell,) if args.pin_cell else PIN_CELLS
+            self.step('label-lane-locality', [*py, ROOT / 'tools/check_label_lanes.py',
+                      '--current', quality_out, '--after-binary', binary])
             for cell in cells:
                 seed, pins = map(int, cell.split('-'))
                 pin_out = out / f'pins-{cell}'

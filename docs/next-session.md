@@ -4286,3 +4286,95 @@ sheets were re-reviewed after the shared-span fix. Full tables and failure
 evidence are in the H3 status entry and `target/h3/`. No isolated large-part
 latency comparison is claimed. Release SHA-256: `e7df4f934dd322d699a5e69cdd27ce7528990051c0bc260531272f4ba648dbd7`.
 No commit or push.
+
+
+## H3 review fix (2026-10-12)
+
+This supersedes the preceding H3 completion claim and its 64-lane/2n search
+judgement. The review correctly rejected STC-09's 168 mm slot-size jump and
+0.13–0.50 mm apparent clearances. GDT equality alone did not protect the drawing.
+
+Overturnable unattended choices:
+
+- Try the next outward lane; skip at most one occupied dimension rung, with an
+  absolute 14 paper mm displacement limit. A fixed leader obstruction alone
+  cannot justify the skip. A literal one-lane cap loses CTC-03's clearer A3 sheet:
+  its next lane carries the 447.3 grid pitch, so the 108.0 slot size uses the
+  following lane with disjoint measured spans. The synthetic regression rejects
+  skipping a blocked datum and a tower, and accepts a single occupied rung.
+- A newly cleared text/line or label contact needs 1 paper mm, measured per
+  stroke. This is twice the former nominal clearance and excludes all reviewed
+  0.13–0.50 mm apparent fixes. Unchanged close witnesses are retained; we do
+  not claim that every existing close approach has been repaired.
+- One traversal, finite obstacle boundaries, allocation-free contact masks;
+  no repeated 2n rounds, no 0.5 mm sampling of long spans, no 64-lane scan.
+  Text edits still settle a canonical natural inventory to preserve unaffected
+  peers' geometry. Removing that baseline would violate existing locality tests;
+  its bounded cost is included in the new paired latency instrument.
+- The isolated performance script uses alternating processes, median of three,
+  and a 1.25x ceiling versus pre-H3 for both default and tolerance-edited STC-09.
+  Run it without a Cargo process; noise is not a drafting exception.
+- Keep the inclusive text-off-span metric, and make its meaning explicit:
+  pre-H3 **151** inclusive versus **43** strictly beyond 5.7 mm; reviewed H3
+  **23** inclusive versus **16** strict. Thus **108** original labels sit exactly
+  at the old default gap. Most of the reported fall is bringing default outside
+  text nearer its own arrow; it is not evidence of 128 lane promotions.
+
+The review's 13 callout-label collisions include **seven extension-line** and
+**six dimension-line** crossings (CTC-02 four witnesses; FTC-08 one witness and
+three dimension lines; FTC-09 one witness; FTC-10 one witness and three dimension
+lines). Outward promotion cannot remove the seven witnesses: it lengthens them.
+The other six have occupied/blocked adjacent lanes. They remain reported, rather
+than launching a larger routing search; tables and detail sheets belong to the
+agreed dense-part sheet policy. H3 does not claim these thirteen are fixed.
+
+The CI quality/pin job now regenerates STC-09 from its committed gzip and runs
+`check_label_lanes.py --current` after quality rendering. This fails on the
+reviewed H3 output, checks STC-09's neighbouring sizes and witness lengths, and
+includes all four F3 examples (1000, 10020, 10007 14.0, string_post 1.1).
+The full before/after checker accepts binary options to regenerate both AP242
+plans (and absent quality baselines with --corpus), and now checks each protected dimension's displacement and witness
+origins as well as GD&T/sheet/view equality. Existing STC-09 fixtures and
+`tests/gdt_band.rs` remain untouched. Final measurements follow in the status log.
+
+
+Text-edit profiling found the remaining cost in the natural inventory's leader
+candidate generation. Semantic-PMI drawings already always retain the legacy
+leader objective, but computed footprint-aware scores before discarding them.
+Those unused feature-crossing/inside-length calculations are now skipped under
+that existing decision. Legacy geometry, scores, assignment and final Plan bytes
+are unchanged (a new candidate-equivalence unit test and STC-09 byte comparison).
+An exact assignment memo alone did not meet the latency target and was removed;
+there is no new cache. Preflight paired medians are default **3.12 → 2.22 s**,
+text edit **3.58 → 4.36 s**, both below the predeclared 1.25x ceiling. Final-source
+required checks and measurements are repeated after this performance fix.
+
+The final-source suite hit the unchanged NIST session latency gate (159.3 ms),
+and repeats varied up to 278.2 ms. The scoring mode is now a const generic,
+so the ordinary footprint-aware path has no new runtime flag/branch. All eight
+session tests then passed: NIST p90 **76.6 ms**, turned **30.2 ms**, plate
+**14.4 ms**. No latency threshold, test thread setting or gate override changed.
+The full required suite is repeated after specialization; final results below.
+
+
+Final H3 review-fix acceptance: **720/720 tests, 75 groups**, fmt, strict Clippy,
+release build; quality **420 cells no worse** versus pre-fix status (**268 ink,
+208 feature crossings, 23 off-span**); all **270/270 pins GO** with --require-go,
+zero off-sheet; scripted MCP **7/7 / 16 calls / 5812 estimated tool tokens**;
+Python 28/28 and CI instruments 15/15, Node 8/8. Final paired latency:
+default **2.745→2.144 s**, text edit **4.589→4.861 s**, both within 1.25x.
+Repeated Plans are byte-identical. All 31 sheets rasterized and inspected.
+The thirty native SVGs are unchanged from reviewed H3; STC-09 has zero lane
+changes against pre-H3 and annotation ink **45→23**, with 22 removed strokes
+clearing their labels by >=1 mm. Its 38.1 is again beside 2×25.4. Fixed-sheet
+A3 CTC-03 independently proves **14 mm** real promotion with fixed witnesses;
+`check_label_lanes.py --corpus ... --before-binary ... --after-binary ...`
+enforces that probe, alongside geometry/clearance and per-part metric checks.
+
+The same 13 dense crossings remain: 7 witnesses that cannot be cleared by
+outward promotion, and 6 blocked dimension-line cases. Those and the remaining
+23 off-span labels need the agreed tables/detail-sheet work; no farther search
+or GD&T rerouting is proposed. All final evidence is in `target/h3-fix/` and
+the status entry. Release SHA-256:
+`497a6bf043e1791be295208af0ec7751a225aac52d57462302e2cba639a11bbc`.
+No commit or push.

@@ -204,8 +204,12 @@ embedded Spec, including entries that are covered, omitted, or cannot fit.
 
 Automatic linear labels settle against the completed dimension and GD&T ink. Text stays
 between its own witness stations when it fits, otherwise just beside an arrow. If no such
-label position clears ink, the whole dimension tries outward paper lanes within the existing
-view footprint. Its witness origins and measured value stay fixed. Candidates cannot add
+label position clears ink, the whole dimension tries the next outward paper lane within the
+existing view footprint. It may skip one occupied dimension rung, so the absolute movement
+limit is two lanes (14 paper mm); a fixed-ink obstruction alone never permits that skip.
+Settlement traverses the inventory once and tests span endpoints, centres and obstacle
+boundaries rather than sampling the whole span. Cleared text/line contacts leave at least
+1 paper mm. Its witness origins and measured value stay fixed. Candidates cannot add
 label/line contact, share an overlapping measured span on another dimension line,
 cross a settled GD&T leader, or introduce a band overrun. Pins stay fixed;
 an infeasible label keeps its reported collision. `tools/quality.py` counts detached text

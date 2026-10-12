@@ -3,10 +3,8 @@ use draftwright::model::{self, Spec};
 #[path = "common/corpus.rs"]
 mod corpus;
 
-fn plan(name: &str) -> Option<model::Plan> {
-    let a = model::analyse_native(&corpus::dir()?.join(format!("mfcadpp/{name}.step")))
-        .unwrap()
-        .1;
+fn plan(path: &str) -> Option<model::Plan> {
+    let a = model::analyse_native(&corpus::dir()?.join(path)).unwrap().1;
     Some(model::plan_recovered(&a, &Spec::default()).unwrap())
 }
 
@@ -24,8 +22,10 @@ fn adjacent(d: &draftwright::dims::PlannedDimension) -> bool {
 #[test]
 fn short_native_dimensions_keep_their_text_on_their_span() {
     for (name, labels) in [
-        ("1000", vec!["6.9", "8.9", "10.9"]),
-        ("10020", vec!["4.5", "1.2"]),
+        ("mfcadpp/1000.step", vec!["6.9", "8.9", "10.9"]),
+        ("mfcadpp/10020.step", vec!["4.5", "1.2"]),
+        ("mfcadpp/10007.step", vec!["14.0"]),
+        ("gramel/string_post.step", vec!["1.1"]),
     ] {
         let Some(p) = plan(name) else {
             eprintln!("SKIPPED: the corpus is not found");
@@ -44,4 +44,45 @@ fn short_native_dimensions_keep_their_text_on_their_span() {
             );
         }
     }
+}
+
+#[test]
+fn stc09_slot_length_stays_beside_its_peer_and_gdt_corridors() {
+    use std::io::Read as _;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let bytes =
+        std::fs::read(root.join("tests/fixtures/pmi/step/nist_stc_09_asme1_ap242-e4.stp.gz"))
+            .unwrap();
+    let mut step = Vec::new();
+    flate2::read::GzDecoder::new(bytes.as_slice())
+        .read_to_end(&mut step)
+        .unwrap();
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("label_lanes");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("stc09.stp");
+    std::fs::write(&path, step).unwrap();
+    let a = model::analyse_native(&path).unwrap().1;
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let placed = |id: &str| {
+        p.dimensions
+            .iter()
+            .find(|d| d.id == id)
+            .unwrap()
+            .placed
+            .as_ref()
+            .unwrap()
+    };
+    let slot = placed("d:f:slot:3/slot_length.length");
+    let peer = placed("d:f:slot:1/slot_length.length");
+    assert!(
+        (slot.arrows[0][0][1] - peer.arrows[0][0][1]).abs() <= 14.0 + 1e-6,
+        "a slot must remain within the next lane of its neighbouring size"
+    );
+    assert!(
+        slot.lines[..2]
+            .iter()
+            .all(|[a, b]| (a[1] - b[1]).abs() < 60.0),
+        "the size must not gain witnesses running across the location tower"
+    );
+    assert_eq!(p.gdt.len(), 28);
 }
