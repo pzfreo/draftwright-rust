@@ -502,15 +502,21 @@ pub(super) fn place_with_obstacles(
             },
         ));
     }
-    let (mut inventories, original): (Vec<_>, Vec<_>) = jobs
-        .iter()
-        .map(|(_, job)| inventory(job, &fixed, page))
-        .unzip();
-    // Semantic PMI claims its strips after dimensions. Until those strips participate in the
-    // joint solve, retain the established objective rather than planning PMI twice as a probe.
+    // Semantic PMI always retains the established objective. Do not measure footprint
+    // scores that it discards, including when text edits reconstruct the natural inventory.
     let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
         .0
         .is_empty();
+    let (mut inventories, original): (Vec<_>, Vec<_>) = jobs
+        .iter()
+        .map(|(_, job)| {
+            if semantic_pmi {
+                inventory::<false>(job, &fixed, page)
+            } else {
+                inventory::<true>(job, &fixed, page)
+            }
+        })
+        .unzip();
     let (old_choice, old_capped) = assign(&original);
     let (mut choice, mut capped) = if semantic_pmi {
         (old_choice.clone(), old_capped.clone())
@@ -793,7 +799,11 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 
 /// Every candidate of *job* measured, the best [`KEEP`] kept (fewest hard blockers, then fewest
 /// crossings, then shortest, then generation order), near-duplicates dropped.
-fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> (Vec<Candidate>, Vec<Candidate>) {
+fn inventory<const AWARE: bool>(
+    job: &Job,
+    fixed: &Fixed,
+    page: &Page,
+) -> (Vec<Candidate>, Vec<Candidate>) {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -866,12 +876,12 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> (Vec<Candidate>, Vec<Cand
             None => &[true, false],
         };
         for &right in options {
-            if let Some(c) = measure(job, tip, elbow, right, fixed, page) {
+            if let Some(c) = measure::<AWARE>(job, tip, elbow, right, fixed, page) {
                 measured.push(c);
             }
         }
     }
-    let aware = keep(&measured);
+    let aware = if AWARE { keep(&measured) } else { Vec::new() };
     for c in &mut measured {
         c.aware = false;
     }
@@ -918,7 +928,7 @@ fn offsets(beyond: f64) -> Vec<f64> {
 
 /// The candidate with its tip, elbow and label side, measured; none when the leader is too short
 /// for its arrowhead.
-fn measure(
+fn measure<const AWARE: bool>(
     job: &Job,
     tip: P2,
     elbow: P2,
@@ -1047,7 +1057,11 @@ fn measure(
         v.dedup();
     }
     let crossings = (crossed.len() + text.len()) as u32;
-    let feature_crossings = job.footprints.crossing_count(segs[0]) as u32;
+    let feature_crossings = if AWARE {
+        job.footprints.crossing_count(segs[0]) as u32
+    } else {
+        0
+    };
     // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
     let outside = job.area.is_some_and(|a| {
         [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]
@@ -1057,7 +1071,11 @@ fn measure(
             })
     });
     let cost = ((shaft + SHOULDER) * 1000.0).round() as i64;
-    let inside = (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64;
+    let inside = if AWARE {
+        (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64
+    } else {
+        0
+    };
     Some(Candidate {
         tip,
         elbow,
@@ -1069,7 +1087,7 @@ fn measure(
         crossings,
         feature_crossings,
         inside,
-        aware: true,
+        aware: AWARE,
         text: text.len() as u32,
         outside: u32::from(outside),
         bounds,
@@ -1158,7 +1176,9 @@ pub fn clear_routes(
     Some(
         sweep(&job, tip)
             .into_iter()
-            .filter_map(|(tip, elbow, right)| measure(&job, tip, elbow, right, &fixed, &page))
+            .filter_map(|(tip, elbow, right)| {
+                measure::<true>(&job, tip, elbow, right, &fixed, &page)
+            })
             .filter(Candidate::clear)
             .count(),
     )
@@ -1766,6 +1786,41 @@ mod tests {
         assert_eq!(conflict(&a[0], &b[0]), TEXT_CONFLICT);
         assert_eq!(conflict(&a[1], &b[0]), 1);
         assert_eq!(assign(&[a, b]), (vec![1, 0], vec![]));
+    }
+
+    #[test]
+    fn unused_footprint_scoring_preserves_legacy_candidates() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/plate.step");
+        let a = crate::model::analyse_native(&path).unwrap().1;
+        let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
+        let view = plan.views.iter().find(|v| v.id == "v:front").unwrap();
+        let frame = Frame::new(&a, view);
+        let page = Page::new(&a, &plan.sheet, &plan.views);
+        let cache = super::super::footprints::Cache::default();
+        let footprints = cache.get(&a, view);
+        let o = frame.outline();
+        let ink = label_ink(&["ø4 THRU".into()], font());
+        let job = Job {
+            view: "front",
+            footprints: &footprints,
+            outline: o,
+            area: page.area("front"),
+            sites: vec![([0.5 * (o[0] + o[2]), 0.5 * (o[1] + o[3])], 2.0)],
+            ink_min: ink.min,
+            ink_max: ink.max,
+            beyond: [CLEAR; 4],
+        };
+        let fixed = Fixed::new(std::iter::empty::<(usize, &Placed)>());
+        let original = inventory::<true>(&job, &fixed, &page).1;
+        let fast = inventory::<false>(&job, &fixed, &page).1;
+        assert!(!original.is_empty());
+        assert_eq!(original.len(), fast.len());
+        for (before, after) in original.iter().zip(&fast) {
+            assert_eq!(before.score(), after.score());
+            assert_eq!(before.placed(), after.placed());
+        }
+        assert_eq!(assign(&[original]), assign(&[fast]));
     }
 
     /// A small deterministic generator for the solver's tests.

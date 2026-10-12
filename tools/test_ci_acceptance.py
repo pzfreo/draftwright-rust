@@ -158,8 +158,12 @@ class Acceptance(unittest.TestCase):
                 with patch.object(run, 'step') as step:
                     run.execute('quality-pins')
                 calls = step.call_args_list
-                self.assertEqual([c.args[0] for c in calls], ['quality', 'pins-' + cell])
-                command = calls[1].args[1]
+                self.assertEqual([c.args[0] for c in calls], ['quality', 'label-lane-locality', 'pins-' + cell])
+                locality = calls[1].args[1]
+                self.assertIn(ROOT / 'tools/check_label_lanes.py', locality)
+                self.assertEqual(locality[locality.index('--current') + 1], Path(tmp) / 'quality')
+                self.assertEqual(locality[locality.index('--after-binary') + 1], args.binary)
+                command = calls[2].args[1]
                 self.assertIn('--require-go', command)
                 self.assertEqual(command[command.index('--baseline') + 1],
                                  Path(tmp) / 'quality/baseline.json')

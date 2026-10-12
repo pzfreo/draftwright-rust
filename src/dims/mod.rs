@@ -59,7 +59,10 @@ pub(crate) mod footprints;
 pub mod gdt;
 mod grooves;
 mod holes;
+mod label_lanes;
 mod leaders;
+pub(crate) use label_lanes::settle_inventory;
+pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
 mod placement;
 mod plates;
@@ -832,6 +835,21 @@ pub(crate) fn plan_with_obstacles_excluding(
     cache: &footprints::Cache,
     excluded: &BTreeSet<String>,
 ) -> Result<Planned, Invalid> {
+    Ok(plan_inventory(analysis, spec, sheet, views, obstacles, held, cache, excluded)?.0)
+}
+
+/// The complete placement inventory keeps omission edits local during label settlement.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn plan_inventory(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    obstacles: &[PlannedDimension],
+    held: &[PlannedDimension],
+    cache: &footprints::Cache,
+    excluded: &BTreeSet<String>,
+) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -1151,6 +1169,34 @@ pub(crate) fn plan_with_obstacles_excluding(
         &mut placed,
         &page,
     );
+    let inventory = all
+        .iter()
+        .enumerate()
+        .filter_map(|(i, w)| {
+            if owner[i].is_some() && !alone[i] {
+                return None;
+            }
+            Some(PlannedDimension {
+                id: w.id.clone(),
+                kind: match w.shape {
+                    Shape::Linear { .. } => "linear",
+                    Shape::Callout { .. } => "callout",
+                    Shape::Angular { .. } => "angular",
+                }
+                .into(),
+                view: format!("v:{}", chosen[i]?),
+                value: w.value,
+                label: w.terms.join(" "),
+                terms: w.terms.clone(),
+                measurements: w.measurements.clone(),
+                default: true,
+                from_spec: vec![],
+                basis: w.basis.clone(),
+                state: State::Shown,
+                placed: placed[i].clone(),
+            })
+        })
+        .collect();
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
@@ -1279,7 +1325,7 @@ pub(crate) fn plan_with_obstacles_excluding(
     problems.extend(placement::collisions_cached(
         analysis, &out, sheet, views, cache,
     ));
-    Ok((out, omitted, problems))
+    Ok(((out, omitted, problems), inventory))
 }
 /// The sizes that one dimension states for every feature it spans ([`share`]), and whether its
 /// label then counts them (`n×`).

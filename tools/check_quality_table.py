@@ -8,7 +8,7 @@ from pathlib import Path
 
 keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap",
         "view_on_title_block", "ink", "repeated_span", "line_through_feature",
-        "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features"]
+        "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features", "text_off_span"]
 tables = []
 rows = None
 columns = []

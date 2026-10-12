@@ -206,6 +206,21 @@ Recovery cannot change them to repair another item's collision. Editing the pin'
 intent, sheet or scale deliberately re-resolves it. All original `place` entries remain in the
 embedded Spec, including entries that are covered, omitted, or cannot fit.
 
+Automatic linear labels settle against the completed dimension and GD&T ink. Text stays
+between its own witness stations when it fits, otherwise just beside an arrow. If no such
+label position clears ink, the whole dimension tries the next outward paper lane within the
+existing view footprint. It may skip one occupied dimension rung, so the absolute movement
+limit is two lanes (14 paper mm); a fixed-ink obstruction alone never permits that skip.
+Settlement traverses the inventory once and tests span endpoints, centres and obstacle
+boundaries rather than sampling the whole span. Cleared text/line contacts leave at least
+1 paper mm, and a moved label (or its moved lines) may not come within 1 paper mm of another
+item's stroke or label that was clear by 1 mm before the move. Inside the span comes first;
+with outside arrows, text just past an arrow tail (ARROW + 1 mm) is the fallback. Its witness origins and measured value stay fixed. Candidates cannot add
+label/line contact, share an overlapping measured span on another dimension line,
+cross a settled GD&T leader, or introduce a band overrun. Pins stay fixed;
+an infeasible label keeps its reported collision. `tools/quality.py` counts detached text
+independently as `text_off_span`, with item IDs; this metric adds no MCP problem rows.
+
 Pinned annotations are obstacles to the free linear, leader and PMI solvers. Explicit pin ink
 reserves additional carrier bands before free views are packed; the carrier origin and scale
 stay fixed. Free linear labels start from their canonical settled geometry, then try slides,

@@ -1472,7 +1472,7 @@ impl<'a> Page<'a> {
 
     /// Whether *p*, an item of view *own*, fits the page: its ink on the sheet, its label off
     /// every view and the title block, and no line through the title block or another view.
-    fn fits(&self, p: &Placed, own: &str) -> bool {
+    pub(super) fn fits(&self, p: &Placed, own: &str) -> bool {
         self.on_sheet(p) && self.clear_of_furniture(p) && self.crossed(p, own).next().is_none()
     }
 
@@ -1505,7 +1505,7 @@ pub(super) fn collisions(
     )
 }
 
-pub(super) fn collisions_cached(
+pub(crate) fn collisions_cached(
     analysis: &Analysis,
     dims: &[PlannedDimension],
     sheet: &PlannedSheet,

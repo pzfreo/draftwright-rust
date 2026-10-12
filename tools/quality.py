@@ -36,6 +36,34 @@ def overlap(a, b):
     return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
 
 
+def text_off_span(plan):
+    """Linear dimensions whose label is off its own span (paper mm): not between its arrow tips,
+    and either at least ARROW + 3 mm (2.7 + 3) from the nearer tip, or with another linear
+    dimension's extension line in the same view between it and the span. The planner's own
+    outside place is ARROW + 1 mm from the tip; its old one, exactly ARROW + 3 mm, counts."""
+    linear = [d for d in plan['dimensions'] if d.get('kind') == 'linear'
+              and d.get('placed') and len(d['placed'].get('arrows', [])) == 2]
+    bad = []
+    for d in linear:
+        p = d['placed']; k = 0 if p['rotation'] % 180 == 0 else 1
+        lo, hi = sorted(a[0][k] for a in p['arrows'])
+        b = p['label_box']
+        if b[k] >= lo - 1e-6 and b[k + 2] <= hi + 1e-6:
+            continue
+        gap = max(lo - b[k + 2], b[k] - hi, 0)
+        t = p['arrows'][0][0][1-k]
+        normal = (min(t, b[1-k]), max(t, b[3-k]))
+        foreign = any(abs(a[k]-z[k]) <= 1e-6 and ((b[k] + 1e-6 < a[k] < lo - 1e-6)
+                      or (hi + 1e-6 < a[k] < b[k + 2] - 1e-6))
+                      and min(a[1-k], z[1-k]) <= normal[1]
+                      and max(a[1-k], z[1-k]) >= normal[0]
+                      for q in linear if q['id'] != d['id'] and q['view'] == d['view']
+                      for i, (a, z) in enumerate(q['placed']['lines']) if i != 2)
+        if gap >= 2.7 + 3.0 - 1e-6 or foreign:
+            bad.append(d['id'])
+    return sorted(bad)
+
+
 def repeated_spans(plan):
     """Placed linear statements, independent of lane and label, in model millimetres.
 
@@ -333,6 +361,7 @@ def one(f, dw, out, spec=None, timeout=600):
         "repeated_span": sum(len(g['items']) - 1 for g in repeated),
         "repeated_span_groups": repeated,
         "views_overlap": view_over, "view_on_title_block": view_tb,
+        "text_off_span": len(text_off_span(plan)), "text_off_span_items": text_off_span(plan),
         "ink": sum(codes[c] for c in INK) + linework.get("schedule_ink", 0), "ink_by_code": {**{c: codes[c] for c in INK if codes[c]},
                          **({"schedule_ink": linework["schedule_ink"]} if linework.get("schedule_ink") else {})},
         "line_through_feature": line_through_features(plan),
@@ -344,7 +373,7 @@ def one(f, dw, out, spec=None, timeout=600):
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features", "text_off_span"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):
