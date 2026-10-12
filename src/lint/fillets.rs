@@ -17,7 +17,7 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     analysis
         .features
         .iter()
-        .filter(|f| f.kind == "fillet")
+        .filter(|f| f.kind == "fillet" && !super::blends::is_relief(analysis, f))
         .map(|f| {
             let radius = parameters::size(f, "radius");
             Wanted {

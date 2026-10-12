@@ -237,8 +237,15 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
             ),
             State::Covered { by } => assert!(
                 all.iter()
-                    .any(|i| i.id == *by && matches!(i.kind.as_str(), "dimension" | "hole_table")),
-                "{what}: {} is covered by {by}, no planned measurement owner",
+                    .any(|i| i.id == *by && matches!(i.kind.as_str(), "dimension" | "hole_table"))
+                    || plan
+                        .notes
+                        .iter()
+                        .any(|n| n.id == *by && !n.measurements.is_empty())
+                    || plan.radius_table.as_ref().is_some_and(|t| t.table.id == *by
+                        && t.table.placed.is_some()
+                        && t.rows.iter().any(|r| r.dimension == o.id)),
+                "{what}: {} is covered by {by}, no planned measurement owner, placed radius table or structured note",
                 o.id
             ),
             s => panic!("{what}: {} is omitted as {s:?}", o.id),

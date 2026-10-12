@@ -232,7 +232,7 @@ impl Delta {
                 return Err(Error::invalid("delta has records missing from its order"));
             }
         }
-        let plan = serde_json::from_value(doc)
+        let plan: Plan = serde_json::from_value(doc)
             .map_err(|e| Error::invalid(format!("invalid plan delta: {e}")))?;
         let mut geometry: BTreeMap<_, _> = state.geometry.views.iter().cloned().collect();
         let ids = self.geometry_order.clone().unwrap_or_else(|| {
@@ -262,11 +262,11 @@ impl Delta {
             self.changed
                 .iter()
                 .filter(|i| {
+                    // Covered dimensions retain an empty fragment in State; a changed note
+                    // owner must not discard it when its geometry is still unchanged.
                     !self.annotations.contains_key(&i.item.id)
-                        && !matches!(
-                            i.placement,
-                            Some(Placement::Dimension(_) | Placement::Annotation(_))
-                        )
+                        && !plan.dimensions.iter().any(|d| d.id == i.item.id)
+                        && !plan.gdt.iter().any(|g| g.id == i.item.id)
                 })
                 .map(|i| &i.item.id),
         ) {
@@ -801,6 +801,11 @@ impl Session {
             &self.analysis,
             &self.plan().views,
         ));
+        for n in &self.plan().notes {
+            if n.id.starts_with("n:f:blend:") {
+                choices.insert(n.id.clone(), serde_json::json!({"views":self.plan().views.iter().filter(|v| ["v:front","v:plan","v:side"].contains(&v.id.as_str())).map(|v| serde_json::json!({"view":v.id.trim_start_matches("v:"),"sides":["above","below","left","right"]})).collect::<Vec<_>>() }));
+            }
+        }
         choices
     }
     fn options_for(&self, item: ItemAnswer, choices: &BTreeMap<String, Value>) -> Options {
@@ -862,7 +867,11 @@ fn settable(
     let base = match item.item.kind.as_str() {
         "dimension" => format!("dimensions/{}", items::key(id)),
         "view" => format!("views/{}", items::key(id.trim_start_matches("v:"))),
-        "control_frame" | "datum_feature" | "label" => format!("annotations/{}", items::key(id)),
+        "control_frame" | "datum_feature" | "label" | "note"
+            if item.item.kind != "note" || id.starts_with("n:f:blend:") =>
+        {
+            format!("annotations/{}", items::key(id))
+        }
         _ => String::new(),
     };
     let choices = |values: Value| json!({"choices":values});
@@ -1071,7 +1080,17 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
             }
             if let Some(o) = plan.omitted.iter().find(|o| &o.id == id) {
                 a.basis = o.basis.clone();
-                if let Some((feature, _)) = id.strip_prefix("d:").and_then(|s| s.rsplit_once('/')) {
+                if let Some(t) = &plan.radius_table {
+                    a.features.extend(
+                        t.rows
+                            .iter()
+                            .filter(|r| r.dimension == *id)
+                            .map(|r| r.feature.clone()),
+                    );
+                }
+                if let Some((feature, _)) = id.strip_prefix("d:").and_then(|s| s.rsplit_once('/'))
+                    && !a.features.iter().any(|f| f == feature)
+                {
                     a.features.push(feature.into());
                 }
                 a.operations = vec!["omit".into()];
@@ -1095,7 +1114,11 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
             }
             if let Some(n) = plan.notes.iter().find(|n| &n.id == id) {
                 a.basis = n.basis.clone();
-                a.placement = plan.notes_block.as_ref().map(|b| Placement::Box(b.cells));
+                a.placement = n.placed.as_ref().map(|p| Placement::Box(p.cells));
+                a.features = n.measurements.iter().map(|m| m.feature.clone()).collect();
+                if n.id.starts_with("n:f:blend:") {
+                    a.operations = ["omit", "place"].map(String::from).into();
+                }
             }
             if let Some(r) = plan.requirements.iter().find(|r| &r.id == id) {
                 a.basis = r.basis.clone();
@@ -1107,6 +1130,11 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
             if let Some(t) = plan.tables.iter().find(|t| &t.id == id) {
                 a.basis = t.basis.clone();
                 a.placement = t.placed.as_ref().map(|p| Placement::Box(p.cells));
+            }
+            if let Some(t) = plan.radius_table.as_ref().filter(|t| &t.table.id == id) {
+                a.basis = t.table.basis.clone();
+                a.placement = t.table.placed.as_ref().map(|p| Placement::Box(p.cells));
+                a.features = t.rows.iter().map(|r| r.feature.clone()).collect();
             }
             if let Some(t) = plan
                 .hole_table
@@ -1163,6 +1191,11 @@ fn item_records(plan: &Plan) -> BTreeMap<String, Vec<Value>> {
         for (id, record) in records(&doc[name]) {
             out.entry(id).or_default().push(record);
         }
+    }
+    if let Some(id) = doc["radius_table"]["table"]["id"].as_str() {
+        out.entry(id.into())
+            .or_default()
+            .push(doc["radius_table"].clone());
     }
     if let Some(id) = doc["hole_table"]["id"].as_str() {
         out.entry(id.into())

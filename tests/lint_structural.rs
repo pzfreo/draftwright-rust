@@ -685,9 +685,76 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
                     );
                     assert_eq!(
                         kinds.iter().filter(|k| **k == Kind::Dimension).count(),
-                        drawing.annotations.len(),
-                        "{name}: every annotation drawn is measured"
+                        drawing
+                            .annotations
+                            .iter()
+                            .filter(|a| a.satisfies.is_empty()
+                                && a.name != "n:f:blend:relief/profiles"
+                                && !a.name.starts_with("t:radius-centres/"))
+                            .count(),
+                        "{name}: every dimension annotation drawn is measured"
                     );
+                    for a in drawing
+                        .annotations
+                        .iter()
+                        .filter(|a| a.name == "n:f:blend:relief/profiles")
+                    {
+                        assert!(
+                            !analysis.radius_reliefs.is_empty(),
+                            "{name}: profile note needs geometric evidence"
+                        );
+                        assert!(a.claims.is_empty() && a.satisfies.is_empty());
+                        let text = a
+                            .runs
+                            .iter()
+                            .map(|&i| drawing.text[i].text.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        assert_eq!(text, "SHALLOW RELIEF PROFILES PER MODEL");
+                        assert!(
+                            !text.chars().any(|c| c.is_ascii_digit()),
+                            "profile note fabricates no measured number"
+                        );
+                    }
+                    for a in drawing
+                        .annotations
+                        .iter()
+                        .filter(|a| a.name.starts_with("t:radius-centres/"))
+                    {
+                        assert_eq!(a.claims.len(), 1);
+                        assert_eq!(a.runs.len(), 4);
+                        assert_eq!(a.claims[0].parameter, "blend.radius");
+                        assert!(plan.radius_table.as_ref().is_some_and(|t| {
+                            t.rows.iter().any(|r| r.feature == a.claims[0].feature)
+                        }));
+                        for &run in &a.runs {
+                            let [x, y] = drawing.text[run].at;
+                            assert!(drawing.sheet.items.iter().any(|d| d.kind == Kind::Table
+                                && d.ink[0] <= x
+                                && x <= d.ink[2]
+                                && d.ink[1] <= y
+                                && y <= d.ink[3]));
+                        }
+                    }
+                    for a in drawing.annotations.iter().filter(|a| {
+                        !a.satisfies.is_empty() || a.name == "n:f:blend:relief/profiles"
+                    }) {
+                        assert!(!a.runs.is_empty(), "{name}: {} has no drawn note", a.name);
+                        for &run in &a.runs {
+                            let [x, y] = drawing.text[run].at;
+                            assert!(
+                                drawing.sheet.items.iter().any(|d| {
+                                    d.kind == Kind::Notes
+                                        && d.ink[0] <= x
+                                        && x <= d.ink[2]
+                                        && d.ink[1] <= y
+                                        && y <= d.ink[3]
+                                }),
+                                "{name}: {} is outside measured note ink",
+                                a.name
+                            );
+                        }
+                    }
                     assert_eq!(drawing.sheet.views.len(), plan.views.len(), "{name}");
                     for v in &drawing.sheet.views {
                         assert!(!v.edges.is_empty(), "{name}: {} records its edges", v.name);
@@ -1152,6 +1219,7 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
         if !i.label.is_empty() {
             annotations.push(draftwright::output::Annotation {
                 coordinate_origin: None,
+                satisfies: Vec::new(),
                 name: item_name.clone(),
                 view: None,
                 runs: vec![text.len()],

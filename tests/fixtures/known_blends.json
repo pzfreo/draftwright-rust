@@ -1,0 +1,38 @@
+[
+  {
+    "rule": "ISSUE-1433-a / ARCH0015-1",
+    "difference": "Dense radii use a true ALL UNSPECIFIED RADII default only while all exceptions have callouts; matching fillets share the same presentation.",
+    "verdict": "rust-correct",
+    "reason": "The stream requests a general radius note. Python origin/main src/draftwright/annotations/_edge_callouts.py::radius_jobs groups blend and fillet families separately into counted leaders. Rust combines equal displayed radius claims, preserves an established fillet leader for a mixed exception group, and removes same-value fillet leaders only after the default is drawable. An omitted or unrepresented exception withdraws the default, restoring missing findings instead of assigning the wrong radius. CGB245 and CTC-01 regressions check this distinction. Bare pins preserve the consolidated owner and default; only original authored positioning choices override grouping, independently of the carrier filled into the effective Spec. The CGB245 bare-pin test checks exact label, geometry, claims, IDs and zero missing coverage, and failed with 18x R4 instead of 28x R4 before the correction."
+  },
+  {
+    "rule": "ISSUE-1450-a",
+    "difference": "Same-face ownership replaces only the boss diameter; its independently required height survives.",
+    "verdict": "rust-correct",
+    "reason": "Python origin/main src/draftwright/recognition_ownership.py::boss_blend_owner_pairs absorbs the entire boss only when an emitted envelope carries its length. Rust's shared lint::bosses::boss_owner proves a unique nonempty exact face match, matching principal axis and diameter within 0.15 mm of twice the blend radius. The radius replaces the duplicate diameter, while existing boss-height planning and consolidation retain or cover its length. tests/dims_blends.rs checks both full-span and shorter bosses, equal unrelated bosses and absent face evidence."
+  },
+  {
+    "rule": "ISSUE-1351-a / LINT-_registry-structured_note_satisfaction",
+    "difference": "Automatic blend notes carry Annotation.satisfies identities rather than Python registry handles; authored prose carries none.",
+    "verdict": "equivalent",
+    "reason": "Exact satisfaction identities remain required, but are insufficient without an identifiable presentation. Full drawing lint accepts automatic ALL UNSPECIFIED RADII notes only with matching values and explicit callouts for other radii. Scoped and representative XYZ notes grant no authority. Authored prose has no satisfaction identities. Hide/move/unplaced, duplicate and removed-identity tests remain."
+  },
+  {
+    "rule": "ISSUE-798-a / G3 radius-centre tables",
+    "difference": "Required radii survive routing cost; obstructed straight exception groups use tables locating every occurrence, with retained leaders if no complete table fits.",
+    "verdict": "rust-correct",
+    "reason": "Python origin/main src/draftwright/annotations/_edge_callouts.py::radius_jobs and tests/test_issue_1187_unroutable_leaders.py retain required leaders at a logged routing cost (Policy B). The maintainer's 2026-10-11 direction prefers tables on dense parts. Rust lists every obstructed occurrence's radius centre, in model millimetres from the named orthographic view envelope's left/bottom. This replaces long crossing leaders on CTC-01 (4x R25), CTC-02 (4x R15 and 6x R18) and FTC-08 (4x R3.2), with no quality regression. A single representative XYZ point remains forbidden. Lint validates all printed view, X, Y and radius cells against that occurrence; wrong/missing/duplicated rows cannot unlock the default or borrow credit. Missing physical face evidence and nonprincipal axes do not tabulate. Explicit placements/tolerances stay literal. tests/leaders.rs restores the original ISSUE-798-a assertion. Centre locators use up to three decimals, preserving CTC-02 centres such as Y394.152; radius cells keep nominal display precision (FTC-08 R3.175 prints R3.2). Independent validation checks only that radius cell at its printed precision and exact formatted centre cells. The focused locator/rounding regression rejects coarse or wrong locators and numeric values borrowed from another cell. Radius cells must use decimal notation with a leading digit: exponent and leading-dot misprints cannot borrow a mantissa or integer from the label-number extractor. The R0.2e5 regression was reproduced failing before the lexical guard."
+  },
+  {
+    "rule": "ARCH0003-2 / ARCH0016-2 / G3 default dependency",
+    "difference": "Removing a radius exception withdraws its dependent blanket default and restores any fillet leader that default conveyed; unrelated ink stays fixed.",
+    "verdict": "rust-correct",
+    "reason": "A true ALL UNSPECIFIED RADII default cannot survive an omitted exception of another value. Python origin/main src/draftwright/annotations/_edge_callouts.py::radius_jobs has independent counted groups and no automatic default, so it has no such dependency. FTC-06 removing d:f:fillet:9/fillet.radius must withdraw the default and restore d:f:fillet:6/fillet.radius. tests/placement.rs and tests/trust_rules.rs check the exact restored label and geometry against hiding the note, requires an explicit note refusal caused by a radius exception, and retains every unrelated sheet/view/dimension placement assertion. A default also depends on the explicitly drawn model-governing relief-profile note whenever grouped shallow relief is excluded. Omitting/removing that note withholds default credit in both planning and independent lint."
+  },
+  {
+    "rule": "G3 shallow relief radius exclusion",
+    "difference": "Grouped tiny, complex shallow relief profiles are explicitly governed by the model instead of receiving fillet/blend radius callouts.",
+    "verdict": "rust-correct",
+    "reason": "Python origin/main src/draftwright/annotations/_edge_callouts.py::radius_jobs has no decorative-relief exclusion and calls out recognised logo radii. Rust retains recognition unchanged and adds geometry-owned Analysis.radius_reliefs: at least two complex planar floors (12 or more adjacent walls each), every floor and wall at most 1% of the part's largest envelope face area, one common broad parallel carrier, uniform wall spans and depth at most 1% of the longest extent, and the entire group footprint at most 2% of that area. All defining faces of a radius must lie in one proved group. These thresholds are documented conservative, overturnable drafting choices, not lettering semantics or a part-name list. Native CTC-01/02/04 and FTC-06/08 regressions retain real corners while excluding relief; CGB245 and string_post are negative controls; deepening the same CTC-01 profile from 2 to 12 mm restores its radii. The sheet explicitly says SHALLOW RELIEF PROFILES PER MODEL; that note carries no fabricated radius claims. Older Analyses default to no exclusions."
+  }
+]

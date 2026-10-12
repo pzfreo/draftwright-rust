@@ -356,6 +356,9 @@ pub struct Annotation {
     /// Model-space datum of a coordinate schedule cell, resolved by the Plan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coordinate_origin: Option<[f64; 3]>,
+    /// Explicit structured-note authority; prose is never parsed to infer these identities.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub satisfies: Vec<Claim>,
 }
 
 /// What a thing drawn on the sheet is, to lint's sheet checks.

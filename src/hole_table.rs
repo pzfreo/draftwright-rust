@@ -782,6 +782,7 @@ fn table_obstacles(analysis: &Analysis, plan: &Plan, dims: &[PlannedDimension]) 
     ink.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
     let mut out = tables::obstacles(analysis, &plan.sheet, &plan.views, &ink);
     out.extend(plan.notes_block.as_ref().map(|b| b.cells));
+    out.extend(plan.radius_notes_block.as_ref().map(|b| b.cells));
     out.extend(
         plan.tables
             .iter()
@@ -874,6 +875,7 @@ fn fixed_obstacles(
         .collect();
     out.push(plan.sheet.title_block);
     out.extend(plan.notes_block.as_ref().map(|b| b.cells));
+    out.extend(plan.radius_notes_block.as_ref().map(|b| b.cells));
     out.extend(
         plan.tables
             .iter()

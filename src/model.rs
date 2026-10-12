@@ -82,6 +82,12 @@ pub struct Analysis {
     pub recognition: Option<Recognition>,
     #[serde(default)]
     pub features: Vec<Feature>,
+    /// Exact trimmed-surface attachment points for recognised blends, in the part frame.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub blend_sites: BTreeMap<String, Vec<[f64; 3]>>,
+    /// Small, grouped shallow relief regions whose profiles are governed by the model.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub radius_reliefs: Vec<crate::blends::Relief>,
     /// The isometric's projected box (visible and hidden edges), `[x0, y0, x1, y1]` mm at 1:1,
     /// about the projection of the envelope's centre: what the isometric is fitted by. All zero
     /// when the projection has no edges (the plan then reports `iso_projection_empty`).
@@ -313,6 +319,12 @@ pub struct Plan {
     /// The block the notes are drawn in, when it has a place.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes_block: Option<NotesBlock>,
+    /// A separate compact radius block when authored/PMI notes keep their ruled table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius_notes_block: Option<NotesBlock>,
+    /// Obstructed radius groups, located by every occurrence's centre in its named view.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius_table: Option<crate::dims::blends::RadiusTable>,
     /// Corner-block tables, each with its ID, cells, default flag, basis and place.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<PlannedTable>,
@@ -571,6 +583,8 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
         solid_count: Some(part.solids.len()),
         recognition: None,
         features: Vec::new(),
+        blend_sites: BTreeMap::new(),
+        radius_reliefs: crate::blends::reliefs(&part),
         iso_bounds: [0.0; 4],
         edge_ink: None,
         levels: crate::demand::face_levels(&part),
@@ -637,6 +651,7 @@ pub fn analyse_native_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis)
 pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(), String> {
     let (recognition, features) = crate::bridge::read(part, &analysis.binding.source_sha256, json)?;
     analysis.recognition = Some(recognition);
+    analysis.blend_sites = crate::blends::evidence(part, &features);
     analysis.features = features;
     analysis.unrecognised.clear();
     Ok(())
@@ -719,6 +734,7 @@ pub fn recognise_document(
         refusals: Vec::new(),
         patterns: read.patterns,
     });
+    analysis.blend_sites = crate::blends::evidence(part, &features);
     analysis.features = features;
     Ok(())
 }
@@ -1620,15 +1636,16 @@ fn plan_with_presentation(
         });
     }
     if !effective.annotations.is_empty() {
-        let annotation_ids: Vec<String> = crate::pmi_lowering::lower(analysis, &|_| true)
+        let mut annotation_ids: Vec<String> = crate::pmi_lowering::lower(analysis, &|_| true)
             .0
             .into_iter()
             .map(|i| i.id)
             .collect();
+        annotation_ids.extend(crate::dims::blends::note_ids(analysis));
         for id in effective.annotations.keys() {
             if !annotation_ids.contains(id) {
                 return Err(Invalid {
-                    message: format!("There is no PMI annotation {id:?} on this part."),
+                    message: format!("There is no annotation {id:?} on this part."),
                     choices: annotation_ids.clone(),
                 });
             }
@@ -1786,7 +1803,32 @@ fn plan_with_presentation(
                 text: r.value.clone(),
             }),
     );
-    let notes_size = crate::notes::size(&notes_given);
+    let mut radius_notes = crate::dims::blends::notes(analysis);
+    if spec.dimension_source == DimensionSource::Authored {
+        radius_notes.retain(|(n, _)| spec.annotations.contains_key(&n.id));
+    }
+    notes_given.extend(
+        radius_notes
+            .iter()
+            .filter(|(n, _)| {
+                !(spec.dimension_source == DimensionSource::Authored
+                    && !spec.annotations.contains_key(&n.id))
+                    && !spec.annotations.get(&n.id).is_some_and(|s| {
+                        s.omit
+                            || s.place.as_ref().is_some_and(|p| {
+                                p.side.is_some() || p.lane.is_some() || p.along.is_some()
+                            })
+                    })
+            })
+            .map(|(n, _)| n.clone()),
+    );
+    let notes_size = crate::notes::size(
+        &notes_given
+            .iter()
+            .filter(|n| !radius_notes.iter().any(|(r, _)| r.id == n.id))
+            .cloned()
+            .collect::<Vec<_>>(),
+    );
     request.required_tables = crate::tables::sizes(&spec.tables);
     if let Some(p) = presentation {
         request.required_tables.extend(p.sizes());
@@ -2319,8 +2361,37 @@ fn plan_with_presentation(
         &views,
         &footprint_cache,
     ));
+    crate::dims::blends::consolidate(&mut dimensions, spec, given);
+    crate::dims::blends::clear_covered_findings(&dimensions, &mut problems);
+    let radius_table = crate::dims::blends::tabulate_obstructed(
+        analysis,
+        spec,
+        &sheet,
+        &views,
+        &mut dimensions,
+        &gdt,
+        &mut problems,
+    );
+    for d in dimensions
+        .iter()
+        .filter(|d| matches!(&d.state, crate::items::State::Covered { by } if by.starts_with("n:") || (by.starts_with("d:") && d.measurements.iter().any(|m| m.parameter == "blend.radius"))))
+    {
+        let crate::items::State::Covered { by } = &d.state else {
+            unreachable!()
+        };
+        omitted.push(crate::dims::Omitted {
+            id: d.id.clone(),
+            label: d.label.clone(),
+            basis: format!("conveyed by {by}: {}", d.basis),
+            state: d.state.clone(),
+        });
+    }
+    dimensions.retain(|d| !matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:") || (by.starts_with("d:") && d.measurements.iter().any(|m| m.parameter == "blend.radius"))));
     let mut ink = dimensions.clone();
     ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
+    if let Some(table) = &radius_table {
+        ink.extend(crate::tables::proxy(&table.table));
+    }
     // The default finish's symbol beside the title block: what it meets, and kept clear of.
     for r in &requirements {
         problems.extend(crate::dims::gdt::finish_collisions_cached(
@@ -2337,9 +2408,13 @@ fn plan_with_presentation(
     let (schedule, more) = crate::tables::manufacturing(analysis, &sheet, &views, &ink);
     problems.extend(more);
     ink.extend(schedule.iter().filter_map(crate::tables::proxy));
-    let (notes, notes_block, more) =
-        crate::notes::plan(&notes_given, analysis, &sheet, &views, &ink);
+    let (mut automatic, authored): (Vec<_>, Vec<_>) = notes_given
+        .into_iter()
+        .partition(|n| radius_notes.iter().any(|(r, _)| r.id == n.id));
+    let (mut notes, mut notes_block, more) =
+        crate::notes::plan(&authored, analysis, &sheet, &views, &ink);
     problems.extend(more);
+    // Authored tables keep their established priority; automatic radii use the space left.
     let (mut tables, more) = crate::tables::plan(
         &spec.tables,
         analysis,
@@ -2350,6 +2425,160 @@ fn plan_with_presentation(
     );
     problems.extend(more);
     tables.extend(schedule);
+    ink.extend(tables.iter().filter_map(crate::tables::proxy));
+    let exceptions_unstated =
+        crate::dims::blends::exceptions_unstated(analysis, &dimensions, &radius_notes);
+    if exceptions_unstated {
+        automatic.retain(|n| n.id == crate::dims::blends::RELIEF_NOTE);
+    }
+    let (extra, block, mut more) = crate::notes::plan_radii(
+        &automatic,
+        analysis,
+        &sheet,
+        &views,
+        &ink,
+        notes_block.as_ref(),
+    );
+    if !authored.is_empty() {
+        for p in &mut more {
+            p.id += ":blend-radii";
+        }
+    }
+    notes.extend(extra);
+    problems.extend(more);
+    let mut radius_notes_block = if authored.is_empty() {
+        notes_block = block;
+        None
+    } else {
+        block
+    };
+    problems.extend(crate::notes::radius_notes(
+        &mut notes,
+        &radius_notes,
+        spec,
+        &sheet,
+        &views,
+    ));
+    let stated: BTreeSet<_> = dimensions
+        .iter()
+        .filter(|d| d.placed.is_some() || matches!(&d.state, ItemState::Covered { by } if by == crate::dims::blends::RADIUS_TABLE))
+        .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
+        .chain(
+            notes
+                .iter()
+                .filter(|n| n.placed.is_some())
+                .flat_map(|n| n.measurements.iter().map(|m| m.feature.as_str())),
+        )
+        .collect();
+    // A default must explicitly leave proven relief profiles to the model. Hiding or
+    // losing that companion note cannot silently assign the default to their small arcs.
+    let unresolved = (!analysis.radius_reliefs.is_empty()
+        && !notes
+            .iter()
+            .any(|n| n.id == crate::dims::blends::RELIEF_NOTE && n.placed.is_some()))
+        || analysis.features.iter().any(|f| {
+            matches!(f.kind.as_str(), "blend" | "fillet")
+                && !crate::lint::blends::is_relief(analysis, f)
+                && !stated.contains(f.id.as_str())
+                && !radius_notes.iter().flat_map(|(_, ms)| ms).any(|m| {
+                    f.kind == "fillet"
+                        && f.parameters
+                            .get("radius")
+                            .and_then(|v| v.as_f64())
+                            .is_some_and(|r| crate::dims::fmt(r) == crate::dims::fmt(m.value))
+                })
+        });
+    if unresolved {
+        for note in notes.iter_mut().filter(|n| {
+            (n.placed.is_some()
+                || (exceptions_unstated && matches!(n.state, ItemState::OmittedByUser)))
+                && !spec.annotations.get(&n.id).is_some_and(|e| e.omit)
+                && !n.measurements.is_empty()
+                && n.text.starts_with("ALL UNSPECIFIED RADII")
+        }) {
+            note.placed = None;
+            note.state = ItemState::NotDrawable {
+                reason_code: "notes_not_placed".into(),
+            };
+            problems.push(Problem {
+                id: format!("p:notes_not_placed:{}", note.id),
+                code: "notes_not_placed".into(),
+                severity: "error".into(),
+                message: format!(
+                    "{} cannot assert a blanket radius while an exception is undrawn.",
+                    note.id
+                ),
+                subjects: vec![note.id.clone()],
+                ..Default::default()
+            });
+        }
+    }
+    for note in notes
+        .iter()
+        .filter(|n| matches!(n.state, ItemState::NotDrawable { .. }))
+    {
+        for m in &note.measurements {
+            problems.push(Problem {
+                id: format!("p:feature_not_dimensioned:{}", m.feature),
+                code: "feature_not_dimensioned".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "{} is not dimensioned: {} cannot safely state its radius.",
+                    m.feature, note.id
+                ),
+                subjects: vec![m.feature.clone()],
+                ..Default::default()
+            });
+        }
+    }
+    if !notes
+        .iter()
+        .any(|n| n.placed.is_some() && radius_notes.iter().any(|(r, _)| r.id == n.id))
+    {
+        if authored.is_empty() {
+            notes_block = None;
+        } else {
+            radius_notes_block = None;
+        }
+    }
+    crate::dims::blends::cover_fillets(&mut notes, &mut dimensions, spec, given);
+    // The radius note/table is placed late. Its exact claims and the explicit relief
+    // exclusions now resolve the earlier dimension-only coverage findings.
+    let stated_radii: BTreeSet<_> = dimensions.iter()
+        .filter(|d| d.placed.is_some() || matches!(&d.state, ItemState::Covered { by } if by == crate::dims::blends::RADIUS_TABLE))
+        .flat_map(|d| &d.measurements)
+        .chain(notes.iter().filter(|n| n.placed.is_some()).flat_map(|n| &n.measurements))
+        .filter(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        .map(|m| m.feature.as_str()).collect();
+    problems.retain(|p| {
+        p.code != "feature_not_dimensioned"
+            || p.subjects.is_empty()
+            || !p.subjects.iter().all(|id| {
+                analysis.features.iter().any(|f| {
+                    f.id == *id
+                        && matches!(f.kind.as_str(), "blend" | "fillet")
+                        && (stated_radii.contains(id.as_str())
+                            || crate::lint::blends::is_relief(analysis, f))
+                })
+            })
+    });
+
+    for d in dimensions
+        .iter()
+        .filter(|d| matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:") || by == crate::dims::blends::RADIUS_TABLE))
+    {
+        let ItemState::Covered { by } = &d.state else {
+            unreachable!()
+        };
+        omitted.push(crate::dims::Omitted {
+            id: d.id.clone(),
+            label: d.label.clone(),
+            basis: format!("conveyed by {by}: {}", d.basis),
+            state: d.state.clone(),
+        });
+    }
+    dimensions.retain(|d| !matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:") || by == crate::dims::blends::RADIUS_TABLE));
+
     // A drawing-wide requirement carried by a general note is drawn as that note is.
     for r in requirements.iter_mut().filter(|r| r.carrier == "notes") {
         if let Some(n) = notes.iter().find(|n| n.id == r.id) {
@@ -2378,6 +2607,8 @@ fn plan_with_presentation(
         omitted,
         notes,
         notes_block,
+        radius_notes_block,
+        radius_table,
         tables,
         gdt,
         requirements,
@@ -3176,42 +3407,83 @@ pub fn render_annotations_with_items(
         interior: false,
     });
     // The general notes: the block's rules, and each row centred on its planned ink, searchable.
-    let notes_from = dims.len();
-    if let Some(block) = &plan.notes_block {
-        for [a, b] in crate::notes::rules(block) {
-            dims.push(Item::Edge(Curve::Line(a, b)));
+    let mixed = plan.notes.iter().any(|n| !n.id.starts_with("n:f:blend:"));
+    for (i, block) in [plan.notes_block.as_ref(), plan.radius_notes_block.as_ref()]
+        .into_iter()
+        .enumerate()
+    {
+        if i == 1 && !mixed {
+            continue;
         }
-        let runs: Vec<Option<usize>> = crate::notes::texts(block, &plan.notes)
-            .into_iter()
-            .map(|(row, at)| {
-                let run = (row.trim_start(), crate::dims::FONT, crate::notes::TEXT);
-                let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
-                label(laid, at, dims, Some(run))
-            })
-            .collect();
-        // After the heading, each placed note's rows in turn.
-        let mut next = 1;
-        for n in plan.notes.iter().filter(|n| n.placed.is_some()) {
-            let mine = &runs[next..next + n.rows.len()];
-            next += n.rows.len();
+        let notes_from = dims.len();
+        if let Some(block) = block {
+            for [a, b] in crate::notes::rules(block) {
+                dims.push(Item::Edge(Curve::Line(a, b)));
+            }
+            let row = block.title.as_str();
+            let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
+            label(
+                laid,
+                block.title_at,
+                dims,
+                Some((row, crate::dims::FONT, crate::notes::TEXT)),
+            );
+        }
+        for n in plan.notes.iter().filter(|n| {
+            n.placed.is_some() && (!mixed || (i == 1) == n.id.starts_with("n:f:blend:"))
+        }) {
+            let p = n.placed.as_ref().unwrap();
+            let runs: Vec<usize> = n
+                .rows
+                .iter()
+                .zip(&p.rows_at)
+                .filter_map(|(row, at)| {
+                    let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
+                    label(
+                        laid,
+                        *at,
+                        dims,
+                        Some((row.trim_start(), crate::dims::FONT, crate::notes::TEXT)),
+                    )
+                })
+                .collect();
             if n.id.starts_with("pmi:") {
-                stated
-                    .entry(n.id.clone())
-                    .or_default()
-                    .extend(mine.iter().flatten());
+                stated.entry(n.id.clone()).or_default().extend(&runs);
+            }
+            if !n.measurements.is_empty() || n.id == crate::dims::blends::RELIEF_NOTE {
+                annotations.push(Annotation {
+                    coordinate_origin: None,
+                    claims: Vec::new(),
+                    name: n.id.clone(),
+                    view: None,
+                    runs,
+                    satisfies: n
+                        .measurements
+                        .iter()
+                        .map(|m| crate::output::Claim {
+                            feature: m.feature.clone(),
+                            parameter: m.parameter.clone(),
+                        })
+                        .collect(),
+                });
             }
         }
-    }
-    if let Some(ink) = items_bbox(&dims[notes_from..]) {
-        sheet.items.push(Drawn {
-            name: "general_notes".into(),
-            kind: Kind::Notes,
-            ink,
-            label: None,
-            lines: Vec::new(),
-            elbow: None,
-            interior: false,
-        });
+        if let Some(ink) = items_bbox(&dims[notes_from..]) {
+            sheet.items.push(Drawn {
+                name: if i == 0 {
+                    "general_notes"
+                } else {
+                    "blend_radius_notes"
+                }
+                .into(),
+                kind: Kind::Notes,
+                ink,
+                label: None,
+                lines: Vec::new(),
+                elbow: None,
+                interior: false,
+            });
+        }
     }
     // The default surface finish beside the title block: its symbol and its requirement.
     for r in &plan.requirements {
@@ -3255,6 +3527,54 @@ pub fn render_annotations_with_items(
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
                 name: table.id.clone(),
+                kind: Kind::Table,
+                ink,
+                label: None,
+                lines: Vec::new(),
+                elbow: None,
+                interior: false,
+            });
+        }
+    }
+    // Each radius-centre row locates one occurrence, unlike a representative group site.
+    if let Some(t) = &plan.radius_table
+        && let Some(p) = &t.table.placed
+    {
+        let start = dims.len();
+        for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
+            dims.push(Item::Edge(Curve::Line(a, b)));
+        }
+        for (i, (row, at)) in t.table.rows.iter().zip(&p.cells_at).enumerate() {
+            let mut runs = Vec::new();
+            for (cell, at) in row.iter().zip(at) {
+                let Some(at) = at else { continue };
+                let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
+                runs.extend(label(
+                    laid,
+                    *at,
+                    dims,
+                    Some((cell, crate::dims::FONT, crate::tables::TEXT)),
+                ));
+            }
+            if i > 0
+                && let Some(radius) = t.rows.get(i - 1)
+            {
+                annotations.push(Annotation {
+                    coordinate_origin: None,
+                    name: format!("{}/{}", t.table.id, radius.feature),
+                    view: Some(radius.view.clone()),
+                    runs,
+                    claims: vec![Claim {
+                        feature: radius.feature.clone(),
+                        parameter: "blend.radius".into(),
+                    }],
+                    satisfies: Vec::new(),
+                });
+            }
+        }
+        if let Some(ink) = items_bbox(&dims[start..]) {
+            sheet.items.push(Drawn {
+                name: t.table.id.clone(),
                 kind: Kind::Table,
                 ink,
                 label: None,
@@ -3356,6 +3676,7 @@ pub fn render_annotations_with_items(
         for (row, cells) in t.rows.iter().zip(row_runs) {
             if t.view.is_none() {
                 annotations.push(Annotation {
+                    satisfies: Vec::new(),
                     coordinate_origin: None,
                     name: format!("{}/{}", t.id, row.tag),
                     view: Some("v:plan".into()),
@@ -3375,6 +3696,7 @@ pub fn render_annotations_with_items(
                 for (c, runs) in cells.into_iter().enumerate().take(5).skip(1) {
                     if c == 4 {
                         annotations.push(Annotation {
+                            satisfies: Vec::new(),
                             coordinate_origin: None,
                             name: format!("{}/{}/entry", t.id, row.tag),
                             view: t.view.clone(),
@@ -3419,6 +3741,7 @@ pub fn render_annotations_with_items(
                         })
                         .collect();
                     annotations.push(Annotation {
+                        satisfies: Vec::new(),
                         coordinate_origin: if c > 1 { t.origin } else { None },
                         name: format!("{}/{}/{}", t.id, row.tag, ["tag", "size", "x", "y"][c]),
                         view: t.view.clone(),
@@ -3512,6 +3835,7 @@ pub fn render_annotations_with_items(
     // Each drawing-wide PMI requirement by the runs that state it, for lint and the PMI checks.
     annotations.extend(stated.into_iter().map(|(name, runs)| Annotation {
         coordinate_origin: None,
+        satisfies: Vec::new(),
         name,
         view: None,
         runs,
@@ -3539,6 +3863,7 @@ pub fn render_annotations_with_items(
                         feature: feature.into(),
                         parameter: parameter.into(),
                     }],
+                    satisfies: Vec::new(),
                 })
             }),
     );

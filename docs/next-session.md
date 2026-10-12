@@ -5060,3 +5060,353 @@ across the shared lane design; it was not attempted in this round.
 Takeover verification: fmt, strict clippy, required-corpus `cargo test --release` 75 groups
 734 passed 0 failed; quality no part worse than `tools/ci-quality-baseline.json`; pin grid
 9/9 GO; scripted MCP 7/7; sheets checked by eye on six parts (status doc, same date).
+
+
+
+## G3 blend radii (2026-10-11, overturnable judgements)
+
+Ported the blend portions of ISSUE-1433-a, ARCH0015-1, ISSUE-1450-a,
+ISSUE-1351-a and LINT-_registry-structured_note_satisfaction. No catalogue YAML,
+quality.py completeness work, reporting severity or plate grammar is changed.
+The note wording and exception handling are as settled in the fix rounds below;
+the first round's scoped and coordinate notes were rejected and removed.
+
+- A part with at least five recognised blends uses its most frequent repeated
+  displayed radius as the default note; ties use the smaller radius. Other radii
+  keep individual or counted leaders. The threshold is an overturnable clutter
+  judgement, not tuned to a part name. The note credits only its exact
+  equal-radius occurrences.
+- Automatic-only notes use the existing 3 mm font on 5 mm plain rows, placed late
+  against view outlines and annotation ink. Authored/PMI notes keep the ruled
+  7 mm rows; when both kinds are present automatic radii get a separate
+  `radius_notes_block`. Ordinary ruled notes omit `ruled: true`, keeping legacy
+  serialization.
+- Same-face precedence replaces only the duplicate boss diameter, keeping its
+  independent height. Exact nonempty unique defining faces, axis and
+  diameter/radius evidence are shared by planning and coverage; empty/ambiguous
+  faces or equal scalars alone never transfer ownership.
+- Structured authority is explicit `Annotation.satisfies`, credited only from
+  real drawn text runs; prose, hidden/unplaced notes and duplicated authority
+  borrow no credit. This ports automatic blend notes only, not Python's general
+  authored per-feature satisfaction API.
+- Session delta replay keeps a fragment for every dimension/control-frame record
+  still in the patched Plan, including undrawn records (found by the NIST undo
+  benchmark).
+
+## G3 fix round (2026-10-11; supersedes the G3 presentation judgements above)
+
+The reviewer is right: structured identities cannot locate an arbitrary subset of
+radii. Scoped `OTHER BLEND RADII UNSTATED` and representative `REF SITE XYZ`
+notes are removed. Unsafe free leaders stay undrawn; their exceptions and the
+dependent default stay missing. No manufacturing note prints the drawing's own
+incompleteness. A withdrawn automatic block leaves no orphan heading.
+
+The true default reads `ALL UNSPECIFIED RADII R…`. It absorbs equal fillet
+leaders only after it is drawable. Mixed fillet/blend exception groups use one
+established fillet leader and one combined count. Transferred dimensions enter
+the covered-item ledger; each measurement has one owner. Nominal authored listings retain the same grouping. Explicit tolerance, position and
+omission edits remain authoritative. Full drawing lint checks
+the printed default value as well as its exact claims and exception callouts.
+Automatic blocks have 6 mm clearance inside the 10 mm frame.
+
+Overturnable conservative choices:
+- Retain missing requirements rather than invent detail views or location prose.
+  Native CTC-01 now has 23 missing blends, rather than the earlier false zero.
+- Keep the five-blend threshold and displayed-radius grouping; this fix does not
+  redefine numeric display precision or intrinsic slot-end radius grammar.
+- Do not infer engraved lettering from radius, position, depth or a part name.
+  Recognition does not identify logo ownership. Safe R4.9/R6.3 leaders on CTC-01 and R3.3/R0.5/R4.2 on FTC-08
+  still land on lettering; similar existing lettering leaders occur on other NIST sheets. Removing coordinate notes eliminates the reported
+  coordinate-label instances; excluding lettering properly needs semantic
+  recognition evidence and remains a minor open item.
+- Keep the existing 150 ms session gate unchanged. A host outlier is a failure,
+  not permission to loosen it. Final measured results are in the status entry.
+
+Known differences now reject the previous undetermined located-note fallback and
+record the deliberate departure from Python Policy B for automatic blend additions.
+Other callout families keep their existing retention policy.
+The exact own-drawing lint ledger restores CTC-01 (19 missing on captured Python
+recognition) independently of its native recognition result. Projection deduplication
+restores a safe string_post leader on both recognition paths, so its obsolete
+missing-radius entry is removed. No reporting severity, rule YAML or quality.py is changed.
+
+G3 fix-round dependency and performance evidence:
+- Removing a different-radius exception withdraws its dependent default and may
+  restore a fillet leader that default covered. This is a required information
+  dependency, not permission to move unrelated ink. The placement and addressability regressions check
+  the restored label and exact geometry against hiding the note, and retains all
+  unrelated placement, frame and sheet assertions. The deliberate difference is
+  recorded under ARCH0003-2 in known_blends.json.
+- Unsafe drops use `blend_callout_dropped`, preserving warning severity and
+  keeping hole-table escalation independent. Unplaced defaults explicitly report
+  every affected feature.
+- Principal-view duplicate attachment projections are removed at 1e-9 mm,
+  retaining the first proven physical surface point. The view choice and all
+  distinct projections stay available. Known-invalid defaults skip note-box
+  placement rather than searching for a place and then withdrawing it.
+- The NIST gate stays at 150 ms. Before projection deduplication one focused audit
+  measured median 87.5 ms, maximum 330.5 ms. A subsequent isolated run measured
+  median 44.9 ms, maximum 148.8 ms; the next complete session target passed with
+  maximum 109.6 ms. Host outliers remain possible. Optional SESSION_TIMINGS=1
+  records per-edit timing without changing the assertion; final results follow
+  in the status entry.
+
+Bare-pin follow-up: a targeted CGB245 regression exposed a gap the random
+grid did not sample: pinning the combined radius leader changed 28× R4 to
+18× R4 and split its ownership. A bare pin now preserves the automatic group;
+only an explicit tolerance/view/position/omission choice overrides consolidation.
+The new test checks the exact label, geometry, measurement claims, dimension
+IDs, default-note placement and zero missing coverage. It failed on the prior
+fix-round binary (`/tmp/g3fix-bare-pin-red.log`). Explicit positioning and
+tolerance choices remain literal. Default sheets are unchanged.
+
+G3 fix-round final checks (2026-10-12): fmt, strict release clippy, release
+build and required-corpus tests pass: 669/0, with the 150 ms gate unchanged.
+Quality: all 300 cells identical; genuine missing blends 247 → 105, replacing
+the false 10. Radius presentation statements on affected sheets are 83 → 58.
+The enforced pin grid is 9/9 configurations and 270/270 GO; MCP is 7/7 in
+16 calls. All fourteen final SVG/PNG pairs match the inspected sheets exactly.
+The bare-pin test preserves 28× R4, all claims, geometry and the R3 default.
+Final tables, validation history, rule verdicts and artifacts are in the G3
+fix-round entry of docs/status-2026-10-10.md and target/g3-fix/validation.json.
+Lettering ownership remains the documented minor; no heuristic exclusion was
+added. No commit/push, rule YAML, reporting severity or quality.py change.
+
+## G3 fix round 2 (2026-10-12, Claude; overturnable)
+
+Reviewer's major: the 105 remaining missing radii were reported as "genuinely
+unstated", but most are blocked by withdrawn leaders that veto the default note.
+Measured breakdown on the branch binary (`draftwright review` + plan states):
+
+| cause | radii |
+|---|---|
+| no principal view has a proven attachment (cgb207 1, ctc_02 3, ctc_03 2, ftc_07 4) | 10 |
+| exception leader withdrawn (`blend_callout_dropped`) | 26 |
+| default-note members withheld because an exception above is unstated | 69 |
+
+Withdrawn leaders, with the findings they would carry if retained: NIST logo
+lettering R0.8 (ctc_01), R0.5/R3.3/R4.2 (ctc_04), R0.5/R4.2 (ctc_05),
+R0.5/R3.3 (ftc_09) — 8 radii; real groups 4× R25 (ctc_01, crosses f:hole:3),
+4× R15 and 6× R18 (ctc_02, cross dimensions), 4× R3.2 (ftc_08, overlaps the slot
+dimension) — 18 radii. The 69 withheld default members are 12 behind no-view
+exceptions (cgb207, ctc_03, ftc_07), 18 on ctc_02 (both causes) and 39 behind
+withdrawn leaders (ctc_01 18, ctc_04 4, ctc_05 7, ftc_08 6, ftc_09 4).
+
+Judgement call (overturnable, maintainer's decision): fail-closed withdrawal is
+kept. I measured the reviewer's Policy B option (retain every required blend
+leader with its diagnostics, ISSUE-798-a): missing radii fall 105 → 40 (only the
+10 no-view radii and the 30 defaults they veto remain), and the CTC-01 sheet
+reads well with `ALL UNSPECIFIED RADII R10`. But it makes six parts worse in
+quality.py: ink 278 → 303 (ctc_01 11→13, ctc_02 36→44, ctc_04 54→57,
+ctc_05 8→12, ftc_08 46→48, ftc_09 20→26) and line_through 212 → 229 (ctc_01,
+ctc_04, ftc_08). The brief's gate is "no part worse; ink must not rise from radius
+clutter", so Policy B is not applied. The change is small:
+replace `dims::blends::withdraw_unsafe` with a pass that only clears the leader
+findings of blend dimensions `Covered` by consolidation. If the maintainer prefers
+stated radii over that ink, apply it and restore the ISSUE-798-a assertion in
+tests/leaders.rs.
+
+No engraved-lettering rule was added: the logo blends' recognition evidence
+(a cylinder between a concave floor edge and a convex top edge, ~2 mm deep) is the
+same as a shallow pocket corner, which does need its radius. Python draftwright
+has no lettering rule for blends either (only quiddity's level-area filter for
+step levels). Excluding lettering needs semantic recognition evidence.
+
+Also removed the dead `n:blend-sites/` handling (notes.rs note_rows, session.rs,
+model.rs, tests/notes.rs) left from the rejected REF SITE fallback, and trimmed the
+first G3 section above to what still holds.
+
+
+## G3 carry-over: complete radii without relief clutter (2026-10-12, unattended)
+
+Supersedes the G3 fail-closed routing and semantic-lettering-only judgements above.
+The original ISSUE-798-a leader assertion is restored; the unrelated SESSION_TIMINGS
+and median output changes are removed. No rule YAML, task inputs or shared router changed.
+
+Overturnable judgements and evidence:
+
+- Treat a **group** of tiny complex shallow profiles as relief governed by the model.
+  Retain every recognition feature; store the topology evidence in Analysis.radius_reliefs.
+  Require one solid, at least two planar floors with at least 12 adjacent walls each,
+  one common broad parallel carrier, every floor/wall area <=1% of the largest envelope
+  face area, walls spanning the same carrier/floor levels, depth <=1% of the longest
+  part extent, and the entire group footprint <=2% of the largest envelope face area.
+  Every defining face of a radius must belong to one proved group. These scale-relative
+  bounds are conservative clutter policy, not lettering semantics. No part-name list,
+  radius-size shortcut or semantic claim is used. CTC-01/02/04 and FTC-06/08 are positive
+  controls (including CTC-02's oblique carrier); CGB245 and string_post are negative
+  controls. Deepening the same CTC-01 relief from 2 to 12 mm restores its radii.
+  A lone/simple pocket or large wall remains a radius requirement. Assemblies receive
+  no exclusions until a per-solid policy is reviewed.
+- The drawing explicitly says SHALLOW RELIEF PROFILES PER MODEL. This makes the
+  exception to the general radius default readable and grants no fabricated radius
+  credit. The note has a stable automatic annotation ID and omit/place options.
+  Omitting/removing it also withholds the blanket default in planning/independent lint.
+- On an obstructed straight radius group, use a radius-centre table **listing every
+  occurrence**, not one representative XYZ point for a subset. Its header identifies
+  named orthographic views and centre coordinates in model millimetres from the view
+  envelope's left and bottom. All centres must agree with that blend's own trimmed
+  cylinder samples within 0.005 mm before tabulation. The drawing already shows the
+  named views and their overall envelope; no new datum or coordinate geometry is
+  invented. CTC-01's four R25 centres are (175,75), (175,375), (625,75), (625,375)
+  in PLAN. Tables replace the crossing 4x R25, 4x R15/6x R18 and 4x R3.2 leaders
+  on CTC-01, CTC-02 and FTC-08 respectively. Existing clear leaders stay compact.
+  A complete table must fit clear of existing ink; otherwise Policy B retains the
+  required leader with diagnostics. Authored placements/tolerances stay literal.
+  This follows the maintainer's tables-first direction while keeping this stream
+  within radius planning; it does not implement new sheets, hole tables or routing.
+- Radius-centre rows keep one exact occurrence identity each. Lint independently
+  validates every printed locator and radius cell. Wrong/missing rows and duplicated
+  identities lose their own credit and the dependent general note. A table never
+  gains authority from descriptive prose. Session/MCP can inspect the automatic
+  table and replay it through the existing lossless Plan field patch.
+- Once placed, exact radius notes/tables and geometric relief exclusions resolve
+  their earlier dimension-only feature_not_dimensioned warnings. No severity was
+  reduced; unrelated findings and all MCP task inputs remain intact.
+
+All six new focused tests failed on an isolated HEAD source build before these
+changes (4 passed / 7 failed, including the strengthened existing many-blends test):
+target/g3-carry/red-all-tests.log. They cover CTC-01 completeness/no logo claims,
+five relief parts and two negative controls, retained real exception requirements,
+relief note omission/independent lint, depth conservatism, and every-occurrence
+radius tables with wrong/missing/duplicate locator and deterministic round-trip checks.
+The earlier claimed 11/11 result was premature: the resumed run reproduced two
+failures, corrected below. Full acceptance results follow in the resume entry.
+
+
+## G3 carry-over resume (2026-10-12, unattended)
+
+Resumed WIP 1d14760 without committing or pushing. The review's failing gates
+were confirmed: both blend tests were reproduced failing on CTC-02 (22 missing
+radii); the reported clippy issue was the nested Session condition. Formatting and that condition are
+corrected without changing the Session behaviour.
+
+The table used dimension formatting (one decimal) for centre coordinates, while
+independent lint expected three decimals. Four R18 rows on CTC-02 lost credit,
+withdrawing the dependent 18-member R10 default. Centre cells now print up to
+three decimals, matching independent validation. FTC-08 exposed the corresponding
+radius issue: R3.175 prints R3.2, so the radius cell must be checked at its printed
+precision, as other dimension coverage is, rather than against a diagnostic
+formatter. Only the R-prefixed radius cell can supply that value; locator values
+cannot substitute. The new unit test accepts a properly rounded radius and
+rejects coarse/wrong centres and unrelated numeric values.
+
+Overturnable judgement: retain three-decimal model-millimetre centre locators,
+with trailing zeros omitted, instead of changing the drawing's global one-decimal
+size grammar. These locators identify occurrences and need more precision than
+a compact nominal size label. The geometry proof remains within 0.005 mm, and
+wrong/missing/duplicate locators still invalidate their row and dependent default.
+The grouped-relief thresholds and explicit model-governing note remain as
+documented above; they do not claim semantic lettering recognition.
+
+The first full run reached the previously unrun trust target and found that
+model-governed relief features were no longer traceable by its unchanged
+"dimensioned or reported" assertion. Completeness now emits one informational
+`relief_profiles_per_model` disposition linking the placed note and every
+geometry-proved feature. It states a fulfilled model-governed requirement, so
+info follows docs/mcp.md; it does not soften a missing-radius warning. Hiding the
+note removes that disposition and restores the unplanned features. Refreshing
+completeness replaces the record, avoiding duplicate problem IDs during escalation.
+The existing trust assertion is kept intact; the relief-note test also checks
+this exact placed-note dependency.
+
+A second full run reached every target: 727 passed and one trust assertion
+failed because it counted only measurement-bearing annotations. The provenance
+test now includes the placed relief note and explicitly checks its stable ID,
+geometry evidence, exact printed text, no view, and empty claims/satisfies. Every
+measurement-note and dimension provenance assertion remains. The focused trust
+suite passed 12/12 before the complete runs recorded below.
+
+Preflight release acceptance passes: all 300 cells no worse against both the
+latest status table and saved pre-change baseline; ink 273, line-through-feature
+199 (saved pre-change 273/211; latest status table 278/212), off-sheet and repeated
+measures/spans zero. The 7 scripted MCP tasks succeed in 16 calls, with tasks.json
+unchanged. The comparison does not credit the rebased main improvements to G3.
+
+Visual review: eight SVGs differ from the saved pre-change G3 sheets; all were
+rasterised at 2400 px with resvg on white and inspected, along with CGB245. CTC-01
+states all four real R25 centres and the placed R10 default without lettering
+leaders. FTC-06 no longer calls out lettering; its body radii remain. CGB245 keeps
+one R3 default and its combined 28x R4 leader. CTC-02/FTC-08 tables locate each
+exception, and their defaults are now independently credited. The relief note
+plus fully located table is acceptable as a model-governed drawing requirement:
+it names the shallow profiles explicitly, while the table lists every actual
+corner and a readable origin on the named view. Existing hole-coordinate towers,
+small-scale views, section issues and unrelated leaders remain outside G3.
+Against the maintainer's stage-hh/before sheets, thirteen SVGs differ, including
+the earlier G3 changes on CGB207, CGB241, sm-hanger and string_post. All thirteen
+were rasterised and inspected. Hashes and per-sheet observations are in
+target/g3-resume/visual-review.json.
+
+Not done outside the listed review blockers: 19 genuine missing blend requirements
+remain on CGB207 (4), CTC-03 (7) and FTC-07 (8). Seven exception occurrences have no
+principal view with a proven trimmed-surface attachment; they also prevent twelve
+default-note occurrences from being stated (3/5/4 respectively). All have explicit
+refusals. No required radius is now withdrawn for routing cost. Solving those
+seven needs further attachment/view evidence, potentially details or sections;
+this stream does not invent that evidence or grant representative-site credit.
+
+The final plain full run then passed 728/0/0 (75 result groups) with the 150 ms
+session gate enabled. During the last independent-row audit, a malformed radius
+cell R0.2e5 exposed a mismatch between float parsing and the shared label-number
+extractor: the latter could borrow 0.2 from scientific notation. The new regression
+failed before the guard (target/g3-resume/logs/radius-cell-red.log). Radius cells now
+require the generated decimal grammar, including a leading digit; exponent and
+leading-dot forms cannot borrow numeric credit. This changes no generated sheet.
+The complete gates are being repeated on this final hardening.
+
+The enforced pin grid has passed 9/9 configurations, 270/270 GO, zero off-sheet.
+Its pinned ink totals are 263/255/256/271/225/230/273/262/240 for seeds 1-3 by
+N=1/3/8. As before, this samples existing placements, not arbitrary relocations.
+The hardening full run hit an unchanged plate latency assertion: 159.026 ms on
+one of nine edits; the other eight were 5.910–22.316 ms. A session-target repeat
+passed plate but hit NIST p90 166.925 ms (87.775–182.247 ms across nine samples).
+No limits or thread counts were changed and the gate is enabled. These logs are
+retained as timing failures, not relabelled passes. The isolated NIST diagnostic also failed at p90/max 308.609 ms (98.197–308.609
+ms). The machine reported 18 logical CPUs and load averages 41–51 at that time.
+That is evidence of contention, not proof that the implementation is immune to
+latency problems. A complete repeat keeps every assertion and eight test threads.
+The final hardening complete run (`cargo test --release --no-fail-fast`, required
+corpus, eight test threads, latency gate enabled) reached all 75 result groups:
+727 passed, one failed, zero ignored. The sole failure was
+`session::nist_benchmark_deltas`, p90/max 212.826 ms against 150 ms; all blend,
+independent-lint, corpus-parity and trust tests passed. The release build then
+passed. The host subsequently reported load averages 62.90–78.55 on 18 logical
+CPUs. This remains a failed gate; host contention is a plausible explanation,
+not an exemption or a proven diagnosis. See logs/tests-final-repeat.log.
+
+Final-binary quality passes all 300 published cells against the latest status
+table and all 390 comparable cells against the saved G3 pre-change baseline.
+Its 30 baseline records are identical to preflight. All thirteen changed final
+SVG hashes match the inspected sheets, and fresh 2400-pixel resvg PNGs match
+the inspected raster hashes. Final scripted MCP is 7/7 in 16 calls, with a fresh
+cache and unchanged tasks. Evidence is under target/g3-resume/final-quality/,
+final-rasters/, mcp-final.json and logs/. Final release executable SHA-256:
+23451fc192bf29b361aaac354128e957db636b145c9411c7594154e155864b56.
+
+
+Final enforced pin grid: all nine configurations pass, 270/270 GO, zero off-sheet.
+The final reports are exactly equal to preflight, including selected IDs and all
+quality counts; pinned ink totals remain 263/255/256/271/225/230/273/262/240. All
+30 final SVGs, not only the thirteen reviewed changes, are byte-identical to
+preflight. Evidence: final-pins-*/random-pins.json and validation.json.
+
+After all our rendering work finished, the unchanged eight-test Session target
+was repeated with eight threads and the latency gate enabled. Seven passed;
+NIST p90/max failed at 213.316 ms (samples 73.492–213.316 ms). Host load at the
+start was 61.94 on 18 logical CPUs; the peak observed load was 86.45. The log is
+logs/session-post-grid.log. The final-source complete run and this diagnostic
+are both failures, despite all functional invariants passing. No all-gates pass
+is claimed. A clean required-corpus full run remains not_done; rerun on a quiet
+machine and investigate Session performance if the unchanged bound still fails.
+Overturnable judgement: keep the 150 ms assertion and specified eight threads,
+and record incomplete acceptance instead of changing unrelated performance
+policy or attributing the failure conclusively to host contention. The geometry
+and drawing blockers are fixed, but this timing gate still prevents a clean
+acceptance verdict. No commit or push was performed.
+
+The post-retry release build also passes and keeps the evaluated executable
+hash. The subsequent required quality run in target/g3-resume/post-grid-quality/
+passes the retained prior status table (300 cells) and current table (390 cells).
+All 30 baseline records and SVGs exactly match final-quality/. The final
+validation.json explicitly retains all_gates_pass=false and both not_done items.

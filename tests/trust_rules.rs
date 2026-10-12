@@ -553,7 +553,8 @@ fn an_omission_is_never_reported_as_a_drop() {
 
 /// ARCH0016-2: every dimension the plan states can be addressed by its ID. Omitting it (in
 /// `auto`) takes it, and only it, off, except that an item it conveyed (ARCH0009-6: a dropped
-/// winner promotes its loser) comes back; listing it alone (in `authored`) gives a plan of it
+/// winner promotes its loser), or a dependent radius default conveyed, comes back; listing it
+/// alone (in `authored`) gives a plan of it
 /// alone, so any dimension dropped can be added back.
 #[test]
 fn every_planned_dimension_can_be_addressed() {
@@ -570,7 +571,7 @@ fn every_planned_dimension_can_be_addressed() {
         for id in &all {
             let without = model::plan(analysis, &omitting(&[id])).unwrap();
             let expected: Vec<&str> = all.iter().copied().filter(|i| i != id).collect();
-            let promoted: Vec<&str> = plan
+            let mut promoted: Vec<&str> = plan
                 .omitted
                 .iter()
                 .filter(|o| {
@@ -581,6 +582,48 @@ fn every_planned_dimension_can_be_addressed() {
                 })
                 .map(|o| o.id.as_str())
                 .collect();
+            for note in plan.notes.iter().filter(|n| {
+                n.placed.is_some()
+                    && !n.measurements.is_empty()
+                    && without.notes.iter().any(|changed| {
+                        changed.id == n.id
+                            && matches!(
+                                changed.state,
+                                draftwright::items::State::NotDrawable { .. }
+                            )
+                    })
+            }) {
+                assert!(note.text.starts_with("ALL UNSPECIFIED RADII R"));
+                let exception = plan.dimensions.iter().find(|d| d.id == *id).unwrap();
+                assert!(exception.measurements.iter().any(|m| {
+                    matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius")
+                        && draftwright::dims::fmt(m.value)
+                            != draftwright::dims::fmt(note.measurements[0].value)
+                }));
+                assert!(
+                    without
+                        .problems
+                        .iter()
+                        .any(|p| { p.code == "notes_not_placed" && p.subjects.contains(&note.id) })
+                );
+                let hidden = model::edit(&Spec::default(), &json!([{
+                    "op":"set", "path":format!("annotations/{}/omit", draftwright::items::key(&note.id)), "value":true
+                }])).unwrap();
+                let hidden = model::plan(analysis, &hidden).unwrap();
+                for item in plan.omitted.iter().filter(|o| {
+                    matches!(&o.state, draftwright::items::State::Covered { by } if by == &note.id)
+                }) {
+                    let restored = without.dimensions.iter().find(|d| d.id == item.id).unwrap();
+                    assert!(restored.placed.is_some());
+                    assert_eq!(restored.label, item.label);
+                    assert_eq!(
+                        restored.placed,
+                        hidden.dimensions.iter().find(|d| d.id == item.id).unwrap().placed,
+                        "a dependent radius uses its established geometry"
+                    );
+                    promoted.push(item.id.as_str());
+                }
+            }
             let kept: Vec<&str> = ids(&without)
                 .into_iter()
                 .filter(|i| !promoted.contains(i))
@@ -650,8 +693,49 @@ fn annotations_carry_their_plan_items_provenance() {
             .iter()
             .filter(|d| d.placed.is_some())
             .collect();
-        assert_eq!(drawing.annotations.len(), placed.len(), "{name}");
-        for (a, d) in drawing.annotations.iter().zip(&placed) {
+        let notes: Vec<_> = plan.notes.iter().filter(|n| n.placed.is_some()).collect();
+        assert_eq!(
+            drawing.annotations.len(),
+            placed.len() + notes.len(),
+            "{name}"
+        );
+        for n in notes {
+            let a = drawing.annotations.iter().find(|a| a.name == n.id).unwrap();
+            assert!(a.claims.is_empty());
+            assert_eq!(a.runs.len(), n.rows.len());
+            if n.measurements.is_empty() {
+                assert_eq!(n.id, "n:f:blend:relief/profiles");
+                assert_eq!(n.text, "SHALLOW RELIEF PROFILES PER MODEL");
+                assert!(!analysis.radius_reliefs.is_empty());
+                assert!(a.view.is_none() && a.satisfies.is_empty());
+                assert_eq!(
+                    a.runs
+                        .iter()
+                        .map(|&i| drawing.text[i].text.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    n.text,
+                    "{name}: profile requirement is actually printed"
+                );
+            }
+            let satisfies: Vec<_> = a
+                .satisfies
+                .iter()
+                .map(|c| (&c.feature, &c.parameter))
+                .collect();
+            let expected: Vec<_> = n
+                .measurements
+                .iter()
+                .map(|m| (&m.feature, &m.parameter))
+                .collect();
+            assert_eq!(satisfies, expected, "{name}: {}", n.id);
+        }
+        for (a, d) in drawing
+            .annotations
+            .iter()
+            .filter(|a| a.satisfies.is_empty() && a.name != "n:f:blend:relief/profiles")
+            .zip(&placed)
+        {
             assert_eq!(a.name, d.id, "{name}");
             assert_eq!(a.view.as_deref(), Some(d.view.as_str()), "{name}");
             let claims: Vec<(&str, &str)> = a

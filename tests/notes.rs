@@ -108,6 +108,22 @@ fn assert_clear(analysis: &Analysis, plan: &Plan) {
         }
     }
     for n in &plan.notes {
+        if n.id.starts_with("n:f:blend:") {
+            if let Some(p) = &n.placed {
+                assert!(inside(
+                    p.cells,
+                    plan.radius_notes_block.as_ref().unwrap().cells
+                ));
+                assert!(!overlaps(p.cells, block));
+            } else {
+                assert!(
+                    plan.problems
+                        .iter()
+                        .any(|p| p.code == "notes_not_placed" && p.subjects.contains(&n.id))
+                );
+            }
+            continue;
+        }
         let cells = n.placed.as_ref().unwrap().cells;
         assert!(inside(cells, block), "{}", n.id);
     }

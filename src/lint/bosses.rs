@@ -17,8 +17,8 @@
 //! height that is claimed but misprinted is not stated either, so it is reported under the same
 //! code, with the annotation and why. Not ported: a height consolidated onto an overall extent
 //! (Python follows the authored omission's `conveyed_by`, which lint cannot see without the
-//! plan), and bosses absorbed into blends by recognition ownership.
-//! The boss's diameter is the coarse diameter inventory's (`feature_not_dimensioned`), not ported.
+//! plan). A blend's same-face radius owns only the boss diameter ([`boss_owner`]); its height
+//! remains independently required. The diameter backstop uses that same ownership evidence.
 //!
 //! A boss that is a band of a turned profile is the turned step's, not a boss (draftwright's
 //! `boss_turned_step_owner` in `model/detect.py`'s `_append_turned_and_boss_features`): quiddity
@@ -30,7 +30,7 @@
 use super::parameters::{self, Wanted, fmt, fmt3};
 use super::{LintIssue, Mark};
 use crate::bridge::Feature;
-use crate::bridge::holes::frame;
+use crate::bridge::holes::{frame, point, principal};
 use crate::model::Analysis;
 
 /// Whether boss *b* is the floor of one of the Analysis's grooves: it shares a face with a groove
@@ -57,6 +57,43 @@ pub fn turned_band(analysis: &Analysis, b: &Feature) -> bool {
             .features
             .iter()
             .any(|s| s.kind == "turned_step" && s.faces == b.faces)
+}
+
+/// A blend owns a boss's diameter only with one same-run, nonempty face match and the same
+/// circle and axis. Its independent height remains required (Python's boss_blend_owner_pairs).
+pub fn boss_owner<'a>(a: &'a Analysis, boss: &Feature) -> Option<&'a Feature> {
+    if boss.faces.is_empty() || boss.kind != "boss" {
+        return None;
+    }
+    let p = &boss.parameters;
+    let axis = principal(point(p.get("axis"))?)?;
+    let diameter = p.get("diameter")?.as_f64()?;
+    let candidates: Vec<_> = a
+        .features
+        .iter()
+        .filter(|b| {
+            b.kind == "blend"
+                && b.faces == boss.faces
+                && b.parameters
+                    .get("radius")
+                    .and_then(|r| r.as_f64())
+                    .is_some_and(|r| r > 0.0 && (diameter - 2.0 * r).abs() <= 0.15)
+                && b.parameters
+                    .get("path")
+                    .and_then(|p| point(p.get("direction").or(p.get("normal"))))
+                    .and_then(principal)
+                    == Some(axis)
+        })
+        .collect();
+    let [blend] = candidates.as_slice() else {
+        return None;
+    };
+    (a.features
+        .iter()
+        .filter(|b| b.kind == "boss" && b.faces == boss.faces)
+        .count()
+        == 1)
+        .then_some(*blend)
 }
 
 /// The bosses' height requirements.

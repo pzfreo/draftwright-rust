@@ -988,5 +988,25 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The exposed top-flange thickness (the counted 2× 31.8 statement on the side profile) and overall height 247.7 already define the underside station 215.9. G2 review's top-slab ownership removes that rung to avoid the closed chain 215.9 + 31.8 = 247.7, retaining its stable item as Covered by the thickness with both dependencies named. Python origin/main _thin_profiles.register_plate_thickness and the captured sheet retain the fixed-map thickness plus that ladder rung. This is the same rule as 10038's redundant 7.2 underside, checked by the generic top-slab ownership/omission regression and the native/captured sheet audit."
+  },
+  {
+    "part": "ctc01",
+    "side": "python",
+    "family": "fillet",
+    "view": "side",
+    "label": "R1.6",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Python origin/main annotations/_edge_callouts.py::radius_jobs calls out this recognised lettering radius. The defining face belongs to one geometry-proved grouped shallow relief region: tiny complex floors and uniformly short walls on a common broad carrier. Rust states SHALLOW RELIEF PROFILES PER MODEL and excludes radius requirements and callouts on those faces, without inventing radius credit. The native and bridge sheets retain their real geometry radii. See tests/dims_blends.rs and known_blends.json for the measured policy and multi-part/depth controls."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "fillet",
+    "view": "plan",
+    "label": "R1.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Python origin/main annotations/_edge_callouts.py::radius_jobs calls out this recognised lettering radius. The defining face belongs to one geometry-proved grouped shallow relief region: tiny complex floors and uniformly short walls on a common broad carrier. Rust states SHALLOW RELIEF PROFILES PER MODEL and excludes radius requirements and callouts on those faces, without inventing radius credit. The native and bridge sheets retain their real geometry radii. See tests/dims_blends.rs and known_blends.json for the measured policy and multi-part/depth controls."
   }
 ]

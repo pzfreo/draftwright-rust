@@ -541,7 +541,7 @@ fn features_with_no_ported_dimensions_are_reported() {
     // The fillets and turned steps are planned (`dims::edges`, `dims::turned`): with nothing
     // else, nothing is reported.
     assert!(not_ported(&model::plan(&a, &Spec::default()).unwrap()).is_empty());
-    // The turned steps relabelled as blends, a kind no planner claims yet, are reported.
+    // An unknown feature kind is reported even as the set of ported planners grows.
     let ids: Vec<String> = a
         .features
         .iter()
@@ -550,7 +550,7 @@ fn features_with_no_ported_dimensions_are_reported() {
         .collect();
     assert_eq!(ids.len(), 2);
     for f in a.features.iter_mut().filter(|f| f.kind == "turned_step") {
-        f.kind = "blend".into();
+        f.kind = "unported_test_feature".into();
     }
     let plan = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(not_ported(&plan), ids);
@@ -561,7 +561,7 @@ fn features_with_no_ported_dimensions_are_reported() {
         .unwrap();
     assert!(
         step.message
-            .ends_with("no dimensions for blend are ported yet."),
+            .ends_with("no dimensions for unported_test_feature are ported yet."),
         "{}",
         step.message
     );

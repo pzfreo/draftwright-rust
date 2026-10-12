@@ -12,7 +12,7 @@
 use super::parameters::{self, Wanted, fmt, fmt3};
 use super::{LintIssue, Mark};
 use crate::bridge::Feature;
-use crate::bridge::holes::frame;
+use crate::bridge::holes::{frame, principal};
 use crate::model::Analysis;
 
 /// The blends' requirements.
@@ -20,7 +20,7 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     analysis
         .features
         .iter()
-        .filter(|f| f.kind == "blend")
+        .filter(|f| f.kind == "blend" && !super::blends::is_relief(analysis, f))
         .map(|f| {
             let radius = parameters::size(f, "radius");
             Wanted {
@@ -72,6 +72,100 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         noun,
         "a radius callout, in a view that sees the blend's arc",
     )
+}
+
+pub(crate) const RELIEF_NOTE: &str = "n:f:blend:relief/profiles";
+pub(crate) const RADIUS_TABLE: &str = "t:radius-centres";
+
+fn radius_view(axis: usize) -> &'static str {
+    ["side", "front", "plan"][axis]
+}
+
+pub(crate) fn is_relief(a: &Analysis, f: &Feature) -> bool {
+    matches!(f.kind.as_str(), "blend" | "fillet")
+        && !f.faces.is_empty()
+        && a.radius_reliefs
+            .iter()
+            .any(|r| f.faces.iter().all(|face| r.faces.contains(face)))
+}
+
+/// Geometric relief exclusion needs an explicit, rendered profile requirement. This grants
+/// no radius claims and cannot be supplied by an unrelated authored prose note.
+pub(crate) fn relief_stated(a: &Analysis, drawing: &crate::output::Drawing) -> bool {
+    a.radius_reliefs.is_empty()
+        || drawing.annotations.iter().any(|n| {
+            n.name == RELIEF_NOTE
+                && n.claims.is_empty()
+                && n.satisfies.is_empty()
+                && n.runs
+                    .iter()
+                    .filter_map(|&i| drawing.text.get(i))
+                    .map(|r| r.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .ends_with("SHALLOW RELIEF PROFILES PER MODEL")
+        })
+}
+
+/// A stale/wrong centre row cannot state a radius or unlock the blanket default. Lint
+/// checks printed locator cells as well as the radius and the exact occurrence identity.
+pub(crate) fn verified_row(a: &Analysis, m: &Mark) -> bool {
+    let Some(id) = m.name.strip_prefix(&format!("{RADIUS_TABLE}/")) else {
+        return true;
+    };
+    let Some(f) = a.features.iter().find(|f| f.id == id && f.kind == "blend") else {
+        return false;
+    };
+    if m.claims.len() != 1 || m.claims[0].feature != f.id || m.claims[0].parameter != "blend.radius"
+    {
+        return false;
+    }
+    let Some((view, centre)) = table_centre(a, f) else {
+        return false;
+    };
+    if m.view.as_deref() != Some(format!("v:{view}").as_str()) {
+        return false;
+    }
+    let Ok(r) = parameters::size(f, "radius") else {
+        return false;
+    };
+    let cells: Vec<_> = m.text.split_whitespace().collect();
+    cells.len() == 4
+        && cells[0] == view.to_uppercase()
+        && cells[1] == fmt(centre[0])
+        && cells[2] == fmt(centre[1])
+        && cells[3].strip_prefix('R').is_some_and(|value| {
+            value.as_bytes().first().is_some_and(u8::is_ascii_digit)
+                && value.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+                && value.parse::<f64>().is_ok_and(|v| v.is_finite() && v > 0.0)
+                && super::holes::states(value, r)
+        })
+}
+
+/// The recognition path is a radius centre only when the blend's own trimmed surface
+/// samples agree with its circle in this end view. A torus path or stale centre fails closed.
+pub(crate) fn table_centre(a: &Analysis, f: &Feature) -> Option<(&'static str, [f64; 2])> {
+    let path = f.parameters.get("path")?;
+    let axis = parameters::direction(&frame(a), path.get("direction")).and_then(principal)?;
+    let at = parameters::place(&frame(a), path.get("at"))?;
+    let (x, y) = match axis {
+        0 => (1, 2),
+        1 => (0, 2),
+        _ => (0, 1),
+    };
+    let r = parameters::size(f, "radius").ok()?;
+    let sites = a.blend_sites.get(&f.id)?;
+    if sites.is_empty()
+        || sites
+            .iter()
+            .any(|p| ((p[x] - at[x]).hypot(p[y] - at[y]) - r).abs() > 0.005)
+    {
+        return None;
+    }
+    Some((
+        radius_view(axis),
+        [at[x] - a.envelope[0][x], at[y] - a.envelope[0][y]],
+    ))
 }
 
 #[cfg(test)]
@@ -149,5 +243,37 @@ mod tests {
             coverage(&a, &[mark("R0.4", "f:blend:1")])[0].code,
             "blend_requirement_unverifiable"
         );
+    }
+
+    #[test]
+    fn radius_rows_keep_precise_centres_and_validate_the_displayed_radius() {
+        let mut a = part(&[json!({"radius":0.25,
+            "path":{"at":[12.3456,67.8901,0.0],"direction":[0.0,0.0,1.0]}})]);
+        a.blend_sites
+            .insert("f:blend:1".into(), vec![[12.5956, 67.8901, 0.0]]);
+        let mut row = Mark {
+            name: format!("{RADIUS_TABLE}/f:blend:1"),
+            view: Some("v:plan".into()),
+            text: "PLAN 12.346 67.89 R0.2".into(),
+            claims: vec![Claim {
+                feature: "f:blend:1".into(),
+                parameter: "blend.radius".into(),
+            }],
+        };
+        assert!(verified_row(&a, &row));
+        for text in [
+            "PLAN 12.3 67.9 R0.2",
+            "PLAN 12.346 67.89 R0.4",
+            "PLAN 12.346 67.89 R67.89",
+            "PLAN 12.346 67.89 R0.2e5",
+        ] {
+            row.text = text.into();
+            assert!(!verified_row(&a, &row), "{text}");
+        }
+        a.features[0].parameters.insert("radius".into(), json!(2.1));
+        a.blend_sites
+            .insert("f:blend:1".into(), vec![[14.4456, 67.8901, 0.0]]);
+        row.text = "PLAN 12.346 67.89 R.2".into();
+        assert!(!verified_row(&a, &row));
     }
 }

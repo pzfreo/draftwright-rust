@@ -38,10 +38,10 @@
 //! port does too, with Python's message, naming the holes as its subjects (and, for a location,
 //! each axis not located as a requirement). The severity is a warning: Python's is info on a
 //! part of several solids, which the Analysis does not record. Double-D bores are located and
-//! centre-marked as holes are (Python's `profiled_bores`, [`sites`]). Not ported: structured-note
-//! and hole-table authority (the port has neither), and the exclusion of a boss whose face a
-//! blend of the same circle owns (draftwright's `boss_blend_owner_pairs`; see
-//! LINT-code-feature_not_dimensioned's note).
+//! centre-marked as holes are (Python's `profiled_bores`, [`sites`]). General authored
+//! diameter-note authority is not ported. A boss whose defining face and circle belong to a
+//! uniquely proven blend is excluded from the diameter inventory ([`super::bosses::boss_owner`]);
+//! its height remains independently required.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -189,7 +189,11 @@ pub fn inventory(analysis: &Analysis) -> Vec<(f64, Vec<Requirement>)> {
             }
         }
     }
-    for f in analysis.features.iter().filter(|f| f.kind == "boss") {
+    for f in analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "boss" && super::bosses::boss_owner(analysis, f).is_none())
+    {
         if let Some(d) = f.parameters.get("diameter").and_then(|v| v.as_f64()) {
             found.push((
                 d,

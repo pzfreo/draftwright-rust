@@ -1226,6 +1226,7 @@ pub fn render(
     }
     Some(Annotation {
         coordinate_origin: None,
+        satisfies: Vec::new(),
         name: g.id.clone(),
         view: Some(g.view.clone()),
         runs: (first..text.len()).collect(),
