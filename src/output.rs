@@ -401,7 +401,7 @@ pub struct Drawn {
     pub lines: Vec<[P; 2]>,
     pub elbow: Option<P>,
     /// Placed inside its view on purpose, clear of the view's edges (draftwright's `interior`
-    /// placement region). The port places nothing there.
+    /// placement region), retained from the Plan's proven candidate provenance.
     pub interior: bool,
 }
 

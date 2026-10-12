@@ -74,13 +74,22 @@ edited.
   Principal faces now also retain optional `outer_lines` (straight outer boundary edges).
   Plate planning can choose a boundary profile whose two thickness faces have overlapping
   solid edges, and anchor its witnesses there. This is model-space Analysis evidence;
-  no projected line-work is added to the Plan. Each profile source also retains optional
+  the Plan does not copy the projected line-work inventory. Each profile source also retains optional
   `boundary_segments`: model-space B-rep chords used as tag-clearance obstacles.
   They include internal face edges and analytic cylinder/cone generators tangent
   to principal datum directions. Optional `curved_faces` retain the remaining
   curved surfaces' bounds and revolution axes for conservative clearance. Older analyses default to no straight-edge
   evidence and keep the axis-map fallback. Profile visibility is proved only for one solid;
   body bounds are transformed from the recognition frame before matching.
+
+- **Edge evidence** (optional `edge_ink`, `draftwright.analysis/7`): every edge as a
+  polyline in the part's frame (within 0.05 mm, coordinates to 0.001 mm), planar faces by
+  normal and loop edges, and curved faces by box (cylinders also by axis and radius). The
+  planner projects it into a view to prove a region blank before placing a label inside
+  (`src/model/projected_ink.rs`, `src/dims/interior.rs`); the projection is a superset of the
+  drawn ink. Rendering does not read it. Older documents default to none and keep every label
+  outside its view. The Plan records only the resolved annotation's `region: interior` and
+  basis. See [R1's decision note](adr/R1-document-model.md).
 
 - **PMI** (`draftwright.analysis/7`, `pmi`): the part's AP242 semantic PMI as `src/pmi.rs`
   reads it (`read`, the report: records with their faces, and every source not read with its
@@ -1074,3 +1083,31 @@ failed complete-table/tag transaction restores the original drawing. An
 unavailable explicitly requested table is a warning, with original dimensions
 kept. The old sixteen-hole rescue remains a separate backstop. The deliberate
 Python differences are recorded in `tests/fixtures/known_hole_tables.json`.
+
+
+### Interior placement (Stage H7)
+
+Automatic callouts contribute Python's bounded eight rays and eight text-lane
+stations, sharing at most 64 alternatives across a grouped feature's anchors.
+Bore targets stay radial; other features retain their physical attachment while
+the ray rotates. Every tip must touch a projected edge. A complete interior label must fit over proven
+projected material, with half a paper millimetre of clearance from every visible
+and hidden edge and all settled annotation text/ink. The candidate's entire
+leader/dimension geometry stays off other views and page furniture. Pins and
+explicit placement retain precedence. Linear dimensions retry up to eight inward
+lanes after their settled exterior placement fails; the whole dimension moves,
+including witnesses, arrows and label. Every line and arrow independently clears
+visible and hidden projected ink; only the first 0.6 mm of a callout at its
+attachment may touch the target. Witnesses leave their own opening at its near
+rim with the normal gap. Labels inside their own view are accepted
+by placement checks only after re-proving blank face; rendered structural lint
+still checks projected ink and suppresses the blank-region notice for a
+deliberately interior annotation, including Python-read drawings without a
+second annotation ownership record.
+
+Interior placement currently requires a planar face square to the view. A curved face's
+silhouette is bounded by its generators (a cylinder seen square) or its whole box (anything
+else), so labels keep off it. Section views keep exterior labels; a cutting-plane line, its
+arrows and letters are obstacles in the view that marks them (`model::cutting_line`, shared
+with the renderer). These limits and the difference from Python's projected material field
+are recorded in `tests/fixtures/known_interior.json` and `docs/next-session.md`.

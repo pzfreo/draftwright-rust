@@ -1,0 +1,922 @@
+//! Python's bounded interior rays and corridor retry, against proven blank face and settled ink.
+use super::placement::{Frame, Page, Side, arrow, boxes_overlap, crosses, label_box};
+use super::{CAP, LANE, P2, Placed, PlannedDimension, Shape, Want, font, label_ink};
+use crate::model::{Analysis, PlannedView, Spec};
+use std::collections::{BTreeMap, BTreeSet};
+
+pub(crate) const BASIS: &str = "; proven blank interior of its carrying view";
+
+fn padded(b: [f64; 4], pad: f64) -> [f64; 4] {
+    [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad]
+}
+fn contains(b: [f64; 4], p: P2) -> bool {
+    p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3]
+}
+
+/// Whether a segment comes within *c* of a box (the box grown by *c*).
+fn near_box(s: [P2; 2], b: [f64; 4], c: f64) -> bool {
+    let b = padded(b, c);
+    contains(b, s[0]) || contains(b, s[1]) || crosses(s, b)
+}
+
+fn distance(p: P2, [a, b]: [P2; 2]) -> f64 {
+    let d = [b[0] - a[0], b[1] - a[1]];
+    let n = d[0] * d[0] + d[1] * d[1];
+    let t = if n == 0.0 {
+        0.0
+    } else {
+        (((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1]) / n).clamp(0.0, 1.0)
+    };
+    (p[0] - a[0] - t * d[0]).hypot(p[1] - a[1] - t * d[1])
+}
+
+/// The least distance between two segments.
+fn segment_distance(s: [P2; 2], t: [P2; 2]) -> f64 {
+    let side = |a: P2, b: P2, c: P2| (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    let (p, q) = (side(s[0], s[1], t[0]), side(s[0], s[1], t[1]));
+    let (r, u) = (side(t[0], t[1], s[0]), side(t[0], t[1], s[1]));
+    if p * q < 0.0 && r * u < 0.0 {
+        return 0.0;
+    }
+    distance(s[0], t)
+        .min(distance(s[1], t))
+        .min(distance(t[0], s))
+        .min(distance(t[1], s))
+}
+
+fn bounds_of(points: impl IntoIterator<Item = P2>) -> [f64; 4] {
+    points.into_iter().fold(
+        [
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ],
+        |b, p| {
+            [
+                b[0].min(p[0]),
+                b[1].min(p[1]),
+                b[2].max(p[0]),
+                b[3].max(p[1]),
+            ]
+        },
+    )
+}
+
+/// A view's projected edge evidence, prepared once per view and planning pass, in model mm at
+/// 1:1 about the view's centre: every edge's chords, curved faces' silhouettes (or their boxes
+/// where a silhouette is not bounded exactly), and the planar faces square to the view.
+pub(super) struct Proof {
+    centre: P2,
+    /// Every chord, with the edge each belongs to at `edges[e]..edges[e + 1]`.
+    segments: Vec<[P2; 2]>,
+    edges: Vec<usize>,
+    /// Boxes a curved face's silhouette may lie anywhere within.
+    boxes: Vec<[f64; 4]>,
+    /// Planar faces square to the view: their box and their chords.
+    faces: Vec<([f64; 4], Vec<usize>)>,
+    grid: Grid,
+}
+
+/// A uniform bucket grid over a view's chords: queries visit only nearby chords.
+struct Grid {
+    origin: P2,
+    cell: f64,
+    size: [usize; 2],
+    cells: Vec<Vec<u32>>,
+}
+
+impl Grid {
+    fn new(segments: &[[P2; 2]]) -> Self {
+        let b = bounds_of(segments.iter().flatten().copied());
+        let (origin, extent) = if b[0].is_finite() {
+            ([b[0], b[1]], (b[2] - b[0]).max(b[3] - b[1]))
+        } else {
+            ([0.0, 0.0], 1.0)
+        };
+        let cell = (extent / 128.0).max(1e-3);
+        let size = [
+            ((b[2] - b[0]).max(0.0) / cell) as usize + 1,
+            ((b[3] - b[1]).max(0.0) / cell) as usize + 1,
+        ];
+        let mut grid = Self {
+            origin,
+            cell,
+            size,
+            cells: vec![Vec::new(); size[0] * size[1]],
+        };
+        for (i, s) in segments.iter().enumerate() {
+            let [x0, y0, x1, y1] = grid.range(bounds_of(*s));
+            for y in y0..=y1 {
+                for x in x0..=x1 {
+                    grid.cells[y * size[0] + x].push(i as u32);
+                }
+            }
+        }
+        grid
+    }
+
+    fn range(&self, b: [f64; 4]) -> [usize; 4] {
+        let at = |v: f64, k: usize| {
+            (((v - self.origin[k]) / self.cell).floor().max(0.0) as usize).min(self.size[k] - 1)
+        };
+        [at(b[0], 0), at(b[1], 1), at(b[2], 0), at(b[3], 1)]
+    }
+
+    /// Indices of the chords that may meet box *b* (some more than once).
+    fn near(&self, b: [f64; 4]) -> impl Iterator<Item = usize> + '_ {
+        let [x0, y0, x1, y1] = self.range(b);
+        (y0..=y1).flat_map(move |y| {
+            (x0..=x1)
+                .flat_map(move |x| self.cells[y * self.size[0] + x].iter().map(|&i| i as usize))
+        })
+    }
+}
+
+/// How far stored evidence may stray from the exact geometry, model mm.
+const SLACK: f64 = crate::model::projected_ink::TOLERANCE + crate::model::projected_ink::GRID;
+
+pub(super) fn proofs(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<String, Proof> {
+    let Some(ink) = analysis.edge_ink.as_ref() else {
+        return BTreeMap::new();
+    };
+    views
+        .iter()
+        .filter(|v| v.cut.is_none() && v.id != "v:iso")
+        .filter_map(|v| {
+            let view = haecceity::hlr::View::new(v.direction, v.up)?;
+            let centre = crate::model::extent(analysis, &view).1;
+            let mut proof = build(ink, v, centre)?;
+            // A cutting-plane line this view marks is fixed ink; its letters are boxes.
+            for cut in views.iter().filter_map(|q| q.cut.as_ref()) {
+                let name = v.id.trim_start_matches("v:");
+                if cut.marked_in != v.id && cut.marked_in != name {
+                    continue;
+                }
+                let (x0, x1, y) = crate::model::cutting_line(analysis, v, &view, cut);
+                let (items, letters) = crate::section::cutting_plane(x0, x1, y);
+                for item in &items {
+                    let crate::output::Item::Face(loops) = item else {
+                        continue;
+                    };
+                    for c in loops.iter().flatten() {
+                        if let crate::output::Curve::Line(a, b) = c {
+                            proof
+                                .segments
+                                .push([proof.model_point(v, *a), proof.model_point(v, *b)]);
+                        }
+                    }
+                }
+                for at in letters {
+                    let lo = proof.model_point(v, [at[0] - 4.0, at[1] - 5.0]);
+                    let hi = proof.model_point(v, [at[0] + 4.0, at[1] + 5.0]);
+                    proof.boxes.push([lo[0], lo[1], hi[0], hi[1]]);
+                }
+                proof.grid = Grid::new(&proof.segments);
+            }
+            Some((v.id.clone(), proof))
+        })
+        .collect()
+}
+
+fn build(ink: &crate::model::projected_ink::EdgeInk, v: &PlannedView, centre: P2) -> Option<Proof> {
+    let view = haecceity::hlr::View::new(v.direction, v.up)?;
+    let d = v.direction;
+    let n = d.iter().map(|x| x * x).sum::<f64>().sqrt();
+    let d = d.map(|x| x / n);
+    let dot = |a: [f64; 3]| a[0] * d[0] + a[1] * d[1] + a[2] * d[2];
+    let mut segments = Vec::new();
+    let mut edges = vec![0];
+    for e in &ink.edges {
+        let points: Vec<P2> = e.iter().map(|p| view.map(*p)).collect();
+        segments.extend(points.windows(2).map(|w| [w[0], w[1]]));
+        edges.push(segments.len());
+    }
+    let faces: Vec<_> = ink
+        .planes
+        .iter()
+        .filter(|f| {
+            let m = f.normal.iter().map(|x| x * x).sum::<f64>().sqrt();
+            (dot(f.normal).abs() / m.max(1e-12)) > 1.0 - 1e-9
+        })
+        .map(|f| {
+            let chords: Vec<usize> = f
+                .edges
+                .iter()
+                .filter(|&&e| e + 1 < edges.len())
+                .flat_map(|&e| edges[e]..edges[e + 1])
+                .collect();
+            (bounds_of(chords.iter().flat_map(|&i| segments[i])), chords)
+        })
+        .filter(|(_, chords)| !chords.is_empty())
+        .collect();
+    if faces.is_empty() {
+        return None;
+    }
+    let mut boxes = Vec::new();
+    for f in &ink.curved {
+        let [lo, hi] = f.bounds;
+        let corners =
+            (0..8).map(|i| [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] }));
+        if let Some(c) = &f.cylinder {
+            let m = c.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
+            let axis = c.axis.map(|x| x / m.max(1e-12));
+            let along = dot(axis).abs();
+            if along > 1.0 - 1e-9 {
+                // Seen end-on: its outline is its rims, which are edges.
+                continue;
+            }
+            if along < 1e-9 {
+                // Seen square: the silhouettes are the generators at ± radius.
+                let h: Vec<f64> = corners
+                    .map(|p| (0..3).map(|k| (p[k] - c.origin[k]) * axis[k]).sum())
+                    .collect();
+                let (h0, h1) = (
+                    h.iter().copied().fold(f64::INFINITY, f64::min),
+                    h.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                );
+                let w = [
+                    axis[1] * d[2] - axis[2] * d[1],
+                    axis[2] * d[0] - axis[0] * d[2],
+                    axis[0] * d[1] - axis[1] * d[0],
+                ];
+                for s in [-1.0, 1.0] {
+                    let at = |t: f64| {
+                        view.map([0, 1, 2].map(|k| c.origin[k] + t * axis[k] + s * c.radius * w[k]))
+                    };
+                    segments.push([at(h0), at(h1)]);
+                }
+                continue;
+            }
+        }
+        boxes.push(bounds_of(corners.map(|p| view.map(p))));
+    }
+    let grid = Grid::new(&segments);
+    Some(Proof {
+        centre,
+        segments,
+        edges,
+        boxes,
+        faces,
+        grid,
+    })
+}
+
+impl Proof {
+    fn model_point(&self, v: &PlannedView, p: P2) -> P2 {
+        [
+            (p[0] - v.at[0]) / v.scale + self.centre[0],
+            (p[1] - v.at[1]) / v.scale + self.centre[1],
+        ]
+    }
+
+    fn page_point(&self, v: &PlannedView, q: P2) -> P2 {
+        [
+            v.at[0] + v.scale * (q[0] - self.centre[0]),
+            v.at[1] + v.scale * (q[1] - self.centre[1]),
+        ]
+    }
+
+    /// Whether a box (model mm) stays clear of every chord and curved-face box by *c*.
+    fn box_clear(&self, b: [f64; 4], c: f64) -> bool {
+        let g = padded(b, c);
+        self.grid.near(g).all(|i| !near_box(self.segments[i], b, c))
+            && self.boxes.iter().all(|x| !boxes_overlap(*x, g))
+    }
+
+    /// Whether a model segment stays clear of every chord and curved-face box by *c*.
+    fn line_clear(&self, s: [P2; 2], c: f64) -> bool {
+        let g = padded(bounds_of(s), c);
+        self.grid
+            .near(g)
+            .all(|i| segment_distance(s, self.segments[i]) > c)
+            && self.boxes.iter().all(|x| !near_box(s, *x, c))
+    }
+
+    fn touches(&self, v: &PlannedView, tip: P2) -> bool {
+        let q = self.model_point(v, tip);
+        let c = 0.05 / v.scale + SLACK;
+        self.grid
+            .near(padded([q[0], q[1], q[0], q[1]], c))
+            .any(|i| distance(q, self.segments[i]) <= c)
+    }
+
+    fn segment_clear(&self, v: &PlannedView, [a, b]: [P2; 2], attachment: bool) -> bool {
+        let length = (b[0] - a[0]).hypot(b[1] - a[1]);
+        let t = if attachment {
+            (0.6 / length.max(1e-12)).min(1.0)
+        } else {
+            0.0
+        };
+        let start = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+        self.line_clear(
+            [self.model_point(v, start), self.model_point(v, b)],
+            0.2 / v.scale + SLACK,
+        )
+    }
+
+    fn arrow_clear(&self, v: &PlannedView, [tip, tail]: [P2; 2], attachment: bool) -> bool {
+        let d = [tail[0] - tip[0], tail[1] - tip[1]];
+        let length = d[0].hypot(d[1]).max(1e-12);
+        let t = if attachment {
+            (0.6 / length).min(1.0)
+        } else {
+            0.0
+        };
+        let normal = [
+            -super::ARROW_HALF * d[1] / length,
+            super::ARROW_HALF * d[0] / length,
+        ];
+        let start = [tip[0] + t * d[0], tip[1] + t * d[1]];
+        let points = [
+            [start[0] + t * normal[0], start[1] + t * normal[1]],
+            [start[0] - t * normal[0], start[1] - t * normal[1]],
+            [tail[0] + normal[0], tail[1] + normal[1]],
+            [tail[0] - normal[0], tail[1] - normal[1]],
+        ];
+        self.box_clear(
+            bounds_of(points.map(|p| self.model_point(v, p))),
+            0.2 / v.scale + SLACK,
+        )
+    }
+
+    pub(super) fn annotation_clear(&self, v: &PlannedView, p: &Placed, callout: bool) -> bool {
+        self.blank(v, p.label_box)
+            && (!callout || self.touches(v, p.lines[0][0]))
+            && p.lines
+                .iter()
+                .enumerate()
+                .all(|(i, s)| self.segment_clear(v, *s, callout && i == 0))
+            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, callout))
+            && (!callout || {
+                let q = p.lines[0][1];
+                self.blank(v, [q[0], q[1], q[0], q[1]])
+            })
+    }
+
+    /// Whole-label containment in one planar face square to the view, clear of all projected
+    /// edges and silhouettes by 0.5 paper mm.
+    pub(super) fn blank(&self, v: &PlannedView, label: [f64; 4]) -> bool {
+        let lo = self.model_point(v, [label[0], label[1]]);
+        let hi = self.model_point(v, [label[2], label[3]]);
+        let c = (0.5 / v.scale).max(0.0005) + SLACK;
+        let b = [lo[0], lo[1], hi[0], hi[1]];
+        let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
+        self.box_clear(b, c)
+            && self.faces.iter().any(|(fb, chords)| {
+                contains(*fb, middle)
+                    && chords
+                        .iter()
+                        .filter(|&&i| {
+                            let [a, z] = self.segments[i];
+                            (a[1] > middle[1]) != (z[1] > middle[1])
+                                && middle[0]
+                                    < a[0] + (middle[1] - a[1]) * (z[0] - a[0]) / (z[1] - a[1])
+                        })
+                        .count()
+                        % 2
+                        == 1
+            })
+    }
+
+    /// Points on the arcs of the circle about *centre* (page) of *radius* (model mm), a quarter,
+    /// half and three quarters along each: physical attachments for a radius callout.
+    fn arc_stations(&self, v: &PlannedView, centre: P2, radius: f64) -> Vec<P2> {
+        let c = self.model_point(v, centre);
+        let mut out = Vec::new();
+        for e in self.edges.windows(2) {
+            let chords = &self.segments[e[0]..e[1]];
+            if chords.len() < 2
+                || chords
+                    .iter()
+                    .flatten()
+                    .any(|p| ((p[0] - c[0]).hypot(p[1] - c[1]) - radius).abs() > 2.0 * SLACK)
+            {
+                continue;
+            }
+            let lengths: Vec<f64> = chords
+                .iter()
+                .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+                .collect();
+            let total: f64 = lengths.iter().sum();
+            for station in [0.25, 0.5, 0.75] {
+                let mut left = station * total;
+                for (s, l) in chords.iter().zip(&lengths) {
+                    if left <= *l || std::ptr::eq(s, chords.last().unwrap()) {
+                        let t = if *l > 0.0 { (left / l).min(1.0) } else { 0.0 };
+                        out.push(self.page_point(
+                            v,
+                            [
+                                s[0][0] + t * (s[1][0] - s[0][0]),
+                                s[0][1] + t * (s[1][1] - s[0][1]),
+                            ],
+                        ));
+                        break;
+                    }
+                    left -= l;
+                }
+            }
+        }
+        out
+    }
+}
+
+fn text_conflict(a: &Placed, b: &Placed) -> bool {
+    boxes_overlap(padded(a.label_box, 0.5), b.label_box)
+        || a.lines
+            .iter()
+            .chain(&a.arrows)
+            .any(|s| crosses(*s, padded(b.label_box, 0.5)))
+        || b.lines
+            .iter()
+            .chain(&b.arrows)
+            .any(|s| crosses(*s, padded(a.label_box, 0.5)))
+}
+
+fn conflict(a: &Placed, b: &Placed) -> bool {
+    text_conflict(a, b)
+        || a.lines.iter().chain(&a.arrows).any(|s| {
+            b.lines
+                .iter()
+                .chain(&b.arrows)
+                .any(|t| super::leaders::lines_meet(*s, *t))
+        })
+}
+
+fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedView) -> Vec<Placed> {
+    let Shape::Callout { sites } = &w.shape else {
+        return Vec::new();
+    };
+    let radial = w
+        .measurements
+        .iter()
+        .any(|m| m.parameter == "bore.diameter");
+    let ink = label_ink(&w.terms, font());
+    let ray = old
+        .lines
+        .first()
+        .map(|[a, b]| [b[0] - a[0], b[1] - a[1]])
+        .unwrap_or([1.0, 0.0]);
+    let n = ray[0].hypot(ray[1]).max(1e-12);
+    let u = [ray[0] / n, ray[1] / n];
+    let mut attachments = vec![old.lines[0][0]];
+    if !radial {
+        // Physical arc anchors, rather than the absent half of a construction circle.
+        'sites: for (centre, radius) in sites {
+            for tip in proof.arc_stations(v, frame.page(*centre), *radius) {
+                if !attachments
+                    .iter()
+                    .any(|p| (p[0] - tip[0]).hypot(p[1] - tip[1]) <= 0.05)
+                {
+                    attachments.push(tip);
+                }
+                if attachments.len() == 64 {
+                    break 'sites;
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    // Share Python's 64 alternatives round-robin over anchors; grouping cannot multiply work.
+    for (rotation, lane) in [0.0_f64, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0, 180.0]
+        .into_iter()
+        .flat_map(|a| (1..=8).map(move |n| (a, n)))
+    {
+        let (s, c) = rotation.to_radians().sin_cos();
+        let d = [u[0] * c - u[1] * s, u[0] * s + u[1] * c];
+        let tips: Vec<_> = if radial {
+            sites
+                .iter()
+                .take(64)
+                .map(|(centre, radius)| {
+                    let q = frame.page(*centre);
+                    let r = radius * frame.scale();
+                    [q[0] + r * d[0], q[1] + r * d[1]]
+                })
+                .collect()
+        } else {
+            attachments.clone()
+        };
+        for tip in tips {
+            let outline = frame.outline();
+            let exit = (0..2)
+                .filter_map(|k| {
+                    if d[k] > 0.0 {
+                        Some((outline[k + 2] - tip[k]) / d[k])
+                    } else if d[k] < 0.0 {
+                        Some((outline[k] - tip[k]) / d[k])
+                    } else {
+                        None
+                    }
+                })
+                .fold(f64::INFINITY, f64::min)
+                .max(0.0);
+            if lane as f64 * LANE + 0.5 >= exit {
+                continue;
+            }
+            let elbow = [
+                tip[0] + lane as f64 * LANE * d[0],
+                tip[1] + lane as f64 * LANE * d[1],
+            ];
+            let right = d[0] >= -1e-9;
+            let end = [
+                elbow[0]
+                    + if right {
+                        super::SHOULDER
+                    } else {
+                        -super::SHOULDER
+                    },
+                elbow[1],
+            ];
+            let label_at = [
+                if right {
+                    end[0] + 1.0 - ink.min[0]
+                } else {
+                    end[0] - 1.0 - ink.max[0]
+                },
+                elbow[1] - 0.5 * CAP,
+            ];
+            let p = Placed {
+                lines: vec![[tip, elbow], [elbow, end]],
+                arrows: vec![arrow(tip, elbow)],
+                label_at,
+                rotation: 0.0,
+                label_box: label_box(&ink, label_at, 0.0),
+            };
+            if proof.annotation_clear(v, &p, true) {
+                out.push(p);
+            }
+            if out.len() == 64 {
+                return out;
+            }
+        }
+    }
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn place(
+    analysis: &Analysis,
+    spec: &Spec,
+    views: &[PlannedView],
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    chosen: &[Option<&str>],
+    sides: &[Option<Side>],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    obstacles: &[PlannedDimension],
+    cache: &super::footprints::Cache,
+) -> BTreeSet<String> {
+    let mut moved = BTreeSet::new();
+    let proofs = proofs(analysis, views);
+    for i in 0..items.len() {
+        if spec
+            .dimensions
+            .get(&items[i].id)
+            .is_some_and(|d| d.place.is_some())
+        {
+            continue;
+        }
+        let (Some(name), Some(old)) = (chosen[i], placed[i].as_ref()) else {
+            continue;
+        };
+        let Some(v) = views.iter().find(|v| v.id.trim_start_matches("v:") == name) else {
+            continue;
+        };
+        let Some(proof) = proofs.get(&v.id) else {
+            continue;
+        };
+        let frame = &frames[name];
+        let f = cache.get(analysis, v);
+        let candidates =
+            match &items[i].shape {
+                Shape::Callout { .. } => callouts(frame, &items[i], old, proof, v),
+                Shape::Linear { .. }
+                    if !page.fits(old, name)
+                        || old.lines.iter().take(2).any(|s| {
+                            !f.crossed_extension(*s, &items[i].measurements).is_empty()
+                        })
+                        || obstacles
+                            .iter()
+                            .filter_map(|d| d.placed.as_ref())
+                            .any(|p| conflict(old, p))
+                        || placed.iter().enumerate().any(|(j, p)| {
+                            j != i && p.as_ref().is_some_and(|p| text_conflict(old, p))
+                        }) =>
+                {
+                    sides[i]
+                        .map(|side| super::placement::interior_lanes(frame, &items[i], side))
+                        .unwrap_or_default()
+                }
+                _ => Vec::new(),
+            };
+        let candidate = candidates
+            .into_iter()
+            .filter_map(|mut p| {
+                if matches!(items[i].shape, Shape::Linear { .. })
+                    && !p
+                        .lines
+                        .iter_mut()
+                        .take(2)
+                        .all(|s| f.interior_witness(s, &items[i].measurements))
+                {
+                    return None;
+                }
+                Some(p)
+            })
+            .filter(|p| {
+                proof.annotation_clear(v, p, matches!(items[i].shape, Shape::Callout { .. }))
+                    && page.fits_interior(p, name)
+                    && !placed
+                        .iter()
+                        .enumerate()
+                        .any(|(j, q)| j != i && q.as_ref().is_some_and(|q| conflict(p, q)))
+                    && !obstacles
+                        .iter()
+                        .filter_map(|d| d.placed.as_ref())
+                        .any(|q| conflict(p, q))
+                    && p.lines
+                        .iter()
+                        .take(if matches!(items[i].shape, Shape::Callout { .. }) {
+                            1
+                        } else {
+                            2
+                        })
+                        .all(|s| {
+                            if matches!(items[i].shape, Shape::Callout { .. }) {
+                                !f.crosses_feature(*s)
+                            } else {
+                                f.crossed_extension(*s, &items[i].measurements).is_empty()
+                            }
+                        })
+            })
+            .min_by(|a, b| {
+                let length = |p: &Placed| {
+                    p.lines
+                        .iter()
+                        .map(|[a, b]| (a[0] - b[0]).hypot(a[1] - b[1]))
+                        .sum::<f64>()
+                };
+                length(a).total_cmp(&length(b))
+            });
+        if let Some(p) = candidate {
+            placed[i] = Some(p);
+            moved.insert(items[i].id.clone());
+        }
+    }
+    moved
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::projected_ink::{CurvedFace, Cylinder, EdgeInk, PlanarFace};
+
+    fn view() -> PlannedView {
+        serde_json::from_value(serde_json::json!({
+            "id": "v:plan", "direction": [0,0,1], "up": [0,1,0],
+            "at": [0,0], "scale": 1, "area": [-50,-50,50,50],
+            "state": {"kind": "shown"}, "default": true, "basis": "test"
+        }))
+        .unwrap()
+    }
+
+    /// A 100 mm square plate face seen in plan, plus further edges as polylines at z = 0.
+    fn ink(extra: Vec<Vec<P2>>) -> EdgeInk {
+        let square = [[-50., -50.], [50., -50.], [50., 50.], [-50., 50.]];
+        let mut edges: Vec<Vec<[f64; 3]>> = (0..4)
+            .map(|i| {
+                let (a, b) = (square[i], square[(i + 1) % 4]);
+                vec![[a[0], a[1], 0.], [b[0], b[1], 0.]]
+            })
+            .collect();
+        edges.extend(
+            extra
+                .into_iter()
+                .map(|e| e.into_iter().map(|p| [p[0], p[1], 0.]).collect()),
+        );
+        EdgeInk {
+            edges,
+            planes: vec![PlanarFace {
+                normal: [0., 0., 1.],
+                edges: vec![0, 1, 2, 3],
+            }],
+            curved: vec![],
+        }
+    }
+
+    fn proof(ink: &EdgeInk) -> Proof {
+        build(ink, &view(), [0., 0.]).unwrap()
+    }
+
+    fn semicircle() -> Vec<P2> {
+        (0..=32)
+            .map(|i| {
+                let t = std::f64::consts::PI * i as f64 / 32.0;
+                [5. * t.cos(), 5. * t.sin()]
+            })
+            .collect()
+    }
+
+    fn dimension() -> Placed {
+        Placed {
+            lines: vec![
+                [[-10., -10.], [-10., 0.]],
+                [[10., -10.], [10., 0.]],
+                [[-10., 0.], [10., 0.]],
+            ],
+            arrows: vec![[[-10., 0.], [-8., 0.]], [[10., 0.], [8., 0.]]],
+            label_box: [-3., 2., 3., 5.],
+            label_at: [-3., 2.],
+            rotation: 0.,
+        }
+    }
+
+    #[test]
+    fn blank_label_does_not_excuse_dimension_line_or_arrow_on_ink() {
+        let v = view();
+        let p = dimension();
+        assert!(proof(&ink(vec![])).annotation_clear(&v, &p, false));
+        for line in [
+            [[-20., 0.], [20., 0.]],
+            [[-9., -1.], [-9., 1.]],
+            [[0., -1.], [0., 1.]],
+        ] {
+            let proof = proof(&ink(vec![line.to_vec()]));
+            assert!(proof.blank(&v, p.label_box));
+            assert!(!proof.annotation_clear(&v, &p, false));
+        }
+    }
+
+    #[test]
+    fn a_label_over_an_edge_or_off_the_face_is_not_blank() {
+        let v = view();
+        let label = [-3., 2., 3., 5.];
+        assert!(proof(&ink(vec![])).blank(&v, label));
+        // An edge through it, or within the half-millimetre gap of it.
+        assert!(!proof(&ink(vec![vec![[0., -10.], [0., 10.]]])).blank(&v, label));
+        assert!(!proof(&ink(vec![vec![[-10., 5.3], [10., 5.3]]])).blank(&v, label));
+        // A hole loop around it: the face's even/odd containment excludes the hole.
+        let hole = vec![[-6., 0.], [6., 0.], [6., 8.], [-6., 8.], [-6., 0.]];
+        let mut holed = ink(vec![hole]);
+        holed.planes[0].edges.push(4);
+        assert!(!proof(&holed).blank(&v, label));
+        // Off the plate entirely.
+        assert!(!proof(&ink(vec![])).blank(&v, [60., 2., 66., 5.]));
+        // No face square to the view proves nothing.
+        let mut tilted = ink(vec![]);
+        tilted.planes[0].normal = [0., 1., 1.];
+        assert!(build(&tilted, &v, [0., 0.]).is_none());
+    }
+
+    #[test]
+    fn curved_faces_bound_their_silhouettes() {
+        let v = view();
+        let label = [-3., 2., 3., 5.];
+        // A sphere or torus may outline anywhere in its box.
+        let mut round = ink(vec![]);
+        round.curved.push(CurvedFace {
+            bounds: [[-1., 0., -5.], [1., 10., 0.]],
+            cylinder: None,
+        });
+        assert!(!proof(&round).blank(&v, label));
+        // A cylinder seen end-on outlines only at its rims (edges).
+        let mut bore = ink(vec![]);
+        bore.curved.push(CurvedFace {
+            bounds: [[-10., -10., -5.], [10., 10., 0.]],
+            cylinder: Some(Cylinder {
+                origin: [0., 0., 0.],
+                axis: [0., 0., 1.],
+                radius: 10.,
+            }),
+        });
+        assert!(proof(&bore).blank(&v, label));
+        // Seen square to its axis, at its generators ± radius: one runs through the label.
+        let mut side = ink(vec![]);
+        side.curved.push(CurvedFace {
+            bounds: [[-20., -0.5, -7.], [20., 3.5, -3.]],
+            cylinder: Some(Cylinder {
+                origin: [0., 1.5, -5.],
+                axis: [1., 0., 0.],
+                radius: 2.,
+            }),
+        });
+        let p = proof(&side);
+        assert!(!p.blank(&v, label));
+        assert!(p.blank(&v, [-3., 6., 3., 9.]));
+    }
+
+    #[test]
+    fn partial_arc_tip_and_complete_leader_must_clear_ink() {
+        let v = view();
+        let p = Placed {
+            lines: vec![[[0., 5.], [0., 12.]], [[0., 12.], [5., 12.]]],
+            arrows: vec![[[0., 5.], [0., 7.]]],
+            label_box: [6., 11., 12., 14.],
+            label_at: [6., 11.],
+            rotation: 0.,
+        };
+        assert!(proof(&ink(vec![semicircle()])).annotation_clear(&v, &p, true));
+        assert!(!proof(&ink(vec![semicircle()])).touches(&v, [0., -5.]));
+        for line in [[[-2., 9.], [2., 9.]], [[3., 10.], [3., 15.]]] {
+            let proof = proof(&ink(vec![semicircle(), line.to_vec()]));
+            assert!(proof.blank(&v, p.label_box));
+            assert!(!proof.annotation_clear(&v, &p, true));
+        }
+        let mut void = p;
+        void.lines[0][1] = [0., 60.];
+        assert!(!proof(&ink(vec![semicircle()])).annotation_clear(&v, &void, true));
+    }
+
+    #[test]
+    fn failed_exterior_corridors_retry_the_whole_linear_dimension_inside() {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/mounting_plate.step");
+        let mut a = crate::model::analyse_native(&file).unwrap().1;
+        let sheet = crate::model::plan(&a, &Spec::default()).unwrap().sheet;
+        a.envelope = [[-50., -50., -1.], [50., 50., 1.]];
+        a.features.clear();
+        a.principal_profiles.clear();
+        a.edge_ink = Some(ink(vec![]));
+        let mut v = view();
+        v.at = [150., 150.];
+        v.area = [80., 80., 220., 220.];
+        let views = [v];
+        let frame = Frame::new(&a, &views[0]);
+        let frames = BTreeMap::from([("plan", frame)]);
+        let w = Want {
+            id: "d:test/location.length.x".into(),
+            views: vec!["plan"],
+            value: 20.,
+            terms: vec!["20".into()],
+            measurements: vec![],
+            basis: "test".into(),
+            turning: None,
+            shape: Shape::Linear {
+                a: [-10., -20., 0.],
+                b: [10., -20., 0.],
+                axis: 0,
+                a_edge: false,
+                b_edge: false,
+                order: 1,
+            },
+        };
+        let mut old = dimension();
+        old.label_box = [10000., 10000., 10006., 10003.];
+        let page = Page::new(&a, &sheet, &views);
+        assert!(!page.fits(&old, "plan"));
+        let mut placed = [Some(old)];
+        let moved = place(
+            &a,
+            &Spec::default(),
+            &views,
+            &frames,
+            &[w],
+            &[Some("plan")],
+            &[Some(Side::Above)],
+            &mut placed,
+            &page,
+            &[],
+            &super::super::footprints::Cache::default(),
+        );
+        assert!(moved.contains("d:test/location.length.x"));
+        let p = placed[0].as_ref().unwrap();
+        assert_eq!(p.lines.len(), 3);
+        assert_eq!(p.arrows.len(), 2);
+        assert!(page.fits_interior(p, "plan"));
+        assert!(proofs(&a, &views)["v:plan"].annotation_clear(&views[0], p, false));
+    }
+
+    #[test]
+    fn radius_candidates_use_physical_arc_anchors_and_never_the_missing_semicircle() {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/mounting_plate.step");
+        let mut a = crate::model::analyse_native(&file).unwrap().1;
+        a.envelope = [[-50., -50., -1.], [50., 50., 1.]];
+        let v = view();
+        let frame = Frame::new(&a, &v);
+        let ink = ink(vec![semicircle()]);
+        let proof = proof(&ink);
+        let w = Want {
+            id: "d:test/slot_end_radius.radius".into(),
+            views: vec!["plan"],
+            value: 5.,
+            terms: vec!["R5".into()],
+            measurements: vec![],
+            basis: "test".into(),
+            turning: None,
+            shape: Shape::Callout {
+                sites: vec![([0., 0., 0.], 5.)],
+            },
+        };
+        let mut old = dimension();
+        old.lines = vec![[[0., -5.], [0., -12.]], [[0., -12.], [3., -12.]]];
+        let candidates = callouts(&frame, &w, &old, &proof, &v);
+        assert!(!candidates.is_empty());
+        for p in candidates {
+            assert!(p.lines[0][0][1] >= 0.0);
+            assert!(proof.annotation_clear(&v, &p, true));
+        }
+    }
+}

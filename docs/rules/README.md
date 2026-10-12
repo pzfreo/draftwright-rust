@@ -16,10 +16,10 @@ integration of 2026-10-12 (G1 completeness, G2 plates, G5 title block):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 54 | 47 | 33 | 26 |
-| `lint.yaml` | 58 | 92 | 0 | 15 |
+| `adr.yaml` | 55 | 47 | 33 | 25 |
+| `lint.yaml` | 59 | 92 | 0 | 14 |
 | `issues.yaml` | 115 | 48 | 6 | 21 |
-| **All** | **227** | **187** | **39** | **62** |
+| **All** | **229** | **187** | **39** | **60** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a
@@ -76,3 +76,7 @@ classifications and port notes are judgement calls. Settled with the maintainer 
       quiddity-rust;
     - `draftwright` when the drawing must say that recognition refused or was unsure, rather
       than guess.
+
+H7 (2026-10-12) revives ADR2-17 and LINT-code-interior_label_on_narrow_material
+as pending with tests for the implemented portion; both were retired only because
+the port formerly placed no interior labels.

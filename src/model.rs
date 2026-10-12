@@ -86,6 +86,11 @@ pub struct Analysis {
     /// about the projection of the envelope's centre: what the isometric is fitted by. All zero
     /// when the projection has no edges (the plan then reports `iso_projection_empty`).
     pub iso_bounds: [f64; 4],
+    /// The part's edges and faces, compactly, from which the planner proves a region of a view
+    /// blank before placing a label inside it ([`projected_ink`]). Absent in older analyses,
+    /// which then keep every label outside the views.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge_ink: Option<projected_ink::EdgeInk>,
     /// The heights (z, mm) of the part's horizontal face levels: what a prismatic part's height
     /// ladder dimensions ([`crate::demand::face_levels`]).
     #[serde(default)]
@@ -567,6 +572,7 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
         recognition: None,
         features: Vec::new(),
         iso_bounds: [0.0; 4],
+        edge_ink: None,
         levels: crate::demand::face_levels(&part),
         level_supports,
         risers,
@@ -607,6 +613,7 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
     if bounds[0].is_finite() {
         analysis.iso_bounds = bounds;
     }
+    analysis.edge_ink = Some(projected_ink::evidence(&part));
     Ok((part, analysis))
 }
 
@@ -2776,6 +2783,10 @@ impl RenderedItem {
 /// Draws a dimension, callout, feature control frame, datum symbol or PMI label from the plan.
 pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
     let mut out = RenderedItem::default();
+    let interior = match &item {
+        AnnotationItem::Dimension(d) => d.region == Some(crate::dims::CandidateRegion::Interior),
+        AnnotationItem::Gdt(_) => false,
+    };
     let (kind, label, lines, elbow) = match item {
         AnnotationItem::Dimension(d) => {
             out.annotations =
@@ -2810,7 +2821,7 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
             label,
             lines,
             elbow,
-            interior: false,
+            interior,
         });
     }
     out
@@ -3593,7 +3604,7 @@ fn section_furniture(
     (plane, cut): (&Plane, &Cut),
     projections: &mut Projections,
 ) -> Result<Furniture, Unresolved> {
-    use crate::section::{HATCH_SPACING, OVERRUN, cutting_plane, hatch};
+    use crate::section::{HATCH_SPACING, cutting_plane, hatch};
     let mut out = Furniture {
         ink: Vec::new(),
         hatch: 0,
@@ -3686,28 +3697,43 @@ fn section_furniture(
     if let Some(m) = plan.views.iter().find(|w| w.id == cut.marked_in)
         && let Some(mv) = View::new(m.direction, m.up)
     {
-        let centre = extent(analysis, &mv).1;
-        let to_page = |p: [f64; 3]| {
-            let q = mv.map(p);
-            [
-                m.at[0] + m.scale * (q[0] - centre[0]),
-                m.at[1] + m.scale * (q[1] - centre[1]),
-            ]
-        };
-        let [lo, hi] = analysis.envelope;
-        // The line runs across the part's extent along the view's x, past it each side.
-        let (a, b) = (
-            to_page([lo[0], cut.origin[1], lo[2]]),
-            to_page([hi[0], cut.origin[1], hi[2]]),
-        );
-        let (x0, x1) = (a[0].min(b[0]) - OVERRUN, a[0].max(b[0]) + OVERRUN);
-        let y = to_page(cut.origin)[1];
+        let (x0, x1, y) = cutting_line(analysis, m, &mv, cut);
         let (ink, letters) = cutting_plane(x0, x1, y);
         out.ink.extend(ink);
         out.chain = Some([[x0, y], [x1, y]]);
         out.text.extend(letters.map(|at| (l.clone(), at)));
     }
     Ok(out)
+}
+
+/// Where the cutting-plane line of *cut* runs on the view *m* that marks it (page mm): from
+/// `x0` to `x1` at height `y`, across the part's extent along the view's x and past it each
+/// side. The renderer draws it there; the planner keeps interior labels off it.
+pub(crate) fn cutting_line(
+    analysis: &Analysis,
+    m: &PlannedView,
+    mv: &View,
+    cut: &Cut,
+) -> (f64, f64, f64) {
+    let centre = extent(analysis, mv).1;
+    let to_page = |p: [f64; 3]| {
+        let q = mv.map(p);
+        [
+            m.at[0] + m.scale * (q[0] - centre[0]),
+            m.at[1] + m.scale * (q[1] - centre[1]),
+        ]
+    };
+    let [lo, hi] = analysis.envelope;
+    let (a, b) = (
+        to_page([lo[0], cut.origin[1], lo[2]]),
+        to_page([hi[0], cut.origin[1], hi[2]]),
+    );
+    let overrun = crate::section::OVERRUN;
+    (
+        a[0].min(b[0]) - overrun,
+        a[0].max(b[0]) + overrun,
+        to_page(cut.origin)[1],
+    )
 }
 
 /// A projected curve scaled by *s* about *centre* and moved to *at*.
@@ -3871,3 +3897,5 @@ fn pdf_spec(text: &str) -> Result<Option<String>, String> {
 }
 
 mod projection_store;
+
+pub mod projected_ink;

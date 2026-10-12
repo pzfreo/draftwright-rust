@@ -29,27 +29,24 @@ fn session(messages: &[Value]) -> Vec<Value> {
         .spawn()
         .unwrap();
     let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = child.stdout.take().unwrap();
+    let reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut stdout, &mut bytes).unwrap();
+        bytes
+    });
     let handshake = [
         json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
             "protocolVersion": "2025-06-18", "capabilities": {},
             "clientInfo": { "name": "test", "version": "0" } } }),
         json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
     ];
-    // Read replies while writing requests: an inline Analysis can exceed either pipe's buffer.
-    let requests: Vec<_> = handshake
-        .iter()
-        .chain(messages)
-        .map(Value::to_string)
-        .collect();
-    let writer = std::thread::spawn(move || {
-        for m in requests {
-            writeln!(stdin, "{m}").unwrap();
-        }
-    });
-    let out = child.wait_with_output().unwrap();
-    writer.join().unwrap();
-    assert!(out.status.success());
-    let replies: Vec<Value> = String::from_utf8(out.stdout)
+    for m in handshake.iter().chain(messages) {
+        writeln!(stdin, "{m}").unwrap();
+    }
+    drop(stdin);
+    assert!(child.wait().unwrap().success());
+    let replies: Vec<Value> = String::from_utf8(reader.join().unwrap())
         .unwrap()
         .lines()
         .map(|l| serde_json::from_str(l).unwrap())

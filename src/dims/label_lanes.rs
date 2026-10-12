@@ -254,6 +254,7 @@ pub(crate) fn settle_inventory(
     for i in 0..inventory.len() {
         let d = &inventory[i];
         if d.kind != "linear"
+            || d.region == Some(super::CandidateRegion::Interior)
             || spec
                 .dimensions
                 .get(&d.id)

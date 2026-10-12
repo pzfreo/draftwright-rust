@@ -512,6 +512,12 @@ fn omitting_one_dimension_moves_no_other() {
                                 }
                                 continue;
                             }
+                            // An item retried inside its view (its own exterior witness
+                            // crossed another feature) holds no exterior lane to hand on: the
+                            // promoted item is placed on its own merits, outside.
+                            if survivor.region == Some(dims::CandidateRegion::Interior) {
+                                continue;
+                            }
                             let survivor = survivor.placed.as_ref().unwrap();
                             assert!(
                                 (lane(p) - lane(survivor)).abs() < 1e-9,

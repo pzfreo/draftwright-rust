@@ -1,0 +1,22 @@
+[
+ {
+  "rule": "ADR2-17",
+  "verdict": "undetermined",
+  "reason": "Python _leader_candidates.py uses eight rotations and eight stations. Only hole candidates carry RadialLeaderTarget; machined radii fan around their physical attachment. Rust now preserves fixed non-bore tips, requires contact with a projected edge, bounds ray reach and proves all lines/arrows clear of visible and hidden ink. Whole-dimension retries are tested with an explicitly failed exterior corridor. The independent thirty-part oracle checks every interior tip/line/arrow. Global joint interior/exterior assignment remains unported. Near-rim witness starts use only owned footprints and retain the standard witness gap. Projected edges whose samples all lie on the site's circle supply physical arc stations (1/4, 1/2, 3/4) as fixed anchors; this avoids inheriting an exterior tip on an absent semicircle."
+ },
+ {
+  "rule": "LINT-code-view_annotation_inside_extents",
+  "verdict": "rust-correct",
+  "reason": "Drawn.interior suppresses the blank-region info without requiring an annotations record, as Python-read sheets and tests/lint_structural.rs fixtures require. A visible-edge overlap still warns independently. Hidden-edge clearance is additionally proved by planning, as required by the maintainer."
+ },
+ {
+  "rule": "LINT-code-interior_label_on_narrow_material",
+  "verdict": "undetermined",
+  "reason": "The planner proves complete-label containment with 0.5 paper mm clearance using parallel planar face boundaries. Python material_fields triangulates all material and label_on_narrow_material also measures a connected band's width. Curved-only material, sections and cutting-plane carrier views retain exterior labels in Rust; the full connected-band lint is not ported. This conservative restriction avoids claiming blank material without evidence. tests/interior_placement.rs::empty_space_without_projected_material_is_refused guards that refusal."
+ },
+ {
+  "rule": "identity/plate.spec1.json",
+  "verdict": "rust-correct",
+  "reason": "H7 moves the historical plate hole-pattern callout to a shorter proven-blank interior ray. plate.interior_basis.json records the exact changed basis and complete placement. identity.rs still compares every other legacy field, plus separately verdicted title/reporting additions. Stable IDs and the measurements are unchanged; the spec/1 migration retains the authored intent."
+ }
+]

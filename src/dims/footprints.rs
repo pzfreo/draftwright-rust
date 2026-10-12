@@ -474,6 +474,12 @@ impl Footprints {
             .collect()
     }
 
+    /// Whether *shaft* crosses a feature's footprint, the view's material aside: an interior
+    /// leader runs over material by design, and its ink proof keeps it off every edge.
+    pub(super) fn crosses_feature(&self, shaft: [P2; 2]) -> bool {
+        self.features.iter().any(|f| f.shape.crossed(shaft))
+    }
+
     pub(super) fn crossing_count(&self, shaft: [P2; 2]) -> usize {
         self.crossed_ids(shaft).len()
     }
@@ -504,6 +510,28 @@ impl Footprints {
                     .get(&m.feature)
                     .is_some_and(|members| members.contains(id))
         })
+    }
+
+    /// An interior witness leaves its own opening at the near rim, keeping the normal gap.
+    pub(super) fn interior_witness(&self, line: &mut [P2; 2], owners: &[Measurement]) -> bool {
+        let exit = self
+            .features
+            .iter()
+            .filter(|f| self.owned(&f.id, owners))
+            .flat_map(|f| f.shape.spans(*line))
+            .filter(|(a, _)| *a <= 1e-9)
+            .map(|(_, b)| b)
+            .max_by(f64::total_cmp);
+        if let Some(exit) = exit {
+            let d = [line[1][0] - line[0][0], line[1][1] - line[0][1]];
+            let length = d[0].hypot(d[1]);
+            let t = exit + super::GAP / length.max(1e-12);
+            if t >= 1.0 {
+                return false;
+            }
+            line[0] = [line[0][0] + t * d[0], line[0][1] + t * d[1]];
+        }
+        true
     }
 
     /// A dimension witnesses its own feature (all members for a pattern). Unlike a leader,
@@ -642,6 +670,7 @@ mod tests {
         let frame = Frame::new(&a, &view);
         let line = [frame.page([-2.0, 0.0, 3.0]), frame.page([6.0, 0.0, 3.0])];
         let dim = |id: &str, kind: &str, lines| PlannedDimension {
+            region: None,
             id: id.into(),
             kind: kind.into(),
             view: "v:plan".into(),
@@ -791,5 +820,40 @@ mod tests {
         let f = Shape::Loop(edges);
         assert!(f.crossed([[1.0, 2.0], [7.0, 2.0]]));
         assert!(!f.crossed([[1.0, 2.0], [-1.0, 2.0]]));
+    }
+    #[test]
+    fn interior_witness_leaves_its_own_rim_without_skipping_an_unrelated_feature() {
+        let f = Footprints {
+            view: "v:plan".into(),
+            solids: vec![],
+            members: BTreeMap::new(),
+            features: vec![
+                Footprint {
+                    id: "f:own".into(),
+                    shape: Shape::Circle([0., 0.], 3.),
+                },
+                Footprint {
+                    id: "f:other".into(),
+                    shape: Shape::Circle([7., 0.], 1.),
+                },
+            ],
+        };
+        let owners = [Measurement {
+            feature: "f:own".into(),
+            parameter: "pitch.length".into(),
+            value: 10.,
+        }];
+        let mut line = [[1., 0.], [10., 0.]];
+        assert!(f.interior_witness(&mut line, &owners));
+        assert_eq!(line[0], [4., 0.]);
+        assert_eq!(
+            f.crossed_extension(line, &owners),
+            BTreeSet::from(["f:other".into()])
+        );
+        let mut unowned = [[1., 0.], [10., 0.]];
+        assert!(f.interior_witness(&mut unowned, &[]));
+        assert_eq!(unowned[0], [1., 0.]);
+        let mut short = [[1., 0.], [2., 0.]];
+        assert!(!f.interior_witness(&mut short, &owners));
     }
 }
