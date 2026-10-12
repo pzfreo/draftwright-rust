@@ -75,6 +75,12 @@ jobs:
   test:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # The session benchmarks' native p90 <= 150 ms bound is a go/no-go gate measured on the
+      # development machine and enforced locally by `cargo test --release`; hosted runners are
+      # about five times slower, so here the benchmarks print SESSION_LATENCY without asserting
+      # it. Every other session assertion still runs.
+      DRAFTWRIGHT_LATENCY_GATE: "0"
     strategy:
       fail-fast: false
       matrix:

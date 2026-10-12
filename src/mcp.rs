@@ -748,16 +748,10 @@ pub fn stdio(cache: &Cache) -> std::io::Result<()> {
 /// Sequential local HTTP keeps expensive geometry work within the memory guard.
 pub fn http(cache: &Cache, listener: TcpListener) -> std::io::Result<()> {
     for mut stream in listener.incoming().flatten() {
+        // Every response half-closes, and refusals drain unread input for at most 100 ms
+        // (`send`), so an early refusal is not lost to a reset without stalling the next
+        // queued connection.
         let _ = connection(cache, &mut stream);
-        // An early refusal leaves the request body unread; closing with unread input makes the
-        // kernel reset the connection, which can discard the response before the client reads
-        // it. Half-close, then drain (bounded) until the client closes its side.
-        let _ = stream.shutdown(std::net::Shutdown::Write);
-        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
-        let _ = std::io::copy(
-            &mut Read::take(&mut stream, 8 * 1024 * 1024 + 16384),
-            &mut std::io::sink(),
-        );
     }
     Ok(())
 }

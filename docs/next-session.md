@@ -4188,3 +4188,19 @@ the deliberate regression. Wall time: 199.348 s (quality 100.671 s, pins
 and pin measurement vary with local load, reinforcing the use of hosted timing
 evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268` on
 `cxg/h2-ci` and merged to `main` in the Stage H integration.
+
+## Stage H integration judgement calls (2026-10-12, overturnable)
+
+- **HTTP drain.** Stage G's G2 fix 2 (`d322411`) and #4 both fixed the early-refusal
+  ConnectionReset flake. G2's fix drained every connection for up to 2 s after
+  `connection()` returned; with #4's tests that stalls the sequential server behind a
+  client that keeps its socket open, so a queued ping timed out (4 HTTP tests failed on
+  the merged tree). The merge keeps #4's mechanism (every response half-closes; refusals
+  drain at most 100 ms in `send`) and removes the 2 s post-connection drain. G2's
+  intent is still covered: `tests/stateless.rs` (including the original line-103 case)
+  passed 13/13 in five isolated runs and in the full suite.
+- Stale "no commit or push" lines were rewritten only in the four Stage H sections;
+  older stage sections keep their wording as historical records.
+- The CI quality baseline's `source_commit` is `fd08c1d` (the commit whose status
+  table it copies), as the Stage F baseline named `b999b13`; its executable SHA is the
+  merged-tree release build that reproduced the table.

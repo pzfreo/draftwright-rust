@@ -76,7 +76,7 @@
     },
     "10038": {
       "hidden_on_visible": 26,
-      "ink": 4,
+      "ink": 1,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -160,7 +160,7 @@
     },
     "GRM-03_thumbwheel_drive_screw": {
       "hidden_on_visible": 14,
-      "ink": 2,
+      "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -305,7 +305,7 @@
     "nist_ftc_07_asme1_rd": {
       "hidden_on_visible": 136,
       "ink": 9,
-      "line_through_feature": 10,
+      "line_through_feature": 9,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "docs/status-2026-10-10.md: Stage F integration / Merged after table",
-  "source_commit": "b999b13",
-  "verified_binary_sha256": "886e93f7481981e15e19587bd8accc016115d7279871ceedc852bfd506ac0fa6"
+  "source": "docs/status-2026-10-10.md: Stage G integration / Merged after table",
+  "source_commit": "fd08c1d",
+  "verified_binary_sha256": "56c6f47887c4fcc512d85cf18c2d99c9370295e3352beb4fdb2301ebd82b0bb0"
 }
