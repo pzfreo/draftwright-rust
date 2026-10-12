@@ -1076,10 +1076,17 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
             if let Some(o) = plan.omitted.iter().find(|o| &o.id == id) {
                 a.basis = o.basis.clone();
                 if let Some(t) = &plan.radius_table {
-                    a.features.extend(t.rows.iter().filter(|r| r.dimension == *id).map(|r| r.feature.clone()));
+                    a.features.extend(
+                        t.rows
+                            .iter()
+                            .filter(|r| r.dimension == *id)
+                            .map(|r| r.feature.clone()),
+                    );
                 }
-                if let Some((feature, _)) = id.strip_prefix("d:").and_then(|s| s.rsplit_once('/')) {
-                    if !a.features.iter().any(|f| f == feature) { a.features.push(feature.into()); }
+                if let Some((feature, _)) = id.strip_prefix("d:").and_then(|s| s.rsplit_once('/'))
+                    && !a.features.iter().any(|f| f == feature)
+                {
+                    a.features.push(feature.into());
                 }
                 a.operations = vec!["omit".into()];
                 if let ItemState::Covered { by } = &o.state {

@@ -410,7 +410,8 @@ fn ctc01_states_real_corners_and_the_radius_default_without_logo_callouts() {
     let Some(dir) = corpus::dir() else { return };
     let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
     let p = model::plan(&a, &Spec::default()).unwrap();
-    assert!(p.omitted.iter().any(|d| d.label == "4× R25" && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")));
+    assert!(p.omitted.iter().any(|d| d.label == "4× R25"
+        && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")));
     let table = serde_json::to_value(&p).unwrap();
     assert_eq!(
         table["radius_table"]["rows"]
@@ -531,7 +532,11 @@ fn radius_exceptions_are_stated_despite_routing_cost() {
     let (_, a) = model::analyse_native(&dir.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
     let p = model::plan(&a, &Spec::default()).unwrap();
     for label in ["4× R15", "6× R18"] {
-        assert!(p.omitted.iter().any(|d| d.label == label && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")), "{label} survives routing in a fully located table");
+        assert!(
+            p.omitted.iter().any(|d| d.label == label
+                && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")),
+            "{label} survives routing in a fully located table"
+        );
     }
     assert!(!p.problems.iter().any(|p| p.code == "blend_callout_dropped"));
 }
@@ -549,6 +554,28 @@ fn relief_profile_note_is_required_for_the_default_and_independent_lint() {
         .expect("explicit relief profile requirement");
     let spec = model::edit(&Spec::default(), &json!([{"op":"set", "path":format!("annotations/{}/omit", draftwright::items::key(&relief.id)), "value":true}])).unwrap();
     let hidden = model::plan(&a, &spec).unwrap();
+    let disposition = p
+        .problems
+        .iter()
+        .find(|p| p.code == "relief_profiles_per_model")
+        .expect("model-governed features remain traceable");
+    assert_eq!(disposition.severity, "info");
+    assert!(disposition.subjects.contains(&relief.id));
+    for f in a.features.iter().filter(|f| {
+        matches!(f.kind.as_str(), "blend" | "fillet")
+            && !f.faces.is_empty()
+            && a.radius_reliefs
+                .iter()
+                .any(|r| f.faces.iter().all(|face| r.faces.contains(face)))
+    }) {
+        assert!(disposition.subjects.contains(&f.id));
+    }
+    assert!(
+        !hidden
+            .problems
+            .iter()
+            .any(|p| p.code == "relief_profiles_per_model")
+    );
     assert!(
         hidden
             .notes
@@ -603,8 +630,15 @@ fn deep_profiles_are_not_exempted_as_shallow_relief() {
     );
     let p = model::plan(&a, &Spec::default()).unwrap();
     let doc = serde_json::to_value(&p).unwrap();
-    assert!(p.dimensions.iter().flat_map(|d| &d.measurements).any(|m| m.feature == "f:blend:29")
-        || doc["radius_table"]["rows"].as_array().is_some_and(|rs| rs.iter().any(|r| r["feature"] == "f:blend:29")));
+    assert!(
+        p.dimensions
+            .iter()
+            .flat_map(|d| &d.measurements)
+            .any(|m| m.feature == "f:blend:29")
+            || doc["radius_table"]["rows"]
+                .as_array()
+                .is_some_and(|rs| rs.iter().any(|r| r["feature"] == "f:blend:29"))
+    );
 }
 
 /// Every row locates one occurrence; changing or deleting its locator loses that occurrence
@@ -630,7 +664,16 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators() {
             .iter()
             .map(|r| r["feature"].as_str().unwrap())
             .collect();
-        let covered: Vec<_> = rows.iter().filter(|r| p.omitted.iter().any(|d| d.id == r["dimension"].as_str().unwrap() && matches!(&d.state, State::Covered { by } if by == "t:radius-centres"))).map(|r| r["feature"].as_str().unwrap()).collect();
+        let covered: Vec<_> = rows
+            .iter()
+            .filter(|r| {
+                p.omitted.iter().any(|d| {
+                    d.id == r["dimension"].as_str().unwrap()
+                        && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")
+                })
+            })
+            .map(|r| r["feature"].as_str().unwrap())
+            .collect();
         assert_eq!(table_features.len(), covered.len());
         assert!(
             covered

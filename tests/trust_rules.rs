@@ -693,11 +693,7 @@ fn annotations_carry_their_plan_items_provenance() {
             .iter()
             .filter(|d| d.placed.is_some())
             .collect();
-        let notes: Vec<_> = plan
-            .notes
-            .iter()
-            .filter(|n| n.placed.is_some() && !n.measurements.is_empty())
-            .collect();
+        let notes: Vec<_> = plan.notes.iter().filter(|n| n.placed.is_some()).collect();
         assert_eq!(
             drawing.annotations.len(),
             placed.len() + notes.len(),
@@ -707,6 +703,21 @@ fn annotations_carry_their_plan_items_provenance() {
             let a = drawing.annotations.iter().find(|a| a.name == n.id).unwrap();
             assert!(a.claims.is_empty());
             assert_eq!(a.runs.len(), n.rows.len());
+            if n.measurements.is_empty() {
+                assert_eq!(n.id, "n:f:blend:relief/profiles");
+                assert_eq!(n.text, "SHALLOW RELIEF PROFILES PER MODEL");
+                assert!(!analysis.radius_reliefs.is_empty());
+                assert!(a.view.is_none() && a.satisfies.is_empty());
+                assert_eq!(
+                    a.runs
+                        .iter()
+                        .map(|&i| drawing.text[i].text.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    n.text,
+                    "{name}: profile requirement is actually printed"
+                );
+            }
             let satisfies: Vec<_> = a
                 .satisfies
                 .iter()
@@ -722,7 +733,7 @@ fn annotations_carry_their_plan_items_provenance() {
         for (a, d) in drawing
             .annotations
             .iter()
-            .filter(|a| a.satisfies.is_empty())
+            .filter(|a| a.satisfies.is_empty() && a.name != "n:f:blend:relief/profiles")
             .zip(&placed)
         {
             assert_eq!(a.name, d.id, "{name}");

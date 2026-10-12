@@ -33,6 +33,8 @@ pub struct Completeness {
 
 /// Refresh after escalation, which can move a hole's measurements into a table.
 pub fn report(analysis: &Analysis, plan: &mut Plan) {
+    plan.problems
+        .retain(|p| p.code != "relief_profiles_per_model");
     let severity = if analysis.solid_count.is_some_and(|n| n > 1) {
         "info"
     } else {
@@ -51,13 +53,48 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
         .collect();
     // Radius coverage may be carried by a general note or a located radius table.
-    stated.extend(plan.notes.iter().filter(|n| n.placed.is_some())
-        .flat_map(|n| &n.measurements)
-        .filter(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
-        .map(|m| m.feature.as_str()));
-    stated.extend(plan.radius_table.iter().flat_map(|t| &t.rows).map(|r| r.feature.as_str()));
-    if plan.notes.iter().any(|n| n.id == crate::lint::blends::RELIEF_NOTE && n.placed.is_some()) {
-        stated.extend(analysis.features.iter().filter(|f| crate::lint::blends::is_relief(analysis, f)).map(|f| f.id.as_str()));
+    stated.extend(
+        plan.notes
+            .iter()
+            .filter(|n| n.placed.is_some())
+            .flat_map(|n| &n.measurements)
+            .filter(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+            .map(|m| m.feature.as_str()),
+    );
+    stated.extend(
+        plan.radius_table
+            .iter()
+            .flat_map(|t| &t.rows)
+            .map(|r| r.feature.as_str()),
+    );
+    if plan
+        .notes
+        .iter()
+        .any(|n| n.id == crate::lint::blends::RELIEF_NOTE && n.placed.is_some())
+    {
+        let features: Vec<_> = analysis
+            .features
+            .iter()
+            .filter(|f| crate::lint::blends::is_relief(analysis, f))
+            .map(|f| f.id.as_str())
+            .collect();
+        stated.extend(features.iter().copied());
+        if !features.is_empty() {
+            plan.problems.push(Problem {
+                id: "p:relief_profiles_per_model".into(),
+                code: "relief_profiles_per_model".into(),
+                severity: "info".into(),
+                message:
+                    "Grouped shallow relief radii are governed by the placed model-profile note."
+                        .into(),
+                subjects: features
+                    .into_iter()
+                    .map(String::from)
+                    .chain(std::iter::once(crate::lint::blends::RELIEF_NOTE.into()))
+                    .collect(),
+                ..Default::default()
+            });
+        }
     }
     for p in analysis.recognition.iter().flat_map(|r| &r.patterns) {
         if stated.contains(p.id.as_str()) {

@@ -226,7 +226,8 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
                         .iter()
                         .any(|n| n.id == *by && !n.measurements.is_empty())
                     || plan.radius_table.as_ref().is_some_and(|t| t.table.id == *by
-                        && t.table.placed.is_some() && t.rows.iter().any(|r| r.dimension == o.id)),
+                        && t.table.placed.is_some()
+                        && t.rows.iter().any(|r| r.dimension == o.id)),
                 "{what}: {} is covered by {by}, no placed radius table, planned dimension or structured note",
                 o.id
             ),

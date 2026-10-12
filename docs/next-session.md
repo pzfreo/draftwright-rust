@@ -4413,4 +4413,143 @@ target/g3-carry/red-all-tests.log. They cover CTC-01 completeness/no logo claims
 five relief parts and two negative controls, retained real exception requirements,
 relief note omission/independent lint, depth conservatism, and every-occurrence
 radius tables with wrong/missing/duplicate locator and deterministic round-trip checks.
-The focused final suite is 11/11. Full acceptance results will follow below.
+The earlier claimed 11/11 result was premature: the resumed run reproduced two
+failures, corrected below. Full acceptance results follow in the resume entry.
+
+
+## G3 carry-over resume (2026-10-12, unattended)
+
+Resumed WIP 1d14760 without committing or pushing. The review's failing gates
+were confirmed: both blend tests were reproduced failing on CTC-02 (22 missing
+radii); the reported clippy issue was the nested Session condition. Formatting and that condition are
+corrected without changing the Session behaviour.
+
+The table used dimension formatting (one decimal) for centre coordinates, while
+independent lint expected three decimals. Four R18 rows on CTC-02 lost credit,
+withdrawing the dependent 18-member R10 default. Centre cells now print up to
+three decimals, matching independent validation. FTC-08 exposed the corresponding
+radius issue: R3.175 prints R3.2, so the radius cell must be checked at its printed
+precision, as other dimension coverage is, rather than against a diagnostic
+formatter. Only the R-prefixed radius cell can supply that value; locator values
+cannot substitute. The new unit test accepts a properly rounded radius and
+rejects coarse/wrong centres and unrelated numeric values.
+
+Overturnable judgement: retain three-decimal model-millimetre centre locators,
+with trailing zeros omitted, instead of changing the drawing's global one-decimal
+size grammar. These locators identify occurrences and need more precision than
+a compact nominal size label. The geometry proof remains within 0.005 mm, and
+wrong/missing/duplicate locators still invalidate their row and dependent default.
+The grouped-relief thresholds and explicit model-governing note remain as
+documented above; they do not claim semantic lettering recognition.
+
+The first full run reached the previously unrun trust target and found that
+model-governed relief features were no longer traceable by its unchanged
+"dimensioned or reported" assertion. Completeness now emits one informational
+`relief_profiles_per_model` disposition linking the placed note and every
+geometry-proved feature. It states a fulfilled model-governed requirement, so
+info follows docs/mcp.md; it does not soften a missing-radius warning. Hiding the
+note removes that disposition and restores the unplanned features. Refreshing
+completeness replaces the record, avoiding duplicate problem IDs during escalation.
+The existing trust assertion is kept intact; the relief-note test also checks
+this exact placed-note dependency.
+
+A second full run reached every target: 727 passed and one trust assertion
+failed because it counted only measurement-bearing annotations. The provenance
+test now includes the placed relief note and explicitly checks its stable ID,
+geometry evidence, exact printed text, no view, and empty claims/satisfies. Every
+measurement-note and dimension provenance assertion remains. The focused trust
+suite passed 12/12 before the complete runs recorded below.
+
+Preflight release acceptance passes: all 300 cells no worse against both the
+latest status table and saved pre-change baseline; ink 273, line-through-feature
+199 (saved pre-change 273/211; latest status table 278/212), off-sheet and repeated
+measures/spans zero. The 7 scripted MCP tasks succeed in 16 calls, with tasks.json
+unchanged. The comparison does not credit the rebased main improvements to G3.
+
+Visual review: eight SVGs differ from the saved pre-change G3 sheets; all were
+rasterised at 2400 px with resvg on white and inspected, along with CGB245. CTC-01
+states all four real R25 centres and the placed R10 default without lettering
+leaders. FTC-06 no longer calls out lettering; its body radii remain. CGB245 keeps
+one R3 default and its combined 28x R4 leader. CTC-02/FTC-08 tables locate each
+exception, and their defaults are now independently credited. The relief note
+plus fully located table is acceptable as a model-governed drawing requirement:
+it names the shallow profiles explicitly, while the table lists every actual
+corner and a readable origin on the named view. Existing hole-coordinate towers,
+small-scale views, section issues and unrelated leaders remain outside G3.
+Against the maintainer's stage-hh/before sheets, thirteen SVGs differ, including
+the earlier G3 changes on CGB207, CGB241, sm-hanger and string_post. All thirteen
+were rasterised and inspected. Hashes and per-sheet observations are in
+target/g3-resume/visual-review.json.
+
+Not done outside the listed review blockers: 19 genuine missing blend requirements
+remain on CGB207 (4), CTC-03 (7) and FTC-07 (8). Seven exception occurrences have no
+principal view with a proven trimmed-surface attachment; they also prevent twelve
+default-note occurrences from being stated (3/5/4 respectively). All have explicit
+refusals. No required radius is now withdrawn for routing cost. Solving those
+seven needs further attachment/view evidence, potentially details or sections;
+this stream does not invent that evidence or grant representative-site credit.
+
+The final plain full run then passed 728/0/0 (75 result groups) with the 150 ms
+session gate enabled. During the last independent-row audit, a malformed radius
+cell R0.2e5 exposed a mismatch between float parsing and the shared label-number
+extractor: the latter could borrow 0.2 from scientific notation. The new regression
+failed before the guard (target/g3-resume/logs/radius-cell-red.log). Radius cells now
+require the generated decimal grammar, including a leading digit; exponent and
+leading-dot forms cannot borrow numeric credit. This changes no generated sheet.
+The complete gates are being repeated on this final hardening.
+
+The enforced pin grid has passed 9/9 configurations, 270/270 GO, zero off-sheet.
+Its pinned ink totals are 263/255/256/271/225/230/273/262/240 for seeds 1-3 by
+N=1/3/8. As before, this samples existing placements, not arbitrary relocations.
+The hardening full run hit an unchanged plate latency assertion: 159.026 ms on
+one of nine edits; the other eight were 5.910–22.316 ms. A session-target repeat
+passed plate but hit NIST p90 166.925 ms (87.775–182.247 ms across nine samples).
+No limits or thread counts were changed and the gate is enabled. These logs are
+retained as timing failures, not relabelled passes. The isolated NIST diagnostic also failed at p90/max 308.609 ms (98.197–308.609
+ms). The machine reported 18 logical CPUs and load averages 41–51 at that time.
+That is evidence of contention, not proof that the implementation is immune to
+latency problems. A complete repeat keeps every assertion and eight test threads.
+The final hardening complete run (`cargo test --release --no-fail-fast`, required
+corpus, eight test threads, latency gate enabled) reached all 75 result groups:
+727 passed, one failed, zero ignored. The sole failure was
+`session::nist_benchmark_deltas`, p90/max 212.826 ms against 150 ms; all blend,
+independent-lint, corpus-parity and trust tests passed. The release build then
+passed. The host subsequently reported load averages 62.90–78.55 on 18 logical
+CPUs. This remains a failed gate; host contention is a plausible explanation,
+not an exemption or a proven diagnosis. See logs/tests-final-repeat.log.
+
+Final-binary quality passes all 300 published cells against the latest status
+table and all 390 comparable cells against the saved G3 pre-change baseline.
+Its 30 baseline records are identical to preflight. All thirteen changed final
+SVG hashes match the inspected sheets, and fresh 2400-pixel resvg PNGs match
+the inspected raster hashes. Final scripted MCP is 7/7 in 16 calls, with a fresh
+cache and unchanged tasks. Evidence is under target/g3-resume/final-quality/,
+final-rasters/, mcp-final.json and logs/. Final release executable SHA-256:
+23451fc192bf29b361aaac354128e957db636b145c9411c7594154e155864b56.
+
+
+Final enforced pin grid: all nine configurations pass, 270/270 GO, zero off-sheet.
+The final reports are exactly equal to preflight, including selected IDs and all
+quality counts; pinned ink totals remain 263/255/256/271/225/230/273/262/240. All
+30 final SVGs, not only the thirteen reviewed changes, are byte-identical to
+preflight. Evidence: final-pins-*/random-pins.json and validation.json.
+
+After all our rendering work finished, the unchanged eight-test Session target
+was repeated with eight threads and the latency gate enabled. Seven passed;
+NIST p90/max failed at 213.316 ms (samples 73.492–213.316 ms). Host load at the
+start was 61.94 on 18 logical CPUs; the peak observed load was 86.45. The log is
+logs/session-post-grid.log. The final-source complete run and this diagnostic
+are both failures, despite all functional invariants passing. No all-gates pass
+is claimed. A clean required-corpus full run remains not_done; rerun on a quiet
+machine and investigate Session performance if the unchanged bound still fails.
+Overturnable judgement: keep the 150 ms assertion and specified eight threads,
+and record incomplete acceptance instead of changing unrelated performance
+policy or attributing the failure conclusively to host contention. The geometry
+and drawing blockers are fixed, but this timing gate still prevents a clean
+acceptance verdict. No commit or push was performed.
+
+The post-retry release build also passes and keeps the evaluated executable
+hash. The subsequent required quality run in target/g3-resume/post-grid-quality/
+passes the retained prior status table (300 cells) and current table (390 cells).
+All 30 baseline records and SVGs exactly match final-quality/. The final
+validation.json explicitly retains all_gates_pass=false and both not_done items.

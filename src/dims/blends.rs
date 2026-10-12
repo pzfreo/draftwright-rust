@@ -13,7 +13,7 @@ pub(super) const PLANNER: Planner = Planner {
     wants,
 };
 const GENERAL_COUNT: usize = 5;
-pub(crate) use crate::lint::blends::{RELIEF_NOTE, RADIUS_TABLE};
+pub(crate) use crate::lint::blends::{RADIUS_TABLE, RELIEF_NOTE};
 type ViewSites<'a> = BTreeMap<(&'static str, usize), Vec<([f64; 3], &'a Feature)>>;
 
 fn groups(a: &Analysis) -> Vec<Vec<&Feature>> {
@@ -456,8 +456,8 @@ pub(crate) fn tabulate_obstructed(
     cells.extend(rows.iter().map(|r| {
         vec![
             r.view.trim_start_matches("v:").to_uppercase(),
-            fmt(r.centre[0]),
-            fmt(r.centre[1]),
+            crate::lint::parameters::fmt(r.centre[0]),
+            crate::lint::parameters::fmt(r.centre[1]),
             format!("R{}", fmt(r.radius)),
         ]
     }));
@@ -488,4 +488,3 @@ pub(crate) fn tabulate_obstructed(
     }
     Some(RadiusTable { rows, table })
 }
-

@@ -77,7 +77,9 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
 pub(crate) const RELIEF_NOTE: &str = "n:f:blend:relief/profiles";
 pub(crate) const RADIUS_TABLE: &str = "t:radius-centres";
 
-fn radius_view(axis: usize) -> &'static str { ["side", "front", "plan"][axis] }
+fn radius_view(axis: usize) -> &'static str {
+    ["side", "front", "plan"][axis]
+}
 
 pub(crate) fn is_relief(a: &Analysis, f: &Feature) -> bool {
     matches!(f.kind.as_str(), "blend" | "fillet")
@@ -124,22 +126,27 @@ pub(crate) fn verified_row(a: &Analysis, m: &Mark) -> bool {
     if m.view.as_deref() != Some(format!("v:{view}").as_str()) {
         return false;
     }
-    let Ok(r) = parameters::size(f, "radius") else { return false };
-    m.text.split_whitespace().collect::<Vec<_>>()
-        == [
-            view.to_uppercase(),
-            fmt(centre[0]),
-            fmt(centre[1]),
-            format!("R{}", fmt(r)),
-        ]
+    let Ok(r) = parameters::size(f, "radius") else {
+        return false;
+    };
+    let cells: Vec<_> = m.text.split_whitespace().collect();
+    cells.len() == 4
+        && cells[0] == view.to_uppercase()
+        && cells[1] == fmt(centre[0])
+        && cells[2] == fmt(centre[1])
+        && cells[3].strip_prefix('R').is_some_and(|value| {
+            value.as_bytes().first().is_some_and(u8::is_ascii_digit)
+                && value.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+                && value.parse::<f64>().is_ok_and(|v| v.is_finite() && v > 0.0)
+                && super::holes::states(value, r)
+        })
 }
 
 /// The recognition path is a radius centre only when the blend's own trimmed surface
 /// samples agree with its circle in this end view. A torus path or stale centre fails closed.
 pub(crate) fn table_centre(a: &Analysis, f: &Feature) -> Option<(&'static str, [f64; 2])> {
     let path = f.parameters.get("path")?;
-    let axis =
-        parameters::direction(&frame(a), path.get("direction")).and_then(principal)?;
+    let axis = parameters::direction(&frame(a), path.get("direction")).and_then(principal)?;
     let at = parameters::place(&frame(a), path.get("at"))?;
     let (x, y) = match axis {
         0 => (1, 2),
@@ -237,5 +244,36 @@ mod tests {
             "blend_requirement_unverifiable"
         );
     }
-}
 
+    #[test]
+    fn radius_rows_keep_precise_centres_and_validate_the_displayed_radius() {
+        let mut a = part(&[json!({"radius":0.25,
+            "path":{"at":[12.3456,67.8901,0.0],"direction":[0.0,0.0,1.0]}})]);
+        a.blend_sites
+            .insert("f:blend:1".into(), vec![[12.5956, 67.8901, 0.0]]);
+        let mut row = Mark {
+            name: format!("{RADIUS_TABLE}/f:blend:1"),
+            view: Some("v:plan".into()),
+            text: "PLAN 12.346 67.89 R0.2".into(),
+            claims: vec![Claim {
+                feature: "f:blend:1".into(),
+                parameter: "blend.radius".into(),
+            }],
+        };
+        assert!(verified_row(&a, &row));
+        for text in [
+            "PLAN 12.3 67.9 R0.2",
+            "PLAN 12.346 67.89 R0.4",
+            "PLAN 12.346 67.89 R67.89",
+            "PLAN 12.346 67.89 R0.2e5",
+        ] {
+            row.text = text.into();
+            assert!(!verified_row(&a, &row), "{text}");
+        }
+        a.features[0].parameters.insert("radius".into(), json!(2.1));
+        a.blend_sites
+            .insert("f:blend:1".into(), vec![[14.4456, 67.8901, 0.0]]);
+        row.text = "PLAN 12.346 67.89 R.2".into();
+        assert!(!verified_row(&a, &row));
+    }
+}
