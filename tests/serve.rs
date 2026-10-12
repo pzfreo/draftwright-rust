@@ -118,7 +118,7 @@ fn the_service_answers_each_line() {
             .starts_with("<?xml")
     );
     let problems = replies[1]["result"]["problems"].as_array().unwrap();
-    assert_eq!(problems.len(), 2, "{problems:?}");
+    assert_eq!(problems.len(), 3, "{problems:?}");
     assert_eq!(
         problems[1],
         json!({
@@ -133,6 +133,14 @@ fn the_service_answers_each_line() {
     assert_eq!(
         problems[0]["fix"],
         json!([{ "op": "set", "path": "sheet/title/tolerance", "value": "UNSPECIFIED" }])
+    );
+    assert_eq!(
+        problems[2],
+        json!({
+            "id": "p:layout_replanned:sheet", "code": "layout_replanned", "severity": "info",
+            "message": "Sheet choice changed from A4 at 1:1 to A3 at 2:1 by drawn-item fill 12.7%.",
+            "subjects": ["sheet"]
+        })
     );
     // No feature-size requirements; the sheet still proves every overall extent.
     assert_eq!(replies[1]["result"]["lint"], json!([]));

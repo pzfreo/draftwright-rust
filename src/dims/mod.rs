@@ -215,7 +215,7 @@ pub const TEXT: f64 = 3.0;
 /// Arrowhead length, mm: draftwright's draft preset at its text height.
 pub const ARROW: f64 = 2.7;
 /// Half the arrowhead's width: a closed head of 1:3.
-const ARROW_HALF: f64 = ARROW / 6.0;
+pub(crate) const ARROW_HALF: f64 = ARROW / 6.0;
 /// The gap between an extension line and the point it extends from, and how far it runs past
 /// its dimension line (ISO 129-1: about 2 mm).
 const GAP: f64 = 1.0;
@@ -835,7 +835,10 @@ pub(crate) fn plan_with_obstacles_excluding(
     cache: &footprints::Cache,
     excluded: &BTreeSet<String>,
 ) -> Result<Planned, Invalid> {
-    Ok(plan_inventory(analysis, spec, sheet, views, obstacles, held, cache, excluded)?.0)
+    Ok(plan_inventory(
+        analysis, spec, sheet, views, obstacles, held, cache, excluded,
+    )?
+    .0)
 }
 
 /// The complete placement inventory keeps omission edits local during label settlement.
@@ -1774,6 +1777,19 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
 /// A readable symbolic class on proven internal cylinders, with no numeric limits inferred.
 pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
     pmi_dimensions::symbolic_bore(r)
+}
+
+/// Rejudge settled paper geometry after moving complete view blocks to another sheet.
+pub(crate) fn recheck(analysis: &Analysis, plan: &crate::model::Plan) -> Vec<Problem> {
+    let mut all = plan.dimensions.clone();
+    all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+    placement::collisions_cached(
+        analysis,
+        &all,
+        &plan.sheet,
+        &plan.views,
+        &footprints::Cache::default(),
+    )
 }
 
 #[cfg(test)]

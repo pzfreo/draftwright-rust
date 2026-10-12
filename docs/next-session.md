@@ -4693,3 +4693,223 @@ Overturnable unattended choices:
   sheet changing A2 → A3 between pre-H3 and H3, not from label moves: at a fixed
   A3 1:5 sheet the same scan finds none. Two of them are callouts, which
   settlement never moves.
+
+
+## Stage H6: sheet and scale policy (2026-10-12)
+
+The following is the earlier implementation record; the fix-round verdict below supersedes its floor, memo, decorative-growth and CTC-03 fallback judgements.
+
+H6 implements the maintainer's new rule in `model::recover`: smallest valid,
+complete standard fit; only the next paper size, with a larger scale, may
+compete; rank finished footprint fill, targeting `sheet_fit::FILL_BAND`
+(60–85%), then scale and sheet. All supported measurements already carried by
+the seed survive, including hole-table replacements; GD&T, notes and tables
+must remain drawn. Explicit Spec choices and pin frames retain their authority.
+The old low-level Python ladder remains an estimate/reference replay; its
+historical `layout::recover` helper is retained for compatibility, while all
+public planning paths use the new model policy.
+
+Overturnable judgement calls (unattended work):
+
+- Until the Spec has the agreed smallest-scale control, the automatic floor is
+  the named `MIN_LEGIBLE_SCALE = 0.1` (1:10). This is conservative for the current
+  parts, not a universal manufacturing limit. An explicit scale overrides it.
+  If nothing fits legibly, A0 (or the named sheet) at the floor retains its
+  overflow findings rather than quietly producing a tiny drawing.
+- A footprint is the tight axis-aligned box of each drawn item, including a
+  dimension's witnesses and arrows, with 1 mm clearance. Union overlaps count
+  once. This measures occupied drawing territory rather than black-pixel ink;
+  unused reservation bands never count. Scale/projection furniture outside the
+  title block and section captions/cutting marks count. The denominator is
+  inside the 10 mm border less the drawn title grid (32 mm high). The
+  plan's 40 mm reservation also includes 8 mm of furniture space; that unused
+  reservation is not subtracted from usable area. Section hatch is
+  contained in its view's footprint. The target band is one named constant.
+- A failed fit estimate permits one measured correction of an unpinned free
+  projection row: move the row and every dimension together towards the top,
+  preserving alignment, then fit the automatic isometric once below it. This
+  is restricted to rows without GD&T, page-anchored notes/tables/balloons,
+  sections or authored isometric placement; those retain the existing solver.
+  Actual item bounds and view areas must prove the correction fits before the
+  estimate warning is discharged. No leader path is rerouted by this correction.
+- When enlarging the dimensioned views, retain the seed isometric's paper
+  scale if it fits and the seed has no hard layout finding; the measured correction may enlarge it into proven empty
+  space. This keeps an orientation view subordinate and avoids spending a
+  larger sheet merely on decorative growth. Spec isometric intent wins.
+- A GD&T reservation retry compares sheet/view clearance before label ink.
+  It may not trade frames over another view for fewer label crossings. The
+  existing estimate already derives glyph width/height from the actual
+  `control_frame` / datum / label geometry; H6 retains that sizing and adds
+  label crossings to the retry triggers. This resolves the supplied plate's
+  two frame-leader crossings at A3 1:1.
+
+New regression evidence: six Rust cases fail against an archived original
+source tree (`target/h6-before/six-tests.log`, 0/6), the scale-floor scenario
+fails through the original binary with the same fabricated Analysis
+(`target/h6-before/floor-test.log`, original A0 at 1:500), and the new quality
+column test fails against original `quality.py` (`target/h6-before-python/tests.log`).
+The final report will record the finishing checks and before/after tables.
+The archive used a shared Cargo output directory; its cached artifacts were
+cleared before rebuilding this worktree. Mixed/interrupted measurements in
+`h6-after2`, `h6-quality4` and `h6-pmi4` are diagnostic only, never final evidence.
+
+Rules covered: ADR2-D2, ADR2-3 / ISSUE-1299-a (maintainer-policy replacement),
+ADR2-16, ARCH0018-2, ISSUE-1338-a, LINT-quality-hard_layout_codes. Partial:
+ADR2-D4 / ISSUE-1216-a (measured correction and glyph sizing, not a general
+annotation repacker), ISSUE-563-b (existing lane reservations retained),
+ISSUE-1396-a (automatic floor only). Catalogue YAML is deliberately untouched
+because the Stage H streams are updating it concurrently. The policy difference
+from Python is recorded in `tests/fixtures/known_sheet_policy.json`; two
+string_post replay fit verdicts are in `known_layout.json`. Migration's plate
+oracle now uses independently renamed Spec intent under the new policy; its
+historical capture remains intact. Tests that asserted the old recovery order
+now assert the new paper bound, enlargement and retained measurements.
+
+Not done in H6: multi-sheet allocation/controls, section/detail creation,
+first-angle layout, extraction of the supplied plate's surface-texture and
+attribute-set records, and recognition/dimension gaps already reported by
+other streams. Their existing severities are retained. No MCP task definition,
+rules YAML, commit or push is changed.
+
+H6 final refinements: measured GD&T packing composes a same-scale A0 template's
+settled annotated view blocks onto the candidate page, at most once per scale.
+It moves witness/leader geometry with its carrier, without re-routing. Measured
+areas resolve the old reservation-overrun observations; page-anchored furniture,
+sections, pins and authored view relations stay with the existing planner.
+Candidate selection also vetoes additional leader/feature pairs or witness
+lines through material, using the same counts as quality.py. This retained
+bracket_positions/spool_fits at their original choices and removed the supplied
+plate's metric regression. A failed seed does not cap the enlarged isometric:
+STC-06's A0 1:1 orientation stays at its original 1.3 paper scale.
+
+A process-local memo holds at most 16 sheet-choice results, keyed by SHA-256
+of the full Analysis, Spec and initial Plan. It never holds a lock during
+planning and cannot reuse a seed with different findings or pin geometry.
+This preserves pure output and makes identical preview/commit planning cheap;
+the existing native p90 <=150 ms session bar is retained. Before the memo,
+turned/NIST p90 were 223/191 ms; after, all eight session tests pass. This
+bounded cache is an overturnable performance choice, not persisted state.
+Explicitly omitted, not-authored or covered GD&T is not a dropped layout item.
+
+The placement-locality regression still compares every sheet geometry field and
+all view/annotation placements exactly; only recomputed `fill` and its basis
+suffix are removed from that geometry comparison. Its omission now changes the
+reported occupied area as it should. The starvation regression uses cgb245 at
+A4 1:2 (A3 now fits its right strip); m1000's improved A3 arrangement must keep
+the overall height outside all four height rungs and the seat-location lane,
+with no finding against the extent. These update superseded inputs without
+relaxing placement or reporting assertions.
+
+Final allocation evidence also records CTC-03's incomplete-layout fallback on
+smaller paper: A2→A3 at the same 1:5 after the title-block estimate correction.
+The sheet-choice report enforces no paper growth and no scale reduction for
+these exhausted-search fallbacks; only valid candidates can spend a larger
+sheet. Native GRM-03's archived before binary actually draws A4 2:1 (the task
+mentioned a different editor A4 1:1 capture); measured after is A3 10:1.
+
+
+## Stage H6 fix round (2026-10-12)
+
+Superseded where it conflicts by "Stage H6 fix round 2" below: the least-annotation-conflict
+filter is removed, the material veto no longer moves the smallest fit, and STC-09 is no
+longer redrawn at A0 1:2.
+
+Reviewer blockers confirmed: the original crossing veto could keep an invalid seed
+instead of the only complete valid page (CTC-03), and the fixed 1:10 floor did not
+measure legibility. Recovery now admits a clean complete drawing despite extra
+material crossings when the seed is invalid; the non-regression veto remains against
+valid seeds. The CTC-03 regression checks its page and actual findings, not basis words.
+
+Overturnable unattended judgements:
+- A visible hole/slot opening needs 0.8 mm on paper (a 0.3 mm interior with the 0.5 mm outline weight),
+  and the longest part extent needs 20 mm. The smallest such standard scale is the
+  automatic floor, with 1:10 as an additional lower bound. Small chamfers/fillets
+  stated by callouts do not set the overall scale. Explicit Spec scales override it.
+  This is a geometric legibility proxy; enlarged details and user minimum-scale
+  controls remain outside H6. The plate's 6.6 mm holes cannot justify 1:10.
+- The review's orientation-growth/top-clearance minor remains unresolved: preserving
+  orientation scale gives GRM-03 only 44.7% fill, while the unchanged acceptance test
+  requires 60–85%. Raising row clearance to 6 mm also reduces its available iso region.
+  No acceptance test is relaxed. Until the maintainer reconciles the band requirement
+  with subordinate iso sizing, the existing measured correction remains in place.
+  This is an explicit remaining defect, not a claim that the decorative-growth review
+  is wrong. It needs a policy decision or a broader layout change.
+- Minimum avoidable annotation conflicts are retained among complete eligible fits
+  before fill is ranked, to avoid spending more paper on a drawing with worse ink.
+  This is a conservative extra admission constraint for the required quality ratchet.
+  It is separately overturnable if the maintainer wants literal fill regardless of
+  softer annotation conflicts. No hard finding or supported-item loss is admissible.
+
+Removing the existing 16-entry process-local recover memo failed the unchanged
+native latency gate twice (NIST p90 175.995 and 180.386 ms, limit 150 ms).
+The memo is therefore retained, unchanged; removal is not a cheap housekeeping
+fix under the required performance constraint. Its complete input hash and bounded
+storage preserve deterministic output. No new cache is introduced. Named sheet-and-scale choices retain
+preferred arrangement behaviour; alternate arrangement trials belong only to internal
+automatic pairs. Packed GD&T geometry is rechecked against the recipient sheet;
+completeness and status are recomputed rather than deleting reservation findings blindly.
+Quality.py computes a Python footprint union from Analysis and placed geometry, so old
+plans without sheet.fill still produce a measured result. Band and neighbour ranking
+have direct unit tests, including an invalid in-band candidate against a complete
+underfilled one. Validation results and remaining exceptions will be recorded in
+`docs/h6-sheet-policy.md` after the finishing gates.
+
+Paper-economy tuning remains the maintainer's decision: 10007 and 10046 previously
+spent A3 for only about one percentage point of extra fill. No minimum-gain exception
+has been added to the agreed rule in this fix round.
+
+
+Fix-round scale-policy consequence: AP242 STC-09's old A1 1:5 drawing reduces
+its smallest holes below 0.8 mm. No complete clean candidate exists at the new
+legible floor. Automatic planning therefore returns A0 1:2 with unresolved layout
+findings; it does not claim a valid drawing. The original GD&T-band regression now
+replays `plan_escalated` (all its existing assertions retained), and a separate
+automatic-plan regression verifies actual opening size, needs-attention status and
+honest exhaustion. This fixture still needs tables/details/additional sheets, outside
+H6. No severity or acceptance threshold was relaxed.
+
+
+## Stage H6 fix round 2 (2026-10-12, Claude after two Codex attempts)
+
+The review's blockers and majors are fixed. Evidence is in `docs/h6-sheet-policy.md`, which
+was rewritten from this build's measurements.
+
+- **Least-annotation-conflict filter removed.** Below the band the fullest valid allowed pair
+  wins, as the rule says. 10060, 10063, 10000 and string_post_tapped are back on A4.
+- **Smallest fit is defined by validity alone:** no hard finding, nothing dropped or undrawn,
+  no extra annotations over another view, and now also no overlapping view areas (CTC-01 had
+  picked A4 1:10 with overlapping areas).
+- **The material-crossing veto is part of the selection.** Against a valid first estimate,
+  allowed pairs adding crossings are set aside. If all of them do, the valid first estimate is
+  kept and the basis says so. assembly_plate_pin stays on A2 1:1 (its smallest fit is A3 1:2,
+  which adds two crossings); spool_fits keeps A2 1:1 (both allowed pairs, A4 1:5 and A3 1:2,
+  add crossings).
+- **Exhausted search keeps the first drawing on its own paper.** It is redrawn only when that
+  drawing is below 1:10. STC-09 stays on A1 1:5, with a warning that 1:5 is below its 1:2
+  feature floor.
+- **Orientation view on the larger neighbour** keeps the smallest fit's paper scale, shrunk
+  about its own centre. This replaces the first estimate's scale, which shrank STC-06 to a
+  thumbnail, and the uncapped growth, which raised hidden-line counts on CTC-03 and cgb207.
+  It also removes the plate's A2 2:1 advantage, so the plate lands on A3 1:1 by the rule.
+- **Basis** now states whether the first estimate was valid ("first estimate A2 at 1:1 (valid
+  and complete)"), so an oracle can check the veto.
+- **Tests.** The independent oracle `tests/common/sheet_rule.rs` replaces the pinned outputs.
+  The m1000 and 1004 assertions and STC-09's `plan_recovered` band test are restored. See the
+  report for the list and for the tests that fail on 4751b9f.
+
+Overturnable judgement calls:
+
+- The material ratchet keeps a valid first estimate when every allowed pair adds crossings,
+  even though that estimate may be more than one sheet above the smallest fit (spool_fits: A2
+  against an A4 1:5 smallest fit). The alternative, the fewest-crossing allowed pair, raises
+  spool_fits' material count 10→12 and breaks "no part worse".
+- If no candidate is valid and complete, a first drawing between 1:10 and the feature floor is
+  kept, with a warning, rather than redrawn at the floor on larger paper (STC-09).
+- The neighbour's orientation view takes the smallest fit's scale. It never grows faster than
+  the smallest fit's, so extra paper goes to the dimensioned views.
+- The isometric-label reporting test keeps its enlarged-isometric construction because no
+  natural case remains (probed: the five fixtures on A4 and A3 at 10:1 to 1:1, and with the
+  isometric pinned at zero gap beside each view on A3 and A2).
+- Still open, as before: GRM-03 reaches the band only through the measured correction's
+  isometric growth (about 45% without it). Paper economy for gains of about one point is the
+  maintainer's call. Footprints are axis-aligned boxes.

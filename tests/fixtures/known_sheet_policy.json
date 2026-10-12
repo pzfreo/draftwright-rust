@@ -1,0 +1,23 @@
+{
+  "policy": "maintainer 2026-10-12, H6",
+  "differences": [
+    {
+      "part": "GRM-03_thumbwheel_drive_screw",
+      "python": {
+        "sheet": "A4",
+        "scale": "5:1"
+      },
+      "rust": {
+        "sheet": "A3",
+        "scale": "10:1"
+      },
+      "verdict": "rust-correct",
+      "reason": "Deliberate maintainer-policy override: Python chooses A4 5:1; Rust allows A3 10:1 as one step above its smallest fit with larger principal views. Fix round preserves the seed orientation scale, so the target 60\u201385% band is no longer claimed to be reached by decorative growth. See docs/h6-sheet-policy.md for fresh measurements and verdict."
+    },
+    {
+      "rule": "automatic sheet selection",
+      "verdict": "policy-override",
+      "reason": "Python compose.choose_scale and its historical bounded retry ladder are retained as the first estimate and reference replay. Final model::recover now exhausts the bounded eligible pairs and ranks measured content per the maintainer rule, rather than keeping a complete first estimate. docs/model.md and sheet_fill regressions state the new contract."
+    }
+  ]
+}

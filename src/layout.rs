@@ -609,6 +609,9 @@ impl Principals {
 /// Everything about the drawing the layout reads, apart from scale, sheet and arrangement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
+    /// Internal automatic page/scale trials may compare arrangements.
+    pub automatic_pair: bool,
+    pub candidate_arrangement: Option<Arrangement>,
     /// The part's extents along x, y and z, mm.
     pub size: [f64; 3],
     pub strips: Strips,
@@ -632,6 +635,8 @@ impl Request {
     /// The request for a part of this size with draftwright's defaults.
     pub fn new(size: [f64; 3], views: Principals, include_iso: bool) -> Self {
         Request {
+            automatic_pair: false,
+            candidate_arrangement: None,
             size,
             strips: Strips::without_features(),
             sections: 0,
@@ -1059,7 +1064,7 @@ fn geometry_with(
     let on_tb = |boxes: &[Rect]| boxes.iter().any(|b| overlaps(b, &tb_rect));
     let boxes = placed_boxes(fv_y, pv_y, sv_y, section_y);
     let mut tb_clear = !on_tb(&boxes);
-    let mut lifted_by = 0.0;
+
     if !tb_clear {
         let mut lift = boxes
             .iter()
@@ -1074,13 +1079,13 @@ fn geometry_with(
             }
             lift = lift.next_up();
         }
-        let top_edge = boxes.iter().map(|b| b[3]).fold(f64::NEG_INFINITY, f64::max);
-        if !on_tb(&lifted(lift)) && top_edge + lift <= page_h - top + TOL {
+        // Keep the title block clear even on an overflow candidate; its top overrun
+        // remains a failed fit rather than drawing a view across the title cells.
+        if !on_tb(&lifted(lift)) {
             fv_y += lift;
             pv_y += lift;
             sv_y += lift;
             section_y += lift;
-            lifted_by = lift;
             tb_clear = true;
         }
     }
@@ -1212,9 +1217,8 @@ fn geometry_with(
         .iter()
         .map(|b| b[3])
         .fold(f64::NEG_INFINITY, f64::max);
-    // Judged on the row as draftwright packs it: the lift above only keeps bands off the title
-    // block, and never lets a row past the block's left edge that draftwright would refuse.
-    let clears_tb = cy0 - lifted_by >= tb_bottom + TB_H;
+    // Judge the row after its title-block lift; the pre-lift estimate is not drawn ink.
+    let clears_tb = cy0 >= tb_bottom + TB_H;
     let right_limit = if clears_tb {
         page_w - right
     } else {
@@ -1317,6 +1321,12 @@ pub fn choose(
     arrangements: &[Arrangement],
     tb_width: Option<f64>,
 ) -> Pick {
+    let forced = [req.candidate_arrangement.unwrap_or(arrangements[0])];
+    let arrangements = if req.candidate_arrangement.is_some() {
+        &forced[..]
+    } else {
+        arrangements
+    };
     let preferred = arrangements[0];
     let tb_of = |w: f64| tb_width.unwrap_or_else(|| title_block_width(w));
     let pick = |s: f64, p: [f64; 2], a: Arrangement, fallback| Pick {
@@ -1331,6 +1341,11 @@ pub fn choose(
         if packed { g.fits } else { g.auto_fits }
     };
     if let (Some(s), Some(p)) = (scale, page) {
+        if req.automatic_pair
+            && let Some(a) = arrangements.iter().find(|a| fit(s, p, **a, true))
+        {
+            return pick(s, p, *a, None);
+        }
         let fallback = (!fit(s, p, preferred, true)).then_some(Fallback::Uncertain);
         return pick(s, p, preferred, fallback);
     }

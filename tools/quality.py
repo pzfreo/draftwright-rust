@@ -307,6 +307,157 @@ def svg_linework(path, plan):
     return counts
 
 
+def text_size(text, font, size):
+    """Measure bundled TrueType glyph boxes and advances without a font dependency."""
+    import struct
+    from pathlib import Path
+    data = (Path(__file__).resolve().parent.parent / 'fonts' / font).read_bytes()
+    u16 = lambda offset: struct.unpack_from('>H', data, offset)[0]
+    i16 = lambda offset: struct.unpack_from('>h', data, offset)[0]
+    u32 = lambda offset: struct.unpack_from('>I', data, offset)[0]
+    tables = {data[at:at+4].decode(): u32(at+8)
+              for at in range(12, 12 + 16*u16(4), 16)}
+    cmap = tables['cmap']
+    offsets = [cmap + u32(at+4) for at in range(cmap+4, cmap+4+8*u16(cmap+2), 8)]
+    sub = next(at for at in offsets if u16(at) == 4)
+    count = u16(sub+6)//2
+    ends = sub+14; starts = ends+2*count+2
+    deltas = starts+2*count; ranges = deltas+2*count
+    def glyph(char):
+        code = ord(char)
+        for k in range(count):
+            if u16(starts+2*k) <= code <= u16(ends+2*k):
+                delta = i16(deltas+2*k); offset = u16(ranges+2*k)
+                value = u16(ranges+2*k+offset+2*(code-u16(starts+2*k))) if offset else code
+                return (value+delta)&65535 if value else 0
+        return 0
+    long_loca = i16(tables['head']+50)
+    def location(g):
+        return u32(tables['loca']+4*g) if long_loca else 2*u16(tables['loca']+2*g)
+    pen = 0; boxes = []
+    metrics = u16(tables['hhea']+34)
+    for char in text:
+        g = glyph(char); start = location(g)
+        if start != location(g+1):
+            at = tables['glyf']+start
+            boxes.append([pen+i16(at+2), i16(at+4), pen+i16(at+6), i16(at+8)])
+        pen += u16(tables['hmtx']+4*min(g,metrics-1))
+    scale = size/u16(tables['head']+18)
+    return [(max(b[k+2] for b in boxes)-min(b[k] for b in boxes))*scale
+            for k in range(2)] if boxes else [0,0]
+
+
+def furniture_boxes(a, p):
+    def text_box(text, font, size, at):
+        w,h = text_size(text,font,size)
+        return [at[0]-w/2,at[1]-h/2,at[0]+w/2,at[1]+h/2]
+    tb = p['sheet']['title_block']; scale = 'SCALE '+p['sheet']['scale']
+    w,h = text_size(scale,'IBMPlexSansCondensed-Regular.ttf',3)
+    boxes = [[tb[2]-19-w,tb[1]+35,tb[2]-19,tb[1]+35+h]]
+    for v in p['views']:
+        cut = v.get('cut')
+        if not cut: continue
+        extent = [hi-lo for lo,hi in zip(*a['envelope'])]
+        half = sum(abs(x)*length for x,length in zip(v['up'],extent))*v['scale']/2
+        boxes.append(text_box('SECTION '+cut['label']+'–'+cut['label'],
+                              'IBMPlexMono-Regular.ttf',3,[v['at'][0],v['at'][1]-half-7]))
+        m = next((m for m in p['views'] if m['id']==cut['marked_in']), None)
+        if m:
+            # Cutting-plane ink is already inside its marked view's footprint;
+            # captions extend 7 mm beyond the envelope at each end.
+            width = sum(abs(x)*length for x,length in zip(
+                [m['up'][1]*m['direction'][2]-m['up'][2]*m['direction'][1],
+                 m['up'][2]*m['direction'][0]-m['up'][0]*m['direction'][2],
+                 m['up'][0]*m['direction'][1]-m['up'][1]*m['direction'][0]],extent))*m['scale']
+            centre = [(lo+hi)/2 for lo,hi in zip(*a['envelope'])]
+            y = m['at'][1] + m['scale']*sum(u*(o-c) for u,o,c in zip(m['up'],cut['origin'],centre))
+            for x in [m['at'][0]-width/2-7,m['at'][0]+width/2+7]:
+                boxes.append(text_box(cut['label'],'IBMPlexMono-Regular.ttf',3,[x,y+4.2]))
+            boxes.append([m['at'][0]-width/2-4-0.9, y-6.75,
+                          m['at'][0]+width/2+4+0.9,y])
+    return boxes
+
+
+def union_area(boxes):
+    xs = sorted({x for b in boxes for x in (b[0], b[2])})
+    area = 0
+    for left, right in zip(xs, xs[1:]):
+        ys = sorted((b[1], b[3]) for b in boxes if b[0] < right and b[2] > left)
+        end, height = -math.inf, 0
+        for bottom, top in ys:
+            height += max(0, top - max(bottom, end))
+            end = max(end, top)
+        area += (right - left) * height
+    return area
+
+
+def footprint_fill(a, p, furniture=()):
+    boxes = []
+    def add(box, points=()):
+        b = list(box)
+        for x, y in points:
+            b = [min(b[0], x), min(b[1], y), max(b[2], x), max(b[3], y)]
+        boxes.append(b)
+    size = [hi-lo for lo, hi in zip(*a['envelope'])]
+    for v in p['views']:
+        x, y = v['at']; s = v['scale']
+        if v['id'] == 'v:iso':
+            b = a['iso_bounds']; add([x+s*b[0], y+s*b[1], x+s*b[2], y+s*b[3]])
+        else:
+            # Principal and section directions have orthogonal unit basis vectors.
+            up, toward = v['up'], v['direction']
+            right = [up[1]*toward[2]-up[2]*toward[1], up[2]*toward[0]-up[0]*toward[2],
+                     up[0]*toward[1]-up[1]*toward[0]]
+            w, h = (sum(abs(d[k])*size[k] for k in range(3))*s for d in (right, up))
+            add([x-w/2, y-h/2, x+w/2, y+h/2])
+    def arrow_points(arrows):
+        result=[]
+        for tip,tail in arrows:
+            normal=[tail[1]-tip[1], tip[0]-tail[0]]
+            k=.45/max(1e-12,math.hypot(*normal))
+            result.extend([tip,[tail[0]+k*normal[0],tail[1]+k*normal[1]],
+                           [tail[0]-k*normal[0],tail[1]-k*normal[1]]])
+        return result
+    for d in p['dimensions']:
+        q = d.get('placed')
+        if not q: continue
+        points = [r for line in q['lines'] + q['arrows'] for r in line]
+        points.extend(arrow_points(q['arrows']))
+        add(q['label_box'], points)
+    for g in p.get('gdt', []):
+        q = g.get('placed')
+        if q:
+            add(q['label_box'], [r for line in q['lines']+q['strokes']+q['fills'] for r in line]+arrow_points(q['arrows']))
+    if p.get('notes_block'): add(p['notes_block']['box'])
+    for t in p.get('tables', []) + (p.get('hole_table') or {}).get('blocks', []):
+        if t.get('placed'): add(t['placed']['box'])
+    for b in p.get('balloons', []):
+        x,y = b['at']; r = b['radius']; add([x-r,y-r,x+r,y+r], b.get('leader') or [])
+    for r in p.get('requirements', []):
+        q = r.get('placed')
+        if q:
+            b=q['box']; add(q['label_box'], [[b[0],b[1]], [b[2],b[3]]])
+    # Projection furniture is resolved geometric ink, independent of sheet.fill.
+    symbol = p['sheet'].get('projection_symbol')
+    if symbol:
+        points = []
+        for curve in symbol['curves']:
+            if 'Line' in curve:
+                points.extend(curve['Line'])
+            elif 'Conic' in curve:
+                c = curve['Conic']; x,y = c['centre']; rx,ry = c['radii']
+                points.extend([[x-rx,y-ry], [x+rx,y+ry]])
+        if points:
+            xs,ys = zip(*points); add([min(xs),min(ys),max(xs),max(ys)])
+    boxes.extend(furniture)
+    w,h = p['sheet']['page']; tb=list(p['sheet']['title_block']); tb[3]=tb[1]+32
+    clipped = [[max(10,b[0]-1),max(10,b[1]-1),min(w-10,b[2]+1),min(h-10,b[3]+1)] for b in boxes]
+    clipped = [b for b in clipped if b[0]<b[2] and b[1]<b[3]]
+    in_title = [[max(b[0],tb[0]),max(b[1],tb[1]),min(b[2],tb[2]),min(b[3],tb[3])] for b in clipped]
+    in_title = [b for b in in_title if b[0]<b[2] and b[1]<b[3]]
+    return (union_area(clipped)-union_area(in_title))/((w-20)*(h-20)-(tb[2]-tb[0])*(tb[3]-tb[1]))
+
+
 def one(f, dw, out, spec=None, timeout=600):
     name = os.path.basename(f).split(".")[0]
     os.makedirs(out, exist_ok=True)
@@ -326,6 +477,16 @@ def one(f, dw, out, spec=None, timeout=600):
         return name, {"error": "Plan has no completeness counts; rebuild draftwright before measuring quality"}
     with open(f"{out}/{name}.plan.json", "w") as output:
         json.dump(plan, output, indent=1, sort_keys=True)
+    if plan['sheet'].get('page'):
+        analysis = subprocess.run([dw, "analyse", f], capture_output=True, text=True, timeout=timeout)
+        if analysis.returncode:
+            return name, {"error": analysis.stderr[:200]}
+        a = json.loads(analysis.stdout)
+        with open(f"{out}/{name}.analysis.json", "w") as output:
+            json.dump(a, output, indent=1, sort_keys=True)
+        fill = footprint_fill(a, plan, furniture_boxes(a, plan))
+    else:
+        fill = 0.0
     codes = collections.Counter(x["code"] for x in rend.get("problems", []))
     # Repeated dimensions: the same measured quantity (feature, parameter) stated more than once,
     # and, separately, the same label on the same span in the same view (a drawn duplicate).
@@ -366,6 +527,8 @@ def one(f, dw, out, spec=None, timeout=600):
                          **({"schedule_ink": linework["schedule_ink"]} if linework.get("schedule_ink") else {})},
         "line_through_feature": line_through_features(plan),
         "dimensions": len(plan["dimensions"]),
+        "sheet": plan["sheet"].get("size"), "scale": plan["sheet"].get("scale"),
+        "fill": round(100 * fill, 2),
         **{key: plan["completeness"][key]
            for key in ("claimed_faces", "faces", "unplanned_features")},
         **linework,
@@ -373,15 +536,16 @@ def one(f, dw, out, spec=None, timeout=600):
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features", "text_off_span"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features", "text_off_span", "fill"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):
         if "error" in v:
             print(f"{n:28} ERROR {v['error'][:80]}"); continue
-        print(f"{n[:28]:28}" + "".join(f"{v[k]:13}" for k in keys))
+        print(f"{n[:28]:28}" + "".join(f"{v.get(k, 0):13}" for k in keys))
         for k in keys:
-            tot[k] += v[k]; bad[k] += v[k] > 0
+            tot[k] += v.get(k, 0); bad[k] += v.get(k, 0) > 0
+    tot['fill'] = round(tot['fill'] / max(1, sum('error' not in v for v in res.values())), 2)
     print(f"{'TOTAL':28}" + "".join(f"{tot[k]:13}" for k in keys))
     print(f"{'parts affected':28}" + "".join(f"{bad[k]:13}" for k in keys), f"of {sum('error' not in v for v in res.values())}")
 

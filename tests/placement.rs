@@ -362,9 +362,23 @@ fn omitting_one_dimension_moves_no_other() {
             ] {
                 let plan = model::plan(analysis, &spec).unwrap();
                 edits += 1;
+                // Fill describes the remaining drawn items, not placement stability.
+                let sheet_geometry = |sheet: &draftwright::model::PlannedSheet| {
+                    let mut value = serde_json::to_value(sheet).unwrap();
+                    value.as_object_mut().unwrap().remove("fill");
+                    value["basis"] = serde_json::Value::String(
+                        sheet
+                            .basis
+                            .split("; drawn-item fill ")
+                            .next()
+                            .unwrap()
+                            .into(),
+                    );
+                    value
+                };
                 assert_eq!(
-                    serde_json::to_value(&plan.sheet).unwrap(),
-                    serde_json::to_value(&full.sheet).unwrap(),
+                    sheet_geometry(&plan.sheet),
+                    sheet_geometry(&full.sheet),
                     "{name}: {gone} {how}"
                 );
                 assert_eq!(
@@ -773,20 +787,16 @@ fn a_strip_without_room_falls_through_to_the_opposite_strip() {
     assert!(moved >= 6, "{moved} y locations fell through to the right");
 }
 
-/// ISSUE-1215-e: a starved overall extent falls through to the opposite strip. draftwright moves
-/// only the extent; the port moves every linear item past the cut, so the extent has first claim
-/// on the opposite strip's free lanes. The layout now reserves the front's right band for its
-/// lanes (`layout::Strips::reserve`), so on the default sheets nothing starves; on cgb245 pinned
-/// to A3 at 1:2 and m1000 to A3 at 5:1 the front's right strip still runs out of sheet past the
-/// height ladder's rungs: the overall height takes the outermost free lane left of the front
-/// (nothing reported against it), not the innermost rung or location that would reach it first.
+/// ISSUE-1215-e: a starved overall extent takes the opposite strip's first free lane.
+/// cgb245 at A4 1:2 still starves. The improved named-pair arrangement fits m1000's
+/// A3 5:1 height ladder on the right; its overall extent must remain outside every rung.
 #[test]
 fn a_starved_overall_extent_has_first_claim_on_the_opposite_strip() {
     let parts = corpus_parts();
     let mut checked = 0;
     for (name, analysis) in parts.iter().filter(|(n, _)| n == "cgb245" || n == "m1000") {
         let sheet = if name == "cgb245" {
-            serde_json::json!({ "size": "A3", "scale": "1:2" })
+            serde_json::json!({ "size": "A4", "scale": "1:2" })
         } else {
             serde_json::json!({ "size": "A3", "scale": "5:1" })
         };
@@ -797,11 +807,32 @@ fn a_starved_overall_extent_has_first_claim_on_the_opposite_strip() {
         let id = "d:envelope/height.length";
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
         let p = d.placed.as_ref().unwrap();
-        assert!(
-            p.label_box[2] < front[0],
-            "{name}: {id}'s label {:?} left of the front {front:?}",
-            p.label_box
-        );
+        if name == "cgb245" {
+            assert!(
+                p.label_box[2] < front[0],
+                "{name}: {id}'s label {:?} left of the front {front:?}",
+                p.label_box
+            );
+        } else {
+            assert!(p.label_box[0] > front[2]);
+            let rungs: Vec<_> = plan
+                .dimensions
+                .iter()
+                .filter(|d| {
+                    d.id != id
+                        && d.view == "v:front"
+                        && d.placed.as_ref().is_some_and(|q| q.rotation == 90.0)
+                })
+                .collect();
+            assert!(rungs.len() >= 4, "{name}: missing height ladder");
+            for rung in rungs {
+                assert!(
+                    rung.placed.as_ref().unwrap().label_box[2] < p.label_box[0],
+                    "{name}: {} is outside the overall extent",
+                    rung.id
+                );
+            }
+        }
         let against: Vec<&str> = plan
             .problems
             .iter()

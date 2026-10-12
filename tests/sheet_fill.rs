@@ -1,0 +1,272 @@
+//! Maintainer sheet policy, 2026-10-12: measured content, bounded paper, valid ink.
+use draftwright::model::{self, Analysis, Spec};
+use serde_json::json;
+use std::path::Path;
+
+fn part() -> Analysis {
+    model::analyse(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/prismatic.step"),
+    )
+    .unwrap()
+    .1
+}
+fn named(size: &str, scale: &str) -> Spec {
+    serde_json::from_value(json!({"sheet": {"size": size, "scale": scale}})).unwrap()
+}
+
+#[test]
+fn smallest_fit_can_only_grow_one_sheet_with_enlargement() {
+    let a = part();
+    let fit = model::plan_escalated(&a, &named("A4", "1:1")).unwrap();
+    let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
+    let p = model::recover(&a, &Spec::default(), first).unwrap();
+    assert!(
+        matches!(p.sheet.size.as_str(), "A4" | "A3"),
+        "{}",
+        p.sheet.basis
+    );
+    if p.sheet.size == "A3" {
+        assert!(p.sheet.scale_factor > fit.sheet.scale_factor);
+    }
+    assert!(p.sheet.basis.contains("smallest fit"), "{}", p.sheet.basis);
+}
+
+#[test]
+fn complete_underfilled_sheet_is_enlarged_and_fill_candidates_are_explained() {
+    let a = part();
+    let first = model::plan_escalated(&a, &named("A4", "1:10")).unwrap();
+    let p = model::recover(&a, &Spec::default(), first).unwrap();
+    assert!(p.sheet.scale_factor > 0.1);
+    assert!(p.sheet.basis.contains("fill"), "{}", p.sheet.basis);
+    assert!(p.sheet.basis.contains("60–85%"), "{}", p.sheet.basis);
+}
+
+#[test]
+fn named_sheet_overrides_smallest_fit_but_still_chooses_scale_by_fill() {
+    let a = part();
+    let mut s = Spec::default();
+    s.sheet.size = Some("A2".into());
+    let first = model::plan_escalated(&a, &named("A2", "1:10")).unwrap();
+    let p = model::recover(&a, &s, first).unwrap();
+    assert_eq!(p.sheet.size, "A2");
+    assert!(p.sheet.scale_factor > 0.1);
+    assert!(p.sheet.basis.contains("fill"), "{}", p.sheet.basis);
+    let s = named("A2", "1:10");
+    let p = model::plan_recovered(&a, &s).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A2", "1:10")
+    );
+}
+
+#[test]
+fn invalid_high_fill_never_beats_a_valid_complete_sheet() {
+    let a = part();
+    let first = model::plan_escalated(&a, &named("A4", "10:1")).unwrap();
+    assert!(
+        first
+            .problems
+            .iter()
+            .any(|p| p.code == "page_fit_uncertain")
+    );
+    let p = model::recover(&a, &Spec::default(), first).unwrap();
+    assert!(!p.problems.iter().any(|p| matches!(
+        p.code.as_str(),
+        "annotation_off_sheet"
+            | "annotation_overlap"
+            | "annotation_ink_overlap"
+            | "page_fit_uncertain"
+            | "views_do_not_fit"
+    )));
+    assert!(p.sheet.basis.contains("fill"), "{}", p.sheet.basis);
+}
+
+#[path = "common/corpus.rs"]
+mod corpus;
+#[path = "common/sheet_rule.rs"]
+mod sheet_rule;
+
+#[test]
+fn grm03_enlarges_into_the_fill_band_without_losing_measurements() {
+    let Some(dir) = corpus::dir() else {
+        return;
+    };
+    let a = model::analyse_native(&dir.join("gramel/GRM-03_thumbwheel_drive_screw.step"))
+        .unwrap()
+        .1;
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let fill = serde_json::to_value(&p).unwrap()["sheet"]["fill"]
+        .as_f64()
+        .unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A3", "10:1")
+    );
+    assert!((0.60..=0.85).contains(&fill), "{fill}");
+    sheet_rule::assert_rule("grm03", &p);
+    assert!(!p.problems.iter().any(|p| matches!(
+        p.code.as_str(),
+        "annotation_off_sheet"
+            | "annotation_overlap"
+            | "annotation_ink_overlap"
+            | "page_fit_uncertain"
+    )));
+}
+
+fn manufacturing_plate() -> Analysis {
+    use std::io::Read as _;
+    let bytes = std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/manufacturing_pmi.step.gz"),
+    )
+    .unwrap();
+    let mut step = Vec::new();
+    flate2::read::GzDecoder::new(bytes.as_slice())
+        .read_to_end(&mut step)
+        .unwrap();
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("h6-pmi-plate")
+        .join(format!("{:?}", std::thread::current().id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("manufacturing-pmi.step");
+    std::fs::write(&path, step).unwrap();
+    model::analyse_native(&path).unwrap().1
+}
+
+/// The supplied plate: its smallest fit is A3 at 1:1 (no A4 candidate is valid: at 1:1 the
+/// stacked views and their annotations need more height above the title block than A4 has).
+/// The rule allows A3 1:1 and A2 2:1; on A2 the orientation view keeps A3's paper scale, so the
+/// extra paper only enlarges the dimensioned views and A3 1:1 is the fuller. Before H6 it was
+/// A2 at 1:1, a fifth of the sheet.
+#[test]
+fn specify_plate_pmi_fits_a3_at_full_size_with_every_frame_clear() {
+    let a = manufacturing_plate();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(
+        p.sheet.basis.starts_with("smallest fit A3 at 1:1;"),
+        "{}",
+        p.sheet.basis
+    );
+    sheet_rule::assert_rule("manufacturing-pmi", &p);
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A3", "1:1")
+    );
+    assert_eq!(p.gdt.len(), 6);
+    assert!(p.gdt.iter().all(|g| g.placed.is_some()));
+    assert!(!p.problems.iter().any(|p| matches!(
+        p.code.as_str(),
+        "annotation_off_sheet"
+            | "annotation_overlap"
+            | "annotation_ink_overlap"
+            | "page_fit_uncertain"
+    )));
+    for v in &p.views {
+        let b = v.area;
+        let t = p.sheet.title_block;
+        assert!(!(b[0] < t[2] && t[0] < b[2] && b[1] < t[3] && t[1] < b[3]));
+    }
+}
+
+#[test]
+fn automatic_overflow_never_uses_an_illegible_scale() {
+    let mut a = part();
+    a.envelope = [[0.0; 3], [100_000.0; 3]];
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(p.sheet.scale_factor >= 0.1);
+    assert_eq!(p.sheet.size, "A0");
+    assert!(
+        p.problems
+            .iter()
+            .any(|p| matches!(p.code.as_str(), "page_fit_uncertain" | "views_do_not_fit"))
+    );
+}
+
+#[test]
+fn ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("nist/nist_ctc_03_asme1_rc.stp"))
+        .unwrap()
+        .1;
+    use std::io::Read as _;
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(
+        include_bytes!("fixtures/sheet-policy/ctc03-invalid.plan.json.gz").as_slice(),
+    )
+    .read_to_end(&mut bytes)
+    .unwrap();
+    let mut first: model::Plan = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(first.binding.source_sha256, a.binding.source_sha256);
+    assert!(
+        first
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_ink_overlap")
+    );
+    let mut spec = Spec::default();
+    spec.sheet.size = Some("A2".into());
+    first.spec.sheet.size = spec.sheet.size.clone();
+    let p = model::recover(&a, &spec, first).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A2", "1:5")
+    );
+    assert!(!p.problems.iter().any(|p| matches!(
+        p.code.as_str(),
+        "annotation_ink_overlap" | "layout_recovery_exhausted" | "annotation_off_sheet"
+    )));
+    assert!(
+        p.dimensions
+            .iter()
+            .all(|d| !matches!(d.state, draftwright::items::State::NotDrawable { .. }))
+    );
+}
+
+#[test]
+fn holes_set_legibility_floor_from_visible_opening_size() {
+    let mut a = model::analyse_native(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/mounting_plate.step"),
+    )
+    .unwrap()
+    .1;
+    a.features[0].kind = "hole".into();
+    a.features[0].parameters = json!({"diameter": 6.6}).as_object().unwrap().clone();
+    assert!(
+        draftwright::sheet_fit::min_legible_scale(&a) >= draftwright::sheet_fit::MIN_OPENING / 6.6
+    );
+    a.features[0].parameters = json!({"diameter": 0.6}).as_object().unwrap().clone();
+    assert!(
+        draftwright::sheet_fit::min_legible_scale(&a) >= draftwright::sheet_fit::MIN_OPENING / 0.6
+    );
+}
+
+#[test]
+fn packed_gdt_keeps_title_overflow_on_the_recipient_sheet() {
+    let a = manufacturing_plate();
+    let mut spec = Spec::default();
+    spec.sheet.size = Some("A3".into());
+    spec.sheet.title.insert("title".into(), "M".repeat(50));
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    assert_eq!(p.sheet.size, "A3");
+    assert!(p.problems.iter().any(|q| q.code == "title_field_overflow"));
+    assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
+}
+
+#[test]
+fn unavailable_legible_scale_is_a_warning() {
+    let mut a = manufacturing_plate();
+    a.features
+        .iter_mut()
+        .find(|f| f.kind == "hole")
+        .unwrap()
+        .parameters
+        .insert("diameter".into(), json!(0.02));
+    assert!(draftwright::sheet_fit::min_legible_scale(&a) > 10.0);
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+    );
+    assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
+}

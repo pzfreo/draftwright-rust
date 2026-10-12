@@ -194,3 +194,41 @@ fn the_reservation_stacks_overlapping_items_in_tiers_beyond_the_dimensions() {
     s.reserve_gdt(&base, &lanes, false, &[], 1.0);
     assert_eq!(s, base);
 }
+
+/// H6 review: with no valid complete candidate at or above its legibility floor, STC-09 keeps
+/// its first drawing on its own paper (A1 at 1:5) rather than a larger, still invalid sheet, and
+/// says honestly that the scale is below the floor its smallest hole needs.
+#[test]
+fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() {
+    let a = analysed("nist_stc_09_asme1_ap242-e4");
+    let first = model::plan_escalated(&a, &Spec::default()).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        (first.sheet.size.as_str(), first.sheet.scale.as_str())
+    );
+    assert_eq!(
+        serde_json::to_value(&p.views).unwrap(),
+        serde_json::to_value(&first.views).unwrap()
+    );
+    assert!(p.sheet.scale_factor < draftwright::sheet_fit::min_legible_scale(&a));
+    let said = p
+        .problems
+        .iter()
+        .find(|q| q.code == "layout_recovery_exhausted")
+        .expect("the exhausted search is said");
+    assert_eq!(said.severity, "warning");
+    assert!(said.message.contains("below 1:2"), "{}", said.message);
+    assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
+    assert_eq!(
+        p.sheet.basis.matches("drawn-item fill").count(),
+        1,
+        "{}",
+        p.sheet.basis
+    );
+    assert!(
+        !p.sheet.basis.contains("as the spec asks"),
+        "{}",
+        p.sheet.basis
+    );
+}

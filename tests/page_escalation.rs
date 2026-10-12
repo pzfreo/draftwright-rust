@@ -1,31 +1,16 @@
-//! ISSUE-1299-a: automatic layout recovery is bounded and ordered: a larger scale on the same
-//! page before a larger standard sheet, hard layout validity before completeness, a complete
-//! drawing never spends a larger sheet, an explicit page is never escalated.
-//!
-//! draftwright's six tests (`tests/test_issue_1299_page_escalation.py`), as ported:
-//! - the four built on stand-in drawings (`test_hard_layout_precedes_completeness_…`,
-//!   `test_recovery_does_not_trade_a_required_drop_for_unreadable_ink`,
-//!   `test_complete_detail_drawing_stays_on_its_original_page`, and the order of
-//!   `test_crowded_head_uses_larger_scale_before_spending_the_sheet`) drive `layout::recover`
-//!   with stand-in findings, as they drive draftwright's ladder with stand-in builds;
-//! - `test_explicit_a4_remains_fixed_instead_of_escalating` and
-//!   `test_exact_grm03_recovers_all_axial_stations_on_a4_with_pmi_off` run on corpus parts.
-//!   GRM-03 is the corpus's `grm03_thumbwheel_drive_screw.step` (draftwright's fixture is its
-//!   AP242 PMI twin, with PMI off). draftwright reaches 5:1 by measuring larger scales against the
-//!   recovery detail its estimate reserved (`recover_detail`); the port plans no detail views and
-//!   its 2:1 plan has no hard layout finding, so it keeps 2:1 (verdict: not-applicable). The
-//!   five-step profile the crowded-head and explicit-A4 tests build with build123d has no STEP
-//!   here; their order and pinning are held on stand-ins and corpus parts instead.
-//!
-//! The corpus tests apply `model::recover` to `model::plan`'s result, as `model::plan_recovered`
-//! does for every planning entry point of the library (`api`: the command line, the JSON-lines
-//! service and MCP), under the maintainer's directive of 2026-10-09 (nothing off the sheet:
-//! escalate scale or sheet as draftwright does, never clip). `model::plan` itself is one try.
+//! Finished-sheet policy (maintainer 2026-10-12, H6), with Python recovery replay.
+//! The low-level layout::recover stand-ins retain the historical bounded retry contract;
+//! model::recover now selects the smallest complete fit and at most one enlarged paper step,
+//! by measured fill. Corpus tests protect complete measurements, explicit overrides and
+//! the veto on extra ink over other views. Deliberate Python differences are recorded in
+//! tests/fixtures/known_sheet_policy.json. model::plan remains the unrecovered estimate.
 
 #[path = "common/corpus.rs"]
 mod corpus;
 #[path = "common/facts.rs"]
 mod facts;
+#[path = "common/sheet_rule.rs"]
+mod sheet_rule;
 
 use draftwright::api::{self, Features};
 use draftwright::layout::{self, Attempt, Findings, Retry};
@@ -283,12 +268,7 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         "{}",
         said.message
     );
-    for tried in [
-        "A2 at 1:1 (3 hard layout findings, 2 hole locations too close to read)",
-        "A2 at 2:1 (",
-        "A1 at 1:1 (",
-        "A0 at 1:1 (",
-    ] {
+    for tried in ["A3 1:5 fill", "A2 1:2 fill", "A0 2:1 fill"] {
         assert!(said.message.contains(tried), "{tried}: {}", said.message);
     }
     assert!(!plan.sheet.basis.contains("layout recovery"));
@@ -308,26 +288,40 @@ fn hole_locations_closer_than_draftwrights_spacing_are_counted() {
     assert_eq!(layout::crowded_locations(&[], 1.0), 0);
 }
 
-/// draftwright's `test_exact_grm03_recovers_all_axial_stations_on_a4_with_pmi_off`, and the
-/// complete-drawing rule on real parts: a plan with no hard layout finding keeps its first
-/// choice and says nothing of recovery. GRM-03 stays A4 at 2:1 (draftwright: 5:1, through the
-/// recovery detail the port does not plan; not-applicable); m10127 stays A4 at 1:1 (draftwright
-/// re-planned to A3 at 2:1 on its own drawing's ink overlap, which the port's plan does not have;
-/// undetermined until placement agrees).
+/// Complete drawings still compete by fill, and the choice is checked against the rule over the
+/// candidates each basis records (`common/sheet_rule.rs`), not against a pinned output.
+/// draftwright took GRM-03 to 5:1 and m10127 to A3 at 2:1; both now must be what the rule picks.
 #[test]
-fn a_plan_without_a_hard_failure_keeps_its_first_choice() {
-    for (name, kept) in [("grm03", ("A4", "2:1")), ("m10127", ("A4", "1:1"))] {
+fn a_valid_plan_is_reconsidered_for_fill() {
+    for name in ["grm03", "m10127"] {
         let Some(analysis) = corpus_part(name) else {
             eprintln!("SKIPPED: the corpus is not found");
             return;
         };
         let plan = recovered(&analysis, &Spec::default());
-        assert_eq!(sheet(&plan), kept, "{name}");
-        assert!(
-            !codes(&plan).iter().any(|c| c.starts_with("layout_re")),
-            "{name}: {:?}",
-            codes(&plan)
-        );
+        sheet_rule::assert_rule(name, &plan);
+        assert!(plan.sheet.default, "{name}");
+    }
+}
+
+/// H6 review (2026-10-12): below the fill band the fullest valid allowed pair wins, so a valid
+/// A4 drawing is not traded for an emptier A3 one with one annotation conflict fewer. Measured:
+/// 10060 A4 1:1 17.0% against A3 2:1 14.9%; 10063 A4 1:1 22.6% against A3 2:1 20.8%; 10000
+/// A4 1:1 24.0% against A3 2:1 23.8%; string_post_tapped (AP242) A4 2:1 against A3 5:1.
+#[test]
+fn below_the_band_the_fullest_valid_pair_wins_on_real_candidates() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    for (file, expected) in [
+        ("mfcadpp/10060.step", ("A4", "1:1")),
+        ("mfcadpp/10063.step", ("A4", "1:1")),
+        ("mfcadpp/10000.step", ("A4", "1:1")),
+    ] {
+        let plan = api::plan_from(&dir.join(file), Features::Native, &Spec::default()).unwrap();
+        sheet_rule::assert_rule(file, &plan);
+        assert_eq!(sheet(&plan), expected, "{file}: {}", plan.sheet.basis);
     }
 }
 
@@ -341,17 +335,11 @@ fn a_plan_without_a_hard_failure_keeps_its_first_choice() {
 #[test]
 fn an_info_or_view_box_finding_is_not_a_hard_failure() {
     let Some(analysis) = corpus_part("m1000") else {
-        eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let plan = recovered(&analysis, &Spec::default());
-    assert_eq!(sheet(&plan), ("A4", "1:1"));
-    let found = codes(&plan);
-    assert!(found.contains(&"annotation_outside_area"), "{found:?}");
-    assert!(
-        !found.iter().any(|c| c.starts_with("layout_re")),
-        "{found:?}"
-    );
+    let expected = recovered(&analysis, &Spec::default());
+    sheet_rule::assert_rule("m1000", &expected);
+    assert!(!codes(&expected).contains(&"layout_recovery_exhausted"));
 
     let id = "d:f:section_recess:4/seat_location.location.z";
     let mut first = model::plan_escalated(&analysis, &Spec::default()).unwrap();
@@ -364,13 +352,9 @@ fn an_info_or_view_box_finding_is_not_a_hard_failure() {
         ..Default::default()
     });
     let kept = model::recover(&analysis, &Spec::default(), first).unwrap();
-    assert_eq!(sheet(&kept), ("A4", "1:1"));
+    assert_eq!(sheet(&kept), sheet(&expected));
     let found = codes(&kept);
-    assert!(found.contains(&"annotation_over_view"), "{found:?}");
-    assert!(
-        !found.iter().any(|c| c.starts_with("layout_re")),
-        "{found:?}"
-    );
+    assert!(!found.contains(&"layout_recovery_exhausted"), "{found:?}");
 }
 
 /// The maintainer's directive of 2026-10-09 (nothing off the sheet: escalate scale or sheet as
@@ -419,52 +403,24 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// ftc07 with Rust quiddity's recognition (the command line's default) takes draftwright's first
-/// choice, A2 at 1:2, directly, now that the layout reserves the band right of the front and the
-/// plan for the front's height ladder (stream d-quality-lanes; the ladder ran across the side view
-/// and A2 at 1:2 failed on it). From the A3 at 1:5 it took before, two hole locations too close
-/// to read (a loss), the recovery tries the larger scales (A3 at 1:1 lays 14 more items over a
-/// view than the first) and takes A2 at 1:2, valid and complete. This test held the port's own
-/// gate (`model::recover`: a try with more annotations over a view not their own than the first
-/// plan is not taken), which A1 at 1:1 met from A3 at 1:5; no default or pinned first choice of the
-/// 30 quality parts meets it now (each part from 24 pinned sheets and scales, every valid and
-/// complete try lays no more over a view than its first), so it has no corpus case.
+/// Native FTC-07's smallest complete fit is A2 at 1:2. A1 at 1:1 is allowed only
+/// because it is its immediate neighbour and enlarges the dimensioned views.
 #[test]
-fn ftc07_takes_draftwrights_first_choice() {
+fn ftc07_uses_one_paper_step_only_with_enlargement() {
     let Some(dir) = corpus::dir() else {
-        eprintln!("SKIPPED: the corpus is not found");
         return;
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A2", "1:2"));
-    assert!(
-        !codes(&plan).iter().any(|c| c.starts_with("layout_re")),
-        "{:?}",
-        codes(&plan)
-    );
-
+    assert_eq!(sheet(&plan), ("A1", "1:1"));
+    assert!(plan.sheet.basis.contains("smallest fit A2 at 1:2"));
+    sheet_rule::assert_rule("ftc07", &plan);
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
-    let first = model::plan_escalated(&analysis, &spec(json!({ "size": "A3", "scale": "1:5" })));
-    let plan = model::recover(&analysis, &Spec::default(), first.unwrap()).unwrap();
-    assert_eq!(sheet(&plan), ("A2", "1:2"));
-    let said = plan
-        .problems
-        .iter()
-        .find(|p| p.code == "layout_replanned")
-        .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
-    assert!(
-        said.message
-            .contains("A3 at 1:5 has 2 hole locations too close to read")
-            && said
-                .message
-                .contains("16 more items over a view than the first")
-            && said
-                .message
-                .contains("A2 at 1:2 (valid and complete); A2 at 1:2 is used"),
-        "{}",
-        said.message
-    );
+    let first =
+        model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
+    let again = model::recover(&analysis, &Spec::default(), first).unwrap();
+    assert_eq!(sheet(&again), sheet(&plan));
+    assert!(again.sheet.basis.contains("additional view conflicts"));
 }
 
 /// The port's own gate in `model::recover` (a try with more annotations over a view not their
@@ -511,17 +467,18 @@ fn a_try_with_more_ink_over_the_views_than_the_first_is_not_taken() {
     let first = model::plan_escalated(&analysis, &spec(json!({ "size": "A4", "scale": "2:1" })));
     let first = first.unwrap();
     assert_eq!(over(&first), 0, "{:?}", codes(&first));
+    let before = over(&first);
     let plan = model::recover(&analysis, &Spec::default(), first).unwrap();
-    assert_eq!(sheet(&plan), ("A2", "2:1"));
-    let said = plan
-        .problems
-        .iter()
-        .find(|p| p.code.starts_with("layout_re"))
-        .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
-    assert!(
-        said.message
-            .contains("A4 at 1:1 (valid and complete; 2 more items over a view than the first)"),
-        "{}",
-        said.message
+    assert!(over(&plan) <= before);
+    assert_ne!(
+        sheet(&plan),
+        ("A4", "1:1"),
+        "the gated proposal must still be rejected"
     );
+    let gate = sheet_rule::tried(&plan.sheet.basis)
+        .into_iter()
+        .find(|t| t.size == "A4" && t.scale == "1:1")
+        .expect("A4 at 1:1 is tried");
+    assert!(gate.valid && gate.over == 2, "{}", plan.sheet.basis);
+    sheet_rule::assert_follows("1004 stand-in", &plan, ("A4", "2:1"));
 }
