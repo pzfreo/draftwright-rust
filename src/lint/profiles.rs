@@ -102,12 +102,25 @@ pub struct Face {
     pub unsplit: bool,
 }
 
+/// A curved face's measured bounds and its revolution axis, when analytic.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CurvedFace {
+    pub bounds: [P3; 2],
+    pub axis: Option<P3>,
+}
+
 /// One solid scanned (the whole part, when it has one): its box and principal faces.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Source {
     pub bounds: [P3; 2],
     pub faces: Vec<Face>,
+    /// Model-space boundary chords for annotation clearance, including internal face edges.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub boundary_segments: Vec<[P3; 2]>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub curved_faces: Vec<CurvedFace>,
 }
 
 /// Python's tolerance for a solid of box *bounds*.
@@ -198,6 +211,42 @@ fn wire(part: &haecceity::Part, edges: &[usize]) -> Wire {
     out
 }
 
+/// Analytic generator lines tangent to the three principal datum directions. These are
+/// model-space surface facts, not hidden-line projections or paper-coordinate geometry.
+fn principal_tangents(part: &haecceity::Part, faces: &[usize]) -> Vec<[P3; 2]> {
+    use haecceity::geom::Surface;
+    let mut out = Vec::new();
+    for &f in faces {
+        let surface = &part.faces[f].surface;
+        if !matches!(surface, Surface::Cylinder { .. } | Surface::Cone { .. }) {
+            continue;
+        }
+        let Some((u0, u1, v0, v1)) = part.uv_bounds(f) else {
+            continue;
+        };
+        for axis in 0..3 {
+            let g = |u| surface.normal(u, (v0 + v1) * 0.5).map_or(0.0, |n| n[axis]);
+            let c = (g(0.0) + g(PI)) * 0.5;
+            let a = g(0.0) - c;
+            let b = g(PI * 0.5) - c;
+            let r = a.hypot(b);
+            if r < 1e-9 || c.abs() > r {
+                continue;
+            }
+            let phase = b.atan2(a);
+            let angle = (-c / r).clamp(-1.0, 1.0).acos();
+            for base in [phase + angle, phase - angle] {
+                let mut u = base + ((u0 - base) / TAU).ceil() * TAU;
+                while u <= u1 + 1e-9 {
+                    out.push([surface.value(u, v0), surface.value(u, v1)]);
+                    u += TAU;
+                }
+            }
+        }
+    }
+    out
+}
+
 /// The principal boundary faces of the solids of *part* (each solid of a part of several, else
 /// the whole part), as Python's scan reads them: what the Analysis records.
 pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
@@ -214,6 +263,42 @@ pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
         .map(|(b, faces)| {
             let bounds = [b.min, b.max];
             let tol = tolerance(&bounds);
+            let curved_faces = faces
+                .iter()
+                .filter_map(|&f| {
+                    let axis = match &part.faces[f].surface {
+                        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => {
+                            return None;
+                        }
+                        Surface::Torus { frame, .. } => Some(frame.z),
+                        _ => None,
+                    };
+                    let b = part.face_bounds(f);
+                    Some(CurvedFace {
+                        bounds: [b.min, b.max],
+                        axis,
+                    })
+                })
+                .collect();
+            let edges: BTreeSet<_> = faces
+                .iter()
+                .flat_map(|&f| &part.faces[f].loops)
+                .flat_map(|l| &l.edges)
+                .map(|&(i, _)| i)
+                .collect();
+            let mut boundary_segments: Vec<_> = edges
+                .into_iter()
+                .flat_map(|i| {
+                    let e = &part.edges[i];
+                    let samples = if e.samples.len() >= 2 {
+                        e.samples.clone()
+                    } else {
+                        vec![e.start, e.end]
+                    };
+                    samples.windows(2).map(|p| [p[0], p[1]]).collect::<Vec<_>>()
+                })
+                .collect();
+            boundary_segments.extend(principal_tangents(part, &faces));
             let faces = faces
                 .into_iter()
                 .filter(|&f| matches!(part.faces[f].surface, Surface::Plane { .. }))
@@ -256,7 +341,12 @@ pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
                     })
                 })
                 .collect();
-            Source { bounds, faces }
+            Source {
+                bounds,
+                faces,
+                boundary_segments,
+                curved_faces,
+            }
         })
         .collect()
 }
@@ -1053,6 +1143,8 @@ mod tests {
                 .collect()
         };
         let source = |arcs: Vec<Edge>, edges: usize| Source {
+            boundary_segments: Vec::new(),
+            curved_faces: Vec::new(),
             bounds: [[-20.0, -20.0, 0.0], [20.0, 20.0, 5.0]],
             faces: vec![Face {
                 axis: 2,

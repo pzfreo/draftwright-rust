@@ -319,3 +319,12 @@ Use `{ "op": "set", "path": "hole_table", "value": "always" }` in
 includes these choices. Generated standalone schemas accept the same field.
 Scheduled dimensions remain inspectable as covered items; schedules and tags
 are ordinary item records and participate in Session deltas.
+
+H1 fix round: `hole_table_entry_invalid` is a warning when a rendered schedule's
+entry coordinate/direction does not identify the physical opening, even if X/Y
+are correct. A selected automatic table that cannot place all its ink falls back
+to the original dimensions and reports `hole_table_unavailable` at info; an
+unmet explicit `hole_table: always` request retains warning severity. The fallback
+itself loses no requirement. Coaxial rows use a shared shown tag; per-row entry
+cells distinguish them. `pcd` in the Plan names the circle's proven centre,
+diameter and member IDs; its actual angular positions print in the schedule.

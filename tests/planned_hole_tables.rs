@@ -3,6 +3,8 @@ use draftwright::{
     model::{self, Analysis, Plan, Spec},
     text::Font,
 };
+#[path = "common/corpus.rs"]
+mod corpus;
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -84,7 +86,7 @@ fn rows_and_tags_credit_hole_size_count_and_both_locations() {
             .as_array()
             .unwrap()
             .iter()
-            .all(|r| r["cells"].as_array().unwrap().len() == 4
+            .all(|r| r["cells"].as_array().unwrap().len() == 5
                 && r["measurements"].as_array().unwrap().len() >= 3)
     );
     let font = Font::new(
@@ -106,7 +108,7 @@ fn rows_and_tags_credit_hole_size_count_and_both_locations() {
 }
 #[test]
 fn the_dense_acceptance_parts_have_no_hole_location_tower() {
-    let corpus = std::env::var("DRAFTWRIGHT_CORPUS").expect("required corpus");
+    let Some(corpus) = corpus::dir() else { return };
     for name in [
         "nist_ctc_02_asme1_rc",
         "nist_ctc_04_asme1_rd",
@@ -123,7 +125,7 @@ fn the_dense_acceptance_parts_have_no_hole_location_tower() {
         for tag in p.balloons.iter().filter(|b| b.certifying) {
             let h = read
                 .iter()
-                .find(|(f, _)| tag.features == [f.id.clone()])
+                .find(|(f, _)| tag.features.contains(&f.id))
                 .unwrap()
                 .1
                 .as_ref()
@@ -323,7 +325,7 @@ fn a_bare_pin_on_a_table_covered_location_does_not_restore_the_ladder() {
 
 #[test]
 fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
-    let corpus = std::env::var("DRAFTWRIGHT_CORPUS").unwrap();
+    let Some(corpus) = corpus::dir() else { return };
     let (_, analysis) =
         model::analyse_native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp")).unwrap();
     let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
@@ -378,7 +380,7 @@ fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
 
 #[test]
 fn table_recess_and_depth_symbols_are_drawn_inside_the_size_cell() {
-    let corpus = std::env::var("DRAFTWRIGHT_CORPUS").unwrap();
+    let Some(corpus) = corpus::dir() else { return };
     let (part, analysis) =
         model::analyse_native(&Path::new(&corpus).join("nist/nist_ftc_06_asme1_rd.stp")).unwrap();
     let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
@@ -422,5 +424,201 @@ fn table_recess_and_depth_symbols_are_drawn_inside_the_size_cell() {
     assert!(
         strokes >= 3,
         "size cell has no drafting-symbol strokes: {strokes}"
+    );
+}
+
+#[test]
+fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (_, analysis) =
+        model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step")).unwrap();
+    let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    assert!(!tables(&base).as_array().unwrap().is_empty());
+    let ordinary = model::plan_recovered(&analysis, &setting("never")).unwrap();
+    let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
+    let before = ordinary.views.iter().find(|v| v.id == "v:iso").unwrap();
+    assert_eq!(
+        (iso.at, iso.area, iso.scale),
+        (before.at, before.area, before.scale)
+    );
+    for k in 0..2 {
+        assert!(iso.at[k] + iso.scale * analysis.iso_bounds[k] >= draftwright::layout::MARGIN);
+        assert!(
+            iso.at[k] + iso.scale * analysis.iso_bounds[k + 2]
+                <= base.sheet.page[k] - draftwright::layout::MARGIN
+        );
+    }
+    let mut ops: Vec<_> = ["d:envelope/height.length", "d:f:slot:1/location_slot.length", "d:f:slot:1/slot_length.length", "d:f:slot:1/slot_width.length", "d:step_level/step_height.length.h13_226", "d:step_level/step_height.length.h9_226"].iter().map(|id| serde_json::json!({"op":"set", "path":format!("dimensions/{}/place",draftwright::items::key(id)), "value":{"pinned":true}})).collect();
+    for (view, side, align) in [("plan", "above", "middle"), ("iso", "right", "start")] {
+        ops.push(serde_json::json!({"op":"set", "path":format!("views/{view}/place"), "value":{"relative_to":"front", "side":side, "align":align, "gap":0, "pinned":true}}));
+    }
+    let spec = model::edit(&Spec::default(), &serde_json::json!(ops)).unwrap();
+    let after = model::plan_recovered(&analysis, &spec).unwrap();
+    assert_eq!(tables(&base)[0]["rows"], tables(&after)[0]["rows"]);
+    for id in spec.dimensions.keys() {
+        assert_eq!(
+            base.dimensions.iter().find(|d| &d.id == id).unwrap().placed,
+            after
+                .dimensions
+                .iter()
+                .find(|d| &d.id == id)
+                .unwrap()
+                .placed,
+            "{id}"
+        );
+    }
+}
+
+#[test]
+fn rounded_datums_and_stacked_openings_are_unambiguous() {
+    let Some(corpus) = corpus::dir() else { return };
+    for name in [
+        "nist_ctc_02_asme1_rc",
+        "nist_ctc_04_asme1_rd",
+        "nist_ctc_05_asme1_rd",
+    ] {
+        let (_, analysis) =
+            model::analyse_native(&corpus.join(format!("nist/{name}.stp"))).unwrap();
+        let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+        assert!(!plan.hole_tables.is_empty(), "{name}");
+        for table in &plan.hole_tables {
+            assert_eq!(table.origin, Some(analysis.envelope[0]));
+            for row in &table.rows {
+                assert!(
+                    row.cells[1]
+                        .split_whitespace()
+                        .all(|t| !(t.parse::<f64>().is_ok() && t.ends_with(".0"))),
+                    "{name}: redundant native size precision"
+                );
+                assert!(
+                    row.cells[2..4].iter().all(|c| !c.ends_with(".0")),
+                    "{name}: redundant coordinate precision"
+                );
+                assert!(
+                    row.measurements
+                        .iter()
+                        .filter(|m| m.parameter.starts_with("location.length."))
+                        .all(|m| m.value >= -1e-6)
+                );
+                for other in &table.rows {
+                    if row.feature != other.feature && row.cells[2..4] == other.cells[2..4] {
+                        assert_ne!(
+                            row.cells[4], other.cells[4],
+                            "{name}: indistinguishable entry faces"
+                        );
+                        assert!(
+                            plan.balloons
+                                .iter()
+                                .any(|b| b.features.contains(&row.feature)
+                                    && b.features.contains(&other.feature))
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn an_incomplete_bolt_circle_states_pcd_and_each_angle() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (_, analysis) =
+        model::analyse_native(&corpus.join("nist/nist_ctc_05_asme1_rd.stp")).unwrap();
+    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let table = plan
+        .hole_tables
+        .iter()
+        .find(|t| t.view.as_deref() == Some("v:plan"))
+        .unwrap();
+    let circle = table.pcd.as_ref().unwrap();
+    assert!((circle.diameter - 444.5).abs() < 1e-4);
+    assert_eq!(circle.members.len(), 10);
+    let mut angles: Vec<_> = table
+        .rows
+        .iter()
+        .filter(|r| circle.members.contains(&r.feature))
+        .map(|r| r.cells[5].trim_end_matches('°').parse::<f64>().unwrap())
+        .collect();
+    angles.sort_by(f64::total_cmp);
+    assert_eq!(
+        angles,
+        [30., 60., 90., 120., 150., 210., 240., 270., 300., 330.]
+    );
+    assert!(table.blocks[0].rows[0][1].contains("PCD"));
+    assert!(
+        !table.blocks[0]
+            .rows
+            .iter()
+            .flatten()
+            .any(|c| c.contains("EQ SP"))
+    );
+}
+
+#[test]
+fn schedule_labels_clear_the_rendered_part_and_other_annotations() {
+    let Some(corpus) = corpus::dir() else { return };
+    let font = Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    for file in [
+        "nist/nist_ctc_02_asme1_rc.stp",
+        "nist/nist_ctc_05_asme1_rd.stp",
+        "cadgenbench_inputs/cgb245.step",
+    ] {
+        let (part, analysis) = model::analyse_native(&corpus.join(file)).unwrap();
+        let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+        let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+        for issue in draftwright::lint::structural::check(&drawing) {
+            if issue
+                .annotation
+                .as_ref()
+                .is_some_and(|a| a.starts_with("hole_schedule_"))
+                || issue
+                    .related
+                    .iter()
+                    .any(|a| a.starts_with("hole_schedule_"))
+            {
+                assert!(
+                    !matches!(
+                        issue.code.as_str(),
+                        "view_annotation_overlap" | "annotation_overlap" | "annotation_ink_overlap"
+                    ),
+                    "{file}: {issue:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_changed_entry_cell_is_reported_even_when_xy_is_correct() {
+    let (part, analysis) = plate();
+    let plan = model::plan_recovered(analysis, &setting("always")).unwrap();
+    let font = Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    let mut drawing = model::render(part, analysis, &plan, &font).unwrap();
+    assert!(
+        !draftwright::lint::lint(analysis, &drawing)
+            .iter()
+            .any(|i| i.code == "hole_table_entry_invalid")
+    );
+    let entry = drawing
+        .annotations
+        .iter()
+        .find(|a| a.name.ends_with("/entry"))
+        .unwrap();
+    let feature = entry.claims[0].feature.clone();
+    for &run in &entry.runs {
+        drawing.text[run].text = "9999 / +X".into();
+    }
+    assert!(
+        draftwright::lint::lint(analysis, &drawing)
+            .iter()
+            .any(|i| i.code == "hole_table_entry_invalid" && i.subjects.contains(&feature))
     );
 }

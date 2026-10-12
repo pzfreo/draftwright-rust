@@ -206,8 +206,8 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
             t.rows
                 .iter()
                 .all(|r| plan.balloons.iter().any(|b| b.certifying
-                    && b.tag == r.tag
-                    && b.features == [r.feature.clone()]
+                    && b.tag.split('/').any(|tag| tag == r.tag)
+                    && b.features.contains(&r.feature)
                     && Some(&b.view) == t.view.as_ref())),
             "{what}: every scheduled row owns a shown tag"
         );

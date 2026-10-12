@@ -4321,3 +4321,59 @@ H1 integration decisions from the full-suite audit (assertions retained):
   callout symbol strokes, and column widths include their actual ink. Original
   searchable compound text is preserved. A drawing-level regression requires
   the symbol strokes to be inside the size cell; it failed before the correction.
+
+## Stage H1 fix round (2026-10-12; supersedes the H1 datum/PCD choices above)
+
+- The reviewed cgb245 seed-3/eight-pin case was real: pinned isometric fitting
+  ignored the table, then schedule planning restored its larger automatic scale.
+  The fitter now reserves canonical table rectangles, and an explicit isometric
+  pin keeps its fitted scale. Bare dimension pins retain the default schedule ink.
+- Use the theoretical intersection of the minimum datum planes, including a
+  tangent plane at a rounded corner. Require the carrying solid's measured profile
+  bounds. This overturns the nearest-vertex/negative-coordinate judgement above.
+- Keep distinct machining operations as distinct rows. `ENTRY / DIR` states the
+  opening's axial coordinate from the minimum plane and part-frame drilling axis;
+  coaxial rows share one printed tag (`B1/B11`). Lint verifies the entry cell as
+  well as each coordinate cell; the opening cannot borrow another row's face.
+- Recognized bore axes corroborate a circle of at least five distinct equal-radius
+  holes of one size and entry plane (radius agreement 0.0001 mm). Print the located
+  PCD and each actual angle, counterclockwise from local +X. The supplementary XY
+  coordinates remain available for inspection. CTC-05 has ten sites on ø444.5 at
+  30-degree increments with 0°/180° absent; no equal-spacing assertion is made.
+  This replaces the earlier `not_done` for its PCD form. A separate ordinate rail,
+  general authorable measurement schedule, and later-sheet/details remain outside H1.
+- Tag clearance uses model-space B-rep chords and analytic principal cylinder/cone
+  tangent generators. Remaining curved side faces reserve their measured bounds;
+  this is a conservative, overturnable obstacle choice, rather than storing HLR
+  or paper linework in the Plan. Source evidence is optional for older analyses.
+  Tags check label/stroke ink, seats, other view outlines, tables, GD&T and section
+  furniture. Origins place all three glyphs together and keep their own leader clear.
+  Search is deterministic and bounded: 512 nearby tag candidates and 160 origin
+  candidates. These budgets/clearances are overturnable; no part-name exceptions.
+- Schedule glyphs are ordinary labelled annotations in structural lint. `quality.py`
+  adds `schedule_ink` to its existing ink bar, checking every schedule label against
+  actual visible/hidden SVG edges, other labels and annotation strokes. It no longer
+  exempts this new furniture. Existing quality columns and pin thresholds remain.
+- Corpus tests use `tests/common/corpus.rs` for default discovery/optional skipping.
+  Undecorated numerical coordinate cells drop redundant `.0`; authored precision
+  and tolerances retain their original wording. No commit or push was made.
+
+Additional fix-round evidence/choices:
+
+- Raster review caught an isometric clipped at the right edge on cgb245 after
+  adding the entry column. Holding the old scale at a newly packed centre was
+  wrong. Automatic presentation retains the proven full frame if the resulting
+  physical isometric bounds leave the page; bare pins use their canonical frame.
+  Explicit isometric placements keep the fitter's resolved frame. The regression
+  now checks physical bounds against the page, alongside the original pin/table
+  assertions. This restores cgb245 ink 1 and avoids distorting the SVG metric.
+- Native table numbers consistently strip redundant `.0`, including copied
+  depth terms and computed entry/angle cells. Approved authored/PMI size wording
+  stays exact. CTC-02's native depth `86.0` becomes `86`; CTC-05 prints `120°`.
+- Additional model-space evidence enlarged inline Analysis requests enough to
+  expose an existing pipe deadlock in the MCP and JSON-lines service test helpers:
+  both wrote all requests before draining replies. Their writers now run in a
+  thread while `wait_with_output` drains output; every original assertion remains.
+  The interrupted first full run is retained in
+  `target/h1-fix-checks/tests-first-interrupted.log`. Final results are recorded
+  separately; an interrupted run is not claimed as a full pass.

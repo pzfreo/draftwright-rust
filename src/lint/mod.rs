@@ -212,6 +212,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = coverage::feature_coverage(analysis, marks);
     issues.extend(bosses::coverage(analysis, marks));
     issues.extend(coverage::located(analysis, marks));
+    issues.extend(coverage::schedule_entries(analysis, marks));
     issues.extend(prismatic::coverage(analysis, marks));
     issues.extend(pads::coverage(analysis, marks));
     issues.extend(polygonal::boss_coverage(analysis, marks));

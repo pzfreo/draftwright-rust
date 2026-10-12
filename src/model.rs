@@ -1040,9 +1040,7 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
         crate::completeness::report(analysis, &mut scheduled);
         Ok(scheduled)
     } else {
-        if spec.hole_table == crate::hole_table::Setting::Always {
-            baseline.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"The requested schedule has no clear place at the recovered geometry scale; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
-        }
+        baseline.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:if spec.hole_table == crate::hole_table::Setting::Always { "warning" } else { "info" }.into(), message:"The selected schedule has no clear place at the recovered geometry scale; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
         Ok(baseline)
     }
 }
@@ -1071,8 +1069,8 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
                     plan_with_presentation(analysis, spec, beyond_lanes, Some(&selection))?;
                 if crate::hole_table::install(analysis, &mut scheduled, &selection) {
                     p = scheduled;
-                } else if spec.hole_table == crate::hole_table::Setting::Always {
-                    p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"The requested hole table or one of its tags has no clear place; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
+                } else {
+                    p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:if spec.hole_table == crate::hole_table::Setting::Always { "warning" } else { "info" }.into(), message:"The selected hole table or one of its tags has no clear place; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
                 }
             }
             crate::hole_table::escalate(analysis, &mut p);
@@ -1725,10 +1723,25 @@ fn plan_with_presentation(
         );
     }
     if let Some(presentation) = presentation
-        && let Some(s) = presentation.iso_scale
+        && let Some(base) = &presentation.iso
+        && spec.views.get("iso").is_none_or(|v| v.place.is_none())
         && let Some(v) = views.iter_mut().find(|v| v.id == "v:iso")
     {
-        v.scale = s;
+        v.scale = base.scale;
+        let outside = (0..2).any(|k| {
+            v.at[k] + v.scale * analysis.iso_bounds[k] < MARGIN
+                || v.at[k] + v.scale * analysis.iso_bounds[k + 2] > sheet.page[k] - MARGIN
+        });
+        // Bare pins retain their canonical frame. Holding an automatic scale must not leave
+        // its newly packed centre outside the page; in that case retain the proven frame too.
+        if let Some(base) = canonical
+            .as_ref()
+            .and_then(|p| p.views.iter().find(|v| v.id == "v:iso"))
+        {
+            (v.at, v.area, v.scale) = (base.at, base.area, base.scale);
+        } else if outside {
+            (v.at, v.area, v.scale) = (base.at, base.area, base.scale);
+        }
     }
     crate::dims::gdt::validate_placements(analysis, spec, &views)?;
     let footprint_cache = crate::dims::footprints::Cache::default();
@@ -2803,8 +2816,11 @@ pub fn render_annotations_with_items(
     // registers the table's measurements.
     for t in plan.hole_table.iter().chain(&plan.hole_tables) {
         let table_from = dims.len();
-        let mut row_runs: Vec<Vec<Vec<usize>>> =
-            vec![vec![Vec::new(); if t.view.is_some() { 4 } else { 5 }]; t.rows.len()];
+        let mut row_runs: Vec<Vec<Vec<usize>>> = t
+            .rows
+            .iter()
+            .map(|r| vec![Vec::new(); r.cells.len()])
+            .collect();
         let headers = if t.view.is_some() { 2 } else { 1 };
         let per = t
             .blocks
@@ -2903,7 +2919,20 @@ pub fn render_annotations_with_items(
             } else {
                 // A coordinate cell proves only its own axis. A matching number elsewhere in
                 // this row or another row cannot certify a changed coordinate.
-                for (c, runs) in cells.into_iter().enumerate().skip(1) {
+                for (c, runs) in cells.into_iter().enumerate().take(5).skip(1) {
+                    if c == 4 {
+                        annotations.push(Annotation {
+                            coordinate_origin: None,
+                            name: format!("{}/{}/entry", t.id, row.tag),
+                            view: t.view.clone(),
+                            runs,
+                            claims: vec![Claim {
+                                feature: row.feature.clone(),
+                                parameter: "entry".into(),
+                            }],
+                        });
+                        continue;
+                    }
                     let location = row
                         .measurements
                         .iter()
@@ -2988,12 +3017,16 @@ pub fn render_annotations_with_items(
         if let Some(ink) = items_bbox(&dims[from..]) {
             sheet.items.push(Drawn {
                 name: b.id.clone(),
-                kind: Kind::Centreline,
+                kind: if b.id.starts_with("hole_schedule_") {
+                    Kind::Dimension
+                } else {
+                    Kind::Centreline
+                },
                 ink,
-                label: None,
+                label: b.label_box,
                 lines,
                 elbow: None,
-                interior: false,
+                interior: b.id.starts_with("hole_schedule_"),
             });
         }
     }

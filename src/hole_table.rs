@@ -108,6 +108,8 @@ pub struct HoleTable {
     pub view: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<[f64; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pcd: Option<PitchCircle>,
     /// Original scalar measurements conveyed by the member ordinates, for item coverage.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub covered: Vec<Measurement>,
@@ -120,6 +122,15 @@ pub struct HoleTable {
     /// The blocks drawn, left to right: each the header and its share of the rows (the last
     /// padded with blank rows), placed.
     pub blocks: Vec<PlannedTable>,
+}
+
+/// A concentric circle located from the same datum, with explicit member angles.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PitchCircle {
+    pub centre: [f64; 3],
+    pub diameter: f64,
+    pub members: Vec<String>,
 }
 
 /// A hole's row: its tag, its hole, the cells it prints and the measurements they state.
@@ -148,6 +159,8 @@ pub struct Balloon {
     /// The ring's centre, mm on the page.
     pub at: [f64; 2],
     pub radius: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_box: Option<Rect>,
     /// The leader from the hole's rim (its arrowhead's tip) to the ring; none when the ring
     /// could not clear the hole.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -416,6 +429,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
                     id: ID.into(),
                     view: None,
                     origin: None,
+                    pcd: None,
                     covered: Vec::new(),
                     rows,
                     default: true,
@@ -851,6 +865,8 @@ fn fixed_obstacles(
                     v.at[0] + v.scale * ib[2],
                     v.at[1] + v.scale * ib[3],
                 ]
+            } else if table.is_some_and(|t| t.view.is_some()) {
+                Frame::new(analysis, v).outline
             } else {
                 v.area
             }
@@ -1197,6 +1213,7 @@ fn place_balloons(
             certifying: w.certifying,
             at,
             radius: r,
+            label_box: None,
             leader,
             state: crate::items::State::Shown,
         });
@@ -1330,7 +1347,7 @@ pub(crate) struct Selection {
     pub tables: Vec<HoleTable>,
     pub scale: f64,
     pub page: [f64; 2],
-    pub iso_scale: Option<f64>,
+    pub iso: Option<PlannedView>,
     pub replaced: BTreeSet<String>,
     dimensions: Vec<PlannedDimension>,
     aliases: Vec<crate::dims::Omitted>,
@@ -1361,29 +1378,55 @@ fn pinned(plan: &Plan, d: &PlannedDimension) -> bool {
         .is_some_and(|p| p.pinned)
 }
 
+fn schedule_number(value: f64) -> String {
+    let text = crate::dims::fmt(if value.abs() < 1e-6 { 0.0 } else { value });
+    text.strip_suffix(".0").unwrap_or(&text).into()
+}
+
 /// A table carries a view title so its local X/Y cannot be mistaken for another view's.
 fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
-    let mut cells = vec![
-        vec![
-            format!(
-                "{} HOLES",
-                t.view
-                    .as_deref()
-                    .unwrap()
-                    .trim_start_matches("v:")
-                    .to_uppercase()
-            ),
-            String::new(),
-            String::new(),
-            String::new(),
-        ],
-        vec![
-            "TAG".into(),
-            "ø / DEPTH / THREAD".into(),
-            "X".into(),
-            "Y".into(),
-        ],
+    let mut title = vec![
+        format!(
+            "{} HOLES",
+            t.view
+                .as_deref()
+                .unwrap()
+                .trim_start_matches("v:")
+                .to_uppercase()
+        ),
+        String::new(),
+        String::new(),
+        String::new(),
+        "FROM MIN".into(),
     ];
+    let mut header = vec![
+        "TAG".into(),
+        "ø / DEPTH / THREAD".into(),
+        "X".into(),
+        "Y".into(),
+        "ENTRY / DIR".into(),
+    ];
+    if let Some(pcd) = &t.pcd {
+        let origin = t.origin.unwrap();
+        let axes: Vec<_> = t.rows[0]
+            .measurements
+            .iter()
+            .filter_map(|m| m.parameter.strip_prefix("location.length."))
+            .collect();
+        let coordinate = |a: &str| {
+            let k = ["x", "y", "z"].iter().position(|k| *k == a).unwrap();
+            schedule_number(pcd.centre[k] - origin[k])
+        };
+        title[1] = format!(
+            "ø{} PCD @ X{} Y{}",
+            schedule_number(pcd.diameter),
+            coordinate(axes[0]),
+            coordinate(axes[1])
+        );
+        title.push("CCW FROM +X".into());
+        header.push("ANGLE".into());
+    }
+    let mut cells = vec![title, header];
     cells.extend(t.rows.iter().map(|r| r.cells.clone()));
     cells
 }
@@ -1404,26 +1447,18 @@ fn schedule_widths(cells: &[Vec<String>]) -> Vec<f64> {
 }
 
 fn datum_corner(analysis: &Analysis, axes: &[usize]) -> Option<[f64; 3]> {
-    let lo = analysis.envelope[0];
-    let hi = analysis.envelope[1];
+    // A theoretical corner is the intersection of the minimum datum planes, including
+    // tangent planes at a rounded edge. Require the carrying solid's measured boundary.
     analysis
         .principal_profiles
         .iter()
-        .flat_map(|s| &s.faces)
-        .flat_map(|f| &f.outer_lines)
-        .flat_map(|e| [e.start, e.end])
-        .filter(|p| {
-            axes.iter()
-                .any(|&k| (p[k] - lo[k]).abs() < 1e-4 || (p[k] - hi[k]).abs() < 1e-4)
+        .any(|s| {
+            !s.faces.is_empty()
+                && axes
+                    .iter()
+                    .all(|&k| (s.bounds[0][k] - analysis.envelope[0][k]).abs() < 1e-4)
         })
-        .min_by(|a, b| {
-            let distance = |p: &[f64; 3]| axes.iter().map(|&k| (p[k] - lo[k]).powi(2)).sum::<f64>();
-            distance(a)
-                .total_cmp(&distance(b))
-                .then_with(|| a[0].total_cmp(&b[0]))
-                .then_with(|| a[1].total_cmp(&b[1]))
-                .then_with(|| a[2].total_cmp(&b[2]))
-        })
+        .then_some(analysis.envelope[0])
 }
 
 /// Use the measured ladder spacing and the existing leader/feature crossing findings. The
@@ -1433,7 +1468,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
     let mut selection = Selection {
         scale: plan.sheet.scale_factor,
         page: plan.sheet.page,
-        iso_scale: plan.views.iter().find(|v| v.id == "v:iso").map(|v| v.scale),
+        iso: plan.views.iter().find(|v| v.id == "v:iso").cloned(),
         ..Default::default()
     };
     if plan.spec.hole_table == Setting::Never
@@ -1527,8 +1562,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         {
             continue;
         }
-        // Use a boundary vertex at an extremity shown in this projection. If the envelope
-        // corner is empty (stepped parts), the nearest proven contour corner is the datum.
+        // Use the theoretical intersection of the minimum datum planes.
         let Some(origin) = datum_corner(analysis, &axes) else {
             continue;
         };
@@ -1562,12 +1596,22 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             ));
             // Array grammar locates members only in the leader version; the schedule's physical
             // member ordinates replace it. Compound recess/thread wording is retained verbatim.
+            let approved_size = d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+                || d.from_spec
+                    .iter()
+                    .any(|s| matches!(s.as_str(), "fit" | "tolerance"));
             let label = terms
                 .filter(|t| {
                     !(t.starts_with('(') && t.contains('×') && t.ends_with(')'))
                         && !t.starts_with("EQ SP")
                 })
-                .cloned()
+                .map(|t| {
+                    if approved_size {
+                        t.clone()
+                    } else {
+                        t.parse::<f64>().map_or_else(|_| t.clone(), schedule_number)
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join(" ");
             for f in bores(d) {
@@ -1591,14 +1635,17 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                         measured
                             .filter(|_| (origin[k] - analysis.envelope[0][k]).abs() <= 1e-6)
                             .map_or_else(
-                                || crate::dims::fmt(distance),
+                                || schedule_number(distance),
                                 |d| {
                                     d.terms
                                         .iter()
                                         .skip(usize::from(
                                             d.terms.first().is_some_and(|t| t.ends_with('×')),
                                         ))
-                                        .cloned()
+                                        .map(|t| {
+                                            t.parse::<f64>()
+                                                .map_or_else(|_| t.clone(), schedule_number)
+                                        })
                                         .collect::<Vec<_>>()
                                         .join(" ")
                                 },
@@ -1610,6 +1657,12 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                         value: distance,
                     });
                 }
+                cells.push(format!(
+                    "{} / {}{}",
+                    schedule_number(h.at[axis] - analysis.envelope[0][axis]),
+                    if h.direction[axis] > 0.0 { "+" } else { "−" },
+                    ["X", "Y", "Z"][axis]
+                ));
                 rows.push(HoleRow {
                     tag: String::new(),
                     feature: f.into(),
@@ -1631,6 +1684,69 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         }
         if rows.is_empty() {
             continue;
+        }
+        let mut pcd: Option<PitchCircle> = None;
+        for centre in read
+            .values()
+            .filter(|h| h.principal.is_some_and(|(k, _)| k == axis))
+        {
+            for seed in &rows {
+                let h = &read[seed.feature.as_str()];
+                let radius =
+                    (h.at[axes[0]] - centre.at[axes[0]]).hypot(h.at[axes[1]] - centre.at[axes[1]]);
+                if radius <= centre.diameter * 0.5 {
+                    continue;
+                }
+                let members: Vec<_> = rows
+                    .iter()
+                    .filter(|r| {
+                        let other = &read[r.feature.as_str()];
+                        r.cells[1] == seed.cells[1]
+                            && (other.at[axis] - h.at[axis]).abs() < 1e-4
+                            && ((other.at[axes[0]] - centre.at[axes[0]])
+                                .hypot(other.at[axes[1]] - centre.at[axes[1]])
+                                - radius)
+                                .abs()
+                                < 1e-4
+                    })
+                    .map(|r| r.feature.clone())
+                    .collect();
+                let sites: BTreeSet<_> = members
+                    .iter()
+                    .map(|f| {
+                        let h = &read[f.as_str()];
+                        (
+                            holes::size_key(h.at[axes[0]]),
+                            holes::size_key(h.at[axes[1]]),
+                        )
+                    })
+                    .collect();
+                if sites.len() >= 5 && pcd.as_ref().is_none_or(|p| members.len() > p.members.len())
+                {
+                    pcd = Some(PitchCircle {
+                        centre: centre.at,
+                        diameter: 2.0 * radius,
+                        members,
+                    });
+                }
+            }
+        }
+        if let Some(circle) = &pcd {
+            for row in &mut rows {
+                let h = &read[row.feature.as_str()];
+                row.cells.push(if circle.members.contains(&row.feature) {
+                    let angle = (h.at[axes[1]] - circle.centre[axes[1]])
+                        .atan2(h.at[axes[0]] - circle.centre[axes[0]])
+                        .to_degrees()
+                        .rem_euclid(360.0);
+                    format!(
+                        "{}°",
+                        schedule_number(if angle > 360.0 - 1e-6 { 0.0 } else { angle })
+                    )
+                } else {
+                    String::new()
+                });
+            }
         }
         rows.sort_by(|a, b| {
             a.cells[1]
@@ -1690,7 +1806,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         );
         selection.replaced.extend(replaced);
         selection.tables.push(HoleTable {
-            id: format!("hole_schedule_{}", view.id.trim_start_matches("v:")), view: Some(view.id.clone()), origin: Some(origin), covered: Vec::new(),
+            id: format!("hole_schedule_{}", view.id.trim_start_matches("v:")), view: Some(view.id.clone()), origin: Some(origin), pcd, covered: Vec::new(),
             rows, default: plan.spec.hole_table == Setting::Auto, basis: format!("plan-time hole schedule: {n} holes, {crowded} crowded ordinates, {conflicts} leader crossings; local X/Y from the marked datum corner"), state: crate::items::State::Shown, blocks: Vec::new(),
         });
     }
@@ -1782,27 +1898,149 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
             .iter()
             .filter_map(|d| d.placed.as_ref().map(|p| p.label_box))
             .collect();
+        let gdt: Vec<_> = plan
+            .gdt
+            .iter()
+            .filter_map(crate::dims::gdt::proxy)
+            .collect();
+        labels.extend(
+            gdt.iter()
+                .filter_map(|g| g.placed.as_ref().map(|p| p.label_box)),
+        );
+        for cut in plan
+            .views
+            .iter()
+            .filter_map(|v| v.cut.as_ref())
+            .filter(|c| c.marked_in == view.id)
+        {
+            let [lo, hi] = analysis.envelope;
+            let a = frame.page([lo[0], cut.origin[1], lo[2]]);
+            let b = frame.page([hi[0], cut.origin[1], hi[2]]);
+            let (ink, letters) = crate::section::cutting_plane(
+                a[0].min(b[0]) - crate::section::OVERRUN,
+                a[0].max(b[0]) + crate::section::OVERRUN,
+                frame.page(cut.origin)[1],
+            );
+            labels.extend(
+                ink.iter()
+                    .filter_map(|i| crate::output::items_bbox(std::slice::from_ref(i))),
+            );
+            for at in letters {
+                labels.push([at[0] - 1.5, at[1] - 1.5, at[0] + 1.5, at[1] + 1.5]);
+            }
+        }
+        let mut edge_segments: Vec<_> = analysis
+            .principal_profiles
+            .iter()
+            .flat_map(|s| &s.boundary_segments)
+            .map(|e| [frame.page(e[0]), frame.page(e[1])])
+            .collect();
+        // Side-on bores have tangent silhouettes which are not B-rep boundary edges.
+        for h in read.values() {
+            let Some(depth) = h.depth else {
+                continue;
+            };
+            let a = frame.page(h.at);
+            let b = frame.page(std::array::from_fn(|k| h.at[k] + depth * h.direction[k]));
+            let d = [b[0] - a[0], b[1] - a[1]];
+            let length = d[0].hypot(d[1]);
+            if length < 1e-6 {
+                continue;
+            }
+            let r = opening_diameter(h) * frame.s * 0.5;
+            let offset = [-r * d[1] / length, r * d[0] / length];
+            for sign in [-1.0, 1.0] {
+                edge_segments.push([
+                    [a[0] + sign * offset[0], a[1] + sign * offset[1]],
+                    [b[0] + sign * offset[0], b[1] + sign * offset[1]],
+                ]);
+            }
+        }
+        let annotation_lines: Vec<_> = plan
+            .dimensions
+            .iter()
+            .chain(&gdt)
+            .filter_map(|d| d.placed.as_ref())
+            .flat_map(|p| p.lines.iter().chain(&p.arrows))
+            .copied()
+            .collect();
+        // A curved side face can have a silhouette between its boundary edges. Keep tags
+        // off that face's projected envelope; end-on revolution faces use their rims above.
+        let curved: Vec<Rect> = analysis
+            .principal_profiles
+            .iter()
+            .flat_map(|s| &s.curved_faces)
+            .filter(|f| {
+                f.axis.is_none_or(|a| {
+                    a.iter()
+                        .zip(view.direction)
+                        .map(|(x, y)| x * y)
+                        .sum::<f64>()
+                        .abs()
+                        < 0.999
+                })
+            })
+            .map(|f| {
+                (0..8)
+                    .map(|i| frame.page(std::array::from_fn(|k| f.bounds[(i >> k) & 1][k])))
+                    .fold(
+                        [
+                            f64::INFINITY,
+                            f64::INFINITY,
+                            f64::NEG_INFINITY,
+                            f64::NEG_INFINITY,
+                        ],
+                        |b, p| {
+                            [
+                                b[0].min(p[0]),
+                                b[1].min(p[1]),
+                                b[2].max(p[0]),
+                                b[3].max(p[1]),
+                            ]
+                        },
+                    )
+            })
+            .collect();
+        let mut tagged = BTreeSet::new();
         for row in &t.rows {
+            if !tagged.insert(row.feature.clone()) {
+                continue;
+            }
+            let members: Vec<_> = t
+                .rows
+                .iter()
+                .filter(|r| {
+                    let a = frame.page(read[r.feature.as_str()].at);
+                    let b = frame.page(read[row.feature.as_str()].at);
+                    (a[0] - b[0]).hypot(a[1] - b[1]) < 1e-4
+                })
+                .collect();
+            tagged.extend(members.iter().map(|r| r.feature.clone()));
+            let text = members
+                .iter()
+                .map(|r| r.tag.as_str())
+                .collect::<Vec<_>>()
+                .join("/");
             let h = &read[row.feature.as_str()];
             let hole = frame.page(h.at);
-            let radius = opening_diameter(h) * frame.s * 0.5;
-            let ink = crate::dims::label_ink(std::slice::from_ref(&row.tag), crate::dims::font());
-            let width = ink.max[0] - ink.min[0];
-            let height = ink.max[1] - ink.min[1];
+            let radius = members
+                .iter()
+                .map(|r| opening_diameter(&read[r.feature.as_str()]))
+                .fold(0.0, f64::max)
+                * frame.s
+                * 0.5;
+            let ink = crate::dims::label_ink(std::slice::from_ref(&text), crate::dims::font());
+            let width = (ink.max[0] - ink.min[0]).max(text.len() as f64 * crate::dims::TEXT * 0.6);
+            let height = crate::dims::TEXT;
             let mut tag = None;
-            for (dx, dy) in [
-                (1.0, 1.0),
-                (-1.0, 1.0),
-                (1.0, -1.0),
-                (-1.0, -1.0),
-                (0.0, 1.0),
-                (0.0, -1.0),
-                (1.0, 0.0),
-                (-1.0, 0.0),
-            ] {
+            for step in 0..512 {
+                let reach = 1.0 + (step / 16) as f64;
+                let angle =
+                    (step % 16) as f64 * std::f64::consts::TAU / 16.0 + std::f64::consts::FRAC_PI_4;
+                let (dx, dy) = (angle.cos(), angle.sin());
                 let at = [
-                    hole[0] + dx * (radius + width * 0.5 + 1.0),
-                    hole[1] + dy * (radius + height * 0.5 + 1.0),
+                    hole[0] + dx * (radius + width * 0.5 + reach),
+                    hole[1] + dy * (radius + height * 0.5 + reach),
                 ];
                 let b = [
                     at[0] - width * 0.5,
@@ -1810,12 +2048,23 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
                     at[0] + width * 0.5,
                     at[1] + height * 0.5,
                 ];
-                if labels.iter().all(|q| !overlap(b, *q))
+                let padded = [b[0] - 0.6, b[1] - 0.6, b[2] + 0.6, b[3] + 0.6];
+                if labels.iter().chain(&curved).all(|q| !overlap(padded, *q))
+                    && edge_segments
+                        .iter()
+                        .chain(&annotation_lines)
+                        .all(|l| !crosses(*l, padded))
+                    && fixed_obstacles(analysis, plan, view, Some(&t))
+                        .iter()
+                        .all(|q| !overlap(padded, *q))
+                    && padded[0] >= crate::layout::MARGIN
+                    && padded[1] >= crate::layout::MARGIN
+                    && padded[2] <= plan.sheet.page[0] - crate::layout::MARGIN
+                    && padded[3] <= plan.sheet.page[1] - crate::layout::MARGIN
                     && read.values().all(|other| {
-                        if other.feature.id == row.feature
-                            || other
-                                .principal
-                                .is_none_or(|(k, _)| h.principal.is_none_or(|(a, _)| a != k))
+                        if other
+                            .principal
+                            .is_none_or(|(k, _)| h.principal.is_none_or(|(a, _)| a != k))
                         {
                             return true;
                         }
@@ -1826,6 +2075,11 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
                         let dx = (b[0] - c[0]).max(c[0] - b[2]).max(0.0);
                         let dy = (b[1] - c[1]).max(c[1] - b[3]).max(0.0);
                         dx.hypot(dy) > r + RING * 0.5
+                            || (!members.iter().any(|m| m.feature == other.feature.id)
+                                && [b[0], b[2]]
+                                    .into_iter()
+                                    .flat_map(|x| [b[1], b[3]].map(|y| (x - c[0]).hypot(y - c[1])))
+                                    .all(|d| d < r - RING * 0.5))
                     })
                 {
                     tag = Some(at);
@@ -1838,41 +2092,82 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
             };
             marks.push(Balloon {
                 id: format!("{}/tag/{}", t.id, row.tag),
-                tag: row.tag.clone(),
+                tag: text,
                 view: view.id.clone(),
-                features: vec![row.feature.clone()],
+                features: members.iter().map(|r| r.feature.clone()).collect(),
                 certifying: true,
                 at,
                 radius: 0.0,
+                label_box: None,
                 leader: None,
                 state: crate::items::State::Shown,
             });
         }
         // X/Y origin, drawn at the view's datum corner, with short coordinate axes.
-        let at = frame.page(t.origin.unwrap());
+        let origin = frame.page(t.origin.unwrap());
+        let mut position = None;
+        for step in 0..160 {
+            let distance = 12.0 + (step / 8) as f64 * 2.0;
+            let angle = (step % 8) as f64 * std::f64::consts::TAU / 8.0;
+            let at = [
+                origin[0] + distance * angle.cos(),
+                origin[1] + distance * angle.sin(),
+            ];
+            let bounds = [at[0] - 2.0, at[1] - 2.0, at[0] + 12.0, at[1] + 12.0];
+            if bounds[0] >= crate::layout::MARGIN
+                && bounds[1] >= crate::layout::MARGIN
+                && bounds[2] <= plan.sheet.page[0] - crate::layout::MARGIN
+                && bounds[3] <= plan.sheet.page[1] - crate::layout::MARGIN
+                && labels
+                    .iter()
+                    .chain(fixed_obstacles(analysis, plan, view, Some(&t)).iter())
+                    .all(|b| !overlap(bounds, *b))
+                && curved.iter().all(|q| !overlap(bounds, *q))
+                && edge_segments
+                    .iter()
+                    .chain(&annotation_lines)
+                    .all(|l| !crosses(*l, bounds))
+                && labels.iter().all(|b| !crosses([origin, at], *b))
+                && !crosses(
+                    [origin, at],
+                    [at[0] + 8.5, at[1] - 1.5, at[0] + 11.5, at[1] + 1.5],
+                )
+                && !crosses(
+                    [origin, at],
+                    [at[0] - 1.5, at[1] + 8.5, at[0] + 1.5, at[1] + 11.5],
+                )
+            {
+                position = Some(at);
+                break;
+            }
+        }
+        let Some(at) = position else {
+            return false;
+        };
         marks.push(Balloon {
             id: format!("{}/origin", t.id),
             tag: "0".into(),
             view: view.id.clone(),
             features: Vec::new(),
             certifying: false,
-            at: [at[0] - 3.0, at[1] - 3.0],
+            at,
             radius: 0.0,
-            leader: Some([at, [at[0] - 1.5, at[1] - 1.5]]),
+            label_box: None,
+            leader: Some([origin, at]),
             state: crate::items::State::Shown,
         });
         for (name, tip, end, text) in [
             (
                 "x",
-                [at[0], at[1] - 7.0],
-                [at[0] + 6.0, at[1] - 7.0],
-                [at[0] + 9.0, at[1] - 7.0],
+                [at[0] + 2.0, at[1]],
+                [at[0] + 7.0, at[1]],
+                [at[0] + 10.0, at[1]],
             ),
             (
                 "y",
-                [at[0] - 7.0, at[1]],
-                [at[0] - 7.0, at[1] + 6.0],
-                [at[0] - 7.0, at[1] + 9.0],
+                [at[0], at[1] + 2.0],
+                [at[0], at[1] + 7.0],
+                [at[0], at[1] + 10.0],
             ),
         ] {
             marks.push(Balloon {
@@ -1883,6 +2178,7 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
                 certifying: false,
                 at: text,
                 radius: 0.0,
+                label_box: None,
                 leader: Some([end, tip]),
                 state: crate::items::State::Shown,
             });
@@ -1921,6 +2217,16 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
     }
     plan.omitted.extend(selection.aliases.clone());
     plan.hole_tables = schedules;
+    for mark in &mut marks {
+        let ink = crate::dims::label_ink(std::slice::from_ref(&mark.tag), crate::dims::font());
+        let width = (ink.max[0] - ink.min[0]).max(mark.tag.len() as f64 * crate::dims::TEXT * 0.6);
+        mark.label_box = Some([
+            mark.at[0] - width * 0.5,
+            mark.at[1] - crate::dims::TEXT * 0.5,
+            mark.at[0] + width * 0.5,
+            mark.at[1] + crate::dims::TEXT * 0.5,
+        ]);
+    }
     plan.balloons = marks;
     plan.problems.retain(|p| p.code != "pinned_item_not_drawn");
     crate::placement_intent::finish(plan, analysis);

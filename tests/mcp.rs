@@ -35,11 +35,19 @@ fn session(messages: &[Value]) -> Vec<Value> {
             "clientInfo": { "name": "test", "version": "0" } } }),
         json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
     ];
-    for m in handshake.iter().chain(messages) {
-        writeln!(stdin, "{m}").unwrap();
-    }
-    drop(stdin);
+    // Read replies while writing requests: an inline Analysis can exceed either pipe's buffer.
+    let requests: Vec<_> = handshake
+        .iter()
+        .chain(messages)
+        .map(Value::to_string)
+        .collect();
+    let writer = std::thread::spawn(move || {
+        for m in requests {
+            writeln!(stdin, "{m}").unwrap();
+        }
+    });
     let out = child.wait_with_output().unwrap();
+    writer.join().unwrap();
     assert!(out.status.success());
     let replies: Vec<Value> = String::from_utf8(out.stdout)
         .unwrap()

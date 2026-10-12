@@ -632,6 +632,57 @@ pub fn centre_marks(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     .collect()
 }
 
+/// A scheduled opening must identify its axial entry plane and drilling direction.
+pub fn schedule_entries(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    for size in marks
+        .iter()
+        .filter(|m| m.name.starts_with("hole_schedule_") && m.name.ends_with("/size"))
+    {
+        for claim in size
+            .claims
+            .iter()
+            .filter(|c| c.parameter == "bore.diameter")
+        {
+            let Some(h) = holes::read(analysis)
+                .into_iter()
+                .find_map(|(f, h)| (f.id == claim.feature).then_some(h.ok()).flatten())
+            else {
+                continue;
+            };
+            let Some((axis, sign)) = h.principal else {
+                continue;
+            };
+            let name = size.name.trim_end_matches("/size").to_owned() + "/entry";
+            let entry = marks.iter().find(|m| m.name == name);
+            let correct = entry.is_some_and(|m| {
+                let Some((position, direction)) = m.text.split_once('/') else {
+                    return false;
+                };
+                super::holes::states(position.trim(), h.at[axis] - analysis.envelope[0][axis])
+                    && direction.trim()
+                        == format!(
+                            "{}{}",
+                            if sign > 0 { "+" } else { "−" },
+                            ["X", "Y", "Z"][axis]
+                        )
+            });
+            if !correct {
+                let mut issue = sheet_issue(
+                    "hole_table_entry_invalid",
+                    "Hole-table entry coordinate or drilling direction does not match the opening."
+                        .into(),
+                    vec![claim.feature.clone()],
+                    "Restore the entry coordinate and drilling direction from the hole's proven opening.",
+                );
+                issue.annotation = Some(name);
+                issues.push(issue);
+            }
+        }
+    }
+    issues
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -329,6 +329,12 @@ pub(crate) fn views(
                         }
                     })
                     .chain([sheet.title_block])
+                    .chain(
+                        c.hole_tables
+                            .iter()
+                            .flat_map(|t| &t.blocks)
+                            .filter_map(|b| b.placed.as_ref().map(|p| p.cells)),
+                    )
                     .collect();
                 if region[0] < region[2]
                     && region[1] < region[3]

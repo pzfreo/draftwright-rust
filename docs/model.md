@@ -74,7 +74,11 @@ edited.
   Principal faces now also retain optional `outer_lines` (straight outer boundary edges).
   Plate planning can choose a boundary profile whose two thickness faces have overlapping
   solid edges, and anchor its witnesses there. This is model-space Analysis evidence;
-  no projected line-work is added to the Plan. Older analyses default to no straight-edge
+  no projected line-work is added to the Plan. Each profile source also retains optional
+  `boundary_segments`: model-space B-rep chords used as tag-clearance obstacles.
+  They include internal face edges and analytic cylinder/cone generators tangent
+  to principal datum directions. Optional `curved_faces` retain the remaining
+  curved surfaces' bounds and revolution axes for conservative clearance. Older analyses default to no straight-edge
   evidence and keep the axis-map fallback. Profile visibility is proved only for one solid;
   body bounds are transformed from the recognition frame before matching.
 
@@ -986,19 +990,28 @@ Each principal end-on view chooses its own presentation. Six or more holes use
 a schedule when `layout::crowded_locations` finds illegible ordinates, there are
 more than eight hole location statements, or a hole leader crosses a feature or
 another annotation. Equal spacing on an established bolt circle keeps the
-existing counted PCD/BC note in auto mode. A schedule needs a principal-boundary contour vertex at a shown extremity,
-rather than an empty bounding-box corner; the nearest proven vertex is chosen
-when the bounding corner is empty. Coordinates can be negative.
+existing counted PCD/BC note in auto mode. A schedule uses the theoretical
+intersection of the carrying solid's minimum datum planes, including tangents
+at rounded corners. The solid's measured profile bounds must prove this origin.
 
 `Plan.hole_tables` carries each view's schedule, resolved model-space origin,
-rows and placed blocks. Columns are `TAG | ø / DEPTH / THREAD | X | Y`. Each
-physical hole has a row and a nearby `A1`, `A2`, `B1` tag, grouped by its approved
-size wording; X/Y are the carrying view's two in-plane coordinates. The origin
+rows and placed blocks. Columns are `TAG | ø / DEPTH / THREAD | X | Y | ENTRY / DIR`.
+The entry is the opening's axial distance from the minimum plane; direction uses
+the part-frame axis (for example `0 / +Z`). Each physical hole has a row;
+coaxial openings share one nearby tag such as `B1/B11`, with separate entry cells.
+Tags are grouped by approved size wording; X/Y are the carrying view's two in-plane coordinates. The origin
 and positive coordinate directions are marked in that view. Size and location
 cells retain the planner's formatting and tolerances; an authored omission
 is not resurrected. Rows retain typed measurement claims, and the rendered
 coordinate cells certify only their own axis. Lint checks their printed values
-against Analysis geometry. Pins keep their callout or location ink. Semantic PMI keeps its native
+against Analysis geometry; a wrong or missing entry cell reports
+`hole_table_entry_invalid`. Five or more distinct equal-radius sites about a
+recognized bore axis can use a `pcd` statement, a located circle centre and an
+explicit `ANGLE` column (counterclockwise from local +X). Missing positions do
+not imply equal spacing; the member X/Y remain supplementary locating evidence.
+Tags and origin labels avoid boundaries, bore silhouettes, other annotation ink
+and section furniture; their resolved `label_box` is also judged by structural
+lint and the SVG quality instrument. Pins keep their callout or location ink. Semantic PMI keeps its native
 source-carrying callout beside the schedule, and auto retains authored size
 fits/tolerances. Coordinate tolerances keep their original span.
 
@@ -1007,7 +1020,9 @@ are covered entries in `omitted`, as other superseded spans are. Their measureme
 provenance is retained in the schedule's `covered` list for the completeness ledger.
 They reserve no lanes; aliases previously consolidated into them remain consolidated. The ordinary recovered principal
 and isometric geometry scale and sheet size are retained for the schedule
-layout. Parenthesized fit limits survive; only the pattern lattice suffix is
+layout. If preserving the scale at a new automatic isometric centre would clip
+the drawing, its proven full frame is retained; bare pins retain their canonical
+frame and explicit isometric placements keep their fitted frame. Parenthesized fit limits survive; only the pattern lattice suffix is
 removed when member coordinates replace its pitches. Table placement uses the existing clear corner-block inventory; a
 failed complete-table/tag transaction restores the original drawing. An
 unavailable explicitly requested table is a warning, with original dimensions
