@@ -6,6 +6,18 @@ import json
 import pathlib
 import sys
 
+# Recompute new columns from saved plans, including baselines predating H7.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from quality import interior_labels, sheet_escalations
+
+
+def placement_counts(directory, name):
+    plan = json.loads((directory / f'{name}.plan.json').read_text())
+    inside = interior_labels(plan)
+    return {'interior_labels': inside,
+            'outer_labels': sum(d.get('placed') is not None for d in plan['dimensions']) - inside,
+            'sheet_escalations': sheet_escalations(plan)}
+
 
 def check(before_dir, after_dir):
     before = json.loads((before_dir / 'baseline.json').read_text())
@@ -22,9 +34,11 @@ def check(before_dir, after_dir):
         for key in metrics:
             assert a[key] <= b[key], f'{name}: {key} {b[key]} -> {a[key]}'
         assert a['faces'] == b['faces'] and a['claimed_faces'] >= b['claimed_faces'], name
+        bc = placement_counts(before_dir, name)
+        ac = placement_counts(after_dir, name)
         for key in totals:
-            totals[key][0] += b[key]
-            totals[key][1] += a[key]
+            totals[key][0] += bc[key]
+            totals[key][1] += ac[key]
         plan = json.loads((after_dir / f'{name}.plan.json').read_text())
         for d in plan['dimensions']:
             if d.get('region') != 'interior':

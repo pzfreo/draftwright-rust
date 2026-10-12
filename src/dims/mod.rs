@@ -1169,9 +1169,9 @@ pub(crate) fn plan_with_obstacles(
                     .iter()
                     .find(|v| v.id == format!("v:{view}"))
                     .is_some_and(|v| {
-                        interior_proofs
-                            .get(&v.id)
-                            .is_some_and(|proof| proof.blank(v, p.label_box))
+                        interior_proofs.get(&v.id).is_some_and(|proof| {
+                            proof.annotation_clear(v, p, matches!(w.shape, Shape::Callout { .. }))
+                        })
                     })
             })
             .map(|_| CandidateRegion::Interior);

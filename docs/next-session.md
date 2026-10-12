@@ -4245,3 +4245,48 @@ rule is only partly addressed by containment; no rules YAML was edited.
 placement in sections/cutting-plane carrier views; global joint interior/exterior
 assignment and annotation band repacking. These are deliberate conservative limits,
 not claims of complete Python layout parity.
+
+### H7 review fix round (2026-10-12, unattended)
+
+- Whole-annotation projection proof now covers the dimension line, both witnesses,
+  arrows, leader shaft and shoulder. Labels keep 0.5 paper mm clearance; line ink
+  keeps 0.2 mm. Only a callout's first 0.6 mm at its attachment is exempt, allowing
+  the arrow to touch its target. Witnesses are already gapped from their sites.
+  This clearance choice is overturnable; uncertain intersections fail closed.
+- A rotated callout tip must touch visible projected ink within 0.05 paper mm.
+  Thus a slot/fillet's absent part of the construction circle cannot be a target.
+  Rays stop before the projected envelope exit, and elbows independently prove
+  material containment. This is conservative compared with Python's material field.
+- Structural lint again trusts Drawn.interior without requiring a second annotation
+  record. This restores Python-read sheet parity and the independent unit fixture.
+  The visible-edge warning remains independent of provenance.
+- The stdio MCP test client now drains stdout concurrently while writing requests;
+  large Analysis requests/replies previously filled both pipes. Document-passing
+  Analysis is still lossless; no server response or evidence is truncated.
+- The mounting-plate retry now succeeds after witnesses leave their own near rim;
+  its original integration assertion is retained. An additional unit test supplies
+  an explicitly off-page exterior placement and verifies all three lines and both
+  arrows. An independent sampled-ink oracle checks every interior annotation on
+  all thirty native quality parts and the captured-recognition leader test parts.
+- check_interior.py recomputes new columns from saved Plans on both sides, so real
+  pre-H7 baselines work. Its tests require improvements and reject a deliberate
+  per-part ink regression. The historical plate basis delta is a literal fixture,
+  with its geometry still compared against the original capture.
+
+Validation and visual evidence will be recorded after the required finishing run.
+- Source inspection corrected another parity error in the earlier attempt: Python
+  supplies RadialLeaderTarget only for bore rims. Machined feature/radius candidates
+  rotate their ray around a fixed physical attachment. Rust now does the same;
+  it no longer rotates a fillet/slot tip around an invented complete circle.
+- Interior linear witnesses leave their own feature's near rim with the existing
+  GAP before the whole-ink proof. Only footprints owning that measurement may
+  shorten a witness; an unrelated crossed feature cannot be hidden this way.
+- Exact arrow protection includes the renderer's triangular head width, not just
+  its centreline. A conservative projected box encloses its filled footprint;
+  only the attachment's first 0.6 mm is exempt. Uncertain diagonal boxes may
+  retain an exterior annotation; this is an overturnable conservative choice.
+- A radius producer may supply visible arc stations at 1/4, 1/2 and 3/4 of a
+  matching projected conic, kept fixed during ray rotation. Matching requires
+  both centre and radius within 0.05 paper mm. This replaces imaginary full-circle
+  targets with physical evidence without changing the eight rays/eight lanes or
+  the shared 64 accepted-candidate bound.

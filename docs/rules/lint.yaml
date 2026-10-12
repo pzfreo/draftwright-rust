@@ -1764,7 +1764,7 @@
     tests: [tests/test_issue_1204_multiscale_view_issues.py]
   status: ported
   rust_test: a_label_over_a_view_is_judged_by_its_edges
-  rust_note: "src/lint/structural.rs: the same test as view_annotation_overlap with no edge through the label: an info notice, unless it was placed inside on purpose (output::Drawn::interior, draftwright's interior region; the port places nothing there). Agrees with what draftwright's lint read on its own sheets (m10046's four); none on the port's own drawings, which place every label outside its view. Where draftwright also reports interior_label_on_narrow_material it suppresses this notice; the port cannot (that check is not ported), and no captured sheet has one."
+  rust_note: "src/lint/structural.rs: the same test as view_annotation_overlap with no edge through the label: an info notice, unless it was placed inside on purpose (output::Drawn::interior). H7 review restores Python-read parity: no second annotations record is required. Planning proves complete projected ink clearance; structural lint remains independent. Where draftwright also reports interior_label_on_narrow_material it suppresses this notice; the port cannot (that check is not ported), and no captured sheet has one."
   port_note: "Keep."
 
 - id: LINT-code-interior_label_on_narrow_material
@@ -1775,9 +1775,9 @@
     lint_code: "interior_label_on_narrow_material"
     module: "linting/structural.py"
     tests: [tests/test_interior_label_placement.py]
-  status: retired
-  why: "Rules assessment 2026-10-11: the port places no interior labels."
-  rust_note: "Not ported (src/lint/structural.rs leaves it out): it reads each view's filled projected material (draftwright's material field, label_on_narrow_material), which the drawing does not record; the port also places no label inside a view, so it could not fire on its own drawings."
+  status: pending
+  rust_test: empty_space_without_projected_material_is_refused
+  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction."
   port_note: "Keep."
 
 - id: LINT-code-leader_crosses_silhouette

@@ -198,3 +198,59 @@ fn interior_provenance_does_not_hide_a_rendered_ink_overlap() {
         );
     }
 }
+
+#[path = "common/corpus.rs"]
+mod corpus;
+#[path = "common/interior_ink.rs"]
+mod interior_ink;
+
+#[test]
+fn all_quality_parts_interior_lines_arrows_and_tips_clear_projected_ink() {
+    let Some(root) = corpus::dir() else {
+        return;
+    };
+    let mut count = 0;
+    for file in include_str!("../tools/quality_parts.txt").lines() {
+        let a = model::analyse_native(&root.join(file)).unwrap().1;
+        let p = model::plan(&a, &Spec::default()).unwrap();
+        for d in p
+            .dimensions
+            .iter()
+            .filter(|d| d.region == Some(draftwright::dims::CandidateRegion::Interior))
+        {
+            let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+            interior_ink::assert_clear(&a, v, d);
+            count += 1;
+        }
+    }
+    assert!(count > 0);
+}
+
+#[test]
+fn a_hidden_edge_in_an_arrow_wing_refuses_the_old_interior_placement() {
+    let mut a = plate();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let d = interiors(&p).into_iter().find(|d| d.kind == "callout").unwrap();
+    let placed = d.placed.as_ref().unwrap();
+    let [tip, tail] = placed.arrows[0];
+    let delta = [tail[0] - tip[0], tail[1] - tip[1]];
+    let length = delta[0].hypot(delta[1]);
+    let u = [delta[0] / length, delta[1] / length];
+    let width = draftwright::dims::ARROW / 6.0;
+    // Inside the filled head, well away from its centreline and the label.
+    let at = [tip[0] + 0.95 * delta[0] - 0.9 * width * u[1],
+              tip[1] + 0.95 * delta[1] + 0.9 * width * u[0]];
+    let b = placed.label_box;
+    assert!(at[0] < b[0]-0.5 || at[0] > b[2]+0.5 || at[1] < b[1]-0.5 || at[1] > b[3]+0.5);
+    let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+    let view = draftwright::haecceity::hlr::View::new(v.direction, v.up).unwrap();
+    let centre = view.map(std::array::from_fn(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
+    let point = |sign: f64| std::array::from_fn(|k|
+        (at[k] + sign * 0.025 * u[k] - v.at[k]) / v.scale + centre[k]);
+    a.projected_views.get_mut(&v.id).unwrap().hidden.push(
+        draftwright::output::Curve::Line(point(-1.0), point(1.0)));
+    let after = model::plan(&a, &Spec::default()).unwrap();
+    let got = after.dimensions.iter().find(|q| q.id == d.id).unwrap();
+    assert!(got.region != Some(draftwright::dims::CandidateRegion::Interior) || got.placed != d.placed,
+        "{} kept an interior arrowhead over a hidden edge", d.id);
+}

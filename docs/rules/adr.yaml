@@ -459,8 +459,9 @@
     adr: "ADR 2 invariant 17"
     issues: []
     tests: ["test_feature_leader_candidate_regions.py", "test_interior_label_placement.py"]
-  status: retired
-  why: "Rules assessment 2026-10-11: interior labels were a drop fallback; the port places no label inside a view and drops nothing."
+  status: pending
+  rust_test: failed_exterior_corridors_retry_the_whole_linear_dimension_inside
+  rust_note: "H7 revives this rule by maintainer direction. Bounded interior callouts and whole-linear retries prove all projected and settled ink clear. Analysis supplies projection evidence; Spec carries no coordinates. Global joint interior/exterior assignment is not ported."
   port_note: "Keep: planner rule for interior placement; Plan entry records interior region as basis."
 
 - id: ADR2-18

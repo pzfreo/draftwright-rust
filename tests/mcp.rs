@@ -29,6 +29,12 @@ fn session(messages: &[Value]) -> Vec<Value> {
         .spawn()
         .unwrap();
     let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = child.stdout.take().unwrap();
+    let reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut stdout, &mut bytes).unwrap();
+        bytes
+    });
     let handshake = [
         json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
             "protocolVersion": "2025-06-18", "capabilities": {},
@@ -39,9 +45,8 @@ fn session(messages: &[Value]) -> Vec<Value> {
         writeln!(stdin, "{m}").unwrap();
     }
     drop(stdin);
-    let out = child.wait_with_output().unwrap();
-    assert!(out.status.success());
-    let replies: Vec<Value> = String::from_utf8(out.stdout)
+    assert!(child.wait().unwrap().success());
+    let replies: Vec<Value> = String::from_utf8(reader.join().unwrap())
         .unwrap()
         .lines()
         .map(|l| serde_json::from_str(l).unwrap())

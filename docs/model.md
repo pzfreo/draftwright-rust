@@ -988,16 +988,21 @@ the connection state. Editor integration and MCP adapters belong to S5 and S7.
 
 Automatic callouts contribute Python's bounded eight rays and eight text-lane
 stations, sharing at most 64 alternatives across a grouped feature's anchors.
-Circular targets stay radial. A complete interior label must fit over proven
+Bore targets stay radial; other features retain their physical attachment while
+the ray rotates. Every tip must touch visible projected ink. A complete interior label must fit over proven
 projected material, with half a paper millimetre of clearance from every visible
 and hidden edge and all settled annotation text/ink. The candidate's entire
 leader/dimension geometry stays off other views and page furniture. Pins and
 explicit placement retain precedence. Linear dimensions retry up to eight inward
 lanes after their settled exterior placement fails; the whole dimension moves,
-including witnesses, arrows and label. Labels inside their own view are accepted
+including witnesses, arrows and label. Every line and arrow independently clears
+visible and hidden projected ink; only the first 0.6 mm of a callout at its
+attachment may touch the target. Witnesses leave their own opening at its near
+rim with the normal gap. Labels inside their own view are accepted
 by placement checks only after re-proving blank face; rendered structural lint
-still checks projected ink and suppresses the blank-region notice only for the
-owning view's deliberately interior annotation.
+still checks projected ink and suppresses the blank-region notice for a
+deliberately interior annotation, including Python-read drawings without a
+second annotation ownership record.
 
 Interior placement currently requires a complete parallel planar face boundary.
 Curved-only material and section hatch have no proof, and a view carrying a

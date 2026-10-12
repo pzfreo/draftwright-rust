@@ -78,8 +78,9 @@ Missing, incomplete or incompatible evidence cannot establish blank face.
 This deliberately replaces the earlier exterior-only interpretation of "no
 line-work in the plan": projected ink is regenerable Analysis evidence, not authored
 Spec geometry or a second annotation renderer. It lets the planner prove a complete
-label clear over material inside its own view, retaining Python's automatic interior
-callouts and whole-dimension corridor fallback. Resolved dimensions carry typed
+label clear over material inside its own view, and the complete annotation's lines
+and filled arrowheads clear of projected visible and hidden ink, retaining Python's
+automatic interior callouts and whole-dimension corridor fallback. Resolved dimensions carry typed
 `region: interior` provenance and a basis sentence; the Plan does not copy the HLR
 inventory. All nine invariants above remain in force, including deterministic JSON,
 relative author intent, stable IDs, and renderers drawing resolved annotations only.

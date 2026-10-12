@@ -579,12 +579,7 @@ fn view_annotations(drawing: &Drawing) -> Vec<LintIssue> {
                 i.view = Some(v.name.clone());
                 i.annotation = Some(d.name.clone());
                 issues.push(i);
-            } else if !(d.interior
-                && drawing
-                    .annotations
-                    .iter()
-                    .any(|a| a.name == d.name && a.view.as_deref() == Some(v.name.as_str())))
-            {
+            } else if !d.interior {
                 let mut i = issue(
                     format!("l:view_annotation_inside_extents:{}:{}", v.name, d.name),
                     "view_annotation_inside_extents",
