@@ -91,6 +91,13 @@
             "authored"
           ]
         },
+        "hole_table": {
+          "enum": [
+            "auto",
+            "always",
+            "never"
+          ]
+        },
         "notes": {
           "type": "array",
           "items": {

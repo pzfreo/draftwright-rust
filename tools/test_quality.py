@@ -16,6 +16,34 @@ quality = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(quality)
 
 
+class ScheduleInk(unittest.TestCase):
+    def test_schedule_furniture_is_counted_against_edges_and_labels(self):
+        plan = {'dimensions': [], 'balloons': [
+            {'id': 'hole_schedule_plan/tag/A1', 'label_box': [2, 2, 5, 5]}]}
+        self.assertEqual(quality.schedule_ink(plan, [([0, 3], [8, 3])]), 1)
+        self.assertEqual(quality.schedule_ink(plan, [([0, 6], [8, 6])]), 0)
+        plan['dimensions'] = [{'id': 'dimension', 'placed': {'label_box': [4, 4, 7, 7]}}]
+        self.assertEqual(quality.schedule_ink(plan, []), 1)
+        plan['dimensions'] = [{'id': 'dimension', 'placed': {'label_box': [9, 9, 11, 11],
+                              'lines': [[[0, 3], [8, 3]]]}}]
+        self.assertEqual(quality.schedule_ink(plan, []), 1)
+        plan['balloons'][0]['id'] = 'hole_schedule_plan/origin'
+        self.assertEqual(quality.schedule_ink(plan, []), 1)
+
+        plan['dimensions'] = []
+        plan['gdt'] = [{'id': 'frame', 'placed': {'label_box': [3, 3, 6, 6]}}]
+        self.assertEqual(quality.schedule_ink(plan, []), 1)
+
+    def test_serialized_table_and_note_boxes_are_obstacles(self):
+        plan = {'dimensions': [], 'balloons': [
+            {'id': 'hole_schedule_plan/origin', 'label_box': [2, 2, 5, 5]}],
+            'tables': [{'id': 'table', 'placed': {'box': [3, 3, 7, 7]}}]}
+        self.assertEqual(quality.schedule_ink(plan, []), 1)
+        plan['tables'] = []
+        plan['notes_block'] = {'box': [3, 3, 7, 7]}
+        self.assertEqual(quality.schedule_ink(plan, []), 1)
+
+
 class RepeatedSpans(unittest.TestCase):
     def dimension(self, id_, ends=(10, 30), lane=0, rotation=0, value=20, feature=None):
         tips = [[x, lane] if rotation == 0 else [lane, x] for x in ends]

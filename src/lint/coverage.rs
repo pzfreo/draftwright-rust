@@ -549,13 +549,15 @@ pub fn sites(analysis: &Analysis, marks: &[Mark]) -> Vec<Site> {
         .filter(|g| g.pattern)
         .flat_map(|g| g.members)
         .collect();
-    let claimed = |id: &str| {
+    let claimed = |id: &str, at: [f64; 3]| {
         [0, 1, 2].map(|k| {
             let parameter = format!("location.length.{}", AXES[k]);
             marks.iter().any(|m| {
                 m.claims
                     .iter()
                     .any(|c| c.feature == id && c.parameter == parameter)
+                    && (!m.name.starts_with("hole_schedule_")
+                        || super::holes::states(&m.text, at[k] - analysis.envelope[0][k]))
             })
         })
     };
@@ -573,7 +575,7 @@ pub fn sites(analysis: &Analysis, marks: &[Mark]) -> Vec<Site> {
                 at,
                 patterned: false,
                 projections: Vec::new(),
-                claimed: claimed(&f.id),
+                claimed: claimed(&f.id, at),
             })
         });
     holes::read(analysis)
@@ -590,7 +592,7 @@ pub fn sites(analysis: &Analysis, marks: &[Mark]) -> Vec<Site> {
                 at: h.at,
                 patterned: patterned.contains(&f.id),
                 projections: Vec::new(),
-                claimed: claimed(&f.id),
+                claimed: claimed(&f.id, h.at),
             }
         })
         .chain(bores)
@@ -628,6 +630,74 @@ pub fn centre_marks(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     .into_iter()
     .filter(|i| i.code == "feature_no_centermark")
     .collect()
+}
+
+/// A scheduled opening must identify its axial entry plane and drilling direction.
+pub fn schedule_entries(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    for size in marks
+        .iter()
+        .filter(|m| m.name.starts_with("hole_schedule_") && m.name.ends_with("/size"))
+    {
+        for claim in size
+            .claims
+            .iter()
+            .filter(|c| c.parameter == "bore.diameter")
+        {
+            let Some(h) = holes::read(analysis)
+                .into_iter()
+                .find_map(|(f, h)| (f.id == claim.feature).then_some(h.ok()).flatten())
+            else {
+                continue;
+            };
+            let name = size.name.trim_end_matches("/size").to_owned() + "/entry";
+            let entry = marks.iter().find(|m| m.name == name);
+            // The entry cell is in its view's frame; the claim carries that view's out-of-page
+            // direction (`entry.view.x,y,z`).
+            let correct = entry.is_some_and(|m| {
+                let Some(out) = m.claims.iter().find_map(|c| {
+                    let v: Vec<f64> = c
+                        .parameter
+                        .strip_prefix("entry.view.")?
+                        .split(',')
+                        .map(|x| x.parse().ok())
+                        .collect::<Option<_>>()?;
+                    <[f64; 3]>::try_from(v).ok()
+                }) else {
+                    return false;
+                };
+                // Recomputed from the geometry, independently of the planner: the distance
+                // from the rearmost face along view Z, and the drilling sense along it.
+                let dot = |p: [f64; 3]| p.iter().zip(out).map(|(a, b)| a * b).sum::<f64>();
+                let [lo, hi] = analysis.envelope;
+                let back = (0..8)
+                    .map(|i| {
+                        dot(std::array::from_fn(|k| {
+                            if (i >> k) & 1 == 0 { lo[k] } else { hi[k] }
+                        }))
+                    })
+                    .fold(f64::INFINITY, f64::min);
+                let want = dot(h.at) - back;
+                let want_dir = if dot(h.direction) > 0.0 { "+Z" } else { "−Z" };
+                let Some((position, direction)) = m.text.split_once('/') else {
+                    return false;
+                };
+                super::holes::states(position.trim(), want) && direction.trim() == want_dir
+            });
+            if !correct {
+                let mut issue = sheet_issue(
+                    "hole_table_entry_invalid",
+                    "Hole-table entry coordinate or drilling direction does not match the opening."
+                        .into(),
+                    vec![claim.feature.clone()],
+                    "Restore the entry coordinate and drilling direction from the hole's proven opening.",
+                );
+                issue.annotation = Some(name);
+                issues.push(issue);
+            }
+        }
+    }
+    issues
 }
 
 #[cfg(test)]

@@ -74,7 +74,11 @@ edited.
   Principal faces now also retain optional `outer_lines` (straight outer boundary edges).
   Plate planning can choose a boundary profile whose two thickness faces have overlapping
   solid edges, and anchor its witnesses there. This is model-space Analysis evidence;
-  no projected line-work is added to the Plan. Older analyses default to no straight-edge
+  no projected line-work is added to the Plan. Each profile source also retains optional
+  `boundary_segments`: model-space B-rep chords used as tag-clearance obstacles.
+  They include internal face edges and analytic cylinder/cone generators tangent
+  to principal datum directions. Optional `curved_faces` retain the remaining
+  curved surfaces' bounds and revolution axes for conservative clearance. Older analyses default to no straight-edge
   evidence and keep the axis-map fallback. Profile visibility is proved only for one solid;
   body bounds are transformed from the recognition frame before matching.
 
@@ -159,7 +163,7 @@ The design also includes `sheet/projection`, `views/sections` and feature `ancho
 `"anchor": {"…": "fingerprint"}`, `"note": "REAM"`). These fields are not yet read.
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`), `views/<name>` (`omit`, `place`),
-  `dimension_source`, `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
+  `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>/fit`, `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
 - **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
@@ -973,3 +977,62 @@ successful `open` replaces the connection's part/history; a failed one preserves
 correlation ID. The original six operations and protocol/reply shapes are unchanged, and may
 be interleaved with session requests. `api::call` remains stateless; `api::Service::call` owns
 the connection state. Editor integration and MCP adapters belong to S5 and S7.
+
+
+### Plan-time hole schedules (H1)
+
+`hole_table` defaults to `auto`; `always` requests schedules and `never` disables
+both plan-time schedules and the sixteen-hole rescue. The same `set`/`remove` Spec
+operations and MCP `item_options` expose this field. `model::plan` remains the
+raw layout diagnostic; `plan_escalated` and every recovered API plan honor it.
+
+Each principal end-on view chooses its own presentation. Six or more holes use
+a schedule when `layout::crowded_locations` finds illegible ordinates, there are
+more than eight hole location statements, or a hole leader crosses a feature or
+another annotation. Equal spacing on an established bolt circle keeps the
+existing counted PCD/BC note in auto mode. A schedule uses the theoretical
+intersection of the carrying solid's minimum datum planes, including tangents
+at rounded corners. The solid's measured profile bounds must prove this origin.
+
+`Plan.hole_tables` carries each view's schedule, resolved model-space origin,
+rows and placed blocks. Columns are `TAG | ø / DEPTH / THREAD | X | Y | Z OUT / DIR`.
+All three coordinates are in the carrying view's frame: X right, Y up, Z out of
+the page toward the reader (the header says `Z OUT`). The entry is the
+opening's distance from the part's rearmost face along view Z; the direction is
+`−Z` (drilled into the page) or `+Z` (from the far side), for example `0 / +Z`.
+The entry claim carries the view's out-of-page direction (`entry.view.x,y,z`),
+which lint uses to check the cell. Each physical hole has a row;
+coaxial openings share one tag such as `B1/B11`, with separate entry cells.
+A tag sits beside its hole only where it is plainly nearer that hole's rim and
+centre than any other scheduled hole's; otherwise it takes a short leader from
+the hole's rim (shortest, fewest crossings, fanning outward from neighbours,
+never through another scheduled rim, label or tag leader).
+Tags are grouped by approved size wording; X/Y are the carrying view's two in-plane coordinates. The origin
+and positive coordinate directions are marked in that view. Size and location
+cells retain the planner's formatting and tolerances; an authored omission
+is not resurrected. Rows retain typed measurement claims, and the rendered
+coordinate cells certify only their own axis. Lint checks their printed values
+against Analysis geometry; a wrong or missing entry cell reports
+`hole_table_entry_invalid`. Five or more distinct equal-radius sites about a
+recognized bore axis can use a `pcd` statement, a located circle centre and an
+explicit `ANGLE` column (counterclockwise from local +X). Missing positions do
+not imply equal spacing; the member X/Y remain supplementary locating evidence.
+Tags and origin labels avoid boundaries, bore silhouettes, other annotation ink
+and section furniture; their resolved `label_box` is also judged by structural
+lint and the SVG quality instrument. Pins keep their callout or location ink. Semantic PMI keeps its native
+source-carrying callout beside the schedule, and auto retains authored size
+fits/tolerances. Coordinate tolerances keep their original span.
+
+Table-owned callouts remain as stable covered dimensions; retired linear spans
+are covered entries in `omitted`, as other superseded spans are. Their measurement
+provenance is retained in the schedule's `covered` list for the completeness ledger.
+They reserve no lanes; aliases previously consolidated into them remain consolidated. The ordinary recovered principal
+and isometric geometry scale and sheet size are retained for the schedule
+layout. If preserving the scale at a new automatic isometric centre would clip
+the drawing, its proven full frame is retained; bare pins retain their canonical
+frame and explicit isometric placements keep their fitted frame. Parenthesized fit limits survive; only the pattern lattice suffix is
+removed when member coordinates replace its pitches. Table placement uses the existing clear corner-block inventory; a
+failed complete-table/tag transaction restores the original drawing. An
+unavailable explicitly requested table is a warning, with original dimensions
+kept. The old sixteen-hole rescue remains a separate backstop. The deliberate
+Python differences are recorded in `tests/fixtures/known_hole_tables.json`.

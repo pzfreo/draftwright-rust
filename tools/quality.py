@@ -89,6 +89,44 @@ def repeated_spans(plan):
                    for g in groups if len(g['members']) > 1), key=lambda g: g['items'])
 
 
+def schedule_ink(plan, segments):
+    """Count schedule labels hit by visible/hidden edges, labels or annotation strokes.
+
+    Label boxes are resolved by the planner with the drawing font. Each marker counts once,
+    including origin glyphs; coaxial rows share one marker. Furniture receives no exemption.
+    """
+    def crosses(a, b, box):
+        lo, hi = 0., 1.
+        for k in (0, 1):
+            d = b[k] - a[k]
+            if abs(d) < 1e-12:
+                if a[k] < box[k] or a[k] > box[k + 2]: return False
+            else:
+                x, y = (box[k] - a[k]) / d, (box[k + 2] - a[k]) / d
+                lo, hi = max(lo, min(x, y)), min(hi, max(x, y))
+        return lo < hi
+    markers = [b for b in plan.get('balloons', [])
+               if b['id'].startswith('hole_schedule_') and b.get('label_box')]
+    labels = [(d['id'], d['placed']['label_box']) for d in plan.get('dimensions', []) if d.get('placed')]
+    labels += [(b['id'], b['label_box']) for b in markers]
+    labels += [(g['id'], g['placed']['label_box']) for g in plan.get('gdt', []) if g.get('placed')]
+    tables = plan.get('tables', []) + [b for t in plan.get('hole_tables', []) for b in t['blocks']]
+    labels += [(t['id'], t['placed']['box']) for t in tables if t.get('placed')]
+    if plan.get('notes_block'):
+        labels.append(('notes', plan['notes_block']['box']))
+    if plan.get('sheet', {}).get('title_block'):
+        labels.append(('title_block', plan['sheet']['title_block']))
+    strokes = [(d['id'], l) for d in plan.get('dimensions', []) if d.get('placed')
+               for l in d['placed'].get('lines', []) + d['placed'].get('arrows', [])]
+    strokes += [(b['id'], b['leader']) for b in markers if b.get('leader')]
+    strokes += [(g['id'], line) for g in plan.get('gdt', []) if g.get('placed')
+                for line in g['placed'].get('strokes', []) + g['placed'].get('lines', []) + g['placed'].get('arrows', [])]
+    return sum(any(overlap(b['label_box'], box) for id_, box in labels if id_ != b['id'])
+               or any(crosses(a, c, b['label_box']) for a, c in segments)
+               or any(crosses(*line, b['label_box']) for id_, line in strokes if id_ != b['id'])
+               for b in markers)
+
+
 def svg_linework(path, plan):
     """Count SVG edge elements (line/path/ellipse), in page mm, per placed view.
 
@@ -169,6 +207,8 @@ def svg_linework(path, plan):
     tolerance = .15 + next((float(g.attrib.get('stroke-width', 0))/2
                             for g in root.iter() if g.attrib.get('id') == 'part'), 0)
     counts = {'hidden_on_visible': 0, 'section_hidden': 0}
+    if any(b['id'].startswith('hole_schedule_') for b in plan.get('balloons', [])):
+        counts['schedule_ink'] = schedule_ink(plan, [s for curves in layers.values() for curve in curves for s in zip(curve, curve[1:])])
     def view_of(p):
         return next((v for v in plan['views'] if v.get('area') and
                      v['area'][0] <= p[0] <= v['area'][2] and
@@ -283,6 +323,7 @@ def one(f, dw, out, spec=None, timeout=600):
     tb = plan["sheet"].get("title_block")
     view_over = sum(overlap(views[i], views[j]) for i in range(len(views)) for j in range(i + 1, len(views)))
     view_tb = sum(overlap(v, tb) for v in views) if tb else 0
+    linework = svg_linework(f"{out}/{name}.svg", plan)
     return name, {
         "off_sheet": codes.get("annotation_off_sheet", 0) + codes.get("pinned_view_off_sheet", 0),
         "off_sheet_items": sorted({subject for problem in rend.get("problems", [])
@@ -292,12 +333,13 @@ def one(f, dw, out, spec=None, timeout=600):
         "repeated_span": sum(len(g['items']) - 1 for g in repeated),
         "repeated_span_groups": repeated,
         "views_overlap": view_over, "view_on_title_block": view_tb,
-        "ink": sum(codes[c] for c in INK), "ink_by_code": {c: codes[c] for c in INK if codes[c]},
+        "ink": sum(codes[c] for c in INK) + linework.get("schedule_ink", 0), "ink_by_code": {**{c: codes[c] for c in INK if codes[c]},
+                         **({"schedule_ink": linework["schedule_ink"]} if linework.get("schedule_ink") else {})},
         "line_through_feature": line_through_features(plan),
         "dimensions": len(plan["dimensions"]),
         **{key: plan["completeness"][key]
            for key in ("claimed_faces", "faces", "unplanned_features")},
-        **svg_linework(f"{out}/{name}.svg", plan),
+        **linework,
     }
 
 

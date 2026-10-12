@@ -4265,3 +4265,220 @@ block is unchanged (diffed). Judgement calls, each overturnable:
 - APPROVED BY narrows to 29 % (34.8 mm on A4): measured values up to ~23 characters fit; longer
   ones get the existing `title_field_overflow`. DATE could not give the width (`2026-10-12` is
   15.1 mm, 12 % is 14.4 mm).
+
+
+## Stage H1: plan-time hole presentation (unattended, 2026-10-12)
+
+Overturnable judgement calls:
+
+- Auto schedules require at least six holes in one end-on view, plus crowded
+  ordinates, more than eight location statements, or a leader/feature crossing.
+  These are legibility thresholds, with no part names in planner code. Existing
+  established bolt circles retain their counted EQ SP ON øD BC note; equal
+  spacing states the 360°/count increment. A separate ordinate glyph system is
+  not introduced because a complete coordinate schedule handles these dense
+  locations.
+- A datum must be a projected principal-boundary vertex at a silhouette
+  extremity. If the envelope corner is empty, choose the nearest such contour
+  vertex deterministically, rather than declaring an origin in empty space.
+  Coordinates may therefore be negative. FTC-06's front envelope corner lies
+  outside its material; its table uses a real contour vertex instead. Rendered
+  coordinate annotations carry the resolved origin. Lint verifies the printed
+  cell in that frame before translating evidence into its existing envelope
+  frame. Remaining boss/step ladders are outside the hole-location scope.
+- `always` requests the complete schedule presentation and replaces unpinned
+  callouts; it is additive for pins. This differs deliberately from Python's
+  additive public hole-table verb (known_hole_tables.json has the verdict).
+  Compound sizes, threads, fits and tolerances survive in the size cell.
+- Keep the ordinary recovered geometry scale and page when changing presentation. Removing
+  table-owned lanes otherwise resized the isometric and worsened the fixed
+  hidden-on-visible metric. No thresholds or quality instruments are relaxed.
+- Compact nearby tags use no ring and no long leader. Each view marks its own
+  coordinate origin and directions. Schedules are transactional with all tags;
+  failure restores the original complete dimensions. Explicit requests that
+  cannot place or establish a schedule warn (`hole_table_unavailable`).
+- The raw `model::plan` stays a diagnostic for historical geometry/reference
+  tests; `plan_escalated`/`plan_recovered` and all API consumers apply schedules.
+  Authored omissions remain omissions. Table aliases must be excluded alongside
+  their survivor or shared pitches reappear as duplicates. Retired linear spans
+  live in `omitted` as covered entries; the table retains their typed measurements
+  in `covered` for completeness, while lint proves the physical member cells.
+
+Rules addressed without editing the YAML catalogues: ARCH0009-2, ISSUE-1144-b,
+ISSUE-1543-a (physical rows and typed measurements; not a general authorable
+schedule DSL), LINT-hole_coverage-location/grouping_count/pattern_location/
+pattern_spacing and per-cell schedule evidence. Full final checks and before/
+after metrics will be recorded in the H1 status section. No commit or push.
+
+Additional H1 findings from the mandatory suite and sheet review:
+
+- Semantic PMI sizes/threads keep their source-carrying native callouts beside
+  the schedule, in both modes. Auto also retains authored size fits/tolerances;
+  coordinate tolerances stay on their original span. The unchanged editor
+  semantic-thread and H7/H11 tests detected the first implementation's loss
+  of those placed owners; the planner was fixed rather than weakening them.
+- `not_done`: no separate ordinate glyph/rail implementation, no general
+  authorable measurement-ID schedule DSL, no new geometric bolt-circle
+  recognizer, and no detail/later-sheet relocation. Existing recognized PCD
+  notes are preferred in auto; native CTC-05's unrecognized ten-hole circle
+  currently gets the complete coordinate table. This remains a drafting-form
+  improvement opportunity. Dense non-hole ladders on CTC-04/FTC-09/cgb245 and
+  FTC-10's small connector region need the other streams' detail/placement work.
+  CTC-05 is not an equally spaced ten-hole circle: its table evidence gives
+  radius 222.25 mm and approximately 30°, 60°, 90°, 120°, 150°, 210°, 240°, 270°,
+  300°, 330° about the central bore (0° and 180° sites absent). A future PCD
+  recognizer must represent those missing sites and angular phase; a `10× EQ SP`
+  note would be false. Evidence: the plan table's physical coordinate measurements.
+- Visual review: all eleven changed sheets were rasterized at 2400 pixels and
+  inspected. CTC-02's 46 plan and 12 side hole-location statements disappear;
+  CTC-04's hole tower disappears (the shorter remaining ladder locates slots);
+  FTC-06 has six-hole schedules on both front and plan. Tables remain clear
+  of views and tags remain local to holes. The supplied before SVGs were also
+  rasterized with white backgrounds to compare the three acceptance parts.
+
+- A further mandatory GD&T regression (CTC-02 AP242 e2) showed that deleting
+  ladders can leave a semantic frame beyond its reserved band. Schedule commit
+  now requires the frames/datums to keep their room; otherwise the original
+  complete plan is retained. No GD&T severity or test was relaxed.
+- Tag clearance uses the outer counterbore/spotface/countersink diameter, not
+  just the bore. The dense acceptance test checks each tag's box against its
+  outer seat in page coordinates. This protects a drafting property that the
+  scalar collision totals do not measure.
+
+H1 integration decisions from the full-suite audit (assertions retained):
+
+- Old ladder/leader fixture tests select `hole_table: never` explicitly; their
+  nonvacuous crossing, held-lane and exhausted-recovery assertions still run.
+  Default-form item consistency also runs, alongside the historical ladder form.
+  Measurement conservation now includes table rows and their covered scalar
+  provenance; ownership checks accept a typed table owner and require a shown
+  tag for every row. No existing assertion or acceptance threshold was removed.
+- The repeated-label ledger removes eight resolved groups, and removes the
+  retired hole coordinate from CTC-04's surviving pair of slot widths. Python
+  evidence and the surviving identical-feature verdict remain. The resolved
+  original entries are saved under target/h1-evidence/resolved-repeated-labels.json.
+- A bare pin on a table-covered scalar does not restore the ladder or move free
+  labels. Its Spec is retained and it gets `pinned_item_not_drawn`; callout pins
+  remain additive. This is covered by a new regression and the unchanged
+  bare-pins-do-not-restack test. Auto does not add schedules to an authored-only
+  dimension set; `always` is an explicit request for the complete table form.
+- Table recovery is inside `recover`, so public entry points use the same path.
+  It starts from the caller's actual first Spec, preserves ordinary recovery
+  geometry and successful `layout_replanned` evidence, and retires an exhausted
+  hole-ladder-loss message once the table resolves that loss.
+- Empty table collections are omitted in serialization. This keeps old Specs
+  and Plans byte-compatible when the new form is unused (the unchanged version-1
+  migration oracle detected the unnecessary empty-array field).
+- The mandatory seed-1/three-pin grid exposed an FTC-08 regression: settled
+  non-hole pins repacked the isometric into the schedule's clear space, restoring
+  the old crowded callouts. In schedule builds, an automatic pin whose actual
+  placement equals its canonical placement adds no new view-packing obstacle.
+  Changed ink and explicit placement still reserve their obstacle. Recovery's
+  existing explicit-scale/pin guard also precedes schedule recovery. A regression
+  requires identical table statements/placement, view frames and pinned labels;
+  the pre-table conflict count in the basis can legitimately differ.
+- Visual inspection caught table size cells drawing missing-glyph boxes for
+  counterbore and depth symbols. Scheduled size cells now reuse the established
+  callout symbol strokes, and column widths include their actual ink. Original
+  searchable compound text is preserved. A drawing-level regression requires
+  the symbol strokes to be inside the size cell; it failed before the correction.
+
+## Stage H1 fix round (2026-10-12; supersedes the H1 datum/PCD choices above)
+
+- The reviewed cgb245 seed-3/eight-pin case was real: pinned isometric fitting
+  ignored the table, then schedule planning restored its larger automatic scale.
+  The fitter now reserves canonical table rectangles, and an explicit isometric
+  pin keeps its fitted scale. Bare dimension pins retain the default schedule ink.
+- Use the theoretical intersection of the minimum datum planes, including a
+  tangent plane at a rounded corner. Require the carrying solid's measured profile
+  bounds. This overturns the nearest-vertex/negative-coordinate judgement above.
+- Keep distinct machining operations as distinct rows. `ENTRY / DIR` states the
+  opening's axial coordinate from the minimum plane and part-frame drilling axis;
+  coaxial rows share one printed tag (`B1/B11`). Lint verifies the entry cell as
+  well as each coordinate cell; the opening cannot borrow another row's face.
+- Recognized bore axes corroborate a circle of at least five distinct equal-radius
+  holes of one size and entry plane (radius agreement 0.0001 mm). Print the located
+  PCD and each actual angle, counterclockwise from local +X. The supplementary XY
+  coordinates remain available for inspection. CTC-05 has ten sites on ø444.5 at
+  30-degree increments with 0°/180° absent; no equal-spacing assertion is made.
+  This replaces the earlier `not_done` for its PCD form. A separate ordinate rail,
+  general authorable measurement schedule, and later-sheet/details remain outside H1.
+- Tag clearance uses model-space B-rep chords and analytic principal cylinder/cone
+  tangent generators. Remaining curved side faces reserve their measured bounds;
+  this is a conservative, overturnable obstacle choice, rather than storing HLR
+  or paper linework in the Plan. Source evidence is optional for older analyses.
+  Tags check label/stroke ink, seats, other view outlines, tables, GD&T and section
+  furniture. Origins place all three glyphs together and keep their own leader clear.
+  Search is deterministic and bounded: 512 nearby tag candidates and 160 origin
+  candidates. These budgets/clearances are overturnable; no part-name exceptions.
+- Schedule glyphs are ordinary labelled annotations in structural lint. `quality.py`
+  adds `schedule_ink` to its existing ink bar, checking every schedule label against
+  actual visible/hidden SVG edges, other labels and annotation strokes. It no longer
+  exempts this new furniture. Existing quality columns and pin thresholds remain.
+- Corpus tests use `tests/common/corpus.rs` for default discovery/optional skipping.
+  Undecorated numerical coordinate cells drop redundant `.0`; authored precision
+  and tolerances retain their original wording. No commit or push was made.
+
+Additional fix-round evidence/choices:
+
+- Raster review caught an isometric clipped at the right edge on cgb245 after
+  adding the entry column. Holding the old scale at a newly packed centre was
+  wrong. Automatic presentation retains the proven full frame if the resulting
+  physical isometric bounds leave the page; bare pins use their canonical frame.
+  Explicit isometric placements keep the fitter's resolved frame. The regression
+  now checks physical bounds against the page, alongside the original pin/table
+  assertions. This restores cgb245 ink 1 and avoids distorting the SVG metric.
+- Native table numbers consistently strip redundant `.0`, including copied
+  depth terms and computed entry/angle cells. Approved authored/PMI size wording
+  stays exact. CTC-02's native depth `86.0` becomes `86`; CTC-05 prints `120°`.
+- Additional model-space evidence enlarged inline Analysis requests enough to
+  expose an existing pipe deadlock in the MCP and JSON-lines service test helpers:
+  both wrote all requests before draining replies. Their writers now run in a
+  thread while `wait_with_output` drains output; every original assertion remains.
+  The interrupted first full run is retained in
+  `target/h1-fix-checks/tests-first-interrupted.log`. Final results are recorded
+  separately; an interrupted run is not claimed as a full pass.
+
+## Stage H1 fix round 2 (2026-10-12, unattended; supersedes the tag and entry choices above)
+
+Review found tags that a reader could not associate with their hole (CTC-02: 27 of 72
+as near another hole, 30 more than 12 mm away; FTC-06 plan B3; CTC-05 plan B1) and an
+entry column in the part frame beside X/Y columns in the view frame.
+
+- **Tags name their own hole.** A tag without a leader is accepted only within 4 mm
+  of its rim and only where its box is at least 1 mm nearer its own rim than any other
+  scheduled rim, and its centre at least 1.3× nearer its own centre. Every view's
+  unleadered tags are placed first; the rest take a short leader from the hole's rim
+  (arrow on the rim, ending at the tag box). The leader is the cheapest candidate
+  within 3–38 mm: length + 1.5 mm per line crossed + 2 mm per radian away from the
+  outward direction from neighbouring holes (radial on a bolt circle). A leader never
+  crosses a label, another tag's leader or within 0.6 mm of another scheduled rim; it
+  may cross model and extension lines, as any leader does. If a tag has no place,
+  the failed tag goes first and the view is retried (at most 12 orders); otherwise
+  the schedule is withdrawn as before. All constants are overturnable.
+- A curved face's projected bounds now block a tag only when the tag straddles them
+  (wholly inside or outside is allowed): the silhouette lies on the bounds' sides.
+  The old whole-rectangle block made CTC-02's elliptical flange face unusable.
+- Line clearance uses a 5 mm page grid; CTC-02 plans in about 10 s (11 s before).
+- **Entry column in the view frame.** Header `Z OUT / DIR`: X right, Y up (the X/Y
+  columns), Z out of the page toward the reader. The entry is measured from the
+  part's rearmost face along view Z (FROM MIN, as X/Y are); `−Z` is drilled into the
+  page, `+Z` from the far side. Plan tables are unchanged (view Z is part +Z). The
+  entry claim carries the view's out-of-page direction (`entry.view.x,y,z`) and lint's
+  `hole_table_entry_invalid` checks the cell in that frame, so a part-frame letter
+  (`75 / +X` on CTC-02's side view) is reported. A longer title (`FROM MIN, Z OUT`)
+  was tried and withdrawn: it widened the table and FTC-08's no longer fitted.
+- Regressions (each failed on 72dc53a): `each_tag_is_beside_or_leadered_to_its_own_hole`
+  (CTC-02, CTC-04, CTC-05, FTC-06; page positions from the table's own cells and origin)
+  and `entry_cells_use_the_view_frame_and_lint_checks_it` (CTC-02 side, FTC-06 front).
+
+Not done in this round (minor review items):
+
+- FTC-06 plan: `2× R12.7` still prints over the right-hand section letter `A`. It is a
+  dimension/section-furniture placement collision, not schedule furniture; neither
+  `annotation_overlap` nor `schedule_ink` reports it. Left for the layout stream.
+- Ordinate dimensioning (brief item b) is still not implemented; PCD is in-table only.
+- Bookkeeping: the H1 status section now exists in `docs/status-2026-10-10.md` (Stage H1
+  entry, with the before/after table). `tools/ci-quality-baseline.json` is refreshed per
+  "Baseline maintenance": 25 cells improve, none is worse, and `source_commit` reads
+  `0fc1c03+cxg/h-tables` until this branch merges. Update it to the merge commit then.

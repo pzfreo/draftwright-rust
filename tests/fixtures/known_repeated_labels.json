@@ -39,57 +39,17 @@
     "reason": "The hexagonal boss's height runs from the plate's top (100) to the boss's top (150); the rung runs from the part's base to the slot floor at 50. Different spans and quantities with the same value. Whether the rung is drawn at this scale is the legibility-gate question already listed in known_dimensions.json, not a repeat."
   },
   {
-    "part": "nist/nist_ctc_02_asme1_rc.stp",
-    "view": "plan",
-    "label": "2× 75",
-    "rotation": 0,
-    "items": [
-      "d:f:hole_pattern:1/pitch.length",
-      "d:f:hole_pattern:4/pitch.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "dim_pitch_plan0 and dim_pitch_plan6 '2× 75', horizontal in the plan, one per pattern (x = +110 and -110), and dim_pitch_plan3 '2× 75' claiming two patterns (vertical).",
-    "reason": "Two hole rows of the same pitch on different stations, each stated for itself. draftwright's `_coalesce_aligned_linear_pitch_dims` joins only parallel rows on the same stations; these rows are on different stations, so each keeps its pitch (the port coalesces the rows that do share stations, as draftwright does); tests/repeated_dimensions.rs pins this part."
-  },
-  {
     "part": "nist/nist_ctc_04_asme1_rd.stp",
     "view": "plan",
     "label": "140",
     "rotation": 0,
     "items": [
-      "d:f:hole:18/location.length.x",
       "d:f:slot:4/slot_width.length",
       "d:f:slot:6/slot_width.length"
     ],
     "verdict": "identical-features",
     "draftwright": "m_locx3 '140' (a hole's x location), m_slot4_width '140' and m_slot5_width '140' in the plan: the same three.",
-    "reason": "Two 140-wide slots at x = -110 and +110 (slot 4 and slot 6) have their widths on different spans, each its own dimension (draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights); the hole's x location from the part's box is a different quantity that happens to be 140."
-  },
-  {
-    "part": "nist/nist_ctc_04_asme1_rd.stp",
-    "view": "plan",
-    "label": "2× 45",
-    "rotation": 90,
-    "items": [
-      "d:f:hole_pattern:10/pitch.length",
-      "d:f:hole_pattern:8/pitch.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "dim_pitch_plan5 '2× 45' (patterns at y 380) and dim_pitch_plan7 '2× 45' (patterns at y 580), each claiming two parallel rows.",
-    "reason": "Two pairs of parallel rows; each pair shares stations and shows one pitch claiming both rows (hole_pattern 9 and 11 are conveyed by 8 and 10, as draftwright coalesces them); the two pairs are on different stations. draftwright's `_coalesce_aligned_linear_pitch_dims` joins only parallel rows on the same stations; these rows are on different stations, so each keeps its pitch (the port coalesces the rows that do share stations, as draftwright does)."
-  },
-  {
-    "part": "nist/nist_ctc_04_asme1_rd.stp",
-    "view": "plan",
-    "label": "2× 75",
-    "rotation": 0,
-    "items": [
-      "d:f:hole_pattern:1/pitch.length",
-      "d:f:hole_pattern:6/pitch.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "dim_pitch_plan0 and dim_pitch_plan9 '2× 75', one per pattern (x = +110 and -110).",
-    "reason": "Two hole rows of the same pitch on different stations, each stated for itself. draftwright's `_coalesce_aligned_linear_pitch_dims` joins only parallel rows on the same stations; these rows are on different stations, so each keeps its pitch (the port coalesces the rows that do share stations, as draftwright does)."
+    "reason": "Two 140-wide slots at x = -110 and +110 (slot 4 and slot 6) have their widths on different spans, each its own dimension (draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights); the hole's x location from the part's box is a different quantity that happens to be 140. H1: the hole location is now a table coordinate; only the two slot widths remain as linear dimensions."
   },
   {
     "part": "nist/nist_ctc_04_asme1_rd.stp",
@@ -103,32 +63,6 @@
     "verdict": "identical-features",
     "draftwright": "m_slot2_width '75' and m_slot3_width '75' in the plan, one per slot.",
     "reason": "Two 75-wide slots at x = -77.5 and +77.5 have their widths on different spans, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights."
-  },
-  {
-    "part": "nist/nist_ftc_06_asme1_rd.stp",
-    "view": "front",
-    "label": "127",
-    "rotation": 90,
-    "items": [
-      "d:f:hole_pattern:1/grid_pitch.length.row",
-      "d:f:hole_pattern:1/location.length.z"
-    ],
-    "verdict": "distinct-quantities",
-    "draftwright": "dim_pitch_front0_0 '127' (the grid's row pitch) in the front and dim_loc_side_z12700 '127' (the grid's z location) in the side: both stated, in two views.",
-    "reason": "The grid's row pitch and its z location from the part's bottom face are different quantities on different spans that are both 127. The port states the location in the front, the view that looks along the holes (the maintainer's decision of 2026-10-08, known_dimensions.json ftc06 location.z 127), so the two share a view."
-  },
-  {
-    "part": "nist/nist_ftc_06_asme1_rd.stp",
-    "view": "front",
-    "label": "266.7",
-    "rotation": 0,
-    "items": [
-      "d:f:boss:6/location.length.x",
-      "d:f:hole_pattern:1/grid_pitch.length.col"
-    ],
-    "verdict": "distinct-quantities",
-    "draftwright": "dim_pitch_front0_1 '266.7' (the grid's column pitch); it locates no boss (known_dimensions.json ftc06 location.x 266.7, rust-correct).",
-    "reason": "The grid's column pitch and the ø22.9 boss's x location from the part's box are different quantities on different spans that are both 266.7."
   },
   {
     "part": "nist/nist_ftc_08_asme1_rc.stp",
@@ -146,32 +80,6 @@
   {
     "part": "nist/nist_ftc_09_asme1_rd.stp",
     "view": "front",
-    "label": "2× 19.1",
-    "rotation": 0,
-    "items": [
-      "d:f:hole_pattern:2/pitch.length",
-      "d:f:hole_pattern:3/pitch.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "dim_pitch_front2, dim_pitch_front5 and dim_pitch_front9 '2× 19.1' in the front, one per pattern.",
-    "reason": "Hole rows of the same pitch on different stations, each stated for itself (the port's third, hole_pattern 4, is vertical). draftwright's `_coalesce_aligned_linear_pitch_dims` joins only parallel rows on the same stations; these rows are on different stations, so each keeps its pitch (the port coalesces the rows that do share stations, as draftwright does)."
-  },
-  {
-    "part": "nist/nist_ftc_09_asme1_rd.stp",
-    "view": "front",
-    "label": "38.1",
-    "rotation": 0,
-    "items": [
-      "d:f:hole:5/location.length.x",
-      "d:f:slot:3/slot_length.length"
-    ],
-    "verdict": "distinct-quantities",
-    "draftwright": "dim_loc_front_x3810 '38.1' (the hole's x location) in the front; it plans slot2's length and drops it for room (lint slot_dim_dropped 'slot2 length dim not placed').",
-    "reason": "A hole's x location from the part's box (38.10) and a slot's length (38.09) are different quantities on different spans that print alike."
-  },
-  {
-    "part": "nist/nist_ftc_09_asme1_rd.stp",
-    "view": "front",
     "label": "6.3",
     "rotation": 90,
     "items": [
@@ -181,19 +89,5 @@
     "verdict": "identical-features",
     "draftwright": "plans slot0's and slot1's widths as two dimensions and drops both for room (lint slot_dim_dropped 'slot0 width' and 'slot1 width'); m_slot0_pos '130.2' claims both slots' common location.",
     "reason": "Two 6.34-wide slots side by side at one x station have their widths on different spans along z, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights."
-  },
-  {
-    "part": "nist/nist_ftc_10_asme1_rb.stp",
-    "view": "front",
-    "label": "2× 11",
-    "rotation": 0,
-    "items": [
-      "d:f:hole_pattern:5/pitch.length",
-      "d:f:hole_pattern:6/pitch.length",
-      "d:f:hole_pattern:7/pitch.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "dim_pitch_front1, dim_pitch_front2 and dim_pitch_front4 '2× 11' in the front, one per pattern (rows starting at x 46.1, 44.5 and 42.9).",
-    "reason": "Three staggered hole rows of the same pitch, on different stations, each stated for itself. draftwright's `_coalesce_aligned_linear_pitch_dims` joins only parallel rows on the same stations; these rows are on different stations, so each keeps its pitch (the port coalesces the rows that do share stations, as draftwright does)."
   }
 ]

@@ -29,11 +29,15 @@ fn serve(lines: &[String]) -> Vec<Value> {
         .spawn()
         .unwrap();
     let mut stdin = child.stdin.take().unwrap();
-    for line in lines {
-        writeln!(stdin, "{line}").unwrap();
-    }
-    drop(stdin);
+    // Drain responses concurrently with large inline Analysis requests.
+    let requests = lines.to_vec();
+    let writer = std::thread::spawn(move || {
+        for line in requests {
+            writeln!(stdin, "{line}").unwrap();
+        }
+    });
     let out = child.wait_with_output().unwrap();
+    writer.join().unwrap();
     assert!(out.status.success());
     String::from_utf8(out.stdout)
         .unwrap()

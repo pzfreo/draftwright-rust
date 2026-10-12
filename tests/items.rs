@@ -196,6 +196,22 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
     for t in &plan.tables {
         check(&t.id, &t.state, t.placed.is_some());
     }
+    for t in &plan.hole_tables {
+        check(
+            &t.id,
+            &t.state,
+            !t.blocks.is_empty() && t.blocks.iter().all(|b| b.placed.is_some()),
+        );
+        assert!(
+            t.rows
+                .iter()
+                .all(|r| plan.balloons.iter().any(|b| b.certifying
+                    && b.tag.split('/').any(|tag| tag == r.tag)
+                    && b.features.contains(&r.feature)
+                    && Some(&b.view) == t.view.as_ref())),
+            "{what}: every scheduled row owns a shown tag"
+        );
+    }
     for r in &plan.requirements {
         let drawn = match r.carrier.as_str() {
             "sheet" => r.placed.is_some(),
@@ -220,8 +236,9 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
                 o.id
             ),
             State::Covered { by } => assert!(
-                plan.dimensions.iter().any(|d| d.id == *by),
-                "{what}: {} is covered by {by}, no planned dimension",
+                all.iter()
+                    .any(|i| i.id == *by && matches!(i.kind.as_str(), "dimension" | "hole_table")),
+                "{what}: {} is covered by {by}, no planned measurement owner",
                 o.id
             ),
             s => panic!("{what}: {} is omitted as {s:?}", o.id),
@@ -302,6 +319,13 @@ fn on_the_quality_parts_too() {
         let a = model::analyse_native(&dir.join(file)).unwrap().1;
         let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
         consistent(file, &plan, &a, &Spec::default());
+        // Exercise both forms; auto tables should not erase loss/state-machine coverage.
+        let ladder = Spec {
+            hole_table: draftwright::hole_table::Setting::Never,
+            ..Spec::default()
+        };
+        let plan = model::plan_recovered(&a, &ladder).unwrap();
+        consistent(file, &plan, &a, &ladder);
         dropped += plan
             .dimensions
             .iter()

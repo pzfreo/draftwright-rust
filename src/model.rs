@@ -173,6 +173,9 @@ pub struct Spec {
     /// `authored` (exactly the dimensions listed, a complete set: ADR4-5).
     #[serde(skip_serializing_if = "DimensionSource::is_auto")]
     pub dimension_source: DimensionSource,
+    /// Plan-time hole presentation; rescue tables also obey `never`.
+    #[serde(skip_serializing_if = "crate::hole_table::Setting::is_auto")]
+    pub hole_table: crate::hole_table::Setting,
     /// Per dimension, by its ID (`d:<feature>/<parameter>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub dimensions: BTreeMap<String, DimensionSpec>,
@@ -246,6 +249,7 @@ impl Default for Spec {
             sheet: SheetSpec::default(),
             views: BTreeMap::new(),
             dimension_source: DimensionSource::Auto,
+            hole_table: crate::hole_table::Setting::Auto,
             dimensions: BTreeMap::new(),
             features: BTreeMap::new(),
             annotations: BTreeMap::new(),
@@ -319,6 +323,9 @@ pub struct Plan {
     /// The plan-view hole table a dropped hole item escalated to ([`crate::hole_table`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hole_table: Option<crate::hole_table::HoleTable>,
+    /// Hole schedules chosen for legibility, one per end-on principal view.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hole_tables: Vec<crate::hole_table::HoleTable>,
     /// The balloons beside the plan view: the hole table's rows' and dropped patterns'.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub balloons: Vec<crate::hole_table::Balloon>,
@@ -868,6 +875,9 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
         return Ok(first);
     }
+    if !first.hole_tables.is_empty() {
+        return recover_tables(analysis, spec, first);
+    }
     let found = findings(&first);
     let mut tried = Vec::new();
     let mut last = None;
@@ -995,6 +1005,46 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     recover(analysis, spec, plan_escalated(analysis, spec)?)
 }
 
+fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    // Establish the ordinary recovered geometry before changing presentation. A table must
+    // not undo a scale recovery (nor spend one merely because its ladder has disappeared).
+    let mut baseline_spec = spec.clone();
+    baseline_spec.hole_table = crate::hole_table::Setting::Never;
+    let mut seed = first.spec.clone();
+    seed.hole_table = crate::hole_table::Setting::Never;
+    let mut baseline = recover(analysis, &baseline_spec, plan_escalated(analysis, &seed)?)?;
+    baseline.spec = spec.clone();
+    let selection = crate::hole_table::select(analysis, &baseline);
+    if selection.tables.is_empty() {
+        return Ok(baseline);
+    }
+    let mut scheduled = plan_with_presentation(analysis, spec, false, Some(&selection))?;
+    if crate::hole_table::install(analysis, &mut scheduled, &selection) {
+        // A genuine geometry recovery still belongs to the final plan; a resolved ladder's
+        // exhausted-loss message does not. Preserve the successful recovery's trace.
+        scheduled.problems.extend(
+            baseline
+                .problems
+                .iter()
+                .filter(|p| p.code == "layout_replanned")
+                .cloned(),
+        );
+        if baseline
+            .problems
+            .iter()
+            .any(|p| p.code == "layout_replanned")
+        {
+            scheduled.sheet.basis = baseline.sheet.basis.clone()
+                + "; hole presentation changed at the recovered geometry";
+        }
+        crate::completeness::report(analysis, &mut scheduled);
+        Ok(scheduled)
+    } else {
+        baseline.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:if spec.hole_table == crate::hole_table::Setting::Always { "warning" } else { "info" }.into(), message:"The selected schedule has no clear place at the recovered geometry scale; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
+        Ok(baseline)
+    }
+}
+
 /// [`plan`] with draftwright's drop and escalate applied ([`crate::hole_table`]): a hole callout
 /// or location placed off the sheet is dropped and reported, and may escalate to a plan-view hole
 /// table with balloons. What the recovery judges, as draftwright's escalation runs inside every
@@ -1008,10 +1058,24 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
 /// past it an item can find no place (nist_stc_09 e4 at 1:1: 13 frames across the plan).
 pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let escalated = |beyond_lanes: bool| {
-        plan_with(analysis, spec, beyond_lanes).map(|mut p| {
+        plan_with(analysis, spec, beyond_lanes).and_then(|mut p| {
+            let selection = crate::hole_table::select(analysis, &p);
+            if selection.tables.is_empty() && spec.hole_table == crate::hole_table::Setting::Always
+                && p.dimensions.iter().any(|d| d.measurements.iter().any(|m| m.parameter == "bore.diameter")) {
+                p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"A hole table was requested, but no eligible holes have a proven datum corner in a carrying view; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
+            }
+            if !selection.tables.is_empty() {
+                let mut scheduled =
+                    plan_with_presentation(analysis, spec, beyond_lanes, Some(&selection))?;
+                if crate::hole_table::install(analysis, &mut scheduled, &selection) {
+                    p = scheduled;
+                } else {
+                    p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:if spec.hole_table == crate::hole_table::Setting::Always { "warning" } else { "info" }.into(), message:"The selected hole table or one of its tags has no clear place; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
+                }
+            }
             crate::hole_table::escalate(analysis, &mut p);
             crate::completeness::report(analysis, &mut p);
-            p
+            Ok(p)
         })
     };
     let first = escalated(false)?;
@@ -1066,6 +1130,19 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
 /// [`plan`], the GD&T's room reserved beyond every dimension lane of its strips when
 /// *gdt_beyond_lanes* ([`crate::demand::Demand::gdt_beyond_lanes`]).
 fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result<Plan, Invalid> {
+    plan_with_presentation(analysis, spec, gdt_beyond_lanes, None)
+}
+
+fn plan_with_presentation(
+    analysis: &Analysis,
+    spec: &Spec,
+    gdt_beyond_lanes: bool,
+    presentation: Option<&crate::hole_table::Selection>,
+) -> Result<Plan, Invalid> {
+    let excluded = presentation
+        .map(|p| &p.replaced)
+        .cloned()
+        .unwrap_or_default();
     // A document of a version this build does not know is refused, never read as the nearest
     // one it does (ADR3-4).
     if !ANALYSIS_SCHEMAS.contains(&analysis.schema.as_str()) {
@@ -1089,6 +1166,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         let mut base = Spec::default();
         base.sheet.size = spec.sheet.size.clone();
         base.sheet.scale = spec.sheet.scale.clone();
+        base.hole_table = spec.hole_table;
         Some(plan_recovered(analysis, &base)?)
     } else {
         None
@@ -1261,7 +1339,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         .filter(|(name, ..)| shown(name))
         .copied()
         .collect();
-    demand.lanes = crate::dims::lanes(analysis, &shown_views);
+    demand.lanes = crate::dims::lanes_excluding(analysis, &shown_views, &excluded);
     if !(principals.front || principals.plan || principals.side) {
         return Err(invalid(
             "Every principal view is omitted; a sheet needs front, plan or side.",
@@ -1300,6 +1378,9 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         None => None,
     };
 
+    let page = page.or_else(|| presentation.map(|p| p.page));
+    // A schedule removes annotation demand; it must not shrink or enlarge the proven feature ink.
+    let scale = presentation.map(|p| p.scale).or(scale);
     let [lo, hi] = analysis.envelope;
     // Section A-A is marked on the plan and sits in the front's row.
     let section = demand
@@ -1373,6 +1454,9 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
     );
     let notes_size = crate::notes::size(&notes_given);
     request.required_tables = crate::tables::sizes(&spec.tables);
+    if let Some(p) = presentation {
+        request.required_tables.extend(p.sizes());
+    }
     // The part's manufacturing requirements table, when its threads and knurls are referred to
     // one (crate::pmi_lowering::manufacturing), before the notes, as draftwright reserves it.
     request.required_tables.extend(
@@ -1638,6 +1722,27 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
             &mut problems,
         );
     }
+    if let Some(presentation) = presentation
+        && let Some(base) = &presentation.iso
+        && spec.views.get("iso").is_none_or(|v| v.place.is_none())
+        && let Some(v) = views.iter_mut().find(|v| v.id == "v:iso")
+    {
+        v.scale = base.scale;
+        let outside = (0..2).any(|k| {
+            v.at[k] + v.scale * analysis.iso_bounds[k] < MARGIN
+                || v.at[k] + v.scale * analysis.iso_bounds[k + 2] > sheet.page[k] - MARGIN
+        });
+        // Bare pins retain their canonical frame. Holding an automatic scale must not leave
+        // its newly packed centre outside the page; in that case retain the proven frame too.
+        if let Some(base) = canonical
+            .as_ref()
+            .and_then(|p| p.views.iter().find(|v| v.id == "v:iso"))
+        {
+            (v.at, v.area, v.scale) = (base.at, base.area, base.scale);
+        } else if outside {
+            (v.at, v.area, v.scale) = (base.at, base.area, base.scale);
+        }
+    }
     crate::dims::gdt::validate_placements(analysis, spec, &views)?;
     let footprint_cache = crate::dims::footprints::Cache::default();
     let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
@@ -1663,7 +1768,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         .filter_map(crate::dims::gdt::proxy)
         .collect()
     };
-    let (mut dimensions, mut omitted, mut more) = crate::dims::plan_with_obstacles(
+    let (mut dimensions, mut omitted, mut more) = crate::dims::plan_with_obstacles_excluding(
         analysis,
         spec,
         &sheet,
@@ -1671,8 +1776,29 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         &fixed,
         &held,
         &footprint_cache,
+        &excluded,
     )?;
-    let obstacles = crate::placement_intent::obstacles(spec, &dimensions, &fixed);
+    // A bare pin whose ink is already settled beside a schedule adds no packing obstacle.
+    // Repacking the isometric around its reserved band can consume the table's clear space.
+    // Changed ink and explicit placements still reserve their full obstacle as before.
+    let packing_dimensions: Vec<_> = dimensions
+        .iter()
+        .filter(|d| {
+            !(presentation.is_some()
+                && spec
+                    .dimensions
+                    .get(&d.id)
+                    .and_then(|e| e.place.as_ref())
+                    .is_some_and(crate::placement_intent::automatic_pin)
+                && canonical.as_ref().is_some_and(|base| {
+                    base.dimensions
+                        .iter()
+                        .any(|before| before.id == d.id && before.placed == d.placed)
+                }))
+        })
+        .cloned()
+        .collect();
+    let obstacles = crate::placement_intent::obstacles(spec, &packing_dimensions, &fixed);
     if !obstacles.is_empty() {
         let before: Vec<_> = views.iter().map(|v| (v.at, v.area, v.scale)).collect();
         problems.retain(|p| {
@@ -1722,7 +1848,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 .collect::<Vec<_>>()
         {
             let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
-            (dimensions, omitted, more) = crate::dims::plan_with_obstacles(
+            (dimensions, omitted, more) = crate::dims::plan_with_obstacles_excluding(
                 analysis,
                 spec,
                 &sheet,
@@ -1730,6 +1856,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
                 &fixed,
                 &held,
                 &footprint_cache,
+                &excluded,
             )?;
         }
     }
@@ -1808,6 +1935,7 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         gdt,
         requirements,
         hole_table: None,
+        hole_tables: Vec::new(),
         balloons: Vec::new(),
         problems,
         spec,
@@ -2686,13 +2814,18 @@ pub fn render_annotations_with_items(
     // The hole table, drawn as the tables are, block by block. Each row is an annotation for
     // lint: its cells' text (the tag apart) and the measurements they state, as draftwright
     // registers the table's measurements.
-    if let Some(t) = &plan.hole_table {
+    for t in plan.hole_table.iter().chain(&plan.hole_tables) {
         let table_from = dims.len();
-        let mut row_runs: Vec<Vec<usize>> = vec![Vec::new(); t.rows.len()];
+        let mut row_runs: Vec<Vec<Vec<usize>>> = t
+            .rows
+            .iter()
+            .map(|r| vec![Vec::new(); r.cells.len()])
+            .collect();
+        let headers = if t.view.is_some() { 2 } else { 1 };
         let per = t
             .blocks
             .first()
-            .map_or(0, |b| b.rows.len().saturating_sub(1));
+            .map_or(0, |b| b.rows.len().saturating_sub(headers));
         for (k, block) in t.blocks.iter().enumerate() {
             let Some(p) = &block.placed else { continue };
             for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
@@ -2702,13 +2835,56 @@ pub fn render_annotations_with_items(
                 for (c, (cell, at)) in row.iter().zip(at).enumerate() {
                     let Some(at) = at else { continue };
                     let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
-                    let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
+                    let laid = if t.view.is_some() && r >= headers && c == 1 {
+                        // Reuse the established callout symbols in scheduled size cells;
+                        // a font's missing-glyph box must not stand for recess or depth.
+                        let ink = crate::hole_table::size_ink(cell, font);
+                        let centre = [0, 1].map(|k| 0.5 * (ink.min[k] + ink.max[k]));
+                        let local = |p: [f64; 2]| [p[0] - centre[0], p[1] - centre[1]];
+                        for [a, b] in ink.strokes {
+                            let a = local(a);
+                            let b = local(b);
+                            dims.push(Item::Edge(Curve::Line(
+                                [at[0] + a[0], at[1] + a[1]],
+                                [at[0] + b[0], at[1] + b[1]],
+                            )));
+                        }
+                        Laid {
+                            contours: ink
+                                .glyphs
+                                .into_iter()
+                                .flatten()
+                                .map(|c| {
+                                    c.into_iter()
+                                        .map(|s| match s {
+                                            Segment::Line(a, b) => {
+                                                Segment::Line(local(a), local(b))
+                                            }
+                                            Segment::Quad(a, b, c) => {
+                                                Segment::Quad(local(a), local(b), local(c))
+                                            }
+                                            Segment::Cubic(a, b, c, d) => Segment::Cubic(
+                                                local(a),
+                                                local(b),
+                                                local(c),
+                                                local(d),
+                                            ),
+                                        })
+                                        .collect()
+                                })
+                                .collect(),
+                            min: local(ink.min),
+                            max: local(ink.max),
+                        }
+                    } else {
+                        font.text(&crate::tables::ink(cell), crate::tables::TEXT)
+                    };
                     let index = label(laid, *at, dims, Some(run));
-                    if r > 0
+                    if r >= headers
                         && c > 0
-                        && let Some(runs) = row_runs.get_mut(k * per + r - 1)
+                        && let Some(runs) = row_runs.get_mut(k * per + r - headers)
                     {
-                        runs.extend(index);
+                        runs[c].extend(index);
                     }
                 }
             }
@@ -2724,22 +2900,83 @@ pub fn render_annotations_with_items(
                 interior: false,
             });
         }
-        for (row, runs) in t.rows.iter().zip(row_runs) {
-            annotations.push(Annotation {
-                name: format!("{}/{}", t.id, row.tag),
-                view: Some("v:plan".into()),
-                runs,
-                claims: row
-                    .measurements
-                    .iter()
-                    .map(|m| Claim {
-                        feature: m.feature.clone(),
-                        parameter: m.parameter.clone(),
-                    })
-                    .collect(),
-            });
+        for (row, cells) in t.rows.iter().zip(row_runs) {
+            if t.view.is_none() {
+                annotations.push(Annotation {
+                    coordinate_origin: None,
+                    name: format!("{}/{}", t.id, row.tag),
+                    view: Some("v:plan".into()),
+                    runs: cells.into_iter().flatten().collect(),
+                    claims: row
+                        .measurements
+                        .iter()
+                        .map(|m| Claim {
+                            feature: m.feature.clone(),
+                            parameter: m.parameter.clone(),
+                        })
+                        .collect(),
+                });
+            } else {
+                // A coordinate cell proves only its own axis. A matching number elsewhere in
+                // this row or another row cannot certify a changed coordinate.
+                for (c, runs) in cells.into_iter().enumerate().take(5).skip(1) {
+                    if c == 4 {
+                        annotations.push(Annotation {
+                            coordinate_origin: None,
+                            name: format!("{}/{}/entry", t.id, row.tag),
+                            view: t.view.clone(),
+                            runs,
+                            claims: vec![Claim {
+                                feature: row.feature.clone(),
+                                parameter: format!(
+                                    "entry.view.{}",
+                                    t.view
+                                        .as_ref()
+                                        .and_then(|v| plan.views.iter().find(|w| &w.id == v))
+                                        .map_or_else(String::new, |v| {
+                                            v.direction
+                                                .iter()
+                                                .map(|d| format!("{d:.6}"))
+                                                .collect::<Vec<_>>()
+                                                .join(",")
+                                        })
+                                ),
+                            }],
+                        });
+                        continue;
+                    }
+                    let location = row
+                        .measurements
+                        .iter()
+                        .filter(|m| m.parameter.starts_with("location.length."))
+                        .nth(c.saturating_sub(2));
+                    let claims = row
+                        .measurements
+                        .iter()
+                        .filter(|m| {
+                            if c == 1 {
+                                !m.parameter.starts_with("location.length.")
+                            } else {
+                                location.is_some_and(|l| m.parameter == l.parameter)
+                            }
+                        })
+                        .map(|m| Claim {
+                            feature: m.feature.clone(),
+                            parameter: m.parameter.clone(),
+                        })
+                        .collect();
+                    annotations.push(Annotation {
+                        coordinate_origin: if c > 1 { t.origin } else { None },
+                        name: format!("{}/{}/{}", t.id, row.tag, ["tag", "size", "x", "y"][c]),
+                        view: t.view.clone(),
+                        runs,
+                        claims,
+                    });
+                }
+            }
         }
     }
+
     // The balloons: each a ring with its tag, and its leader with an arrowhead at the hole's
     // rim. Furniture to lint's sheet checks, as draftwright marks a balloon a centreline: judged
     // by its leader and its ring's box.
@@ -2754,10 +2991,12 @@ pub fn render_annotations_with_items(
             t0: 0.0,
             t1: 2.0 * std::f64::consts::PI,
         };
-        dims.push(Item::Face(vec![
-            vec![circle(b.radius, 1.0)],
-            vec![circle(b.radius - crate::hole_table::RING, -1.0)],
-        ]));
+        if b.radius > 0.0 {
+            dims.push(Item::Face(vec![
+                vec![circle(b.radius, 1.0)],
+                vec![circle(b.radius - crate::hole_table::RING, -1.0)],
+            ]));
+        }
         let run = (b.tag.as_str(), crate::dims::FONT, crate::dims::TEXT);
         label(font.text(&b.tag, crate::dims::TEXT), b.at, dims, Some(run));
         let r = b.radius;
@@ -2767,6 +3006,9 @@ pub fn render_annotations_with_items(
             [[cx + r, cy + r], [cx - r, cy + r]],
             [[cx - r, cy + r], [cx - r, cy - r]],
         ];
+        if b.radius == 0.0 {
+            lines.clear();
+        }
         if let Some([tip, end]) = b.leader {
             dims.push(Item::Edge(Curve::Line(tip, end)));
             let d = [end[0] - tip[0], end[1] - tip[1]];
@@ -2787,12 +3029,16 @@ pub fn render_annotations_with_items(
         if let Some(ink) = items_bbox(&dims[from..]) {
             sheet.items.push(Drawn {
                 name: b.id.clone(),
-                kind: Kind::Centreline,
+                kind: if b.id.starts_with("hole_schedule_") {
+                    Kind::Dimension
+                } else {
+                    Kind::Centreline
+                },
                 ink,
-                label: None,
+                label: b.label_box,
                 lines,
                 elbow: None,
-                interior: false,
+                interior: b.id.starts_with("hole_schedule_"),
             });
         }
     }
@@ -2812,6 +3058,7 @@ pub fn render_annotations_with_items(
         .extend(labelled("scale_note", Kind::ScaleNote, &dims[from..]));
     // Each drawing-wide PMI requirement by the runs that state it, for lint and the PMI checks.
     annotations.extend(stated.into_iter().map(|(name, runs)| Annotation {
+        coordinate_origin: None,
         name,
         view: None,
         runs,
@@ -2831,6 +3078,7 @@ pub fn render_annotations_with_items(
             .filter_map(|o| {
                 let (feature, parameter) = o.id.strip_prefix("d:")?.split_once('/')?;
                 Some(Annotation {
+                    coordinate_origin: None,
                     name: format!("suppressed:{}", o.id),
                     view: None,
                     runs: Vec::new(),

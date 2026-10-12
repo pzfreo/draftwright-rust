@@ -104,6 +104,15 @@ pub const DROPS: [&str; 3] = [
 #[serde(deny_unknown_fields)]
 pub struct HoleTable {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<[f64; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pcd: Option<PitchCircle>,
+    /// Original scalar measurements conveyed by the member ordinates, for item coverage.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub covered: Vec<Measurement>,
     /// One row per hole, in the plan's order.
     pub rows: Vec<HoleRow>,
     pub default: bool,
@@ -113,6 +122,15 @@ pub struct HoleTable {
     /// The blocks drawn, left to right: each the header and its share of the rows (the last
     /// padded with blank rows), placed.
     pub blocks: Vec<PlannedTable>,
+}
+
+/// A concentric circle located from the same datum, with explicit member angles.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PitchCircle {
+    pub centre: [f64; 3],
+    pub diameter: f64,
+    pub members: Vec<String>,
 }
 
 /// A hole's row: its tag, its hole, the cells it prints and the measurements they state.
@@ -141,6 +159,8 @@ pub struct Balloon {
     /// The ring's centre, mm on the page.
     pub at: [f64; 2],
     pub radius: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_box: Option<Rect>,
     /// The leader from the hole's rim (its arrowhead's tip) to the ring; none when the ring
     /// could not clear the hole.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -290,6 +310,15 @@ impl Frame {
 /// Drops what has no place and escalates as draftwright does (the module's doc). Applied to
 /// every plan the recovery judges.
 pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
+    if plan.spec.hole_table == Setting::Always
+        && plan
+            .problems
+            .iter()
+            .any(|p| p.code == "hole_table_unavailable")
+    {
+        return;
+    }
+
     let off: BTreeSet<String> = plan
         .problems
         .iter()
@@ -319,7 +348,10 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
         .filter(|(_, k)| !matches!(k, Dropped::Location { plan: false }))
         .map(|(i, _)| *i)
         .collect();
-    if escalating.is_empty() {
+    if escalating.is_empty()
+        || plan.spec.hole_table == Setting::Never
+        || !plan.hole_tables.is_empty()
+    {
         return;
     }
     let Some(view) = plan.views.iter().find(|v| v.id == "v:plan").cloned() else {
@@ -395,6 +427,10 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
             Some(blocks) => {
                 table = Some(HoleTable {
                     id: ID.into(),
+                    view: None,
+                    origin: None,
+                    pcd: None,
+                    covered: Vec::new(),
                     rows,
                     default: true,
                     state: crate::items::State::Shown,
@@ -829,6 +865,8 @@ fn fixed_obstacles(
                     v.at[0] + v.scale * ib[2],
                     v.at[1] + v.scale * ib[3],
                 ]
+            } else if table.is_some_and(|t| t.view.is_some()) {
+                Frame::new(analysis, v).outline
             } else {
                 v.area
             }
@@ -898,6 +936,160 @@ fn crosses(s: [[f64; 2]; 2], b: Rect) -> bool {
         }
     }
     t0 < t1
+}
+
+/// Directions tried around a hole for its tag.
+const TAG_STEPS: usize = 32;
+/// Rings (1 mm apart) tried for a tag beside its hole, without a leader.
+const TAG_NEAR: usize = 4;
+/// Rings (1 mm apart) tried for a leadered tag.
+const TAG_FAR: usize = 36;
+/// Holes within this page distance (mm) set a leadered tag's outward direction.
+const TAG_NEIGHBOURS: f64 = 40.0;
+/// A leadered tag's cost, in mm of leader, of each model line its leader crosses.
+const TAG_CROSSING: f64 = 1.5;
+/// A leadered tag's cost, in mm of leader, per radian it turns from outward.
+const TAG_TURN: f64 = 2.0;
+/// Orders tried for a view's leadered tags before its schedule is given up.
+const TAG_ATTEMPTS: usize = 12;
+
+/// Page segments bucketed in square cells, for clearance queries near one place.
+struct Grid {
+    segments: Vec<Segment>,
+    cells: BTreeMap<(i64, i64), Vec<usize>>,
+    /// The query each segment was last judged in, so a query judges it once.
+    seen: std::cell::RefCell<(u32, Vec<u32>)>,
+}
+
+impl Grid {
+    const CELL: f64 = 5.0;
+
+    fn key(x: f64, y: f64) -> (i64, i64) {
+        (
+            (x / Self::CELL).floor() as i64,
+            (y / Self::CELL).floor() as i64,
+        )
+    }
+
+    fn new(segments: impl Iterator<Item = Segment>) -> Grid {
+        let segments: Vec<Segment> = segments.collect();
+        let mut cells: BTreeMap<(i64, i64), Vec<usize>> = BTreeMap::new();
+        for (i, s) in segments.iter().enumerate() {
+            let lo = Self::key(s[0][0].min(s[1][0]), s[0][1].min(s[1][1]));
+            let hi = Self::key(s[0][0].max(s[1][0]), s[0][1].max(s[1][1]));
+            for x in lo.0..=hi.0 {
+                for y in lo.1..=hi.1 {
+                    cells.entry((x, y)).or_default().push(i);
+                }
+            }
+        }
+        let seen = std::cell::RefCell::new((0, vec![0; segments.len()]));
+        Grid {
+            segments,
+            cells,
+            seen,
+        }
+    }
+
+    /// Whether *ok* holds for every segment whose cells meet box *b* (each judged once,
+    /// stopping at the first that fails).
+    fn all_clear(&self, b: Rect, mut ok: impl FnMut(Segment) -> bool) -> bool {
+        let (lo, hi) = (Self::key(b[0], b[1]), Self::key(b[2], b[3]));
+        let mut seen = self.seen.borrow_mut();
+        let (query, last) = &mut *seen;
+        *query += 1;
+        for x in lo.0..=hi.0 {
+            for y in lo.1..=hi.1 {
+                for &i in self.cells.get(&(x, y)).into_iter().flatten() {
+                    if last[i] == *query {
+                        continue;
+                    }
+                    last[i] = *query;
+                    if !ok(self.segments[i]) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
+/// Whether box *a* lies wholly inside box *b*.
+fn within(a: Rect, b: Rect) -> bool {
+    a[0] >= b[0] && a[1] >= b[1] && a[2] <= b[2] && a[3] <= b[3]
+}
+
+/// The gap between box *b* and the rim of radius *r* about *c* (negative inside the rim).
+fn rim_gap(b: Rect, c: [f64; 2], r: f64) -> f64 {
+    let dx = (b[0] - c[0]).max(c[0] - b[2]).max(0.0);
+    let dy = (b[1] - c[1]).max(c[1] - b[3]).max(0.0);
+    dx.hypot(dy) - r
+}
+
+/// Whether an unleadered tag at *at* (box *b*) plainly names the hole at *hole*: its box is
+/// nearer that rim than any other scheduled rim, and its centre markedly nearer that centre.
+fn names_own(
+    b: Rect,
+    at: [f64; 2],
+    hole: [f64; 2],
+    radius: f64,
+    others: &[([f64; 2], f64)],
+) -> bool {
+    let own_gap = rim_gap(b, hole, radius);
+    let own = (at[0] - hole[0]).hypot(at[1] - hole[1]);
+    others.iter().all(|&(c, r)| {
+        rim_gap(b, c, r) > own_gap + 1.0 && (at[0] - c[0]).hypot(at[1] - c[1]) > own * 1.3
+    })
+}
+
+/// A tag's leader: from the hole's rim (the arrow's tip) toward the tag's centre, ending at
+/// the tag box's side. None when the box reaches the rim.
+fn tag_leader(hole: [f64; 2], radius: f64, at: [f64; 2], b: Rect) -> Option<Segment> {
+    let d = [at[0] - hole[0], at[1] - hole[1]];
+    let len = d[0].hypot(d[1]);
+    if len < 1e-9 {
+        return None;
+    }
+    let u = [d[0] / len, d[1] / len];
+    let tip = [hole[0] + u[0] * radius, hole[1] + u[1] * radius];
+    // Where the ray from the centre leaves the box, walking back from its centre.
+    let half = [(b[2] - b[0]) * 0.5, (b[3] - b[1]) * 0.5];
+    let t = [
+        half[0] / u[0].abs().max(1e-12),
+        half[1] / u[1].abs().max(1e-12),
+    ]
+    .into_iter()
+    .fold(f64::INFINITY, f64::min);
+    let end = [at[0] - u[0] * (t + 0.4), at[1] - u[1] * (t + 0.4)];
+    let run = (end[0] - tip[0]) * u[0] + (end[1] - tip[1]) * u[1];
+    (run > crate::dims::ARROW + 0.5).then_some([tip, end])
+}
+
+/// Whether a tag's leader stays off other labels, other tags' leaders and every other
+/// scheduled hole's rim. Like any leader it may cross model lines and extension lines.
+fn leader_clear(
+    l: Segment,
+    labels: &[Rect],
+    leaders: &[Segment],
+    others: &[([f64; 2], f64)],
+) -> bool {
+    labels.iter().all(|b| !crosses(l, *b))
+        && leaders.iter().all(|m| !segments_cross(l, *m))
+        && others.iter().all(|&(c, r)| point_segment(c, l) > r + 0.6)
+}
+
+/// The distance from *p* to segment *s*.
+fn point_segment(p: [f64; 2], s: Segment) -> f64 {
+    let [a, b] = s;
+    let d = [b[0] - a[0], b[1] - a[1]];
+    let len2 = d[0] * d[0] + d[1] * d[1];
+    let t = if len2 < 1e-18 {
+        0.0
+    } else {
+        (((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1]) / len2).clamp(0.0, 1.0)
+    };
+    (p[0] - a[0] - t * d[0]).hypot(p[1] - a[1] - t * d[1])
 }
 
 /// The free stretches of [lo, hi] once each of *blocked* is taken out.
@@ -1175,6 +1367,7 @@ fn place_balloons(
             certifying: w.certifying,
             at,
             radius: r,
+            label_box: None,
             leader,
             state: crate::items::State::Shown,
         });
@@ -1285,4 +1478,1069 @@ mod tests {
         assert!(crosses([[0.5, 0.5], [0.6, 0.6]], b));
         assert!(!crosses([[-1.0, -1.0], [-0.5, 3.0]], b));
     }
+}
+
+/// Author control for plan-time schedules and the automatic rescue.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Setting {
+    #[default]
+    Auto,
+    Always,
+    Never,
+}
+impl Setting {
+    pub fn is_auto(&self) -> bool {
+        *self == Self::Auto
+    }
+}
+
+/// A bounded presentation decision, made before the final lanes are allocated.
+#[derive(Default)]
+pub(crate) struct Selection {
+    pub tables: Vec<HoleTable>,
+    pub scale: f64,
+    pub page: [f64; 2],
+    pub iso: Option<PlannedView>,
+    pub replaced: BTreeSet<String>,
+    dimensions: Vec<PlannedDimension>,
+    aliases: Vec<crate::dims::Omitted>,
+}
+impl Selection {
+    pub fn sizes(&self) -> Vec<([f64; 2], Corner)> {
+        self.tables
+            .iter()
+            .map(|t| {
+                let cells = schedule_cells(t);
+                (
+                    [
+                        schedule_widths(&cells).iter().sum(),
+                        ROW * cells.len() as f64,
+                    ],
+                    Corner::TopRight,
+                )
+            })
+            .collect()
+    }
+}
+
+fn pinned(plan: &Plan, d: &PlannedDimension) -> bool {
+    plan.spec
+        .dimensions
+        .get(&d.id)
+        .and_then(|e| e.place.as_ref())
+        .is_some_and(|p| p.pinned)
+}
+
+fn schedule_number(value: f64) -> String {
+    let text = crate::dims::fmt(if value.abs() < 1e-6 { 0.0 } else { value });
+    text.strip_suffix(".0").unwrap_or(&text).into()
+}
+
+/// A table carries a view title so its local X/Y cannot be mistaken for another view's.
+fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
+    let mut title = vec![
+        format!(
+            "{} HOLES",
+            t.view
+                .as_deref()
+                .unwrap()
+                .trim_start_matches("v:")
+                .to_uppercase()
+        ),
+        String::new(),
+        String::new(),
+        String::new(),
+        "FROM MIN".into(),
+    ];
+    let mut header = vec![
+        "TAG".into(),
+        "ø / DEPTH / THREAD".into(),
+        "X".into(),
+        "Y".into(),
+        "Z OUT / DIR".into(),
+    ];
+    if let Some(pcd) = &t.pcd {
+        let origin = t.origin.unwrap();
+        let axes: Vec<_> = t.rows[0]
+            .measurements
+            .iter()
+            .filter_map(|m| m.parameter.strip_prefix("location.length."))
+            .collect();
+        let coordinate = |a: &str| {
+            let k = ["x", "y", "z"].iter().position(|k| *k == a).unwrap();
+            schedule_number(pcd.centre[k] - origin[k])
+        };
+        title[1] = format!(
+            "ø{} PCD @ X{} Y{}",
+            schedule_number(pcd.diameter),
+            coordinate(axes[0]),
+            coordinate(axes[1])
+        );
+        title.push("CCW FROM +X".into());
+        header.push("ANGLE".into());
+    }
+    let mut cells = vec![title, header];
+    cells.extend(t.rows.iter().map(|r| r.cells.clone()));
+    cells
+}
+
+/// A row's entry cell in its view's frame: X right and Y up as the X and Y columns, Z out of
+/// the page toward the reader. The entry plane is measured from the part's rearmost face, as
+/// X and Y are from its minimum faces, and the drilling direction is `+Z` (toward the reader)
+/// or `−Z` (into the page).
+fn entry_cell(analysis: &Analysis, out: [f64; 3], at: [f64; 3], direction: [f64; 3]) -> String {
+    let dot = |p: [f64; 3]| p.iter().zip(out).map(|(a, b)| a * b).sum::<f64>();
+    let [lo, hi] = analysis.envelope;
+    let back = (0..8)
+        .map(|i| {
+            dot(std::array::from_fn(|k| {
+                if (i >> k) & 1 == 0 { lo[k] } else { hi[k] }
+            }))
+        })
+        .fold(f64::INFINITY, f64::min);
+    format!(
+        "{} / {}Z",
+        schedule_number(dot(at) - back),
+        if dot(direction) > 0.0 { "+" } else { "−" }
+    )
+}
+
+/// Size cells use the callout's drawn symbols, which the bundled text font does not contain.
+pub(crate) fn size_ink(cell: &str, font: &crate::text::Font) -> crate::dims::LabelInk {
+    let terms: Vec<_> = cell.split_whitespace().map(String::from).collect();
+    crate::dims::label_ink(&terms, font)
+}
+
+fn schedule_widths(cells: &[Vec<String>]) -> Vec<f64> {
+    let mut widths = tables::widths(cells);
+    for row in cells.iter().skip(2) {
+        let ink = size_ink(&row[1], crate::dims::font());
+        widths[1] = widths[1].max(ink.max[0] - ink.min[0] + 2.0 * tables::PAD);
+    }
+    widths
+}
+
+fn datum_corner(analysis: &Analysis, axes: &[usize]) -> Option<[f64; 3]> {
+    // A theoretical corner is the intersection of the minimum datum planes, including
+    // tangent planes at a rounded edge. Require the carrying solid's measured boundary.
+    analysis
+        .principal_profiles
+        .iter()
+        .any(|s| {
+            !s.faces.is_empty()
+                && axes
+                    .iter()
+                    .all(|&k| (s.bounds[0][k] - analysis.envelope[0][k]).abs() < 1e-4)
+        })
+        .then_some(analysis.envelope[0])
+}
+
+/// Use the measured ladder spacing and the existing leader/feature crossing findings. The
+/// threshold is in annotation density, never in a part's identity. Bolt circles already have
+/// their PCD note and are left intact unless the author explicitly requests a schedule.
+pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
+    let mut selection = Selection {
+        scale: plan.sheet.scale_factor,
+        page: plan.sheet.page,
+        iso: plan.views.iter().find(|v| v.id == "v:iso").cloned(),
+        ..Default::default()
+    };
+    if plan.spec.hole_table == Setting::Never
+        || (plan.spec.hole_table == Setting::Auto
+            && plan.spec.dimension_source == crate::model::DimensionSource::Authored)
+    {
+        return selection;
+    }
+    // A bare pin on a scalar already covered by the default table does not resurrect its
+    // ladder. Callout pins remain additive, so a visible authored callout is never replaced.
+    let covered_pins: BTreeSet<String> = if plan
+        .spec
+        .dimensions
+        .iter()
+        .any(|(id, e)| id.starts_with("d:f:hole") && e.place.as_ref().is_some_and(|p| p.pinned))
+    {
+        let mut base = crate::model::Spec::default();
+        base.sheet.size = plan.spec.sheet.size.clone();
+        base.sheet.scale = plan.spec.sheet.scale.clone();
+        base.hole_table = plan.spec.hole_table;
+        crate::model::plan_recovered(analysis, &base).ok().into_iter().flat_map(|p| p.omitted).filter(|o| matches!(&o.state, crate::items::State::Covered { by } if by.starts_with("hole_schedule_"))).map(|o| o.id).collect()
+    } else {
+        BTreeSet::new()
+    };
+    let read: BTreeMap<_, _> = holes::read(analysis)
+        .into_iter()
+        .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?)))
+        .collect();
+    for view in &plan.views {
+        let Some(axis) = view.direction.iter().position(|d| d.abs() > 0.999) else {
+            continue;
+        };
+        if !matches!(view.id.as_str(), "v:front" | "v:plan" | "v:side") {
+            continue;
+        }
+        let axes: Vec<_> = (0..3).filter(|k| *k != axis).collect();
+        let callouts: Vec<_> = plan
+            .dimensions
+            .iter()
+            .filter(|d| {
+                d.view == view.id
+                    && d.kind == "callout"
+                    && d.measurements
+                        .iter()
+                        .any(|m| m.parameter == "bore.diameter")
+                    && bores(d).iter().all(|f| {
+                        read.get(f)
+                            .is_some_and(|h| h.principal.is_some_and(|(k, _)| k == axis))
+                    })
+            })
+            .collect();
+        let n: usize = callouts.iter().map(|d| bores(d).len()).sum();
+        let locations: Vec<_> = plan
+            .dimensions
+            .iter()
+            .filter(|d| {
+                d.view == view.id
+                    && !d.measurements.is_empty()
+                    && d.measurements.iter().all(|m| {
+                        m.feature.starts_with("f:hole")
+                            && m.parameter.starts_with("location.length.")
+                    })
+            })
+            .collect();
+        let crowded: usize = axes
+            .iter()
+            .map(|k| {
+                let parameter = format!("location.length.{}", ["x", "y", "z"][*k]);
+                let mut values: Vec<_> = locations
+                    .iter()
+                    .filter(|d| d.measurements.iter().any(|m| m.parameter == parameter))
+                    .map(|d| d.value)
+                    .collect();
+                values.sort_by(f64::total_cmp);
+                values.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+                crate::layout::crowded_locations(&values, view.scale)
+            })
+            .sum();
+        let conflicts = plan
+            .problems
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p.code.as_str(),
+                    "leader_through_feature" | "annotation_leader_crossing"
+                ) && callouts.iter().any(|d| p.subjects.contains(&d.id))
+            })
+            .count();
+        if plan.spec.hole_table != Setting::Always
+            && !(n >= 6 && (crowded > 0 || locations.len() > 8 || conflicts > 0))
+        {
+            continue;
+        }
+        // Use the theoretical intersection of the minimum datum planes.
+        let Some(origin) = datum_corner(analysis, &axes) else {
+            continue;
+        };
+        let mut rows = Vec::new();
+        let mut replaced = BTreeSet::new();
+        for d in &callouts {
+            if bores(d).iter().any(|f| {
+                axes.iter().any(|k| {
+                    let id = format!("d:{f}/location.length.{}", ["x", "y", "z"][*k]);
+                    plan.omitted.iter().any(|o| {
+                        o.id == id
+                            && matches!(
+                                o.state,
+                                crate::items::State::OmittedByUser
+                                    | crate::items::State::NotAuthored
+                            )
+                    })
+                })
+            }) {
+                continue;
+            }
+            if plan.spec.hole_table != Setting::Always
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "bolt_circle.diameter")
+            {
+                continue;
+            }
+            let terms = d.terms.iter().skip(usize::from(
+                d.terms.first().is_some_and(|t| t.ends_with('×')),
+            ));
+            // Array grammar locates members only in the leader version; the schedule's physical
+            // member ordinates replace it. Compound recess/thread wording is retained verbatim.
+            let approved_size = d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+                || d.from_spec
+                    .iter()
+                    .any(|s| matches!(s.as_str(), "fit" | "tolerance"));
+            let label = terms
+                .filter(|t| {
+                    !(t.starts_with('(') && t.contains('×') && t.ends_with(')'))
+                        && !t.starts_with("EQ SP")
+                })
+                .map(|t| {
+                    if approved_size {
+                        t.clone()
+                    } else {
+                        t.parse::<f64>().map_or_else(|_| t.clone(), schedule_number)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            for f in bores(d) {
+                let h = &read[f];
+                let mut measurements: Vec<_> = d
+                    .measurements
+                    .iter()
+                    .filter(|m| m.feature == f)
+                    .cloned()
+                    .collect();
+                let mut cells = vec![String::new(), label.clone()];
+                for &k in &axes {
+                    let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
+                    let distance = h.at[k] - origin[k];
+                    let measured = plan.dimensions.iter().find(|d| {
+                        d.measurements
+                            .iter()
+                            .any(|m| m.feature == f && m.parameter == parameter)
+                    });
+                    cells.push(
+                        measured
+                            .filter(|_| (origin[k] - analysis.envelope[0][k]).abs() <= 1e-6)
+                            .map_or_else(
+                                || schedule_number(distance),
+                                |d| {
+                                    d.terms
+                                        .iter()
+                                        .skip(usize::from(
+                                            d.terms.first().is_some_and(|t| t.ends_with('×')),
+                                        ))
+                                        .map(|t| {
+                                            t.parse::<f64>()
+                                                .map_or_else(|_| t.clone(), schedule_number)
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(" ")
+                                },
+                            ),
+                    );
+                    measurements.push(Measurement {
+                        feature: f.into(),
+                        parameter,
+                        value: distance,
+                    });
+                }
+                cells.push(entry_cell(analysis, view.direction, h.at, h.direction));
+                rows.push(HoleRow {
+                    tag: String::new(),
+                    feature: f.into(),
+                    cells,
+                    measurements,
+                });
+            }
+            // A pin keeps its complete callout. The row is additive for that item.
+            // Semantic PMI keeps its source-carrying callout; the schedule is additive for it.
+            // Its lowering/reporting contract follows that native owner, as pins follow theirs.
+            let semantic = d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
+            let authored_size = plan.spec.hole_table == Setting::Auto
+                && d.from_spec
+                    .iter()
+                    .any(|s| matches!(s.as_str(), "fit" | "tolerance"));
+            if !pinned(plan, d) && !semantic && !authored_size {
+                replaced.insert(d.id.clone());
+            }
+        }
+        if rows.is_empty() {
+            continue;
+        }
+        let mut pcd: Option<PitchCircle> = None;
+        for centre in read
+            .values()
+            .filter(|h| h.principal.is_some_and(|(k, _)| k == axis))
+        {
+            for seed in &rows {
+                let h = &read[seed.feature.as_str()];
+                let radius =
+                    (h.at[axes[0]] - centre.at[axes[0]]).hypot(h.at[axes[1]] - centre.at[axes[1]]);
+                if radius <= centre.diameter * 0.5 {
+                    continue;
+                }
+                let members: Vec<_> = rows
+                    .iter()
+                    .filter(|r| {
+                        let other = &read[r.feature.as_str()];
+                        r.cells[1] == seed.cells[1]
+                            && (other.at[axis] - h.at[axis]).abs() < 1e-4
+                            && ((other.at[axes[0]] - centre.at[axes[0]])
+                                .hypot(other.at[axes[1]] - centre.at[axes[1]])
+                                - radius)
+                                .abs()
+                                < 1e-4
+                    })
+                    .map(|r| r.feature.clone())
+                    .collect();
+                let sites: BTreeSet<_> = members
+                    .iter()
+                    .map(|f| {
+                        let h = &read[f.as_str()];
+                        (
+                            holes::size_key(h.at[axes[0]]),
+                            holes::size_key(h.at[axes[1]]),
+                        )
+                    })
+                    .collect();
+                if sites.len() >= 5 && pcd.as_ref().is_none_or(|p| members.len() > p.members.len())
+                {
+                    pcd = Some(PitchCircle {
+                        centre: centre.at,
+                        diameter: 2.0 * radius,
+                        members,
+                    });
+                }
+            }
+        }
+        if let Some(circle) = &pcd {
+            for row in &mut rows {
+                let h = &read[row.feature.as_str()];
+                row.cells.push(if circle.members.contains(&row.feature) {
+                    let angle = (h.at[axes[1]] - circle.centre[axes[1]])
+                        .atan2(h.at[axes[0]] - circle.centre[axes[0]])
+                        .to_degrees()
+                        .rem_euclid(360.0);
+                    format!(
+                        "{}°",
+                        schedule_number(if angle > 360.0 - 1e-6 { 0.0 } else { angle })
+                    )
+                } else {
+                    String::new()
+                });
+            }
+        }
+        rows.sort_by(|a, b| {
+            a.cells[1]
+                .cmp(&b.cells[1])
+                .then_with(|| a.feature.cmp(&b.feature))
+        });
+        let mut group = 0;
+        let mut number = 0;
+        let mut last = String::new();
+        for r in &mut rows {
+            if r.cells[1] != last {
+                group += 1;
+                number = 0;
+                last = r.cells[1].clone();
+            }
+            number += 1;
+            r.tag = format!("{}{number}", tags(group)[group - 1]);
+            r.cells[0] = r.tag.clone();
+        }
+        let features: BTreeSet<_> = rows.iter().map(|r| r.feature.as_str()).collect();
+        let patterns: BTreeSet<_> = callouts
+            .iter()
+            .filter(|d| replaced.contains(&d.id))
+            .flat_map(|d| d.measurements.iter())
+            .filter(|m| m.feature.starts_with("f:hole_pattern:"))
+            .map(|m| m.feature.as_str())
+            .chain(
+                callouts
+                    .iter()
+                    .filter(|d| replaced.contains(&d.id))
+                    .filter_map(|d| d.id.strip_prefix("d:")?.split('/').next())
+                    .filter(|f| f.starts_with("f:hole_pattern:")),
+            )
+            .collect();
+        for d in &plan.dimensions {
+            if d.view == view.id
+                && (!pinned(plan, d) || covered_pins.contains(&d.id))
+                && !d.from_spec.iter().any(|s| s == "tolerance")
+                && !d.measurements.is_empty()
+                && d.measurements.iter().all(|m| {
+                    (features.contains(m.feature.as_str())
+                        && m.parameter.starts_with("location.length."))
+                        || (patterns.contains(m.feature.as_str())
+                            && (m.parameter.starts_with("location.length.")
+                                || m.parameter.starts_with("pitch.")
+                                || m.parameter.starts_with("grid_pitch.")))
+                })
+            {
+                replaced.insert(d.id.clone());
+            }
+        }
+        selection.dimensions.extend(
+            plan.dimensions
+                .iter()
+                .filter(|d| replaced.contains(&d.id))
+                .cloned(),
+        );
+        selection.replaced.extend(replaced);
+        selection.tables.push(HoleTable {
+            id: format!("hole_schedule_{}", view.id.trim_start_matches("v:")), view: Some(view.id.clone()), origin: Some(origin), pcd, covered: Vec::new(),
+            rows, default: plan.spec.hole_table == Setting::Auto, basis: format!("plan-time hole schedule: {n} holes, {crowded} crowded ordinates, {conflicts} leader crossings; local X/Y from the marked datum corner"), state: crate::items::State::Shown, blocks: Vec::new(),
+        });
+    }
+    // Consolidated wants otherwise reappear when their table-owned survivor leaves the lanes.
+    // Keep the original merged measurement only; its aliases remain covered by that item.
+    loop {
+        let before = selection.replaced.len();
+        for o in &plan.omitted {
+            if let crate::items::State::Covered { by } = &o.state
+                && selection.replaced.contains(by)
+            {
+                selection.replaced.insert(o.id.clone());
+            }
+        }
+        if before == selection.replaced.len() {
+            break;
+        }
+    }
+    selection.aliases = plan
+        .omitted
+        .iter()
+        .filter(|o| selection.replaced.contains(&o.id))
+        .cloned()
+        .collect();
+    selection
+}
+
+fn opening_diameter(h: &holes::Hole<'_>) -> f64 {
+    [
+        h.diameter,
+        h.counterbore.map_or(0.0, |r| r.diameter),
+        h.spotface.map_or(0.0, |r| r.diameter),
+        h.countersink.map_or(0.0, |r| r.diameter),
+    ]
+    .into_iter()
+    .fold(0.0, f64::max)
+}
+
+/// Place the schedules transactionally. Every row has a nearby tag; none needs a long leader.
+/// On failure the caller keeps the original complete plan and the legacy rescue still runs.
+pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bool {
+    // Removing ladders must not withdraw the room already needed by a semantic frame or datum.
+    // If this presentation cannot keep them in their bands, retain the complete original plan.
+    if plan.problems.iter().any(|p| {
+        matches!(
+            p.code.as_str(),
+            "annotation_off_sheet"
+                | "annotation_outside_area"
+                | "annotation_over_view"
+                | "annotation_line_over_view"
+        ) && plan.gdt.iter().any(|g| p.subjects.first() == Some(&g.id))
+    }) {
+        return false;
+    }
+
+    let read: BTreeMap<_, _> = holes::read(analysis)
+        .into_iter()
+        .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?)))
+        .collect();
+    let mut schedules = Vec::new();
+    let mut marks = Vec::new();
+    let mut obstacles = table_obstacles(analysis, plan, &plan.dimensions);
+    for wanted in &selection.tables {
+        let view = plan
+            .views
+            .iter()
+            .find(|v| Some(&v.id) == wanted.view.as_ref())
+            .unwrap();
+        let frame = Frame::new(analysis, view);
+        let mut t = wanted.clone();
+        let cells = schedule_cells(&t);
+        let widths = schedule_widths(&cells);
+        let size = [widths.iter().sum(), ROW * cells.len() as f64];
+        let Some(at) = tables::place(size, &plan.sheet, &obstacles, Corner::TopRight) else {
+            return false;
+        };
+        let placed = tables::lay(&cells, &widths, at);
+        obstacles.push(placed.cells);
+        t.blocks.push(PlannedTable {
+            id: t.id.clone(),
+            rows: cells,
+            default: t.default,
+            basis: t.basis.clone(),
+            state: crate::items::State::Shown,
+            placed: Some(placed),
+        });
+        let mut labels: Vec<Rect> = plan
+            .dimensions
+            .iter()
+            .filter_map(|d| d.placed.as_ref().map(|p| p.label_box))
+            .collect();
+        let gdt: Vec<_> = plan
+            .gdt
+            .iter()
+            .filter_map(crate::dims::gdt::proxy)
+            .collect();
+        labels.extend(
+            gdt.iter()
+                .filter_map(|g| g.placed.as_ref().map(|p| p.label_box)),
+        );
+        for cut in plan
+            .views
+            .iter()
+            .filter_map(|v| v.cut.as_ref())
+            .filter(|c| c.marked_in == view.id)
+        {
+            let [lo, hi] = analysis.envelope;
+            let a = frame.page([lo[0], cut.origin[1], lo[2]]);
+            let b = frame.page([hi[0], cut.origin[1], hi[2]]);
+            let (ink, letters) = crate::section::cutting_plane(
+                a[0].min(b[0]) - crate::section::OVERRUN,
+                a[0].max(b[0]) + crate::section::OVERRUN,
+                frame.page(cut.origin)[1],
+            );
+            labels.extend(
+                ink.iter()
+                    .filter_map(|i| crate::output::items_bbox(std::slice::from_ref(i))),
+            );
+            for at in letters {
+                labels.push([at[0] - 1.5, at[1] - 1.5, at[0] + 1.5, at[1] + 1.5]);
+            }
+        }
+        let mut edge_segments: Vec<_> = analysis
+            .principal_profiles
+            .iter()
+            .flat_map(|s| &s.boundary_segments)
+            .map(|e| [frame.page(e[0]), frame.page(e[1])])
+            .collect();
+        // Side-on bores have tangent silhouettes which are not B-rep boundary edges.
+        for h in read.values() {
+            let Some(depth) = h.depth else {
+                continue;
+            };
+            let a = frame.page(h.at);
+            let b = frame.page(std::array::from_fn(|k| h.at[k] + depth * h.direction[k]));
+            let d = [b[0] - a[0], b[1] - a[1]];
+            let length = d[0].hypot(d[1]);
+            if length < 1e-6 {
+                continue;
+            }
+            let r = opening_diameter(h) * frame.s * 0.5;
+            let offset = [-r * d[1] / length, r * d[0] / length];
+            for sign in [-1.0, 1.0] {
+                edge_segments.push([
+                    [a[0] + sign * offset[0], a[1] + sign * offset[1]],
+                    [b[0] + sign * offset[0], b[1] + sign * offset[1]],
+                ]);
+            }
+        }
+        let annotation_lines: Vec<_> = plan
+            .dimensions
+            .iter()
+            .chain(&gdt)
+            .filter_map(|d| d.placed.as_ref())
+            .flat_map(|p| p.lines.iter().chain(&p.arrows))
+            .copied()
+            .collect();
+        // A curved side face can have a silhouette between its boundary edges. Keep tags
+        // off that face's projected envelope; end-on revolution faces use their rims above.
+        let curved: Vec<Rect> = analysis
+            .principal_profiles
+            .iter()
+            .flat_map(|s| &s.curved_faces)
+            .filter(|f| {
+                f.axis.is_none_or(|a| {
+                    a.iter()
+                        .zip(view.direction)
+                        .map(|(x, y)| x * y)
+                        .sum::<f64>()
+                        .abs()
+                        < 0.999
+                })
+            })
+            .map(|f| {
+                (0..8)
+                    .map(|i| frame.page(std::array::from_fn(|k| f.bounds[(i >> k) & 1][k])))
+                    .fold(
+                        [
+                            f64::INFINITY,
+                            f64::INFINITY,
+                            f64::NEG_INFINITY,
+                            f64::NEG_INFINITY,
+                        ],
+                        |b, p| {
+                            [
+                                b[0].min(p[0]),
+                                b[1].min(p[1]),
+                                b[2].max(p[0]),
+                                b[3].max(p[1]),
+                            ]
+                        },
+                    )
+            })
+            .collect();
+        let fixed = fixed_obstacles(analysis, plan, view, Some(&t));
+        // Every scheduled hole of this view on the page: a tag must name its own hole, so
+        // it is judged against the others' rims as well as against clearance.
+        let scheduled: Vec<(&str, [f64; 2], f64)> = t
+            .rows
+            .iter()
+            .map(|r| {
+                let h = &read[r.feature.as_str()];
+                (
+                    r.feature.as_str(),
+                    frame.page(h.at),
+                    opening_diameter(h) * frame.s * 0.5,
+                )
+            })
+            .collect();
+        let lines = Grid::new(edge_segments.iter().chain(&annotation_lines).copied());
+        let mut leaders: Vec<Segment> = Vec::new();
+        // One tag per page position: coaxial rows (near and far face) share it.
+        struct Group {
+            tag: String,
+            text: String,
+            features: Vec<String>,
+            principal: Option<usize>,
+            hole: [f64; 2],
+            radius: f64,
+            others: Vec<([f64; 2], f64)>,
+            size: [f64; 2],
+        }
+        let mut groups: Vec<Group> = Vec::new();
+        let mut tagged = BTreeSet::new();
+        for row in &t.rows {
+            if !tagged.insert(row.feature.clone()) {
+                continue;
+            }
+            let members: Vec<_> = t
+                .rows
+                .iter()
+                .filter(|r| {
+                    let a = frame.page(read[r.feature.as_str()].at);
+                    let b = frame.page(read[row.feature.as_str()].at);
+                    (a[0] - b[0]).hypot(a[1] - b[1]) < 1e-4
+                })
+                .collect();
+            tagged.extend(members.iter().map(|r| r.feature.clone()));
+            let text = members
+                .iter()
+                .map(|r| r.tag.as_str())
+                .collect::<Vec<_>>()
+                .join("/");
+            let h = &read[row.feature.as_str()];
+            let hole = frame.page(h.at);
+            let radius = members
+                .iter()
+                .map(|r| opening_diameter(&read[r.feature.as_str()]))
+                .fold(0.0, f64::max)
+                * frame.s
+                * 0.5;
+            let others = scheduled
+                .iter()
+                .filter(|(f, c, _)| {
+                    !members.iter().any(|m| m.feature == *f)
+                        && (c[0] - hole[0]).hypot(c[1] - hole[1]) > 1e-4
+                })
+                .map(|&(_, c, r)| (c, r))
+                .collect();
+            let ink = crate::dims::label_ink(std::slice::from_ref(&text), crate::dims::font());
+            let width = (ink.max[0] - ink.min[0]).max(text.len() as f64 * crate::dims::TEXT * 0.6);
+            groups.push(Group {
+                tag: row.tag.clone(),
+                text,
+                features: members.iter().map(|r| r.feature.clone()).collect(),
+                principal: h.principal.map(|(k, _)| k),
+                hole,
+                radius,
+                others,
+                size: [width, crate::dims::TEXT],
+            });
+        }
+        let boxed = |g: &Group, at: [f64; 2]| -> Rect {
+            [
+                at[0] - g.size[0] * 0.5,
+                at[1] - g.size[1] * 0.5,
+                at[0] + g.size[0] * 0.5,
+                at[1] + g.size[1] * 0.5,
+            ]
+        };
+        let clear = |g: &Group, b: Rect, labels: &[Rect], leaders: &[Segment]| -> bool {
+            let padded = [b[0] - 0.6, b[1] - 0.6, b[2] + 0.6, b[3] + 0.6];
+            labels.iter().all(|q| !overlap(padded, *q))
+                // A curved face's silhouette lies on its projected envelope's sides: the tag
+                // may sit wholly inside or outside that envelope, not across it.
+                && curved.iter().all(|q| !overlap(padded, *q) || within(padded, *q))
+                && lines.all_clear(padded, |l| !crosses(l, padded))
+                && leaders.iter().all(|l| !crosses(*l, padded))
+                && fixed.iter().all(|q| !overlap(padded, *q))
+                && padded[0] >= crate::layout::MARGIN
+                && padded[1] >= crate::layout::MARGIN
+                && padded[2] <= plan.sheet.page[0] - crate::layout::MARGIN
+                && padded[3] <= plan.sheet.page[1] - crate::layout::MARGIN
+                && read.values().all(|other| {
+                    if other
+                        .principal
+                        .is_none_or(|(k, _)| g.principal.is_none_or(|a| a != k))
+                    {
+                        return true;
+                    }
+                    let c = frame.page(other.at);
+                    let r = opening_diameter(other) * frame.s * 0.5;
+                    // A circular seat's bounding-box corner is not material. Test the
+                    // nearest point of the label box against the actual rim instead.
+                    rim_gap(b, c, r) > RING * 0.5
+                        || (!g.features.contains(&other.feature.id)
+                            && [b[0], b[2]]
+                                .into_iter()
+                                .flat_map(|x| [b[1], b[3]].map(|y| (x - c[0]).hypot(y - c[1])))
+                                .all(|d| d < r - RING * 0.5))
+                })
+        };
+        let around = |g: &Group, reach: f64, k: usize| -> [f64; 2] {
+            let angle =
+                k as f64 * std::f64::consts::TAU / TAG_STEPS as f64 + std::f64::consts::FRAC_PI_4;
+            [
+                g.hole[0] + angle.cos() * (g.radius + g.size[0] * 0.5 + reach),
+                g.hole[1] + angle.sin() * (g.radius + g.size[1] * 0.5 + reach),
+            ]
+        };
+        let mut placed: Vec<Option<([f64; 2], Option<Segment>)>> = vec![None; groups.len()];
+        // Beside the hole first, for every tag: no leader, so the tag must be plainly nearer
+        // its own hole than any other scheduled hole, by rim gap and by centre distance.
+        for (g, slot) in groups.iter().zip(&mut placed) {
+            'near: for ring in 0..TAG_NEAR {
+                for k in 0..TAG_STEPS {
+                    let at = around(g, 1.0 + ring as f64, k);
+                    let b = boxed(g, at);
+                    if names_own(b, at, g.hole, g.radius, &g.others)
+                        && clear(g, b, &labels, &leaders)
+                    {
+                        *slot = Some((at, None));
+                        labels.push(b);
+                        break 'near;
+                    }
+                }
+            }
+        }
+        // The rest a short leader from the hole's rim, which says which hole the tag names.
+        // Placed greedily; a tag left without a place goes first on the next attempt.
+        let (near_labels, near_leaders, near_placed) =
+            (labels.clone(), leaders.clone(), placed.clone());
+        let mut order: Vec<usize> = (0..groups.len()).filter(|&i| placed[i].is_none()).collect();
+        let mut attempts = 0;
+        'attempt: loop {
+            labels.clone_from(&near_labels);
+            leaders.clone_from(&near_leaders);
+            placed.clone_from(&near_placed);
+            for n in 0..order.len() {
+                let g = &groups[order[n]];
+                // Leaders fan outward from their neighbours (radially, on a bolt circle).
+                let near: Vec<_> = g
+                    .others
+                    .iter()
+                    .filter(|(c, _)| (c[0] - g.hole[0]).hypot(c[1] - g.hole[1]) < TAG_NEIGHBOURS)
+                    .collect();
+                let outward = (!near.is_empty()).then(|| {
+                    let n = near.len() as f64;
+                    let mid = near
+                        .iter()
+                        .fold([0.0, 0.0], |a, (c, _)| [a[0] + c[0] / n, a[1] + c[1] / n]);
+                    (g.hole[1] - mid[1]).atan2(g.hole[0] - mid[0])
+                });
+                // The shortest leader that crosses fewest model lines, nearest outward.
+                let mut best: Option<(f64, [f64; 2], Segment)> = None;
+                for ring in 0..TAG_FAR {
+                    let r = 3.0 + ring as f64;
+                    if best.is_some_and(|(cost, _, _)| cost < r) {
+                        break;
+                    }
+                    for k in 0..TAG_STEPS {
+                        let at = around(g, r, k);
+                        let b = boxed(g, at);
+                        let Some(leader) = tag_leader(g.hole, g.radius, at, b) else {
+                            continue;
+                        };
+                        let length =
+                            (leader[1][0] - leader[0][0]).hypot(leader[1][1] - leader[0][1]);
+                        let turn = outward.map_or(0.0, |out| {
+                            let a = (at[1] - g.hole[1]).atan2(at[0] - g.hole[0]) - out;
+                            a.sin().atan2(a.cos()).abs()
+                        });
+                        let bound = best.map_or(f64::INFINITY, |(c, _, _)| c);
+                        let mut cost = length + TAG_TURN * turn;
+                        let span = [
+                            leader[0][0].min(leader[1][0]),
+                            leader[0][1].min(leader[1][1]),
+                            leader[0][0].max(leader[1][0]),
+                            leader[0][1].max(leader[1][1]),
+                        ];
+                        lines.all_clear(span, |e| {
+                            if segments_cross(leader, e) {
+                                cost += TAG_CROSSING;
+                            }
+                            cost < bound
+                        });
+                        if cost >= bound {
+                            continue;
+                        }
+                        if clear(g, b, &labels, &leaders)
+                            && leader_clear(leader, &labels, &leaders, &g.others)
+                        {
+                            best = Some((cost, at, leader));
+                        }
+                    }
+                }
+                let Some((_, at, leader)) = best else {
+                    attempts += 1;
+                    if attempts > order.len().min(TAG_ATTEMPTS) {
+                        return false;
+                    }
+                    let first = order.remove(n);
+                    order.insert(0, first);
+                    continue 'attempt;
+                };
+                placed[order[n]] = Some((at, Some(leader)));
+                labels.push(boxed(g, at));
+                leaders.push(leader);
+            }
+            break;
+        }
+        for (g, slot) in groups.into_iter().zip(placed) {
+            let (at, leader) = slot.expect("every tag placed");
+            marks.push(Balloon {
+                id: format!("{}/tag/{}", t.id, g.tag),
+                tag: g.text,
+                view: view.id.clone(),
+                features: g.features,
+                certifying: true,
+                at,
+                radius: 0.0,
+                label_box: None,
+                leader,
+                state: crate::items::State::Shown,
+            });
+        }
+        // X/Y origin, drawn at the view's datum corner, with short coordinate axes.
+        let origin = frame.page(t.origin.unwrap());
+        let mut position = None;
+        for step in 0..160 {
+            let distance = 12.0 + (step / 8) as f64 * 2.0;
+            let angle = (step % 8) as f64 * std::f64::consts::TAU / 8.0;
+            let at = [
+                origin[0] + distance * angle.cos(),
+                origin[1] + distance * angle.sin(),
+            ];
+            let bounds = [at[0] - 2.0, at[1] - 2.0, at[0] + 12.0, at[1] + 12.0];
+            if bounds[0] >= crate::layout::MARGIN
+                && bounds[1] >= crate::layout::MARGIN
+                && bounds[2] <= plan.sheet.page[0] - crate::layout::MARGIN
+                && bounds[3] <= plan.sheet.page[1] - crate::layout::MARGIN
+                && labels
+                    .iter()
+                    .chain(fixed_obstacles(analysis, plan, view, Some(&t)).iter())
+                    .all(|b| !overlap(bounds, *b))
+                && curved.iter().all(|q| !overlap(bounds, *q))
+                && edge_segments
+                    .iter()
+                    .chain(&annotation_lines)
+                    .chain(&leaders)
+                    .all(|l| !crosses(*l, bounds))
+                && leaders.iter().all(|l| !segments_cross(*l, [origin, at]))
+                && labels.iter().all(|b| !crosses([origin, at], *b))
+                && !crosses(
+                    [origin, at],
+                    [at[0] + 8.5, at[1] - 1.5, at[0] + 11.5, at[1] + 1.5],
+                )
+                && !crosses(
+                    [origin, at],
+                    [at[0] - 1.5, at[1] + 8.5, at[0] + 1.5, at[1] + 11.5],
+                )
+            {
+                position = Some(at);
+                break;
+            }
+        }
+        let Some(at) = position else {
+            return false;
+        };
+        marks.push(Balloon {
+            id: format!("{}/origin", t.id),
+            tag: "0".into(),
+            view: view.id.clone(),
+            features: Vec::new(),
+            certifying: false,
+            at,
+            radius: 0.0,
+            label_box: None,
+            leader: Some([origin, at]),
+            state: crate::items::State::Shown,
+        });
+        for (name, tip, end, text) in [
+            (
+                "x",
+                [at[0] + 2.0, at[1]],
+                [at[0] + 7.0, at[1]],
+                [at[0] + 10.0, at[1]],
+            ),
+            (
+                "y",
+                [at[0], at[1] + 2.0],
+                [at[0], at[1] + 7.0],
+                [at[0], at[1] + 10.0],
+            ),
+        ] {
+            marks.push(Balloon {
+                id: format!("{}/origin/{name}", t.id),
+                tag: name.to_uppercase(),
+                view: view.id.clone(),
+                features: Vec::new(),
+                certifying: false,
+                at: text,
+                radius: 0.0,
+                label_box: None,
+                leader: Some([end, tip]),
+                state: crate::items::State::Shown,
+            });
+        }
+        schedules.push(t);
+    }
+    for d in &selection.dimensions {
+        let mut d = d.clone();
+        let by = schedules
+            .iter()
+            .find(|t| t.view.as_ref() == Some(&d.view))
+            .unwrap()
+            .id
+            .clone();
+        d.placed = None;
+        d.state = crate::items::State::Covered { by: by.clone() };
+        d.basis += &format!("; stated by {by}");
+        if d.kind == "linear" {
+            // These spans no longer belong to the dimension ladder. Their stable covered IDs
+            // stay in the same omission ledger as other statements superseded by an owner.
+            schedules
+                .iter_mut()
+                .find(|t| t.id == by)
+                .unwrap()
+                .covered
+                .extend(d.measurements);
+            plan.omitted.push(crate::dims::Omitted {
+                id: d.id,
+                label: d.label,
+                basis: d.basis,
+                state: d.state,
+            });
+        } else {
+            plan.dimensions.push(d);
+        }
+    }
+    plan.omitted.extend(selection.aliases.clone());
+    plan.hole_tables = schedules;
+    for mark in &mut marks {
+        let ink = crate::dims::label_ink(std::slice::from_ref(&mark.tag), crate::dims::font());
+        let width = (ink.max[0] - ink.min[0]).max(mark.tag.len() as f64 * crate::dims::TEXT * 0.6);
+        mark.label_box = Some([
+            mark.at[0] - width * 0.5,
+            mark.at[1] - crate::dims::TEXT * 0.5,
+            mark.at[0] + width * 0.5,
+            mark.at[1] + crate::dims::TEXT * 0.5,
+        ]);
+    }
+    plan.balloons = marks;
+    plan.problems.retain(|p| p.code != "pinned_item_not_drawn");
+    crate::placement_intent::finish(plan, analysis);
+    true
 }

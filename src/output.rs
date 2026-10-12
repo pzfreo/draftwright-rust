@@ -353,6 +353,9 @@ pub struct Annotation {
     /// Its label's runs, as indices into [`Drawing::text`].
     pub runs: Vec<usize>,
     pub claims: Vec<Claim>,
+    /// Model-space datum of a coordinate schedule cell, resolved by the Plan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coordinate_origin: Option<[f64; 3]>,
 }
 
 /// What a thing drawn on the sheet is, to lint's sheet checks.

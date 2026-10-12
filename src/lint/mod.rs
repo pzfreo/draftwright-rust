@@ -179,7 +179,32 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 
 /// Every ported rule's findings on *drawing*, a drawing of the part *analysis* describes.
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
-    check(analysis, &marks(drawing))
+    let mut marks = marks(drawing);
+    let sites: std::collections::BTreeMap<_, _> = crate::bridge::holes::read(analysis)
+        .into_iter()
+        .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?.at)))
+        .collect();
+    for (a, mark) in drawing.annotations.iter().zip(&mut marks) {
+        let Some(origin) = a.coordinate_origin else {
+            continue;
+        };
+        // Verify the printed cell in its own datum frame before translating its evidence into
+        // the envelope frame used by the existing hole/pattern coverage checks.
+        let proof = mark.claims.first().and_then(|c| {
+            let axis = ["x", "y", "z"]
+                .iter()
+                .position(|axis| c.parameter == format!("location.length.{axis}"))?;
+            let at = sites.get(c.feature.as_str())?;
+            holes::states(&mark.text, at[axis] - origin[axis])
+                .then(|| coverage::fmt(at[axis] - analysis.envelope[0][axis]))
+        });
+        if let Some(text) = proof {
+            mark.text = text;
+        } else {
+            mark.claims.clear();
+        }
+    }
+    check(analysis, &marks)
 }
 
 /// Every ported rule's findings on a drawing whose annotations are *marks*.
@@ -187,6 +212,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = coverage::feature_coverage(analysis, marks);
     issues.extend(bosses::coverage(analysis, marks));
     issues.extend(coverage::located(analysis, marks));
+    issues.extend(coverage::schedule_entries(analysis, marks));
     issues.extend(prismatic::coverage(analysis, marks));
     issues.extend(pads::coverage(analysis, marks));
     issues.extend(polygonal::boss_coverage(analysis, marks));

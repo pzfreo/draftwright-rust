@@ -1151,6 +1151,7 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
         };
         if !i.label.is_empty() {
             annotations.push(draftwright::output::Annotation {
+                coordinate_origin: None,
                 name: item_name.clone(),
                 view: None,
                 runs: vec![text.len()],

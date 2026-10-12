@@ -38,5 +38,10 @@
    "verdict": "undetermined",
    "reason": "draftwright attempts a table (its plan view has 18 holes outside a pattern, at least 16) and withdraws it for want of balloon room; the port's has 10 (the eight holes above missing), fewer than 16, so it attempts none and says so on each drop. Neither draws a table. Follows the recognition difference in rows.ctc04."
   }
+ },
+ "plan_time_schedules": {
+   "verdict": "rust-correct",
+   "reason": "Maintainer direction 2026-10-11: dense views use tables before layout, rather than escalating only after a dropped item. Python origin/main src/draftwright/annotations/orchestrator.py::_maybe_tabulate_holes_impl retains the >=16 loose-hole rescue and excludes compound/authored callouts from replacement. The Rust rescue is unchanged; the new presentation keeps full approved compound/thread/fit/tolerance wording in a size cell, per-hole coordinate cells, compact tags and a proven projected datum corner. Pinned callouts are additive. Ordinary PCD notes are retained. Tests: planned_hole_tables.rs; original failure logs and native before/after sheets under target/h1-*. H1 fix round: use a theoretical min-plane corner (Python orchestrator.py:1718-1719 also specifies a min-corner datum), entry coordinates/directions distinguish stacked openings, one shared tag identifies coaxial rows, and an incomplete concentric circle prints PCD with explicit angles. Model-space boundary and side-on bore evidence prevents new tag collisions; quality.py measures all schedule labels against actual SVG edges. Evidence: planned_hole_tables regressions and target/h1-fix-*.",
+   "policy": "Always requests the new complete schedule presentation; unpinned callouts may be replaced. This deliberately differs from Python's additive public hole-table verb. A requested schedule without a provable datum or clear space warns and keeps the complete original drawing."
  }
 }

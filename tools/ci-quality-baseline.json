@@ -196,7 +196,7 @@
     },
     "cgb207": {
       "hidden_on_visible": 215,
-      "ink": 7,
+      "ink": 2,
       "line_through_feature": 4,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -220,8 +220,8 @@
     },
     "cgb245": {
       "hidden_on_visible": 172,
-      "ink": 6,
-      "line_through_feature": 11,
+      "ink": 1,
+      "line_through_feature": 3,
       "off_sheet": 0,
       "repeated_label": 1,
       "repeated_measure": 0,
@@ -244,10 +244,10 @@
     },
     "nist_ctc_02_asme1_rc": {
       "hidden_on_visible": 426,
-      "ink": 36,
-      "line_through_feature": 36,
+      "ink": 2,
+      "line_through_feature": 16,
       "off_sheet": 0,
-      "repeated_label": 1,
+      "repeated_label": 0,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -256,8 +256,8 @@
     },
     "nist_ctc_03_asme1_rc": {
       "hidden_on_visible": 148,
-      "ink": 24,
-      "line_through_feature": 8,
+      "ink": 6,
+      "line_through_feature": 4,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -268,10 +268,10 @@
     },
     "nist_ctc_04_asme1_rd": {
       "hidden_on_visible": 205,
-      "ink": 54,
-      "line_through_feature": 62,
+      "ink": 3,
+      "line_through_feature": 36,
       "off_sheet": 0,
-      "repeated_label": 5,
+      "repeated_label": 2,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -280,8 +280,8 @@
     },
     "nist_ctc_05_asme1_rd": {
       "hidden_on_visible": 66,
-      "ink": 8,
-      "line_through_feature": 16,
+      "ink": 0,
+      "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -292,10 +292,10 @@
     },
     "nist_ftc_06_asme1_rd": {
       "hidden_on_visible": 32,
-      "ink": 11,
+      "ink": 4,
       "line_through_feature": 3,
       "off_sheet": 0,
-      "repeated_label": 2,
+      "repeated_label": 0,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -304,8 +304,8 @@
     },
     "nist_ftc_07_asme1_rd": {
       "hidden_on_visible": 136,
-      "ink": 9,
-      "line_through_feature": 9,
+      "ink": 4,
+      "line_through_feature": 3,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -316,8 +316,8 @@
     },
     "nist_ftc_08_asme1_rc": {
       "hidden_on_visible": 218,
-      "ink": 46,
-      "line_through_feature": 18,
+      "ink": 3,
+      "line_through_feature": 11,
       "off_sheet": 0,
       "repeated_label": 1,
       "repeated_measure": 0,
@@ -328,10 +328,10 @@
     },
     "nist_ftc_09_asme1_rd": {
       "hidden_on_visible": 17,
-      "ink": 20,
-      "line_through_feature": 14,
+      "ink": 7,
+      "line_through_feature": 6,
       "off_sheet": 0,
-      "repeated_label": 3,
+      "repeated_label": 1,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -340,10 +340,10 @@
     },
     "nist_ftc_10_asme1_rb": {
       "hidden_on_visible": 121,
-      "ink": 22,
-      "line_through_feature": 23,
+      "ink": 1,
+      "line_through_feature": 11,
       "off_sheet": 0,
-      "repeated_label": 2,
+      "repeated_label": 0,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "docs/status-2026-10-10.md: Stage G integration / Merged after table",
-  "source_commit": "fd08c1d",
-  "verified_binary_sha256": "56c6f47887c4fcc512d85cf18c2d99c9370295e3352beb4fdb2301ebd82b0bb0"
+  "source": "docs/status-2026-10-10.md: Stage H1 fix round 2 / quality after",
+  "source_commit": "0fc1c03+cxg/h-tables",
+  "verified_binary_sha256": "826470d7209d8b189de08278fe2b486acfe844cdc189f6fc73a34e5b72c03e29"
 }

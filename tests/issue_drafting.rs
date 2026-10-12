@@ -2047,6 +2047,12 @@ fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
         .iter()
         .filter(|d| d.placed.is_some())
         .flat_map(|d| &d.measurements)
+        .chain(plan.hole_tables.iter().flat_map(|t| {
+            t.rows
+                .iter()
+                .flat_map(|r| &r.measurements)
+                .chain(&t.covered)
+        }))
         .filter(|m| m.feature.starts_with("f:hole") || m.feature.starts_with("f:turned_step:"))
         .map(|m| (m.feature.as_str(), m.parameter.as_str()))
         .collect()
@@ -2066,8 +2072,21 @@ fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
 /// lowers no PMI into the plan, not-applicable).
 #[test]
 fn the_recovery_tries_the_same_page_first_and_keeps_every_outcome() {
+    // Keep the exhausted-ladder fixture explicit; auto tables now resolve these losses.
+    let style = Spec {
+        hole_table: draftwright::hole_table::Setting::Never,
+        ..Spec::default()
+    };
+    let initial: Vec<_> = planned()
+        .iter()
+        .map(|(n, a, _)| (n.clone(), a.clone(), model::plan(a, &style).unwrap()))
+        .collect();
+    let recovered: Vec<_> = initial
+        .iter()
+        .map(|(n, a, _)| (n.clone(), model::plan_recovered(a, &style).unwrap()))
+        .collect();
     let mut moved = BTreeSet::new();
-    for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
+    for ((name, _, first), (_, after)) in initial.iter().zip(&recovered) {
         let Some(said) = after
             .problems
             .iter()
@@ -2099,7 +2118,7 @@ fn the_recovery_tries_the_same_page_first_and_keeps_every_outcome() {
         return;
     }
     assert!(!moved.iter().any(|m| m.0 == "ctc01"), "{moved:?}");
-    let ctc01 = &recovered().iter().find(|p| p.0 == "ctc01").unwrap().1;
+    let ctc01 = &recovered.iter().find(|p| p.0 == "ctc01").unwrap().1;
     assert_eq!(
         (ctc01.sheet.size.as_str(), ctc01.sheet.scale.as_str()),
         ("A3", "1:5")
@@ -2108,7 +2127,7 @@ fn the_recovery_tries_the_same_page_first_and_keeps_every_outcome() {
         moved.contains(&("cgb245", "layout_recovery_exhausted")),
         "{moved:?}"
     );
-    let grm03 = &recovered().iter().find(|p| p.0 == "grm03").unwrap().1;
+    let grm03 = &recovered.iter().find(|p| p.0 == "grm03").unwrap().1;
     assert_eq!(
         (grm03.sheet.size.as_str(), grm03.sheet.scale.as_str()),
         ("A4", "2:1")
