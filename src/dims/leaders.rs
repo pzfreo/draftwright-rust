@@ -102,6 +102,11 @@ const ESCAPES: [f64; 3] = [CLEAR, 7.0, 11.0];
 const MAX_SITES: usize = 64;
 /// The candidates each job keeps for the joint assignment, best first.
 const KEEP: usize = 40;
+/// A route escaping fixed ink also tries its tip turned by one lead direction either way
+/// ([`ROTATIONS`]) and, per shoulder fraction ([`SHOULDER_STEPS`]), a shorter shelf on its side
+/// and on the other: those and the incumbent join the job's [`KEEP`].
+const ROTATIONS: [f64; 2] = [-1.0, 1.0];
+const SHOULDER_STEPS: [f64; 3] = [0.25, 0.5, 0.75];
 /// The joint assignment's work bound per group of conflicting jobs, in search nodes.
 pub(super) const NODE_BUDGET: usize = 200_000;
 /// The descent passes (single jobs, then conflicting pairs) that improve the greedy start before
@@ -121,6 +126,9 @@ const AREA: i64 = 1_000_000;
 /// `annotation_text_ink_clear`, and keeps shaft crossings under Policy B): above the area.
 /// A candidate meets text of fewer than a thousand items, so this stays below one crossing.
 const TEXT_INK: i64 = 1_000 * AREA;
+/// A leader running along or close beside a centre stroke reads as part of it
+/// ([`crate::centrelines::runs_beside`]): avoided at any cost short of one crossing.
+const BESIDE: i64 = 100 * TEXT_INK;
 /// The clear-route measurement (ISSUE-1187-a, after draftwright's test helper `_clear_routes`,
 /// which no placer uses): from each of a callout's [`SWEEP_SITES`] sites nearest its leader's
 /// tip, the leader leaves radially in [`SWEEP_DIRECTIONS`] directions, its elbow at each of
@@ -141,6 +149,11 @@ struct Candidate {
     cost: i64,
     hard: u32,
     crossings: u32,
+    furniture: u32,
+    furniture_hard: u32,
+    furniture_text: u32,
+    /// Of the centre strokes it meets, those it runs along or close beside ([`BESIDE`]).
+    beside: u32,
     feature_crossings: u32,
     inside: i64,
     aware: bool,
@@ -170,11 +183,16 @@ impl Candidate {
                     + i64::from(self.outside) * AREA
                     + self.cost
             }
+            + i64::from(self.furniture) * 100_000
+            + i64::from(self.beside) * BESIDE
     }
 
     /// Whether it is clear: no hard blocker and nothing crossed.
     fn clear(&self) -> bool {
-        self.hard == 0 && self.crossings == 0 && (!self.aware || self.feature_crossings == 0)
+        self.hard == 0
+            && self.crossings == 0
+            && self.furniture == 0
+            && (!self.aware || self.feature_crossings == 0)
     }
 
     fn placed(&self) -> Placed {
@@ -199,6 +217,9 @@ struct Fixed {
     heads: Vec<(usize, [P2; 2])>,
     /// Where each of them lies, so a candidate tests only those near it.
     grid: Grid,
+    furniture: BTreeMap<usize, bool>,
+    /// Of the furniture, the centre marks' crosses.
+    crosses: std::collections::BTreeSet<usize>,
 }
 
 impl Fixed {
@@ -231,6 +252,8 @@ impl Fixed {
             labels,
             heads,
             grid,
+            furniture: BTreeMap::new(),
+            crosses: Default::default(),
         }
     }
 }
@@ -442,7 +465,7 @@ pub(super) fn place_with_obstacles(
             .enumerate()
             .filter_map(|(i, p)| Some((i, p.as_ref()?)))
     };
-    let fixed = Fixed::new(
+    let mut fixed = Fixed::new(
         on().chain(
             obstacles
                 .iter()
@@ -450,6 +473,18 @@ pub(super) fn place_with_obstacles(
                 .filter_map(|(i, d)| Some((items.len() + i, d.placed.as_ref()?))),
         ),
     );
+    fixed.furniture = obstacles
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.kind == "ink")
+        .map(|(i, d)| (items.len() + i, d.basis == "global_axis"))
+        .collect();
+    fixed.crosses = obstacles
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.kind == "ink" && d.basis == "cross")
+        .map(|(i, _)| items.len() + i)
+        .collect();
     // How far each view's strips reach with dimension ink, past the view's edges.
     let mut reach: BTreeMap<(&str, usize), f64> = BTreeMap::new();
     for i in 0..items.len() {
@@ -502,44 +537,149 @@ pub(super) fn place_with_obstacles(
             },
         ));
     }
-    // Semantic PMI always retains the established objective. Do not measure footprint
-    // scores that it discards, including when text edits reconstruct the natural inventory.
+    let measured: Vec<_> = jobs
+        .iter()
+        .map(|(_, job)| inventory(job, &fixed, page))
+        .collect();
+    let mut inventories: Vec<_> = measured.iter().map(|v| v.0.clone()).collect();
+    let mut baseline: Vec<_> = measured.iter().map(|v| v.1.clone()).collect();
+    let baseline_original: Vec<_> = measured.iter().map(|v| v.2.clone()).collect();
+    // Semantic PMI claims its strips after dimensions. Until those strips participate in the
+    // joint solve, retain the established objective rather than planning PMI twice as a probe.
     let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
         .0
         .is_empty();
-    let (mut inventories, original): (Vec<_>, Vec<_>) = jobs
-        .iter()
-        .map(|(_, job)| {
-            if semantic_pmi {
-                inventory::<false>(job, &fixed, page)
-            } else {
-                inventory::<true>(job, &fixed, page)
-            }
-        })
-        .unzip();
-    let (old_choice, old_capped) = assign(&original);
-    let (mut choice, mut capped) = if semantic_pmi {
-        (old_choice.clone(), old_capped.clone())
-    } else {
-        assign(&inventories)
-    };
-    // Keep the annotation floor using the already measured candidates and their pair contacts.
-    // No dimensions, feature projections or dependent PMI placements are rebuilt here.
     let defects = |inv: &[Vec<Candidate>], selected: &[usize]| {
         let mut count = 0;
         for (k, &c) in selected.iter().enumerate() {
             let a = &inv[k][c];
-            count += a.hard + a.crossings + a.outside;
+            count += a.hard - a.furniture_hard + a.crossings - a.furniture_text + a.outside;
             for (j, &other) in selected.iter().enumerate().take(k) {
                 count += conflict(a, &inv[j][other]);
             }
         }
         count
     };
-    if semantic_pmi || defects(&inventories, &choice) > defects(&original, &old_choice) {
-        inventories = original;
-        choice = old_choice;
-        capped = old_capped;
+    let (legacy_choice, legacy_capped) = assign(&baseline_original);
+    let (mut baseline_choice, mut baseline_capped) = if semantic_pmi {
+        (legacy_choice.clone(), legacy_capped.clone())
+    } else {
+        assign(&baseline)
+    };
+    if semantic_pmi
+        || defects(&baseline, &baseline_choice) > defects(&baseline_original, &legacy_choice)
+    {
+        baseline = baseline_original;
+        baseline_choice = legacy_choice;
+        baseline_capped = legacy_capped;
+    }
+    // Furniture must not buy clearance by sending a leader through another feature.
+    // Retain the established route as a candidate, and constrain each job by its prior floor.
+    for (k, (_, job)) in jobs.iter().enumerate() {
+        let b = &baseline[k][baseline_choice[k]];
+        let ceiling = b.hard + b.crossings + b.outside;
+        inventories[k].retain(|c| {
+            c.feature_crossings <= b.feature_crossings
+                && c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside <= ceiling
+        });
+        let right = b.end[0] > b.elbow[0];
+        let mut prior = measure(job, b.tip, b.elbow, right, &fixed, page).expect("existing route");
+        // Keep the text anchored when escaping fixed ink: nearby rim points, shorter shelves,
+        // or the opposite outward side, all measured against the same feature evidence.
+        if prior.furniture_hard > 0 {
+            let site = nearest(&job.sites, b.elbow);
+            if site.1 > 1e-9 {
+                let radial = rim_tip(site, b.elbow);
+                let u = [radial[0] - site.0[0], radial[1] - site.0[1]];
+                for turn in ROTATIONS {
+                    let (sin, cos) = (turn * std::f64::consts::TAU / DIRECTIONS as f64).sin_cos();
+                    let tip = [
+                        site.0[0] + cos * u[0] - sin * u[1],
+                        site.0[1] + sin * u[0] + cos * u[1],
+                    ];
+                    if let Some(mut c) = measure_at(job, tip, b.elbow, b.end, right, &fixed, page)
+                        && c.feature_crossings <= b.feature_crossings
+                    {
+                        c.aware = !semantic_pmi;
+                        inventories[k].push(c);
+                    }
+                }
+            }
+            for offset in SHOULDER_STEPS.map(|f| f * SHOULDER) {
+                let elbow = [
+                    b.elbow[0] + if right { offset } else { -offset },
+                    b.elbow[1],
+                ];
+                let tip = rim_tip(nearest(&job.sites, elbow), elbow);
+                let across = [
+                    b.elbow[0] + if right { -offset } else { offset },
+                    b.elbow[1],
+                ];
+                let other_tip = rim_tip(nearest(&job.sites, across), across);
+                if let Some(mut c) = measure(job, other_tip, across, !right, &fixed, page)
+                    && c.feature_crossings <= b.feature_crossings
+                {
+                    c.aware = !semantic_pmi;
+                    inventories[k].push(c);
+                }
+                if let Some(mut c) = measure_at(job, tip, elbow, b.end, right, &fixed, page) {
+                    if c.feature_crossings > b.feature_crossings {
+                        continue;
+                    }
+
+                    c.aware = !semantic_pmi;
+                    inventories[k].push(c);
+                }
+            }
+        }
+        prior.aware = !semantic_pmi;
+        inventories[k].push(prior);
+    }
+    if semantic_pmi {
+        for inv in &mut inventories {
+            for c in inv {
+                c.aware = false;
+            }
+        }
+    }
+    let (mut choice, mut capped) = assign(&inventories);
+    if defects(&inventories, &choice) > defects(&baseline, &baseline_choice) {
+        // Restore the incumbent when the bounded joint solve spends its ordinary ink floor.
+        choice = inventories.iter().map(|inv| inv.len() - 1).collect();
+        capped = baseline_capped;
+    }
+    let floor = defects(&baseline, &baseline_choice);
+    for _ in 0..DESCENT {
+        let before = choice.clone();
+        for k in 0..inventories.len() {
+            if inventories[k][choice[k]].furniture_hard == 0 {
+                continue;
+            }
+            let ordinary = |c: &Candidate| {
+                c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside
+            };
+            let local = |c: &Candidate| {
+                ordinary(c)
+                    + choice
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != k)
+                        .map(|(j, &n)| conflict(c, &inventories[j][n]))
+                        .sum::<u32>()
+            };
+            let ceiling =
+                local(&inventories[k][choice[k]]) + floor - defects(&inventories, &choice);
+            choice[k] = inventories[k]
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| local(c) <= ceiling)
+                .min_by_key(|(n, c)| (c.score() + i64::from(local(c) - ordinary(c)) * CROSSING, *n))
+                .map(|(n, _)| n)
+                .expect("the prior route meets its own floor");
+        }
+        if choice == before {
+            break;
+        }
     }
     let mut problems = Vec::new();
     let named = |i: usize| format!("{} ({})", items[i].id, items[i].terms.join(" "));
@@ -799,11 +939,9 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 
 /// Every candidate of *job* measured, the best [`KEEP`] kept (fewest hard blockers, then fewest
 /// crossings, then shortest, then generation order), near-duplicates dropped.
-fn inventory<const AWARE: bool>(
-    job: &Job,
-    fixed: &Fixed,
-    page: &Page,
-) -> (Vec<Candidate>, Vec<Candidate>) {
+type Inventories = (Vec<Candidate>, Vec<Candidate>, Vec<Candidate>);
+
+fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Inventories {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -876,16 +1014,27 @@ fn inventory<const AWARE: bool>(
             None => &[true, false],
         };
         for &right in options {
-            if let Some(c) = measure::<AWARE>(job, tip, elbow, right, fixed, page) {
+            if let Some(c) = measure(job, tip, elbow, right, fixed, page) {
                 measured.push(c);
             }
         }
     }
-    let aware = if AWARE { keep(&measured) } else { Vec::new() };
-    for c in &mut measured {
+    let aware = keep(&measured);
+    let mut baseline = measured.clone();
+    for c in &mut baseline {
+        c.hard -= c.furniture_hard;
+        c.crossings -= c.furniture_text;
+        c.text -= c.furniture_text;
+        c.furniture = 0;
+        c.furniture_hard = 0;
+        c.furniture_text = 0;
+        c.beside = 0;
+    }
+    let baseline_aware = keep(&baseline);
+    for c in &mut baseline {
         c.aware = false;
     }
-    (aware, keep(&measured))
+    (aware, baseline_aware, keep(&baseline))
 }
 
 fn keep(measured: &[Candidate]) -> Vec<Candidate> {
@@ -928,10 +1077,26 @@ fn offsets(beyond: f64) -> Vec<f64> {
 
 /// The candidate with its tip, elbow and label side, measured; none when the leader is too short
 /// for its arrowhead.
-fn measure<const AWARE: bool>(
+fn measure(
     job: &Job,
     tip: P2,
     elbow: P2,
+    right: bool,
+    fixed: &Fixed,
+    page: &Page,
+) -> Option<Candidate> {
+    let end = [
+        elbow[0] + if right { SHOULDER } else { -SHOULDER },
+        elbow[1],
+    ];
+    measure_at(job, tip, elbow, end, right, fixed, page)
+}
+
+fn measure_at(
+    job: &Job,
+    tip: P2,
+    elbow: P2,
+    end: P2,
     right: bool,
     fixed: &Fixed,
     page: &Page,
@@ -940,8 +1105,6 @@ fn measure<const AWARE: bool>(
     if shaft < MIN_LEADER {
         return None;
     }
-    let out = if right { 1.0 } else { -1.0 };
-    let end = [elbow[0] + out * SHOULDER, elbow[1]];
     let at_x = if right {
         end[0] + 1.0 - job.ink_min[0]
     } else {
@@ -1011,17 +1174,57 @@ fn measure<const AWARE: bool>(
     // plan's collision checks report them.
     let mut crossed: Vec<usize> = Vec::new();
     let mut text: Vec<usize> = Vec::new();
+    let mut furniture = Vec::new();
+    let mut furniture_hard = 0;
+    let mut furniture_text = Vec::new();
+    let mut besides = Vec::new();
     let lines = segs.map(Line::new);
     fixed.grid.near(0, near, |n| {
         let (i, f) = &fixed.segments[n];
         if !segment_near(*f, near) {
             return;
         }
-        if lines.iter().any(|s| s.meets(*f)) {
-            crossed.push(*i);
+        // Exact collinear travel stays hard; a shaft's near-parallel travel is weighted
+        // ([`BESIDE`]).
+        let mut beside = false;
+        let mut collinear = false;
+        let meets = if let Some(&global) = fixed.furniture.get(i) {
+            // The shaft only: a short shelf beside a stroke's end is not a run along it. A
+            // radial leader leaving its own hole along that hole's centre mark is its
+            // attachment, not travel along another feature's line.
+            beside = crate::centrelines::runs_beside(segs[0], *f)
+                && !(fixed.crosses.contains(i) && through(*f, nearest(&job.sites, tip).0));
+            collinear = lines.iter().any(|s| s.collinear(*f));
+            beside
+                || collinear
+                || segs
+                    .iter()
+                    .enumerate()
+                    .any(|(k, s)| crate::centrelines::leader_conflict(*s, *f, global, k == 0))
+        } else {
+            lines.iter().any(|s| s.meets(*f))
+        };
+        if meets {
+            if fixed.furniture.contains_key(i) {
+                furniture.push(*i);
+                if beside {
+                    besides.push(*i);
+                }
+                if collinear {
+                    hard += 1;
+                    furniture_hard += 1;
+                }
+            } else {
+                crossed.push(*i);
+            }
         }
         if crosses(*f, lb) {
             text.push(*i);
+            if fixed.furniture.contains_key(i) {
+                hard += 1;
+                furniture_hard += 1;
+                furniture_text.push(*i);
+            }
         }
     });
     fixed.grid.near(2, near, |n| {
@@ -1048,20 +1251,27 @@ fn measure<const AWARE: bool>(
         }
         if boxes_overlap(padded, *l) || segs.iter().chain(&own_head).any(|s| crosses(*s, *l)) {
             text.push(*i);
+            if fixed.furniture.contains_key(i) {
+                hard += 1;
+                furniture_hard += 1;
+                furniture_text.push(*i);
+            }
         }
     });
     // An item both crossed and met by the label counts in each: the plan reports a crossing
     // and a text contact as two problems of the pair.
-    for v in [&mut crossed, &mut text] {
+    for v in [
+        &mut crossed,
+        &mut text,
+        &mut furniture,
+        &mut furniture_text,
+        &mut besides,
+    ] {
         v.sort_unstable();
         v.dedup();
     }
     let crossings = (crossed.len() + text.len()) as u32;
-    let feature_crossings = if AWARE {
-        job.footprints.crossing_count(segs[0]) as u32
-    } else {
-        0
-    };
+    let feature_crossings = job.footprints.crossing_count(segs[0]) as u32;
     // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
     let outside = job.area.is_some_and(|a| {
         [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]
@@ -1070,12 +1280,8 @@ fn measure<const AWARE: bool>(
                 p[0] < a[0] - 1e-6 || p[0] > a[2] + 1e-6 || p[1] < a[1] - 1e-6 || p[1] > a[3] + 1e-6
             })
     });
-    let cost = ((shaft + SHOULDER) * 1000.0).round() as i64;
-    let inside = if AWARE {
-        (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64
-    } else {
-        0
-    };
+    let cost = ((shaft + (end[0] - elbow[0]).hypot(end[1] - elbow[1])) * 1000.0).round() as i64;
+    let inside = (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64;
     Some(Candidate {
         tip,
         elbow,
@@ -1085,9 +1291,13 @@ fn measure<const AWARE: bool>(
         cost,
         hard,
         crossings,
+        furniture: furniture.len() as u32,
+        furniture_hard,
+        furniture_text: furniture_text.len() as u32,
+        beside: besides.len() as u32,
         feature_crossings,
         inside,
-        aware: AWARE,
+        aware: true,
         text: text.len() as u32,
         outside: u32::from(outside),
         bounds,
@@ -1176,9 +1386,7 @@ pub fn clear_routes(
     Some(
         sweep(&job, tip)
             .into_iter()
-            .filter_map(|(tip, elbow, right)| {
-                measure::<true>(&job, tip, elbow, right, &fixed, &page)
-            })
+            .filter_map(|(tip, elbow, right)| measure(&job, tip, elbow, right, &fixed, &page))
             .filter(Candidate::clear)
             .count(),
     )
@@ -1265,6 +1473,14 @@ impl Line {
         segments_cross(self.a, b) || self.along(b)
     }
 
+    fn collinear(&self, b: [P2; 2]) -> bool {
+        let Some((u, _)) = self.dir else {
+            return false;
+        };
+        let v = [b[1][0] - b[0][0], b[1][1] - b[0][1]];
+        (u[0] * v[1] - u[1] * v[0]).abs() <= 1e-9 * v[0].hypot(v[1]) && self.along(b)
+    }
+
     /// [`segments_along`] of this line and *b*.
     fn along(&self, b: [P2; 2]) -> bool {
         let (a, Some((u, len))) = (self.a, self.dir) else {
@@ -1278,6 +1494,13 @@ impl Line {
         let (t0, t1) = (at(b[0]).min(at(b[1])), at(b[0]).max(at(b[1])));
         t1.min(len) - t0.max(0.0) >= ALONG_RUN
     }
+}
+
+/// Whether the line of segment *s* passes within a micrometre of *p*.
+fn through(s: [P2; 2], p: P2) -> bool {
+    let u = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
+    let n = u[0].hypot(u[1]);
+    n > 1e-9 && ((p[0] - s[0][0]) * u[1] - (p[1] - s[0][1]) * u[0]).abs() / n < 1e-3
 }
 
 /// Whether two segments cross at a point inside both (touching ends and collinear runs do not
@@ -1382,14 +1605,14 @@ fn assign(inventories: &[Vec<Candidate>]) -> (Vec<usize>, Vec<Vec<usize>>) {
 /// The conflicts between a group's jobs, dense: for jobs *k* and *l* of the group (local
 /// indices), `of[k * m + l][w][c]` holds, bit *d*, whether candidate *c* of *k* and candidate *d*
 /// of *l* conflict by more than *w* crossings, one layer per crossing up to the pair's most;
-/// none for a pair that never does. Inventories hold at most [`KEEP`] candidates, so one word
-/// covers each.
+/// none for a pair that never does. The shortlist, incumbent and furniture-only variants
+/// fit in one word.
 struct Conflicts {
     m: usize,
     of: Vec<Option<Vec<Vec<u64>>>>,
 }
 
-const _: () = assert!(KEEP <= 64);
+const _: () = assert!(KEEP + ROTATIONS.len() + 2 * SHOULDER_STEPS.len() < 64); // and the incumbent
 
 impl Conflicts {
     fn new(
@@ -1740,6 +1963,10 @@ mod tests {
             cost,
             hard: 0,
             crossings: 0,
+            furniture: 0,
+            furniture_hard: 0,
+            furniture_text: 0,
+            beside: 0,
             feature_crossings: 0,
             inside: 0,
             aware: false,
@@ -1786,41 +2013,6 @@ mod tests {
         assert_eq!(conflict(&a[0], &b[0]), TEXT_CONFLICT);
         assert_eq!(conflict(&a[1], &b[0]), 1);
         assert_eq!(assign(&[a, b]), (vec![1, 0], vec![]));
-    }
-
-    #[test]
-    fn unused_footprint_scoring_preserves_legacy_candidates() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/parts/plate.step");
-        let a = crate::model::analyse_native(&path).unwrap().1;
-        let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
-        let view = plan.views.iter().find(|v| v.id == "v:front").unwrap();
-        let frame = Frame::new(&a, view);
-        let page = Page::new(&a, &plan.sheet, &plan.views);
-        let cache = super::super::footprints::Cache::default();
-        let footprints = cache.get(&a, view);
-        let o = frame.outline();
-        let ink = label_ink(&["ø4 THRU".into()], font());
-        let job = Job {
-            view: "front",
-            footprints: &footprints,
-            outline: o,
-            area: page.area("front"),
-            sites: vec![([0.5 * (o[0] + o[2]), 0.5 * (o[1] + o[3])], 2.0)],
-            ink_min: ink.min,
-            ink_max: ink.max,
-            beyond: [CLEAR; 4],
-        };
-        let fixed = Fixed::new(std::iter::empty::<(usize, &Placed)>());
-        let original = inventory::<true>(&job, &fixed, &page).1;
-        let fast = inventory::<false>(&job, &fixed, &page).1;
-        assert!(!original.is_empty());
-        assert_eq!(original.len(), fast.len());
-        for (before, after) in original.iter().zip(&fast) {
-            assert_eq!(before.score(), after.score());
-            assert_eq!(before.placed(), after.placed());
-        }
-        assert_eq!(assign(&[original]), assign(&[fast]));
     }
 
     /// A small deterministic generator for the solver's tests.

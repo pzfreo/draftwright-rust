@@ -8,6 +8,7 @@ pub use haecceity;
 pub mod api;
 pub mod blends;
 pub mod bridge;
+pub mod centrelines;
 pub mod completeness;
 pub mod demand;
 pub mod dims;

@@ -97,6 +97,8 @@ fn sheet(views: &[(&str, [f64; 4])], items: Vec<Drawn>) -> Drawing {
         text: Vec::new(),
         annotations: Vec::new(),
         sheet: Sheet {
+            centre_marks: BTreeMap::new(),
+            frames: BTreeMap::new(),
             drawable: Some([10.0, 10.0, 287.0, 200.0]),
             views: views
                 .iter()
@@ -860,7 +862,15 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
         let ids: BTreeSet<&str> = issues.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids.len(), issues.len(), "{name}: finding IDs are unique");
         for issue in &issues {
-            assert!(CODES.contains(&issue.code.as_str()), "{}", issue.code);
+            assert!(
+                CODES.contains(&issue.code.as_str())
+                    || matches!(
+                        issue.code.as_str(),
+                        "leader_centerline_overlap" | "label_section_furniture_overlap"
+                    ),
+                "{}",
+                issue.code
+            );
             if std::env::var_os("LINT_REPORT").is_some() {
                 eprintln!("{name}: {} {} [{}]", issue.code, issue.message, issue.id);
             }
@@ -947,6 +957,8 @@ fn structural_checks_on_pythons_sheets_agree_with_pythons_lint() {
             text: Vec::new(),
             annotations: Vec::new(),
             sheet: Sheet {
+                centre_marks: BTreeMap::new(),
+                frames: BTreeMap::new(),
                 drawable: Some([10.0, 10.0, w - 10.0, h - 10.0]),
                 views: f
                     .views
@@ -1290,6 +1302,8 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
         text,
         annotations,
         sheet: Sheet {
+            centre_marks: BTreeMap::new(),
+            frames: BTreeMap::new(),
             drawable: c.page_bbox,
             views,
             items,
@@ -1326,6 +1340,7 @@ fn key(code: &str, names: &[&str], message: &str) -> String {
 #[test]
 fn structural_checks_on_what_draftwright_read_agree_with_what_it_found() {
     let mut compared = BTreeMap::new();
+    let mut additional = BTreeMap::new();
     for (name, c) in captured() {
         assert!(c.scale > 0.0 && !c.file.is_empty(), "{name}");
         let drawing = captured_drawing(&name, &c);
@@ -1350,7 +1365,13 @@ fn structural_checks_on_what_draftwright_read_agree_with_what_it_found() {
             theirs.push(format!("{k} [{}]", i.severity));
             *compared.entry(i.code.clone()).or_insert(0) += 1;
         }
-        for i in &issues {
+        for i in issues.iter().filter(|i| !CODES.contains(&i.code.as_str())) {
+            additional
+                .entry(name.clone())
+                .or_insert_with(Vec::new)
+                .push((i.code.clone(), i.annotation.clone(), i.related.clone()));
+        }
+        for i in issues.iter().filter(|i| CODES.contains(&i.code.as_str())) {
             let names: Vec<&str> = i
                 .annotation
                 .iter()
@@ -1390,6 +1411,11 @@ fn structural_checks_on_what_draftwright_read_agree_with_what_it_found() {
             "{name}: the port's findings (left), draftwright's (right)"
         );
     }
+    let expected = serde_json::from_str(include_str!("fixtures/g6_python_fixed_ink.json")).unwrap();
+    assert_eq!(
+        additional, expected,
+        "additional fixed-ink findings on captured Python sheets"
+    );
     // ftc06's ten crossings, cgb245's and ctc04's one each; ctc04's overlapping pair (its
     // line-work remedy included); hanger's and m10046's labels over blank face.
     assert_eq!(
@@ -1401,4 +1427,26 @@ fn structural_checks_on_what_draftwright_read_agree_with_what_it_found() {
         ]),
         "draftwright's findings in the ported codes on its sheets"
     );
+}
+
+#[test]
+fn fixed_ink_review_distinguishes_shared_strokes_from_transverse_crossings() {
+    let mut fixed = item("axis", Kind::Centreline, [0., 0., 10., 0.], None);
+    fixed.lines = vec![[[0., 0.], [10., 0.]]];
+    for (line, expected) in [
+        ([[2., 0.], [8., 0.]], true),
+        ([[5., -3.], [5., 3.]], false),
+        ([[11., 0.], [20., 0.]], false),
+        ([[9.5, 0.], [12., 0.]], false),
+        ([[2., 0.1], [8., 0.1]], false),
+    ] {
+        let mut leader = item("callout", Kind::Dimension, [0.; 4], None);
+        leader.lines = vec![line];
+        leader.elbow = Some(line[1]);
+        let found = structural::check(&sheet(&[], vec![leader, fixed.clone()]));
+        assert_eq!(
+            found.iter().any(|i| i.code == "leader_centerline_overlap"),
+            expected
+        );
+    }
 }

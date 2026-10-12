@@ -1,0 +1,72 @@
+[
+ {
+  "rule": "ARCH0016-4",
+  "verdict": "rust-correct",
+  "reason": "The maintainer's 2026-10-11 ISO 128 decision calls for approximately 3 mm beyond a hole edge, scaled for very small/large holes. Python origin/main src/draftwright/annotations/from_model.py::render_centermarks uses max(2.5, diameter*scale+2), a 1 mm extension. Rust uses max(clamp(paper radius,1,3),0.05*paper radius), independently of dimensional omissions; tests/centrelines.rs covers the plate and omitted turned dimensions."
+ },
+ {
+  "rule": "ARCH0016-4 native pitch-circle furniture",
+  "verdict": "rust-correct",
+  "reason": "Native CTC-05 Analysis contains ten coplanar diameter-19.05 holes at radius approximately 222.25 but publishes only two linear patterns for unrelated diameter-10.7163 holes. Rust fits the entire equal coplanar group for furniture, requiring at least five members and max(0.01 model mm,radius*1e-4) radial residual; it prints no spacing claim. Python annotations/holes.py emits CenterlineCircle from recognised PatternFeature.bcd. The native bolt-circle regression fails on the pre-G6 code."
+ },
+ {
+  "rule": "ARCH0014-1 / ISSUE-1166-b",
+  "verdict": "equivalent",
+  "reason": "Python annotations/_axial_render.py::_global_axis_centerline explicitly marks the global turning axis, and annotations/_leader_fixed_ink.py permits only its local tip attachment. Rust carries global_axis on planned furniture and checks a transverse shaft intersection within one arrow length. Cutting planes, shelves and collinear runs receive no exemption. No title-block or dimensional rule is changed."
+ },
+ {
+  "rule": "ARCH0014-1 / historical plate placement",
+  "verdict": "rust-correct",
+  "reason": "Adding real ISO 128 fixed ink legitimately reroutes the native plate callouts. tests/identity.rs retains the independent version-2 Spec migration oracle already used for bracket_positions, and adds plate to those replanned layouts; all migration, placement and coverage assertions remain unchanged. The generic obstacle hook preserves ordinary annotation and feature-crossing floors."
+ },
+ {
+  "rule": "ARCH0014-1 / ftc06 captured layout",
+  "verdict": "rust-correct",
+  "reason": "Fixed centre furniture removes the directional boss:5 leader contact with hole:11, leaving its reverse contact. tests/leaders.rs rejects both unlisted contacts and stale ledger entries. known_leaders.json drops the stale direction and known_placement.json changes the pair count from two to one; no new collision is accepted. Native thirty-part quality retains ink 278 and improves feature crossings 212 to 210. Verified after rebasing onto Stage G main: target/g6-carry/rebase-tests.log independently finds the boss-to-hole entry stale, with 39 remaining contacts across 106 callouts on 14 parts. The reverse contact remains rust-wrong; the exact ledgers now agree with G6 geometry."
+ },
+ {
+  "rule": "G6 genuine label/centreline contacts",
+  "verdict": "rust-correct",
+  "reason": "Python origin/main src/draftwright/linting/structural.py::_label_centerline_overlap falls back from a missing label box to the entire annotation box. With centre furniture now present, Rust counts only an actual Drawn.label for this rule: a section hatch or arrow bounding box is not text. Captured structural comparisons retain their assertions; final quality reads the rendered structural label_centerline_overlap findings through review, rather than counting fictitious whole-furniture label contacts."
+ },
+ {
+  "rule": "ARCH0016-4 / cgb245 rejected recovery attempt",
+  "verdict": "rust-correct",
+  "reason": "The explicit A2 1:1 captured cgb245 retry already has three hard findings: page_fit_uncertain, off-sheet envelope depth and hole:3 location ink through slot:3 text. Its new side-view axes for holes 1, 3, 4 and 9 also extend off sheet, so the retry honestly reports seven, while keeping the same rejected attempt, two unreadable locations and default A2 1:2. tests/page_escalation.rs retains the exact count and outcome assertions, changing 3 to 7. Before/after Plan evidence is target/g6/cgb245-1to1[-before].json."
+ },
+ {
+  "rule": "G6 small pitch-circle evidence",
+  "verdict": "equivalent",
+  "reason": "Python refuses a bolt circle with fewer than five members unless a concentric round feature corroborates it (src/draftwright/annotations/holes.py and Rust bridge/holes.rs::established_with). G6 furniture honours that existing proof, including native turned-band axes as round evidence. The added rectangle case in the generic circle/extents unit failed before the guard; a least-squares fit of four corners does not establish a bolt pattern."
+ },
+ {
+  "rule": "ARCH0016-4 oblique projected furniture",
+  "verdict": "rust-correct",
+  "reason": "Python origin/main annotations/from_model.py::render_centermarks uses _END_ON[feat.frame.axis], the nearest principal axis, even for oblique bores. Rust follows that view choice and emits projected side axes, but sizes and orients each end cross to the opening ellipse rather than Python's square diameter-sized mark. Native CTC-03/04 and FTC-07 initially reported 17 missing marks at 1 to 45 degrees; the generic oblique ellipse/axis regression failed before this change. The existing nearest-axis centre-mark lint is retained without exemption."
+ },
+ {
+  "rule": "G6 fix / section furniture and captured Python centre leader",
+  "verdict": "rust-correct",
+  "reason": "Section letters now use the same bundled mono glyph boxes as rendering, and arrow/wing outlines come from section::cutting_plane. The previous known_structural.json FTC-06 entry (hole:5 leader through section_a_right by 1.6 mm) is removed because the hook clears it; its exhaustive structural test still requires exact inventory equality. Captured Python cgb245 hc_plan3 has collinear travel on m_cm8: structural_checks_on_what_draftwright_read_agree_with_what_it_found retains all 12 original ported-code assertions and separately requires all 17 additional collinear contacts on eight captured Python sheets, named in g6_python_fixed_ink.json. ARCH0014-1 does not exempt collinear travel. tests/centrelines.rs replays captured string_post and CTC-05 placements and requires their defects to be detected. Real string_post section_hatch ink is [182.00003333342593,81.1,193.99996666657407,107.6]; an_actual_section_hatch_is_not_a_label_on_its_axis proves the whole-ink fallback creates a label_centerline_overlap finding on that unchanged hatch, while actual-label lint does not."
+ },
+ {
+  "rule": "G6 fix / CTC-04 route with complete section furniture",
+  "verdict": "rust-correct",
+  "reason": "Real section letters and arrow/wing outlines force a different route for native CTC-04 hole_pattern:11. Three slot-ladder extension contacts disappear (slot:2/location_slot_across, slot:3/location_slot, slot:3/slot_length); three other existing ladder contacts replace them (hole:10/location.x, hole:11/location.x, slot:2/slot_length). The underlying ladder crossings remain rust-wrong in known_leaders.json. No collision predicate is weakened: its exhaustive test checks exactly 39 contacts. The fallback repairs only hard furniture contacts, leaving unrelated routes at their prior assignment."
+ },
+ {
+  "rule": "ARCH0014-1 / round-rim fixed-ink avoidance",
+  "verdict": "rust-correct",
+  "reason": "Python's normal automatic/pinned attachment uses the nearest radial rim point. Rust adds two nearby rim points only when the automatic incumbent is blocked by fixed ink, using the existing 16-direction angular step. FTC-10 hole:17's rightward elbow shifts intersect four other features; a nearby point on the same radius leaves its original label and elbow fixed, clears its centre stroke and preserves zero feature crossings. The independent corpus regression checks the tip's radius and outward departure; all ordinary-ink and per-callout feature-crossing floors remain enforced. No new physical site, dimension value or Spec address is added."
+ },
+ {
+  "rule": "ARCH0014-1 / full recessed-hole axes and label clearance",
+  "verdict": "rust-correct",
+  "reason": "The round-3 FTC-10 axis is the proven opening-to-bottom span: 10 counterbore + 55 bore + 6 overrun = 71 paper mm. Its hole:17 label box [354,314.83,372.108,317.08] crossed hole:13's axis x=358,y=245..316 (4.0x1.2 mm). The joint leader search keeps the label there under its ordinary-ink and feature-crossing floors, so the label stays and the axis end is trimmed instead: centrelines::trim shortens only the overrun past the feature (ISO 128-24), stopping 0.5 mm short of the label and keeping at least 1 mm past the hole (axis now y=245..314.33). The label stays joined to its shelf, 1 mm on, with no stroke between. Earlier repairs that hopped the text past the axis or shortened the shelf (8525b11, 83875ad) are reverted: they left the axis between shelf and text and moved neighbouring callouts (review g6r4). A label across a feature's own span is never trimmed around; it stays reported. tests/centrelines.rs::a_label_across_an_axis_end_trims_the_overrun and centrelines::tests::labels_trim_only_an_axis_overrun."
+ },
+ {
+  "rule": "ARCH0014-1 / leaders beside centre lines",
+  "verdict": "rust-correct",
+  "reason": "A leader shaft running within 1 mm of a centre stroke at under ten degrees for more than 0.5 mm reads as part of it (centrelines::runs_beside). cgb207's R5 ran 36.5 mm beside hole:1's axis at 0.775 mm (Codex's exact-parallel rule let it tilt 1.2 degrees and converge on the axis end), string_post's ⌀1.6 8.9 mm along the A-A line. Exact collinear travel stays a hard blocker; near-parallel shaft travel is weighted just below one crossing (leaders.rs BESIDE), so it is avoided whenever that costs no crossing. A radial leader leaving its own hole along that hole's centre-mark arm is its attachment and is exempt: counting it moved CTC-02 AP242's ⌀40 callouts into the GD&T tier and pushed datums E and J off the sheet (tests/gdt_band.rs), and changed 18 of 30 sheets. Making beside travel hard was measured and raised CTC-02/04/05 ink. Over the thirty quality parts, other-feature shaft-beside runs (independent sampled count) fall from 30 to 27; the rest cost a crossing to clear. tests/centrelines.rs::leaders_do_not_run_beside_centre_lines and the runs_beside unit test."
+ }
+]

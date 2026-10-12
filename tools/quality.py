@@ -17,7 +17,8 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 
 INK = {"annotation_ink_overlap", "annotation_over_view", "annotation_line_over_view",
-       "annotation_leader_crossing", "annotation_outside_area"}
+       "annotation_leader_crossing", "annotation_outside_area", "label_centerline_overlap",
+       "leader_centerline_overlap", "label_section_furniture_overlap"}
 
 
 def line_through_features(plan):
@@ -505,6 +506,20 @@ def one(f, dw, out, spec=None, timeout=600):
     else:
         fill = 0.0
     codes = collections.Counter(x["code"] for x in rend.get("problems", []))
+    # Render reports planning problems. Centre-line contacts are judged on actual drawn labels.
+    if any(v.get("line_work") or v.get("cut") for v in plan["views"]):
+        q = subprocess.run([dw, "review", f, *extra], capture_output=True, text=True, timeout=600)
+        try:
+            review = json.loads(q.stdout)
+        except ValueError:
+            return name, {"error": (q.stdout + q.stderr)[:200]}
+        if q.returncode or "structural" not in review:
+            return name, {"error": json.dumps(review)[:200]}
+        for code in ("label_centerline_overlap", "leader_centerline_overlap",
+                     "label_section_furniture_overlap"):
+            codes[code] = max(codes[code], sum(i["code"] == code for i in review["structural"]))
+        with open(f"{out}/{name}.review.json", "w") as output:
+            json.dump({k: review[k] for k in ("lint", "structural")}, output, indent=1, sort_keys=True)
     # Repeated dimensions: the same measured quantity (feature, parameter) stated more than once,
     # and, separately, the same label on the same span in the same view (a drawn duplicate).
     meas = collections.Counter()

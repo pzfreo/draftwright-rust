@@ -289,7 +289,7 @@ pub struct Style {
     /// Line width, mm.
     pub width: f64,
     /// Dash and gap, mm.
-    pub dash: Option<[f64; 2]>,
+    pub dash: Option<&'static [f64]>,
     /// Faces filled in the line colour.
     pub fill: bool,
     /// DXF line weight, hundredths of a mm.
@@ -438,6 +438,18 @@ pub struct Sheet {
     pub items: Vec<Drawn>,
     /// Each title-block field drawn with a value, top row first.
     pub fields: Vec<DrawnField>,
+    /// Centres actually drawn in each end-on view, for the independent feature lint.
+    pub centre_marks: std::collections::BTreeMap<String, Vec<P>>,
+    /// The transforms actually used to draw each view.
+    pub frames: std::collections::BTreeMap<String, DrawnFrame>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DrawnFrame {
+    pub direction: [f64; 3],
+    pub up: [f64; 3],
+    pub at: P,
+    pub scale: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -481,7 +493,7 @@ pub fn layer_styles() -> [(&'static str, Style); 3] {
             Style {
                 colour: [127, 127, 127],
                 width: 0.25,
-                dash: Some([1.5875, 0.79375]),
+                dash: Some(&[1.5875, 0.79375]),
                 fill: false,
                 weight: 25,
             },
@@ -497,6 +509,26 @@ pub fn layer_styles() -> [(&'static str, Style); 3] {
             },
         ),
     ]
+}
+
+/// Thin long-dash-dot centre furniture (ISO 128 type 04.1).
+pub fn centre_style() -> Style {
+    Style {
+        colour: [0, 0, 0],
+        width: 0.15,
+        dash: Some(&[8.0, 1.5, 0.2, 1.5]),
+        fill: false,
+        weight: 15,
+    }
+}
+
+/// Centre a long dash on the feature, so a cross cannot have a gap at its centre.
+pub(crate) fn centre_phase(item: &Item) -> f64 {
+    if let Item::Edge(Curve::Line(a, b)) = item {
+        (4.0 - (b[0] - a[0]).hypot(b[1] - a[1]) / 2.0).rem_euclid(11.2)
+    } else {
+        0.0
+    }
 }
 
 /// The comment that opens the spec in a DXF file; the comments after it carry the spec's JSON.
@@ -535,6 +567,14 @@ fn num(x: f64) -> String {
 }
 
 impl Drawing {
+    /// Visible and hidden edges have precedence over centre furniture.
+    pub(crate) fn paint_layers(&self) -> impl Iterator<Item = &Layer> {
+        self.layers
+            .iter()
+            .filter(|l| l.name == "centres")
+            .chain(self.layers.iter().filter(|l| l.name != "centres"))
+    }
+
     /// The SVG: a page in millimetres, y up inside a flipping group, one group per layer, then
     /// the labels' text, invisible.
     pub fn svg(&self) -> String {
@@ -548,12 +588,19 @@ impl Drawing {
                 j.replace("]]>", "]]]]><![CDATA[>")
             ))
         );
-        for layer in &self.layers {
+        for layer in self.paint_layers() {
             let st = &layer.style;
             let rgb = format!("rgb({},{},{})", st.colour[0], st.colour[1], st.colour[2]);
             let fill = if st.fill { rgb.clone() } else { "none".into() };
-            let dash = st.dash.map_or(String::new(), |[a, b]| {
-                format!(" stroke-dasharray=\"{} {}\"", num(a), num(b))
+            let dash = st.dash.map_or(String::new(), |pattern| {
+                format!(
+                    " stroke-dasharray=\"{}\"",
+                    pattern
+                        .iter()
+                        .map(|&n| num(n))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                )
             });
             let _ = writeln!(
                 s,
@@ -562,7 +609,17 @@ impl Drawing {
                 layer.name
             );
             for item in &layer.items {
-                let _ = writeln!(s, "      {}", svg_item(item));
+                let ink = svg_item(item);
+                let ink = if layer.name == "centres" {
+                    ink.replacen(
+                        ' ',
+                        &format!(" stroke-dashoffset=\"{}\" ", num(centre_phase(item))),
+                        1,
+                    )
+                } else {
+                    ink
+                };
+                let _ = writeln!(s, "      {ink}");
             }
             s += "    </g>\n";
         }
@@ -668,15 +725,28 @@ impl Drawing {
             line_weight: weight(-3),
             ..Default::default()
         });
-        for layer in &self.layers {
+        d.add_line_type(dxf::tables::LineType {
+            name: "CENTRE".into(),
+            description: "ISO 128 long dash dot".into(),
+            element_count: 4,
+            total_pattern_length: 11.2,
+            dash_dot_space_lengths: vec![8.0, -1.5, 0.2, -1.5],
+            ..Default::default()
+        });
+        for layer in self.paint_layers() {
             d.add_layer(DxfLayer {
                 name: layer.name.clone(),
                 line_weight: weight(layer.style.weight),
+                line_type_name: if layer.name == "centres" {
+                    "CENTRE".into()
+                } else {
+                    "CONTINUOUS".into()
+                },
                 ..Default::default()
             });
         }
         let pt = |p: P| Point::new(p[0], p[1], 0.0);
-        for layer in &self.layers {
+        for layer in self.paint_layers() {
             let curves = layer.items.iter().flat_map(|item| match item {
                 Item::Edge(c) => vec![c],
                 Item::Face(wires) => wires.iter().flatten().collect(),
@@ -799,17 +869,23 @@ impl Drawing {
         c.save_state();
         c.transform([K as f32, 0.0, 0.0, K as f32, 0.0, 0.0]);
         c.set_line_cap(LineCapStyle::RoundCap);
-        for layer in &self.layers {
+        for layer in self.paint_layers() {
             let st = &layer.style;
             let [r, g, b] = st.colour.map(|x| x as f32 / 255.0);
             c.set_stroke_rgb(r, g, b);
             c.set_fill_rgb(r, g, b);
             c.set_line_width(st.width as f32);
             match st.dash {
-                Some([on, off]) => c.set_dash_pattern([on as f32, off as f32], 0.0),
+                Some(pattern) => c.set_dash_pattern(pattern.iter().map(|&n| n as f32), 0.0),
                 None => c.set_dash_pattern([], 0.0),
             };
             for item in &layer.items {
+                if layer.name == "centres" {
+                    c.set_dash_pattern(
+                        st.dash.unwrap().iter().map(|&n| n as f32),
+                        centre_phase(item) as f32,
+                    );
+                }
                 match item {
                     Item::Edge(curve) => {
                         let s = curve.start();

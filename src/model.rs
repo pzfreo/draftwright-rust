@@ -397,6 +397,9 @@ pub struct PlannedView {
     pub basis: String,
     /// Always shown: a view the plan does not draw is not among its views.
     pub state: crate::items::State,
+    /// Automatic chain-line furniture, in paper coordinates; never Spec-addressable.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub line_work: Vec<crate::centrelines::LineWork>,
     /// A section view's cutting plane.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cut: Option<Cut>,
@@ -1993,6 +1996,7 @@ fn plan_with_presentation(
                 basis: basis + &turned(name),
                 state: ItemState::Shown,
                 cut: None,
+                line_work: Vec::new(),
             }
         })
         .collect();
@@ -2011,6 +2015,7 @@ fn plan_with_presentation(
                 cut.holes
             ),
             state: ItemState::Shown,
+            line_work: Vec::new(),
             cut: Some(Cut {
                 label: "A".into(),
                 origin: [0.5 * (lo[0] + hi[0]), cut.cut_y, 0.5 * (lo[2] + hi[2])],
@@ -2145,12 +2150,15 @@ fn plan_with_presentation(
         .filter_map(crate::dims::gdt::proxy)
         .collect()
     };
+    crate::centrelines::plan(analysis, &mut views);
+    let mut furniture = crate::centrelines::obstacles(&views);
+    furniture.extend(fixed.iter().cloned());
     let ((mut dimensions, mut omitted, mut more), mut inventory) = crate::dims::plan_inventory(
         analysis,
         spec,
         &sheet,
         &views,
-        &fixed,
+        &furniture,
         &held,
         &footprint_cache,
         &excluded,
@@ -2224,13 +2232,16 @@ fn plan_with_presentation(
                 .map(|v| (v.at, v.area, v.scale))
                 .collect::<Vec<_>>()
         {
+            crate::centrelines::plan(analysis, &mut views);
+            furniture = crate::centrelines::obstacles(&views);
+            furniture.extend(fixed.iter().cloned());
             let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
             ((dimensions, omitted, more), inventory) = crate::dims::plan_inventory(
                 analysis,
                 spec,
                 &sheet,
                 &views,
-                &fixed,
+                &furniture,
                 &held,
                 &footprint_cache,
                 &excluded,
@@ -2238,13 +2249,21 @@ fn plan_with_presentation(
         }
     }
     problems.extend(more);
+    // A label that had to stay across an axis end shortens that axis's overrun; what follows
+    // keeps clear of the trimmed furniture.
+    crate::centrelines::trim(&mut views, &dimensions);
+    furniture = crate::centrelines::obstacles(&views);
+    furniture.extend(fixed.iter().cloned());
     // The part's PMI, placed beyond the dimensions; the notes and tables keep clear of both.
+    let mut annotation_obstacles = dimensions.clone();
+    let furniture_ink: Vec<_> = furniture.into_iter().filter(|d| d.kind == "ink").collect();
+    annotation_obstacles.extend(furniture_ink.iter().cloned());
     let (gdt, more) = crate::dims::gdt::plan_anchored(
         analysis,
         spec,
         &sheet,
         &views,
-        &dimensions,
+        &annotation_obstacles,
         canonical.as_ref(),
         &footprint_cache,
     );
@@ -2316,13 +2335,17 @@ fn plan_with_presentation(
             }
         }
     }
+    // Settled labels also keep clear of the (trimmed) centre-line furniture: a move never adds
+    // a contact with a centre or cutting-plane stroke.
+    let mut settle_fixed = reserved.clone();
+    settle_fixed.extend(furniture_ink);
     crate::dims::settle_inventory(
         analysis,
         &label_spec,
         &sheet,
         &views,
         &mut inventory,
-        &reserved,
+        &settle_fixed,
     );
     for d in &mut dimensions {
         if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
@@ -2388,6 +2411,12 @@ fn plan_with_presentation(
     }
     dimensions.retain(|d| !matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:") || (by.starts_with("d:") && d.measurements.iter().any(|m| m.parameter == "blend.radius"))));
     let mut ink = dimensions.clone();
+    ink.extend(
+        annotation_obstacles
+            .iter()
+            .filter(|d| d.kind == "ink")
+            .cloned(),
+    );
     ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
     if let Some(table) = &radius_table {
         ink.extend(crate::tables::proxy(&table.table));
@@ -2619,6 +2648,42 @@ fn plan_with_presentation(
         spec,
     };
     crate::placement_intent::finish(&mut plan, analysis);
+    let [width, height] = plan.sheet.page;
+    for v in &plan.views {
+        for w in v.line_work.iter().filter(|w| w.kind != "cutting_plane") {
+            if w.curves.iter().any(|c| {
+                let b = c.bbox();
+                b[0] < MARGIN - 1e-9
+                    || b[1] < MARGIN - 1e-9
+                    || b[2] > width - MARGIN + 1e-9
+                    || b[3] > height - MARGIN + 1e-9
+            }) {
+                plan.problems.push(Problem {
+                    id: format!("p:annotation_off_sheet:{}", w.id),
+                    code: "annotation_off_sheet".into(),
+                    severity: "error".into(),
+                    message: format!("{} extends past the drawable area; choose a larger sheet or a smaller scale.", w.id),
+                    subjects: vec![v.id.clone()],
+                    refs: vec![w.id.clone()],
+                    ..Default::default()
+                });
+            }
+        }
+    }
+    for p in &mut plan.problems {
+        for subject in &mut p.subjects {
+            if let Some(v) = plan.views.iter().find(|v| {
+                annotation_obstacles
+                    .iter()
+                    .any(|w| w.kind == "ink" && w.view == v.id && w.id == *subject)
+            }) {
+                p.refs.push(subject.clone());
+                *subject = v.id.clone();
+            }
+        }
+        let mut seen = BTreeSet::new();
+        p.subjects.retain(|s| seen.insert(s.clone()));
+    }
     crate::completeness::report(analysis, &mut plan);
     plan.sheet.fill = crate::sheet_fit::fill(analysis, &plan);
     plan.sheet.basis += &format!("; drawn-item fill {:.1}%", plan.sheet.fill * 100.0);
@@ -3116,6 +3181,11 @@ pub fn render_annotations_with_items(
             items: Vec::new(),
         })
         .collect();
+    layers.push(Layer {
+        name: "centres".into(),
+        style: crate::output::centre_style(),
+        items: Vec::new(),
+    });
     let mut undrawn = BTreeMap::new();
     assert_eq!(
         plan.views.len(),
@@ -3141,6 +3211,38 @@ pub fn render_annotations_with_items(
                     })
                     .collect(),
             });
+        }
+        sheet.frames.insert(
+            v.id.trim_start_matches("v:").into(),
+            crate::output::DrawnFrame {
+                direction: v.direction,
+                up: v.up,
+                at: v.at,
+                scale: v.scale,
+            },
+        );
+        for w in v.line_work.iter().filter(|w| w.kind != "cutting_plane") {
+            let lines = crate::centrelines::segments(w);
+            let ink: Vec<_> = w.curves.iter().cloned().map(Item::Edge).collect();
+            if let Some(ink_box) = items_bbox(&ink) {
+                sheet.items.push(Drawn {
+                    name: w.id.clone(),
+                    kind: Kind::Centreline,
+                    ink: ink_box,
+                    label: None,
+                    lines,
+                    elbow: None,
+                    interior: false,
+                });
+            }
+            if let Some(c) = w.centre {
+                sheet
+                    .centre_marks
+                    .entry(v.id.trim_start_matches("v:").into())
+                    .or_default()
+                    .push(c);
+            }
+            layers[3].items.extend(ink);
         }
         layers[0].items.extend(geometry.visible);
         layers[1].items.extend(geometry.hidden);
@@ -4019,13 +4121,16 @@ fn section_furniture(
         format!("SECTION {l}\u{2013}{l}"),
         [v.at[0], v.at[1] - half_h - 7.0],
     ));
-    if let Some(m) = plan.views.iter().find(|w| w.id == cut.marked_in)
-        && let Some(mv) = View::new(m.direction, m.up)
+    if let Some(w) = plan
+        .views
+        .iter()
+        .find(|w| w.id == cut.marked_in)
+        .and_then(|v| v.line_work.iter().find(|w| w.kind == "cutting_plane"))
+        && let Curve::Line(a, b) = w.curves[0]
     {
-        let (x0, x1, y) = cutting_line(analysis, m, &mv, cut);
-        let (ink, letters) = cutting_plane(x0, x1, y);
+        let (ink, letters) = cutting_plane(a[0], b[0], a[1]);
         out.ink.extend(ink);
-        out.chain = Some([[x0, y], [x1, y]]);
+        out.chain = Some([a, b]);
         out.text.extend(letters.map(|at| (l.clone(), at)));
     }
     Ok(out)

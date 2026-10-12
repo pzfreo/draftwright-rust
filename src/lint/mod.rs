@@ -32,9 +32,9 @@
 //! ([`oriented_slots`]); through-step and slot coverage
 //! ([`steps`], [`slots`]); hole coverage ([`holes`]); open channels ([`channels`]); polygonal stock
 //! ([`polygonal`]); lone pockets ([`pockets`]); and, after them as Python's `_lint_pmi` runs, the
-//! part's AP242 PMI on the drawing ([`pmi_coverage`]). The backstop's count check and centre marks
-//! ([`coverage::counts`], [`coverage::centre_marks`]) are not run: draftwright's drawing lint
-//! leaves counts to hole coverage, and the port draws no centre marks yet. The families whose
+//! part's AP242 PMI on the drawing ([`pmi_coverage`]). The backstop's count check
+//! ([`coverage::counts`]) is not run: draftwright's drawing lint leaves counts to hole coverage.
+//! Centre marks are checked from the drawing's centres and transforms. The families whose
 //! requirements are a feature's own sizes share [`parameters`]. The envelope's and turned steps'
 //! completeness ([`envelope`], [`turned`]) also report uncovered ledger requirements. This is a
 //! deliberate difference from Python, recorded in the completeness findings verdicts.
@@ -304,7 +304,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         })
         .map(|c| (&c.feature, &c.parameter))
         .collect();
-    check(analysis, &marks)
+    let mut issues: Vec<_> = check(analysis, &marks)
         .into_iter()
         .filter(|i| {
             !matches!(
@@ -316,7 +316,9 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 .all(|r| satisfied.contains(&(&r.feature, &r.parameter)))
         })
         .chain(relief_issues)
-        .collect()
+        .collect();
+    issues.extend(coverage::drawn_centre_marks(analysis, drawing));
+    issues
 }
 
 /// Every ported rule's findings on a drawing whose annotations are *marks*.

@@ -514,8 +514,9 @@ fn version_1_specs_migrate_and_plan_identically() {
         };
         let mut expected = if REPLANNED.contains(&part) {
             // The planner has changed this part's plan since 0.1.0-alpha.1 (one span, one
-            // dimension for PMI: `share_pmi`), so the oracle is the plan of the spec renamed by
-            // hand, independently of the migration, as a version 2 spec.
+            // dimension for PMI: `share_pmi`; ISO 128 furniture clearance), so the oracle is
+            // the plan of the spec renamed by hand, independently of the migration, as a
+            // version 2 spec.
             let mut v2 = renamed(&serde_json::to_value(&spec).unwrap(), &ids);
             v2["schema"] = model::SPEC_SCHEMA.into();
             let v2: Spec = serde_json::from_value(v2).unwrap();
@@ -541,17 +542,41 @@ fn version_1_specs_migrate_and_plan_identically() {
         expected["spec"]["schema"] = model::SPEC_SCHEMA.into();
         if part == "plate" && !REPLANNED.contains(&part) {
             // The G5 title-furniture additions are golden data beside the legacy capture;
-            // every pre-existing field still compares against the original alpha plan.
+            // the current migration oracle checks these against independent golden data.
             // Their geometry/reporting verdicts are in known_title_block.json.
             let furniture: Value = serde_json::from_str(
                 &std::fs::read_to_string(fixture("identity/plate.title_furniture.json")).unwrap(),
             )
             .unwrap();
-            expected["sheet"]["projection_symbol"] = furniture["projection_symbol"].clone();
-            expected["problems"].as_array_mut().unwrap().extend(
-                without_typed_state(json!({ "sheet": {}, "problems": furniture["problems"] }))["problems"]
-                    .as_array().unwrap().iter().cloned()
-            );
+            let problems =
+                without_typed_state(json!({ "sheet": {}, "problems": furniture["problems"] }));
+            if REPLANNED.contains(&part) {
+                // The current oracle already carries G5 furniture: verify the independent
+                // golden data once rather than adding its warning a second time.
+                assert_eq!(
+                    expected["sheet"]["projection_symbol"],
+                    furniture["projection_symbol"]
+                );
+                let current = without_typed_state(expected.clone());
+                for problem in problems["problems"].as_array().unwrap() {
+                    assert_eq!(
+                        current["problems"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .filter(|p| *p == problem)
+                            .count(),
+                        1,
+                        "{part}: title-furniture problem must occur exactly once"
+                    );
+                }
+            } else {
+                expected["sheet"]["projection_symbol"] = furniture["projection_symbol"].clone();
+                expected["problems"]
+                    .as_array_mut()
+                    .unwrap()
+                    .extend(problems["problems"].as_array().unwrap().iter().cloned());
+            }
         }
         if part == "plate" {
             // H7 moves this callout into proven blank face.

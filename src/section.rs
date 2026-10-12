@@ -138,6 +138,26 @@ fn stroke(a: P, b: P, width: f64) -> Item {
     ])
 }
 
+/// The wing stub and solid arrowhead at each end of [`cutting_plane`]'s line, left then right.
+pub fn cutting_plane_ends(x0: f64, x1: f64, y: f64) -> [[Item; 2]; 2] {
+    [x0, x1].map(|x| {
+        let tail = y - 2.5 * ARROW;
+        let head = [
+            [x, y],
+            [x - ARROW / 3.0, y - ARROW],
+            [x + ARROW / 3.0, y - ARROW],
+        ];
+        [
+            stroke([x, tail], [x, y - ARROW], LINE_WIDTH),
+            Item::Face(vec![
+                (0..3)
+                    .map(|i| Curve::Line(head[i], head[(i + 1) % 3]))
+                    .collect(),
+            ]),
+        ]
+    })
+}
+
 /// The cutting-plane line from `x0` to `x1` at height *y* (page mm) on the view that marks it:
 /// a chain line, and at each end a wing stub from 2.5 arrow lengths below the line with a solid
 /// arrowhead whose tip is on it, pointing up the page (towards the material kept). Returns the
@@ -148,20 +168,7 @@ pub fn cutting_plane(x0: f64, x1: f64, y: f64) -> (Vec<Item>, [P; 2]) {
         .into_iter()
         .map(|(a, b)| stroke([mid + a, y], [mid + b, y], CENTRELINE_WIDTH))
         .collect();
-    for x in [x0, x1] {
-        let tail = y - 2.5 * ARROW;
-        items.push(stroke([x, tail], [x, y - ARROW], LINE_WIDTH));
-        let head = [
-            [x, y],
-            [x - ARROW / 3.0, y - ARROW],
-            [x + ARROW / 3.0, y - ARROW],
-        ];
-        items.push(Item::Face(vec![
-            (0..3)
-                .map(|i| Curve::Line(head[i], head[(i + 1) % 3]))
-                .collect(),
-        ]));
-    }
+    items.extend(cutting_plane_ends(x0, x1, y).into_iter().flatten());
     let lift = 1.4 * FONT_SIZE;
     (items, [[x0 - 3.0, y + lift], [x1 + 3.0, y + lift]])
 }

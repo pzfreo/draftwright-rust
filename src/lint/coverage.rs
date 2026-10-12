@@ -30,9 +30,9 @@
 //!   nor the views' projections, so the port reads the structured evidence only.
 //! - **Centre marks** ([`centre_marks`], LINT-code-feature_no_centermark): every hole, pattern
 //!   members included, has a centre mark within 0.6 mm of its centre projected into the view that
-//!   looks along it (the front or rear for a hole along y). The port draws no centre marks, so on
-//!   its own drawings every hole is reported; [`crate::lint::check`] does not run it until they
-//!   are drawn.
+//!   looks along it (the front or rear for a hole along y). The sheet's drawn centre marks and its
+//!   views' frames supply the marks and projections ([`drawn_centre_marks`]), and
+//!   [`crate::lint::check`] runs it on every sheet.
 //!
 //! Python reports one location finding per code for the sheet, with the number of holes; the
 //! port does too, with Python's message, naming the holes as its subjects (and, for a location,
@@ -623,7 +623,7 @@ pub fn located(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
 }
 
 /// The `feature_no_centermark` finding on a drawing whose annotations are *marks*: every hole,
-/// since the port draws no centre marks.
+/// without geometric drawing evidence.
 pub fn centre_marks(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     location(
         &sites(analysis, marks),
@@ -702,6 +702,39 @@ pub fn schedule_entries(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
     }
     issues
+}
+
+/// Centre-mark coverage from the drawn centres and view transforms, never the Plan.
+pub fn drawn_centre_marks(analysis: &Analysis, drawing: &crate::output::Drawing) -> Vec<LintIssue> {
+    let mut sites = sites(analysis, &[]);
+    for s in &mut sites {
+        for (name, f) in &drawing.sheet.frames {
+            let Some(view) = haecceity::hlr::View::new(f.direction, f.up) else {
+                continue;
+            };
+            if view.toward[s.axis].abs() < 1.0 - 1e-6 {
+                continue;
+            }
+            let c = view.map(centre(analysis));
+            let p = view.map(s.at);
+            s.projections.push((
+                name.clone(),
+                [0, 1].map(|k| f.at[k] + f.scale * (p[k] - c[k])),
+            ));
+        }
+    }
+    location(
+        &sites,
+        centre(analysis),
+        &Page {
+            marks: drawing.sheet.centre_marks.clone(),
+            witnesses: BTreeMap::new(),
+        },
+        Severity::Warning,
+    )
+    .into_iter()
+    .filter(|i| i.code == "feature_no_centermark")
+    .collect()
 }
 
 #[cfg(test)]

@@ -79,8 +79,8 @@
  {
   "part": "ftc06",
   "code": "annotation_leader_crossing",
-  "count": 2,
+  "count": 1,
   "verdict": "rust-wrong",
-  "reason": "The two front callouts (hole:11, 2× ⌀6.3 ↧ 12.7; boss:5, 2× ø31.8) cross reciprocally. The G2 review fix moves the counted plate thickness to its exposed side profile, removing a front leader obstacle; this returns the pre-G2 reciprocal crossing. The measured corner reservation keeps both callouts inside their bands, so the fourteen other band overruns are unchanged. Both exact crossings remain rust-wrong and are checked by tests/leaders.rs. This captured-recognition residual is recorded separately from the no-worse native quality gate."
+  "reason": "G6 fixed centre furniture reroutes boss:5, clearing its directional leader contact with hole:11. The reverse hole:11 to boss:5 contact remains reported and rust-wrong. tests/leaders.rs independently measures the remaining contact; tests/placement.rs retains exact per-code count equality and rejects stale entries. The fourteen existing band overruns are unchanged. This captured-recognition residual is separate from the native no-worse quality gate. Verified after the Stage G rebase; target/g6-carry/rebase-tests.log and final corpus-required tests.log."
  }
 ]

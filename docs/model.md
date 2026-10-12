@@ -373,6 +373,44 @@ the cell. A Spec material different from the unique usable STEP material is
 `step_material_disagreement` (warning, both values and source/path refs); the Spec
 value still wins, including an explicit blank.
 
+### Centre furniture
+
+Each shown principal or section view carries automatic `line_work` in paper
+coordinates: provenance ID, kind (`cross`, `axis`, `pitch_circle`, `cutting_plane`)
+and exact curves, with a centre for end-on crosses and a `global_axis` flag only
+for the whole turning axis. It contains no values and is not Spec-addressable.
+Hole, boss, turned-band and circular-seat geometry supplies it independently of
+dimensional omissions. Bolt-circle crosses run radially and tangentially.
+
+The centre layer uses thin black long-dash-dot ink; a long dash meets at the
+cross centre. Crosses extend approximately 3 mm beyond the edge, proportionately
+less for very small holes and more for very large ones. Local axes extend beyond
+their ends; the whole turning axis extends 5 mm. Visible and hidden ink is painted above
+centre ink; this is paint order, so chain ink can remain in hidden-dash gaps. Sections omit axes wholly on the removed side and retain axes of
+cut holes and cylinders.
+
+This furniture, including the finite cutting-plane line, its arrowhead/wing
+outlines and both letters measured in the rendering font, enters the existing
+fixed-ink placement hook before dimensions and PMI. Labels and travel along a
+line are hard conflicts; transverse crossings are routing costs, with only a
+local transverse tip exemption on an explicitly marked global turning axis.
+Furniture provenance appears in problem `refs`; its carrier view is a subject.
+Drawing lint checks the actual marked centres against independent projections
+of the Analysis's holes, including pattern members and double-D bores. Structural
+review separately counts collinear leader travel along fixed chain strokes and
+actual labels touching section letters or arrows; quality includes those in ink.
+A callout label that must stay across the end of a hole axis (its leader search
+found no place as good under the ordinary-ink and feature-crossing floors) is not
+moved off its shelf: the axis's overrun past the feature is shortened instead
+(ISO 128-24), stopping 0.5 mm short of the label and keeping at least 1 mm past
+the feature (`centrelines::trim`, after dimension placement). A label across the
+feature's own span is never trimmed around; lint still reports it.
+A leader shaft running within 1 mm of a centre stroke at under ten degrees, for
+more than 0.5 mm, reads as part of the centre line (`centrelines::runs_beside`).
+Exact collinear travel is a hard blocker; near-parallel shaft travel is weighted
+just below one crossing, so it is avoided whenever that costs no crossing. A
+radial leader leaving its own hole along that hole's centre-mark arm is exempt.
+
 ### Dimensions (first cut)
 
 `src/dims/` plans the dimensions draftwright's defaults would state for the families ported

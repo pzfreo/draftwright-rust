@@ -1298,6 +1298,7 @@ pub(crate) fn validate_placements(
             basis: String::new(),
             state: State::Shown,
             cut: None,
+            line_work: Vec::new(),
         })
         .collect();
     let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
