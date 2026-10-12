@@ -154,6 +154,225 @@ impl Http {
         serde_json::from_str(result["contents"][0]["text"].as_str().unwrap()).unwrap()
     }
 }
+const HTTP_HEAD_LIMIT: usize = 16 * 1024;
+const PING: &[u8] = br#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#;
+
+fn http_wire(body: &[u8]) -> Vec<u8> {
+    let mut wire = format!(
+        "POST /mcp HTTP/1.1\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nContent-Length: {}\r\n\r\n",
+        body.len()
+    ).into_bytes();
+    wire.extend_from_slice(body);
+    wire
+}
+fn http_socket(http: &Http, timeout: u64) -> std::net::TcpStream {
+    let stream = std::net::TcpStream::connect(&http.address).unwrap();
+    stream
+        .set_read_timeout(Some(std::time::Duration::from_secs(timeout)))
+        .unwrap();
+    stream
+        .set_write_timeout(Some(std::time::Duration::from_secs(2)))
+        .unwrap();
+    stream
+}
+fn http_response(stream: &mut std::net::TcpStream) -> (u16, Vec<u8>) {
+    let mut wire = Vec::new();
+    // A reset, truncated response or missing EOF must fail on Linux as well as macOS.
+    stream.read_to_end(&mut wire).unwrap();
+    let split = wire.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+    let head = std::str::from_utf8(&wire[..split]).unwrap();
+    let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
+    let length: usize = head
+        .lines()
+        .find_map(|line| line.strip_prefix("Content-Length: "))
+        .unwrap()
+        .parse()
+        .unwrap();
+    let body = wire[split + 4..].to_vec();
+    assert_eq!(body.len(), length);
+    (status, body)
+}
+fn queued_ping(http: &Http) -> std::net::TcpStream {
+    let mut stream = http_socket(http, 2);
+    stream.write_all(&http_wire(PING)).unwrap();
+    stream
+}
+fn assert_ping(stream: &mut std::net::TcpStream) {
+    let (status, body) = http_response(stream);
+    assert_eq!(status, 200);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&body).unwrap(),
+        json!({"jsonrpc":"2.0","id":1,"result":{}})
+    );
+}
+#[test]
+fn http_rejects_oversized_heads_and_serves_queued_pings() {
+    let http = Http::new(&scratch("http-head-limits"));
+    let mut aggregate = "POST /mcp HTTP/1.1\r\n".to_owned() + &"X-Small: x\r\n".repeat(1000);
+    aggregate.push_str("X-Last: ");
+    aggregate.push_str(&"x".repeat(HTTP_HEAD_LIMIT + 1 - aggregate.len()));
+    let cases = [
+        (
+            "request line",
+            format!("POST /{} HTTP/1.1\r\n", "x".repeat(HTTP_HEAD_LIMIT)).into_bytes(),
+        ),
+        (
+            "header",
+            format!(
+                "POST /mcp HTTP/1.1\r\nX-Large: {}",
+                "x".repeat(HTTP_HEAD_LIMIT)
+            )
+            .into_bytes(),
+        ),
+        ("aggregate", aggregate.into_bytes()),
+        ("no newline", vec![b'x'; HTTP_HEAD_LIMIT]),
+        ("unread input", vec![b'x'; 128 * 1024]),
+    ];
+    for (name, wire) in cases {
+        let mut hostile = http_socket(&http, 2);
+        let start = std::time::Instant::now();
+        hostile.write_all(&wire).unwrap();
+        let mut following = queued_ping(&http);
+        assert_eq!(http_response(&mut hostile).0, 431, "{name}");
+        assert!(
+            start.elapsed() < std::time::Duration::from_millis(750),
+            "{name}"
+        );
+        assert_ping(&mut following);
+    }
+}
+#[test]
+fn http_rejects_bare_lf_heads_promptly() {
+    let http = Http::new(&scratch("http-bare-lf"));
+    let mut hostile = http_socket(&http, 2);
+    let start = std::time::Instant::now();
+    hostile
+        .write_all(
+            &http_wire(b"{}")
+                .into_iter()
+                .filter(|b| *b != b'\r')
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+    let mut following = queued_ping(&http);
+    assert_eq!(http_response(&mut hostile).0, 400);
+    assert!(start.elapsed() < std::time::Duration::from_millis(750));
+    assert_ping(&mut following);
+}
+fn http_slow_request(body: bool) {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    use std::time::{Duration, Instant};
+    let http = Http::new(&scratch(if body {
+        "http-slow-body"
+    } else {
+        "http-slow-head"
+    }));
+    let mut hostile = http_socket(&http, 12);
+    let start = Instant::now();
+    hostile
+        .write_all(b"POST /mcp HTTP/1.1\r\nX-Slow: ")
+        .unwrap();
+    let mut following = queued_ping(&http);
+    let stop = Arc::new(AtomicBool::new(false));
+    let stopped = stop.clone();
+    let mut sender = hostile.try_clone().unwrap();
+    let writer = std::thread::spawn(move || {
+        // The body starts six seconds into the head deadline: it must not get a new one.
+        let mut head_finished = false;
+        while !stopped.load(Ordering::Relaxed) && start.elapsed() < Duration::from_secs(12) {
+            let data = if body && !head_finished && start.elapsed() >= Duration::from_secs(6) {
+                head_finished = true;
+                b"\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nContent-Length: 1024\r\n\r\n".as_slice()
+            } else {
+                b"x".as_slice()
+            };
+            if sender.write_all(data).is_err() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+    let response = http_response(&mut hostile);
+    let elapsed = start.elapsed();
+    stop.store(true, Ordering::Relaxed);
+    writer.join().unwrap();
+    assert_eq!(response.0, 408);
+    assert!(
+        (Duration::from_secs(9)..Duration::from_secs(12)).contains(&elapsed),
+        "{elapsed:?}"
+    );
+    assert_ping(&mut following);
+}
+#[test]
+fn http_slow_head_has_absolute_deadline_and_serves_queued_ping() {
+    http_slow_request(false);
+}
+#[test]
+fn http_slow_body_shares_head_deadline_and_serves_queued_ping() {
+    http_slow_request(true);
+}
+#[test]
+fn http_preserves_exact_byte_limits_and_transport_guards() {
+    let http = Http::new(&scratch("http-boundaries"));
+    let base = http_wire(PING);
+    let split = base.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+    for (total, expected) in [(HTTP_HEAD_LIMIT, 200), (HTTP_HEAD_LIMIT + 1, 431)] {
+        let mut wire = base[..split + 2].to_vec();
+        wire.extend_from_slice(b"X-Pad: ");
+        let padding = total - wire.len() - 4;
+        wire.extend("é".repeat(padding / 2).as_bytes());
+        wire.extend(std::iter::repeat_n(b'x', padding % 2));
+        wire.extend_from_slice(b"\r\n\r\n");
+        assert_eq!(wire.len(), total);
+        wire.extend_from_slice(PING);
+        let mut stream = http_socket(&http, 2);
+        stream.write_all(&wire[..total - 1]).unwrap();
+        stream.write_all(&wire[total - 1..]).unwrap();
+        assert_eq!(http_response(&mut stream).0, expected);
+    }
+    let mut body = PING.to_vec();
+    body.resize(8 * 1024 * 1024, b' ');
+    let mut stream = http_socket(&http, 2);
+    stream.write_all(&http_wire(&body)).unwrap();
+    assert_ping(&mut stream);
+    assert_eq!(
+        http.request("POST", &json!({}), "Content-Length: 8388609\r\n")
+            .0,
+        413
+    );
+    assert_eq!(
+        http.request("POST", &json!({}), "Transfer-Encoding: chunked\r\n")
+            .0,
+        400
+    );
+    assert_eq!(
+        http.request(
+            "POST",
+            &json!({}),
+            &format!("Origin: http://{}\r\n", http.address)
+        )
+        .0,
+        200
+    );
+    assert_eq!(
+        http.request("POST", &json!({}), "Origin: https://malicious.example\r\n")
+            .0,
+        403
+    );
+    let refused = Command::new(env!("CARGO_BIN_EXE_draftwright"))
+        .args(["mcp-http", "0.0.0.0:0"])
+        .output()
+        .unwrap();
+    assert!(!refused.status.success());
+    assert!(
+        String::from_utf8(refused.stderr)
+            .unwrap()
+            .contains("only loopback")
+    );
+}
 #[test]
 fn every_tool_input_output_and_refusal_match_published_schemas() {
     let cache = scratch("schemas");
