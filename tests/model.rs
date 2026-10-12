@@ -40,9 +40,17 @@ fn every_default_says_why_and_the_views_fit_the_sheet_apart() {
         assert!(plan.sheet.default && !plan.sheet.basis.is_empty());
         assert_eq!(plan.views.len(), 4);
         assert!(plan.views.iter().all(|v| v.default && !v.basis.is_empty()));
-        assert_eq!(plan.problems.len(), 1, "{:?}", plan.problems);
-        assert_eq!(plan.problems[0].code, "unclaimed_geometry");
-        assert_eq!(plan.problems[0].severity, "warning");
+        assert_eq!(
+            plan.problems
+                .iter()
+                .map(|p| (p.code.as_str(), p.severity.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("unclaimed_geometry", "warning"),
+                ("general_tolerance_missing", "warning")
+            ],
+            "stock faces are unclaimed and a default Spec supplies no manufacturing tolerance"
+        );
         assert_eq!(plan.completeness.claimed_faces, 0);
         assert_eq!(plan.completeness.faces, a.binding.face_count);
         assert_eq!(

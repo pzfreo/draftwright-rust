@@ -205,3 +205,12 @@ coverage names the Analysis inventory's bound: stock faces can be unclaimed, and
 fully claimed inventory does not establish manufacturing readiness. The independent
 finished-drawing lint is available from `review`; inspect does not silently mix that
 separate assessment into its Plan problem collection.
+
+Title-block requirement warnings are returned by the same problem queries:
+`general_tolerance_missing` names `sheet` and offers a `set` operation at
+`sheet/title/tolerance` with value `UNSPECIFIED`. This is an explicit acknowledgement
+of a blank requirement, not manufacturing limits; clients can replace the offered
+value with the author's intended general tolerance. `step_material_disagreement`
+names `sheet`, includes both the authored and STEP material in its detail message,
+and retains the Spec value. Both warnings use source/Spec paths in `refs`; neither
+is attached to an unrelated feature.
