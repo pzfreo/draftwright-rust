@@ -538,20 +538,6 @@ fn version_1_specs_migrate_and_plan_identically() {
                 .extend(report["problems"].as_array().unwrap().iter().cloned());
         }
         expected["spec"]["schema"] = model::SPEC_SCHEMA.into();
-        if part == "plate" && !REPLANNED.contains(&part) {
-            // The G5 title-furniture additions are golden data beside the legacy capture;
-            // every pre-existing field still compares against the original alpha plan.
-            // Their geometry/reporting verdicts are in known_title_block.json.
-            let furniture: Value = serde_json::from_str(
-                &std::fs::read_to_string(fixture("identity/plate.title_furniture.json")).unwrap(),
-            )
-            .unwrap();
-            expected["sheet"]["projection_symbol"] = furniture["projection_symbol"].clone();
-            expected["problems"].as_array_mut().unwrap().extend(
-                without_typed_state(json!({ "sheet": {}, "problems": furniture["problems"] }))["problems"]
-                    .as_array().unwrap().iter().cloned()
-            );
-        }
         if REPLANNED.contains(&part) {
             expected = without_typed_state(expected);
         }

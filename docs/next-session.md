@@ -4207,6 +4207,8 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 
 ## Stage H6: sheet and scale policy (2026-10-12)
 
+The following is the earlier implementation record; the fix-round verdict below supersedes its floor, memo, decorative-growth and CTC-03 fallback judgements.
+
 H6 implements the maintainer's new rule in `model::recover`: smallest valid,
 complete standard fit; only the next paper size, with a larger scale, may
 compete; rank finished footprint fill, targeting `sheet_fit::FILL_BAND`
@@ -4314,3 +4316,60 @@ The sheet-choice report enforces no paper growth and no scale reduction for
 these exhausted-search fallbacks; only valid candidates can spend a larger
 sheet. Native GRM-03's archived before binary actually draws A4 2:1 (the task
 mentioned a different editor A4 1:1 capture); measured after is A3 10:1.
+
+
+## Stage H6 fix round (2026-10-12)
+
+Reviewer blockers confirmed: the original crossing veto could keep an invalid seed
+instead of the only complete valid page (CTC-03), and the fixed 1:10 floor did not
+measure legibility. Recovery now admits a clean complete drawing despite extra
+material crossings when the seed is invalid; the non-regression veto remains against
+valid seeds. The CTC-03 regression checks its page and actual findings, not basis words.
+
+Overturnable unattended judgements:
+- A visible hole/slot opening needs 0.8 mm on paper (a 0.3 mm interior with the 0.5 mm outline weight),
+  and the longest part extent needs 20 mm. The smallest such standard scale is the
+  automatic floor, with 1:10 as an additional lower bound. Small chamfers/fillets
+  stated by callouts do not set the overall scale. Explicit Spec scales override it.
+  This is a geometric legibility proxy; enlarged details and user minimum-scale
+  controls remain outside H6. The plate's 6.6 mm holes cannot justify 1:10.
+- The review's orientation-growth/top-clearance minor remains unresolved: preserving
+  orientation scale gives GRM-03 only 44.7% fill, while the unchanged acceptance test
+  requires 60–85%. Raising row clearance to 6 mm also reduces its available iso region.
+  No acceptance test is relaxed. Until the maintainer reconciles the band requirement
+  with subordinate iso sizing, the existing measured correction remains in place.
+  This is an explicit remaining defect, not a claim that the decorative-growth review
+  is wrong. It needs a policy decision or a broader layout change.
+- Minimum avoidable annotation conflicts are retained among complete eligible fits
+  before fill is ranked, to avoid spending more paper on a drawing with worse ink.
+  This is a conservative extra admission constraint for the required quality ratchet.
+  It is separately overturnable if the maintainer wants literal fill regardless of
+  softer annotation conflicts. No hard finding or supported-item loss is admissible.
+
+Removing the existing 16-entry process-local recover memo failed the unchanged
+native latency gate twice (NIST p90 175.995 and 180.386 ms, limit 150 ms).
+The memo is therefore retained, unchanged; removal is not a cheap housekeeping
+fix under the required performance constraint. Its complete input hash and bounded
+storage preserve deterministic output. No new cache is introduced. Named sheet-and-scale choices retain
+preferred arrangement behaviour; alternate arrangement trials belong only to internal
+automatic pairs. Packed GD&T geometry is rechecked against the recipient sheet;
+completeness and status are recomputed rather than deleting reservation findings blindly.
+Quality.py computes a Python footprint union from Analysis and placed geometry, so old
+plans without sheet.fill still produce a measured result. Band and neighbour ranking
+have direct unit tests, including an invalid in-band candidate against a complete
+underfilled one. Validation results and remaining exceptions will be recorded in
+`docs/h6-sheet-policy.md` after the finishing gates.
+
+Paper-economy tuning remains the maintainer's decision: 10007 and 10046 previously
+spent A3 for only about one percentage point of extra fill. No minimum-gain exception
+has been added to the agreed rule in this fix round.
+
+
+Fix-round scale-policy consequence: AP242 STC-09's old A1 1:5 drawing reduces
+its smallest holes below 0.8 mm. No complete clean candidate exists at the new
+legible floor. Automatic planning therefore returns A0 1:2 with unresolved layout
+findings; it does not claim a valid drawing. The original GD&T-band regression now
+replays `plan_escalated` (all its existing assertions retained), and a separate
+automatic-plan regression verifies actual opening size, needs-attention status and
+honest exhaustion. This fixture still needs tables/details/additional sheets, outside
+H6. No severity or acceptance threshold was relaxed.

@@ -206,6 +206,10 @@ fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
     a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
 }
 fn shift(v: &mut PlannedView, d: [f64; 2]) {
+    // A relation already satisfied within the paper-boundary tolerance keeps its exact frame.
+    if d.iter().all(|x| x.abs() <= 1e-9) {
+        return;
+    }
     v.at = [v.at[0] + d[0], v.at[1] + d[1]];
     v.area = [
         v.area[0] + d[0],

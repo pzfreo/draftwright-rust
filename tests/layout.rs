@@ -103,6 +103,8 @@ fn request(c: &Value) -> Request {
     });
     assert_eq!(c["convention"], "third", "first angle is not ported");
     Request {
+        automatic_pair: false,
+        candidate_arrangement: None,
         size: [f(&c["size"][0]), f(&c["size"][1]), f(&c["size"][2])],
         strips: Strips {
             right: f(&s["right"]),

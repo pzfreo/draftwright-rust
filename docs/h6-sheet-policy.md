@@ -289,3 +289,58 @@ reservations); ISSUE-1396-a (automatic floor). Catalogue YAML is untouched.
   this report.
 
 No commit, push, rules YAML or tools/mcp-eval/tasks.json edit.
+
+## H6 fix round, 2026-10-12
+
+The earlier implementation record above is historical. The review correctly found
+that a lower material-crossing count could veto the only valid complete drawing,
+and that a constant 1:10 floor did not measure legibility. Recovery now judges the
+seed's legibility, drawn bounds, hard findings and GD&T completeness before using
+its secondary crossing count as a veto. An invalid seed cannot veto a complete
+valid candidate. Failed seeds may try the existing columns, stacked-isometric and
+staggered-side arrangements; no leader-routing strategy was added.
+
+The automatic floor derives from the smallest positive hole/slot opening (0.8 mm
+on paper) and a 20 mm longest extent, rounded up to a standard scale, with 1:10
+as an additional lower bound. At the renderer's 0.5 mm outline weight, an 0.8 mm
+diameter leaves 0.3 mm of visible interior. Explicit Spec scales override it.
+An unavailable standard legible scale reports exhaustion at warning severity.
+These thresholds are overturnable geometric proxies, documented in next-session.
+
+The largest valid scale on the smallest fit defines its competing pair. Its next
+larger sheet may compete only at a larger scale. Among complete eligible drawings,
+avoidable annotation conflicts are excluded before the fill ranking. This extra
+admission constraint is an explicit conservative judgement to retain the quality
+ratchet and the plate's A3 acceptance; literal fill without that constraint could
+choose A2 2:1 with more leader crossings than A3 1:1. The named 60–85% band, scale
+preference, paper preference and fullest fallback have direct numeric unit tests.
+
+A frozen reviewed CTC-03 Plan is a regression input, with its source hash checked
+against fresh corpus Analysis. The regression forces A2 and requires complete valid
+recovery, exercising the invalid seed's crossing veto independently of wording.
+The normal automatic result is also checked against the latest quality table.
+The title-overflow regression uses the PMI plate and a value fitting the A0 template
+but overflowing its A3 recipient; packed GD&T rechecks paper geometry, title cells,
+completeness and status on the target sheet. Quality.py independently measures its
+Python footprint union, including furniture and bundled-font glyph boxes, instead
+of copying sheet.fill. The Python regression supplies a deliberately false fill.
+
+Named sheet-and-scale choices retain their preferred arrangement. A satisfied view
+pin relation within the existing paper-boundary tolerance preserves exact coordinates;
+the unchanged margin-pin regression caught a 10^-14 mm adjustment on 10000.
+The dead migration branch and stray H6_RUST_GATE token are removed.
+
+Two review minors remain explicit: the measured correction's isometric growth/top
+clearance is retained because removing it produces GRM-03 fill 44.7% and breaks the
+unchanged 60–85% acceptance; the existing bounded memo remains because its removal
+failed the unchanged 150 ms native gate twice (175.995/180.386 ms). Neither review
+finding is dismissed. Paper-economy tuning for one-percentage-point fill gains is
+also left to the maintainer; no unagreed minimum-gain rule was added.
+
+AP242 STC-09 still has no complete clean single-sheet candidate at its feature-based
+floor. It reports unresolved layout at A0 1:2. Its original band regression replays
+plan_escalated with every old assertion retained; a separate automatic regression
+requires visible opening size and honest needs-attention/exhaustion. Tables, details
+and additional sheets are the next-stage remedy, not further leader routing.
+
+Final verification and before/after tables follow once the finishing runner completes.

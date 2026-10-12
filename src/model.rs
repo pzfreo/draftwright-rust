@@ -895,6 +895,39 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
         .collect()
 }
 
+fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
+    let inside = |b: [f64; 4]| {
+        b[0] >= layout::MARGIN - 1e-6
+            && b[1] >= layout::MARGIN - 1e-6
+            && b[2] <= p.sheet.page[0] - layout::MARGIN + 1e-6
+            && b[3] <= p.sheet.page[1] - layout::MARGIN + 1e-6
+    };
+    let mut title = p.sheet.title_block;
+    title[3] = title_block::top(title);
+    crate::sheet_fit::footprints(analysis, p)
+        .into_iter()
+        .all(inside)
+        && crate::sheet_fit::furniture_footprints(analysis, p)
+            .into_iter()
+            .all(|b| !rect_overlap(b, title))
+        && p.views
+            .iter()
+            .all(|v| inside(v.area) && !rect_overlap(v.area, p.sheet.title_block))
+}
+
+fn undrawn_gdt(p: &Plan) -> usize {
+    p.gdt
+        .iter()
+        .filter(|g| {
+            g.placed.is_none()
+                && !matches!(
+                    g.state,
+                    ItemState::OmittedByUser | ItemState::NotAuthored | ItemState::Covered { .. }
+                )
+        })
+        .count()
+}
+
 /// Select from finished, complete drawings under the maintainer's sheet policy (2026-10-12).
 /// Find the smallest fit and its largest scale; only its immediate larger sheet, with an
 /// enlargement, may compete. Pins keep their canonical sheet; explicit choices override.
@@ -930,11 +963,14 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
 }
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
-    use crate::sheet_fit::{FILL_BAND, MIN_LEGIBLE_SCALE};
+    use crate::sheet_fit::FILL_BAND;
+    let min_legible_scale = crate::sheet_fit::min_legible_scale(analysis);
     first.sheet.fill = crate::sheet_fit::fill(analysis, &first);
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
         return Ok(first);
     }
+    let seed_clean =
+        findings(&first).clean() && undrawn_gdt(&first) == 0 && drawn_items_fit(analysis, &first);
     let required = carried(&first);
     let mut tried = Vec::new();
     let mut candidates = Vec::new();
@@ -949,10 +985,10 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         }
         for scale in layout::SCALES
             .into_iter()
-            .filter(|s| *s >= MIN_LEGIBLE_SCALE)
+            .filter(|s| *s >= min_legible_scale)
         {
             // On the one larger sheet only an enlargement of the smallest fit is allowed.
-            if smallest.is_some_and(|(j, s)| i > j && scale <= s) {
+            if smallest.is_some_and(|fit| !crate::sheet_fit::allowed(fit, i, scale)) {
                 continue;
             }
             // A view larger than the usable paper cannot be repaired by annotation placement.
@@ -973,15 +1009,43 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             let mut named = spec.clone();
             named.sheet.size = Some((*name).into());
             named.sheet.scale = Some(scale_name(scale));
-            let mut p = if first.sheet.size == *name && first.sheet.scale_factor == scale {
-                first.clone()
-            } else {
-                plan_escalated(analysis, &named)?
-            };
+            let mut p =
+                if first.sheet.size == *name && first.sheet.scale_factor == scale && seed_clean {
+                    first.clone()
+                } else {
+                    plan_escalated_with(analysis, &named, true, None)?
+                };
+            // A failed seed must not restrict the complete drawing to its first arrangement.
+            // Try the other established arrangement, with no new leader-routing strategy.
+            if !seed_clean {
+                let quality = |p: &Plan| {
+                    let f = findings(p);
+                    (
+                        f.hard,
+                        f.dropped,
+                        over_views(p),
+                        ink_findings(p),
+                        feature_crossings(p),
+                    )
+                };
+                for arrangement in [
+                    layout::Arrangement::Columns,
+                    layout::Arrangement::StackedIso,
+                    layout::Arrangement::StaggeredSide,
+                ] {
+                    if p.sheet.arrangement == arrangement.name() {
+                        continue;
+                    }
+                    let alternative =
+                        plan_escalated_with(analysis, &named, true, Some(arrangement))?;
+                    if quality(&alternative) < quality(&p) {
+                        p = alternative;
+                    }
+                }
+            }
             // Enlargement is for the dimensioned views. Keep the orientation view's paper
             // scale when it fits, rather than spending the extra sheet on decorative growth.
-            if findings(&first).hard == 0
-                && !spec.views.contains_key("iso")
+            if !spec.views.contains_key("iso")
                 && let Some(seed) = first.views.iter().find(|v| v.id == "v:iso")
                 && let Some(iso) = p.views.iter_mut().find(|v| v.id == "v:iso")
                 && iso.scale > seed.scale
@@ -994,7 +1058,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     let mut roomy = spec.clone();
                     roomy.sheet.size = Some("A0".into());
                     roomy.sheet.scale = Some(scale_name(scale));
-                    plan_escalated(analysis, &roomy)
+                    plan_escalated_with(analysis, &roomy, true, None)
                         .ok()
                         .filter(|q| findings(q).clean())
                 });
@@ -1021,24 +1085,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             crate::sheet_fit::correct_estimate(analysis, &mut p);
             // An estimate's iso budget can refuse a sheet whose finished drawing fits.
             // Only discharge that estimate when all actual item bounds and reserved views fit.
-            let inside = |b: [f64; 4]| {
-                b[0] >= layout::MARGIN - 1e-6
-                    && b[1] >= layout::MARGIN - 1e-6
-                    && b[2] <= p.sheet.page[0] - layout::MARGIN + 1e-6
-                    && b[3] <= p.sheet.page[1] - layout::MARGIN + 1e-6
-            };
-            let mut drawn_title = p.sheet.title_block;
-            drawn_title[3] = title_block::top(drawn_title);
-            let off_title = |b: [f64; 4]| !rect_overlap(b, drawn_title);
-            let actual_fit = crate::sheet_fit::footprints(analysis, &p)
-                .into_iter()
-                .all(inside)
-                && crate::sheet_fit::furniture_footprints(analysis, &p)
-                    .into_iter()
-                    .all(off_title)
-                && p.views
-                    .iter()
-                    .all(|v| inside(v.area) && !rect_overlap(v.area, p.sheet.title_block));
+            let actual_fit = drawn_items_fit(analysis, &p);
             if actual_fit {
                 p.problems.retain(|q| q.code != "page_fit_uncertain");
             }
@@ -1046,29 +1093,19 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             let mut f = findings(&p);
             f.hard += usize::from(!actual_fit);
             f.dropped += required.difference(&carried(&p)).count();
-            f.dropped += p
-                .gdt
-                .iter()
-                .filter(|g| {
-                    g.placed.is_none()
-                        && !matches!(
-                            g.state,
-                            ItemState::OmittedByUser
-                                | ItemState::NotAuthored
-                                | ItemState::Covered { .. }
-                        )
-                })
-                .count();
+            f.dropped += undrawn_gdt(&p);
             let over = over_views(&p).saturating_sub(over_views(&first));
             let crossings = feature_crossings(&p).saturating_sub(feature_crossings(&first));
             p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
             tried.push(format!(
-                "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings)",
+                "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {})",
                 p.sheet.scale,
                 p.sheet.fill * 100.0,
-                said(f, drops(&p))
+                said(f, drops(&p)),
+                ink_findings(&p),
+                p.sheet.arrangement
             ));
-            if !f.clean() || over > 0 || crossings > 0 {
+            if !crate::sheet_fit::admitted(f.clean(), over, crossings, seed_clean) {
                 continue;
             }
             if smallest.is_none() {
@@ -1077,46 +1114,45 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             candidates.push(p);
         }
     }
-    let in_band = |p: &Plan| (FILL_BAND[0]..=FILL_BAND[1]).contains(&p.sheet.fill);
+    if spec.sheet.size.is_none()
+        && let Some((i, s)) = smallest
+    {
+        candidates.retain(|p| p.sheet.size != layout::PAGES[i].0 || p.sheet.scale_factor == s);
+    }
+    // Among complete fits, do not buy fill with avoidable annotation conflicts.
+    let least_ink = candidates.iter().map(ink_findings).min();
+    candidates.retain(|p| Some(ink_findings(p)) == least_ink);
     candidates.sort_by(|a, b| {
-        in_band(b).cmp(&in_band(a)).then_with(|| {
-            if in_band(a) && in_band(b) {
-                b.sheet
-                    .scale_factor
-                    .total_cmp(&a.sheet.scale_factor)
-                    .then_with(|| a.sheet.page[0].total_cmp(&b.sheet.page[0]))
-            } else {
-                b.sheet
-                    .fill
-                    .total_cmp(&a.sheet.fill)
-                    .then_with(|| b.sheet.scale_factor.total_cmp(&a.sheet.scale_factor))
-                    .then_with(|| a.sheet.page[0].total_cmp(&b.sheet.page[0]))
-            }
-        })
+        crate::sheet_fit::rank(
+            (a.sheet.scale_factor, a.sheet.page[0], a.sheet.fill),
+            (b.sheet.scale_factor, b.sheet.page[0], b.sheet.fill),
+        )
     });
     let Some(mut chosen) = candidates.into_iter().next() else {
-        if first.sheet.scale_factor < MIN_LEGIBLE_SCALE {
+        if first.sheet.scale_factor < min_legible_scale {
             let mut named = spec.clone();
             named.sheet.size = Some(spec.sheet.size.clone().unwrap_or_else(|| "A0".into()));
-            named.sheet.scale = Some(scale_name(MIN_LEGIBLE_SCALE));
-            first = plan_escalated(analysis, &named)?;
+            named.sheet.scale = Some(scale_name(min_legible_scale.min(layout::SCALES[0])));
+            first = plan_escalated_with(analysis, &named, true, None)?;
             first.sheet.default = true;
             first.spec = spec.clone();
         }
         first.sheet.basis += &format!(
-            "; no valid complete smallest fit at or above 1:10; drawn-item fill {:.1}%; candidates: {}",
+            "; no valid complete smallest fit at or above {}; drawn-item fill {:.1}%; candidates: {}",
+            scale_name(min_legible_scale),
             first.sheet.fill * 100.0,
             tried.join("; ")
         );
         first.problems.push(Problem {
             id: "p:layout_recovery_exhausted:sheet".into(),
             code: "layout_recovery_exhausted".into(),
-            severity: "info".into(),
+            severity: if first.sheet.scale_factor < min_legible_scale { "warning" } else { "info" }.into(),
             message: format!("{} at {} has {}; no standard sheet and legible scale yields a valid complete drawing; the initial drawing and its findings are retained. Tried {}.",
                 first.sheet.size, first.sheet.scale, said(findings(&first), drops(&first)), tried.join("; ")),
             subjects: vec!["sheet".into()],
             ..Default::default()
         });
+        first.status = crate::completeness::status(&first.problems);
         return Ok(first);
     };
     let (i, s) = smallest.expect("a selected valid candidate has a smallest fit");
@@ -1170,8 +1206,24 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
 /// the dimensions, which on most parts keeps a larger scale, but where the dimensions run on
 /// past it an item can find no place (nist_stc_09 e4 at 1:1: 13 frames across the plan).
 pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    plan_escalated_with(analysis, spec, false, None)
+}
+
+fn plan_escalated_with(
+    analysis: &Analysis,
+    spec: &Spec,
+    automatic_pair: bool,
+    candidate_arrangement: Option<layout::Arrangement>,
+) -> Result<Plan, Invalid> {
     let escalated = |beyond_lanes: bool| {
-        plan_with(analysis, spec, beyond_lanes).map(|mut p| {
+        plan_with(
+            analysis,
+            spec,
+            beyond_lanes,
+            automatic_pair,
+            candidate_arrangement,
+        )
+        .map(|mut p| {
             crate::hole_table::escalate(analysis, &mut p);
             crate::completeness::report(analysis, &mut p);
             p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
@@ -1234,12 +1286,18 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    plan_with(analysis, spec, false)
+    plan_with(analysis, spec, false, false, None)
 }
 
 /// [`plan`], the GD&T's room reserved beyond every dimension lane of its strips when
 /// *gdt_beyond_lanes* ([`crate::demand::Demand::gdt_beyond_lanes`]).
-fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result<Plan, Invalid> {
+fn plan_with(
+    analysis: &Analysis,
+    spec: &Spec,
+    gdt_beyond_lanes: bool,
+    automatic_pair: bool,
+    candidate_arrangement: Option<layout::Arrangement>,
+) -> Result<Plan, Invalid> {
     // A document of a version this build does not know is refused, never read as the nearest
     // one it does (ADR3-4).
     if !ANALYSIS_SCHEMAS.contains(&analysis.schema.as_str()) {
@@ -1527,6 +1585,8 @@ fn plan_with(analysis: &Analysis, spec: &Spec, gdt_beyond_lanes: bool) -> Result
         principals,
         shown("iso"),
     );
+    request.automatic_pair = automatic_pair;
+    request.candidate_arrangement = candidate_arrangement;
     request.sections = usize::from(section.is_some());
     // The tables are reserved towards their corners and the general notes block top right, in
     // draftwright's order, unless only a fallback would make room for them: then each is placed

@@ -609,6 +609,9 @@ impl Principals {
 /// Everything about the drawing the layout reads, apart from scale, sheet and arrangement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
+    /// Internal automatic page/scale trials may compare arrangements.
+    pub automatic_pair: bool,
+    pub candidate_arrangement: Option<Arrangement>,
     /// The part's extents along x, y and z, mm.
     pub size: [f64; 3],
     pub strips: Strips,
@@ -632,6 +635,8 @@ impl Request {
     /// The request for a part of this size with draftwright's defaults.
     pub fn new(size: [f64; 3], views: Principals, include_iso: bool) -> Self {
         Request {
+            automatic_pair: false,
+            candidate_arrangement: None,
             size,
             strips: Strips::without_features(),
             sections: 0,
@@ -1316,6 +1321,12 @@ pub fn choose(
     arrangements: &[Arrangement],
     tb_width: Option<f64>,
 ) -> Pick {
+    let forced = [req.candidate_arrangement.unwrap_or(arrangements[0])];
+    let arrangements = if req.candidate_arrangement.is_some() {
+        &forced[..]
+    } else {
+        arrangements
+    };
     let preferred = arrangements[0];
     let tb_of = |w: f64| tb_width.unwrap_or_else(|| title_block_width(w));
     let pick = |s: f64, p: [f64; 2], a: Arrangement, fallback| Pick {
@@ -1330,7 +1341,9 @@ pub fn choose(
         if packed { g.fits } else { g.auto_fits }
     };
     if let (Some(s), Some(p)) = (scale, page) {
-        if let Some(a) = arrangements.iter().find(|a| fit(s, p, **a, true)) {
+        if req.automatic_pair
+            && let Some(a) = arrangements.iter().find(|a| fit(s, p, **a, true))
+        {
             return pick(s, p, *a, None);
         }
         let fallback = (!fit(s, p, preferred, true)).then_some(Fallback::Uncertain);

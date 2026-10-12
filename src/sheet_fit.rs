@@ -6,8 +6,38 @@ use crate::model::{Analysis, Plan};
 pub const FILL_BAND: [f64; 2] = [0.60, 0.85];
 /// Clearance around each drawn item, page mm.
 pub const FILL_CLEARANCE: f64 = 1.0;
-/// Automatic floor until the Spec gains a smallest-scale control: 1:10.
-pub const MIN_LEGIBLE_SCALE: f64 = 0.1;
+/// Minimum visible opening across a hole or slot, page mm. Small edge treatments do
+/// not set the whole-sheet scale; their sizes are stated by callouts.
+pub const MIN_OPENING: f64 = 0.8;
+
+pub fn min_legible_scale(analysis: &Analysis) -> f64 {
+    let opening = analysis
+        .features
+        .iter()
+        .filter_map(|f| {
+            let key = match f.kind.as_str() {
+                "hole" => "diameter",
+                "slot" => "width",
+                _ => return None,
+            };
+            f.parameters
+                .get(key)?
+                .as_f64()
+                .filter(|v| v.is_finite() && *v > 0.0)
+        })
+        .fold(f64::INFINITY, f64::min);
+    let longest = (0..3)
+        .map(|k| analysis.envelope[1][k] - analysis.envelope[0][k])
+        .fold(0.0, f64::max);
+    let needed = (MIN_OPENING / opening)
+        .max(20.0 / longest.max(1e-12))
+        .max(0.1);
+    crate::layout::SCALES
+        .into_iter()
+        .rev()
+        .find(|s| *s >= needed)
+        .unwrap_or(needed)
+}
 
 fn include(b: &mut Rect, p: [f64; 2]) {
     b[0] = b[0].min(p[0]);
@@ -563,8 +593,96 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
             iso.scale
         );
     }
-    // Every owned item was included in its measured area; the reservation observation is resolved.
-    p.problems.retain(|q| q.code != "annotation_outside_area");
+    let checked = crate::dims::recheck(analysis, &p);
+    let checked_codes: std::collections::BTreeSet<_> = crate::dims::recheck(analysis, template)
+        .into_iter()
+        .chain(checked.iter().cloned())
+        .map(|q| q.code)
+        .collect();
+    p.problems.retain(|q| !checked_codes.contains(&q.code));
+    p.problems.extend(checked);
+    p.problems.retain(|q| {
+        !matches!(
+            q.code.as_str(),
+            "title_field_overflow" | "general_tolerance_missing"
+        ) && !q.refs.iter().any(|r| r.starts_with("title_block/"))
+    });
+    p.problems.extend(crate::title_block::problems(
+        &p.sheet.title_cells,
+        p.sheet.page,
+    ));
+    p.problems.retain(|q| {
+        !matches!(
+            q.code.as_str(),
+            "unclaimed_geometry" | "feature_not_dimensioned"
+        )
+    });
+    crate::completeness::report(analysis, &mut p);
+    p.status = crate::completeness::status(&p.problems);
     p.sheet.fill = fill(analysis, &p);
     Some(p)
+}
+
+/// A neighbour may consume more paper only when the dimensioned views enlarge.
+pub(crate) fn allowed(smallest: (usize, f64), sheet: usize, scale: f64) -> bool {
+    sheet == smallest.0 || (sheet == smallest.0 + 1 && scale > smallest.1)
+}
+
+pub(crate) fn rank(a: (f64, f64, f64), b: (f64, f64, f64)) -> std::cmp::Ordering {
+    let band = |p: (f64, f64, f64)| (FILL_BAND[0]..=FILL_BAND[1]).contains(&p.2);
+    band(b).cmp(&band(a)).then_with(|| {
+        if band(a) && band(b) {
+            b.0.total_cmp(&a.0).then_with(|| a.1.total_cmp(&b.1))
+        } else {
+            b.2.total_cmp(&a.2)
+                .then_with(|| b.0.total_cmp(&a.0))
+                .then_with(|| a.1.total_cmp(&b.1))
+        }
+    })
+}
+
+/// A secondary material count can veto extra defects only against an already valid seed.
+pub(crate) fn admitted(
+    clean: bool,
+    extra_view_conflicts: usize,
+    extra_material_crossings: usize,
+    seed_clean: bool,
+) -> bool {
+    clean && extra_view_conflicts == 0 && (!seed_clean || extra_material_crossings == 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn candidate(scale: f64, width: f64, fill: f64) -> (f64, f64, f64) {
+        (scale, width, fill)
+    }
+    #[test]
+    fn band_prefers_scale_then_smaller_paper_otherwise_fullest() {
+        let best = candidate(2.0, 297.0, 0.60);
+        assert!(rank(best, candidate(1.0, 297.0, 0.85)).is_lt());
+        assert!(rank(best, candidate(2.0, 420.0, 0.80)).is_lt());
+        assert!(rank(best, candidate(5.0, 420.0, 0.90)).is_lt());
+        assert!(rank(candidate(1.0, 297.0, 0.59), candidate(2.0, 420.0, 0.40)).is_lt());
+    }
+    #[test]
+    fn validity_beats_fill_and_an_invalid_seeds_material_count() {
+        let invalid_in_band = candidate(5.0, 420.0, 0.75);
+        let valid_underfilled = candidate(1.0, 297.0, 0.20);
+        let mut candidates = [(invalid_in_band, false, 0), (valid_underfilled, true, 3)]
+            .into_iter()
+            .filter(|(_, clean, crossings)| admitted(*clean, 0, *crossings, false))
+            .map(|(p, _, _)| p)
+            .collect::<Vec<_>>();
+        candidates.sort_by(|a, b| rank(*a, *b));
+        assert_eq!(candidates, vec![valid_underfilled]);
+        assert!(!admitted(true, 0, 3, true));
+    }
+    #[test]
+    fn neighbour_requires_enlargement_and_two_steps_are_forbidden() {
+        assert!(allowed((0, 1.0), 0, 0.5));
+        assert!(!allowed((0, 1.0), 1, 1.0));
+        assert!(allowed((0, 1.0), 1, 2.0));
+        assert!(!allowed((0, 1.0), 2, 5.0));
+    }
 }

@@ -300,15 +300,19 @@ reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG
   with 1 mm clearance, clipped inside the border and excluding the drawn title grid (its 8 mm furniture reservation is usable paper). Unused
   reservation bands never contribute. `sheet.basis` reports every measured candidate's
   fill and findings; impossible principal envelopes are rejected before placement.
-  Search is bounded by five sheets × seven scales (10:1 through the conservative automatic
-  floor, `sheet_fit::MIN_LEGIBLE_SCALE`, 1:10). On finding the smallest fit, search stops
+  Search is bounded by five sheets and the standard scales at or above a geometric
+  legibility floor (`sheet_fit::min_legible_scale`): visible hole/slot openings of
+  at least 0.8 mm, longest extent at least 20 mm, and no reduction below 1:10. On finding the smallest fit, search stops
   after its neighbour. A GD&T layout may also be composed from settled view blocks at
   the same scale on a roomy A0 template (at most one template per scale). Each block
   includes the actual annotations and frames; their witnesses, leaders, text and feature
   attachments move together, with projection alignment preserved. Page-anchored blocks,
   sections, pins and authored view relations retain their existing planner. An alternative
   must improve validity/crossings before it competes by fill. A candidate adding material
-  crossings is vetoed, as one adding conflicts over other views is. If none is valid and complete, the initial drawing and findings stay,
+  crossings is vetoed only against an already valid seed: a complete valid candidate
+  beats an invalid seed regardless of this secondary count. Additional conflicts over
+  other views remain vetoed. The largest valid scale on the smallest sheet defines
+  its competing pair; avoidable annotation conflicts are compared before fill. If none is valid and complete, the initial drawing and findings stay,
   with `layout_recovery_exhausted` (info); the residual problems still require attention.
   An initial scale below the automatic floor is instead redrawn at the floor on A0 (or
   the named sheet), retaining overflow findings rather than silently using illegible ink.

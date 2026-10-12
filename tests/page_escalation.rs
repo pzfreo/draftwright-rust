@@ -282,11 +282,10 @@ fn hole_locations_closer_than_draftwrights_spacing_are_counted() {
     assert_eq!(layout::crowded_locations(&[], 1.0), 0);
 }
 
-/// A complete first drawing is still reconsidered: GRM-03 reaches the fill band on A3
-/// at 10:1; m10127 has no cleaner fuller eligible fit, so keeps A4 at 1:1.
+/// Complete drawings still compete by fill; only enlargement can spend the next sheet.
 #[test]
 fn a_valid_plan_is_reconsidered_for_fill() {
-    for (name, kept) in [("grm03", ("A3", "10:1")), ("m10127", ("A4", "1:1"))] {
+    for (name, kept) in [("grm03", ("A3", "10:1")), ("m10127", ("A3", "2:1"))] {
         let Some(analysis) = corpus_part(name) else {
             eprintln!("SKIPPED: the corpus is not found");
             return;

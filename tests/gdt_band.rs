@@ -115,7 +115,9 @@ fn frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views() {
 #[test]
 fn stc_09_datum_symbols_are_inside_their_bands_and_frames_past_them_had_no_clear_strip() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    // Replay the band reservation before automatic scale policy: the policy now refuses
+    // this fixture's old 1:5 scale for its small holes (checked separately below).
+    let plan = model::plan_escalated(&a, &Spec::default()).unwrap();
     assert!(
         plan.sheet
             .basis
@@ -193,4 +195,31 @@ fn the_reservation_stacks_overlapping_items_in_tiers_beyond_the_dimensions() {
     let mut s = base.clone();
     s.reserve_gdt(&base, &lanes, false, &[], 1.0);
     assert_eq!(s, base);
+}
+
+#[test]
+fn stc09_automatic_scale_keeps_small_holes_visible_and_reports_unresolved_layout() {
+    let a = analysed("nist_stc_09_asme1_ap242-e4");
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let smallest = a
+        .features
+        .iter()
+        .filter(|f| f.kind == "hole")
+        .filter_map(|f| {
+            f.parameters
+                .get("diameter")
+                .and_then(serde_json::Value::as_f64)
+        })
+        .fold(f64::INFINITY, f64::min);
+    assert!(smallest * p.sheet.scale_factor >= draftwright::sheet_fit::MIN_OPENING);
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted")
+    );
+    assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
+    assert!(p.problems.iter().any(|q| matches!(
+        q.code.as_str(),
+        "annotation_off_sheet" | "annotation_ink_overlap"
+    )));
 }

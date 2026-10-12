@@ -101,7 +101,7 @@ class FeatureCrossings(unittest.TestCase):
                              {'code': 'leader_through_feature', 'subjects': ['d:a', 'f:b']}]}
         replies = [subprocess.CompletedProcess([], 0, '{}', ''),
                    subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
-        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'furniture_boxes', return_value=[]):
             (Path(out) / 'part.svg').write_text('<svg/>')
             _, result = quality.one('part.step', 'dw', out)
         self.assertEqual(result['line_through_feature'], 4)
@@ -260,15 +260,16 @@ class RandomPins(unittest.TestCase):
 
 class SheetFill(unittest.TestCase):
     def test_fill_is_measured_and_printed_as_percent(self):
-        plan = {'sheet': {'scale': '1:1', 'size': 'A4', 'fill': .64},
-                'dimensions': [], 'views': [],
+        plan = {'sheet': {'scale': '1:1', 'size': 'A4', 'fill': .99, 'page': [120, 120], 'title_block': [80, 10, 110, 50]},
+                'dimensions': [], 'views': [{'id': 'v:front', 'at': [45, 45], 'scale': 1, 'up': [0, 1, 0], 'direction': [0, 0, 1]}],
                 'completeness': {'claimed_faces': 0, 'faces': 0, 'unplanned_features': 0}}
         replies = [subprocess.CompletedProcess([], 0, '{}', ''),
-                   subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
-        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
+                   subprocess.CompletedProcess([], 0, json.dumps(plan), ''),
+                   subprocess.CompletedProcess([], 0, json.dumps({'envelope': [[0,0,0],[50,50,10]]}), '')]
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'furniture_boxes', return_value=[]):
             (Path(out) / 'part.svg').write_text('<svg/>')
             _, result = quality.one('part.step', 'dw', out)
-        self.assertEqual(result['fill'], 64)
+        self.assertAlmostEqual(result['fill'], 100 * 52 * 52 / (10000 - 30 * 32), places=2)
         self.assertEqual((result['sheet'], result['scale']), ('A4', '1:1'))
         with contextlib.redirect_stdout(io.StringIO()) as output:
             quality.table({'part': result})

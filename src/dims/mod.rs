@@ -1677,6 +1677,19 @@ pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
     pmi_dimensions::symbolic_bore(r)
 }
 
+/// Rejudge settled paper geometry after moving complete view blocks to another sheet.
+pub(crate) fn recheck(analysis: &Analysis, plan: &crate::model::Plan) -> Vec<Problem> {
+    let mut all = plan.dimensions.clone();
+    all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+    placement::collisions_cached(
+        analysis,
+        &all,
+        &plan.sheet,
+        &plan.views,
+        &footprints::Cache::default(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

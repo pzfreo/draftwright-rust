@@ -128,12 +128,23 @@ def main():
             smallest,scale=match.groups()
             assert index(choice['size']) <= index(smallest)+1, stem
             if index(choice['size']) > index(smallest): assert factor(choice['scale'])>factor(scale),stem
-            valid=re.findall(r'(A[0-4]) ([0-9:]+) fill ([0-9.]+)% '
-                             r'\(valid and complete, 0 additional view conflicts, '
-                             r'0 additional material crossings\)',choice['basis'])
+            records=re.findall(r'(A[0-4]) ([0-9:]+) fill ([0-9.]+)% '
+                               r'\(valid and complete, ([0-9]+) additional view conflicts, '
+                               r'([0-9]+) additional material crossings, ([0-9]+) annotation conflicts',choice['basis'])
+            changed=next((q for q in after['problems'] if q['code']=='layout_replanned'),None)
+            initial=re.search(r'from (A[0-4]) at ([0-9:]+)',changed['message']) if changed else None
+            initial_pair=initial.groups() if initial else (choice['size'],choice['scale'])
+            initial_desc=re.search(rf'{initial_pair[0]} {initial_pair[1]} fill [0-9.]+% \(([^)]*)',choice['basis'])
+            seed_clean=initial_desc is not None and initial_desc[1].startswith('valid and complete')
+            valid=[(n,s,f,int(ink)) for n,s,f,over,cross,ink in records
+                   if int(over)==0 and (not seed_clean or int(cross)==0)]
             assert valid,stem
-            assert index(smallest)==min(index(n) for n,_,_ in valid),stem
-            assert factor(scale)==max(factor(s) for n,s,_ in valid if n==smallest),stem
+            assert index(smallest)==min(index(n) for n,_,_,_ in valid),stem
+            assert factor(scale)==max(factor(s) for n,s,_,_ in valid if n==smallest),stem
+            valid=[v for v in valid if (v[0]==smallest and v[1]==scale)
+                   or (index(v[0])==index(smallest)+1 and factor(v[1])>factor(scale))]
+            least_ink=min(v[3] for v in valid)
+            valid=[v[:3] for v in valid if v[3]==least_ink]
             assert (choice['size'],choice['scale']) in [(n,s) for n,s,_ in valid],stem
             # Candidate basis rounds fill to 0.1%; avoid guessing which side of a band
             # boundary an exactly rounded endpoint occupies. The independent measure
@@ -151,6 +162,10 @@ def main():
             # candidate exists. Such a fallback may not spend more paper or reduce scale.
             assert index(choice['size'])<=index(old['size']),stem
             assert factor(choice['scale'])>=factor(old['scale']),stem
+        if stem=='nist_ctc_03_asme1_rc':
+            assert not any(q['code'] in {'annotation_ink_overlap','annotation_off_sheet',
+                                        'annotation_overlap','layout_recovery_exhausted'}
+                           for q in after['problems']), 'CTC-03 must be valid, not an exhausted fallback'
         if stem=='manufacturing-pmi':
             assert choice['size'] in ('A3','A4') and factor(choice['scale'])>=1,stem
         if stem=='GRM-03_thumbwheel_drive_screw':
