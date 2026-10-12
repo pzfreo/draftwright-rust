@@ -4387,3 +4387,15 @@ and per-seed pin results are in the latest G6 fix entry of
 `docs/status-2026-10-10.md` and `target/g6-fix/`. The remaining recognized-feature
 and paint-order limits above are explicit, overturnable decisions. This run
 did not commit or push.
+
+## G6 centrelines rebased onto main after Stage G (2026-10-12)
+
+Overturnable judgement calls made unattended during the rebase (tests not rerun):
+- `plan_with`: G6's off-sheet furniture check and subject/ref rewrite run before main's
+  `completeness::report`, so the completeness status sees G6's problems.
+- `known_placement.json` ftc06 `annotation_leader_crossing`: kept main's count 2 and reason
+  (reciprocal crossing after G2) and appended G6's note as unverified; rerun tests/leaders.rs
+  and the placement test to settle the real count with G6 furniture in place.
+- `known_leaders.json`: kept main's two reciprocal ftc06 entries and added G6's three ctc04
+  entries; same verification owed.
+- Docs conflicts (model.md, next-session.md, status-2026-10-10.md) keep both sections.
