@@ -3,10 +3,13 @@ import contextlib
 import io
 import json
 import pathlib
+import sys
 import tempfile
 import unittest
 
-from check_interior import check
+# Run as `python3 -I tools/test_interior.py`: -I leaves the script's directory off sys.path.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from check_interior import check  # noqa: E402
 
 
 class InteriorAcceptance(unittest.TestCase):
@@ -41,7 +44,7 @@ class InteriorAcceptance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             before, after = self.runs(pathlib.Path(temp))
             with contextlib.redirect_stdout(io.StringIO()) as output:
-                check(before, after)
+                check(before, after, strict=True)
             totals = json.loads(output.getvalue())['totals']
             self.assertEqual(totals, {'interior_labels': [0, 60],
                 'outer_labels': [60, 0], 'sheet_escalations': [1, 0]})
@@ -55,6 +58,19 @@ class InteriorAcceptance(unittest.TestCase):
             file.write_text(json.dumps(rows))
             with self.assertRaisesRegex(AssertionError, 'part0: ink'):
                 check(before, after)
+
+    def test_unmet_goals_are_reported_and_fail_only_when_strict(self):
+        with tempfile.TemporaryDirectory() as temp:
+            before, after = self.runs(pathlib.Path(temp))
+            for f in after.glob('*.plan.json'):
+                plan = json.loads(f.read_text())
+                plan['dimensions'][1].pop('region')
+                f.write_text(json.dumps(plan))
+            with contextlib.redirect_stdout(io.StringIO()):
+                goals = check(before, after)
+                self.assertFalse(goals['callout_and_linear_inside'])
+                with self.assertRaises(AssertionError):
+                    check(before, after, strict=True)
 
 
 if __name__ == '__main__':

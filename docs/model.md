@@ -78,14 +78,14 @@ edited.
   evidence and keep the axis-map fallback. Profile visibility is proved only for one solid;
   body bounds are transformed from the recognition frame before matching.
 
-- **Projected ink** (optional `projected_views`, added to `draftwright.analysis/7`):
-  principal views' visible and hidden curves from the renderer's kernel projection,
-  in projection coordinates at 1:1, plus complete sampled boundaries of planar
-  material faces parallel to each view. Planning reads this regenerable evidence to
-  prove interior label clearance; rendering reuses the curves and retains its existing
-  paper-space precedence. Older documents default to no evidence and exterior placement.
-  The Spec carries none of this geometry; the Plan records only the resolved annotation's
-  `region: interior` and basis. See [R1's decision note](adr/R1-document-model.md).
+- **Edge evidence** (optional `edge_ink`, `draftwright.analysis/7`): every edge as a
+  polyline in the part's frame (within 0.05 mm, coordinates to 0.001 mm), planar faces by
+  normal and loop edges, and curved faces by box (cylinders also by axis and radius). The
+  planner projects it into a view to prove a region blank before placing a label inside
+  (`src/model/projected_ink.rs`, `src/dims/interior.rs`); the projection is a superset of the
+  drawn ink. Rendering does not read it. Older documents default to none and keep every label
+  outside its view. The Plan records only the resolved annotation's `region: interior` and
+  basis. See [R1's decision note](adr/R1-document-model.md).
 
 - **PMI** (`draftwright.analysis/7`, `pmi`): the part's AP242 semantic PMI as `src/pmi.rs`
   reads it (`read`, the report: records with their faces, and every source not read with its
@@ -989,7 +989,7 @@ the connection state. Editor integration and MCP adapters belong to S5 and S7.
 Automatic callouts contribute Python's bounded eight rays and eight text-lane
 stations, sharing at most 64 alternatives across a grouped feature's anchors.
 Bore targets stay radial; other features retain their physical attachment while
-the ray rotates. Every tip must touch visible projected ink. A complete interior label must fit over proven
+the ray rotates. Every tip must touch a projected edge. A complete interior label must fit over proven
 projected material, with half a paper millimetre of clearance from every visible
 and hidden edge and all settled annotation text/ink. The candidate's entire
 leader/dimension geometry stays off other views and page furniture. Pins and
@@ -1004,8 +1004,9 @@ still checks projected ink and suppresses the blank-region notice for a
 deliberately interior annotation, including Python-read drawings without a
 second annotation ownership record.
 
-Interior placement currently requires a complete parallel planar face boundary.
-Curved-only material and section hatch have no proof, and a view carrying a
-render-time cutting-plane rider keeps exterior labels. These conservative limits
-and the difference from Python's projected material field are recorded in
-`tests/fixtures/known_interior.json` and `docs/next-session.md`.
+Interior placement currently requires a planar face square to the view. A curved face's
+silhouette is bounded by its generators (a cylinder seen square) or its whole box (anything
+else), so labels keep off it. Section views keep exterior labels; a cutting-plane line, its
+arrows and letters are obstacles in the view that marks them (`model::cutting_line`, shared
+with the renderer). These limits and the difference from Python's projected material field
+are recorded in `tests/fixtures/known_interior.json` and `docs/next-session.md`.

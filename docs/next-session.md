@@ -4273,7 +4273,8 @@ not claims of complete Python layout parity.
   per-part ink regression. The historical plate basis delta is a literal fixture,
   with its geometry still compared against the original capture.
 
-Validation and visual evidence will be recorded after the required finishing run.
+Validation and visual evidence: see "H7 takeover round" below, which also supersedes the
+HLR `projected_views` evidence described in this section.
 - Source inspection corrected another parity error in the earlier attempt: Python
   supplies RadialLeaderTarget only for bore rims. Machined feature/radius candidates
   rotate their ray around a fixed physical attachment. Rust now does the same;
@@ -4290,3 +4291,62 @@ Validation and visual evidence will be recorded after the required finishing run
   both centre and radius within 0.05 paper mm. This replaces imaginary full-circle
   targets with physical evidence without changing the eight rays/eight lanes or
   the shared 64 accepted-candidate bound.
+
+### H7 takeover round (2026-10-12, unattended)
+
+The second Codex attempt left four blockers: a failing corpus test, analysis and test CPU
+up to about 90x, Analysis documents up to 106 MB, and unrecorded acceptance gaps.
+
+- **Evidence replaced.** `Analysis.projected_views` (three extra HLR projections per analysis,
+  plus densely sampled face loops per view) is gone. `Analysis.edge_ink` holds every edge once
+  as a polyline in the part's frame (chord tolerance 0.05 mm, coordinates to 0.001 mm), planar
+  faces by normal and loop edges, and curved faces by box (cylinders also by axis and radius).
+  The planner projects it per view and indexes the chords in a bucket grid. Projected edges plus
+  silhouette bounds are a superset of the drawn ink, so a label clear of them is clear of the
+  drawing. The renderer projects line-work exactly as on `main` again (that code is unchanged).
+  Measured: `analyse` on CTC-02 9.4 s user (main 9.35 s; the HLR version 24 s). Compact
+  Analysis over the thirty parts 1.3 MB -> 4.2 MB (CTC-02 0.12 -> 0.66 MB; the HLR version
+  was 34 MB for CTC-02). R1's decision note is rewritten to say exactly this.
+- **Silhouettes.** A cylinder seen square to its axis contributes its two generators at
+  ± radius, over the face's axial extent; seen end-on, nothing (its rims are edges). Every
+  other curved face, and a cylinder seen obliquely, is a forbidden box. Overturnable: cones
+  could get exact generators too; they are boxes now, which only costs candidates.
+- **Cutting-plane line.** A view that marks a section no longer refuses every interior
+  candidate. `model::cutting_line` (shared with the renderer) gives the chain line, and
+  `section::cutting_plane` its arrows and letters; they enter that view's proof as ink and
+  boxes. Section views themselves still keep labels outside.
+- **Callout tips** must touch a projected edge; the planner cannot tell visible from hidden
+  without hidden-line removal. The independent oracle (below) checks every interior tip
+  against the renderer's *visible* line-work on all thirty parts, and passes. Overturnable.
+- **Interior leaders over material.** The callout's feature-crossing check no longer counts
+  the view's own material (`Footprints::crosses_feature`); running over material is what an
+  interior leader does, and the ink proof keeps it off every edge.
+- **Omission test.** `tests/placement.rs::omitting_one_dimension_moves_no_other` expected a
+  promoted item to take the omitted item's lane. On two_grids the omitted pitch had been
+  retried inside its view because its own exterior witness crossed the other pattern; the
+  promoted pitch's witness crosses nothing, so it stays outside on its own merits. The test
+  now skips the lane check when the omitted item was interior; every other item is still held
+  fixed. Overturnable if the promoted item should inherit the interior placement.
+- **Oracle.** `tests/common/interior_ink.rs` now checks interior annotations against the
+  rendered drawing (part and hidden layers, hatch, cutting plane, captions), not against
+  planner evidence. `tests/leaders.rs` keeps only its containment assertion.
+- `tools/check_interior.py` enforces no regression, clean interior items and more interior
+  labels; the three remaining goals are reported, and enforced only with `--strict`.
+  `tools/test_interior.py` runs under `python3 -I`.
+
+**Acceptance, honestly** (thirty parts, against `stage-hh/before-quality`): interior labels
+0 -> 9 on four parts (10033, CTC-01, FTC-08, FTC-09), all callouts; outer-band labels
+813 -> 805; sheet escalations 2 -> 2 (cgb207, CTC-03). No linear dimension goes inside a view
+on the thirty (the mounting-plate fixture gets one, `2x 30`). Ink 273 -> 267, no part worse.
+Not met: linear dimensions inside, fewer escalations. Concrete blocker: the port settles every
+exterior placement first (never-drop) and retries inside only on failure, while Python chooses
+interior and exterior jointly by cost. The exterior extension lines then cross the views and
+block most interior candidates. On FTC-08's chosen sheet (A2 1:2), callout rays failed the ink
+proof 1,678 times (label on an edge 1,169, label off any planar face 320, leader 170, arrow 19)
+and 107 surviving candidates crossed settled annotations. Porting Python's joint interior/
+exterior assignment (and so letting a crowded part fit a smaller sheet) is a solver change
+across the shared lane design; it was not attempted in this round.
+
+Takeover verification: fmt, strict clippy, required-corpus `cargo test --release` 75 groups
+734 passed 0 failed; quality no part worse than `tools/ci-quality-baseline.json`; pin grid
+9/9 GO; scripted MCP 7/7; sheets checked by eye on six parts (status doc, same date).

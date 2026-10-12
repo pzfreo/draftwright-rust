@@ -2,7 +2,7 @@
  {
   "rule": "ADR2-17",
   "verdict": "undetermined",
-  "reason": "Python _leader_candidates.py uses eight rotations and eight stations. Only hole candidates carry RadialLeaderTarget; machined radii fan around their physical attachment. Rust now preserves fixed non-bore tips, requires visible-edge contact, bounds ray reach and proves all lines/arrows clear of visible and hidden ink. Whole-dimension retries are tested with an explicitly failed exterior corridor. The independent thirty-part oracle checks every interior tip/line/arrow. Global joint interior/exterior assignment remains unported. Near-rim witness starts use only owned footprints and retain the standard witness gap. Visible conics matching a site centre and radius supply physical arc midpoints as fixed anchors; this avoids inheriting an exterior tip on an absent semicircle."
+  "reason": "Python _leader_candidates.py uses eight rotations and eight stations. Only hole candidates carry RadialLeaderTarget; machined radii fan around their physical attachment. Rust now preserves fixed non-bore tips, requires contact with a projected edge, bounds ray reach and proves all lines/arrows clear of visible and hidden ink. Whole-dimension retries are tested with an explicitly failed exterior corridor. The independent thirty-part oracle checks every interior tip/line/arrow. Global joint interior/exterior assignment remains unported. Near-rim witness starts use only owned footprints and retain the standard witness gap. Projected edges whose samples all lie on the site's circle supply physical arc stations (1/4, 1/2, 3/4) as fixed anchors; this avoids inheriting an exterior tip on an absent semicircle."
  },
  {
   "rule": "LINT-code-view_annotation_inside_extents",

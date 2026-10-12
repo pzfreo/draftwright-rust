@@ -474,6 +474,12 @@ impl Footprints {
             .collect()
     }
 
+    /// Whether *shaft* crosses a feature's footprint, the view's material aside: an interior
+    /// leader runs over material by design, and its ink proof keeps it off every edge.
+    pub(super) fn crosses_feature(&self, shaft: [P2; 2]) -> bool {
+        self.features.iter().any(|f| f.shape.crossed(shaft))
+    }
+
     pub(super) fn crossing_count(&self, shaft: [P2; 2]) -> usize {
         self.crossed_ids(shaft).len()
     }

@@ -22,8 +22,6 @@
 mod corpus;
 #[path = "common/facts.rs"]
 mod facts;
-#[path = "common/interior_ink.rs"]
-mod interior_ink;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -205,15 +203,14 @@ fn crossings(plan: &Plan, analysis: &Analysis) -> BTreeMap<String, BTreeSet<Stri
             let interior =
                 *view == d.view && d.region == Some(draftwright::dims::CandidateRegion::Interior);
             if interior {
-                // An own-view candidate must independently clear projected ink.
+                // An own-view candidate lies wholly inside its view; tests/interior_placement.rs
+                // checks it against the rendered line-work.
                 assert!(
                     p.label_box[0] >= b[0]
                         && p.label_box[1] >= b[1]
                         && p.label_box[2] <= b[2]
                         && p.label_box[3] <= b[3]
                 );
-                let v = plan.views.iter().find(|v| &v.id == view).unwrap();
-                interior_ink::assert_clear(analysis, v, d);
             }
             if !interior && (overlap(p.label_box, *b) || crosses(shoulder, *b)) {
                 found.insert(format!("view:{view}"));

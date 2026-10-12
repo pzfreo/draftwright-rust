@@ -66,21 +66,28 @@ Each invariant gets its guard test as the code lands. Until then, R4 tracks it a
   (joining the two documents).
 - **Whether the spec also lives inside the STEP file**, as specify-core's answers do.
 
-## Decision note: projected evidence for interior placement (2026-10-12)
+## Decision note: edge evidence for interior placement (2026-10-12)
 
-The planner may now read the Analysis's optional `projected_views`: the renderer's
-HLR visible and hidden curves in each standard principal projection, plus complete
-sampled boundaries of planar material faces parallel to that projection. Analysis
-obtains these from the same kernel projection and curve lowering as rendering;
-rendering reuses them and applies its existing paper-space hidden-line precedence.
-Missing, incomplete or incompatible evidence cannot establish blank face.
+The planner may now read the Analysis's optional `edge_ink`: every edge of the part as a
+polyline in the part's frame (chord tolerance 0.05 mm, coordinates to 0.001 mm), each planar
+face's normal and the edges of its loops, and each curved face's box (with axis and radius
+for a cylinder). It is model-space evidence like `principal_profiles`, not line-work: the
+planner projects it into a view itself (an orthographic map) and gets a superset of what the
+renderer draws there, since every drawn curve of an uncut view is a projected edge or a
+curved face's silhouette, and a silhouette lies on a cylinder's generators at ± radius or else
+within the face's box. Nothing in the planner runs hidden-line removal, and the renderer is
+unchanged. Missing evidence, or no planar face square to the view, cannot establish blank face.
 
-This deliberately replaces the earlier exterior-only interpretation of "no
-line-work in the plan": projected ink is regenerable Analysis evidence, not authored
-Spec geometry or a second annotation renderer. It lets the planner prove a complete
-label clear over material inside its own view, and the complete annotation's lines
-and filled arrowheads clear of projected visible and hidden ink, retaining Python's
-automatic interior callouts and whole-dimension corridor fallback. Resolved dimensions carry typed
-`region: interior` provenance and a basis sentence; the Plan does not copy the HLR
-inventory. All nine invariants above remain in force, including deterministic JSON,
-relative author intent, stable IDs, and renderers drawing resolved annotations only.
+Why: Python placed callouts and dimensions inside a view over blank face, which fits more on a
+sheet (the maintainer, 2026-10-12). Proving a face blank needs to know where the view's ink
+is. A first attempt stored the renderer's hidden-line output in the Analysis; that cost three
+extra projections per analysis (analysis-only tests about 90x slower) and made the document
+up to 34 MB of compact JSON. Edges sampled once cost no projection, analyse at the same speed
+as before, and grow the document in proportion to the edge count: the largest of the thirty
+quality parts, NIST CTC-02, goes from 0.12 MB to 0.66 MB of compact JSON, and the thirty
+together from 1.3 MB to 4.2 MB (the earlier attempt: 34 MB for CTC-02 alone).
+
+The Plan does not copy the evidence: a resolved annotation placed inside carries typed
+`region: interior` provenance and a basis sentence. All nine invariants above remain in force,
+including deterministic JSON, relative author intent, stable IDs, and renderers drawing
+resolved annotations only.
