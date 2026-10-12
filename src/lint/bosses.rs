@@ -104,6 +104,26 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         noun,
         "a linear dimension along the boss's axis, in a view that sees it side-on",
     );
+    // Independently prove a flush hub from its physical interval and stated envelope.
+    issues.retain(|i| {
+        let Some(id) = i.subjects.first() else {
+            return true;
+        };
+        let Some(s) = super::redundancy::span(analysis, id, "boss_height.length") else {
+            return true;
+        };
+        let whole = super::redundancy::Span::new(
+            s.axis,
+            analysis.envelope[0][s.axis],
+            analysis.envelope[1][s.axis],
+        );
+        !(s.same(whole)
+            && marks.iter().any(|m| {
+                m.claims.iter().any(|c| {
+                    c.feature == "envelope" && c.parameter == super::envelope::PARAMETERS[s.axis]
+                }) && super::holes::states(&m.text, whole.hi - whole.lo)
+            }))
+    });
     for i in &mut issues {
         i.code = "boss_height_missing".into();
         i.id = format!("l:boss_height_missing:{}/boss_height.length", i.subjects[0]);

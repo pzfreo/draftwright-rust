@@ -4204,3 +4204,45 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 - The CI quality baseline's `source_commit` is `fd08c1d` (the commit whose status
   table it copies), as the Stage F baseline named `b999b13`; its executable SHA is the
   merged-tree release build that reproduced the table.
+
+## Stage H5: ownership, chains and Stage G follow-ups (2026-10-12)
+
+Overturnable implementation judgements for the unattended run:
+
+- A support-plane graph compares model stations, not equal printed values. Its 0.01 mm
+  matching bound accommodates recognition's hundredth-rounded slot endpoints (10047's
+  24.21 versus B-rep overall 24.2147565). Equal axes of a square and equal bore/outside
+  diameters remain distinct. Separate solids and eccentric turned axes are not joined.
+  Point locations retain their existing physical/view contracts; identical ordinates in
+  different hole views are separate witnesses. Authored tolerance/fit constraints are
+  retained rather than silently converted to reference or transferred to nominal sizes.
+- Overall sizes and functional sizes take precedence. A closed linear chain keeps the
+  shortest lower-priority link in parentheses, so its requirement remains readable.
+  A complete turned chain is not collapsed into one counted dimension: exactly one
+  individual link becomes reference. Bare placement pins do not change ownership or
+  which link is reference. Changing the constraints by omitting a controlling member
+  can make a formerly reference link controlling again.
+- GRM-03's plate-like 2.5 interval is covered by its same-body, coaxial 0.5 and 2 bands.
+  This is geometric interval evidence, not a general ban on every turned-part slab.
+- `stock_faces` is optional Analysis evidence: planar faces on the whole part's principal
+  envelope planes. A single solid's proven stock faces receive completeness credit only
+  when all overall extents have printed evidence. Interior and curved unrecognised faces
+  retain the review floor. An older analysis can prove an undecorated six-face box from
+  its six rectangular principal faces. This does not claim that recognition found every
+  feature or that the drawing is ready for manufacture.
+- FTC-07's wall witnesses must not coincide with end-on hole centrelines. The planner
+  chooses another available edge-on view before the exposed-profile search, preserving
+  explicit view choices. This uses geometric hole centres and a 0.6 mm paper clearance.
+- A concentric bolt circle inherits the unique turned axis's two location constraints;
+  diameter/spacing requirements still need printed evidence. Eccentric circles or
+  conflicting turned axes do not get that credit. Python origin/main's
+  `_member_coaxial_with_turned_profile` is the single-hole reference for this extension.
+- Leader text pads are drafting contacts. The added preference follows the existing
+  crossing/feature/area priorities, so a text pad cannot justify routing through more
+  features on a dense sheet. Dense annotation allocation belongs to the concurrent
+  table/sheet streams, under the agreed sheet policy.
+
+The corpus available here has `cadgenbench/flanged_spool_132.step`, but no GRM-04 STEP.
+GRM-04's false consolidated-height finding is guarded by a synthetic flush hub with
+its actual 4.5 mm support-plane interval, following Python's ISSUE-1154 fixtures.
+Verification and final measured limitations are appended to the status document.

@@ -409,11 +409,22 @@ Problem is `p:angled_step_requirement_unsupported:<feature id>` (`src/dims/mod.r
 `unsupported`), by the maintainer's decision of 2026-10-09 (stream d-angled-step-unsupported),
 until an angled step is dimensioned or the port has a completeness report.
 
+One measurement has one owner (`src/dims/redundancy.rs`). Matching physical
+support-plane intervals share a surviving statement and a typed `covered` omission;
+a functional outside diameter or A/F can own an equal overall interval. Equal values
+alone prove nothing. A stated overall length keeps one otherwise redundant chain
+member as a parenthesized reference dimension. Independent drawing lint reports
+`duplicate_measurement` and `closed_dimension_chain` from printed claims and Analysis
+stations, excluding parenthesized references. A flush boss height is credited from
+the same stated envelope interval, without reading the omission.
+
 The Plan also carries `status` (`clear` or `needs_attention`) and `completeness`:
 `claimed_faces`, `faces` and `unplanned_features`. Face claims are the distinct valid
 face indices on Analysis features, measured against `binding.face_count`; they describe
-this Analysis's recognition inventory, not recognition recall. Ordinary stock faces can
-be unclaimed. An `unclaimed_geometry` warning names both counts and asks for review,
+this Analysis's recognition inventory, not recognition recall. Optional `stock_faces` records principal boundary plane face IDs. On a single solid,
+those faces receive credit when printed measurements prove all overall extents;
+unrecognised interior/curved faces can still be unclaimed. Older analyses default
+that evidence to empty; a six-face rectangular box can be proved from its profiles. An `unclaimed_geometry` warning names both counts and asks for review,
 without inventing missed features. A recognised feature with no drawn measurement is
 reported at warning; absorbed groove floors and bands, pattern members, dimensions
 carried by a hole table, and the existing deliberately undrafted record types retain

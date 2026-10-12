@@ -1,0 +1,25 @@
+{
+  "reference": "Python draftwright origin/main read with git show, 2026-10-12",
+  "verdicts": [
+    {
+      "rules": ["ISSUE-1154-a", "ADR1-8"],
+      "verdict": "rust-correct",
+      "evidence": "Python test_issue_1154_one_owner_per_measurement.py proves a flush hub's height between the same planes as an overall extent. Rust now independently credits the printed overall in boss-height lint; the synthetic 4.5 mm hub guards GRM-04's finding without reading the omission. A proud boss and authored tolerance controls remain covered by existing tests. CTC-05's unique outside diameter reaches the Y envelope planes; its opposite flats reach the X planes. Their functional callouts keep the measurements, and the redundant envelopes have typed covered owners. Bore diameters never supply outside support evidence."
+    },
+    {
+      "rules": ["ADR4-U1", "ISSUE-1505-a"],
+      "verdict": "rust-correct",
+      "evidence": "Python's ADR4-U1 explicitly lists general redundancy lint as open. Rust reconstructs supported station intervals from Analysis and printed claims, detects duplicate ownership and cycles, and ignores parenthesized reference statements. The maintainer specifically directs a controlling GRM-03 overall and exactly one reference member on 2026-10-12; Python instead withholds a covered overall. Equal-sized bore/outside features and eccentric bands retain distinct ownership. Geometry stations, not equal labels, determine redundancy."
+    },
+    {
+      "rule": "concentric bolt-circle location",
+      "verdict": "rust-correct",
+      "evidence": "Python linting/hole_coverage.py::_member_coaxial_with_turned_profile credits a member on the unique turned axis within 1e-3. Rust extends that physical axis constraint to a bolt-circle centre, preserving its independent diameter requirement. flanged_spool_132 has three concentric patterns and six formerly missing coordinate requirements; the H5 corpus regression requires all six to disappear."
+    }
+  ],
+  "not_done": [
+    "No GRM-04 STEP exists in the supplied corpus; its consolidated-height regression uses a physically explicit synthetic flush hub, as the Python reference does.",
+    "General redundancy involving angles, unequal pattern counts or a term inside a compound callout is outside the linear support-plane graph. Point-location ownership retains its existing view and witness contracts.",
+    "Authored conflicting tolerance requirements are retained and assessed by independent redundancy lint; no authored constraint is silently replaced by a nominal value."
+  ]
+}

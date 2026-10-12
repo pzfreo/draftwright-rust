@@ -285,6 +285,44 @@ pub(super) fn prefer_readable(
             w.views.retain(|v| *v != "plan");
             w.views.insert(0, "plan");
         }
+        // A witness beside a hole centreline is ambiguous even when its slab is
+        // physically valid. Prefer an available edge-on view without that coincidence.
+        if let Shape::Linear { a, b, axis, .. } = w.shape {
+            let holes: Vec<_> = crate::bridge::holes::read(analysis)
+                .into_iter()
+                .filter_map(|(_, h)| h.ok())
+                .collect();
+            let contacts = |name: &str| {
+                let Some(frame) = frames.get(name) else {
+                    return usize::MAX;
+                };
+                let normal = match name {
+                    "front" => 1,
+                    "plan" => 2,
+                    _ => 0,
+                };
+                holes
+                    .iter()
+                    .filter(|h| {
+                        h.principal.is_some_and(|(k, _)| k == normal)
+                            && [a[axis], b[axis]]
+                                .iter()
+                                .any(|s| (h.at[axis] - s).abs() * frame.scale() <= 0.6)
+                    })
+                    .count()
+            };
+            if let Some(&first) = w.views.iter().find(|name| frames.contains_key(**name))
+                && contacts(first) > 0
+                && let Some(&clear) = w
+                    .views
+                    .iter()
+                    .find(|name| frames.contains_key(**name) && contacts(name) == 0)
+            {
+                w.views.retain(|name| *name != clear);
+                w.views.insert(0, clear);
+                w.basis += "; carried in the view where neither thickness witness coincides with an end-on hole centreline";
+            }
+        }
         if let Shape::Linear {
             a,
             b,

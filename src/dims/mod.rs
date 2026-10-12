@@ -65,6 +65,7 @@ mod placement;
 mod plates;
 mod pmi_dimensions;
 mod recesses;
+mod redundancy;
 mod slots;
 mod steps;
 mod stock;
@@ -734,6 +735,15 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
         .map(|(i, _)| lane[i] + 1)
         .max()
         .unwrap_or(0);
+    // A controlling overall adds a lane to the turned axial chain. Reserve its
+    // measured depth just as for a slab, rather than letting the chain exceed the band.
+    if wants
+        .iter()
+        .any(|w| w.id.starts_with("d:envelope/") && w.id.ends_with(".length"))
+        && turned::turned(analysis, &QFrame(crate::bridge::holes::frame(analysis))).is_some()
+    {
+        bands.plate_front_below = bands.plate_front_below.max(front_linear);
+    }
     for (i, w) in wants.iter().enumerate() {
         if owner[i].is_some()
             || !w
@@ -883,6 +893,7 @@ pub(crate) fn plan_with_obstacles(
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
     share_pmi(&mut kept, &mut given, &mut omitted);
+    redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
     // Then everything the part would have is placed: each item's lane, and where its label

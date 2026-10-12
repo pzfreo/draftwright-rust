@@ -122,8 +122,26 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                     })
                 })
             });
+        let axes_on: Vec<_> = analysis
+            .features
+            .iter()
+            .filter(|f| f.kind == "turned_step")
+            .filter_map(|f| super::turned::band(&frame(analysis), f).ok())
+            .filter(|b| b.axis == axis)
+            .collect();
+        let coaxial_circle = p.arrangement == "bolt_circle"
+            && anchors.len() == 1
+            && !axes_on.is_empty()
+            && axes_on.iter().all(|b| {
+                [u, v]
+                    .iter()
+                    .all(|&k| (b.on[k] - anchors[0][k]).abs() <= 1e-3)
+            });
         let member_spacing = p.arrangement == "linear" || p.arrangement == "grid";
         for (position, k) in [u, v].into_iter().enumerate() {
+            if coaxial_circle {
+                continue;
+            }
             if member_spacing
                 && (member_locations.iter().all(|axes| axes[position]) || member_anchor_with_pitch)
             {

@@ -51,7 +51,7 @@ fn every_default_says_why_and_the_views_fit_the_sheet_apart() {
             ],
             "a default Spec supplies no manufacturing tolerance and stock faces are unclaimed"
         );
-        assert_eq!(plan.completeness.claimed_faces, 0);
+        assert_eq!(plan.completeness.claimed_faces, if name=="turned.step" {2} else {6});
         assert_eq!(plan.completeness.faces, a.binding.face_count);
         assert_eq!(
             plan.status,

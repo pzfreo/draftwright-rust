@@ -558,7 +558,21 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     }
     out.extend(diameters(cx, &read, &carried, &manufacturing));
     for p in &profiles {
-        out.extend(chain(p));
+        let [lo, hi] = cx.analysis.envelope;
+        let k = p[0].1.axis;
+        let full = cx.turned.as_ref().is_some_and(|t| t.axis == k)
+            && (p[0].1.lo - lo[k]).abs() <= 1e-3
+            && (p[p.len() - 1].1.hi - hi[k]).abs() <= 1e-3
+            && p.windows(2).all(|w| (w[0].1.hi - w[1].1.lo).abs() <= 1e-3);
+        if full {
+            // Keep individual links so exactly one, rather than an entire counted
+            // chain, can become reference beside the controlling overall length.
+            for b in p {
+                out.extend(chain(std::slice::from_ref(b)));
+            }
+        } else {
+            out.extend(chain(p));
+        }
     }
     (out, problems)
 }
@@ -625,9 +639,6 @@ fn overall(
             order: 2,
         },
     });
-    if covered {
-        return out;
-    }
     let k = t.axis;
     let name = super::envelope::NAMES[k];
     out.push(Want {
@@ -641,7 +652,7 @@ fn overall(
             value: hi[k] - lo[k],
         }],
         turning: None,
-        basis: "the overall length along the turning axis, in a view that shows the profile: the step chain does not run end to end, so it does not convey it".into(),
+        basis: if covered {"the overall length along the turning axis; the chain reaches both ends, so one member is reference"} else {"the overall length along the turning axis: the step chain does not run end to end"}.into(),
         shape: Shape::Linear {
             a: corner(k, lo[k], lo),
             b: corner(k, hi[k], lo),

@@ -27,6 +27,13 @@
       "rule": "ADR R1 migration oracle",
       "verdict": "equivalent",
       "reason": "tests/fixtures/identity/plate.plan1.json.gz remains the literal historical geometry oracle. plate.reporting.json is a separate literal expectation for the new status/counts/unclaimed warning, added without filtering any old geometry or weakening the comparison."
+    },
+    {
+      "rule": "G1 stock-face credit / H5 maintainer follow-up",
+      "python": "provider association reports unclaimed geometry; ordinary stock need not be a feature",
+      "rust": "optional B-rep stock face evidence is credited on a single solid only when printed overall extents are complete",
+      "verdict": "rust-correct",
+      "reason": "Maintainer 2026-10-12: a fully dimensioned box must reach clear. Principal envelope plane faces receive explicit geometric credit; interior and curved unrecognised faces remain unclaimed. tests/h5_chains.rs::fully_dimensioned_box_is_clear guards the no-feature six-face box; tests/model.rs retains the review warning for native fixtures with other unclaimed faces."
     }
   ],
   "formatting": [
@@ -113,7 +120,7 @@
     {
       "part": "GRM-03_thumbwheel_drive_screw",
       "verdict": "rust-correct",
-      "evidence": "Its default sheet has no separate overall-length dimension, but the complete contiguous turned-length chain 0.5+2+3+18=23.5 proves the physical axial extent under the existing ledger. Default review owes no overall axis. Breaking that chain yields missing_principal_dimension in the evidence script. Requiring an additional label would duplicate a proven measure. An overall label is still normally desirable for tolerance stack-up; maintainer confirmation is recorded in next-session."
+      "evidence": "Superseded by the maintainer decision of 2026-10-12 (H5): state 23.5 overall and make exactly one member of 0.5+2+3+18 reference. Rust prints (0.5), retains the other links and the overall, and covers the spurious 2.5 plate interval from the same-body 0.5 and 2 bands. tests/h5_chains.rs checks the complete chain and independent redundancy/plate lint. Python origin/main omits the overall for a complete chain; this deliberate change supplies a controlling overall without a closed toleranced chain."
     }
   ]
 }

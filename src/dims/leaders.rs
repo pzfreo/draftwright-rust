@@ -146,6 +146,8 @@ struct Candidate {
     aware: bool,
     /// Of its crossings, those that touch text: a line through a label, or two labels together.
     text: u32,
+    /// Contacts with the text pad beside fixed extension lines.
+    contacts: u32,
     /// Whether its ink leaves its view's reserved area (1) or not (0).
     outside: u32,
     /// The box of all its ink.
@@ -159,6 +161,7 @@ impl Candidate {
 
     fn score(&self) -> i64 {
         i64::from(self.hard) * HARD
+            + i64::from(self.contacts.min(1)) * (AREA / 2)
             + if self.aware {
                 i64::from(self.crossings + self.outside + self.feature_crossings) * CROSSING
                     + i64::from(self.text) * TEXT_INK
@@ -192,6 +195,7 @@ impl Candidate {
 /// their arrowheads' shafts) and labels, each with the key of the item it belongs to, as the
 /// plan's collision checks report one problem per pair of items.
 struct Fixed {
+    extensions: Vec<bool>,
     segments: Vec<(usize, [P2; 2])>,
     labels: Vec<(usize, [f64; 4])>,
     /// The arrowheads' outlines as `dims::render` draws them ([`head`]), which must stay out of
@@ -204,6 +208,11 @@ struct Fixed {
 impl Fixed {
     /// The fixed ink of the placed items *on* (each with its key).
     fn new<'p>(on: impl Iterator<Item = (usize, &'p Placed)> + Clone) -> Fixed {
+        let extensions = on.clone().flat_map(|(_,p)| {
+            let linear=p.lines.len()>=3 && p.arrows.len()==2;
+            p.lines.iter().enumerate().map(move |(j,_)|linear && j<2)
+                .chain(std::iter::repeat_n(false,p.arrows.len()))
+        }).collect();
         let segments: Vec<(usize, [P2; 2])> = on
             .clone()
             .flat_map(|(i, p)| p.lines.iter().chain(&p.arrows).map(move |s| (i, *s)))
@@ -227,6 +236,7 @@ impl Fixed {
             heads.iter().map(line_box).collect(),
         ]);
         Fixed {
+            extensions,
             segments,
             labels,
             heads,
@@ -1001,6 +1011,7 @@ fn measure(
     // plan's collision checks report them.
     let mut crossed: Vec<usize> = Vec::new();
     let mut text: Vec<usize> = Vec::new();
+    let mut contacts = 0;
     let lines = segs.map(Line::new);
     fixed.grid.near(0, near, |n| {
         let (i, f) = &fixed.segments[n];
@@ -1009,6 +1020,11 @@ fn measure(
         }
         if lines.iter().any(|s| s.meets(*f)) {
             crossed.push(*i);
+        }
+        // Resolve witness-pad contacts after the existing crossing and area criteria.
+        // This keeps dense sheets from trading feature clearance for a text pad.
+        if fixed.extensions[n] && crosses(*f, padded) {
+            contacts += 1;
         }
         if crosses(*f, lb) {
             text.push(*i);
@@ -1071,6 +1087,7 @@ fn measure(
         inside,
         aware: true,
         text: text.len() as u32,
+        contacts,
         outside: u32::from(outside),
         bounds,
     })
@@ -1722,6 +1739,7 @@ mod tests {
             crossings: 0,
             feature_crossings: 0,
             inside: 0,
+            contacts: 0,
             aware: false,
             text: 0,
             outside: 0,
