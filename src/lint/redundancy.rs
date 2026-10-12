@@ -74,6 +74,39 @@ pub(crate) fn level_span(a: &Analysis, parameter: &str) -> Option<Span> {
     Some(Span::new(2, a.envelope[0][2], *z))
 }
 
+/// A ladder shoulder `step_position.length.<axis><position>`, measured from the part's box.
+pub(crate) fn position_span(a: &Analysis, parameter: &str) -> Option<Span> {
+    let word = parameter.strip_prefix("step_position.length.")?;
+    let k = ["x", "y", "z"].iter().position(|x| word.starts_with(x))?;
+    let v: f64 = word[1..].replace('_', ".").parse().ok()?;
+    Some(Span::new(k, a.envelope[0][k], a.envelope[0][k] + v))
+}
+
+/// A slot's walls across its width, and the centre line between them, in part coordinates.
+pub(crate) fn slot_walls(a: &Analysis, feature: &str) -> Option<(Span, f64)> {
+    let f = a
+        .features
+        .iter()
+        .find(|f| f.id == feature && f.kind == "slot")?;
+    let p = &f.parameters;
+    let local = ["x", "y", "z"]
+        .iter()
+        .position(|k| Some(*k) == p.get("width_axis").and_then(|v| v.as_str()))?;
+    let mut unit = [0.; 3];
+    unit[local] = 1.;
+    let k = principal(crate::bridge::holes::dir_to_part(&frame(a), unit))?;
+    let (c, w) = (p.get("w_center")?.as_f64()?, p.get("width")?.as_f64()?);
+    let station = |v: f64| {
+        let mut q = [0.; 3];
+        q[local] = v;
+        to_part(&frame(a), q)[k]
+    };
+    Some((
+        Span::new(k, station(c - w / 2.), station(c + w / 2.)),
+        station(c),
+    ))
+}
+
 pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span> {
     if feature == "envelope" {
         let k = super::envelope::PARAMETERS
@@ -81,7 +114,10 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
             .position(|p| *p == parameter)?;
         return Some(Span::new(k, a.envelope[0][k], a.envelope[1][k]));
     }
-    if feature == "step_level" || parameter.starts_with("location.length.") {
+    if feature == "step_level" {
+        return level_span(a, parameter).or_else(|| position_span(a, parameter));
+    }
+    if parameter.starts_with("location.length.") {
         return None;
     }
     let f = a.features.iter().find(|f| f.id == feature)?;
@@ -111,6 +147,13 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
         }
         if parameter == "location_slot.length" {
             return Some(Span::new(k, a.envelope[0][k], station("lo")?));
+        }
+        if parameter == "slot_width.length" {
+            return slot_walls(a, feature).map(|(s, _)| s);
+        }
+        if parameter == "location_slot_across.length" {
+            let (s, c) = slot_walls(a, feature)?;
+            return Some(Span::new(s.axis, a.envelope[0][s.axis], c));
         }
     }
     if f.kind == "boss" && parameter == "boss_height.length" {
@@ -150,14 +193,33 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 issue.related = vec![marks[j].name.clone()];
                 issues.push(issue);
             }
-            if !m.text.contains('×')
-                && let Some(s) = span(a, &c.feature, &c.parameter)
-                && holes::states(&m.text, s.hi - s.lo)
-                && !own_spans.iter().any(|p: &Span| p.same(s))
-            {
-                own_spans.push(s);
+            if m.text.contains('×') {
+                continue;
+            }
+            // A plane interval, or an outside diameter's or A/F's support planes across it.
+            let found: Vec<Span> = match span(a, &c.feature, &c.parameter) {
+                Some(s) => vec![s],
+                None => (0..3)
+                    .filter_map(|k| external_span(a, &c.feature, &c.parameter, k))
+                    .collect(),
+            };
+            for s in found {
+                if holes::states(&m.text, s.hi - s.lo)
+                    && !own_spans.iter().any(|p: &Span| p.same(s))
+                {
+                    own_spans.push(s);
+                }
             }
         }
+        // A stated width fixes the centre line between the walls too.
+        let halves: Vec<Span> = m
+            .claims
+            .iter()
+            .filter(|c| c.parameter == "slot_width.length" && !m.text.contains('×'))
+            .filter_map(|c| slot_walls(a, &c.feature))
+            .filter(|(s, _)| own_spans.iter().any(|p| p.same(*s)))
+            .flat_map(|(s, c)| [Span::new(s.axis, s.lo, c), Span::new(s.axis, c, s.hi)])
+            .collect();
         for s in own_spans {
             if let Some(route) = path(&edges, s) {
                 let duplicate = route.len() == 1;
@@ -196,11 +258,13 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                     if duplicate {"The same support-plane interval is stated twice."} else {"A dimension chain and its total are all stated; omit a redundant member or show it in parentheses as reference."}.into());
                 issue.annotation = Some(m.name.clone());
                 issue.related = route.iter().map(|j| marks[*j].name.clone()).collect();
+                issue.related.dedup();
                 issues.push(issue);
             } else {
                 edges.push((s, i));
             }
         }
+        edges.extend(halves.into_iter().map(|s| (s, i)));
     }
     issues
 }

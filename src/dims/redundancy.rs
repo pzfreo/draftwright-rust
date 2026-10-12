@@ -222,6 +222,7 @@ pub(super) fn consolidate(
                 "; reference: the stated overall and slot length determine this floor interval";
         }
     }
+    shoulders_on_slot_walls(a, kept, given, &gone);
     let mut i = 0;
     given.retain(|_| {
         let keep = !gone.contains(&i);
@@ -235,6 +236,80 @@ pub(super) fn consolidate(
         keep
     });
 }
+/// Ladder shoulders standing on a slot's walls close against the slot's stated width: with its
+/// centre-line location also stated, every such shoulder is determined; otherwise, of two
+/// shoulders on both walls, the farther is. A determined shoulder is shown as reference.
+fn shoulders_on_slot_walls(
+    a: &Analysis,
+    kept: &mut [Kept],
+    given: &[Vec<String>],
+    gone: &std::collections::BTreeSet<usize>,
+) {
+    use crate::lint::redundancy::slot_walls;
+    let reference = |w: &Want| w.terms.len() == 1 && w.terms[0].starts_with('(');
+    let stated = |kept: &[Kept], feature: &str, parameter: &str| {
+        (0..kept.len()).find(|&j| {
+            !gone.contains(&j)
+                && !reference(&kept[j].0)
+                && kept[j]
+                    .0
+                    .measurements
+                    .iter()
+                    .any(|m| m.feature == feature && m.parameter == parameter)
+        })
+    };
+    for f in a.features.iter().filter(|f| f.kind == "slot") {
+        let Some((walls, _)) = slot_walls(a, &f.id) else {
+            continue;
+        };
+        let Some(width) = stated(kept, &f.id, "slot_width.length") else {
+            continue;
+        };
+        let across = stated(kept, &f.id, "location_slot_across.length");
+        // Every retained statement of a wall's station from the box: (index, station, a ladder item).
+        let mut rungs: Vec<(usize, f64, bool)> = (0..kept.len())
+            .filter(|&i| !gone.contains(&i) && !reference(&kept[i].0))
+            .filter_map(|i| {
+                let s = kept[i]
+                    .0
+                    .measurements
+                    .iter()
+                    .filter(|m| m.feature == "step_level")
+                    .find_map(|m| crate::lint::redundancy::span(a, &m.feature, &m.parameter))?;
+                let ladder = kept[i].0.id.starts_with("d:step_level/") && given[i].is_empty();
+                (s.axis == walls.axis
+                    && (s.lo - a.envelope[0][s.axis]).abs() <= TOL
+                    && [walls.lo, walls.hi].iter().any(|w| (s.hi - w).abs() <= TOL))
+                .then_some((i, s.hi, ladder))
+            })
+            .collect();
+        if across.is_none() {
+            let on = |w: f64| rungs.iter().any(|r| (r.1 - w).abs() <= TOL);
+            if !(on(walls.lo) && on(walls.hi)) {
+                continue;
+            }
+            // The farther wall's ladder item, else the nearer's.
+            rungs.sort_by(|x, y| y.1.total_cmp(&x.1));
+            rungs.retain(|r| r.2);
+            rungs.truncate(1);
+        } else {
+            rungs.retain(|r| r.2);
+        }
+        let carriers = std::iter::once(width)
+            .chain(across)
+            .map(|j| kept[j].0.id.clone())
+            .collect::<Vec<_>>()
+            .join(", ");
+        for (i, ..) in rungs {
+            let w = &mut kept[i].0;
+            w.terms = vec![format!("({})", w.terms.join(" "))];
+            w.basis += &format!(
+                "; reference: the slot's stated width and location determine this shoulder on its wall ({carriers})"
+            );
+        }
+    }
+}
+
 fn cover(i: usize, j: usize, kept: &[Kept], omitted: &mut Vec<Omitted>, why: &str) {
     let (w, owner) = (&kept[i].0, &kept[j].0);
     omitted.push(Omitted {

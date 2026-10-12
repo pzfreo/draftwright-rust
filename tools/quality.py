@@ -32,6 +32,45 @@ def line_through_features(plan):
     return len(leaders) + len(extensions)
 
 
+def segment_box(line, b):
+    """Whether the segment *line* meets the box *b* (Liang-Barsky clip)."""
+    lo, hi = 0.0, 1.0
+    for k in range(2):
+        d = line[1][k] - line[0][k]
+        if abs(d) < 1e-9:
+            if line[0][k] < b[k] or line[0][k] > b[k + 2]:
+                return False
+        else:
+            t1, t2 = (b[k] - line[0][k]) / d, (b[k + 2] - line[0][k]) / d
+            lo, hi = max(lo, min(t1, t2)), min(hi, max(t1, t2))
+    return lo <= hi
+
+
+def leader_on_extension(plan, pad=1.0):
+    """Callout/linear pairs where the callout's leader, or its label within a 1 mm pad, touches
+    the linear dimension's extension line (itself grown by the pad): the maintainer's decision
+    of 2026-10-12, measured as the placer does (`dims::leaders`)."""
+    extensions, leaders = [], []
+    for d in plan.get("dimensions", []):
+        placed = d.get("placed") or {}
+        lines, arrows = placed.get("lines") or [], placed.get("arrows") or []
+        if len(lines) >= 3 and len(arrows) == 2:
+            extensions += [(d["id"], line) for line in lines[:2]]
+        elif d.get("kind") == "callout" and lines and placed.get("label_box"):
+            leaders.append((d["id"], lines, placed["label_box"]))
+    pairs = set()
+    for name, lines, b in leaders:
+        padded = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad]
+        for other, e in extensions:
+            if other == name:
+                continue
+            grown = [min(e[0][0], e[1][0]) - pad, min(e[0][1], e[1][1]) - pad,
+                     max(e[0][0], e[1][0]) + pad, max(e[0][1], e[1][1]) + pad]
+            if segment_box(e, padded) or any(segment_box(l, grown) for l in lines):
+                pairs.add((name, other))
+    return len(pairs)
+
+
 def overlap(a, b):
     return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
 
@@ -294,6 +333,7 @@ def one(f, dw, out, spec=None, timeout=600):
         "views_overlap": view_over, "view_on_title_block": view_tb,
         "ink": sum(codes[c] for c in INK), "ink_by_code": {c: codes[c] for c in INK if codes[c]},
         "line_through_feature": line_through_features(plan),
+        "leader_on_extension": leader_on_extension(plan),
         "dimensions": len(plan["dimensions"]),
         **{key: plan["completeness"][key]
            for key in ("claimed_faces", "faces", "unplanned_features")},
@@ -302,15 +342,15 @@ def one(f, dw, out, spec=None, timeout=600):
 
 
 def table(res):
-    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features"]
+    keys = ["off_sheet", "repeated_label", "repeated_measure", "views_overlap", "view_on_title_block", "ink", "repeated_span", "line_through_feature", "hidden_on_visible", "section_hidden", "claimed_faces", "faces", "unplanned_features", "leader_on_extension"]
     print(f"{'part':28}" + "".join(f"{k[:12]:>13}" for k in keys))
     tot = collections.Counter(); bad = collections.Counter()
     for n, v in sorted(res.items()):
         if "error" in v:
             print(f"{n:28} ERROR {v['error'][:80]}"); continue
-        print(f"{n[:28]:28}" + "".join(f"{v[k]:13}" for k in keys))
+        print(f"{n[:28]:28}" + "".join(f"{v.get(k, 0):13}" for k in keys))
         for k in keys:
-            tot[k] += v[k]; bad[k] += v[k] > 0
+            tot[k] += v.get(k, 0); bad[k] += v.get(k, 0) > 0
     print(f"{'TOTAL':28}" + "".join(f"{tot[k]:13}" for k in keys))
     print(f"{'parts affected':28}" + "".join(f"{bad[k]:13}" for k in keys), f"of {sum('error' not in v for v in res.values())}")
 

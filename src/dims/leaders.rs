@@ -587,49 +587,42 @@ pub(super) fn place_with_obstacles(
             });
         }
     }
-    // Refine only already clear leaders, with every other annotation fixed.
-    // Padding cannot change the joint assignment or buy a new crossing on a dense sheet.
-    if !semantic_pmi {
-        for (i, job) in &jobs {
-            // An isolated callout needs no second multi-leader solve. Crowded
-            // views keep their established routing and need tables or details.
-            let count = items
+    // Every callout, in every view and with semantic PMI too, then leaves extension lines and
+    // keeps its label's pad off them (the maintainer's decision of 2026-10-12): with all other
+    // ink fixed, it takes its best route without such a contact that is no worse by any
+    // measure of the joint assignment.
+    for (i, job) in &jobs {
+        let Some(p) = &placed[*i] else { continue };
+        let [tip, elbow] = p.lines[0];
+        let right = p.lines[1][1][0] >= elbow[0];
+        let fixed = Fixed::new(
+            placed
                 .iter()
-                .zip(views_of)
-                .filter(|(w, v)| matches!(w.shape, Shape::Callout { .. }) && **v == Some(job.view))
-                .count();
-            if count != 1 {
-                continue;
-            }
-            let Some(p) = &placed[*i] else { continue };
-            let [tip, elbow] = p.lines[0];
-            let right = p.lines[1][1][0] >= elbow[0];
-            let fixed = Fixed::new(
-                placed
-                    .iter()
-                    .enumerate()
-                    .filter(|(j, _)| *j != *i)
-                    .filter_map(|(j, p)| Some((j, p.as_ref()?)))
-                    .chain(
-                        obstacles
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(j, d)| Some((items.len() + j, d.placed.as_ref()?))),
-                    ),
-            );
-            let Some(old) = measure(job, tip, elbow, right, &fixed, page) else {
-                continue;
-            };
-            if !old.clear() || old.contacts == 0 {
-                continue;
-            }
-            if let Some(next) = inventory_with_pad(job, &fixed, page, true)
-                .0
-                .into_iter()
-                .find(|c| c.outside <= old.outside)
-            {
-                placed[*i] = Some(next.placed());
-            }
+                .enumerate()
+                .filter(|(j, _)| *j != *i)
+                .filter_map(|(j, p)| Some((j, p.as_ref()?)))
+                .chain(
+                    obstacles
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(j, d)| Some((items.len() + j, d.placed.as_ref()?))),
+                ),
+        );
+        let Some(old) = measure(job, tip, elbow, right, &fixed, page) else {
+            continue;
+        };
+        if old.contacts == 0 {
+            continue;
+        }
+        let (aware, _) = inventory_where(job, &fixed, page, |c| c.contacts == 0);
+        if let Some(next) = aware.into_iter().find(|c| {
+            c.hard <= old.hard
+                && c.crossings <= old.crossings
+                && c.feature_crossings <= old.feature_crossings
+                && c.outside <= old.outside
+                && c.text <= old.text
+        }) {
+            placed[*i] = Some(next.placed());
         }
     }
     for group in capped {
@@ -854,14 +847,15 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 /// Every candidate of *job* measured, the best [`KEEP`] kept (fewest hard blockers, then fewest
 /// crossings, then shortest, then generation order), near-duplicates dropped.
 fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> (Vec<Candidate>, Vec<Candidate>) {
-    inventory_with_pad(job, fixed, page, false)
+    inventory_where(job, fixed, page, |_| true)
 }
 
-fn inventory_with_pad(
+/// [`inventory`] of the candidates *keep_if* accepts, before the best are kept.
+fn inventory_where(
     job: &Job,
     fixed: &Fixed,
     page: &Page,
-    padding: bool,
+    keep_if: impl Fn(&Candidate) -> bool,
 ) -> (Vec<Candidate>, Vec<Candidate>) {
     let o = job.outline;
     let d = page.drawable();
@@ -940,9 +934,7 @@ fn inventory_with_pad(
             }
         }
     }
-    if padding {
-        measured.retain(|c| c.clear() && c.contacts == 0);
-    }
+    measured.retain(|c| keep_if(c));
     let aware = keep(&measured);
     for c in &mut measured {
         c.aware = false;
@@ -1121,24 +1113,21 @@ fn measure(
     }
     let crossings = (crossed.len() + text.len()) as u32;
     let feature_crossings = job.footprints.crossing_count(segs[0]) as u32;
-    if hard == 0 && crossings == 0 && feature_crossings == 0 {
-        fixed.grid.near(0, near, |n| {
-            let (_, f) = &fixed.segments[n];
-            // Clear routes also keep the leader and text pad off extension lines.
-            // Crowded routes retain their existing objective; they need tables or details.
-            if fixed.extensions[n] {
-                let witness = [
-                    f[0][0].min(f[1][0]) - LABEL_PAD,
-                    f[0][1].min(f[1][1]) - LABEL_PAD,
-                    f[0][0].max(f[1][0]) + LABEL_PAD,
-                    f[0][1].max(f[1][1]) + LABEL_PAD,
-                ];
-                if crosses(*f, padded) || segs.iter().any(|s| crosses(*s, witness)) {
-                    contacts += 1;
-                }
+    fixed.grid.near(0, near, |n| {
+        let (_, f) = &fixed.segments[n];
+        // A leader or its text pad on an extension line: a line within the pad is contact.
+        if fixed.extensions[n] {
+            let witness = [
+                f[0][0].min(f[1][0]) - LABEL_PAD,
+                f[0][1].min(f[1][1]) - LABEL_PAD,
+                f[0][0].max(f[1][0]) + LABEL_PAD,
+                f[0][1].max(f[1][1]) + LABEL_PAD,
+            ];
+            if crosses(*f, padded) || segs.iter().any(|s| crosses(*s, witness)) {
+                contacts += 1;
             }
-        });
-    }
+        }
+    });
     // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
     let outside = job.area.is_some_and(|a| {
         [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]

@@ -437,7 +437,9 @@ pub fn alternatives(a: &Analysis, f: &Feature) -> Vec<Vec<Term>> {
             }
         }
     }
-    if k < 2 && support {
+    // A shoulder is a riser's own position on the plate's face, so the riser is the support
+    // evidence across x or y; one connected profile keeps it on the plate's body.
+    if k < 2 && a.principal_profiles.len() == 1 {
         let positions: Vec<_> = a
             .risers
             .iter()

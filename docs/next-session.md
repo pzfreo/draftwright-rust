@@ -4314,3 +4314,44 @@ N=1/3/8 with --require-go pass all 270 part experiments; scripted MCP succeeds 7
 in 16 calls with unchanged task conditions. Full tables, review disposition,
 not_done and artefact paths are in the final H5 fix-round entry of
 `docs/status-2026-10-10.md`; receipts are in `target/h5-fix`. No commit or push.
+
+### H5 fix round 2 judgements (2026-10-12, Claude, overturnable)
+
+- Ladder rungs on a slot's walls. A shoulder (`step_position`) or height rung
+  (`step_height`) measured from the box to a slot wall closes against the slot's stated
+  width. When the slot's centre-line location is stated too, every such rung is
+  determined and is shown as a reference in parentheses. When it is not, the farther
+  wall's ladder rung becomes the reference if both walls are stated, by a rung or by
+  another dimension carrying the rung's claim. Examples: 10047 `(18.6)`/`(23.1)` beside
+  4.5 and 20.9; FTC-09's six slot-wall rungs; FTC-10's `(62.5)` = 12.5 + 50. References
+  are used rather than omission because the covered plate thickness on 10047 already
+  names the 23.1 rung as its owner. The FTC-09 ladder shows six references; omitting
+  them would reduce ink but would mean redirecting covered owners. That is a later
+  review item, not a correctness issue.
+- A plate between a riser shoulder and the box across x or y is conveyed by the overall
+  less the shoulder. The riser at the plate face is the support evidence; one connected
+  profile is still required. On 10060 the 14.3 plate thickness is now covered by the
+  19.3 shoulder plus 33.6. `dims_plates::m10060_states_its_plate_thickness_once` now
+  asserts that ownership instead of a drawn thickness.
+- Redundancy lint evidence now covers ladder rungs, slot widths (both walls, plus the
+  centre line implied by the width), slot centre-line locations, and the outside
+  diameter or A/F support planes of an `external_span`. It therefore reports CTC-05's
+  former linear 558.8 / ø558.8 and 527.0 / 527.05 A/F duplicates, and the 10047
+  slot-wall closure. All 30 quality sheets report no duplicate or closed chain.
+- Leaders off extension lines (decision iii), as a general rule. After the joint
+  assignment, every callout (any number per view, with semantic PMI too) is checked
+  against all other ink held fixed. If its leader, or its label within the 1 mm pad,
+  touches an extension line, it takes its best route with no contact that is no worse
+  in hard blockers, crossings, feature crossings, area and text. A clean crossing
+  counts as contact; this is the stricter reading. Three other placements were measured
+  and rejected because each worsened `quality.py` cells. They put the contact into the
+  joint objective at text-ink weight, at half-area weight, and at 10 mm of ink. The
+  regressions were CTC-03/04/05 and FTC-06/07/08 ink and feature crossings, and FTC-07
+  page recovery. The residual contacts are views where every contact-free route
+  crosses something else. They belong to the dense-sheet table/detail policy.
+- `quality.py` gains a `leader_on_extension` column, which counts callout/linear pairs
+  in contact. It is ratcheted by `check_quality_table.py` from the next status table.
+  It is 258 at the start of this round and 229 now. `tests/h5_chains.rs` asserts zero
+  contacts on GRM-03 and cgb207, which are multi-callout views.
+- The S0 session-edit helper skips the width-view edit on turned parts (any
+  `turned_step`), replacing the GRM-03 name check.

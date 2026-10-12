@@ -37,7 +37,11 @@ pub fn edits(s: &Session) -> Vec<Vec<Op>> {
         vec![Op::set("sheet/scale", json!(scale))],
     ];
     // S0 deliberately leaves the turned profile's axial carrier in its profile view.
-    if !s.analysis().binding.part.contains("GRM-03")
+    if !s
+        .analysis()
+        .features
+        .iter()
+        .any(|f| f.kind == "turned_step")
         && s.plan()
             .dimensions
             .iter()

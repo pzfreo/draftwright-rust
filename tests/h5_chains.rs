@@ -370,3 +370,183 @@ fn a_pinned_reference_keeps_its_ink_and_reports_a_broken_controlling_chain() {
         "0.5"
     );
 }
+
+fn label(p: &Plan, id: &str) -> String {
+    p.dimensions
+        .iter()
+        .find(|d| d.id == id)
+        .unwrap_or_else(|| panic!("{id} not planned"))
+        .label
+        .clone()
+}
+
+#[test]
+fn shoulders_on_slot_walls_are_references_when_the_slot_is_stated() {
+    // 10047: 18.6 + 4.5 = 23.1, and the slot's centre 20.9 fixes both walls.
+    let a = native("mfcadpp/10047.step");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(label(&p, "d:f:slot:1/slot_width.length"), "4.5");
+    assert_eq!(label(&p, "d:f:slot:1/location_slot_across.length"), "20.9");
+    assert_eq!(
+        label(&p, "d:step_level/step_position.length.y18_61"),
+        "(18.6)"
+    );
+    assert_eq!(
+        label(&p, "d:step_level/step_position.length.y23_144"),
+        "(23.1)"
+    );
+    let issues = lint::check(&a, &marks(&p));
+    assert!(
+        !issues
+            .iter()
+            .any(|i| i.code == "closed_dimension_chain" || i.code == "duplicate_measurement"),
+        "{issues:?}"
+    );
+    // Without the centre line only the farther shoulder closes the chain.
+    let spec = model::edit(&Spec::default(), &json!([{"op":"set", "path":"dimensions/d:f:slot:1~1location_slot_across.length/omit", "value":true}])).unwrap();
+    let p = model::plan(&a, &spec).unwrap();
+    assert_eq!(
+        label(&p, "d:step_level/step_position.length.y18_61"),
+        "18.6"
+    );
+    assert_eq!(
+        label(&p, "d:step_level/step_position.length.y23_144"),
+        "(23.1)"
+    );
+    // The same rule on z ladders (FTC-09's slots, FTC-10's 12.5 + 50 = 62.5).
+    let p = model::plan(&native("nist/nist_ftc_09_asme1_rd.stp"), &Spec::default()).unwrap();
+    assert_eq!(
+        label(&p, "d:step_level/step_height.length.h41_275"),
+        "(41.3)"
+    );
+    let p = model::plan(&native("nist/nist_ftc_10_asme1_rb.stp"), &Spec::default()).unwrap();
+    assert_eq!(label(&p, "d:step_level/step_height.length.h62_5"), "(62.5)");
+}
+
+#[test]
+fn lint_reports_the_10047_slot_wall_closure_when_every_member_is_stated() {
+    let a = native("mfcadpp/10047.step");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let mut ink = marks(&p);
+    for m in &mut ink {
+        m.text = m.text.trim_matches(['(', ')']).to_string();
+    }
+    let closed: Vec<_> = lint::check(&a, &ink)
+        .into_iter()
+        .filter(|i| i.code == "closed_dimension_chain")
+        .filter_map(|i| i.annotation)
+        .collect();
+    assert!(
+        closed
+            .iter()
+            .any(|n| n.starts_with("d:step_level/step_position.length.y")),
+        "{closed:?}"
+    );
+}
+
+#[test]
+fn a_plate_between_a_shoulder_and_the_box_is_not_stated_again() {
+    // 10060: 33.6 - 19.3 = 14.3, the plate's thickness.
+    let a = native("mfcadpp/10060.step");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        !p.dimensions
+            .iter()
+            .any(|d| d.id == "d:f:plate:1/thickness.length")
+    );
+    assert!(
+        p.omitted
+            .iter()
+            .any(|d| d.id == "d:f:plate:1/thickness.length")
+    );
+    let issues = lint::check(&a, &marks(&p));
+    assert!(
+        !issues
+            .iter()
+            .any(|i| i.code == "closed_dimension_chain" || i.code == "plate_requirement_missing"),
+        "{issues:?}"
+    );
+}
+
+#[test]
+fn lint_reports_an_overall_that_repeats_an_outside_diameter_or_across_flats() {
+    // CTC-05 before this stream: linear 558.8 beside ø558.8, 527.0 beside 527.05 A/F.
+    let a = native("nist/nist_ctc_05_asme1_rd.stp");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        !lint::check(&a, &marks(&p))
+            .iter()
+            .any(|i| i.code == "duplicate_measurement" || i.code == "closed_dimension_chain")
+    );
+    let mut ink = marks(&p);
+    for (name, parameter, text) in [
+        ("overall x", "width.length", "527.0"),
+        ("overall y", "depth.length", "558.8"),
+    ] {
+        ink.push(Mark {
+            name: name.into(),
+            view: Some("v:front".into()),
+            text: text.into(),
+            claims: vec![Claim {
+                feature: "envelope".into(),
+                parameter: parameter.into(),
+            }],
+        });
+    }
+    let duplicates: Vec<_> = lint::check(&a, &ink)
+        .into_iter()
+        .filter(|i| i.code == "duplicate_measurement")
+        .filter_map(|i| i.annotation)
+        .collect();
+    assert!(
+        duplicates.contains(&"overall x".to_string()),
+        "{duplicates:?}"
+    );
+    assert!(
+        duplicates.contains(&"overall y".to_string()),
+        "{duplicates:?}"
+    );
+}
+
+/// Callout/linear pairs whose leader, or label within its 1 mm pad, touches an extension line
+/// (grown by the pad): the maintainer's decision (iii) of 2026-10-12.
+fn leader_contacts(p: &Plan) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for c in p.dimensions.iter().filter(|d| d.kind == "callout") {
+        let Some(cp) = &c.placed else { continue };
+        let b = cp.label_box;
+        let pad = [b[0] - 1., b[1] - 1., b[2] + 1., b[3] + 1.];
+        for d in &p.dimensions {
+            let Some(dp) = &d.placed else { continue };
+            if d.id == c.id || dp.lines.len() < 3 || dp.arrows.len() != 2 {
+                continue;
+            }
+            for e in dp.lines.iter().take(2) {
+                let grown = [
+                    e[0][0].min(e[1][0]) - 1.,
+                    e[0][1].min(e[1][1]) - 1.,
+                    e[0][0].max(e[1][0]) + 1.,
+                    e[0][1].max(e[1][1]) + 1.,
+                ];
+                if crosses(*e, pad) || cp.lines.iter().any(|l| crosses(*l, grown)) {
+                    out.push((c.id.clone(), d.id.clone()));
+                }
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn callouts_keep_off_extension_lines_in_crowded_views_too() {
+    // Each had leaders or labels on extension lines under the solitary-callout refinement,
+    // with several callouts in the view.
+    for file in [
+        "gramel/GRM-03_thumbwheel_drive_screw.step",
+        "cadgenbench_inputs/cgb207.step",
+    ] {
+        let p = model::plan_recovered(&native(file), &Spec::default()).unwrap();
+        let contacts = leader_contacts(&p);
+        assert!(contacts.is_empty(), "{file}: {contacts:?}");
+    }
+}
