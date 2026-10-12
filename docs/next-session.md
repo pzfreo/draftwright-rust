@@ -4204,3 +4204,29 @@ evidence for CI limits. Final whitespace/diff checks pass. Committed as `5af0268
 - The CI quality baseline's `source_commit` is `fd08c1d` (the commit whose status
   table it copies), as the Stage F baseline named `b999b13`; its executable SHA is the
   merged-tree release build that reproduced the table.
+
+## Stage H: multi-sheet design record (2026-10-12, overturnable judgement calls)
+
+`docs/adr/R5-multi-sheet.md` records the maintainer's sheet policy (2026-10-11) verbatim and
+proposes the technical design and the Stage I build plan (I1 model and allocation, I2 furniture
+and rendering, I3 MCP, I4 editor compatibility, I5 detail views). No code changed. Judgement
+calls, each overturnable:
+
+- Multi-sheet is opt-in: `sheets.max` absent means 1, so every existing spec plans byte for byte
+  as before (the migration requirement). The default could later become 2+.
+- A larger paper still comes before a further sheet (the 2026-10-09 ladder is kept); a further
+  sheet is preferred only to a scale below `smallest_scale` or an exhausted recovery.
+- Overflow order: isometric, sections, a long hole table, then detail views (I5).
+- One sheet size for the whole document; sections keep their parent's scale.
+- SHEET cell: `n OF m` does not fit today's 6 % cell on A4 (7.60 mm in 7.2 mm, measured with
+  `title_block::measure`), so multi-sheet documents widen it to 12 % and narrow APPROVED BY to
+  29 %; the single-sheet grid is unchanged. A spec `sheet.title.sheet` is replaced (info problem).
+- Grid zones (ISO 5457, in the margin outside the border) and cross-references only when m > 1.
+- SVG, DXF and PNG are one file per sheet (`<stem>.sheet<n>.<ext>`, sheet 1 keeps its name); PDF
+  is one file with a page per sheet.
+- "Move view to sheet n" is the edit `set views/<name>/sheet`, offered by `item_options` as
+  `move_to_sheet`; no new op kind (RFC 6902's `move` means something else).
+- Item `sheet` fields in MCP results are omitted when the plan has one sheet, keeping baselines
+  and byte budgets.
+- Severities: `datum_not_identified` and `cross_reference_missing` error;
+  `sheet_below_smallest_scale` and `gdt_not_on_sheet_1` warning.

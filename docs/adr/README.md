@@ -15,3 +15,4 @@ Records here start as **Proposed**, and are marked **Accepted** with the date th
 | [R2: the kernel](R2-kernel.md) | haecceity in place of OpenCascade; accuracy over parity; the verdict system | Accepted 2026-10-07 |
 | [R3: revisions](R3-revisions.md) | quiddity's correspondence; rebinding a spec to a revised part | Accepted 2026-10-07 |
 | [R4: carried invariants](R4-carried-invariants.md) | Each Python ADR rule, marked kept, translated or retired, against `docs/rules/` | Accepted 2026-10-07 |
+| [R5: multi-sheet drawings](R5-multi-sheet.md) | Sheet allocation (policy accepted 2026-10-11), sheet pins, SHEET n OF m, zones and cross-references, multi-sheet formats and MCP addresses | Proposed (policy accepted 2026-10-11) |
