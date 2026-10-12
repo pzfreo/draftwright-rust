@@ -146,8 +146,6 @@ struct Candidate {
     aware: bool,
     /// Of its crossings, those that touch text: a line through a label, or two labels together.
     text: u32,
-    /// Contacts of the leader or text pad with fixed extension lines.
-    contacts: u32,
     /// Whether its ink leaves its view's reserved area (1) or not (0).
     outside: u32,
     /// The box of all its ink.
@@ -194,7 +192,6 @@ impl Candidate {
 /// their arrowheads' shafts) and labels, each with the key of the item it belongs to, as the
 /// plan's collision checks report one problem per pair of items.
 struct Fixed {
-    extensions: Vec<bool>,
     segments: Vec<(usize, [P2; 2])>,
     labels: Vec<(usize, [f64; 4])>,
     /// The arrowheads' outlines as `dims::render` draws them ([`head`]), which must stay out of
@@ -207,17 +204,6 @@ struct Fixed {
 impl Fixed {
     /// The fixed ink of the placed items *on* (each with its key).
     fn new<'p>(on: impl Iterator<Item = (usize, &'p Placed)> + Clone) -> Fixed {
-        let extensions = on
-            .clone()
-            .flat_map(|(_, p)| {
-                let linear = p.lines.len() >= 3 && p.arrows.len() == 2;
-                p.lines
-                    .iter()
-                    .enumerate()
-                    .map(move |(j, _)| linear && j < 2)
-                    .chain(std::iter::repeat_n(false, p.arrows.len()))
-            })
-            .collect();
         let segments: Vec<(usize, [P2; 2])> = on
             .clone()
             .flat_map(|(i, p)| p.lines.iter().chain(&p.arrows).map(move |s| (i, *s)))
@@ -241,7 +227,6 @@ impl Fixed {
             heads.iter().map(line_box).collect(),
         ]);
         Fixed {
-            extensions,
             segments,
             labels,
             heads,
@@ -587,44 +572,6 @@ pub(super) fn place_with_obstacles(
             });
         }
     }
-    // Every callout, in every view and with semantic PMI too, then leaves extension lines and
-    // keeps its label's pad off them (the maintainer's decision of 2026-10-12): with all other
-    // ink fixed, it takes its best route without such a contact that is no worse by any
-    // measure of the joint assignment.
-    for (i, job) in &jobs {
-        let Some(p) = &placed[*i] else { continue };
-        let [tip, elbow] = p.lines[0];
-        let right = p.lines[1][1][0] >= elbow[0];
-        let fixed = Fixed::new(
-            placed
-                .iter()
-                .enumerate()
-                .filter(|(j, _)| *j != *i)
-                .filter_map(|(j, p)| Some((j, p.as_ref()?)))
-                .chain(
-                    obstacles
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(j, d)| Some((items.len() + j, d.placed.as_ref()?))),
-                ),
-        );
-        let Some(old) = measure(job, tip, elbow, right, &fixed, page) else {
-            continue;
-        };
-        if old.contacts == 0 {
-            continue;
-        }
-        let (aware, _) = inventory_where(job, &fixed, page, |c| c.contacts == 0);
-        if let Some(next) = aware.into_iter().find(|c| {
-            c.hard <= old.hard
-                && c.crossings <= old.crossings
-                && c.feature_crossings <= old.feature_crossings
-                && c.outside <= old.outside
-                && c.text <= old.text
-        }) {
-            placed[*i] = Some(next.placed());
-        }
-    }
     for group in capped {
         let subjects: Vec<String> = group.iter().map(|&k| items[jobs[k].0].id.clone()).collect();
         problems.push(Problem {
@@ -847,16 +794,6 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 /// Every candidate of *job* measured, the best [`KEEP`] kept (fewest hard blockers, then fewest
 /// crossings, then shortest, then generation order), near-duplicates dropped.
 fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> (Vec<Candidate>, Vec<Candidate>) {
-    inventory_where(job, fixed, page, |_| true)
-}
-
-/// [`inventory`] of the candidates *keep_if* accepts, before the best are kept.
-fn inventory_where(
-    job: &Job,
-    fixed: &Fixed,
-    page: &Page,
-    keep_if: impl Fn(&Candidate) -> bool,
-) -> (Vec<Candidate>, Vec<Candidate>) {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -934,7 +871,6 @@ fn inventory_where(
             }
         }
     }
-    measured.retain(|c| keep_if(c));
     let aware = keep(&measured);
     for c in &mut measured {
         c.aware = false;
@@ -1065,7 +1001,6 @@ fn measure(
     // plan's collision checks report them.
     let mut crossed: Vec<usize> = Vec::new();
     let mut text: Vec<usize> = Vec::new();
-    let mut contacts = 0;
     let lines = segs.map(Line::new);
     fixed.grid.near(0, near, |n| {
         let (i, f) = &fixed.segments[n];
@@ -1113,21 +1048,6 @@ fn measure(
     }
     let crossings = (crossed.len() + text.len()) as u32;
     let feature_crossings = job.footprints.crossing_count(segs[0]) as u32;
-    fixed.grid.near(0, near, |n| {
-        let (_, f) = &fixed.segments[n];
-        // A leader or its text pad on an extension line: a line within the pad is contact.
-        if fixed.extensions[n] {
-            let witness = [
-                f[0][0].min(f[1][0]) - LABEL_PAD,
-                f[0][1].min(f[1][1]) - LABEL_PAD,
-                f[0][0].max(f[1][0]) + LABEL_PAD,
-                f[0][1].max(f[1][1]) + LABEL_PAD,
-            ];
-            if crosses(*f, padded) || segs.iter().any(|s| crosses(*s, witness)) {
-                contacts += 1;
-            }
-        }
-    });
     // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
     let outside = job.area.is_some_and(|a| {
         [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]
@@ -1151,7 +1071,6 @@ fn measure(
         inside,
         aware: true,
         text: text.len() as u32,
-        contacts,
         outside: u32::from(outside),
         bounds,
     })
@@ -1803,7 +1722,6 @@ mod tests {
             crossings: 0,
             feature_crossings: 0,
             inside: 0,
-            contacts: 0,
             aware: false,
             text: 0,
             outside: 0,

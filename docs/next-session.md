@@ -4355,3 +4355,20 @@ not_done and artefact paths are in the final H5 fix-round entry of
   contacts on GRM-03 and cgb207, which are multi-callout views.
 - The S0 session-edit helper skips the width-view edit on turned parts (any
   `turned_step`), replacing the GRM-03 name check.
+
+### H5 split: leader rule moved to Stage I (2026-10-12)
+
+Review accepted the chain, duplicate, reference, lint, plate and turned work but rejected
+the leader rule. Routing each callout to its first route clear of extension-line contact
+drew long leaders across views (FTC-06 `2x ⌀14.3 THRU`, 10020's ⌀1.8 boss). It also drew
+one leader collinear with an object line: 10060's ⌀5.3 THRU, vertical at x≈97.70 against
+the outline at x=97.64. The vertical leader first appeared in fix1, 5b540e6. The rule is
+therefore split out to Stage I; see the lessons note. Its source is branch commit
+`0d46bc3` (`cxg/h-chains`, fix2), together with the 10033 pad refinement from fix1.
+`src/dims/leaders.rs` is back to main's version, including the contact measure,
+`inventory_where` and both refinement passes. Two leader tests are removed with it:
+`h5_chains::radius_leader_and_label_clear_thickness_extensions_including_pad` and
+`callouts_keep_off_extension_lines_in_crowded_views_too`. `quality.py`'s
+`leader_on_extension` column stays as a measurement for Stage I. On the 30 parts it reads
+268 on main and 260 on this branch. Callout leaders on FTC-06 and 10020 are identical
+to main's. On 10060 the leader has main's shape, moved with its view.

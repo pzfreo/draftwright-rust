@@ -186,62 +186,6 @@ fn lint_detects_duplicate_claims_and_closed_turned_chains() {
     assert!(codes.contains(&"closed_dimension_chain".into()));
 }
 #[test]
-fn radius_leader_and_label_clear_thickness_extensions_including_pad() {
-    let a = native("mfcadpp/10033.step");
-    let p = model::plan(&a, &Spec::default()).unwrap();
-    let thickness = p
-        .dimensions
-        .iter()
-        .find(|d| d.id.ends_with("/thickness.length"))
-        .unwrap()
-        .placed
-        .as_ref()
-        .unwrap();
-    let radius = p
-        .dimensions
-        .iter()
-        .find(|d| d.label == "R6.1")
-        .unwrap()
-        .placed
-        .as_ref()
-        .unwrap();
-    let b = radius.label_box;
-    let pad = [b[0] - 1., b[1] - 1., b[2] + 1., b[3] + 1.];
-    for e in thickness.lines.iter().take(2) {
-        assert!(!crosses(*e, pad), "extension within label pad: {radius:?}");
-        let witness = [
-            e[0][0].min(e[1][0]) - 1.,
-            e[0][1].min(e[1][1]) - 1.,
-            e[0][0].max(e[1][0]) + 1.,
-            e[0][1].max(e[1][1]) + 1.,
-        ];
-        for l in &radius.lines {
-            assert!(
-                !crosses(*l, witness),
-                "leader touches extension: {radius:?}"
-            );
-        }
-    }
-}
-
-fn crosses(line: [[f64; 2]; 2], b: [f64; 4]) -> bool {
-    let (mut lo, mut hi) = (0_f64, 1_f64);
-    for k in 0..2 {
-        let d = line[1][k] - line[0][k];
-        if d.abs() < 1e-9 {
-            if line[0][k] < b[k] || line[0][k] > b[k + 2] {
-                return false;
-            }
-        } else {
-            let (a, c) = ((b[k] - line[0][k]) / d, (b[k + 2] - line[0][k]) / d);
-            lo = lo.max(a.min(c));
-            hi = hi.min(a.max(c));
-        }
-    }
-    lo <= hi
-}
-
-#[test]
 fn wall_witness_avoids_the_hole_centreline() {
     let a = native("nist/nist_ftc_07_asme1_rd.stp");
     let p = model::plan(&a, &Spec::default()).unwrap();
@@ -506,47 +450,4 @@ fn lint_reports_an_overall_that_repeats_an_outside_diameter_or_across_flats() {
         duplicates.contains(&"overall y".to_string()),
         "{duplicates:?}"
     );
-}
-
-/// Callout/linear pairs whose leader, or label within its 1 mm pad, touches an extension line
-/// (grown by the pad): the maintainer's decision (iii) of 2026-10-12.
-fn leader_contacts(p: &Plan) -> Vec<(String, String)> {
-    let mut out = Vec::new();
-    for c in p.dimensions.iter().filter(|d| d.kind == "callout") {
-        let Some(cp) = &c.placed else { continue };
-        let b = cp.label_box;
-        let pad = [b[0] - 1., b[1] - 1., b[2] + 1., b[3] + 1.];
-        for d in &p.dimensions {
-            let Some(dp) = &d.placed else { continue };
-            if d.id == c.id || dp.lines.len() < 3 || dp.arrows.len() != 2 {
-                continue;
-            }
-            for e in dp.lines.iter().take(2) {
-                let grown = [
-                    e[0][0].min(e[1][0]) - 1.,
-                    e[0][1].min(e[1][1]) - 1.,
-                    e[0][0].max(e[1][0]) + 1.,
-                    e[0][1].max(e[1][1]) + 1.,
-                ];
-                if crosses(*e, pad) || cp.lines.iter().any(|l| crosses(*l, grown)) {
-                    out.push((c.id.clone(), d.id.clone()));
-                }
-            }
-        }
-    }
-    out
-}
-
-#[test]
-fn callouts_keep_off_extension_lines_in_crowded_views_too() {
-    // Each had leaders or labels on extension lines under the solitary-callout refinement,
-    // with several callouts in the view.
-    for file in [
-        "gramel/GRM-03_thumbwheel_drive_screw.step",
-        "cadgenbench_inputs/cgb207.step",
-    ] {
-        let p = model::plan_recovered(&native(file), &Spec::default()).unwrap();
-        let contacts = leader_contacts(&p);
-        assert!(contacts.is_empty(), "{file}: {contacts:?}");
-    }
 }
