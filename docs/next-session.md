@@ -3264,3 +3264,31 @@ and `target/s2-fix-*`. No commit or push was made.
   S2's test table has no `ink`). Columns absent from the baseline are skipped.
 - S1's mocked crossing test in `tools/test_quality.py` writes an empty `part.svg`
   so S2's SVG metric can read it; the assertion is unchanged.
+
+## Rules catalogue brought up to date from the rules assessment (2026-10-11)
+
+`docs/rules/{adr,issues,lint}.yaml` now record the assessment's verdicts on the 353 rules it rated:
+82 pending rules became ported (each with a `rust_test` checked to exist), 52 retired and 3
+translated; 15 of the rated rules the assessment called done or obsolete stay pending, each with a
+`rust_note` saying why. `docs/rules/README.md` has the new status counts.
+
+Overturnable judgement calls made unattended:
+- **Retired rules carry the reason in `why:`**, the field the catalogue README defines for a
+  retired rule, not in `port_note`; the extractor's `port_note` is kept as it was. Translated
+  rules carry `rust_rule:` (and a `rust_test:`) in the same way.
+- **Done in substance but no test to name: left pending.** ADR2-U1 (fixed text height), ADR5-U1
+  (a documented limitation), ARCH0009-5 (lane order: sizes nearest, overall outermost),
+  ISSUE-1155-a (GRM-04, no recognition fixture here), ISSUE-1215-f (an omitted callout has no
+  hole-table row), LINT-hole_coverage-thread_and_profile and LINT-code-gear_semantics_missing.
+  Each needs only a small test to close.
+- **Done in substance but a real remainder: left pending.** LINT-code-feature_not_dimensioned
+  (boss-blend exclusion, grm04_drive_plate; goes with ISSUE-1450-a), LINT-code-boss_height_missing
+  (consolidated height reported missing on GRM-04; goes with ISSUE-1154-a),
+  LINT-oriented_slot_coverage-width_length (pattern membership, #1430) and
+  LINT-code-pmi_not_rendered (the recorded double-reporting decision).
+- **The 16 "features nobody has asked for"** in the assessment's drop list are retired like the
+  machinery ones, each with its reason; they can be reopened as new rules if a defect calls for
+  them.
+- **The 20 `*_requirement_state` lint rules** are ported with a note that `_suppressed` is the
+  Plan's authored omission, which lint by design does not read (R1).
+- The 20 pending rules the assessment did not rate were left as they were.
