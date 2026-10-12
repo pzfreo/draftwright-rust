@@ -30,9 +30,9 @@
 //!   nor the views' projections, so the port reads the structured evidence only.
 //! - **Centre marks** ([`centre_marks`], LINT-code-feature_no_centermark): every hole, pattern
 //!   members included, has a centre mark within 0.6 mm of its centre projected into the view that
-//!   looks along it (the front or rear for a hole along y). The drawing supplies centres and view transforms, so on
-//!   its own drawings every hole is reported; [`crate::lint::check`] does not run it until they
-//!   are drawn.
+//!   looks along it (the front or rear for a hole along y). The sheet's drawn centre marks and its
+//!   views' frames supply the marks and projections ([`drawn_centre_marks`]), and
+//!   [`crate::lint::check`] runs it on every sheet.
 //!
 //! Python reports one location finding per code for the sheet, with the number of holes; the
 //! port does too, with Python's message, naming the holes as its subjects (and, for a location,

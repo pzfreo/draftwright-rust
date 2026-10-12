@@ -102,6 +102,11 @@ const ESCAPES: [f64; 3] = [CLEAR, 7.0, 11.0];
 const MAX_SITES: usize = 64;
 /// The candidates each job keeps for the joint assignment, best first.
 const KEEP: usize = 40;
+/// A route escaping fixed ink also tries its tip turned by one lead direction either way
+/// ([`ROTATIONS`]) and, per shoulder fraction ([`SHOULDER_STEPS`]), a shorter shelf on its side
+/// and on the other: those and the incumbent join the job's [`KEEP`].
+const ROTATIONS: [f64; 2] = [-1.0, 1.0];
+const SHOULDER_STEPS: [f64; 3] = [0.25, 0.5, 0.75];
 /// The joint assignment's work bound per group of conflicting jobs, in search nodes.
 pub(super) const NODE_BUDGET: usize = 200_000;
 /// The descent passes (single jobs, then conflicting pairs) that improve the greedy start before
@@ -571,11 +576,8 @@ pub(super) fn place_with_obstacles(
             if site.1 > 1e-9 {
                 let radial = rim_tip(site, b.elbow);
                 let u = [radial[0] - site.0[0], radial[1] - site.0[1]];
-                for angle in [
-                    -std::f64::consts::TAU / DIRECTIONS as f64,
-                    std::f64::consts::TAU / DIRECTIONS as f64,
-                ] {
-                    let (sin, cos) = angle.sin_cos();
+                for turn in ROTATIONS {
+                    let (sin, cos) = (turn * std::f64::consts::TAU / DIRECTIONS as f64).sin_cos();
                     let tip = [
                         site.0[0] + cos * u[0] - sin * u[1],
                         site.0[1] + sin * u[0] + cos * u[1],
@@ -588,7 +590,7 @@ pub(super) fn place_with_obstacles(
                     }
                 }
             }
-            for offset in [SHOULDER / 4., SHOULDER / 2., 3. * SHOULDER / 4.] {
+            for offset in SHOULDER_STEPS.map(|f| f * SHOULDER) {
                 let elbow = [
                     b.elbow[0] + if right { offset } else { -offset },
                     b.elbow[1],
@@ -1563,7 +1565,7 @@ struct Conflicts {
     of: Vec<Option<Vec<Vec<u64>>>>,
 }
 
-const _: () = assert!(KEEP + 2 + 2 * ESCAPES.len() < 64);
+const _: () = assert!(KEEP + ROTATIONS.len() + 2 * SHOULDER_STEPS.len() < 64); // and the incumbent
 
 impl Conflicts {
     fn new(

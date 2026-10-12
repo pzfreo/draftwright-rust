@@ -269,7 +269,6 @@ fn an_actual_section_hatch_is_not_a_label_on_its_axis() {
         .iter_mut()
         .find(|i| i.name == "section_hatch")
         .unwrap();
-    eprintln!("CAPTURED_HATCH {} {:?}", hatch.name, hatch.ink);
     // Emulate Python's fallback on the same captured geometry, without changing any ink.
     hatch.label = Some(hatch.ink);
     assert!(

@@ -178,9 +178,19 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
             continue;
         }
         let view = View::new(v.direction, v.up).expect("planned view");
-        let hole_length = |h: &holes::Hole<'_>| {
-            h.depth
-                .unwrap_or_else(|| (0..3).map(|k| (hi[k] - lo[k]) * h.direction[k].abs()).sum())
+        // The hole's full span: from its opening (`at`) along its direction through any
+        // counterbore or spotface and then the bore. None when a depth is missing; then no side
+        // axis is drawn, since running one across the part would read as THRU (ADR R1-6).
+        let hole_span = |h: &holes::Hole<'_>| -> Option<f64> {
+            let recess = [h.counterbore, h.spotface]
+                .into_iter()
+                .flatten()
+                .map(|r| r.depth)
+                .sum::<Option<f64>>()?;
+            Some(recess + h.depth?)
+        };
+        let hole_axis = |h: &holes::Hole<'_>, length: f64| {
+            [0, 1, 2].map(|k| h.at[k] + h.direction[k] * length / 2.)
         };
         let hole_diameter = |h: &holes::Hole<'_>| {
             h.counterbore
@@ -189,13 +199,16 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                 .max(h.countersink.map_or(0., |r| r.diameter))
         };
         let hole_removed = |h: &holes::Hole<'_>| {
-            removed(
-                v.cut.as_ref(),
-                h.feature.fingerprint.position,
-                h.direction,
-                hole_length(h),
-                hole_diameter(h),
-            )
+            // Only whether the cut takes the hole away: the envelope span stands in for a
+            // missing depth here, never for the drawn axis.
+            let (at, length) = match hole_span(h) {
+                Some(l) => (hole_axis(h, l), l),
+                None => (
+                    h.feature.fingerprint.position,
+                    (0..3).map(|k| (hi[k] - lo[k]) * h.direction[k].abs()).sum(),
+                ),
+            };
+            removed(v.cut.as_ref(), at, h.direction, length, hole_diameter(h))
         };
         let mut radial = BTreeMap::new();
         for p in a
@@ -309,7 +322,6 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
             }
         }
         for h in &holes {
-            let at = h.feature.fingerprint.position;
             if hole_removed(h) {
                 continue;
             }
@@ -324,8 +336,8 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                     radius,
                     radial.get(h.feature.id.as_str()).copied(),
                 ));
-            } else {
-                let length = hole_length(h);
+            } else if let Some(length) = hole_span(h) {
+                let at = hole_axis(h, length);
                 if let Some(w) = axis(a, v, id, at, h.direction, length, h.diameter, false) {
                     v.line_work.push(w);
                 }
@@ -339,10 +351,10 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                 p.get("major_diameter").and_then(|x| x.as_f64()),
             ) {
                 let (at, d) = (holes::to_part(&frame, at), holes::dir_to_part(&frame, d));
-                let length = p
-                    .get("depth")
-                    .and_then(|x| x.as_f64())
-                    .unwrap_or_else(|| (0..3).map(|k| (hi[k] - lo[k]) * d[k].abs()).sum());
+                // As for holes: a missing depth decides removal only, never the drawn axis.
+                let depth = p.get("depth").and_then(|x| x.as_f64());
+                let length =
+                    depth.unwrap_or_else(|| (0..3).map(|k| (hi[k] - lo[k]) * d[k].abs()).sum());
                 let centre = f.fingerprint.position;
                 if removed(v.cut.as_ref(), centre, d, length, diameter) {
                     continue;
@@ -357,7 +369,9 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                         diameter * v.scale / 2.,
                         None,
                     ));
-                } else if let Some(w) = axis(a, v, id, centre, d, length, diameter, false) {
+                } else if let Some(w) =
+                    depth.and_then(|_| axis(a, v, id, centre, d, length, diameter, false))
+                {
                     v.line_work.push(w);
                 }
             }
@@ -669,9 +683,10 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                     c.marked_in == v.id && w.id == format!("ink:{}:cut:{}", v.id, c.label)
                 })
             {
-                let (ink, letters) = crate::section::cutting_plane(a[0], b[0], a[1]);
-                // Use the renderer's wing and filled arrow outlines, after its chain spans.
-                for item in &ink[ink.len() - 4..] {
+                let (_, letters) = crate::section::cutting_plane(a[0], b[0], a[1]);
+                // Use the renderer's own wing and filled arrow outlines.
+                let ends = crate::section::cutting_plane_ends(a[0], b[0], a[1]);
+                for item in ends.iter().flatten() {
                     if let crate::output::Item::Face(loops) = item {
                         obstacle
                             .placed
@@ -681,13 +696,10 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                             .extend(loops.iter().flatten().map(|c| [c.start(), c.end()]));
                     }
                 }
-                for k in 0..2 {
+                for (k, end) in ends.iter().enumerate() {
                     let mut arrow = obstacle.clone();
                     arrow.id = format!("{}:arrow:{k}", w.id);
-                    let bounds = crate::output::items_bbox(
-                        &ink[ink.len() - 4 + 2 * k..ink.len() - 2 + 2 * k],
-                    )
-                    .unwrap();
+                    let bounds = crate::output::items_bbox(end).unwrap();
                     let placed = arrow.placed.as_mut().unwrap();
                     placed.lines.clear();
                     placed.label_box = bounds;
@@ -853,6 +865,75 @@ mod tests {
         views[0].cut.as_mut().unwrap().origin[2] = 45.;
         plan(&a, &mut views);
         assert!(views[0].line_work.is_empty());
+    }
+    /// A recessed hole's side axis runs from its opening through the counterbore (or
+    /// spotface) and the bore, overrunning both ends; with a depth missing there is none.
+    #[test]
+    fn a_counterbored_hole_axis_spans_recess_and_bore() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/plate.step");
+        let (_, plate) = crate::model::analyse_native(&fixture).unwrap();
+        let mut views = crate::model::plan(&plate, &crate::model::Spec::default())
+            .unwrap()
+            .views;
+        for recess in ["cbore", "spotface"] {
+            let mut a = crate::lint::paired_ramp_steps::tests::part(
+                "hole",
+                serde_json::json!({"axis":[0.,0.,-1.], "location":[50.,50.,10.],
+                    "diameter":8., "depth":6., "bottom":"through",
+                    recess: {"diameter":16., "depth":4.}}),
+            );
+            // Deliberately the bore's centroid alone: the axis must not be read from it.
+            a.features[0].fingerprint.position = [50., 50., 1.];
+            assert!(holes::read(&a)[0].1.is_ok());
+            plan(&a, &mut views);
+            let mut sides = 0;
+            for v in views.iter().filter(|v| v.id != "v:iso") {
+                let view = View::new(v.direction, v.up).unwrap();
+                if dot([0., 0., 1.], view.toward).abs() > 1e-6 {
+                    continue;
+                }
+                let w = v.line_work.iter().find(|w| w.kind == "axis").unwrap();
+                let (p, q) = (w.curves[0].start(), w.curves[0].end());
+                let length = (q[0] - p[0]).hypot(q[1] - p[1]);
+                assert!(
+                    (length - (10. * v.scale + 2. * overrun(4. * v.scale))).abs() < 1e-6,
+                    "{recess} {}: {length}",
+                    v.id
+                );
+                let (top, bottom) = (page(&a, v, [50., 50., 10.]), page(&a, v, [50., 50., 0.]));
+                let centre = [(top[0] + bottom[0]) / 2., (top[1] + bottom[1]) / 2.];
+                assert!(
+                    ((p[0] + q[0]) / 2. - centre[0]).abs() < 1e-6
+                        && ((p[1] + q[1]) / 2. - centre[1]).abs() < 1e-6
+                );
+                sides += 1;
+            }
+            assert!(sides > 0);
+            for missing in ["depth", recess] {
+                let mut b = a.clone();
+                if missing == "depth" {
+                    b.features[0].parameters.remove("depth");
+                } else {
+                    b.features[0]
+                        .parameters
+                        .insert(recess.into(), serde_json::json!({"diameter":16.}));
+                }
+                assert!(holes::read(&b)[0].1.is_ok());
+                plan(&b, &mut views);
+                assert!(
+                    views
+                        .iter()
+                        .all(|v| v.line_work.iter().all(|w| w.kind != "axis")),
+                    "{recess} without {missing}"
+                );
+                assert!(
+                    views
+                        .iter()
+                        .any(|v| v.line_work.iter().any(|w| w.kind == "cross"))
+                );
+            }
+        }
     }
     #[test]
     fn only_a_global_axis_has_a_transverse_tip_exemption() {
