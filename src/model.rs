@@ -3063,6 +3063,7 @@ pub fn render_annotations_with_items(
                         feature: feature.into(),
                         parameter: parameter.into(),
                     }],
+                    satisfies: Vec::new(),
                 })
             }),
     );

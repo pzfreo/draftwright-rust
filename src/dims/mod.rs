@@ -455,7 +455,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 13] = [
+const PLANNERS: [Planner; 14] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
