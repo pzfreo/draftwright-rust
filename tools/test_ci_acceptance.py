@@ -21,11 +21,11 @@ NAMES = [Path(p).stem for p in (ROOT / 'tools/quality_parts.txt').read_text().sp
 
 
 class Acceptance(unittest.TestCase):
-    def check(self, kind, result, baseline=None):
+    def check(self, kind, result, baseline=None, extra=()):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'result.json'
             path.write_text(json.dumps(result))
-            args = [sys.executable, '-I', str(RUNNER), '--check-results', kind, '--results', str(path)]
+            args = [sys.executable, '-I', str(RUNNER), '--check-results', kind, '--results', str(path), *extra]
             if baseline is not None:
                 ref = Path(tmp) / 'baseline.json'
                 ref.write_text(json.dumps({'metrics': KEYS, 'parts': baseline}))
@@ -179,7 +179,26 @@ class Acceptance(unittest.TestCase):
         self.assertEqual(command[command.index('--timeout') + 1], 3600)
         self.assertEqual(step.call_args.kwargs['timeout'], 6600)
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        self.assertRegex(workflow, r'job: repeated-spans,.*timeout: 120')
+        shards = re.findall(r'job: repeated-spans, label: repeated-spans-(\d)-4, '
+                            r'pin_args: "--survey-shard (\d)/4", timeout: 120', workflow)
+        self.assertEqual(sorted(shards), [(str(k), str(k)) for k in range(1, 5)])
+
+    def test_survey_shards_partition_the_64_parts(self):
+        runner = self.runner()
+        names = runner.survey_names()
+        slices = [runner.survey.in_shard(names, k, 4) for k in range(1, 5)]
+        self.assertEqual(sorted(sum(slices, [])), sorted(names))
+        self.assertTrue(all(15 <= len(s) <= 17 for s in slices))
+        result = {name: {'repeated_span': 0} for name in slices[1]}
+        self.assertEqual(self.check('survey', result, extra=['--survey-shard', '2/4']).returncode, 0)
+        for bad in (dict(list(result.items())[1:]), {**result, slices[0][0]: {'repeated_span': 0}}):
+            checked = self.check('survey', bad, extra=['--survey-shard', '2/4'])
+            self.assertEqual(checked.returncode, 1, checked.stderr)
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), survey_shard=(3, 4)), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('repeated-spans')
+        command = step.call_args.args[1]
+        self.assertEqual(command[command.index('--shard') + 1], '3/4')
 
     def test_part_timeout_retains_error_evidence(self):
         quality = self.runner().quality

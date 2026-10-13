@@ -547,7 +547,10 @@ def one(f, dw, out, spec=None, timeout=600):
     codes = collections.Counter(x["code"] for x in rend.get("problems", []))
     # Render reports planning problems. Centre-line contacts are judged on actual drawn labels.
     if any(v.get("line_work") or v.get("cut") for v in plan["views"]):
-        q = subprocess.run([dw, "review", f, *extra], capture_output=True, text=True, timeout=600)
+        try:
+            q = subprocess.run([dw, "review", f, *extra], capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            return name, {"error": str(error)}
         try:
             review = json.loads(q.stdout)
         except ValueError:
