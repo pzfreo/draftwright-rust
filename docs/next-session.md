@@ -6031,3 +6031,74 @@ therefore split out to Stage I; see the lessons note. Its source is branch commi
 `leader_on_extension` column stays as a measurement for Stage I. On the 30 parts it reads
 268 on main and 260 on this branch. Callout leaders on FTC-06 and 10020 are identical
 to main's. On 10060 the leader has main's shape, moved with its view.
+
+## Stage H second pass: h-chains merged, h-extlines backed out (unattended, 2026-10-13)
+
+Overturnable judgement calls; measurements in the status entry of the same name.
+
+**h-chains merge (d3c1fec).** Conflicts: the append-only docs kept from both sides;
+`tools/quality.py` and `tools/check_quality_table.py` keep every main column plus
+h-chains' `leader_on_extension` (a measurement only: its rule went to Stage I);
+`completeness::report` keeps main's schedule, radius-note and relief credit plus
+h-chains' credit for a feature whose omitted item is covered by a placed one;
+`dims::plan_inventory` keeps H7's interior pass and H3's inventory plus h-chains'
+`geometry_terms` relabelling; `known_dimensions.json` takes both sides' entries (the
+comparison passes unchanged); `tests/page_escalation.rs` is main's. Tests changed for
+merged behaviour (none loosened):
+
+- `page_escalation::ftc07_uses_one_paper_step_only_with_enlargement`: FTC-07 now keeps
+  its smallest fit A2 1:2. Its A1 1:1 drawing has `annotation_ink_overlap` (the row pitch
+  of `f:hole_pattern:5` through the callout of `f:hole_pattern:4`), a hard finding, so it
+  is no candidate; every quality column of FTC-07 is the same or better. The test checks
+  the sheet, the rule (`sheet_rule`, on the table-free drawing the sheet is chosen by) and
+  that the A1 1:1 candidate is recorded with a hard finding. The overlap itself is a
+  placement residual of h-chains' changed lanes: not chased.
+- `h5_chains::a_pinned_reference_keeps_its_ink_...`: compares with the recovered drawing.
+  H6 moves GRM-03 to A3 10:1 and the pinned plan is recovered too.
+- `tests/common/reference_geometry.rs::assert_local`: when a reference becomes
+  controlling, the text keeps either its centre or the edge H3's settlement held it to.
+  Before, only the centre counted. 10047's `(5.1)` sits beyond its arrow tail, and
+  GRM-05's `(5)` is held at its span end. Witnesses, arrows, rotation and the
+  perpendicular position are still exact.
+
+**h-extlines backed out.** It merged with seven conflicts. The resolutions are on
+`stageh-pass2-extlines-wip` (b0bb77c, not pushed):
+- `lanes`/`lanes_excluding` return the open-side bands;
+- H6's recovery tries are planned without them (as h-extlines' tries were);
+- the reviewer's note is honoured: the recover-level `clear_extensions` now goes through
+  the same guard as `plan_with`'s (`cleared_extensions`);
+- moved dimensions are settled onto their span with H3's `settle_inventory`. Without that,
+  FTC-06's two boss heights left their span;
+- `leader_outline_unverified` is no longer reported twice after settlement.
+
+`Analysis` gains `prismatic_axes` and `silhouettes`. Per the review, the schema is left
+as is.
+
+On the thirty parts the WIP tree was no worse than the CI baseline (0 of 300 cells worse).
+Extension crossings fell 73 → 53 against main (`tools/check_extension_routes.py`, no part
+worse). Against the Stage H table one cell was worse: CTC-01 text off span 0 → 1. The cause
+is that h-extlines removes the material crossing that kept CTC-01 off A4 1:10. H6 then picks
+A4 1:10 (fill rule), and there the 5 mm slot width cannot keep its text on its span.
+
+Six tests still failed when the ~2 h budget ran out. Each one is a feature interaction
+that needs its owner's judgement rather than a fixture edit:
+
+1. `dims_blends` (2): G3's radius-centre table no longer appears on any corpus part.
+   The R25 (CTC-01) and R3.2 (FTC-08) leaders now route clear, so the radii are stated by
+   callouts and no information is lost. Clearing the outline evidence does not bring the
+   table back, so the table path would be left untested.
+2. `interior_placement` (2): on the plate no exterior pitch is blocked any more, so H7's
+   linear interior retry does not happen. Separately, a pin taken from the first estimate
+   no longer matches the pinned plan's frames.
+3. `leaders::callout_leaders_cross_nothing_unlisted`: `known_leaders.json` needs
+   re-verdicting.
+4. `line_through_feature::hex_leader_avoids_the_blind_hole_band_it_previously_crossed`:
+   on CTC-01's new A4 1:10 sheet the HEX leader goes down through f:hole:1's band again.
+
+Plan time also rises 39 % on the survey parts. The rise is in the same hotspot that has
+CI's repeated-spans job red.
+
+Whoever owns the next h-extlines round should start from the WIP branch. The open
+question is how open-side bands fit H6. H6 chooses among tries planned at a named sheet,
+so the first estimate's open bands rarely reach the final drawing. Pins take the
+canonical (try) frames, not the first estimate's.

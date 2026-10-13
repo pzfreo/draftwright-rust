@@ -257,7 +257,7 @@
     "nist_ctc_03_asme1_rc": {
       "hidden_on_visible": 148,
       "ink": 3,
-      "line_through_feature": 3,
+      "line_through_feature": 1,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -304,7 +304,7 @@
     },
     "nist_ftc_07_asme1_rd": {
       "hidden_on_visible": 136,
-      "ink": 4,
+      "ink": 1,
       "line_through_feature": 3,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "docs/status-2026-10-10.md: Stage H integration (H1, H3, H6, H7, G3, G6) / merged after",
-  "source_commit": "2ca82db+integration-fix",
-  "verified_binary_sha256": "b5f45b9d8dd592303849e085e7f863025a3620569b866392617ba72a349949c8"
+  "source": "docs/status-2026-10-10.md: Stage H second pass (h-chains merged; h-extlines backed out)",
+  "source_commit": "d3c1fec3",
+  "verified_binary_sha256": "2d5d127be8f628d9a700e1214cbf8ad60eb63f60585657994b8242ffe784fdc6"
 }
