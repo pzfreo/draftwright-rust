@@ -16,7 +16,7 @@
   "parts": {
     "1000": {
       "hidden_on_visible": 20,
-      "ink": 1,
+      "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -76,7 +76,7 @@
     },
     "10038": {
       "hidden_on_visible": 26,
-      "ink": 1,
+      "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -195,7 +195,7 @@
       "views_overlap": 0
     },
     "cgb207": {
-      "hidden_on_visible": 215,
+      "hidden_on_visible": 195,
       "ink": 2,
       "line_through_feature": 4,
       "off_sheet": 0,
@@ -245,7 +245,7 @@
     "nist_ctc_02_asme1_rc": {
       "hidden_on_visible": 426,
       "ink": 2,
-      "line_through_feature": 16,
+      "line_through_feature": 6,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -256,8 +256,8 @@
     },
     "nist_ctc_03_asme1_rc": {
       "hidden_on_visible": 148,
-      "ink": 6,
-      "line_through_feature": 4,
+      "ink": 3,
+      "line_through_feature": 3,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -269,7 +269,7 @@
     "nist_ctc_04_asme1_rd": {
       "hidden_on_visible": 205,
       "ink": 3,
-      "line_through_feature": 36,
+      "line_through_feature": 22,
       "off_sheet": 0,
       "repeated_label": 2,
       "repeated_measure": 0,
@@ -292,7 +292,7 @@
     },
     "nist_ftc_06_asme1_rd": {
       "hidden_on_visible": 32,
-      "ink": 4,
+      "ink": 5,
       "line_through_feature": 3,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -316,7 +316,7 @@
     },
     "nist_ftc_08_asme1_rc": {
       "hidden_on_visible": 218,
-      "ink": 3,
+      "ink": 1,
       "line_through_feature": 11,
       "off_sheet": 0,
       "repeated_label": 1,
@@ -328,8 +328,8 @@
     },
     "nist_ftc_09_asme1_rd": {
       "hidden_on_visible": 17,
-      "ink": 7,
-      "line_through_feature": 6,
+      "ink": 6,
+      "line_through_feature": 2,
       "off_sheet": 0,
       "repeated_label": 1,
       "repeated_measure": 0,
@@ -351,7 +351,7 @@
       "views_overlap": 0
     },
     "sm-hanger": {
-      "hidden_on_visible": 68,
+      "hidden_on_visible": 57,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -364,7 +364,7 @@
     },
     "string_post": {
       "hidden_on_visible": 26,
-      "ink": 2,
+      "ink": 1,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "docs/status-2026-10-10.md: Stage H1 fix round 2 / quality after",
-  "source_commit": "0fc1c03+cxg/h-tables",
-  "verified_binary_sha256": "826470d7209d8b189de08278fe2b486acfe844cdc189f6fc73a34e5b72c03e29"
+  "source": "docs/status-2026-10-10.md: Stage H integration (H1, H3, H6, H7, G3, G6) / merged after",
+  "source_commit": "2ca82db+integration-fix",
+  "verified_binary_sha256": "b5f45b9d8dd592303849e085e7f863025a3620569b866392617ba72a349949c8"
 }

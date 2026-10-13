@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import gzip
 import importlib.util
 import json
+import re
 import os
 from pathlib import Path
 
@@ -43,7 +44,9 @@ def main():
         str(p.relative_to(corpus)) for p in files}
     sources = '\n'.join(p.read_text() for p in Path('tests').rglob('*.rs'))
     used = {p for p in corpus.rglob('*') if p.suffix.lower() in {'.step', '.stp'}
-            and (p.name in sources or str(p.relative_to(corpus)) in sources)}
+            # A bare file name counts only as a whole name: `cgb203.step` does not use `203.step`.
+            and (re.search(r'(?<![\w-])' + re.escape(p.name), sources)
+                 or str(p.relative_to(corpus)) in sources)}
     used.update(corpus / json.loads(gzip.decompress(p.read_bytes()))['binding']['file']
                 for p in Path('tests/fixtures/sheets').glob('*.gz'))
     assert used <= set(files), f'add test inputs to the manifest: {sorted(used - set(files))}'

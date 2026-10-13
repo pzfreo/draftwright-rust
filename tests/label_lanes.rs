@@ -4,8 +4,12 @@ use draftwright::model::{self, Spec};
 mod corpus;
 
 fn plan(path: &str) -> Option<model::Plan> {
+    plan_with(path, &Spec::default())
+}
+
+fn plan_with(path: &str, spec: &Spec) -> Option<model::Plan> {
     let a = model::analyse_native(&corpus::dir()?.join(path)).unwrap().1;
-    Some(model::plan_recovered(&a, &Spec::default()).unwrap())
+    Some(model::plan_recovered(&a, spec).unwrap())
 }
 
 fn adjacent(d: &draftwright::dims::PlannedDimension) -> bool {
@@ -75,7 +79,12 @@ fn strokes_near(p: &model::Plan, id: &str) -> Vec<String> {
 fn a_moved_label_keeps_clear_of_strokes_it_never_touched() {
     // string_post's 5.5 stood clear above its span; moving it inside put it on the hole
     // location's dimension line (gap 0.02 mm). Newly approached strokes need 1 mm too.
-    let Some(p) = plan("gramel/string_post.step") else {
+    // On the sheet the defect was captured on: H6 now draws string_post on A3 at 5:1, where
+    // settlement does not move this label at all.
+    let mut captured = Spec::default();
+    captured.sheet.size = Some("A4".into());
+    captured.sheet.scale = Some("2:1".into());
+    let Some(p) = plan_with("gramel/string_post.step", &captured) else {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };

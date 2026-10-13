@@ -203,6 +203,13 @@ fn ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings() {
             .iter()
             .any(|p| p.code == "annotation_ink_overlap")
     );
+    // The seed was captured before G3 planned radii by note and leader; its radius callouts
+    // are not outcomes the current planner owes on any sheet, so they are left out of it.
+    first.dimensions.retain(|d| {
+        !d.measurements
+            .iter()
+            .all(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+    });
     let mut spec = Spec::default();
     spec.sheet.size = Some("A2".into());
     first.spec.sheet.size = spec.sheet.size.clone();

@@ -651,6 +651,36 @@ fn merge(work: &mut Vec<LineWork>) {
     *work = out;
 }
 
+/// Moves a view's furniture with the view, when a later layout step shifts the view on the
+/// page after its furniture was planned.
+pub(crate) fn shift(view: &mut PlannedView, d: P) {
+    let m = |q: &mut P| {
+        q[0] += d[0];
+        q[1] += d[1];
+    };
+    for w in &mut view.line_work {
+        if let Some(c) = &mut w.centre {
+            m(c);
+        }
+        for c in &mut w.curves {
+            match c {
+                Curve::Line(a, b) => {
+                    m(a);
+                    m(b);
+                }
+                Curve::Conic { centre, .. } => m(centre),
+                Curve::Beziers(pieces) => pieces.iter_mut().flatten().for_each(m),
+                Curve::Rational(pieces) => {
+                    for q in pieces.iter_mut().flatten() {
+                        q[0] += d[0] * q[2];
+                        q[1] += d[1] * q[2];
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn segments(w: &LineWork) -> Vec<[P; 2]> {
     w.curves
         .iter()

@@ -11,8 +11,15 @@ use serde_json::Value;
 use std::path::Path;
 
 fn drawing(file: &Path) -> (model::Analysis, model::Plan, draftwright::output::Drawing) {
+    drawing_with(file, &Spec::default())
+}
+
+fn drawing_with(
+    file: &Path,
+    spec: &Spec,
+) -> (model::Analysis, model::Plan, draftwright::output::Drawing) {
     let (part, a) = model::analyse_native(file).unwrap();
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let p = model::plan_recovered(&a, spec).unwrap();
     let d = model::render(&part, &a, &p, &Font::new(api::MONO.to_vec()).unwrap()).unwrap();
     (a, p, d)
 }
@@ -213,6 +220,15 @@ fn fixed_ink_review_catches_the_captured_section_defects() {
                 .filter(|i| i.code == code)
                 .collect::<Vec<_>>()
         );
+        // The captured ink is replayed on the layout it was captured on: its sheet, and the
+        // dimension set before hole schedules (Stage H moved both on these parts).
+        let mut captured_on = Spec {
+            hole_table: draftwright::hole_table::Setting::Never,
+            ..Spec::default()
+        };
+        captured_on.sheet.size = case["sheet"]["size"].as_str().map(String::from);
+        captured_on.sheet.scale = case["sheet"]["scale"].as_str().map(String::from);
+        drawn = drawing_with(&dir.join(case["step"].as_str().unwrap()), &captured_on).2;
         for captured in case["dimensions"].as_array().unwrap() {
             let g: draftwright::dims::Placed =
                 serde_json::from_value(captured["placed"].clone()).unwrap();

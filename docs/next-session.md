@@ -5772,3 +5772,94 @@ above and the 8525b11 text hop: both repairs are reverted in src/dims/leaders.rs
   enlarged CTC-02's capped search group from 11 to 16 callouts and raised its
   ink 36 to 37). With the own-arm exemption the cgb241 same-row case that
   prompted it no longer arises.
+
+## Stage H integration of H1, H3, H6, H7, G3 and G6 (unattended, 2026-10-13)
+
+Merged in order `cxg/h-sheets`, `cxg/h-tables`, `cxg/h-span`, `cxg/h-sheetfit`,
+`cxg/h-interior`, `cxg/g3-blends`, `cxg/g6-centrelines` (each `--no-ff`). Not merged:
+`h-extlines`, `h-chains`, `g7bc-recesses` (reviews not acceptable). Every item below is an
+overturnable judgement call made during the run; the status entry has the measurements.
+
+Merge resolutions that combine two streams' intent:
+
+- `dims::plan_inventory` takes H1's `excluded` (table-owned dimensions) and returns H3's
+  inventory; the text-edit "natural" inventory is planned with the same exclusions.
+- H7's interior placement runs before H3's inventory is built, so settlement sees the
+  final positions. Settlement (`settle_inventory`) skips labels proven interior: it is a
+  lane solver for exterior labels and would otherwise overwrite interior moves.
+- H1's `recover_tables` now draws the schedule on the sheet H6 chose for the table-free
+  baseline when that choice differs from the first estimate (`layout_replanned`); before,
+  the schedule was always planned on the first estimate and undid H6's choice.
+- H3's settlement also treats G6's (trimmed) centre-line furniture as fixed ink, so a
+  moved label never gains a contact with a centre or cutting-plane stroke. The trim is
+  still computed before settlement.
+- `src/dims/leaders.rs` is G6's version. H3's `inventory::<AWARE>` speed-up (skip
+  footprint scoring on semantic-PMI parts) is dropped with its unit test
+  `unused_footprint_scoring_preserves_legacy_candidates`: G6 now filters candidates by
+  `feature_crossings` on every part, so the skipped scoring is no longer unused. The
+  session latency gates (150 ms p90) still pass on the merged tree.
+
+Integration fixes (each needed by a merged-tree test failure):
+
+- H6 moved views after G6 had planned their furniture (`sheet_fit::correct_estimate`'s
+  row lift and `pack_gdt`), leaving centre marks behind; `centrelines::shift` now moves a
+  view's line work with it (the plate lost all four centre marks in lint).
+- H1 hole-schedule tags and tag leaders now keep clear of the view's centre marks, axes
+  and pitch circles (CTC-05's tags sat on hole centre lines).
+- H6's validity test counted G3's withdrawal of a blanket radius note
+  (`notes_not_placed`, "cannot assert a blanket radius while an exception is undrawn") as
+  a hard layout finding. It is a completeness refusal that no sheet changes, so it no
+  longer vetoes sheet candidates; the problem itself is unchanged. Without this FTC-07
+  and CTC-03 had no valid candidate at all.
+- H6's "every outcome survives" check (`carried`) now also counts H1 schedule rows and
+  their covered measurements, placed G3 radius notes and radius-centre table rows; it
+  counted only the old single `hole_table`, so every candidate with a schedule read as
+  dropping holes.
+- `layout_replanned`'s message no longer prints the fill percentage (the sheet basis
+  still does): an edit that moved the fill by 0.3 % showed the same problem as resolved
+  and re-added in MCP deltas (`tests/mcp_efficiency.rs`).
+- H7 interior candidates and G6 furniture: interior text keeps 0.5 mm clear of centre
+  strokes and an interior callout's shaft may not run beside another feature's stroke,
+  but witness and dimension lines may cross or continue centre lines, as they do outside
+  the view. Treating furniture as annotation ink removed every interior linear dimension.
+- H7 decides linear interior retries before callouts move inside (`interior::place`
+  order), so whether a linear dimension goes inside no longer depends on a callout's own
+  interior move. Without this, giving the plate's pattern callout `H7` (too long to go
+  inside) moved the unedited column pitch outside (ADR5-D2, `tests/tolerances.rs`).
+  Re-adopting the natural plan's interior choice was tried and dropped: the adopted pitch
+  then crossed the edited callout's leader (`tests/issue_drafting.rs`). Residual, not
+  covered by a test: on `mounting_plate.step` a fit edit that lengthens hole 4's callout
+  still moves the column pitch outside, because the longer exterior leader blocks it.
+
+Tests adjusted for a merged behaviour, none removed except the AWARE unit test above:
+
+- `tests/centrelines.rs::fixed_ink_review_catches_the_captured_section_defects` replays
+  captured G6 ink on the layout it was captured on (A4 2:1 for string_post, A2 1:5 for
+  CTC-05, schedules off); the "fixed sheet has no such contact" half still runs on the
+  default drawing.
+- `tests/identity.rs`: H7's plate interior patch applies only when the plate oracle is not
+  re-planned (H6 re-plans it, so its oracle already has the interior callout).
+- `tests/planned_hole_tables.rs::semantic_pmi_callouts_remain_source_carrying_beside_the_schedule`
+  asks for a schedule (`hole_table: always`): H7's interior callout removes the crossing
+  that made auto choose one on `editor_pmi.step`.
+- `tests/label_lanes.rs::a_moved_label_keeps_clear_of_strokes_it_never_touched` runs on
+  string_post's captured sheet (A4 2:1). On H6's A3 5:1 the 5.5 label is not moved by
+  settlement; its first placement sits 0.01 mm above the hole location's extension line
+  (also so on `cxg/h-sheetfit` alone). Recorded, not chased.
+- `tests/page_escalation.rs::a_plan_without_ink_off_the_sheet_keeps_its_first_choice_on_ctc01`:
+  for the default spec the recognised CTC-01 fixture now has a valid A4 1:10 smallest fit
+  (53 % fill) beside A3 1:5 (48 %), so H6's rule picks A4 1:10; the test checks it with the
+  independent `sheet_rule` checker. Native CTC-01 (the quality part) stays on A3 1:5,
+  because A4 1:10 adds a material crossing there. Whether 1:10 on A4 is acceptable for
+  CTC-01 is the maintainer's call (the fill band rule says fullest wins below 60 %).
+- `tests/sheet_fill.rs::ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings`:
+  the captured seed predates G3, so its radius callouts are dropped from the seed before
+  recovery (G3 states those radii by note, which is withdrawn on CTC-03).
+- `tests/issue_drafting.rs::sheet_selection_is_bounded_and_keeps_every_outcome` keeps H1's
+  `hole_table: never` style with H6's rule checker.
+
+Rules catalogue: the streams' named rules are marked from their reports; partial ports stay
+`pending` with a Stage H `rust_note`, and `LINT-_registry-structured_note_satisfaction` is
+revived from retired to pending (automatic radius notes only), as H7 did for its two rules.
+The `ci-quality-baseline.json` refresh takes the merged tree's values only where no worse
+than origin/main's Stage G baseline (see the status entry).

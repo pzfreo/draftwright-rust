@@ -87,8 +87,9 @@
     module: "linting/_registry.py, linting/hole_coverage.py"
     issues: [1351]
     tests: [tests/test_issue_1351_structured_note_coverage.py]
-  status: retired
-  why: "Rules assessment 2026-10-11: notes carry no claims, so prose is never credited; structured note credit comes back with ISSUE-1351-a."
+  status: pending
+  rust_test: tests/dims_blends.rs::a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit
+  rust_note: "Stage G3 revives this rule for automatic radius notes: a note satisfies a radius only through explicit satisfies claims, never prose. Authored structured notes still carry no satisfaction claims."
   port_note: "Keep: satisfaction by typed identity only."
 
 - id: LINT-schedule_evidence-verified_cells
@@ -272,6 +273,8 @@
     issues: [1143, 883]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py, tests/test_issue_1219_location_claims_its_own_axis.py]
   status: pending
+  rust_test: tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations
+  rust_note: "Stage H1: schedule X/Y cells credit both in-plane locations per member, each cell only for its own axis (a_changed_coordinate_cannot_borrow_a_number_from_another_cell); the ladder route keeps its earlier checks. Left pending until the whole family ledger is reviewed."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-turned_axis_location
@@ -455,9 +458,9 @@
     module: "linting/coverage.py"
     issues: [218]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_e2e_slice.py]
-  status: pending
-  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
-  rust_note: "The check is ported (src/lint/coverage.rs::location and ::judge: a centre mark within 0.6 mm of the hole's centre projected into its end-on view, front or rear for y; one finding counting the holes, naming them) and gives exactly draftwright's findings on its recorded input (python.json.gz: a cgb245 with its 16 centre marks taken off). Not run by lint::check: the port draws no centre marks (the Drawing records none), so on its own drawings it reports every hole (coverage::centre_marks; tests/fixtures/lint_coverage/known.json, rust-wrong, 9 parts, connector109 drawn only with LINT_OWN_ALL=1). Double-D bores are among the holes (coverage::sites, as Python's profiled_bores)."
+  status: ported
+  rust_test: tests/centrelines.rs::a_plate_marks_every_pattern_member_and_lint_reads_the_drawn_marks
+  rust_note: "The check is ported (src/lint/coverage.rs::location and ::judge: a centre mark within 0.6 mm of the hole's centre projected into its end-on view, front or rear for y; one finding counting the holes, naming them) and gives exactly draftwright's findings on its recorded input (python.json.gz: a cgb245 with its 16 centre marks taken off). Not run by lint::check: the port draws no centre marks (the Drawing records none), so on its own drawings it reports every hole (coverage::centre_marks; tests/fixtures/lint_coverage/known.json, rust-wrong, 9 parts, connector109 drawn only with LINT_OWN_ALL=1). Double-D bores are among the holes (coverage::sites, as Python's profiled_bores). Stage G6: lint reads the drawn centre marks and view transforms (coverage::drawn_centre_marks), never the plan."
   port_note: "Keep."
 
 - id: LINT-code-feature_not_located
@@ -2137,7 +2140,9 @@
     module: "linting/quality.py"
     issues: [1338]
     tests: [tests/test_issue_1338_scale_before_page_escalation.py]
-  status: pending
+  status: ported
+  rust_test: tests/sheet_fill.rs::invalid_high_fill_never_beats_a_valid_complete_sheet
+  rust_note: "Stage H6: hard layout findings invalidate a candidate before fill is compared; material crossings are a later veto among allowed pairs."
   port_note: "Keep: used by page/scale escalation."
 
 - id: LINT-quality-unscored_and_stage_routed

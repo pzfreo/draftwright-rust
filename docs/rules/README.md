@@ -12,14 +12,16 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 | **All** | | **515** | **271** | **179** | **16** | **49** |
 
 Status, as brought up to date from the rules assessment of 2026-10-11 and the Stage G
-integration of 2026-10-12 (G1 completeness, G2 plates, G5 title block):
+integration of 2026-10-12 (G1 completeness, G2 plates, G5 title block) and the Stage H
+integration of 2026-10-12 (H1 tables, H3 label settlement, H6 sheet fit, H7 interior,
+G3 blends, G6 centre lines):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 55 | 47 | 33 | 25 |
-| `lint.yaml` | 59 | 92 | 0 | 14 |
-| `issues.yaml` | 115 | 48 | 6 | 21 |
-| **All** | **229** | **187** | **39** | **60** |
+| `adr.yaml` | 50 | 52 | 33 | 25 |
+| `lint.yaml` | 58 | 94 | 0 | 13 |
+| `issues.yaml` | 110 | 53 | 6 | 21 |
+| **All** | **218** | **199** | **39** | **59** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a

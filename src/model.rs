@@ -777,6 +777,12 @@ const HARD_LAYOUT: [&str; 9] = [
     "table_not_placed",
 ];
 
+/// The tail of the `notes_not_placed` message for a blanket radius note withdrawn because an
+/// exception is undrawn: a completeness refusal that no sheet or scale changes, so the sheet
+/// choice does not count it as a hard layout finding.
+const RADIUS_DEFAULT_WITHDRAWN: &str =
+    "cannot assert a blanket radius while an exception is undrawn.";
+
 /// A plan's findings for the recovery. The port drops for want of room only the hole items it
 /// placed off the sheet ([`crate::hole_table`]: an item that collides is placed and reported; one
 /// no shown view carries is kept unplaced, which no sheet or scale changes), so its completeness
@@ -812,6 +818,7 @@ fn findings(plan: &Plan) -> layout::Findings {
             .problems
             .iter()
             .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+            .filter(|p| !p.message.ends_with(RADIUS_DEFAULT_WITHDRAWN))
             .count(),
         dropped: axes
             .values()
@@ -914,18 +921,41 @@ fn rect_overlap(a: [f64; 4], b: [f64; 4]) -> bool {
 
 /// Supported measurements already carried by the seed, including a table's replacements.
 fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
-    plan.dimensions
+    let mut out: BTreeSet<(String, String)> = plan
+        .dimensions
         .iter()
         .filter(|d| d.placed.is_some())
         .flat_map(|d| &d.measurements)
         .chain(
             plan.hole_table
                 .iter()
-                .flat_map(|t| &t.rows)
-                .flat_map(|r| &r.measurements),
+                .chain(&plan.hole_tables)
+                .flat_map(|t| {
+                    t.rows
+                        .iter()
+                        .flat_map(|r| &r.measurements)
+                        .chain(&t.covered)
+                }),
+        )
+        // A placed general radius note and the radius-centre table carry radii as well.
+        .chain(
+            plan.notes
+                .iter()
+                .filter(|n| n.placed.is_some())
+                .flat_map(|n| &n.measurements),
         )
         .map(|m| (m.feature.clone(), m.parameter.clone()))
-        .collect()
+        .collect();
+    for r in plan.radius_table.iter().flat_map(|t| &t.rows) {
+        if let Some(kind) = r
+            .feature
+            .strip_prefix("f:")
+            .and_then(|f| f.split(':').next())
+        {
+            out.insert((r.feature.clone(), format!("{kind}.radius")));
+        }
+    }
+    out
 }
 
 fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
@@ -1269,13 +1299,11 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             id: "p:layout_replanned:sheet".into(),
             code: "layout_replanned".into(),
             severity: "info".into(),
+            // The measured fill stays in the sheet basis: an edit that moves it by a fraction
+            // must not churn this problem in an edit's delta.
             message: format!(
-                "Sheet choice changed from {} at {} to {} at {} by drawn-item fill {:.1}%.",
-                first.sheet.size,
-                first.sheet.scale,
-                chosen.sheet.size,
-                chosen.sheet.scale,
-                chosen.sheet.fill * 100.0
+                "Sheet choice changed from {} at {} to {} at {} by drawn-item fill; the sheet basis lists the candidates.",
+                first.sheet.size, first.sheet.scale, chosen.sheet.size, chosen.sheet.scale,
             ),
             subjects: vec!["sheet".into()],
             ..Default::default()
@@ -2533,10 +2561,7 @@ fn plan_with_presentation(
                 id: format!("p:notes_not_placed:{}", note.id),
                 code: "notes_not_placed".into(),
                 severity: "error".into(),
-                message: format!(
-                    "{} cannot assert a blanket radius while an exception is undrawn.",
-                    note.id
-                ),
+                message: format!("{} {RADIUS_DEFAULT_WITHDRAWN}", note.id),
                 subjects: vec![note.id.clone()],
                 ..Default::default()
             });

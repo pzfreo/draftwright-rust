@@ -104,7 +104,11 @@
           "rotation": 0.0
         }
       }
-    ]
+    ],
+    "sheet": {
+      "size": "A4",
+      "scale": "2:1"
+    }
   },
   {
     "source": "target/g6/quality-final/string_post.svg",
@@ -161,7 +165,11 @@
           "rotation": 0.0
         }
       }
-    ]
+    ],
+    "sheet": {
+      "size": "A4",
+      "scale": "2:1"
+    }
   },
   {
     "source": "target/g6/quality-final/nist_ctc_05_asme1_rd.svg",
@@ -218,6 +226,10 @@
           "rotation": 0.0
         }
       }
-    ]
+    ],
+    "sheet": {
+      "size": "A2",
+      "scale": "1:5"
+    }
   }
 ]

@@ -322,6 +322,7 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         .filter(|(i, _)| *i != iso_index)
     {
         v.at[1] += lift;
+        crate::centrelines::shift(v, [0.0, lift]);
         let b = groups[i];
         v.area = [b[0] - 1.0, b[1] + lift - 1.0, b[2] + 1.0, b[3] + lift + 1.0];
         v.basis += "; free projection row lifted together using measured annotation bounds";
@@ -521,6 +522,7 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
         .filter(|(_, v)| v.id != "v:iso")
     {
         move_point(&mut v.at, shifts[i]);
+        crate::centrelines::shift(v, shifts[i]);
         v.area = moved(groups[i], shifts[i]);
         v.basis += "; settled annotations and GD&T packed as one measured view block";
     }

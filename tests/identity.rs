@@ -578,8 +578,9 @@ fn version_1_specs_migrate_and_plan_identically() {
                     .extend(problems["problems"].as_array().unwrap().iter().cloned());
             }
         }
-        if part == "plate" {
-            // H7 moves this callout into proven blank face.
+        if part == "plate" && !REPLANNED.contains(&part) {
+            // H7 moves this callout into proven blank face. A replanned part's oracle is
+            // planned now, so it already carries the interior placement on its own sheet.
             // The literal basis delta has a verdict in known_interior.json.
             let interior: Value = serde_json::from_str(
                 &std::fs::read_to_string(fixture("identity/plate.interior_basis.json")).unwrap(),

@@ -2128,7 +2128,7 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
                 ]);
             }
         }
-        let annotation_lines: Vec<_> = plan
+        let mut annotation_lines: Vec<_> = plan
             .dimensions
             .iter()
             .chain(&gdt)
@@ -2136,6 +2136,14 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
             .flat_map(|p| p.lines.iter().chain(&p.arrows))
             .copied()
             .collect();
+        // The view's centre marks, centre lines and pitch circles are drawn ink as well (the
+        // cutting-plane line is already a label obstacle above).
+        annotation_lines.extend(
+            view.line_work
+                .iter()
+                .filter(|w| w.kind != "cutting_plane")
+                .flat_map(crate::centrelines::segments),
+        );
         // A curved side face can have a silhouette between its boundary edges. Keep tags
         // off that face's projected envelope; end-on revolution faces use their rims above.
         let curved: Vec<Rect> = analysis

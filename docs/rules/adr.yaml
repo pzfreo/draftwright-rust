@@ -189,7 +189,9 @@
     adr: "ADR 2 Decision"
     issues: []
     tests: []
-  status: pending
+  status: ported
+  rust_test: tests/issue_drafting.rs::sheet_selection_is_bounded_and_keeps_every_outcome
+  rust_note: "Stage H6: each sheet/scale candidate is a complete finished plan; only valid, complete candidates (no hard finding, nothing dropped, every item in bounds) compete."
   port_note: "Keep: page/scale/view selection in the planner is judged on the finished placement, not geometry bounds."
 
 - id: ADR2-D3
@@ -213,8 +215,8 @@
     issues: [121]
     tests: []
   status: pending
+  rust_note: "The block and packing arithmetic is ported and checked by layout_calls_match_draftwright; model::plan reserves the bands the bridged features need (src/demand.rs, checked against draftwright's by bands_match_draftwright_or_are_known, differences in tests/fixtures/known_bands.json), but not the hole-callout band, authored/scheme bands or angular footprints, and has no measured repack yet. Without the repack, layout::geometry keeps what draftwright's repack gives in its place: the isometric clear of the full blocks (bands included), a section block's left band no wider than its gap to the side's band, neighbouring blocks abutting exactly, and the row lifted off the title block when a band would lie on it (else the layout does not fit; the lift never widens the row's right limit past the title block, so it never makes a layout fit that draftwright refuses). The isometric rule applies to the estimate only (a repack packs around the measured blocks, as draftwright's); the title-block lift applies on the repack path too (known_layout.json, m1000 call 6); tests/views.rs::corpus_views_and_their_bands_keep_apart_and_off_the_title_block, the departures from draftwright's estimate in tests/fixtures/known_layout.json. Stage H6 adds a measured correction of the estimate (sheet_fit::correct_estimate) and glyph sizing; a general annotation repacker is not ported."
   rust_test: bands_match_draftwright_or_are_known
-  rust_note: "The block and packing arithmetic is ported and checked by layout_calls_match_draftwright; model::plan reserves the bands the bridged features need (src/demand.rs, checked against draftwright's by bands_match_draftwright_or_are_known, differences in tests/fixtures/known_bands.json), but not the hole-callout band, authored/scheme bands or angular footprints, and has no measured repack yet. Without the repack, layout::geometry keeps what draftwright's repack gives in its place: the isometric clear of the full blocks (bands included), a section block's left band no wider than its gap to the side's band, neighbouring blocks abutting exactly, and the row lifted off the title block when a band would lie on it (else the layout does not fit; the lift never widens the row's right limit past the title block, so it never makes a layout fit that draftwright refuses). The isometric rule applies to the estimate only (a repack packs around the measured blocks, as draftwright's); the title-block lift applies on the repack path too (known_layout.json, m1000 call 6); tests/views.rs::corpus_views_and_their_bands_keep_apart_and_off_the_title_block, the departures from draftwright's estimate in tests/fixtures/known_layout.json."
   port_note: "Keep: the planner sizes each view block including its annotations before choosing page/scale."
 
 - id: ADR2-D5
@@ -373,9 +375,10 @@
     adr: "ADR 2 invariant 10; archive 0014 Amendment 6"
     issues: [1334]
     tests: ["test_issue_1334_prevent_ink.py", "test_gdt_ink_shared.py", "test_remaining_ink_overlaps.py"]
-  status: pending
+  status: ported
+  rust_test: src/dims/label_lanes.rs::promotion_uses_only_next_lane_preserves_pins_and_is_idempotent
+  rust_note: "Partly: dims::placement::settle moves a label off other items' ink by bounded alternatives (a linear label along its own line, a callout's leader turned left about its site), each kept on the sheet and off the views and the title block, and an unresolved overlap stays an annotation_ink_overlap problem (tests/placement.rs ratchets the counts). Callout leaders are assigned jointly with the fewest crossings, then text touched, then ink out of the view's area (src/dims/leaders.rs, ISSUE-740-a); a linear label still takes the first clear place, item by item in plan order (a fewest-conflicts fallback along its line was tried in stream d-quality-ink and changed nothing on the 30 quality parts, so it was not kept). Missing: pinned candidates (no nudges in the spec), leader and line crossings with other lines and view outlines, GD&T frames and PMI (not planned). Stage H3: settle_inventory is a bounded strictly-improving pass over the placed linear labels (next lane, or one rung further), not a second placement engine."
   port_note: "Keep: post-assignment ink check inside the planner; unresolved overlap is a Plan problem (annotation_ink_overlap)."
-  rust_note: "Partly: dims::placement::settle moves a label off other items' ink by bounded alternatives (a linear label along its own line, a callout's leader turned left about its site), each kept on the sheet and off the views and the title block, and an unresolved overlap stays an annotation_ink_overlap problem (tests/placement.rs ratchets the counts). Callout leaders are assigned jointly with the fewest crossings, then text touched, then ink out of the view's area (src/dims/leaders.rs, ISSUE-740-a); a linear label still takes the first clear place, item by item in plan order (a fewest-conflicts fallback along its line was tried in stream d-quality-ink and changed nothing on the 30 quality parts, so it was not kept). Missing: pinned candidates (no nudges in the spec), leader and line crossings with other lines and view outlines, GD&T frames and PMI (not planned)."
 
 - id: ADR2-11
   statement: "One view vocabulary; the authored view request and the resolved view plan are distinct immutable states."
@@ -1339,9 +1342,9 @@
     issues: [351, 352, 306, 54]
     tests: []
   status: pending
+  rust_note: "Partly ported (src/hole_table.rs, model::plan_escalated): a hole callout or location placed off the sheet is dropped, reported with draftwright's code (callout_dropped, location_ref_dropped; off_axis_location_dropped at info), and a callout or plan-view location drop escalates to the pattern balloon or the hole table with balloons under draftwright's gates (at least 16 holes outside a pattern), the table transactional; unresolved drops are required losses the layout recovery (model::recover) tries a scale or sheet for; the Plan item's basis records a table's replacement. Not ported: detail views; drops for collisions or illegible ladders (the port places and reports those); the Escalation remedies list. Stage H1 adds the table rung before any drop (tests/planned_hole_tables.rs::crowding_selects_a_schedule_before_any_item_is_dropped). Detail views (the next rung) are Stage J in ADR R5 and are not ported."
   port_note: "Keep: escalation is a planner stage; each Plan entry records which remedy was applied as its basis."
   rust_test: tests/hole_tables.rs::dropped_hole_items_are_reported_and_escalate_as_draftwrights_do
-  rust_note: "Partly ported (src/hole_table.rs, model::plan_escalated): a hole callout or location placed off the sheet is dropped, reported with draftwright's code (callout_dropped, location_ref_dropped; off_axis_location_dropped at info), and a callout or plan-view location drop escalates to the pattern balloon or the hole table with balloons under draftwright's gates (at least 16 holes outside a pattern), the table transactional; unresolved drops are required losses the layout recovery (model::recover) tries a scale or sheet for; the Plan item's basis records a table's replacement. Not ported: detail views; drops for collisions or illegible ladders (the port places and reports those); the Escalation remedies list."
 
 - id: ARCH0009-3
   statement: "A central hole's callout on a prismatic part stays on the view-centre row; on a turned part a coaxial bore's callout is pushed off the centre-line instead."
@@ -1469,7 +1472,9 @@
     adr: "archive 0014 Amendment 2"
     issues: [1166]
     tests: ["test_issue_1166_cross_pass_feature_leaders.py (test_ownerless_section_centerline_at_the_tip_is_not_a_global_axis_exemption)"]
-  status: pending
+  status: ported
+  rust_test: src/centrelines.rs::only_a_global_axis_has_a_transverse_tip_exemption
+  rust_note: "Stage G6: only the marked global turning axis exempts a leader tip; section and cutting lines are ordinary fixed ink."
   port_note: "Keep: clearance rule in planner and lint."
 
 - id: ARCH0014-2
@@ -1552,8 +1557,8 @@
     issues: [724, 725, 726, 727, 728, 1382, 1392, 1421, 1433]
     tests: []
   status: pending
+  rust_note: "Ported for chamfers (C{leg}, or {leg} × {angle}° when the legs differ or the angle is not 45°) and fillets (R{r}, n× R{r}; tests/dims_edges.rs::equal_fillets_share_one_counted_callout), src/dims/edges.rs; flats ({across} A/F, n× {across} A/F, src/dims/flats.rs) and grooves ({width} WIDE × ø{d}, src/dims/grooves.rs), matching draftwright's labels on connector109 and string_post (tests/dims_grooves_flats.rs::grooves_and_flats_match_draftwrights_sheets); circular blind steps (R{r} × {depth} DEEP) and paired ramps (2× {angle}° × {run} RUN), src/dims/steps.rs, matching draftwright's sheets of quiddity's golden parts (tests/dims_steps.rs::golden_circular_blind_step_is_one_radius_and_depth_callout, ::golden_paired_ramp_step_is_one_angle_and_run_callout). Pockets (W × L × D DEEP, MAX DEEP for a cylindrical mouth), with hexagonal pockets (HEX {af} A/F × {d} DEEP) and circular seats (ø{d} × {run} LONG × {sweep}° ARC), are ported in src/dims/recesses.rs (tests/dims_recesses.rs: labels equal to draftwright's sheets for m1000, m10046, m10127, and in tests/dims_slots.rs for m10047 and m10245). Not ported: blend and pad callouts (the blind slots' are in src/dims/slots.rs). Stage G3 adds the blend radius grammar (R / n× R leaders, ALL UNSPECIFIED RADII note; tests/dims_blends.rs::many_blends_are_stated_without_counted_radius_clutter). Other families keep their earlier status."
   rust_test: tests/dims_edges.rs::chamfers_are_called_out_c_or_leg_and_angle
-  rust_note: "Ported for chamfers (C{leg}, or {leg} × {angle}° when the legs differ or the angle is not 45°) and fillets (R{r}, n× R{r}; tests/dims_edges.rs::equal_fillets_share_one_counted_callout), src/dims/edges.rs; flats ({across} A/F, n× {across} A/F, src/dims/flats.rs) and grooves ({width} WIDE × ø{d}, src/dims/grooves.rs), matching draftwright's labels on connector109 and string_post (tests/dims_grooves_flats.rs::grooves_and_flats_match_draftwrights_sheets); circular blind steps (R{r} × {depth} DEEP) and paired ramps (2× {angle}° × {run} RUN), src/dims/steps.rs, matching draftwright's sheets of quiddity's golden parts (tests/dims_steps.rs::golden_circular_blind_step_is_one_radius_and_depth_callout, ::golden_paired_ramp_step_is_one_angle_and_run_callout). Pockets (W × L × D DEEP, MAX DEEP for a cylindrical mouth), with hexagonal pockets (HEX {af} A/F × {d} DEEP) and circular seats (ø{d} × {run} LONG × {sweep}° ARC), are ported in src/dims/recesses.rs (tests/dims_recesses.rs: labels equal to draftwright's sheets for m1000, m10046, m10127, and in tests/dims_slots.rs for m10047 and m10245). Not ported: blend and pad callouts (the blind slots' are in src/dims/slots.rs)."
   port_note: "Keep: callout text templates in the Plan's display-text formatter."
 
 - id: ARCH0015-2
@@ -1635,7 +1640,9 @@
     adr: "archive 0016 Amendment 1 'Furniture is not dimensional content', Decision"
     issues: []
     tests: []
-  status: pending
+  status: ported
+  rust_test: tests/centrelines.rs::turned_axes_extend_beyond_the_profile_and_survive_omitted_dimensions
+  rust_note: "Stage G6: centre lines, centre marks and the cutting-plane line are automatic plan furniture (PlannedView.line_work), sized off the geometry, never Spec-addressable."
   port_note: "Keep: Plan furniture entries carry ids for provenance but are not Spec-addressable dimensions."
 
 - id: ARCH0016-5
@@ -1786,7 +1793,9 @@
     adr: "archive 0018 §5; ADR 2 Open"
     issues: [1130]
     tests: []
-  status: pending
+  status: ported
+  rust_test: src/sheet_fit.rs::band_prefers_scale_then_smaller_paper_otherwise_fullest
+  rust_note: "Stage H6 replaces this order with the maintainer's sheet policy (smallest valid fit, at most one larger sheet only with enlargement, then the 60-85% fill band); the difference is recorded in tests/fixtures/known_sheet_policy.json."
   port_note: "Keep: deterministic candidate ordering in the planner."
 
 - id: ARCH0018-3

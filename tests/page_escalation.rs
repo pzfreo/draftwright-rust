@@ -221,10 +221,17 @@ fn a_plan_without_ink_off_the_sheet_keeps_its_first_choice_on_ctc01() {
         spec(serde_json::json!({ "size": first.0 })),
     ] {
         let plan = recovered(&analysis, &spec);
-        assert_eq!(sheet(&plan), first);
         assert!(!codes(&plan).contains(&"annotation_off_sheet"));
-        assert!(!codes(&plan).iter().any(|c| c.starts_with("layout_re")));
         assert!(!plan.sheet.basis.contains("layout recovery"));
+        if spec.sheet.size.is_none() && spec.sheet.scale.is_none() {
+            // Stage H: interior callouts (H7) and label settlement (H3) leave this recognised
+            // fixture with a valid A4 1:10 smallest fit, fuller than A3 1:5, so the sheet rule
+            // (H6), not the first estimate, decides it.
+            sheet_rule::assert_rule("ctc01", &plan);
+            continue;
+        }
+        assert_eq!(sheet(&plan), first);
+        assert!(!codes(&plan).iter().any(|c| c.starts_with("layout_re")));
     }
 }
 

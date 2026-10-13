@@ -276,7 +276,13 @@ fn semantic_pmi_callouts_remain_source_carrying_beside_the_schedule() {
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/editor_pmi.step"),
     )
     .unwrap();
-    let plan = model::plan_escalated(&analysis, &Spec::default()).unwrap();
+    // H7's interior callouts clear the leader crossing that made auto select a schedule on
+    // this part; request one, as the semantic-PMI rule is about callouts beside a schedule.
+    let always = Spec {
+        hole_table: draftwright::hole_table::Setting::Always,
+        ..Spec::default()
+    };
+    let plan = model::plan_escalated(&analysis, &always).unwrap();
     assert!(tables(&plan).as_array().is_some_and(|t| !t.is_empty()));
     let semantic: Vec<_> = plan
         .dimensions

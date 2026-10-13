@@ -138,7 +138,7 @@ fn the_service_answers_each_line() {
         problems[2],
         json!({
             "id": "p:layout_replanned:sheet", "code": "layout_replanned", "severity": "info",
-            "message": "Sheet choice changed from A4 at 1:1 to A3 at 2:1 by drawn-item fill 12.7%.",
+            "message": "Sheet choice changed from A4 at 1:1 to A3 at 2:1 by drawn-item fill; the sheet basis lists the candidates.",
             "subjects": ["sheet"]
         })
     );

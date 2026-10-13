@@ -570,7 +570,39 @@ pub(super) fn place(
 ) -> BTreeSet<String> {
     let mut moved = BTreeSet::new();
     let proofs = proofs(analysis, views);
-    for i in 0..items.len() {
+    // Centre-line furniture (G6) is not annotation ink: interior text keeps clear of its
+    // strokes, and a callout's shaft does not run beside another feature's stroke, but
+    // witness and dimension lines may cross or continue it as they do outside the view.
+    let (furniture, obstacles): (Vec<&PlannedDimension>, Vec<&PlannedDimension>) =
+        obstacles.iter().partition(|d| d.kind == "ink");
+    let furniture_clear = |p: &Placed, w: &Want| {
+        let callout = matches!(w.shape, Shape::Callout { .. });
+        furniture.iter().all(|d| {
+            let Some(q) = d.placed.as_ref() else {
+                return true;
+            };
+            let own = w
+                .measurements
+                .iter()
+                .any(|m| d.id.ends_with(&format!(":{}", m.feature)));
+            q.lines.iter().all(|t| {
+                !near_box(*t, p.label_box, 0.5)
+                    && (!callout
+                        || own
+                        || p.lines
+                            .first()
+                            .is_none_or(|s| !crate::centrelines::runs_beside(*s, *t)))
+            })
+        })
+    };
+    // Linear retries are decided first, against the exterior ink, so a callout's own interior
+    // move (which depends on its label's length) never decides whether a peer linear
+    // dimension goes inside: a tolerance or fit edit on the callout leaves them as they were.
+    let order: Vec<usize> = (0..items.len())
+        .filter(|&i| matches!(items[i].shape, Shape::Linear { .. }))
+        .chain((0..items.len()).filter(|&i| !matches!(items[i].shape, Shape::Linear { .. })))
+        .collect();
+    for i in order {
         if spec
             .dimensions
             .get(&items[i].id)
@@ -636,6 +668,7 @@ pub(super) fn place(
                         .iter()
                         .filter_map(|d| d.placed.as_ref())
                         .any(|q| conflict(p, q))
+                    && furniture_clear(p, &items[i])
                     && p.lines
                         .iter()
                         .take(if matches!(items[i].shape, Shape::Callout { .. }) {
