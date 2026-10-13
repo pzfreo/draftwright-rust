@@ -77,6 +77,9 @@ pub struct Analysis {
     /// Absent in older analyses; several solids make completeness findings informational.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub solid_count: Option<usize>,
+    /// Principal outer stock faces, credited only when the overall sizes are stated.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stock_faces: Vec<usize>,
     /// Where the features came from; absent when none were recognised.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recognition: Option<Recognition>,
@@ -584,6 +587,22 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
         },
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
+        stock_faces: (0..part.faces.len())
+            .filter(|&f| {
+                if !matches!(
+                    part.faces[f].surface,
+                    haecceity::geom::Surface::Plane { .. }
+                ) {
+                    return false;
+                }
+                let fb = part.face_bounds(f);
+                (0..3).any(|k| {
+                    fb.max[k] - fb.min[k] <= 1e-5
+                        && ((fb.min[k] - b.min[k]).abs() <= 1e-5
+                            || (fb.max[k] - b.max[k]).abs() <= 1e-5)
+                })
+            })
+            .collect(),
         recognition: None,
         features: Vec::new(),
         blend_sites: BTreeMap::new(),

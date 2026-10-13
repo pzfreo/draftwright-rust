@@ -117,6 +117,8 @@
     issues: [1154, 997]
     tests: ["test_issue_1154_one_owner_per_measurement.py", "test_issue_1153_contradictory_dimensions.py"]
   status: pending
+  rust_test: "tests/h5_chains.rs::consolidated_flush_boss_height_is_not_reported_missing; tests/h5_chains.rs::ctc05_states_its_od_and_across_flats_once; tests/h5_chains.rs::cross_view_locations_keep_single_claim_owners_and_controlling_labels"
+  rust_note: "Partial: proved support-plane sizes reconcile with a typed covered owner; a unique coaxial outside band or opposite flat pair can carry its radial envelope interval. Claims transfer only when the yielding annotation is removed. Point ordinates, ladder datums, compound counts and unsupported spans retain their prior ownership. Authored constraints are retained. General cross-feature reconciliation and authored-set parity remain open."
   port_note: "Keep: planner reconciliation rule; the withheld dimension appears in the Plan as an omission with basis 'conveyed_by <id>'."
 
 - id: ADR1-9
@@ -915,6 +917,8 @@
     issues: []
     tests: []
   status: pending
+  rust_test: "tests/h5_chains.rs::lint_detects_duplicate_claims_and_closed_turned_chains; tests/h5_chains.rs::slot_chain_keeps_overall_and_functional_length_without_closure"
+  rust_note: "Partial: independent drawing lint reports repeated measurement claims and closed supported linear chains; the planner keeps an overall and one reference member. Pattern pitch/per-hole ordinate constraints, angles and compound counts remain open."
   port_note: "Keep as a target: a redundancy check over Plan dimensions emitting a structured problem; not implemented in Python."
 
 # ---------------------------------------------------------------------------

@@ -338,13 +338,6 @@
       "count": 1,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part, message for message (tests/lint_coverage.rs::backstop_on_the_ports_own_drawings_is_known): the opening through m10127's face at y 32.268 is a three-edge loop (a triangle, box x 4.117..12.874, z 19.370..27.307), neither a circle, rectangle, obround or rounded rectangle nor the end of a section recess, so no feature of the drawing vocabulary states it (src/lint/profiles.rs; the loop's verdicts equal draftwright's, pythons_principal_profile_scan_is_reproduced). It is left for definition by hand."
-    },
-    {
-      "part": "spool132",
-      "code": "hole_pattern_requirement_missing",
-      "count": 6,
-      "verdict": "undetermined",
-      "reason": "Three physical bolt circles have no numerical centre-coordinate marks: the six new per-axis location checks find them missing. The default sheet looks concentric with the turned stock and states its PCDs, but the current mark inventory does not carry a certified pattern-centreline witness. Python structured pattern locations also require the physical centre; its singleton turned-hole centreline witness is separate. Retain warning evidence without asserting these are six independent machining defects. G2/G3 may add a proved concentricity carrier; scope and uncertainty are recorded in next-session and known_completeness.json."
     }
   ],
   "ledgers": [

@@ -70,6 +70,7 @@ pub mod polygonal;
 pub mod prismatic;
 pub mod profiled_bores;
 pub mod profiles;
+pub mod redundancy;
 pub mod section_recesses;
 pub mod slots;
 pub mod steps;
@@ -363,6 +364,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(envelope::coverage(analysis, marks));
     issues.extend(turned::coverage(analysis, marks));
     issues.extend(hole_patterns::coverage(analysis, marks));
+    issues.extend(redundancy::coverage(analysis, marks));
     issues
 }
 

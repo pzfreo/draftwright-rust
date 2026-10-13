@@ -70,6 +70,7 @@ mod placement;
 mod plates;
 mod pmi_dimensions;
 mod recesses;
+mod redundancy;
 mod slots;
 mod steps;
 mod stock;
@@ -764,6 +765,15 @@ pub(crate) fn lanes_excluding(
         .map(|(i, _)| lane[i] + 1)
         .max()
         .unwrap_or(0);
+    // A controlling overall adds a lane to the turned axial chain. Reserve its
+    // measured depth just as for a slab, rather than letting the chain exceed the band.
+    if wants
+        .iter()
+        .any(|w| w.id.starts_with("d:envelope/") && w.id.ends_with(".length"))
+        && turned::turned(analysis, &QFrame(crate::bridge::holes::frame(analysis))).is_some()
+    {
+        bands.plate_front_below = bands.plate_front_below.max(front_linear);
+    }
     for (i, w) in wants.iter().enumerate() {
         if owner[i].is_some()
             || !w
@@ -974,6 +984,7 @@ pub(crate) fn plan_inventory(
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
     share_pmi(&mut kept, &mut given, &mut omitted);
+    redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
     // Then everything the part would have is placed: each item's lane, and where its label
@@ -986,10 +997,45 @@ pub(crate) fn plan_inventory(
         .iter()
         .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
         .collect();
+    // Omission changes a reference back to a controlling dimension, but not its
+    // witness lane or text centre. Reserve the default reference's ink during layout.
+    let mut reference_terms = BTreeMap::new();
+    if spec.dimension_source == DimensionSource::Authored
+        || spec.dimensions.values().any(|d| d.omit)
+    {
+        let mut defaults: Vec<_> = all
+            .iter()
+            .cloned()
+            .zip(chosen.iter().copied())
+            .map(|(w, view)| (w, true, view, Vec::new()))
+            .collect();
+        let mut unused = Vec::new();
+        plates::consolidate(analysis, &mut defaults, &mut unused);
+        bosses::consolidate(analysis, &mut defaults, &mut unused);
+        let mut nominal = vec![Vec::new(); defaults.len()];
+        holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
+        share_statements(&mut defaults, &mut nominal, &mut unused, true);
+        share_pmi(&mut defaults, &mut nominal, &mut unused);
+        redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        reference_terms.extend(defaults.into_iter().filter_map(|(w, ..)| {
+            w.terms
+                .first()
+                .is_some_and(|t| t.starts_with('('))
+                .then_some((w.id, w.terms))
+        }));
+    }
     let all: Vec<Want> = all
         .into_iter()
         .map(|mut w| {
-            if let Some(terms) = labels.get(w.id.as_str()) {
+            if spec
+                .dimensions
+                .get(&w.id)
+                .is_none_or(|d| d.tolerance.is_none())
+                && let Some(terms) = reference_terms.get(&w.id)
+            {
+                w.terms = terms.clone();
+            } else if let Some(terms) = labels.get(w.id.as_str()) {
                 w.terms = terms.to_vec();
             }
             w
@@ -1273,6 +1319,10 @@ pub(crate) fn plan_inventory(
             })
         })
         .collect();
+    let geometry_terms: BTreeMap<_, _> = all
+        .iter()
+        .map(|w| (w.id.clone(), w.terms.clone()))
+        .collect();
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
@@ -1280,8 +1330,34 @@ pub(crate) fn plan_inventory(
     type Undrawn = (Vec<&'static str>, Vec<&'static str>);
     let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
-    for ((w, default, chosen, along), mut from_spec) in kept.into_iter().zip(given) {
-        let placed = positions.remove(&w.id).flatten();
+    for ((mut w, default, chosen, along), mut from_spec) in kept.into_iter().zip(given) {
+        if from_spec.is_empty()
+            && spec
+                .dimensions
+                .get(&w.id)
+                .and_then(|d| d.place.as_ref())
+                .is_some_and(|p| p.pinned)
+            && let Some(previous) = held.iter().find(|d| d.id == w.id)
+            && previous.label == format!("({})", w.terms.join(" "))
+        {
+            // An unrelated chain edit cannot resize a pinned reference's glyphs.
+            // Keep its ink and report that it no longer has a controlling chain.
+            w.terms = previous.terms.clone();
+            w.basis += "; reference retained by its pin after the controlling chain was edited";
+            problems.push(Problem {
+                id: format!("p:pinned_reference_chain_changed:{}", w.id),
+                code: "pinned_reference_chain_changed".into(),
+                severity: "warning".into(),
+                message: format!("{} stays reference to preserve its pinned ink, but its controlling chain was edited. Release the pin to make it controlling, or restore the chain.", w.id),
+                subjects: vec![w.id.clone()],
+                fix: vec![Op::remove(format!("dimensions/{}/place", crate::items::key(&w.id)))],
+                ..Default::default()
+            });
+        }
+        let placed = positions
+            .remove(&w.id)
+            .flatten()
+            .map(|p| placement::relabel(&p, &geometry_terms[&w.id], &w));
         if let Some(v) = spec.dimensions.get(&w.id).and_then(|e| e.view.as_deref())
             && chosen == Some(v)
         {

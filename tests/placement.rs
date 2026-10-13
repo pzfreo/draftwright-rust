@@ -15,6 +15,9 @@
 //! Only the plan is drawn here: the dims layer is `dims::render` of the plan's dimensions alone,
 //! so the part's hidden lines (minutes for connector109) add nothing to these checks.
 
+#[path = "common/reference_geometry.rs"]
+mod reference_geometry;
+
 #[path = "common/corpus.rs"]
 mod corpus;
 #[path = "common/facts.rs"]
@@ -583,11 +586,7 @@ fn omitting_one_dimension_moves_no_other() {
                         continue;
                     }
                     let was = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
-                    assert_eq!(
-                        d.placed, was.placed,
-                        "{name}: {} moved when {gone} was {how}",
-                        d.id
-                    );
+                    reference_geometry::assert_local(was, d);
                 }
             }
         }

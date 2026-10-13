@@ -5863,3 +5863,171 @@ Rules catalogue: the streams' named rules are marked from their reports; partial
 revived from retired to pending (automatic radius notes only), as H7 did for its two rules.
 The `ci-quality-baseline.json` refresh takes the merged tree's values only where no worse
 than origin/main's Stage G baseline (see the status entry).
+
+## Stage H5: ownership, chains and Stage G follow-ups (2026-10-12)
+
+Overturnable implementation judgements for the unattended run:
+
+- A support-plane graph compares model stations, not equal printed values. Its 0.01 mm
+  matching bound accommodates recognition's hundredth-rounded slot endpoints (10047's
+  24.21 versus B-rep overall 24.2147565). Equal axes of a square and equal bore/outside
+  diameters remain distinct. Separate solids and eccentric turned axes are not joined.
+  Point locations retain their existing physical/view contracts; identical ordinates in
+  different hole views are separate witnesses. Authored tolerance/fit constraints are
+  retained rather than silently converted to reference or transferred to nominal sizes.
+- Overall sizes and functional sizes take precedence. A closed linear chain keeps the
+  shortest lower-priority link in parentheses, so its requirement remains readable.
+  A complete turned chain is not collapsed into one counted dimension: exactly one
+  individual link becomes reference. Bare placement pins do not change ownership or
+  which link is reference. Changing the constraints by omitting a controlling member
+  can make a formerly reference link controlling again.
+- GRM-03's plate-like 2.5 interval is covered by its same-body, coaxial 0.5 and 2 bands.
+  This is geometric interval evidence, not a general ban on every turned-part slab.
+- `stock_faces` is optional Analysis evidence: planar faces on the whole part's principal
+  envelope planes. A single solid's proven stock faces receive completeness credit only
+  when all overall extents have printed evidence. Interior and curved unrecognised faces
+  retain the review floor. An older analysis can prove an undecorated six-face box from
+  its six rectangular principal faces. This does not claim that recognition found every
+  feature or that the drawing is ready for manufacture.
+- FTC-07's wall witnesses must not coincide with end-on hole centrelines. The planner
+  chooses another available edge-on view before the exposed-profile search, preserving
+  explicit view choices. This uses geometric hole centres and a 0.6 mm paper clearance.
+- A concentric bolt circle inherits the unique turned axis's two location constraints;
+  diameter/spacing requirements still need printed evidence. Eccentric circles or
+  conflicting turned axes do not get that credit. Python origin/main's
+  `_member_coaxial_with_turned_profile` is the single-hole reference for this extension.
+- Leader text pads are drafting contacts. The added preference follows the existing
+  crossing/feature/area priorities, so a text pad cannot justify routing through more
+  features on a dense sheet. Dense annotation allocation belongs to the concurrent
+  table/sheet streams, under the agreed sheet policy.
+
+The corpus available here has `cadgenbench/flanged_spool_132.step`, but no GRM-04 STEP.
+GRM-04's false consolidated-height finding is guarded by a synthetic flush hub with
+its actual 4.5 mm support-plane interval, following Python's ISSUE-1154 fixtures.
+Verification and final measured limitations are appended to the status document.
+
+### H5 fix-round judgements (2026-10-12, overturnable)
+
+- The first attempt transferred claims before deciding to keep cross-view hole
+  ordinates. Transfer now happens only after every retention check. Hole ordinates,
+  height-ladder datums, recess locations and counted dimensions do not enter the
+  general support-plane graph: a point or counted recipe is not an independently
+  proved face-to-face interval. The ladder tests retain their original Python expectations;
+  the value-based rewriting of every `16` was removed. Pattern pitch/ordinate
+  redundancy (including cgb245's 8 + 364 = 372) remains a separate constraint problem,
+  rather than converting a functional hole location to reference without review.
+- An external band's diameter may take envelope ownership only on a proven coaxial
+  profile. Eccentric bands keep X, Y and Z extents and controlling band lengths.
+  Full coaxial profiles, including GRM-05 and string_post, legitimately follow the
+  maintainer's general overall-plus-one-reference rule; their geometric chains and
+  deliberate Python differences are recorded in known_dimensions.json.
+- Reference choice follows nominal physical priority and length, independent of a
+  tolerance added to a different member or a bare pin. An authored tolerance on the
+  chosen reference stays controlling and is assessed by independent lint. Omitting
+  a controlling member can change reference text to controlling text. Layout keeps
+  default witness geometry and the text centre; the locality tests still demand
+  exact placement for unchanged labels, and independently measure the font bounds
+  for this specific parenthesis removal. They do not permit lane or witness movement.
+  A pinned reference retains its exact reference glyphs when another edit removes
+  its controlling chain, with a warning `pinned_reference_chain_changed` and an
+  executable unpin fix. Its own authored tolerance can still deliberately change
+  its text. This preserves the existing byte-exact pin contract without certifying
+  the remaining reference as a controlling requirement.
+- The existing one-millimetre text-pad clearance also applies to a leader beside a
+  fixed extension line, including its slanted segment and the extension's endpoints.
+  On the reviewed 10033 sheet the old slanted segment narrowly misses the geometric
+  foot (about 0.28 mm), but reads as contact at drawing stroke widths. The stronger
+  test fails on the prior routing. The joint solver's objective is unchanged.
+  A bounded final refinement is limited to an isolated callout on its view, already
+  clear of annotation/feature crossings, with all other ink held fixed. It accepts
+  only a padded-clear route with no extra crossing or area overrun. Multi-callout
+  views and semantic PMI retain their established routing; tables/details belong
+  to the agreed allocation policy. Counting the full wanted set, including omitted
+  callouts, keeps this work bound independent of omission edits.
+- The trust-test alternate-proof clause is retained explicitly: omitting a redundant
+  overall must leave a genuinely drawn, independently verified multi-annotation
+  chain, rather than accepting an unchanged finding count alone. Stock-face gains
+  in quality are stock credit, not new recognised-feature coverage. A complete box
+  loses that credit and becomes needs_attention when an overall extent is omitted.
+- The S0 session-edit helper still omits the GRM-03 width-view edit, as its documented
+  eight-step sequence requires. The newly printed axial overall does not silently
+  add a ninth benchmark edit. All delta/replay and native latency assertions remain.
+
+- Visual QA caught an additional 10047 closure that the original H5 test missed:
+  the front floor rung (5.133348207668 mm) remained controlling while the side slot
+  location (5.134052 mm) became reference. These are the same planes within 0.000704
+  mm recognition noise. The feature reference now owns that coincident rung too;
+  the strengthened test fails before this fix. A ladder datum is otherwise kept
+  controlling. If the slot location is explicitly omitted, its proven floor can
+  become reference from the still-stated overall and slot length; the graph never
+  reads the omitted location as a stated fact. Authored rung tolerances are retained.
+
+H5 fix-round final verification (2026-10-12): formatting and strict release clippy
+pass; the required full corpus suite passes 728 tests in 75 result groups with no
+failed/ignored tests and session latency assertions enabled. The release build and
+subsequent exact quality invocation pass the immutable Stage G comparison on all
+390 cells (30 parts); ink 273 → 265, feature crossings 211 → 208, repeated measures
+0, off-sheet 0. Claimed faces 1390 → 1553 includes stock credit. All 30 finishing
+SVGs are byte-identical to the rasterised and inspected run. Pin seeds 1/2/3 ×
+N=1/3/8 with --require-go pass all 270 part experiments; scripted MCP succeeds 7/7
+in 16 calls with unchanged task conditions. Full tables, review disposition,
+not_done and artefact paths are in the final H5 fix-round entry of
+`docs/status-2026-10-10.md`; receipts are in `target/h5-fix`. No commit or push.
+
+### H5 fix round 2 judgements (2026-10-12, Claude, overturnable)
+
+- Ladder rungs on a slot's walls. A shoulder (`step_position`) or height rung
+  (`step_height`) measured from the box to a slot wall closes against the slot's stated
+  width. When the slot's centre-line location is stated too, every such rung is
+  determined and is shown as a reference in parentheses. When it is not, the farther
+  wall's ladder rung becomes the reference if both walls are stated, by a rung or by
+  another dimension carrying the rung's claim. Examples: 10047 `(18.6)`/`(23.1)` beside
+  4.5 and 20.9; FTC-09's six slot-wall rungs; FTC-10's `(62.5)` = 12.5 + 50. References
+  are used rather than omission because the covered plate thickness on 10047 already
+  names the 23.1 rung as its owner. The FTC-09 ladder shows six references; omitting
+  them would reduce ink but would mean redirecting covered owners. That is a later
+  review item, not a correctness issue.
+- A plate between a riser shoulder and the box across x or y is conveyed by the overall
+  less the shoulder. The riser at the plate face is the support evidence; one connected
+  profile is still required. On 10060 the 14.3 plate thickness is now covered by the
+  19.3 shoulder plus 33.6. `dims_plates::m10060_states_its_plate_thickness_once` now
+  asserts that ownership instead of a drawn thickness.
+- Redundancy lint evidence now covers ladder rungs, slot widths (both walls, plus the
+  centre line implied by the width), slot centre-line locations, and the outside
+  diameter or A/F support planes of an `external_span`. It therefore reports CTC-05's
+  former linear 558.8 / ø558.8 and 527.0 / 527.05 A/F duplicates, and the 10047
+  slot-wall closure. All 30 quality sheets report no duplicate or closed chain.
+- Leaders off extension lines (decision iii), as a general rule. After the joint
+  assignment, every callout (any number per view, with semantic PMI too) is checked
+  against all other ink held fixed. If its leader, or its label within the 1 mm pad,
+  touches an extension line, it takes its best route with no contact that is no worse
+  in hard blockers, crossings, feature crossings, area and text. A clean crossing
+  counts as contact; this is the stricter reading. Three other placements were measured
+  and rejected because each worsened `quality.py` cells. They put the contact into the
+  joint objective at text-ink weight, at half-area weight, and at 10 mm of ink. The
+  regressions were CTC-03/04/05 and FTC-06/07/08 ink and feature crossings, and FTC-07
+  page recovery. The residual contacts are views where every contact-free route
+  crosses something else. They belong to the dense-sheet table/detail policy.
+- `quality.py` gains a `leader_on_extension` column, which counts callout/linear pairs
+  in contact. It is ratcheted by `check_quality_table.py` from the next status table.
+  It is 258 at the start of this round and 229 now. `tests/h5_chains.rs` asserts zero
+  contacts on GRM-03 and cgb207, which are multi-callout views.
+- The S0 session-edit helper skips the width-view edit on turned parts (any
+  `turned_step`), replacing the GRM-03 name check.
+
+### H5 split: leader rule moved to Stage I (2026-10-12)
+
+Review accepted the chain, duplicate, reference, lint, plate and turned work but rejected
+the leader rule. Routing each callout to its first route clear of extension-line contact
+drew long leaders across views (FTC-06 `2x ⌀14.3 THRU`, 10020's ⌀1.8 boss). It also drew
+one leader collinear with an object line: 10060's ⌀5.3 THRU, vertical at x≈97.70 against
+the outline at x=97.64. The vertical leader first appeared in fix1, 5b540e6. The rule is
+therefore split out to Stage I; see the lessons note. Its source is branch commit
+`0d46bc3` (`cxg/h-chains`, fix2), together with the 10033 pad refinement from fix1.
+`src/dims/leaders.rs` is back to main's version, including the contact measure,
+`inventory_where` and both refinement passes. Two leader tests are removed with it:
+`h5_chains::radius_leader_and_label_clear_thickness_extensions_including_pad` and
+`callouts_keep_off_extension_lines_in_crowded_views_too`. `quality.py`'s
+`leader_on_extension` column stays as a measurement for Stage I. On the 30 parts it reads
+268 on main and 260 on this branch. Callout leaders on FTC-06 and 10020 are identical
+to main's. On 10060 the leader has main's shape, moved with its view.

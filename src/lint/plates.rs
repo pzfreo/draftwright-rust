@@ -323,6 +323,31 @@ pub fn alternatives(a: &Analysis, f: &Feature) -> Vec<Vec<Term>> {
             out.push(vec![Term::new(&s.id, "step.length", b.hi - b.lo)]);
         }
     }
+    // A turned plate-like slab may span several bands (GRM-03's 0.5 + 2).
+    // Same-body and axis-line evidence are required; equal sums alone prove nothing.
+    let bands: Vec<_> = a
+        .features
+        .iter()
+        .filter(|s| s.kind == "turned_step" && same_body(a, f, s))
+        .filter_map(|s| super::turned::band(&frame(a), s).ok().map(|b| (s, b)))
+        .filter(|(_, b)| b.axis == k && (0..3).all(|j| j == k || near(p.span[0][j], b.on[j])))
+        .collect();
+    let links: Vec<_> = bands
+        .iter()
+        .enumerate()
+        .map(|(i, (_, b))| (super::redundancy::Span::new(k, b.lo, b.hi), i))
+        .collect();
+    if let Some(route) = super::redundancy::path(&links, super::redundancy::Span::new(k, lo, hi)) {
+        out.push(
+            route
+                .iter()
+                .map(|i| {
+                    let (s, b) = &bands[*i];
+                    Term::new(&s.id, "step.length", b.hi - b.lo)
+                })
+                .collect(),
+        );
+    }
     let mut step_intervals = Vec::new();
     for s in a.features.iter().filter(|s| s.kind == "through_step") {
         if !same_body(a, f, s) {
@@ -412,7 +437,9 @@ pub fn alternatives(a: &Analysis, f: &Feature) -> Vec<Vec<Term>> {
             }
         }
     }
-    if k < 2 && support {
+    // A shoulder is a riser's own position on the plate's face, so the riser is the support
+    // evidence across x or y; one connected profile keeps it on the plate's body.
+    if k < 2 && a.principal_profiles.len() == 1 {
         let positions: Vec<_> = a
             .risers
             .iter()

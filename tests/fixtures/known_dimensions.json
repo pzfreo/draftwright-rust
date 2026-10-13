@@ -1008,5 +1008,95 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "Python origin/main annotations/_edge_callouts.py::radius_jobs calls out this recognised lettering radius. The defining face belongs to one geometry-proved grouped shallow relief region: tiny complex floors and uniformly short walls on a common broad carrier. Rust states SHALLOW RELIEF PROFILES PER MODEL and excludes radius requirements and callouts on those faces, without inventing radius credit. The native and bridge sheets retain their real geometry radii. See tests/dims_blends.rs and known_blends.json for the measured policy and multi-part/depth controls."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "0.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 0.5 + 2 + 3 + 18 = 23.5 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (0.5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "front",
+    "label": "(0.5)",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 0.5 + 2 + 3 + 18 = 23.5 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (0.5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "23.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 0.5 + 2 + 3 + 18 = 23.5 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (0.5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "grm05",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 14 + 5 + 13 = 32 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "grm05",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "front",
+    "label": "(5)",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 14 + 5 + 13 = 32 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "grm05",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "32",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 14 + 5 + 13 = 32 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "front",
+    "label": "(1)",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "envelope",
+    "view": "front",
+    "label": "14.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
   }
 ]

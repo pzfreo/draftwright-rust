@@ -442,7 +442,11 @@ fn an_open_channel_is_one_feature_with_one_width() {
             );
         }
         let mut drawing = model::render(&shape, &analysis, &plan, &font()).unwrap();
-        assert!(findings(&analysis, &drawing).is_empty(), "{part}");
+        assert!(
+            findings(&analysis, &drawing).is_empty(),
+            "{part}: {:?}",
+            findings(&analysis, &drawing)
+        );
         // Severing a wall's claim loses both the plate and channel evidence.
         for annotation in &mut drawing.annotations {
             annotation

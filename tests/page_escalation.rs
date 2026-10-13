@@ -410,8 +410,10 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// Native FTC-07's smallest complete fit is A2 at 1:2. A1 at 1:1 is allowed only
-/// because it is its immediate neighbour and enlarges the dimensioned views.
+/// Native FTC-07's smallest complete fit is A2 at 1:2. A1 at 1:1 would be allowed only
+/// because it is its immediate neighbour and enlarges the dimensioned views; since the Stage H
+/// chain rules (h-chains) its A1 1:1 drawing lays a pitch line through a hole callout (a hard
+/// finding), so it is no candidate and the smallest fit is kept.
 #[test]
 fn ftc07_uses_one_paper_step_only_with_enlargement() {
     let Some(dir) = corpus::dir() else {
@@ -419,10 +421,24 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A1", "1:1"));
-    assert!(plan.sheet.basis.contains("smallest fit A2 at 1:2"));
-    sheet_rule::assert_rule("ftc07", &plan);
+    assert_eq!(sheet(&plan), ("A2", "1:2"));
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
+    // The table-free drawing the sheet is chosen by ([`model::recover`]'s hole-table path).
+    let never = Spec {
+        hole_table: draftwright::hole_table::Setting::Never,
+        ..Default::default()
+    };
+    let chosen = api::plan_analysed(&analysis, &never).unwrap();
+    assert_eq!(sheet(&chosen), ("A2", "1:2"));
+    assert!(chosen.sheet.basis.contains("smallest fit A2 at 1:2"));
+    sheet_rule::assert_rule("ftc07", &chosen);
+    let a1 = chosen
+        .sheet
+        .basis
+        .split("; ")
+        .find(|c| c.starts_with("A1 1:1 "))
+        .unwrap_or_else(|| panic!("{}", chosen.sheet.basis));
+    assert!(a1.contains("hard layout finding"), "{a1}");
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
     let again = model::recover(&analysis, &Spec::default(), first).unwrap();

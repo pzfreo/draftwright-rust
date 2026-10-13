@@ -301,7 +301,33 @@ fn m10033_wall_witnesses_do_not_cross_the_view() {
 
 #[test]
 fn m10060_states_its_plate_thickness_once() {
-    thicknesses("10060");
+    // The plate runs from the y shoulder to the box: 33.6 overall less the 19.3 shoulder states
+    // its thickness, so it is conveyed by that chain and not drawn again (Stage H, h-chains).
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&dir.join("mfcadpp/10060.step")).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(!plan.dimensions.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.parameter == "thickness.length")
+    }));
+    let shoulder = "d:step_level/step_position.length.y19_256";
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id == shoulder && d.placed.is_some())
+    );
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id == "d:envelope/depth.length")
+    );
+    assert!(
+        plan.omitted
+            .iter()
+            .any(|o| o.id == "d:f:plate:1/thickness.length"
+                && matches!(&o.state, State::Covered { by } if by == shoulder))
+    );
 }
 
 #[test]

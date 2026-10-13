@@ -27,6 +27,13 @@
       "rule": "ADR R1 migration oracle",
       "verdict": "equivalent",
       "reason": "tests/fixtures/identity/plate.plan1.json.gz remains the literal historical geometry oracle. plate.reporting.json is a separate literal expectation for the new status/counts/unclaimed warning, added without filtering any old geometry or weakening the comparison."
+    },
+    {
+      "rule": "G1 stock-face credit / H5 maintainer follow-up",
+      "python": "provider association reports unclaimed geometry; ordinary stock need not be a feature",
+      "rust": "optional B-rep stock face evidence is credited on a single solid only when printed overall extents are complete",
+      "verdict": "rust-correct",
+      "reason": "Maintainer 2026-10-12: a fully dimensioned box must reach clear. Principal envelope plane faces receive explicit geometric credit; interior and curved unrecognised faces remain unclaimed. tests/h5_chains.rs::fully_dimensioned_box_is_clear guards the no-feature six-face box; tests/model.rs retains the review warning for native fixtures with other unclaimed faces."
     }
   ],
   "formatting": [
@@ -106,14 +113,18 @@
     "A provider occurrence-disposition ledger and independent expected-feature denominator are not available in Analysis; face claims describe only imported features.",
     "The requested raw completeness counts do not implement the full four-component audited-score report; fidelity and restraint scoring remain unavailable.",
     "Existing envelope ledger cannot credit arbitrary other end-to-end measurements or declared profile-group chains; its parity verdicts remain in known_lint.json/ledgers.",
-    "Pattern lint currently establishes principal-axis patterns from recognition; patterns with oblique drilling axes are unassessed, and unproved principal-axis lattice spacing is reported unverifiable unless every physical member is located by truthful ordinates. No centred-hole exemption is invented without drawn location evidence.",
-    "spool132 default has six missing numerical pattern-centre coordinates. The sheet looks concentric with turned stock; no certified pattern-centreline carrier exists in the mark inventory. This visual ambiguity is undetermined in known_lint.json, rather than claimed as six separate machining defects."
+    "Pattern lint currently establishes principal-axis patterns from recognition; patterns with oblique drilling axes are unassessed, and unproved principal-axis lattice spacing is reported unverifiable unless every physical member is located by truthful ordinates. No centred-hole exemption is invented without drawn location evidence."
   ],
   "assessment_corrections": [
     {
       "part": "GRM-03_thumbwheel_drive_screw",
       "verdict": "rust-correct",
-      "evidence": "Its default sheet has no separate overall-length dimension, but the complete contiguous turned-length chain 0.5+2+3+18=23.5 proves the physical axial extent under the existing ledger. Default review owes no overall axis. Breaking that chain yields missing_principal_dimension in the evidence script. Requiring an additional label would duplicate a proven measure. An overall label is still normally desirable for tolerance stack-up; maintainer confirmation is recorded in next-session."
+      "evidence": "Superseded by the maintainer decision of 2026-10-12 (H5): state 23.5 overall and make exactly one member of 0.5+2+3+18 reference. Rust prints (0.5), retains the other links and the overall, and covers the spurious 2.5 plate interval from the same-body 0.5 and 2 bands. tests/h5_chains.rs checks the complete chain and independent redundancy/plate lint. Python origin/main omits the overall for a complete chain; this deliberate change supplies a controlling overall without a closed toleranced chain."
+    },
+    {
+      "part": "flanged_spool_132",
+      "verdict": "rust-correct",
+      "evidence": "H5 resolves the former six numerical pattern-centre findings: three bolt circles share the unique turned axis line, proven from Analysis geometry, so each centre is located on both radial axes. Independent spacing/bolt-circle diameter requirements remain. Python linting/hole_coverage.py::_member_coaxial_with_turned_profile is the single-hole precedent; tests/h5_chains.rs::concentric_bolt_circles_have_axis_location_credit guards the extension."
     }
   ]
 }

@@ -40,12 +40,63 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
     } else {
         "warning"
     };
-    let claimed: BTreeSet<usize> = analysis
+    let mut claimed: BTreeSet<usize> = analysis
         .features
         .iter()
         .flat_map(|f| f.faces.iter().copied())
         .filter(|&i| i < analysis.binding.face_count)
         .collect();
+    let feature_claims = claimed.len();
+    let marks: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .map(|d| crate::lint::Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.clone(),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| crate::output::Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        })
+        .collect();
+    let overall_stated = crate::lint::envelope::outcomes(analysis, &marks)
+        .iter()
+        .all(|o| o.state == crate::lint::turned::State::Placed);
+    if analysis.solid_count == Some(1) && overall_stated {
+        claimed.extend(
+            analysis
+                .stock_faces
+                .iter()
+                .copied()
+                .filter(|i| *i < analysis.binding.face_count),
+        );
+        // Older analyses can prove an undecorated six-face box without face identities.
+        let box_stock = analysis.binding.face_count == 6
+            && analysis.principal_profiles.len() == 1
+            && analysis.principal_profiles[0].faces.len() == 6
+            && analysis.principal_profiles[0].faces.iter().all(|f| {
+                f.inner.is_empty() && f.outer_edges == 4 && f.outer_arcs.is_empty() && !f.unsplit
+            })
+            && (0..3).all(|k| {
+                [0, 1].iter().all(|&end| {
+                    analysis.principal_profiles[0]
+                        .faces
+                        .iter()
+                        .filter(|f| f.axis == k && (f.at - analysis.envelope[end][k]).abs() <= 1e-5)
+                        .count()
+                        == 1
+                })
+            });
+        if box_stock {
+            claimed.extend(0..6);
+        }
+    }
     let mut stated: BTreeSet<&str> = plan
         .dimensions
         .iter()
@@ -102,6 +153,17 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
                     .collect(),
                 ..Default::default()
             });
+        }
+    }
+    for o in &plan.omitted {
+        if let State::Covered { by } = &o.state
+            && plan
+                .dimensions
+                .iter()
+                .any(|d| d.id == *by && d.placed.is_some())
+            && let Some((feature, _)) = o.id.strip_prefix("d:").and_then(|id| id.rsplit_once('/'))
+        {
+            stated.insert(feature);
         }
     }
     for p in analysis.recognition.iter().flat_map(|r| &r.patterns) {
@@ -175,7 +237,7 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         plan.problems.push(Problem {
             id: "p:unclaimed_geometry:sheet".into(), code: "unclaimed_geometry".into(),
             severity: severity.into(),
-            message: format!("Analysis features claim {} of {} faces; {} faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.", claimed.len(), analysis.binding.face_count, analysis.binding.face_count - claimed.len()),
+            message: format!("Analysis {} claim {} of {} faces; {} faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.", if claimed.len()>feature_claims {"features and dimensioned stock"} else {"features"}, claimed.len(), analysis.binding.face_count, analysis.binding.face_count - claimed.len()),
             subjects: vec!["sheet".into()], ..Default::default()
         });
     }

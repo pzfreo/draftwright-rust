@@ -21,13 +21,6 @@
   "reason": "A check stream d-callout-leaders adds. The turned bosses' diameters ø118, ø122 and ø130.9 (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette, so the leaders of the grooves (d:f:groove:1, :2, :3), the fillet R1 and the chamfer 4.5 × 42.1°, leaving the profile beside it, cross them where they leave the outline; the leader solver found no route clear of them within its bounds (the left column holds the step diameters, and rows above or below the 420 mm profile are longer than its 75 mm limit). draftwright states those boss diameters as callouts in its column left of the front, so its sheet has no such extension lines. The cause is the bosses' presentation, not the leaders. E3 consolidates boss:4's ø130.9 into the overall diameter at the same radial stations. The three crossings against its removed extension line (fillet:1, groove:1, groove:3) disappear; known_leaders.json still requires all five remaining crossings against boss:2 and boss:3."
  },
  {
-  "part": "connector109",
-  "code": "annotation_outside_area",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "The front's lower band is draftwright's estimate (20 mm; layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): three front diameters below the front run past it. 8 before stream d-placement-fit, which passed the outer lanes below the front (the callouts and grooves that ran off the sheet) to the strip above it. Since stream d-placement-fit, a strip without room for its lanes passes them to the strip across the view (dims::placement::fall_through, ISSUE-1215-e); since stream d-callout-leaders callouts take no lanes (src/dims/leaders.rs places them beside the view). E3 consolidates boss:4's ø130.9 into the overall diameter; its redundant line and band overrun disappear. The overall ø130.9 still overruns by 20.0 mm and boss:3's ø122 by 6.0 mm; both remaining findings are required. No placement rule changed."
- },
- {
   "part": "ctc01",
   "code": "annotation_outside_area",
   "count": 8,
@@ -40,13 +33,6 @@
   "count": 14,
   "verdict": "rust-wrong",
   "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, the step shoulder d:step_level/step_position.length.y46_99, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels) and the front's width (in the one lane above the front, an overall extent's first claim). Two front callouts (2× ⌀6.3 ↧ 12.7, 2× ø31.8, 2.1 mm each). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 28 before stream d-placement-fit, 26 before d-callout-leaders (its callouts' labels ran right along their lanes), 18 before d-quality-repeated-dims (each pair of side-view boss heights on one span, 12.1 and 16.3, is now one counted item, src/dims/mod.rs::share, so two of these four items are gone). G2 adds a counted plate statement and routes the two front callouts inside their area. The exact remaining fourteen overruns are checked by tests/placement.rs; no outside-area finding is waived."
- },
- {
-  "part": "grm03",
-  "code": "annotation_outside_area",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "Run along their lanes, past the view's area sideways: two step lengths below the front (d:f:turned_step:1 and :3/step.length@front) run past the front's estimated band; the side's callout d:f:hole:1/bore.diameter (⌀1.6 ↧ 3.8), 6.9 mm right of the side's band before, now stands inside the side's area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). No other problem follows on this sheet. 8 before stream d-callout-leaders: the turned steps' diameter callouts (ø5, ø3, ø6, dims::turned) stacked in lanes below the front; they now stand beside the view as draftwright's row of step diameters does."
  },
  {
   "part": "m1000",

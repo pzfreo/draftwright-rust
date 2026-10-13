@@ -5,6 +5,9 @@
 //! its recognition edited) the rules one at a time. The item-by-item comparison over every
 //! captured sheet, with the differences' verdicts, is `tests/dimensions.rs`.
 
+#[path = "common/reference_geometry.rs"]
+mod reference_geometry;
+
 #[path = "common/corpus.rs"]
 mod corpus;
 #[path = "common/facts.rs"]
@@ -153,10 +156,11 @@ fn grm05_states_its_step_diameters_and_lengths_as_draftwright_does() {
         turned_items(&plan),
         strs(&[
             ("d:envelope/od.diameter", "ø10"),
+            ("d:envelope/height.length", "32"),
             ("d:f:turned_step:2/step.diameter", "ø6.2"),
             ("d:f:turned_step:3/step.diameter", "ø6"),
             ("d:f:turned_step:1/step.length", "14"),
-            ("d:f:turned_step:2/step.length", "5"),
+            ("d:f:turned_step:2/step.length", "(5)"),
             ("d:f:turned_step:3/step.length", "13"),
         ])
     );
@@ -196,8 +200,8 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
         return;
     };
     for (name, od, length) in [
-        ("grm03", "ø10", None),
-        ("string_post", "ø7.5", None),
+        ("grm03", "ø10", Some("23.5")),
+        ("string_post", "ø7.5", Some("14.8")),
         ("spool132", "2× ø130", Some("140")),
         ("connector109", "ø130.9", Some("420")),
     ] {
@@ -235,6 +239,15 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
         if name == "grm03" {
             python.retain(|(_, l)| l != "ø10");
         }
+        // Maintainer H5: the overall remains controlling; the shortest link is reference.
+        if matches!(name, "grm03" | "string_post") {
+            let shortest = if name == "grm03" { "0.5" } else { "1" };
+            for (_, label) in &mut python {
+                if label == shortest {
+                    *label = format!("({label})");
+                }
+            }
+        }
         python.sort();
         assert_eq!(rust, python, "{name}");
         let label = |id: &str| {
@@ -267,15 +280,16 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
 /// size, and the chain (40 + 30) the overall 70, which is not stated again. With a band taken
 /// away the chain no longer runs end to end, so the overall length is stated.
 #[test]
-fn the_chain_states_the_overall_length_only_when_it_runs_end_to_end() {
+fn the_overall_is_stated_and_a_closed_chain_has_one_reference_member() {
     let plan = model::plan(&turned(), &Spec::default()).unwrap();
     assert_eq!(
         turned_items(&plan),
         strs(&[
             ("d:envelope/od.diameter", "ø30"),
+            ("d:envelope/height.length", "70"),
             ("d:f:turned_step:2/step.diameter", "ø16"),
             ("d:f:turned_step:1/step.length", "40"),
-            ("d:f:turned_step:2/step.length", "30"),
+            ("d:f:turned_step:2/step.length", "(30)"),
         ])
     );
     let a = with_bands(&[(q(0.0), q(40.0), 30.0)]);
@@ -319,7 +333,7 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
         .filter(|d| d.id.ends_with("/step.length"))
         .map(|d| d.label.clone())
         .collect();
-    assert_eq!(lengths, ["23", "23.3", "23.7"]);
+    assert_eq!(lengths, ["(23)", "23.3", "23.7"]);
     let a = with_bands(&[
         (q(0.0), q(23.34), 30.0),
         (q(23.34), q(46.66), 20.0),
@@ -330,8 +344,11 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
         turned_items(&plan),
         strs(&[
             ("d:envelope/od.diameter", "2× ø30"),
+            ("d:envelope/height.length", "70"),
             ("d:f:turned_step:2/step.diameter", "ø20"),
-            ("d:f:turned_step:1/step.length", "3× 23.3"),
+            ("d:f:turned_step:1/step.length", "23.3"),
+            ("d:f:turned_step:2/step.length", "(23.3)"),
+            ("d:f:turned_step:3/step.length", "23.3"),
         ])
     );
     let chain = plan
@@ -344,10 +361,7 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
         .iter()
         .map(|m| m.feature.as_str())
         .collect();
-    assert_eq!(
-        members,
-        ["f:turned_step:1", "f:turned_step:2", "f:turned_step:3"]
-    );
+    assert_eq!(members, ["f:turned_step:1"]);
     let od = plan
         .dimensions
         .iter()
@@ -369,9 +383,10 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
         turned_items(&plan),
         strs(&[
             ("d:envelope/od.diameter", "ø30"),
+            ("d:envelope/height.length", "70"),
             ("d:f:turned_step:1/step.diameter", "2× ø30"),
             ("d:f:turned_step:1/step.length", "40"),
-            ("d:f:turned_step:2/step.length", "30"),
+            ("d:f:turned_step:2/step.length", "(30)"),
         ])
     );
 }
@@ -387,9 +402,10 @@ fn equal_z_bands_share_a_callout_and_a_bore_sized_band_reads_od() {
     ]);
     let plan = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(
-        turned_items(&plan)[..2],
+        turned_items(&plan)[..3],
         strs(&[
             ("d:envelope/od.diameter", "ø30"),
+            ("d:envelope/height.length", "70"),
             ("d:f:turned_step:1/step.diameter", "2× ø16"),
         ])
     );
@@ -447,10 +463,13 @@ fn a_part_turned_about_y_reads_its_diameters_end_on() {
         turned_items(&plan),
         strs(&[
             ("d:envelope/od.diameter", "ø30"),
+            ("d:envelope/depth.length", "70"),
             ("d:f:turned_step:1/step.diameter", "ø20"),
             ("d:f:turned_step:2/step.diameter", "ø24"),
             ("d:f:turned_step:3/step.diameter", "ø20"),
-            ("d:f:turned_step:1/step.length", "3× 10"),
+            ("d:f:turned_step:1/step.length", "10"),
+            ("d:f:turned_step:2/step.length", "10"),
+            ("d:f:turned_step:3/step.length", "(10)"),
             ("d:f:turned_step:4/step.length", "40"),
         ])
     );
@@ -558,12 +577,11 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
     );
     for d in &less.dimensions {
         let same = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
-        assert_eq!(d.placed, same.placed, "{}", d.id);
+        reference_geometry::assert_local(same, d);
     }
     assert!(
-        !less
-            .dimensions
+        less.dimensions
             .iter()
-            .any(|d| d.id.starts_with("d:envelope/height"))
+            .any(|d| d.id == "d:envelope/height.length" && d.label == "70")
     );
 }

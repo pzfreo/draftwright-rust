@@ -36,11 +36,16 @@ pub fn edits(s: &Session) -> Vec<Vec<Op>> {
         vec![Op::set(format!("{base}/tolerance"), json!("±0.1"))],
         vec![Op::set("sheet/scale", json!(scale))],
     ];
-    // GRM-03 has no width carrier move in S0's sequence.
-    if s.plan()
-        .dimensions
+    // S0 deliberately leaves the turned profile's axial carrier in its profile view.
+    if !s
+        .analysis()
+        .features
         .iter()
-        .any(|d| d.id == "d:envelope/width.length")
+        .any(|f| f.kind == "turned_step")
+        && s.plan()
+            .dimensions
+            .iter()
+            .any(|d| d.id == "d:envelope/width.length")
     {
         sequence.push(vec![Op::set(
             "dimensions/d:envelope~1width.length/place/view",

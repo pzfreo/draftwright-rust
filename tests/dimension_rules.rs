@@ -343,8 +343,9 @@ fn a_turned_part_states_its_diameter_and_length() {
         env,
         [
             ("d:envelope/od.diameter", "ø30"),
+            ("d:envelope/height.length", "70"),
             ("d:f:turned_step:1/step.length", "40"),
-            ("d:f:turned_step:2/step.length", "30")
+            ("d:f:turned_step:2/step.length", "(30)")
         ]
     );
 }
