@@ -1,0 +1,41 @@
+{
+  "analysis": {
+    "binding": {
+      "face_count": 10,
+      "loader": "haecceity via draftwright 0.1.0-alpha.1",
+      "part": "plate",
+      "source_sha256": "e980c12943dcfe9dbf7e7c47e2a6a5741cf6b9a371ba35e7436ebfe9d858e361"
+    },
+    "envelope": [
+      [
+        -30.0,
+        -20.0,
+        -2.5
+      ],
+      [
+        30.0,
+        20.0,
+        2.5
+      ]
+    ],
+    "features": [],
+    "iso_bounds": [
+      -35.35533905932738,
+      -22.45365597551247,
+      35.35533905932738,
+      22.45365597551247
+    ],
+    "levels": [],
+    "schema": "draftwright.analysis/2"
+  },
+  "id": 0,
+  "op": "plan",
+  "spec": {
+    "hole_table": "never",
+    "schema": "draftwright.spec/2",
+    "sheet": {
+      "scale": "1:1",
+      "size": "A3"
+    }
+  }
+}

@@ -6,6 +6,7 @@ The survey is the same 42 corpus parts + 22 AP242 fixtures as repeated-spans.
 """
 import argparse
 import gzip
+import hashlib
 import json
 import math
 import os
@@ -17,7 +18,27 @@ import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-CALIBRATION = 'cadgenbench/threaded_connector_109.step'
+CALIBRATION = 'tools/plan-time-calibration.json'
+CALIBRATION_ITERATIONS = 32768
+
+
+def calibration_fingerprint():
+    source = (ROOT / CALIBRATION).read_bytes()
+    return hashlib.sha256(CALIBRATION_ITERATIONS.to_bytes(8, 'big') + source).hexdigest()
+
+
+def calibration_time(binary):
+    request = json.dumps(json.loads((ROOT / CALIBRATION).read_text()), separators=(',', ':')).encode() + b'\n'
+    start = time.perf_counter()
+    reply = subprocess.run([str(binary), 'serve'], input=request * CALIBRATION_ITERATIONS,
+                           capture_output=True, check=True, timeout=3600)
+    seconds = (time.perf_counter() - start) / CALIBRATION_ITERATIONS
+    lines = reply.stdout.splitlines()
+    if (len(lines) != CALIBRATION_ITERATIONS or any(line != lines[0] for line in lines)
+            or not json.loads(lines[0]).get('ok')
+            or 'dimensions' not in json.loads(lines[0]).get('result', {})):
+        raise ValueError('calibration did not replay the fixed plan')
+    return seconds
 
 
 def inputs(corpus, directory):
@@ -36,7 +57,8 @@ def inputs(corpus, directory):
 
 def timed(binary, part):
     start = time.perf_counter()
-    reply = subprocess.run([str(binary), 'plan', str(part)], capture_output=True,
+    command = [str(binary), 'plan', str(part)]
+    reply = subprocess.run(command, capture_output=True,
                            check=True, timeout=3600)
     seconds = time.perf_counter() - start
     if 'dimensions' not in json.loads(reply.stdout):
@@ -66,15 +88,19 @@ def finish(measured, args):
             seconds[p] != row['seconds'] for p, row in measured['parts'].items()):
         raise ValueError('timing aggregates differ from samples')
     budget = json.loads(args.budget.read_text())
-    if (budget['format'] != measured['format'] or measured['format'] != 'draftwright.plan-time/1'
+    if (budget['format'] != measured['format'] or measured['format'] != 'draftwright.plan-time/2'
             or budget['calibration'] != measured['calibration'] or measured['calibration'] != CALIBRATION
+            or budget['calibration_sha256'] != measured['calibration_sha256']
+            or budget['calibration_iterations'] != CALIBRATION_ITERATIONS
+            or measured['calibration_iterations'] != CALIBRATION_ITERATIONS
+            or measured['calibration_sha256'] != calibration_fingerprint()
             or not math.isfinite(budget['normalised_total']) or budget['normalised_total'] <= 0):
         raise ValueError('incompatible calibration budget')
     measured.update(normalised_total=total / cal, budget=budget,
                     passed=within_budget(total, cal, budget))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(measured, indent=2, sort_keys=True) + '\n')
-    print(f'{total:.3f}s / {cal:.3f}s = {total / cal:.3f} calibration plans; '
+    print(f'{total:.3f}s / {cal:.6f}s = {total / cal:.3f} calibration plans; '
           f'limit {budget["normalised_total"] * 1.15:.3f}; load <= {measured["max_load"]:.2f}')
     return int(not measured['passed'])
 
@@ -102,7 +128,6 @@ def main():
         if args.max_load is not None and loads[-1] >= args.max_load:
             raise ValueError(f'load {loads[-1]:.2f} >= {args.max_load}; timing unmeasured')
     load()
-    calibration = args.corpus / CALIBRATION
     stop = threading.Event()
     def monitor():
         while not stop.wait(1):
@@ -110,7 +135,7 @@ def main():
     thread = threading.Thread(target=monitor)
     thread.start()
     try:
-        samples = [timed(args.binary, calibration) for _ in range(3)]
+        samples = [calibration_time(args.binary) for _ in range(3)]
         parts = {}
         with tempfile.TemporaryDirectory(prefix='draftwright-plan-time-') as tmp:
             for part in inputs(args.corpus, Path(tmp)):
@@ -118,7 +143,7 @@ def main():
                 values = [timed(args.binary, part) for _ in range(args.runs)]
                 parts[part.stem] = {'seconds': statistics.median(values), 'samples': values}
                 print(f'{part.stem}: {parts[part.stem]["seconds"]:.3f}s', flush=True)
-        samples += [timed(args.binary, calibration) for _ in range(3)]
+        samples += [calibration_time(args.binary) for _ in range(3)]
         load()
     finally:
         stop.set()
@@ -127,13 +152,15 @@ def main():
         raise ValueError(f'load reached {max(loads):.2f}; timing unmeasured')
     cal = statistics.median(samples)
     total = sum(p['seconds'] for p in parts.values())
-    measured = {'format': 'draftwright.plan-time/1', 'calibration': CALIBRATION,
+    measured = {'format': 'draftwright.plan-time/2', 'calibration': CALIBRATION,
+                'calibration_sha256': calibration_fingerprint(),
+                'calibration_iterations': CALIBRATION_ITERATIONS,
                 'calibration_seconds': cal, 'calibration_samples': samples,
                 'total_seconds': total, 'normalised_total': total / cal,
                 'max_load': max(loads), 'parts': parts}
     if args.record:
         args.budget.write_text(json.dumps({k: measured[k] for k in
-                              ('format', 'calibration', 'normalised_total')}, indent=2) + '\n')
+                              ('format', 'calibration', 'calibration_sha256', 'calibration_iterations', 'normalised_total')}, indent=2) + '\n')
     return finish(measured, args)
 
 

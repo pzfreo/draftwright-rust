@@ -119,6 +119,10 @@ const END_MARGIN: f64 = 0.6;
 
 /// Reads what the sheet must make room for from *analysis*.
 pub fn read(analysis: &Analysis) -> Demand {
+    crate::planning::memo(analysis, "demand", Vec::new(), || read_uncached(analysis))
+}
+
+fn read_uncached(analysis: &Analysis) -> Demand {
     let mut d = Demand::default();
     let [lo, hi] = analysis.envelope;
     let frame = analysis.recognition.as_ref().map(|r| r.frame);

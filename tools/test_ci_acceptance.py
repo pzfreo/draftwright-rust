@@ -1,5 +1,6 @@
 """Acceptance gates must reject bad/incomplete evidence; no renderer mocks or extra packages."""
 import copy
+import hashlib
 import json
 import os
 import importlib.util
@@ -199,8 +200,12 @@ class Acceptance(unittest.TestCase):
 
     def test_plan_budget_rechecks_samples_and_rejects_lowered_or_incomplete_evidence(self):
         names = self.runner().survey_names()
-        budget = {'format': 'draftwright.plan-time/1',
-                  'calibration': 'cadgenbench/threaded_connector_109.step', 'normalised_total': 64}
+        budget = {'format': 'draftwright.plan-time/2',
+                  'calibration': 'tools/plan-time-calibration.json', 'normalised_total': 64,
+                  'calibration_iterations': 32768,
+                  'calibration_sha256': hashlib.sha256(
+                      (32768).to_bytes(8, 'big')
+                      + (ROOT / 'tools/plan-time-calibration.json').read_bytes()).hexdigest()}
         report = {**budget, 'parts': {p: {'seconds': 1, 'samples': [1]} for p in names},
                   'calibration_samples': [1] * 6, 'calibration_seconds': 1,
                   'total_seconds': 64, 'max_load': 0}
@@ -222,6 +227,40 @@ class Acceptance(unittest.TestCase):
                 checked = subprocess.run(command, capture_output=True, text=True)
                 self.assertEqual(checked.returncode, 1, checked.stderr)
                 self.assertIn('timing', checked.stderr)
+
+    def test_require_go_rejects_partial_or_unrelated_jobs(self):
+        for options in (['--job', 'mcp'], ['--job', 'quality-pins', '--pin-cell', '1-1']):
+            command = [sys.executable, '-I', str(RUNNER), '--require-go', *options]
+            checked = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 2)
+            self.assertIn('full random-pin grid', checked.stderr)
+
+    def test_local_timeout_overrides_are_forwarded_without_changing_ci_defaults(self):
+        runner = self.runner()
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path('corpus'),
+                                        part_timeout=14400, survey_shard=(1, 4)), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('repeated-spans')
+        command = step.call_args.args[1]
+        self.assertEqual(command[command.index('--timeout') + 1], 14400)
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), survey_shard=(1, 4)), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('repeated-spans')
+        command = step.call_args.args[1]
+        self.assertEqual(command[command.index('--timeout') + 1], 3600)
+
+    def test_instruction_gate_checks_total_and_each_part_without_tolerance(self):
+        spec = importlib.util.spec_from_file_location('instructions', ROOT / 'tools/check_plan_instructions.py')
+        instructions = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(instructions)
+        self.assertTrue(instructions.assess({'a': {'base': 100, 'head': 55}})['passed'])
+        self.assertFalse(instructions.assess({'a': {'base': 100, 'head': 56}})['passed'])
+        report = instructions.assess({'a': {'base': 1000, 'head': 100}, 'b': {'base': 10, 'head': 11}})
+        self.assertLess(report['ratio'], .55)
+        self.assertFalse(report['passed'])
+        self.assertEqual(set(report['worse_parts']), {'b'})
+        with self.assertRaises(ValueError):
+            instructions.assess({'a': {'base': 100, 'head': 0}})
 
     def test_survey_shards_partition_the_64_parts(self):
         runner = self.runner()

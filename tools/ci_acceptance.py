@@ -138,6 +138,7 @@ class Run:
         self.metrics = {}
 
     def step(self, label, argv, kind=None, result=None, baseline=None, timeout=1500):
+        timeout = max(timeout, getattr(self.args, 'step_timeout', None) or 0)
         start = time.monotonic()
         record = {'name': label, 'command': [str(a) for a in argv]}
         try:
@@ -164,11 +165,13 @@ class Run:
         args, out = self.args, self.out
         binary = args.binary
         py = [sys.executable, '-I']
+        part_timeout = getattr(args, 'part_timeout', None)
+        quality_args = ['--timeout', part_timeout] if part_timeout else []
         if job == 'quality-pins':
             files = [args.corpus / p for p in manifest('quality_parts.txt')]
             quality_out = out / 'quality'
             fresh = quality_out / 'baseline.json'
-            self.step('quality', [*py, ROOT / 'tools/quality.py', binary, quality_out, *files],
+            self.step('quality', [*py, ROOT / 'tools/quality.py', *quality_args, binary, quality_out, *files],
                       'quality', fresh, args.baseline)
             # The deliberate failure uses a real measured report, without changing the accepted baseline.
             if fresh.is_file():
@@ -190,13 +193,13 @@ class Run:
                 seed, pins = map(int, cell.split('-'))
                 pin_out = out / f'pins-{cell}'
                 self.step(f'pins-{cell}', [*py, ROOT / 'tools/quality.py', '--seed', seed,
-                          '--pins', pins, '--baseline', fresh, '--require-go', binary, pin_out, *files],
+                          '--pins', pins, '--baseline', fresh, '--require-go', *quality_args, binary, pin_out, *files],
                           'pins', pin_out / 'random-pins.json', fresh)
         elif job == 'repeated-spans':
             survey_out = out / 'survey'
             k, n = getattr(args, 'survey_shard', (1, 1))
             self.step('survey', [*py, ROOT / 'tools/survey_repeated_spans.py',
-                      '--timeout', 3600, '--shard', f'{k}/{n}', binary, survey_out],
+                      '--timeout', part_timeout or 3600, '--shard', f'{k}/{n}', binary, survey_out],
                       'survey', survey_out / 'baseline.json', timeout=6600)
         elif job == 'plan-time':
             self.step('plan-time', [*py, ROOT / 'tools/check_plan_time.py',
@@ -215,9 +218,11 @@ def main():
     parser.add_argument('--job', choices=(*JOBS, 'all'), default='all')
     parser.add_argument('--pin-cell', choices=PIN_CELLS, help='Run one seed-N cell with a fresh baseline')
     parser.add_argument('--require-go', action='store_true',
-                        help='Explicit pin-bar gate; every pin run already enforces GO')
+                        help='Require the full nine-cell random-pin grid (with --job all or quality-pins)')
     parser.add_argument('--survey-shard', type=survey.shard_arg, default=(1, 1), metavar='K/N',
                         help='Run one of N slices of the repeated-span survey')
+    parser.add_argument('--part-timeout', type=int, help='Override local quality/survey operation timeouts')
+    parser.add_argument('--step-timeout', type=int, help='Extend local job-step wall timeouts')
     parser.add_argument('--binary', type=Path, default=Path('target/release/draftwright'))
     parser.add_argument('--corpus', type=Path, default=os.environ.get('DRAFTWRIGHT_CORPUS'))
     parser.add_argument('--out', type=Path, default=Path('target/acceptance'))
@@ -226,6 +231,10 @@ def main():
     parser.add_argument('--results', type=Path)
     parser.add_argument('--documents-dir', type=Path, help='Check saved MCP judge documents and PNGs')
     args = parser.parse_args()
+    if any(t is not None and t <= 0 for t in (args.part_timeout, args.step_timeout)):
+        parser.error('timeouts must be positive')
+    if args.require_go and (args.pin_cell or args.job not in ('all', 'quality-pins') or args.check_results):
+        parser.error('--require-go requires the full random-pin grid: --job all or quality-pins, without --pin-cell')
     if args.pin_cell and args.job != 'quality-pins':
         parser.error('--pin-cell requires --job quality-pins')
     if args.survey_shard != (1, 1) and args.job != 'repeated-spans' and args.check_results != 'survey':

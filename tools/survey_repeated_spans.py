@@ -34,7 +34,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary')
     parser.add_argument('out', type=Path)
-    parser.add_argument('--timeout', type=int, default=600, help='Per render/plan timeout in seconds')
+    parser.add_argument('--timeout', type=float, default=600, help='Per render/plan timeout in seconds')
     parser.add_argument('--shard', type=shard_arg, default=(1, 1), metavar='K/N',
                         help='Survey only the K-th of N interleaved slices of the sorted part names')
     parser.add_argument('--before', type=Path, help='Verify the recorded pre-E3 patterns against this baseline')

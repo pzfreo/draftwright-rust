@@ -1,5 +1,7 @@
 {
-  "format": "draftwright.plan-time/1",
-  "calibration": "cadgenbench/threaded_connector_109.step",
-  "normalised_total": 61.68935300984402
+  "format": "draftwright.plan-time/2",
+  "calibration": "tools/plan-time-calibration.json",
+  "calibration_sha256": "1e05edf56b564705bf9cd560946c7b50c1bce21877281477e29e7058c6ff6f83",
+  "calibration_iterations": 32768,
+  "normalised_total": 10218707.368825901
 }
