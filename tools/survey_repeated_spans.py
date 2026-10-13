@@ -18,11 +18,25 @@ quality = importlib.util.module_from_spec(module)
 module.loader.exec_module(quality)
 
 
+def shard_arg(text):
+    k, n = map(int, text.split('/'))
+    if not 1 <= k <= n:
+        raise argparse.ArgumentTypeError('shard must be K/N with 1 <= K <= N')
+    return k, n
+
+
+def in_shard(names, k, n):
+    """The K-th of N interleaved slices of the sorted names; the N slices partition them."""
+    return sorted(names)[k - 1::n]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary')
     parser.add_argument('out', type=Path)
     parser.add_argument('--timeout', type=int, default=600, help='Per render/plan timeout in seconds')
+    parser.add_argument('--shard', type=shard_arg, default=(1, 1), metavar='K/N',
+                        help='Survey only the K-th of N interleaved slices of the sorted part names')
     parser.add_argument('--before', type=Path, help='Verify the recorded pre-E3 patterns against this baseline')
     args = parser.parse_args()
     if args.timeout <= 0:
@@ -56,6 +70,8 @@ def main():
         files.append(path)
     assert all(p.is_file() for p in files), 'a survey input is missing'
     assert len({p.stem for p in files}) == len(files), 'ambiguous output basenames'
+    keep = set(in_shard({p.stem for p in files}, *args.shard))
+    files = [p for p in files if p.stem in keep]
     (args.out / 'inputs.txt').write_text(''.join(f'{p}\n' for p in files))
     with ThreadPoolExecutor(4) as executor:
         results = dict(executor.map(lambda p: quality.one(str(p), args.binary, str(args.out), timeout=args.timeout), files))

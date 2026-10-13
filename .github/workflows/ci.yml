@@ -152,9 +152,13 @@ jobs:
           - {job: quality-pins, label: quality-pins-3-1, pin_args: "--pin-cell 3-1", timeout: 30}
           - {job: quality-pins, label: quality-pins-3-3, pin_args: "--pin-cell 3-3", timeout: 30}
           - {job: quality-pins, label: quality-pins-3-8, pin_args: "--pin-cell 3-8", timeout: 30}
-          # The local 745 s survey projects to ~68 min at the observed 5.5x
-          # hosted slowdown. Allow 110 min for the step and 120 min for the job.
-          - {job: repeated-spans, label: repeated-spans, pin_args: "", timeout: 120}
+          # The 64-part survey runs as four interleaved slices of the sorted part
+          # names (the slices partition the survey); each keeps the 3600 s per-call
+          # budget, and the job limit stays at 120 min.
+          - {job: repeated-spans, label: repeated-spans-1-4, pin_args: "--survey-shard 1/4", timeout: 120}
+          - {job: repeated-spans, label: repeated-spans-2-4, pin_args: "--survey-shard 2/4", timeout: 120}
+          - {job: repeated-spans, label: repeated-spans-3-4, pin_args: "--survey-shard 3/4", timeout: 120}
+          - {job: repeated-spans, label: repeated-spans-4-4, pin_args: "--survey-shard 4/4", timeout: 120}
           - {job: mcp, label: mcp, pin_args: "", timeout: 10}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
