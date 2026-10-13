@@ -1,0 +1,272 @@
+"""Rendered leader acceptance: length, hidden/section/cut crossings and 0.3 mm runs.
+
+Record origin/main with --record, then compare any quality.py output directory.
+The immutable fixture records every placed callout on all thirty quality parts.
+Unchanged pre-existing runs are reported; moving a callout may not retain one.
+Dashes are judged by their underlying stroke; curves use 0.002 mm chord error.
+"""
+import argparse
+import importlib.util
+import json
+import math
+from pathlib import Path
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('quality', ROOT / 'tools/quality.py')
+quality = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(quality)
+
+def flatten(at, end, f, depth=0):
+    middle = f(0.5)
+    flat = all(math.dist(f(t), [at[k]+t*(end[k]-at[k]) for k in (0,1)]) <= 0.002
+               for t in (.25,.5,.75))
+    if depth >= 20 or flat:
+        return [at, end]
+    return (flatten(at, middle, lambda t: f(t / 2), depth + 1)[:-1]
+            + flatten(middle, end, lambda t: f((t + 1) / 2), depth + 1))
+
+def points(element):
+    tag = element.tag.rsplit('}', 1)[-1]
+    a = element.attrib
+    if tag == 'line':
+        return [(float(a['x1']), float(a['y1'])), (float(a['x2']), float(a['y2']))]
+    if tag in ('circle', 'ellipse'):
+        rx, ry = float(a.get('rx', a.get('r', 0))), float(a.get('ry', a.get('r', 0)))
+        cx, cy = float(a['cx']), float(a['cy'])
+        f = lambda t: [cx + rx * math.cos(t * 2 * math.pi), cy + ry * math.sin(t * 2 * math.pi)]
+        return sum((flatten(f(i/4), f((i+1)/4), lambda t, i=i: f((i+t)/4))[:-1]
+                    for i in range(4)), []) + [f(1)]
+    if tag != 'path':
+        return []
+    tokens = re.findall(r'[A-Za-z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?', a['d'])
+    out, at, i = [], [0, 0], 0
+    while i < len(tokens):
+        command = tokens[i]; i += 1
+        n = {'M': 2, 'L': 2, 'Q': 4, 'C': 6, 'A': 7, 'Z': 0}[command]
+        values = list(map(float, tokens[i:i+n])); i += n
+        if command == 'Z':
+            out.append(out[0]); continue
+        end = values[-2:]
+        if command in ('M', 'L'):
+            out.append(end)
+        elif command in ('Q', 'C'):
+            poles = [at] + [values[k:k+2] for k in range(0, n, 2)]
+            def bezier(t):
+                q = poles
+                while len(q) > 1:
+                    q = [[(1-t)*a[k]+t*b[k] for k in (0,1)] for a,b in zip(q,q[1:])]
+                return q[0]
+            out.extend(flatten(at, end, bezier)[1:])
+        else:
+            rx, ry, rotation, large, sweep = values[:5]
+            phi = math.radians(rotation); c, s = math.cos(phi), math.sin(phi)
+            dx, dy = (at[0]-end[0])/2, (at[1]-end[1])/2
+            x, y = c*dx+s*dy, -s*dx+c*dy
+            factor = max(1, math.sqrt((x/rx)**2+(y/ry)**2))
+            rx *= factor; ry *= factor
+            k = math.sqrt(max(0, (rx*ry)**2-(rx*y)**2-(ry*x)**2)
+                          / max(1e-30, (rx*y)**2+(ry*x)**2))
+            if bool(large) == bool(sweep): k = -k
+            ux, uy = k*rx*y/ry, -k*ry*x/rx
+            cx, cy = (at[0]+end[0])/2+c*ux-s*uy, (at[1]+end[1])/2+s*ux+c*uy
+            start = math.atan2((y-uy)/ry, (x-ux)/rx)
+            stop = math.atan2((-y-uy)/ry, (-x-ux)/rx)
+            angle = (stop-start) % (2*math.pi)
+            if not sweep: angle -= 2*math.pi
+            f = lambda t: [cx+c*rx*math.cos(start+angle*t)-s*ry*math.sin(start+angle*t),
+                           cy+s*rx*math.cos(start+angle*t)+c*ry*math.sin(start+angle*t)]
+            steps = max(1, math.ceil(abs(angle)/(math.pi/2)))
+            for j in range(steps):
+                out.extend(flatten(f(j/steps), f((j+1)/steps),
+                                   lambda t, j=j: f((j+t)/steps))[1:])
+        at = end
+    return out
+
+
+def crosses(a, b):
+    def side(p, q, r):
+        return (q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0])
+    return (side(*a, b[0])*side(*a, b[1]) < -1e-12
+            and side(*b, a[0])*side(*b, a[1]) < -1e-12)
+
+
+def along_interval(a, b):
+    """Fraction of a inside the finite 0.3 mm strip beside b, including near-parallel travel."""
+    if any(max(a[0][k],a[1][k]) < min(b[0][k],b[1][k])-.3
+           or min(a[0][k],a[1][k]) > max(b[0][k],b[1][k])+.3 for k in (0,1)):
+        return None
+    d = [a[1][k]-a[0][k] for k in (0,1)]
+    w = [b[1][k]-b[0][k] for k in (0,1)]
+    n = sum(x*x for x in w)
+    if n < 1e-18:
+        return None
+    # Transverse strips shorter than 2 mm cannot join into collinear travel.
+    if abs(d[0]*w[1]-d[1]*w[0]) > (2*.3/2)*math.dist(*a)*math.sqrt(n):
+        return None
+    q = [a[0][k]-b[0][k] for k in (0,1)]
+    band = .3*math.sqrt(n)
+    lo, hi = 0.0, 1.0
+    for at,slope,lower,upper in ((sum(x*y for x,y in zip(q,w)),sum(x*y for x,y in zip(d,w)),0,n),
+                                (q[0]*w[1]-q[1]*w[0],d[0]*w[1]-d[1]*w[0],-band,band)):
+        if abs(slope) < 1e-15:
+            if not lower <= at <= upper:
+                return None
+        else:
+            x,y = (lower-at)/slope,(upper-at)/slope
+            lo,hi = max(lo,min(x,y)),min(hi,max(x,y))
+    return (lo,hi) if hi > lo else None
+
+
+def longest_run(a, ink):
+    intervals = sorted(q for b in ink if (q := along_interval(a,b)) is not None)
+    start, stop, longest = 0.0, 0.0, 0.0
+    for lo,hi in intervals:
+        if lo > stop + 1e-9:
+            start = lo
+        stop = max(stop,hi)
+        longest = max(longest,stop-start)
+    return longest * math.dist(*a)
+
+
+def measures(plan, svg, analysis):
+    root = ET.parse(svg).getroot()
+    layers = {g.get('id'): [points(e) for e in g]
+              for g in root.iter() if g.get('id') in ('part', 'hidden', 'hatch', 'centres')}
+    segments = {k: [s for c in cs for s in zip(c,c[1:])] for k,cs in layers.items()}
+    extensions = [line for d in plan['dimensions'] if d.get('placed')
+                  and len(d['placed'].get('arrows', [])) == 2
+                  for line in d['placed']['lines'][:2]]
+    cuts = []
+    for v in plan['views']:
+        cut = v.get('cut')
+        if not cut:
+            continue
+        marked = next((m for m in plan['views'] if m['id'].removeprefix('v:')
+                       == cut['marked_in'].removeprefix('v:')), None)
+        if not marked:
+            continue
+        up, toward = marked['up'], marked['direction']
+        right = [up[1]*toward[2]-up[2]*toward[1], up[2]*toward[0]-up[0]*toward[2],
+                 up[0]*toward[1]-up[1]*toward[0]]
+        lo, hi = analysis['envelope']
+        centre = [(a+b)/2 for a,b in zip(lo,hi)]
+        def page(q):
+            return [marked['at'][k] + marked['scale'] * sum(
+                d[j]*(q[j]-centre[j]) for j in range(3)) for k,d in enumerate((right,up))]
+        a, b = page([lo[0],cut['origin'][1],lo[2]]), page([hi[0],cut['origin'][1],hi[2]])
+        y = page(cut['origin'])[1]
+        cuts.append([[min(a[0],b[0])-4,y],[max(a[0],b[0])+4,y]])
+    section_views = [v for v in plan['views'] if v.get('cut')]
+    def in_section(c):
+        if not c:
+            return False
+        q = c[len(c)//2]
+        return any(v['area'][0] <= q[0] <= v['area'][2]
+                   and v['area'][1] <= q[1] <= v['area'][3] for v in section_views)
+    section = [s for c in layers.get('part', []) if in_section(c) for s in zip(c,c[1:])]
+    # Section hatching shares the dims layer. Subtract the Plan's annotation strokes,
+    # then include its remaining straight ink in each section's reserved area.
+    annotation = [s for d in plan['dimensions'] if d.get('placed')
+                  for s in d['placed']['lines'] + d['placed'].get('arrows', [])]
+    for g in root.iter():
+        if g.get('id') != 'dims':
+            continue
+        for e in g:
+            if e.tag.rsplit('}',1)[-1] != 'line':
+                continue
+            c = points(e)
+            if in_section(c) and not any(max(math.dist(a,b) for a,b in zip(c,s)) < 1e-5
+                                         for s in annotation):
+                section.append(c)
+    out = {}
+    for d in plan['dimensions']:
+        if d.get('kind') != 'callout' or not d.get('placed'):
+            continue
+        p = d['placed']; lines = p['lines']
+        view = next(v for v in plan['views'] if v['id'] == d['view'])
+        route = [[q[k]-view['at'][k] for k in (0,1)] for l in lines for q in l]
+        label = [p['label_box'][k]-view['at'][k%2] for k in range(4)]
+        model = segments.get('part', []) + segments.get('hidden', []) + extensions
+        counts = {k: sum(any(crosses(l,s) for l in lines) for s in ink)
+                  for k,ink in [('hidden', segments.get('hidden', [])),
+                                ('section', section), ('cutting_plane', cuts)]}
+        out[d['id']] = dict(length=sum(math.dist(*l) for l in lines),
+                            run=max((longest_run(l,model) for l in lines), default=0),
+                            route=route, label=label, **counts)
+    return out
+
+
+def check(before, after):
+    failures = []
+    if set(before) != set(after):
+        failures.append('incomplete thirty-part inventory')
+    for part, old in before.items():
+        now = after.get(part, {})
+        if set(old) != set(now):
+            failures.append(f'{part}: callout inventory changed (information needs review)')
+        for id_, b in old.items():
+            if id_ not in now:
+                continue
+            a = now[id_]
+            if a['length'] > b['length'] + 2.0 + 1e-6:
+                failures.append(f"{part}: {id_}: length {b['length']:.3f} -> {a['length']:.3f} mm")
+            for key in ('hidden', 'section', 'cutting_plane'):
+                if a[key] > b[key]:
+                    failures.append(f'{part}: {id_}: {key} {b[key]} -> {a[key]}')
+            moved = (len(a['route']) != len(b['route'])
+                     or any(math.dist(x,y) > 1e-6 for x,y in zip(a['route'],b['route']))
+                     or any(abs(x-y) > 1e-6 for x,y in zip(a['label'],b['label'])))
+            if a['run'] > 2.0 + 1e-6 and (moved or a['run'] > b['run'] + 1e-6):
+                failures.append(f"{part}: {id_}: runs beside model/hidden/extension {a['run']:.3f} mm")
+    return failures
+
+
+def collect(directory):
+    out = {}
+    for file in (ROOT / 'tools/quality_parts.txt').read_text().splitlines():
+        name = Path(file).stem
+        plan = json.loads((directory / (name+'.plan.json')).read_text())
+        analysis = json.loads((directory / (name+'.analysis.json')).read_text())
+        out[name] = measures(plan, directory / (name+'.svg'), analysis)
+    return out
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('drawings', type=Path)
+    p.add_argument('--baseline', type=Path, default=ROOT / 'tests/fixtures/leader_routes.json')
+    p.add_argument('--record', type=Path)
+    p.add_argument('--require-improvement', action='store_true')
+    p.add_argument('--report', type=Path)
+    args = p.parse_args()
+    result = collect(args.drawings)
+    contacts = {name: quality.leader_on_extension(json.loads(
+        (args.drawings / (name+'.plan.json')).read_text())) for name in result}
+    if args.record:
+        args.record.write_text(json.dumps(dict(base='0419fa6c1ebc81226cb577639276ea45eb9df3a1', parts=result, contacts=contacts), indent=2, sort_keys=True)+'\n')
+        return 0
+    baseline = json.loads(args.baseline.read_text())
+    failures = check(baseline['parts'], result)
+    for name, value in contacts.items():
+        if value > baseline['contacts'][name]:
+            failures.append(f'{name}: extension contacts {baseline["contacts"][name]} -> {value}')
+    if args.require_improvement and sum(contacts.values()) >= sum(baseline['contacts'].values()):
+        failures.append(f'extension contacts did not fall: {sum(contacts.values())}')
+    residual = {name: {id_: row['run'] for id_,row in rows.items() if row['run'] > 2.0 + 1e-6}
+                for name,rows in result.items()}
+    residual = {name:rows for name,rows in residual.items() if rows}
+    if args.report:
+        args.report.write_text(json.dumps(dict(parts=result, contacts=contacts, failures=failures,
+            residual_runs=residual), indent=2, sort_keys=True)+'\n')
+    print('\n'.join(failures) if failures else
+          f'PASS: {sum(map(len,result.values()))} callouts on {len(result)} parts; '
+          'length <= base + 2 mm, no extra hidden/section/cut crossings or new runs over 2 mm; '
+          f'{sum(map(len,residual.values()))} unchanged pre-existing runs remain')
+    return bool(failures)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

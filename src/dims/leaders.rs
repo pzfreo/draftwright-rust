@@ -682,41 +682,15 @@ pub(super) fn place_with_obstacles(
         }
     }
     let mut problems = Vec::new();
-    let named = |i: usize| format!("{} ({})", items[i].id, items[i].terms.join(" "));
     for ((i, job), (inv, c)) in jobs.iter().zip(inventories.iter().zip(choice)) {
         let Some(chosen) = inv.get(c) else { continue };
         placed[*i] = Some(chosen.placed());
-        let shaft = [chosen.tip, chosen.elbow];
-        let view = format!("v:{}", job.view);
-        if reenters(shaft, job.outline) {
-            let subjects = vec![items[*i].id.clone(), view.clone()];
-            problems.push(Problem {
-                id: format!("p:annotation_line_over_view:{}", subjects.join("|")),
-                code: "annotation_line_over_view".into(),
-                severity: "warning".into(),
-                message: format!(
-                    "The leader of {} runs back across its own {view} view: every place it had was blocked.",
-                    named(*i)
-                ),
-                subjects,
-                ..Default::default()
-            });
-        }
-        let length = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
-        if length > MAX_LEADER {
-            let subjects = vec![items[*i].id.clone()];
-            problems.push(Problem {
-                id: format!("p:annotation_leader_long:{}", subjects.join("|")),
-                code: "annotation_leader_long".into(),
-                severity: "warning".into(),
-                message: format!(
-                    "The leader of {} is {length:.1} mm long, over the {MAX_LEADER} mm a leader may run: every shorter place it had was blocked.",
-                    named(*i)
-                ),
-                subjects,
-                ..Default::default()
-            });
-        }
+        problems.extend(route_reports(
+            &items[*i],
+            job.view,
+            job.outline,
+            [chosen.tip, chosen.elbow],
+        ));
     }
     for group in capped {
         let subjects: Vec<String> = group.iter().map(|&k| items[jobs[k].0].id.clone()).collect();
@@ -733,6 +707,443 @@ pub(super) fn place_with_obstacles(
         });
     }
     problems
+}
+
+/// Geometry findings are rebuilt when a refinement replaces their route.
+fn route_reports(item: &Want, view_name: &str, outline: [f64; 4], shaft: [P2; 2]) -> Vec<Problem> {
+    let mut problems = Vec::new();
+    let named = format!("{} ({})", item.id, item.terms.join(" "));
+    let view = format!("v:{}", view_name);
+    if reenters(shaft, outline) {
+        let subjects = vec![item.id.clone(), view.clone()];
+        problems.push(Problem {
+                id: format!("p:annotation_line_over_view:{}", subjects.join("|")),
+                code: "annotation_line_over_view".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The leader of {} runs back across its own {view} view: every place it had was blocked.",
+                    named
+                ),
+                subjects,
+                ..Default::default()
+            });
+    }
+    let length = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
+    if length > MAX_LEADER {
+        let subjects = vec![item.id.clone()];
+        problems.push(Problem {
+                id: format!("p:annotation_leader_long:{}", subjects.join("|")),
+                code: "annotation_leader_long".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The leader of {} is {length:.1} mm long, over the {MAX_LEADER} mm a leader may run: every shorter place it had was blocked.",
+                    named
+                ),
+                subjects,
+                ..Default::default()
+            });
+    }
+    problems
+}
+
+/// Local callout refinement after interior placement, with the rest of the ink held fixed.
+/// A pad contact never buys a longer trip across a view or travel along its line-work.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn refine(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    cache: &super::footprints::Cache,
+    views: &[crate::model::PlannedView],
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&str>],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    obstacles: &[PlannedDimension],
+    proofs: &BTreeMap<String, super::interior::Proof>,
+) -> BTreeMap<String, Vec<Problem>> {
+    let mut updated = BTreeMap::new();
+    let Some(ink) = analysis.edge_ink.as_ref() else {
+        return updated;
+    };
+    let mut model = Vec::new();
+    let mut uncertain = Vec::new();
+    for v in views {
+        let frame = Frame::new(analysis, v);
+        if v.id == "v:iso" {
+            let b = analysis.iso_bounds;
+            uncertain.push([
+                v.at[0] + v.scale * b[0],
+                v.at[1] + v.scale * b[1],
+                v.at[0] + v.scale * b[2],
+                v.at[1] + v.scale * b[3],
+            ]);
+            continue;
+        }
+        if v.cut.is_some() {
+            // Section ink needs a cut B-rep: new routes stay outside its envelope.
+            uncertain.push(frame.outline());
+            continue;
+        }
+        model.extend(
+            ink.edges
+                .iter()
+                .flat_map(|e| e.windows(2).map(|s| [frame.page(s[0]), frame.page(s[1])])),
+        );
+        for f in &ink.curved {
+            let [lo, hi] = f.bounds;
+            let corners: Vec<_> = (0..8)
+                .map(|i| [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] }))
+                .collect();
+            if let Some(c) = &f.cylinder {
+                let norm = c.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
+                let axis = c.axis.map(|x| x / norm.max(1e-12));
+                let along: f64 = (0..3).map(|k| axis[k] * v.direction[k]).sum();
+                if along.abs() > 1.0 - 1e-9 {
+                    continue;
+                }
+                if along.abs() < 1e-9 {
+                    let h: Vec<f64> = corners
+                        .iter()
+                        .map(|p| (0..3).map(|k| (p[k] - c.origin[k]) * axis[k]).sum())
+                        .collect();
+                    let h0 = h.iter().copied().fold(f64::INFINITY, f64::min);
+                    let h1 = h.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                    let w = [
+                        axis[1] * v.direction[2] - axis[2] * v.direction[1],
+                        axis[2] * v.direction[0] - axis[0] * v.direction[2],
+                        axis[0] * v.direction[1] - axis[1] * v.direction[0],
+                    ];
+                    for sign in [-1.0, 1.0] {
+                        let at = |t| {
+                            frame.page(
+                                [0, 1, 2]
+                                    .map(|k| c.origin[k] + t * axis[k] + sign * c.radius * w[k]),
+                            )
+                        };
+                        model.push([at(h0), at(h1)]);
+                    }
+                    continue;
+                }
+            }
+            let b = corners.into_iter().map(|p| frame.page(p)).fold(
+                [
+                    f64::INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NEG_INFINITY,
+                ],
+                |b, p| {
+                    [
+                        b[0].min(p[0]),
+                        b[1].min(p[1]),
+                        b[2].max(p[0]),
+                        b[3].max(p[1]),
+                    ]
+                },
+            );
+            uncertain.push(b);
+        }
+    }
+    let cuts: Vec<_> = views
+        .iter()
+        .flat_map(|v| &v.line_work)
+        .filter(|w| w.kind == "cutting_plane")
+        .flat_map(crate::centrelines::segments)
+        .collect();
+    let footprints: BTreeMap<_, _> = views
+        .iter()
+        .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
+        .collect();
+    for (i, w) in items.iter().enumerate() {
+        let (Shape::Callout { sites }, Some(view), Some(old)) =
+            (&w.shape, views_of[i], placed[i].as_ref())
+        else {
+            continue;
+        };
+        if spec
+            .dimensions
+            .get(&w.id)
+            .is_some_and(|d| d.place.is_some())
+        {
+            continue;
+        }
+        let extensions: Vec<_> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .filter_map(|(j, p)| p.as_ref().map(|p| (j, p)))
+            .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
+            .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
+            .collect();
+        let contact = |p: &Placed| {
+            let b = p.label_box;
+            let pad = [
+                b[0] - LABEL_PAD,
+                b[1] - LABEL_PAD,
+                b[2] + LABEL_PAD,
+                b[3] + LABEL_PAD,
+            ];
+            let mut pairs = std::collections::BTreeSet::new();
+            for (j, e) in &extensions {
+                let b = [
+                    e[0][0].min(e[1][0]) - LABEL_PAD,
+                    e[0][1].min(e[1][1]) - LABEL_PAD,
+                    e[0][0].max(e[1][0]) + LABEL_PAD,
+                    e[0][1].max(e[1][1]) + LABEL_PAD,
+                ];
+                if touches_box(*e, pad) || p.lines.iter().any(|s| touches_box(*s, b)) {
+                    pairs.insert(*j);
+                }
+            }
+            pairs.len()
+        };
+        let runs = |lines: &[[P2; 2]]| {
+            lines.iter().any(|s| {
+                let ink = model.iter().chain(extensions.iter().map(|(_, s)| s));
+                let mut intervals: Vec<_> = ink.filter_map(|e| along_interval(*s, *e)).collect();
+                intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
+                let (mut start, mut stop) = (0.0_f64, 0.0_f64);
+                for (lo, hi) in intervals {
+                    if lo > stop + 1e-9 {
+                        start = lo;
+                    }
+                    stop = stop.max(hi);
+                    let length = (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]);
+                    if (stop - start) * length > 2.0 + 1e-6 {
+                        return true;
+                    }
+                }
+                false
+            })
+        };
+        let before = contact(old);
+        if before == 0 {
+            continue;
+        }
+        let ink = label_ink(&w.terms, font());
+        let job = Job {
+            view,
+            footprints: &footprints[view],
+            outline: frames[view].outline(),
+            area: page.area(view),
+            sites: page_sites(&frames[view], sites),
+            ink_min: ink.min,
+            ink_max: ink.max,
+            beyond: [CLEAR; 4],
+        };
+        let mut fixed = Fixed::new(
+            placed
+                .iter()
+                .enumerate()
+                .filter(|(j, _)| *j != i)
+                .filter_map(|(j, p)| Some((j, p.as_ref()?)))
+                .chain(
+                    obstacles
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(j, d)| Some((items.len() + j, d.placed.as_ref()?))),
+                ),
+        );
+        fixed.furniture = obstacles
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.kind == "ink")
+            .map(|(j, d)| (items.len() + j, d.basis == "global_axis"))
+            .collect();
+        fixed.crosses = obstacles
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.kind == "ink" && d.basis == "cross")
+            .map(|(j, _)| items.len() + j)
+            .collect();
+        let [tip, elbow] = old.lines[0];
+        let end = old.lines[1][1];
+        let right = end[0] >= elbow[0];
+        let Some(prior) = measure_at(&job, tip, elbow, end, right, &fixed, page) else {
+            continue;
+        };
+        let length = |p: &Placed| {
+            p.lines
+                .iter()
+                .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+                .sum::<f64>()
+        };
+        let crossed = |lines: &[[P2; 2]], e| lines.iter().any(|s| segments_cross(*s, e));
+        let interior = views
+            .iter()
+            .find(|v| v.id.trim_start_matches("v:") == view)
+            .and_then(|v| {
+                proofs
+                    .get(&v.id)
+                    .filter(|proof| proof.annotation_clear(v, old, true))
+                    .map(|proof| (v, proof))
+            });
+        let route_safe = |lines: &[[P2; 2]]| {
+            // Reject geometry before measuring feature crossings (the expensive tier).
+            let next_length: f64 = lines
+                .iter()
+                .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+                .sum();
+            next_length <= length(old) + 2.0 + 1e-6
+                && !uncertain
+                    .iter()
+                    .any(|b| lines.iter().any(|s| touches_box(*s, *b)))
+                && !runs(lines)
+                && !model
+                    .iter()
+                    .chain(&cuts)
+                    .any(|s| crossed(lines, *s) && !crossed(&old.lines, *s))
+        };
+        let acceptable = |c: &Candidate| {
+            if c.hard > prior.hard
+                || c.crossings > prior.crossings
+                || c.feature_crossings > prior.feature_crossings
+                || c.outside > prior.outside
+                || c.text > prior.text
+                || c.furniture > prior.furniture
+                || c.beside > prior.beside
+            {
+                return None;
+            }
+            let p = c.placed();
+            if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true)) {
+                return None;
+            }
+            let contacts = contact(&p);
+            if contacts >= before {
+                return None;
+            }
+            Some((contacts, c.score()))
+        };
+        let mut best = None;
+        // One text row around the incumbent, at the existing paper station spacing.
+        // Local moves preserve physical radius attachments; diameter tips remain radial.
+        for n in 1..=ROW as usize {
+            for delta in [
+                [-1., 0.],
+                [1., 0.],
+                [0., -1.],
+                [0., 1.],
+                [-1., -1.],
+                [-1., 1.],
+                [1., -1.],
+                [1., 1.],
+            ] {
+                let shift = delta.map(|x| x * n as f64 * STEP);
+                let q = [0, 1].map(|k| elbow[k] + shift[k]);
+                let t = if w
+                    .measurements
+                    .iter()
+                    .any(|m| m.parameter.ends_with(".diameter"))
+                {
+                    let site = nearest(&job.sites, q);
+                    if (q[0] - site.0[0]).hypot(q[1] - site.0[1]) <= site.1 {
+                        continue;
+                    }
+                    rim_tip(site, q)
+                } else {
+                    tip
+                };
+                for right in [right, !right] {
+                    let e = [
+                        q[0] + if right {
+                            (end[0] - elbow[0]).abs()
+                        } else {
+                            -(end[0] - elbow[0]).abs()
+                        },
+                        q[1],
+                    ];
+                    if (q[0] - t[0]) * (e[0] - q[0]) < -1e-9 {
+                        continue;
+                    }
+                    if !route_safe(&[[t, q], [q, e]]) {
+                        continue;
+                    }
+                    let Some(c) = measure_at(&job, t, q, e, right, &fixed, page) else {
+                        continue;
+                    };
+                    let Some(key) = acceptable(&c) else { continue };
+                    if best.as_ref().is_none_or(|(k, _)| key < *k) {
+                        best = Some((key, c.placed()));
+                    }
+                }
+            }
+        }
+        if let Some((_, p)) = best {
+            updated.insert(
+                w.id.clone(),
+                route_reports(w, view, job.outline, p.lines[0]),
+            );
+            placed[i] = Some(p);
+        }
+    }
+    updated
+}
+
+fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for k in 0..2 {
+        let d = s[1][k] - s[0][k];
+        if d.abs() < 1e-12 {
+            if s[0][k] < b[k] || s[0][k] > b[k + 2] {
+                return false;
+            }
+        } else {
+            let a = (b[k] - s[0][k]) / d;
+            let z = (b[k + 2] - s[0][k]) / d;
+            lo = lo.max(a.min(z));
+            hi = hi.min(a.max(z));
+        }
+    }
+    lo <= hi
+}
+
+/// The interval along a leader within 0.3 paper mm of another finite segment.
+/// Clip both its overlap and its perpendicular distance, including near-parallel runs.
+fn along_interval(a: [P2; 2], b: [P2; 2]) -> Option<(f64, f64)> {
+    if (0..2).any(|k| {
+        a[0][k].max(a[1][k]) < b[0][k].min(b[1][k]) - 0.3
+            || a[0][k].min(a[1][k]) > b[0][k].max(b[1][k]) + 0.3
+    }) {
+        return None;
+    }
+    let d = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
+    let w = [b[1][0] - b[0][0], b[1][1] - b[0][1]];
+    let n = w[0] * w[0] + w[1] * w[1];
+    if n < 1e-18 {
+        return None;
+    }
+    // A transverse 0.6 mm strip cannot hold 2 mm of travel. It must not join
+    // neighbouring transverse contacts into an apparent run along a line.
+    let length = d[0].hypot(d[1]);
+    if (d[0] * w[1] - d[1] * w[0]).abs() > (2.0 * 0.3 / 2.0) * length * n.sqrt() {
+        return None;
+    }
+    let q = [a[0][0] - b[0][0], a[0][1] - b[0][1]];
+    let band = 0.3 * n.sqrt();
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for (at, slope, min, max) in [
+        (q[0] * w[0] + q[1] * w[1], d[0] * w[0] + d[1] * w[1], 0.0, n),
+        (
+            q[0] * w[1] - q[1] * w[0],
+            d[0] * w[1] - d[1] * w[0],
+            -band,
+            band,
+        ),
+    ] {
+        if slope.abs() < 1e-15 {
+            if at < min || at > max {
+                return None;
+            }
+        } else {
+            let a = (min - at) / slope;
+            let b = (max - at) / slope;
+            lo = lo.max(a.min(b));
+            hi = hi.min(a.max(b));
+        }
+    }
+    (hi > lo).then_some((lo, hi))
 }
 
 /// A callout's sites on the page, at most [`MAX_SITES`]. A silhouette site (radius 0) that lands

@@ -6102,3 +6102,57 @@ Whoever owns the next h-extlines round should start from the WIP branch. The ope
 question is how open-side bands fit H6. H6 chooses among tries planned at a named sheet,
 so the first estimate's open bands rarely reach the final drawing. Pins take the
 canonical (try) frames, not the first estimate's.
+
+## Stage I L1 leader routing judgements (2026-10-13, Codex, overturnable)
+
+- The retry works after the exterior and interior assignments, on every automatic
+  callout, with the other ink fixed. Authored placement intents retain precedence.
+  Local candidates use the existing 1 mm paper station spacing within one 7 mm
+  text row, on either outward label side. The original physical attachment is held
+  for radius/edge callouts; diameter tips remain radial. A reduction in pairs is
+  accepted even if
+  another pair remains: complete clearance is not bought with a worse route.
+  Callouts already clear of extension ink do not trigger a collinearity-only
+  retry. The earlier bounded trials found no such repair on the thirty parts;
+  keep the pass focused on contact reduction. Collinearity remains a strict veto
+  on every moved route, and the rendered check still reports the 15 base runs.
+  A diameter candidate's elbow must remain outside its proven site's radius,
+  so the radial helper cannot substitute a centre-point tip for a rim attachment.
+- The small length margin is **2 paper mm**, counting the shaft and shoulder.
+  A move cannot increase hard blockers, annotation crossings, feature crossings,
+  text contacts, area overrun, centre-furniture contacts or travel beside a centre
+  stroke. Every moved leader must avoid more than 2 mm of contiguous travel within
+  0.3 mm of model, hidden or extension ink. Adjacent segments count together;
+  near-parallel travel is clipped to the finite segment's strip.
+- Visible and hidden edges are not distinguished in the Analysis. The gate uses
+  its projected edge chords and cylinder generators as conservative obstacles;
+  a new route cannot newly cross an individual projected edge or cutting-plane
+  stroke. Existing travel along a line does not credit a new crossing of it.
+  Without edge evidence the route stays. New routes stay
+  outside section/isometric envelopes and uncertain curved-face silhouette boxes.
+  Interior placements must retain their blank-face proof. The rendered acceptance
+  instrument independently counts actual hidden, section and cutting-plane ink.
+- There is a conflict in the brief's absolute collinearity target and its request
+  that the safeguard pass on untouched main. The strict contiguous-strip measure
+  finds **15 existing runs** on origin/main at 0419fa6c, not zero. The earlier
+  endpoint-only parallel measure found four (cgb207 twice, CTC-05 and FTC-08).
+  The acceptance fixture records main before implementation. Unchanged existing
+  runs are reported; a moved callout may not retain one, and an unchanged run may
+  not become longer. The absolute zero-run target is reported separately, never
+  represented as achieved by this baseline exception.
+- Text-pad contact uses closed clipping, matching `quality.py`: a line exactly on
+  the 1 mm pad boundary counts. Geometry and values are retained; this stream
+  withdraws no table, note, measurement or callout. No part/feature IDs enter the
+  routing rule, and `quality.py`'s existing contact measure is unchanged.
+- Latency is unmeasured: the concurrent machine's load was already above 8 and
+  reached 85.33 during verification. The required session-gate fallback, if needed,
+  is recorded with the final checks in the L1 status entry.
+- The required random-pin bar already fails on untouched main for FTC-07,
+  seed 2 with N=3 and N=8: ink 1 → 4, off-sheet 0 → 0. Both were reproduced with
+  the saved pristine main binary (`target/l1/base-pins-2-{3,8}.log`). The pins
+  cause the automatic front schedule to yield to its original dimensions.
+  Three findings belong to linear dimensions (the two pattern column pitches
+  and the polygonal boss height); the fourth is a pattern callout. Moving only
+  that callout cannot bring the three remaining findings under the 1.5× bar.
+  Keep this as an explicit unmet check, rather than changing the gate or making
+  an unrelated linear-layout/scheduling change in L1.
