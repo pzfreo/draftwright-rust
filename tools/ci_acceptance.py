@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 KEYS = ['off_sheet', 'repeated_label', 'repeated_measure', 'views_overlap',
         'view_on_title_block', 'ink', 'repeated_span', 'line_through_feature',
         'hidden_on_visible', 'section_hidden']
-JOBS = ('quality-pins', 'repeated-spans', 'mcp')
+JOBS = ('quality-pins', 'repeated-spans', 'mcp', 'plan-time')
 PIN_CELLS = tuple(f'{seed}-{pins}' for seed in (1, 2, 3) for pins in (1, 3, 8))
 CORPUS_REV = '6d544e060cd0eeb4442d2196e5df757b5a15ea55'
 spec = importlib.util.spec_from_file_location('quality', ROOT / 'tools/quality.py')
@@ -198,6 +198,9 @@ class Run:
             self.step('survey', [*py, ROOT / 'tools/survey_repeated_spans.py',
                       '--timeout', 3600, '--shard', f'{k}/{n}', binary, survey_out],
                       'survey', survey_out / 'baseline.json', timeout=6600)
+        elif job == 'plan-time':
+            self.step('plan-time', [*py, ROOT / 'tools/check_plan_time.py',
+                      '--binary', binary, '--corpus', args.corpus, '--out', out / 'plan-time.json'])
         else:
             self.step('python-quality-tests', [*py, ROOT / 'tools/test_quality.py'])
             self.step('acceptance-tests', [*py, ROOT / 'tools/test_ci_acceptance.py'])
@@ -211,6 +214,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--job', choices=(*JOBS, 'all'), default='all')
     parser.add_argument('--pin-cell', choices=PIN_CELLS, help='Run one seed-N cell with a fresh baseline')
+    parser.add_argument('--require-go', action='store_true',
+                        help='Explicit pin-bar gate; every pin run already enforces GO')
     parser.add_argument('--survey-shard', type=survey.shard_arg, default=(1, 1), metavar='K/N',
                         help='Run one of N slices of the repeated-span survey')
     parser.add_argument('--binary', type=Path, default=Path('target/release/draftwright'))

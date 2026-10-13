@@ -6102,3 +6102,58 @@ Whoever owns the next h-extlines round should start from the WIP branch. The ope
 question is how open-side bands fit H6. H6 chooses among tries planned at a named sheet,
 so the first estimate's open bands rarely reach the final drawing. Pins take the
 canonical (try) frames, not the first estimate's.
+
+## Stage I0 planning speed (2026-10-13, unattended; overturnable)
+
+- Preserve the full sheet/scale search and its candidate findings. The candidate
+  descriptions are serialized in `sheet.basis`; pruning them would change Plan
+  bytes even if the chosen sheet stayed the same. Optimize footprint queries and
+  the leader inventory's exact sorted prefix instead. No drafting policy or
+  information changes, no new dependencies, no part/feature-ID exceptions.
+- Footprint bounds and shaft-count caches belong to one resolved view inside the
+  existing plan-local projection cache. Keys retain all float bits; changed
+  frames make a new projection. A sorted bounds index is only a broad phase;
+  non-finite evidence takes the original full scan. All surviving intersections
+  use the existing hair, tangency, initial-exit and re-entry predicates.
+- Lazy candidate ranking starts with page/view geometry, then resolves fixed-ink
+  contacts and feature measures as needed. Each tier only adds to its lower bound.
+  A sorted-prefix/heap merge orders by `(score, generation index)`, as the previous
+  full sort did. Material exit lengths are cheap and tighten the initial bound. Retained legacy candidates still get exact feature measures for
+  the furniture crossing ceiling. Semantic PMI skips the unused intermediate
+  baseline-aware ranking; the furniture and legacy inventories are unchanged.
+- Candidate conflict geometry (padded boxes and normalized lines) is computed once
+  when needed. Candidate geometry never changes after construction; score changes
+  do not invalidate it. Site distances are computed once per minimum comparison,
+  retaining the same `total_cmp` and first-on-tie policy.
+- The fixed calibration for `tools/check_plan_time.py` is the survey's
+  `cadgenbench/threaded_connector_109.step` **plan**, without HLR. Use the median
+  of three calibration runs before and three after the serial 64-part survey.
+  The ratio is dimensionless; CI allows the requested 15% over the recorded
+  working-tree figure. The acceptance matrix gives this job 30 minutes to allow
+  slower runners; this is a timeout, not a weaker performance threshold.
+- `--results` rechecks an actual complete timing report against another budget,
+  retaining its recorded load. Six calibration samples, all 64 parts, positive
+  finite durations and sample-derived aggregates are required. This lets the
+  requested 30% lower-budget control change only the budget, without adding
+  machine-load variation. CI continues to execute every plan; report rechecking
+  is never evidence of a new low-load latency measurement.
+- `tools/check_plan_identity.py` records raw CLI JSON and every sheet SVG from
+  origin/main, then compares raw bytes, sheet counts and the complete 64-part
+  manifest (including all 30 quality parts). This preservation oracle must pass
+  on the base as its positive control; it cannot meaningfully fail when the base
+  is compared with itself. The new performance budget supplies the red/green
+  regression, and the CI-wiring test was run against origin/main before wiring
+  the job. A damaged reference is also checked as a negative control.
+
+Final measurements and verification receipts will be recorded in the I0 status
+entry. Timing under load >= 8 is diagnostic only, never latency acceptance.
+
+I0 verification found a pre-existing pin-grid conflict: seed 2 / N=3 on native
+NIST FTC-07 has ink 1 → 4 (four `annotation_outside_area` findings), against the
+unchanged 1.5× bar. The selected IDs are the h218.024 ladder rung, polygonal-boss
+A/F and hole 8's y location. The untouched origin/main release binary reproduces
+exactly the same pinned Plan (40 dimensions). Overturnable scope judgement:
+preserve that Plan and report the existing failing gate rather than change a
+pin's drafting behaviour in a byte-preserving performance stream. No bar or
+selection is weakened. Receipts: `target/i0/ftc07-pin-base.json` and the pin-grid
+reports. The final I0 binary will be checked against this reproducer too.

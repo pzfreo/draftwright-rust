@@ -183,6 +183,46 @@ class Acceptance(unittest.TestCase):
                             r'pin_args: "--survey-shard (\d)/4", timeout: 120', workflow)
         self.assertEqual(sorted(shards), [(str(k), str(k)) for k in range(1, 5)])
 
+    def test_ci_runs_calibrated_plan_budget_with_release_binary(self):
+        runner = self.runner()
+        self.assertIn('plan-time', runner.JOBS)
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path('corpus')), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('plan-time')
+        command = step.call_args.args[1]
+        self.assertIn(ROOT / 'tools/check_plan_time.py', command)
+        self.assertEqual(command[command.index('--binary') + 1], Path('binary'))
+        self.assertEqual(command[command.index('--corpus') + 1], Path('corpus'))
+        self.assertNotIn('--record', command)
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        self.assertIn('job: plan-time, label: plan-time', workflow)
+
+    def test_plan_budget_rechecks_samples_and_rejects_lowered_or_incomplete_evidence(self):
+        names = self.runner().survey_names()
+        budget = {'format': 'draftwright.plan-time/1',
+                  'calibration': 'cadgenbench/threaded_connector_109.step', 'normalised_total': 64}
+        report = {**budget, 'parts': {p: {'seconds': 1, 'samples': [1]} for p in names},
+                  'calibration_samples': [1] * 6, 'calibration_seconds': 1,
+                  'total_seconds': 64, 'max_load': 0}
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            results, limit = directory / 'results.json', directory / 'budget.json'
+            command = [sys.executable, '-I', str(ROOT / 'tools/check_plan_time.py'),
+                       '--results', str(results), '--budget', str(limit), '--out', str(directory / 'checked.json')]
+            results.write_text(json.dumps(report))
+            limit.write_text(json.dumps(budget))
+            checked = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+            limit.write_text(json.dumps({**budget, 'normalised_total': 64 * .7}))
+            self.assertEqual(subprocess.run(command, capture_output=True).returncode, 1)
+            limit.write_text(json.dumps(budget))
+            for bad in (dict(report, total_seconds=65),
+                        dict(report, parts={p: row for p, row in report['parts'].items() if p != min(names)})):
+                results.write_text(json.dumps(bad))
+                checked = subprocess.run(command, capture_output=True, text=True)
+                self.assertEqual(checked.returncode, 1, checked.stderr)
+                self.assertIn('timing', checked.stderr)
+
     def test_survey_shards_partition_the_64_parts(self):
         runner = self.runner()
         names = runner.survey_names()

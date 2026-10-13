@@ -20,7 +20,7 @@
 //!   `_corner_escape_candidates`, `_radial_candidates`): from each site out along sixteen
 //!   directions, the elbow a little past where the ray leaves the view.
 //!
-//! Each candidate is measured analytically (`leader_callout_geometry`): its cost is its ink's
+//! Each retained candidate is measured analytically (`leader_callout_geometry`): its cost is its ink's
 //! length (leader and shoulder, plus travel inside the solid bounds to prefer a near exit),
 //! in micrometres so sub-micron noise
 //! cannot reorder candidates (ISSUE-740-b). Its blockers are counted in two tiers:
@@ -70,7 +70,9 @@
 //! and distance to an exit; projected material remains unavailable (ADR2-8). Arrowheads
 //! are tested by their shafts (ISSUE-367-a).
 
-use std::collections::BTreeMap;
+use std::cell::OnceCell;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap};
 
 use super::PlannedDimension;
 use super::footprints::Footprints;
@@ -156,6 +158,9 @@ struct Candidate {
     beside: u32,
     feature_crossings: u32,
     inside: i64,
+    features_measured: bool,
+    fixed_measured: bool,
+    ignore_furniture: bool,
     aware: bool,
     /// Of its crossings, those that touch text: a line through a label, or two labels together.
     text: u32,
@@ -163,9 +168,58 @@ struct Candidate {
     outside: u32,
     /// The box of all its ink.
     bounds: [f64; 4],
+    // Geometry is immutable; scores differ between the assignment variants.
+    conflict_ink: OnceCell<Box<ConflictInk>>,
+}
+
+#[derive(Clone, Debug)]
+struct ConflictInk {
+    bounds: [f64; 4],
+    label: [f64; 4],
+    segments: [[P2; 2]; 2],
+    lines: [Line; 2],
+}
+
+fn padded(b: [f64; 4]) -> [f64; 4] {
+    [
+        b[0] - LABEL_PAD,
+        b[1] - LABEL_PAD,
+        b[2] + LABEL_PAD,
+        b[3] + LABEL_PAD,
+    ]
 }
 
 impl Candidate {
+    fn conflict_ink(&self) -> &ConflictInk {
+        self.conflict_ink.get_or_init(|| {
+            let segments = self.segments();
+            Box::new(ConflictInk {
+                bounds: padded(self.bounds),
+                label: padded(self.label_box),
+                segments,
+                lines: segments.map(Line::new),
+            })
+        })
+    }
+
+    fn measure_features(&mut self, job: &Job) {
+        if !self.features_measured {
+            let shaft = [self.tip, self.elbow];
+            self.feature_crossings = job.footprints.crossing_count(shaft) as u32;
+            self.features_measured = true;
+        }
+    }
+
+    fn without_furniture(&mut self) {
+        self.hard -= self.furniture_hard;
+        self.crossings -= self.furniture_text;
+        self.text -= self.furniture_text;
+        self.furniture = 0;
+        self.furniture_hard = 0;
+        self.furniture_text = 0;
+        self.beside = 0;
+    }
+
     fn segments(&self) -> [[P2; 2]; 2] {
         [[self.tip, self.elbow], [self.elbow, self.end]]
     }
@@ -537,18 +591,20 @@ pub(super) fn place_with_obstacles(
             },
         ));
     }
+    // Semantic PMI uses the legacy floor; its unused footprint-aware baseline need not be
+    // sorted. The furniture-aware inventory and the legacy survivors stay fully measured.
+    let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
+        .0
+        .is_empty();
     let measured: Vec<_> = jobs
         .iter()
-        .map(|(_, job)| inventory(job, &fixed, page))
+        .map(|(_, job)| inventory(job, &fixed, page, semantic_pmi))
         .collect();
     let mut inventories: Vec<_> = measured.iter().map(|v| v.0.clone()).collect();
     let mut baseline: Vec<_> = measured.iter().map(|v| v.1.clone()).collect();
     let baseline_original: Vec<_> = measured.iter().map(|v| v.2.clone()).collect();
     // Semantic PMI claims its strips after dimensions. Until those strips participate in the
     // joint solve, retain the established objective rather than planning PMI twice as a probe.
-    let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
-        .0
-        .is_empty();
     let defects = |inv: &[Vec<Candidate>], selected: &[usize]| {
         let mut count = 0;
         for (k, &c) in selected.iter().enumerate() {
@@ -928,20 +984,19 @@ fn exit_distance(p: P2, u: P2, b: [f64; 4]) -> f64 {
 
 /// The site of *sites* nearest *elbow*.
 fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
-    *sites
+    sites
         .iter()
-        .min_by(|a, b| {
-            let d = |s: &(P2, f64)| (s.0[0] - elbow[0]).hypot(s.0[1] - elbow[1]) - s.1;
-            d(a).total_cmp(&d(b))
-        })
+        .map(|s| (s, (s.0[0] - elbow[0]).hypot(s.0[1] - elbow[1]) - s.1))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(s, _)| *s)
         .expect("a callout has a site")
 }
 
-/// Every candidate of *job* measured, the best [`KEEP`] kept (fewest hard blockers, then fewest
-/// crossings, then shortest, then generation order), near-duplicates dropped.
+/// The best [`KEEP`] candidates of *job* as if all were fully measured (fewest hard blockers,
+/// then crossings, length and generation order), near-duplicates dropped.
 type Inventories = (Vec<Candidate>, Vec<Candidate>, Vec<Candidate>);
 
-fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Inventories {
+fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inventories {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -1014,43 +1069,66 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page) -> Inventories {
             None => &[true, false],
         };
         for &right in options {
-            if let Some(c) = measure(job, tip, elbow, right, fixed, page) {
+            if let Some(c) = measure_bounds(job, tip, elbow, right, page) {
                 measured.push(c);
             }
         }
     }
-    let aware = keep(&measured);
+    let aware = keep(&mut measured, job, fixed);
     let mut baseline = measured.clone();
     for c in &mut baseline {
-        c.hard -= c.furniture_hard;
-        c.crossings -= c.furniture_text;
-        c.text -= c.furniture_text;
-        c.furniture = 0;
-        c.furniture_hard = 0;
-        c.furniture_text = 0;
-        c.beside = 0;
+        c.without_furniture();
+        c.ignore_furniture = true;
     }
-    let baseline_aware = keep(&baseline);
+    let baseline_aware = if semantic_pmi {
+        Vec::new()
+    } else {
+        keep(&mut baseline, job, fixed)
+    };
     for c in &mut baseline {
         c.aware = false;
     }
-    (aware, baseline_aware, keep(&baseline))
+    (aware, baseline_aware, keep(&mut baseline, job, fixed))
 }
 
-fn keep(measured: &[Candidate]) -> Vec<Candidate> {
-    // Ordered by their keys alone (each key distinct, by its generation order), not moving the
-    // candidates themselves.
+fn keep(measured: &mut [Candidate], job: &Job, fixed: &Fixed) -> Vec<Candidate> {
+    // Merge sorted geometric lower bounds with refined scores. Fixed ink and feature
+    // crossings only add to them; generation order still breaks every tie.
+    // A fully measured inventory takes the original fast sorted-prefix path.
     let mut order: Vec<_> = measured
         .iter()
         .enumerate()
         .map(|(n, c)| (c.score(), n))
         .collect();
     order.sort_unstable();
+    let mut pending: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
+    let mut next = 0;
     let mut kept: Vec<Candidate> = Vec::new();
-    for (_, n) in order {
-        let c = &measured[n];
-        if kept.len() >= KEEP {
+    while kept.len() < KEEP {
+        let (bound, n) = if next < order.len() && pending.peek().is_none_or(|p| order[next] <= p.0)
+        {
+            let key = order[next];
+            next += 1;
+            key
+        } else if let Some(Reverse(key)) = pending.pop() {
+            key
+        } else {
             break;
+        };
+        let c = &mut measured[n];
+        if !c.fixed_measured {
+            measure_fixed(c, job, fixed);
+            if c.score() != bound {
+                pending.push(Reverse((c.score(), n)));
+                continue;
+            }
+        }
+        if c.aware && !c.features_measured {
+            c.measure_features(job);
+            if c.score() != bound {
+                pending.push(Reverse((c.score(), n)));
+                continue;
+            }
         }
         let same = kept.iter().any(|k| {
             (0..4).all(|j| (k.label_box[j] - c.label_box[j]).abs() < 0.25)
@@ -1058,6 +1136,9 @@ fn keep(measured: &[Candidate]) -> Vec<Candidate> {
                 && (k.tip[1] - c.tip[1]).abs() < 0.25
         });
         if !same {
+            // The legacy objective ignores features, but its survivors still supply the
+            // crossing ceiling for the furniture-aware solve.
+            c.measure_features(job);
             kept.push(c.clone());
         }
     }
@@ -1085,11 +1166,18 @@ fn measure(
     fixed: &Fixed,
     page: &Page,
 ) -> Option<Candidate> {
+    let mut c = measure_bounds(job, tip, elbow, right, page)?;
+    measure_fixed(&mut c, job, fixed);
+    c.measure_features(job);
+    Some(c)
+}
+
+fn measure_bounds(job: &Job, tip: P2, elbow: P2, right: bool, page: &Page) -> Option<Candidate> {
     let end = [
         elbow[0] + if right { SHOULDER } else { -SHOULDER },
         elbow[1],
     ];
-    measure_at(job, tip, elbow, end, right, fixed, page)
+    measure_at_bounds(job, tip, elbow, end, right, page)
 }
 
 fn measure_at(
@@ -1099,6 +1187,20 @@ fn measure_at(
     end: P2,
     right: bool,
     fixed: &Fixed,
+    page: &Page,
+) -> Option<Candidate> {
+    let mut c = measure_at_bounds(job, tip, elbow, end, right, page)?;
+    measure_fixed(&mut c, job, fixed);
+    c.measure_features(job);
+    Some(c)
+}
+
+fn measure_at_bounds(
+    job: &Job,
+    tip: P2,
+    elbow: P2,
+    end: P2,
+    right: bool,
     page: &Page,
 ) -> Option<Candidate> {
     let shaft = (elbow[0] - tip[0]).hypot(elbow[1] - tip[1]);
@@ -1151,17 +1253,60 @@ fn measure_at(
     if shaft > MAX_LEADER {
         hard += 1;
     }
-    let padded = [
-        lb[0] - LABEL_PAD,
-        lb[1] - LABEL_PAD,
-        lb[2] + LABEL_PAD,
-        lb[3] + LABEL_PAD,
-    ];
     let bounds = [
         tip[0].min(elbow[0]).min(end[0]).min(lb[0]),
         tip[1].min(elbow[1]).min(lb[1]),
         tip[0].max(elbow[0]).max(end[0]).max(lb[2]),
         tip[1].max(elbow[1]).max(lb[3]),
+    ];
+    // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
+    let outside = job.area.is_some_and(|a| {
+        [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]
+            .iter()
+            .any(|p| {
+                p[0] < a[0] - 1e-6 || p[0] > a[2] + 1e-6 || p[1] < a[1] - 1e-6 || p[1] > a[3] + 1e-6
+            })
+    });
+    let cost = ((shaft + (end[0] - elbow[0]).hypot(end[1] - elbow[1])) * 1000.0).round() as i64;
+    // The material's boxes are cheap; resolving this length now keeps the score bound tight.
+    let inside = (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64;
+    Some(Candidate {
+        tip,
+        elbow,
+        end,
+        label_at,
+        label_box: lb,
+        cost,
+        hard,
+        crossings: 0,
+        furniture: 0,
+        furniture_hard: 0,
+        furniture_text: 0,
+        beside: 0,
+        feature_crossings: 0,
+        inside,
+        features_measured: false,
+        fixed_measured: false,
+        ignore_furniture: false,
+        aware: true,
+        text: 0,
+        outside: u32::from(outside),
+        bounds,
+        conflict_ink: OnceCell::new(),
+    })
+}
+
+// Annotation contacts are the expensive tier. Every retained candidate is fully measured;
+// lower bounds allow candidates that cannot enter the sorted prefix to skip these tests.
+fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
+    let (tip, elbow, end, lb, bounds) = (c.tip, c.elbow, c.end, c.label_box, c.bounds);
+    let segs = [[tip, elbow], [elbow, end]];
+    let mut hard = 0;
+    let padded = [
+        lb[0] - LABEL_PAD,
+        lb[1] - LABEL_PAD,
+        lb[2] + LABEL_PAD,
+        lb[3] + LABEL_PAD,
     ];
     let near = [
         bounds[0] - LABEL_PAD,
@@ -1271,37 +1416,17 @@ fn measure_at(
         v.dedup();
     }
     let crossings = (crossed.len() + text.len()) as u32;
-    let feature_crossings = job.footprints.crossing_count(segs[0]) as u32;
-    // The ink's extreme points (its arrowhead within a hair of its tip) against the view's area.
-    let outside = job.area.is_some_and(|a| {
-        [tip, elbow, end, [lb[0], lb[1]], [lb[2], lb[3]]]
-            .iter()
-            .any(|p| {
-                p[0] < a[0] - 1e-6 || p[0] > a[2] + 1e-6 || p[1] < a[1] - 1e-6 || p[1] > a[3] + 1e-6
-            })
-    });
-    let cost = ((shaft + (end[0] - elbow[0]).hypot(end[1] - elbow[1])) * 1000.0).round() as i64;
-    let inside = (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64;
-    Some(Candidate {
-        tip,
-        elbow,
-        end,
-        label_at,
-        label_box: lb,
-        cost,
-        hard,
-        crossings,
-        furniture: furniture.len() as u32,
-        furniture_hard,
-        furniture_text: furniture_text.len() as u32,
-        beside: besides.len() as u32,
-        feature_crossings,
-        inside,
-        aware: true,
-        text: text.len() as u32,
-        outside: u32::from(outside),
-        bounds,
-    })
+    c.hard += hard;
+    c.crossings = crossings;
+    c.furniture = furniture.len() as u32;
+    c.furniture_hard = furniture_hard;
+    c.furniture_text = furniture_text.len() as u32;
+    c.beside = besides.len() as u32;
+    c.text = text.len() as u32;
+    c.fixed_measured = true;
+    if c.ignore_furniture {
+        c.without_furniture();
+    }
 }
 
 /// The candidates of the clear-route sweep from *tip* (see [`SWEEP_DIRECTIONS`]): tip, elbow
@@ -1450,6 +1575,7 @@ pub(super) fn segments_along(a: [P2; 2], b: [P2; 2]) -> bool {
 }
 
 /// A line to test against many others ([`lines_meet`]), its direction worked out once.
+#[derive(Clone, Debug)]
 struct Line {
     a: [P2; 2],
     /// Its unit direction and length; none when it is shorter than a nanometre.
@@ -1520,25 +1646,23 @@ pub(super) fn segments_cross(a: [P2; 2], b: [P2; 2]) -> bool {
 /// label: a hard finding, `annotation_ink_overlap`), one when only their lines cross (Policy B
 /// keeps that, `annotation_leader_crossing`), none when they are clear.
 fn conflict(a: &Candidate, b: &Candidate) -> u32 {
-    let grow = |x: [f64; 4]| {
-        [
-            x[0] - LABEL_PAD,
-            x[1] - LABEL_PAD,
-            x[2] + LABEL_PAD,
-            x[3] + LABEL_PAD,
-        ]
-    };
-    if !boxes_overlap(grow(a.bounds), grow(b.bounds)) {
+    let (ia, ib) = (a.conflict_ink(), b.conflict_ink());
+    if !boxes_overlap(ia.bounds, ib.bounds) {
         return 0;
     }
-    if boxes_overlap(grow(a.label_box), b.label_box) {
+    if boxes_overlap(ia.label, b.label_box) {
         return TEXT_CONFLICT;
     }
-    let (sa, sb) = (a.segments(), b.segments());
-    if sa.iter().any(|s| crosses(*s, b.label_box)) || sb.iter().any(|s| crosses(*s, a.label_box)) {
+    if ia.segments.iter().any(|s| crosses(*s, b.label_box))
+        || ib.segments.iter().any(|s| crosses(*s, a.label_box))
+    {
         TEXT_CONFLICT
     } else {
-        u32::from(sa.iter().any(|s| sb.iter().any(|t| lines_meet(*s, *t))))
+        u32::from(
+            ia.lines
+                .iter()
+                .any(|s| ib.segments.iter().any(|t| s.meets(*t))),
+        )
     }
 }
 
@@ -1969,9 +2093,13 @@ mod tests {
             beside: 0,
             feature_crossings: 0,
             inside: 0,
+            features_measured: true,
+            fixed_measured: true,
+            ignore_furniture: false,
             aware: false,
             text: 0,
             outside: 0,
+            conflict_ink: OnceCell::new(),
             bounds: [
                 tip[0].min(elbow[0]),
                 tip[1].min(elbow[1]).min(label_box[1]),
