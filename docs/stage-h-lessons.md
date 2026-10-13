@@ -50,9 +50,16 @@ sm-hanger and string_post view is `leader_outline_unverified` and never gets the
 real blocker for the rest is sheet size (CTC-02 and FTC-09 would need A0/A1), which multi-sheet
 changes.
 
-**Under the dense-NIST bar:** 27.5% with no part worse is a real gain. The orchestrator
-decision is to accept it and drop the script's one-third threshold, keeping its per-part "no
-worse" assertions, unless integration finds a lost-information or hard finding.
+**Under the dense-NIST bar:** 27.5% with no part worse is a real gain, and the maintainer
+accepted dropping the one-third threshold. **But it was backed out at the second-pass merge
+(2026-10-13):** on top of main it adds about 39% to planning instructions (the same
+`footprints::Shape::crossed` / `leaders::measure_at` hotspot I0 targets), and six tests in other
+streams' features failed: G3's radius-centre table no longer appears on any corpus part,
+H7's interior retry never runs on the plate fixture, `known_leaders.json` needs new verdicts, and
+CTC-01 moves to A4 1:10 where the HEX leader crosses f:hole:1 and a slot width's text leaves its
+span. The design issue: H6 picks the sheet from tries planned at a named sheet and scale, so the
+open-side bands rarely reach the final drawing, and pins follow the try's frames. The WIP is on
+local branch `stageh-pass2-extlines-wip` (b0bb77c). Retry after I0 (speed) and I1 (sheets).
 
 **Checks and follow-ups:**
 1. The committed check passes on the branch's own HEAD (always).
