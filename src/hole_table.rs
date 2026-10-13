@@ -103,6 +103,11 @@ pub const DROPS: [&str; 3] = [
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HoleTable {
+    #[serde(
+        default = "crate::sheets::one",
+        skip_serializing_if = "crate::sheets::is_one"
+    )]
+    pub sheet: u32,
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<String>,
@@ -307,16 +312,30 @@ impl Frame {
     }
 }
 
+/// Why rescue escalation did or did not retain its table. Only NoPlace permits allocation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TableOutcome {
+    Kept,
+    NoPlace,
+    Balloons,
+    #[default]
+    None,
+}
+
 /// Drops what has no place and escalates as draftwright does (the module's doc). Applied to
 /// every plan the recovery judges.
-pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
+pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) -> TableOutcome {
+    let mut outcome = TableOutcome::None;
+    let restore = table_sheet
+        .filter(|n| *n > 1)
+        .map(|_| Box::new(plan.clone()));
     if plan.spec.hole_table == Setting::Always
         && plan
             .problems
             .iter()
             .any(|p| p.code == "hole_table_unavailable")
     {
-        return;
+        return TableOutcome::None;
     }
 
     let off: BTreeSet<String> = plan
@@ -352,10 +371,10 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
         || plan.spec.hole_table == Setting::Never
         || !plan.hole_tables.is_empty()
     {
-        return;
+        return TableOutcome::None;
     }
     let Some(view) = plan.views.iter().find(|v| v.id == "v:plan").cloned() else {
-        return;
+        return TableOutcome::None;
     };
     let frame = Frame::new(analysis, &view);
     let sites: BTreeMap<&str, ([f64; 3], f64)> = holes::read(analysis)
@@ -391,7 +410,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
         for &i in &escalating {
             say(plan, i, &why);
         }
-        return;
+        return TableOutcome::None;
     }
     let n_rows = if tabulate { loose.len() } else { 0 };
     let all_tags = tags(n_rows + patterns.len());
@@ -417,15 +436,20 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
                     " No hole table: it would replace a pinned hole item.",
                 );
             }
-            return;
+            return TableOutcome::None;
         }
         for &i in &replace {
             attempt[i].placed = None;
             attempt[i].state = crate::items::State::Covered { by: ID.into() };
         }
-        match place_table(analysis, plan, &attempt, &rows) {
+        match table_sheet
+            .filter(|n| *n > 1)
+            .map(|_| Vec::new())
+            .or_else(|| place_table(analysis, plan, &attempt, &rows))
+        {
             Some(blocks) => {
                 table = Some(HoleTable {
+                    sheet: table_sheet.filter(|n| *n > 1).unwrap_or(1),
                     id: ID.into(),
                     view: None,
                     origin: None,
@@ -445,6 +469,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
                 replaced = replace;
             }
             None => {
+                outcome = TableOutcome::NoPlace;
                 attempt = plan.dimensions.clone();
                 table_failure = Some(
                     "it has no place on the sheet clear of the views, the dimensions, the title block, the notes and the spec's tables, even widened into four blocks"
@@ -493,6 +518,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
                 == t.rows.len()
     });
     if !rows_landed {
+        outcome = TableOutcome::Balloons;
         // The table without every row's balloon is withdrawn whole.
         table = None;
         replaced.clear();
@@ -556,6 +582,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
     }
     plan.balloons = landed.into_iter().flatten().collect();
     if let Some(t) = table {
+        outcome = TableOutcome::Kept;
         let resolved: BTreeSet<&str> = replaced
             .iter()
             .map(|&i| plan.dimensions[i].id.as_str())
@@ -601,6 +628,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
             ..Default::default()
         });
         plan.hole_table = Some(t);
+        plan.table_restore = restore;
     }
     let marked: Vec<(usize, String)> = plan
         .balloons
@@ -619,6 +647,23 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan) {
             " Balloon {tag} marks the pattern beside the plan view; it does not state the pattern's sizes, so the callout stays missing."
         );
         say(plan, i, &why);
+    }
+    outcome
+}
+
+/// A whole rescue table is withdrawn if even its own sheet cannot hold its rows. Restore
+/// the original annotation geometry and let the ordinary escalation report its drops.
+pub(crate) fn withdraw_no_place(analysis: &Analysis, plan: &mut Plan) {
+    let Some(original) = plan.table_restore.take() else {
+        return;
+    };
+    plan.dimensions = original.dimensions;
+    plan.balloons = original.balloons;
+    plan.hole_table = original.hole_table;
+    plan.problems = original.problems;
+    plan.table_outcome = escalate(analysis, plan, None);
+    if let Some(p) = plan.problems.iter_mut().find(|p| p.code == "table_dropped") {
+        p.message = "The hole table is not drawn: it has no place even on a sheet of its own. The drops stay reported.".into();
     }
 }
 
@@ -786,6 +831,7 @@ fn table_obstacles(analysis: &Analysis, plan: &Plan, dims: &[PlannedDimension]) 
     out.extend(
         plan.tables
             .iter()
+            .filter(|t| t.sheet == plan.sheet.number)
             .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
     );
     out
@@ -800,6 +846,22 @@ fn place_table(
     rows: &[HoleRow],
 ) -> Option<Vec<PlannedTable>> {
     let obstacles = table_obstacles(analysis, plan, dims);
+    place_rows(rows, &plan.sheet, &obstacles)
+}
+
+/// The same four-block wrapping on a sheet without view/annotation obstacles.
+pub fn place_on_sheet(
+    table: &HoleTable,
+    sheet: &crate::model::PlannedSheet,
+) -> Option<Vec<PlannedTable>> {
+    place_rows(&table.rows, sheet, &[sheet.title_block])
+}
+
+fn place_rows(
+    rows: &[HoleRow],
+    sheet: &crate::model::PlannedSheet,
+    obstacles: &[Rect],
+) -> Option<Vec<PlannedTable>> {
     let header: Vec<String> = HEADER.iter().map(|s| s.to_string()).collect();
     for ncols in 1..=4usize {
         let per = rows.len().div_ceil(ncols);
@@ -818,8 +880,7 @@ fn place_table(
         let widths: Vec<Vec<f64>> = blocks.iter().map(|b| tables::widths(b)).collect();
         let w = widths.iter().flatten().sum::<f64>() + BLOCK_GAP * (ncols - 1) as f64;
         let h = ROW * (per + 1) as f64;
-        let Some([x0, y0]) = tables::place([w, h], &plan.sheet, &obstacles, Corner::TopRight)
-        else {
+        let Some([x0, y0]) = tables::place([w, h], sheet, obstacles, Corner::TopRight) else {
             continue;
         };
         let mut x = x0;
@@ -828,6 +889,7 @@ fn place_table(
             let placed = tables::lay(b, ws, [x, y0]);
             x = placed.cells[2] + BLOCK_GAP;
             out.push(PlannedTable {
+                sheet: sheet.number,
                 id: if ncols == 1 {
                     ID.into()
                 } else {
@@ -856,7 +918,7 @@ fn fixed_obstacles(
     let mut out: Vec<Rect> = plan
         .views
         .iter()
-        .filter(|v| v.id != own.id)
+        .filter(|v| v.id != own.id && v.sheet == own.sheet)
         .map(|v| {
             if v.id == "v:iso" {
                 let ib = analysis.iso_bounds;
@@ -879,9 +941,10 @@ fn fixed_obstacles(
     out.extend(
         plan.tables
             .iter()
+            .filter(|t| t.sheet == plan.sheet.number)
             .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
     );
-    if let Some(t) = table {
+    if let Some(t) = table.filter(|t| t.sheet == own.sheet) {
         out.extend(
             t.blocks
                 .iter()
@@ -1978,6 +2041,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         );
         selection.replaced.extend(replaced);
         selection.tables.push(HoleTable {
+            sheet: 1,
             id: format!("hole_schedule_{}", view.id.trim_start_matches("v:")), view: Some(view.id.clone()), origin: Some(origin), pcd, covered: Vec::new(),
             rows, default: plan.spec.hole_table == Setting::Auto, basis: format!("plan-time hole schedule: {n} holes, {crowded} crowded ordinates, {conflicts} leader crossings; local X/Y from the marked datum corner"), state: crate::items::State::Shown, blocks: Vec::new(),
         });
@@ -2058,6 +2122,7 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
         let placed = tables::lay(&cells, &widths, at);
         obstacles.push(placed.cells);
         t.blocks.push(PlannedTable {
+            sheet: 1,
             id: t.id.clone(),
             rows: cells,
             default: t.default,

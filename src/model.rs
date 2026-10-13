@@ -180,6 +180,8 @@ pub struct Spec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub binding: Option<Binding>,
     pub sheet: SheetSpec,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sheets: Option<crate::sheets::SheetsSpec>,
     /// Per standard view (`front`, `plan`, `side`, `iso`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub views: BTreeMap<String, ViewSpec>,
@@ -261,6 +263,7 @@ impl Default for Spec {
             schema: SPEC_SCHEMA.into(),
             binding: None,
             sheet: SheetSpec::default(),
+            sheets: None,
             views: BTreeMap::new(),
             dimension_source: DimensionSource::Auto,
             hole_table: crate::hole_table::Setting::Auto,
@@ -293,6 +296,8 @@ pub struct SheetSpec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct ViewSpec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sheet: Option<u32>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub omit: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -309,6 +314,13 @@ pub struct Plan {
     #[serde(default)]
     pub completeness: crate::completeness::Completeness,
     pub sheet: PlannedSheet,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sheets: Vec<PlannedSheet>,
+    /// Escalation evidence for allocation; never inferred from a problem sentence.
+    #[serde(skip)]
+    pub table_outcome: crate::hole_table::TableOutcome,
+    #[serde(skip)]
+    pub(crate) table_restore: Option<Box<Plan>>,
     pub views: Vec<PlannedView>,
     /// Dimensions and callouts, each with its ID, value, label, default flag and basis.
     #[serde(default)]
@@ -356,6 +368,13 @@ pub struct Plan {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlannedSheet {
+    #[serde(
+        default = "crate::sheets::one",
+        skip_serializing_if = "crate::sheets::is_one"
+    )]
+    pub number: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zones: Option<crate::sheets::Zones>,
     /// Union of drawn-item footprints as a share of usable paper (not reserved bands).
     #[serde(default)]
     pub fill: f64,
@@ -385,6 +404,15 @@ pub struct PlannedSheet {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlannedView {
+    #[serde(
+        default = "crate::sheets::one",
+        skip_serializing_if = "crate::sheets::is_one"
+    )]
+    pub sheet: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale_note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xref: Option<crate::sheets::CrossRef>,
     pub id: String,
     /// Towards the viewer, and the view's up.
     pub direction: [f64; 3],
@@ -412,6 +440,8 @@ pub struct PlannedView {
 /// the side removed. The plane is marked on the `marked_in` view, its ends lettered `label`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cut {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xref: Option<crate::sheets::CrossRef>,
     pub label: String,
     pub origin: [f64; 3],
     pub normal: [f64; 3],
@@ -811,7 +841,7 @@ const RADIUS_DEFAULT_WITHDRAWN: &str =
 /// dimension legibly ([`layout::crowded_locations`], draftwright's `location_ref_dropped`),
 /// counted per view and axis, a pattern's centre ordinate apart (draftwright keeps it whatever
 /// its spacing).
-fn findings(plan: &Plan) -> layout::Findings {
+pub(crate) fn findings(plan: &Plan) -> layout::Findings {
     let mut axes: BTreeMap<(&str, &str), Vec<f64>> = BTreeMap::new();
     for d in &plan.dimensions {
         let Some(m) = d.measurements.first() else {
@@ -833,12 +863,13 @@ fn findings(plan: &Plan) -> layout::Findings {
     }
     let scale = plan.sheet.scale_factor;
     layout::Findings {
-        hard: plan
-            .problems
-            .iter()
-            .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
-            .filter(|p| !p.message.ends_with(RADIUS_DEFAULT_WITHDRAWN))
-            .count(),
+        hard: usize::from(crate::sheets::floor(&plan.spec).is_some_and(|f| scale < f))
+            + plan
+                .problems
+                .iter()
+                .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
+                .filter(|p| !p.message.ends_with(RADIUS_DEFAULT_WITHDRAWN))
+                .count(),
         dropped: axes
             .values()
             .map(|o| layout::crowded_locations(o, scale))
@@ -1002,7 +1033,7 @@ fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
         })
 }
 
-fn undrawn_gdt(p: &Plan) -> usize {
+pub(crate) fn undrawn_gdt(p: &Plan) -> usize {
     p.gdt
         .iter()
         .filter(|g| {
@@ -1051,10 +1082,21 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
-    let min_legible_scale = crate::sheet_fit::min_legible_scale(analysis);
+    let min_legible_scale = crate::sheets::floor(spec).map_or_else(
+        || crate::sheet_fit::min_legible_scale(analysis),
+        |floor| floor.max(crate::sheet_fit::min_legible_scale(analysis)),
+    );
     first.sheet.fill = crate::sheet_fit::fill(analysis, &first);
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
         return Ok(first);
+    }
+    if spec
+        .sheets
+        .as_ref()
+        .and_then(|s| s.max)
+        .is_some_and(|max| max > 1)
+    {
+        return recover_allocated(analysis, spec, first, min_legible_scale);
     }
     if !first.hole_tables.is_empty() {
         return recover_tables(analysis, spec, first);
@@ -1236,7 +1278,8 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         // ever offers) is redrawn at that floor; a seed between it and the feature floor is
         // kept and the shortfall reported, as no legible candidate drew more validly.
         let floor = crate::sheet_fit::ABSOLUTE_FLOOR;
-        if first.sheet.scale_factor < floor {
+        if first.sheet.scale_factor < floor && crate::sheets::floor(spec).is_none_or(|f| floor >= f)
+        {
             let mut named = spec.clone();
             named.sheet.size = Some(first.sheet.size.clone());
             named.sheet.scale = Some(scale_name(floor));
@@ -1331,11 +1374,100 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     Ok(chosen)
 }
 
+/// R5's bounded paper ladder for each allocation prefix. The established H6 selection stays
+/// untouched for specs without sheets.max; a multi-sheet prefix spends at most six retries.
+fn recover_allocated(
+    analysis: &Analysis,
+    spec: &Spec,
+    mut first: Plan,
+    floor: f64,
+) -> Result<Plan, Invalid> {
+    let required = carried(&first);
+    let judge = |p: &Plan| {
+        let mut f = findings(p);
+        if p.sheet.scale_factor < floor && crate::sheets::floor(spec).is_none_or(|s| floor > s) {
+            f.hard += 1;
+        }
+        f.hard += usize::from(!drawn_items_fit(analysis, p));
+        f.dropped += required.difference(&carried(p)).count() + undrawn_gdt(p);
+        f
+    };
+    let seed = judge(&first);
+    let mut chosen = None;
+    let attempts = layout::recover(
+        first.sheet.scale_factor,
+        first.sheet.page,
+        spec.sheet.size.is_some(),
+        seed,
+        Some(floor),
+        &mut |retry| {
+            let mut named = spec.clone();
+            match retry {
+                layout::Retry::Scale(scale) => {
+                    named.sheet.size = Some(first.sheet.size.clone());
+                    named.sheet.scale = Some(scale_name(scale));
+                }
+                layout::Retry::Sheet(size) => {
+                    named.sheet.size = Some(size.into());
+                    named.sheet.scale =
+                        (first.sheet.scale_factor < floor).then(|| scale_name(floor));
+                }
+            }
+            let mut candidate = plan_escalated_with(analysis, &named, true, None).ok()?;
+            let f = judge(&candidate);
+            if f.clean() {
+                candidate.sheet.default = true;
+                candidate.spec = first.spec.clone();
+                chosen = Some(candidate);
+            }
+            Some(f)
+        },
+    );
+    let tried = attempts
+        .iter()
+        .map(|a| {
+            format!(
+                "{:?}: {}",
+                a.retry,
+                a.findings
+                    .map_or_else(|| "not a candidate".into(), |f| said(f, f.dropped))
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("; ");
+    if let Some(mut p) = chosen {
+        p.sheet.basis += &format!("; floor-aware paper recovery before sheet allocation: {tried}");
+        p.problems.push(Problem {
+            id: "p:layout_replanned:sheet".into(),
+            code: "layout_replanned".into(),
+            severity: "info".into(),
+            message: format!(
+                "Sheet choice changed from {} at {} to {} at {} before auxiliary sheet allocation.",
+                first.sheet.size, first.sheet.scale, p.sheet.size, p.sheet.scale
+            ),
+            subjects: vec!["sheet".into()],
+            ..Default::default()
+        });
+        return Ok(p);
+    }
+    if !seed.clean() {
+        first.sheet.basis +=
+            &format!("; floor-aware paper recovery exhausted before sheet allocation: {tried}");
+        first.problems.push(Problem {
+            id: "p:layout_recovery_exhausted:sheet".into(), code: "layout_recovery_exhausted".into(),
+            severity: if first.sheet.scale_factor < floor { "warning" } else { "info" }.into(),
+            message: format!("No clean bounded paper retry at or above {}; the initial drawing and findings are kept. Tried {tried}.", scale_name(floor)),
+            subjects: vec!["sheet".into()], ..Default::default()
+        });
+    }
+    Ok(first)
+}
+
 /// [`plan`] with draftwright's bounded layout recovery applied ([`recover`]): the plan every
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    recover(analysis, spec, plan_escalated(analysis, spec)?)
+    crate::sheets::allocate(analysis, spec)
 }
 
 fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
@@ -1445,7 +1577,8 @@ fn plan_escalated_with(
                     p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:if spec.hole_table == crate::hole_table::Setting::Always { "warning" } else { "info" }.into(), message:"The selected hole table or one of its tags has no clear place; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
                 }
             }
-            crate::hole_table::escalate(analysis, &mut p);
+            p.table_outcome = crate::hole_table::escalate(analysis, &mut p,
+                spec.sheets.as_ref().and_then(|s| s.hole_table).filter(|n| *n > 1));
             crate::completeness::report(analysis, &mut p);
             p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
             if let Some((basis, _)) = p.sheet.basis.rsplit_once("; drawn-item fill ") {
@@ -1553,6 +1686,7 @@ fn plan_with_presentation(
         ));
     }
     let spec = &migrate(spec, analysis)?;
+    crate::sheets::validate(spec)?;
     crate::dims::check_views(spec)?;
     crate::placement_intent::check(spec)?;
     title_block::check(&spec.sheet.title)?;
@@ -2033,6 +2167,7 @@ fn plan_with_presentation(
                 ),
             };
             PlannedView {
+                sheet: 1, scale_note: None, xref: None,
                 id: format!("v:{name}"),
                 direction: *direction,
                 up: *up,
@@ -2049,6 +2184,7 @@ fn plan_with_presentation(
         .collect();
     if let (Some(cut), Some(area)) = (&section, g.section_boxes.first()) {
         views.push(PlannedView {
+            sheet: 1, scale_note: None, xref: None,
             id: format!("v:{SECTION}"),
             direction: [0.0, -1.0, 0.0],
             up: [0.0, 0.0, 1.0],
@@ -2064,6 +2200,7 @@ fn plan_with_presentation(
             state: ItemState::Shown,
             line_work: Vec::new(),
             cut: Some(Cut {
+                xref: None,
                 label: "A".into(),
                 origin: [0.5 * (lo[0] + hi[0]), cut.cut_y, 0.5 * (lo[2] + hi[2])],
                 normal: [0.0, 1.0, 0.0],
@@ -2118,6 +2255,8 @@ fn plan_with_presentation(
     let title_cells = title_block::cells(g.title_block, &title, &size);
     problems.extend(title_block::problems(&title_cells, pick.page));
     let mut sheet = PlannedSheet {
+        number: 1,
+        zones: None,
         fill: 0.0,
         size,
         page: pick.page,
@@ -2197,7 +2336,7 @@ fn plan_with_presentation(
         .filter_map(crate::dims::gdt::proxy)
         .collect()
     };
-    crate::centrelines::plan(analysis, &mut views);
+    crate::sheets::line_work(analysis, spec, &mut views);
     let mut furniture = crate::centrelines::obstacles(&views);
     furniture.extend(fixed.iter().cloned());
     let ((mut dimensions, mut omitted, mut more), mut inventory) = crate::dims::plan_inventory(
@@ -2279,7 +2418,7 @@ fn plan_with_presentation(
                 .map(|v| (v.at, v.area, v.scale))
                 .collect::<Vec<_>>()
         {
-            crate::centrelines::plan(analysis, &mut views);
+            crate::sheets::line_work(analysis, spec, &mut views);
             furniture = crate::centrelines::obstacles(&views);
             furniture.extend(fixed.iter().cloned());
             let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
@@ -2675,6 +2814,9 @@ fn plan_with_presentation(
         status: crate::completeness::Status::NeedsAttention,
         completeness: crate::completeness::Completeness::default(),
         sheet,
+        sheets: Vec::new(),
+        table_outcome: crate::hole_table::TableOutcome::None,
+        table_restore: None,
         views,
         dimensions,
         omitted,
@@ -2839,16 +2981,41 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         // `set` and `add` make the objects on their path; `remove` needs every one of them there.
         let mut at = &mut doc;
         for key in parents {
-            let Some(object) = at.as_object_mut() else {
-                return Err(invalid(format!("{key:?} is not inside an object."), &[]));
-            };
-            at = if kind != "remove" {
-                object
-                    .entry(key.to_string())
-                    .or_insert_with(|| serde_json::json!({}))
+            if at.is_array() {
+                let index = key
+                    .parse::<usize>()
+                    .ok()
+                    .ok_or_else(|| invalid(format!("{key:?} is not a list index."), &[]))?;
+                at = at.get_mut(index).ok_or_else(|| {
+                    invalid(format!("{key:?} is not an existing list index."), &[])
+                })?;
             } else {
-                object.get_mut(key).ok_or_else(absent)?
-            };
+                let object = at
+                    .as_object_mut()
+                    .ok_or_else(|| invalid(format!("{key:?} is not inside an object."), &[]))?;
+                at = if kind != "remove" {
+                    object
+                        .entry(key.to_string())
+                        .or_insert_with(|| serde_json::json!({}))
+                } else {
+                    object.get_mut(key).ok_or_else(absent)?
+                };
+            }
+        }
+        if let Some(list) = at.as_array_mut() {
+            let index = last
+                .parse::<usize>()
+                .ok()
+                .filter(|i| *i < list.len())
+                .ok_or_else(|| invalid(format!("{last:?} is not an existing list index."), &[]))?;
+            match kind {
+                "set" => list[index] = op["value"].clone(),
+                "remove" => {
+                    list.remove(index);
+                }
+                _ => return Err(invalid("Append to the list's path, not an index.", &[])),
+            }
+            continue;
         }
         let object = at
             .as_object_mut()
@@ -2887,6 +3054,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     }
     let spec: Spec = serde_json::from_value(doc)
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
+    crate::sheets::validate(&spec)?;
     crate::dims::check_tolerances(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
@@ -3176,6 +3344,15 @@ pub fn render_with(
     font: &Font,
     projections: &mut Projections,
 ) -> Result<Drawing, Unresolved> {
+    if !plan.sheets.is_empty() {
+        let mut first = plan.clone();
+        first.views.retain(|v| v.sheet == 1);
+        first.tables.retain(|t| t.sheet == 1);
+        first.hole_table = first.hole_table.filter(|t| t.sheet == 1);
+        first.hole_tables.retain(|t| t.sheet == 1);
+        let geometry = render_geometry(part, analysis, &first, projections)?;
+        return render_annotations(part, analysis, &first, font, geometry, projections);
+    }
     let geometry = render_geometry(part, analysis, plan, projections)?;
     render_annotations(part, analysis, plan, font, geometry, projections)
 }

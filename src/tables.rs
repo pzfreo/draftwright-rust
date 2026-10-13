@@ -57,6 +57,7 @@ pub(crate) fn obstacles(
 ) -> Vec<Rect> {
     let mut out: Vec<Rect> = views
         .iter()
+        .filter(|v| v.sheet == sheet.number)
         .map(|v| {
             if v.id == "v:iso" {
                 let ib = analysis.iso_bounds;
@@ -79,7 +80,16 @@ pub(crate) fn obstacles(
             pts.iter().map(|p| p[1]).fold(f64::NEG_INFINITY, f64::max) + grow,
         ]
     };
-    for p in dims.iter().filter_map(|d| d.placed.as_ref()) {
+    for p in dims
+        .iter()
+        .filter(|d| {
+            views
+                .iter()
+                .find(|v| v.id == d.view)
+                .map_or(sheet.number == 1, |v| v.sheet == sheet.number)
+        })
+        .filter_map(|d| d.placed.as_ref())
+    {
         out.push(p.label_box);
         out.extend(p.lines.iter().map(|l| bounds(l, 0.0)));
         // An arrowhead is no wider than its length.
@@ -119,6 +129,8 @@ pub fn ruling(cells: [f64; 4], columns: &[f64]) -> Vec<[[f64; 2]; 2]> {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TableSpec {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheet: Option<u32>,
     /// `t:<k>`, `k` a whole number from 1.
     pub id: String,
     /// Its rows, row 0 the header: lists of one length, each cell a string or a number.
@@ -161,6 +173,11 @@ impl TableSpec {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlannedTable {
+    #[serde(
+        default = "crate::sheets::one",
+        skip_serializing_if = "crate::sheets::is_one"
+    )]
+    pub sheet: u32,
     pub id: String,
     /// Its cells as text, row 0 the header.
     pub rows: Vec<Vec<String>>,
@@ -354,6 +371,7 @@ pub fn plan(
                 });
             }
             PlannedTable {
+                sheet: sheet.number,
                 id: t.id.clone(),
                 rows,
                 default: false,
@@ -473,6 +491,7 @@ pub fn manufacturing(
         });
     }
     let table = PlannedTable {
+        sheet: 1,
         id: id.into(),
         rows,
         default: true,

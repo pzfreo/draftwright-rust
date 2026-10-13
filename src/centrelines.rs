@@ -1095,6 +1095,7 @@ mod tests {
             origin: [50., 50., 27.],
             normal: [0., 0., 1.],
             marked_in: "not_shown".into(),
+            xref: None,
         });
         plan(&a, &mut views);
         assert!(views[0].line_work.iter().any(|w| w.kind == "cross"));

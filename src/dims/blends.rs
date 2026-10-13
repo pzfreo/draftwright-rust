@@ -462,6 +462,7 @@ pub(crate) fn tabulate_obstructed(
         ]
     }));
     let specs = [crate::tables::TableSpec {
+        sheet: None,
         id: RADIUS_TABLE.into(),
         rows: cells.into_iter().map(serde_json::Value::from).collect(),
         prefer: Some("tr".into()),

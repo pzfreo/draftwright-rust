@@ -295,6 +295,7 @@ fn a_turned_part_keeps_the_view_its_pmi_is_drawn_in() {
     spec.views.insert(
         "side".into(),
         draftwright::model::ViewSpec {
+            sheet: None,
             omit: true,
             ..Default::default()
         },

@@ -1950,13 +1950,11 @@ pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
 pub(crate) fn recheck(analysis: &Analysis, plan: &crate::model::Plan) -> Vec<Problem> {
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
-    placement::collisions_cached(
-        analysis,
-        &all,
-        &plan.sheet,
-        &plan.views,
-        &footprints::Cache::default(),
-    )
+    let cache = footprints::Cache::default();
+    std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .flat_map(|sheet| placement::collisions_cached(analysis, &all, sheet, &plan.views, &cache))
+        .collect()
 }
 
 #[cfg(test)]

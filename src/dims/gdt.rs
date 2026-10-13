@@ -1134,6 +1134,9 @@ pub(crate) fn finish_collisions_cached(
     r: &crate::pmi_lowering::PlannedRequirement,
     cache: &super::footprints::Cache,
 ) -> Vec<Problem> {
+    if sheet.number != 1 {
+        return Vec::new();
+    }
     let Some(proxy) = finish_proxy(r) else {
         return Vec::new();
     };
@@ -1288,6 +1291,9 @@ pub(crate) fn validate_placements(
     let all: Vec<_> = PRINCIPALS
         .iter()
         .map(|(name, direction, up)| PlannedView {
+            sheet: 1,
+            scale_note: None,
+            xref: None,
             id: format!("v:{name}"),
             direction: *direction,
             up: *up,

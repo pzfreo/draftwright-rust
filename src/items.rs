@@ -88,6 +88,11 @@ pub fn key(id: &str) -> String {
 /// A plan item, as a caller lists it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Item {
+    #[serde(
+        default = "crate::sheets::one",
+        skip_serializing_if = "crate::sheets::is_one"
+    )]
+    pub sheet: u32,
     pub id: String,
     /// `sheet`, `view`, `dimension`, `control_frame`, `datum_feature`, `label`, `requirement`,
     /// `note`, `table`, `hole_table` or `balloon`.
@@ -116,6 +121,9 @@ pub fn frame_label(cells: &[String]) -> String {
 pub fn items(plan: &Plan) -> Vec<Item> {
     let item =
         |id: &str, kind: &str, view: Option<&str>, state: &State, label: Option<String>| Item {
+            sheet: view
+                .and_then(|id| plan.views.iter().find(|v| v.id == id))
+                .map_or(1, |v| v.sheet),
             id: id.into(),
             kind: kind.into(),
             view: view.map(String::from),
@@ -123,8 +131,21 @@ pub fn items(plan: &Plan) -> Vec<Item> {
             label,
         };
     let mut out = vec![item("sheet", "sheet", None, &plan.sheet.state, None)];
+    for sheet in &plan.sheets {
+        let mut i = item(
+            &format!("sheet:{}", sheet.number),
+            "sheet",
+            None,
+            &sheet.state,
+            None,
+        );
+        i.sheet = sheet.number;
+        out.push(i);
+    }
     for v in &plan.views {
-        out.push(item(&v.id, "view", None, &v.state, None));
+        let mut i = item(&v.id, "view", None, &v.state, None);
+        i.sheet = v.sheet;
+        out.push(i);
     }
     for d in &plan.dimensions {
         let label = Some(d.label.clone());
@@ -147,19 +168,23 @@ pub fn items(plan: &Plan) -> Vec<Item> {
         out.push(item(&n.id, "note", None, &n.state, label));
     }
     for t in &plan.tables {
-        out.push(item(&t.id, "table", None, &t.state, None));
+        let mut i = item(&t.id, "table", None, &t.state, None);
+        i.sheet = t.sheet;
+        out.push(i);
     }
     if let Some(t) = &plan.radius_table {
         out.push(item(&t.table.id, "table", None, &t.table.state, None));
     }
     for t in plan.hole_table.iter().chain(&plan.hole_tables) {
-        out.push(item(
+        let mut i = item(
             &t.id,
             "hole_table",
             Some(t.view.as_deref().unwrap_or("v:plan")),
             &t.state,
             None,
-        ));
+        );
+        i.sheet = t.sheet;
+        out.push(i);
     }
     for b in &plan.balloons {
         let label = Some(b.tag.clone());

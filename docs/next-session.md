@@ -6102,3 +6102,160 @@ Whoever owns the next h-extlines round should start from the WIP branch. The ope
 question is how open-side bands fit H6. H6 chooses among tries planned at a named sheet,
 so the first estimate's open bands rarely reach the final drawing. Pins take the
 canonical (try) frames, not the first estimate's.
+
+## I1 multi-sheet model/allocation (unattended, 2026-10-13)
+
+Overturnable judgements and handoff notes:
+
+- R5's seven-call paper-recovery description predates H6's exhaustive finished-sheet
+  selection. Specs without `sheets.max > 1` retain H6 exactly, with an optional author
+  floor; explicit multi-sheet allocation uses the existing bounded layout ladder,
+  floor-aware, at most six retries per cumulative prefix. The public `model::recover`
+  signature is retained: its floor comes from the Spec, avoiding an unnecessary
+  shared-caller API break. `layout::recover` takes the explicit optional floor.
+- `sheets.hole_table` addresses the rescue table R5 describes (`hole_table::escalate`),
+  rather than H1's newer per-view legibility schedules. Those schedules remain on
+  sheet 1. An explicit keep-together group containing a rescue table takes precedence
+  over the default own-sheet policy: its views share the assigned sheet, clear of
+  the table. Unrelated views still cannot use that table's sheet.
+- The first change recorded the base single-sheet outputs at `0419fa6`, before any
+  allocation implementation. The base's complete existing suite (822 tests, 82
+  result groups including the new empty/filtered sheets harness) then captured each
+  actual Spec at the public planning entry points. The frozen base executable/library
+  replayed those Specs on their native source fixtures. `known_single_sheet_specs.json`
+  holds 1,875 captured Specs over 63 source digests; `known_single_sheet.json` holds
+  1,876 cases: 1,677 rendered documents with plan/SVG/PDF/macOS-PNG SHA-256, 198
+  refusals, and one pre-existing panic. The 31 corpus inputs include every quality
+  part and the slice's 10127; all checked-in part/AP242 fixtures are included. Saved
+  spec/1 fixtures are included too. Invalid intents have refusal outcomes, rather
+  than invented output hashes. Comparison mode never uses the scratch recorder's
+  cache. Plan/SVG/PDF compare on every OS; PNG compares only on recorded OSes. The
+  opt-in Linux workflow records its PNG hashes and uploads the JSON for integration.
+- Replaying every test Spec through full recovery on the native source exposes a
+  base panic on CGB245, Spec SHA-256
+  `721695f27bf970f97b94395239a6299acd12bd61f820df057e179f2e34a5c9b9`:
+  `the prior route meets its own floor` (`src/dims/leaders.rs`). The original suite
+  succeeds: some Specs are used there with an altered Analysis or only the first
+  estimate. The byte guard preserves this explicit base outcome; no successful
+  drawing was removed. Fixing that pre-existing leader path is outside I1 and will
+  require a deliberate baseline review, not an automatic hash refresh.
+- Eight Spec/plan behavior tests compiled and failed on the base (receipt
+  `/tmp/i1-red.log`). The additional typed-API tests also fail against the frozen
+  base library because its sheets model/check API does not exist (receipt
+  `/tmp/i1-red-api-final.log`, rechecked against source archived from `origin/main`);
+  this is a compile-time red proof, not a claim that those
+  tests ran on base. The single-sheet invariant deliberately passes on base.
+  The three cumulative-search Specs were also rejected by the frozen base CLI
+  (`/tmp/i1-search-red.log`).
+- A moved section's cutting-plane furniture enters sheet-1 placement before labels
+  are solved. Later-sheet blocks reserve their own actual centre furniture and
+  caption/cross-reference bands. I2 should consume `CrossRef {sheet, zone, at}` on
+  the section and its Cut; zones target the actual caption/cutting-plane letter,
+  not the cross-reference text's local position. I1's render entry point draws only
+  sheet 1. I2 must reserve and audit the new sheet-1 cross-reference text beside the
+  cutting-plane letter when it starts drawing it; I1 reserves the existing plane
+  furniture and the later sheet's caption/reference band. Linux byte comparison/
+  recording is configured, but not run on this Mac.
+
+Final verification and measurements follow in the I1 status entry.
+
+I1's final review also reserved a withdrawn long table's exclusive sheet during
+preflight (typed `NoPlace`, before any table ink exists), and propagated a forced
+keep-together assignment from a view to its table. Two focused packing tests cover
+these cases. Narrow section blocks reserve the font-measured width of the longest
+supported zone address as well as the caption/reference height; scale notes reserve
+their actual standard-scale text width. I2 should centre this text on `view.at[0]`,
+as the section caption does. `sheets::check` emits `sheet_label_replaced` when an
+allocated multi-sheet document has an authored SHEET label, including a blank one;
+I2 owns drawing the `n/m` replacement and should not append a duplicate diagnostic.
+
+Visual handoff: filtering `render()` to sheet-1 views removes the old section
+renderer that supplied its parent's cutting-plane arrows/letters. The parent's
+cutting-plane `line_work` is planned and used as a placement obstacle. I2 must draw
+those markings from the whole plan's cuts/sheet-1 furniture, including when the
+section is on another sheet. The temporary later-sheet SVGs in `target/i1-visual`
+are geometry previews, not completed I2 output: cross-reference and per-view scale
+text, `n/m`, and zone-border furniture still belong to I2. Notes/projection furniture
+are sheet-1 only.
+
+The final pin-grid run exposed an existing seed-2 / three-pin NO-GO on FTC-07:
+ink 1 → 4, off-sheet 0 → 0 (29/30 parts GO in that cell). Replaying its saved
+Spec with the frozen `0419fa6` binary produced the identical pinned Plan JSON
+(`target/i1-base-pin-proof.json`). I1 does not change annotation routing or the
+pin threshold to disguise this base failure. The first two seed-1 cells timed
+out at the driver's existing 1,500-second limit on the loaded machine; direct
+retries retain `quality.py --require-go` and the same baseline. The acceptance
+driver itself has no `--require-go` option; it already passes that option to each
+pin-grid child, so its supported `--job all` invocation is used.
+
+The final-source three-part planning timing replay had load averages 18.33–18.87.
+The loaded median wall times (base → final) were GRM-03 28.524 → 28.992 ms, 10020
+18.698 → 18.877 ms and FTC-06 586.426 → 580.985 ms; every Plan JSON was identical.
+These figures are observations under load, not accepted latency measurements.
+The sandbox also denies the system counter needed by `/usr/bin/time -l`.
+
+The Stage I carrier `debug_assert!` runs at the completion of allocation, beside
+the check call. The public generic `sheets::check` remains usable on R5's hand-built
+future-carrier examples (frame on sheet 2/3), including debug builds. This resolves
+R5's simultaneous requirement for a planner assertion and those generic datum-rule
+examples; the AP242 integration test independently verifies every real carrier.
+
+Seed-1/one-pin direct retry completed all 30 parts with GO (ink total 52 → 54,
+off-sheet total 0 → 0), retaining `--require-go` and the original same-run baseline.
+The first driver's 1,500-second deadline had expired before that cell finished;
+the existing per-operation 600-second limits were unchanged in the retry.
+
+A last review corrected the section reservation to R5's actual `FROM SHEET 1,
+ZONE R24` text (including its comma), replacing a shorter placeholder. The narrow
+section test now checks the existing 2 mm table/text padding as well as the font
+width and paper margin. Default-sheet paths never call this auxiliary reservation.
+The final Cargo follow-up rebuilds this change; the R5 tests, golden guard and
+narrow-section preview must use that rebuilt library/binary before sign-off.
+
+The completed grid retries also found the same FTC-07 ink 1 → 4, off-sheet
+0 → 0 result with seed 2 / eight pins. Both failing pinned Plans are byte-identical
+to the frozen base (`target/i1-base-pin-proofs.json`). Seed 1 / three pins passed
+30/30, as did seed 3 / eight pins. Seed 3 / one and three pins each completed
+29 parts with GO and hit the unchanged 600-second render timeout on CTC-02; those
+timeouts are preserved and queued for isolated retries. No threshold was changed.
+
+The full Rust run reached `tests/session.rs` with 743 passes and one latency-gate
+failure: CTC-01 p90 643.436 ms against 150 ms, with load above 8. The prescribed
+isolated session retry and, if needed under load, latency-disabled retry precede
+the remaining test binaries. This receipt does not establish a latency regression.
+
+The isolated final-source session retry again failed only its timing assertions:
+GRM-03 p90 157.827 ms and CTC-01 p90 484.840 ms, against 150 ms, with load 9.53
+after the run. The prescribed `DRAFTWRIGHT_LATENCY_GATE=0` retry passed all eight
+session tests (load 8.52). Timing remains unmeasured; semantic checks were retained.
+The all-job survey separately exhausted its 6,600-second outer deadline on the
+last FTC-10 AP242 review after producing all 64 SVGs, Plans and analyses. Its retry
+uses the unchanged 3,600-second per-operation limit without that outer deadline.
+
+Individual base evidence now covers every R5 integration test:
+`target/i1-individual-base-proofs.json` records eight original runtime failures,
+thirteen separately compiled API failures against the archived base, and two
+CLI-equivalent Spec refusals. The two private packing tests also have refusals
+of their exact input Specs on the frozen CLI. These latter receipts are input/API
+red proofs, not claims that the private tests or typed tests executed on base.
+The byte invariant intentionally passes on base.
+
+The two seed-3 CTC-02 timeout-case Specs also produce identical Plans on base and
+the rebuilt source when replayed with their saved native Analysis
+(`target/i1-base-timeout-plan-proofs.json`). The original 600-second render errors
+remain errors until the queued unchanged-limit retries complete; this planning
+comparison does not turn a timeout into a GO result.
+
+Both CTC-02 timeout retries subsequently completed with GO, retaining the original
+600-second per-operation limit. The final grid contains all 270 cases, no errors,
+and 268 GO results. Only the two base-identical FTC-07 seed-2 cases remain NO-GO;
+all nine cells were checked with the original validator and unchanged same-run
+baseline (`target/i1-final-pin-validation.json`). These are unmet existing cosmetic
+targets; I1 does not weaken their bar or alter single-sheet output to conceal them.
+
+Final verification is complete: the 64-part survey retry and original complete-set
+validator passed with zero repeated spans. Its 8,850.99-second loaded run retained
+the original 3,600-second per-operation limit; only the first driver's outer
+6,600-second deadline was absent. All timeout retries passed. The two base-identical
+FTC-07 pin targets remain unmet and are explicitly recorded in the status report.
+The byte fixture remains frozen. No commit or push was made.

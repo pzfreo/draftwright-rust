@@ -1461,10 +1461,18 @@ pub fn recover(
     page: [f64; 2],
     page_pinned: bool,
     first: Findings,
+    floor: Option<f64>,
     plan: &mut dyn FnMut(Retry) -> Option<Findings>,
 ) -> Vec<Attempt> {
-    let smaller = SCALES.iter().copied().filter(|s| *s < scale);
-    let mut larger: Vec<f64> = SCALES.iter().copied().filter(|s| *s > scale).collect();
+    let smaller = SCALES
+        .iter()
+        .copied()
+        .filter(|s| *s < scale && floor.is_none_or(|f| *s >= f));
+    let mut larger: Vec<f64> = SCALES
+        .iter()
+        .copied()
+        .filter(|s| *s > scale && floor.is_none_or(|f| *s >= f))
+        .collect();
     larger.reverse();
     let scales: Vec<f64> = if first.hard > 0 {
         smaller
@@ -1837,4 +1845,51 @@ pub(crate) fn fit_auxiliary_box(
         return Some(p);
     }
     fit_box(size, region, obstacles, prefer, clearance)
+}
+
+/// Pack auxiliary blocks as wrapping rows, after the sheet's corner tables. Blocks include
+/// caption/scale/cross-reference bands; no notes or projection furniture are reserved here.
+pub fn plan_sheet(
+    blocks: &mut [crate::model::PlannedView],
+    tables: &[Rect],
+    sheet: &crate::model::PlannedSheet,
+) -> bool {
+    const GAP: f64 = 10.0;
+    let mut occupied = tables.to_vec();
+    occupied.push(sheet.title_block);
+    let mut x = MARGIN;
+    let mut top = sheet.page[1] - MARGIN;
+    let mut row_height: f64 = 0.0;
+    for view in blocks {
+        let w = view.area[2] - view.area[0];
+        let h = view.area[3] - view.area[1];
+        if w > sheet.page[0] - 2.0 * MARGIN || h > sheet.page[1] - 2.0 * MARGIN {
+            return false;
+        }
+        loop {
+            if x + w > sheet.page[0] - MARGIN + 1e-9 {
+                top -= row_height.max(h) + GAP;
+                row_height = 0.;
+                x = MARGIN;
+            }
+            let area = [x, top - h, x + w, top];
+            if area[1] < MARGIN - 1e-9 {
+                return false;
+            }
+            if let Some(b) = occupied.iter().find(|b| crate::sheets::overlap(area, **b)) {
+                x = b[2] + GAP;
+                continue;
+            }
+            let shift = [area[0] - view.area[0], area[1] - view.area[1]];
+            view.at[0] += shift[0];
+            view.at[1] += shift[1];
+            crate::centrelines::shift(view, shift);
+            view.area = area;
+            occupied.push(area);
+            x = area[2] + GAP;
+            row_height = row_height.max(h);
+            break;
+        }
+    }
+    true
 }

@@ -405,6 +405,7 @@ fn a_dimensions_chosen_view_names_why_it_is_not_shown() {
             spec.views.insert(
                 "side".into(),
                 model::ViewSpec {
+                    sheet: None,
                     omit: true,
                     ..Default::default()
                 },

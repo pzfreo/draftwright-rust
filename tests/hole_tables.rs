@@ -97,7 +97,7 @@ fn check_part(name: &str, drops: bool) {
     let python = &fixture("hole_tables.json")[name];
     let first = model::plan(analysis, &Spec::default()).unwrap();
     let mut escalated = first.clone();
-    hole_table::escalate(analysis, &mut escalated);
+    hole_table::escalate(analysis, &mut escalated, None);
     let off: Vec<&str> = first
         .problems
         .iter()
@@ -324,7 +324,7 @@ fn a_table_without_every_balloon_is_withdrawn_whole() {
         .clone();
     stand_in_off_sheet(&mut first, id);
     let mut p = first.clone();
-    hole_table::escalate(analysis, &mut p);
+    hole_table::escalate(analysis, &mut p, None);
     assert!(p.hole_table.is_none() && p.balloons.is_empty());
     let unplaced: Vec<&str> = p
         .dimensions
@@ -377,7 +377,7 @@ fn forced() -> (&'static (Part, Analysis), Plan) {
         .id
         .clone();
     stand_in_off_sheet(&mut p, id);
-    hole_table::escalate(&read.1, &mut p);
+    hole_table::escalate(&read.1, &mut p, None);
     (read, p)
 }
 
@@ -548,7 +548,7 @@ fn an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt() {
         .id
         .clone();
     stand_in_off_sheet(&mut p, dropped);
-    hole_table::escalate(analysis, &mut p);
+    hole_table::escalate(analysis, &mut p, None);
     assert!(
         p.problems.iter().any(|p| p.code == "table_dropped"),
         "the table must be attempted before its balloon failure is reported"
