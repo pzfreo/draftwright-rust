@@ -1,8 +1,8 @@
 # ADR R5: Multi-sheet drawings
 
-**Status:** Proposed (2026-10-12, revised the same day after review). The allocation policy in
-the first section is **Accepted (maintainer, 2026-10-11)**. The rest of this record, the
-technical design, needs the maintainer's sign-off.
+**Status:** Accepted (maintainer, 2026-10-13). The allocation policy in the first section was
+accepted on 2026-10-11; the technical design on 2026-10-13, with three decisions recorded in
+"Decided at sign-off" below. Stage I builds it.
 
 **Builds on:** R1 (the document model: the spec stores intent, renderers draw only from the plan,
 IDs are derived), the layout recovery (ISSUE-1299-a, `model::recover`) and drop-and-escalate
@@ -11,7 +11,7 @@ IDs are derived), the layout recovery (ISSUE-1299-a, `model::recover`) and drop-
 **Translates:** Python draftwright's `Document` (`src/draftwright/document.py`). There a document
 is a set of separately authored `Sheet`s sharing one drawing number and revision, and each sheet's
 title-block `sheet` cell gets `"n/m"`, or else all sheets get custom labels. Here, the planner
-allocates the sheets from one spec. The cell reads `n OF m`, as the policy says, not `n/m`.
+allocates the sheets from one spec. The cell reads ISO 7200's `n/m` (maintainer, 2026-10-13).
 
 **Words.** This record says a view or table is *assigned* to a sheet (the spec's `sheet` fields).
 It never says *pinned*: that word belongs to the existing placement intents (`Place.pinned`,
@@ -282,21 +282,12 @@ Every sheet draws the full title block (`title_block::cells`) with the same titl
 `format` is the shared size. The projection symbol and the general notes are drawn on sheet 1
 only. When m > 1:
 
-- the `SHEET` cell holds `n OF m`. Measured in the title-block face at 3 mm, `1 OF 2` is 7.60 mm
-  of ink (7.94 mm of advance) and `10 OF 12` is 10.84 mm (11.18 mm). Today's cell is 6 % of the
-  block: 7.2 mm on A4 (block 120 mm) and 9.0 mm on A3 and larger (block 150 mm). In a multi-sheet
-  document, therefore, the bottom row widens the SHEET cell to 12 % and narrows APPROVED BY from
-  35 % to 29 %. The single-sheet grid does not change;
-- **what APPROVED BY loses:** 29 % is 34.8 mm on A4 and 43.5 mm on A3+, against 42.0 mm and
-  52.5 mm today. Advance widths at 3 mm (bundled IBM Plex Sans Condensed): `P. FREMANTLE`
-  18.2 mm, `A. N. OTHER-JONES` 24.5 mm, `Quality Engineering Dept` 30.1 mm,
-  `ALEXANDRA MONTGOMERY-SMYTHE` 45.9 mm. A name or role up to about 23 characters still fits on
-  A4. A value between 34.8 and 42.0 mm (roughly 24 to 29 characters) fits a single-sheet A4
-  block but not a multi-sheet one. It is then reported by the existing `title_field_overflow`
-  warning and drawn whole, never shortened. The guard (`every_sheet_has_its_title_block`) asserts
-  that the first three values fit on A4 at 29 %. DATE was not narrowed instead: 12 % of the A4
-  block is 14.4 mm and `2026-10-12` is 15.1 mm;
-- a spec `sheet.title.sheet` value is replaced by `n OF m`, with a `sheet_label_replaced` info
+- the `SHEET` cell holds ISO 7200's `n/m` (maintainer, 2026-10-13: the policy's "SHEET n OF m"
+  is read as this form). `1/2` is about 3.95 mm at 3 mm, so it fits today's cell (6 % of the block:
+  7.2 mm on A4, 9.0 mm on A3 and larger), and the title-block grid does not change for any
+  document. A value that would not fit (`10/12` and up on A4) is reported by the existing
+  `title_field_overflow` warning and drawn whole;
+- a spec `sheet.title.sheet` value is replaced by `n/m`, with a `sheet_label_replaced` info
   problem. Python's custom page labels are not carried.
 
 ### 5. Grid zones and cross-references
@@ -324,9 +315,8 @@ only. When m > 1:
   `api::rendered` adds the entries `sheet<n>.svg`, and `api::write` writes them like any format.
 - **PDF:** one file, one page per sheet (`Drawing::pdf_pages(&[Drawing], fonts)`). With one
   sheet it is `pdf()`, byte for byte.
-- **DXF:** one file per sheet, `<stem>.sheet<n>.dxf`, each with the spec comments. Paperspace
-  layouts in one file were considered and not chosen, because the existing writer and its
-  readers (ezdxf, the `dxf` crate) are model-space only.
+- **DXF:** none. DXF export is disabled until it is fixed (draftwright-rust PR #7); when it
+  returns, it gets one file per sheet.
 - **PNG:** one per sheet, `<stem>.sheet<n>.png`. `view_sheet` and `render` take `sheet`
   (default 1).
 - **Lint across sheets.** `lint::lint(analysis, &Drawing)` stays for one drawing.
@@ -448,12 +438,12 @@ The maintainer redesigns the editor after these stages.
 
 ## Invariants
 
-1. **A single-sheet spec is unchanged byte for byte:** its plan JSON, SVG, PDF, DXF and PNG.
+1. **A single-sheet spec is unchanged byte for byte:** its plan JSON, SVG, PDF and PNG.
    Guards: `tests/sheets.rs::single_sheet_documents_are_byte_identical`, together with the
    existing `tests/fixtures/known_*.json` and the CI quality baseline, unchanged.
 2. **The principal views are on sheet 1, never split.** Guard:
    `sheets::principal_views_stay_on_sheet_1`.
-3. **Every sheet has the title block, and SHEET reads `n OF m` without overflow on A4 to A0.**
+3. **Every sheet has the title block, and SHEET reads `n/m` without overflow on A4 to A0 (m < 10).**
    Guard: `sheets::every_sheet_has_its_title_block`.
 4. **Every frame's datums are identified on sheet 1 or on the frame's own sheet.** In Stage I
    this holds by construction (every carrier is on sheet 1). Guards: `sheets::datum_rule` (the
@@ -468,7 +458,7 @@ The maintainer redesigns the editor after these stages.
 ## Tests that prove it (`tests/sheets.rs`, new, plus the existing suites)
 
 - **Byte identity:** every slice part and AP242 fixture, with the default spec and with each
-  existing test spec, gives **plan, SVG, PDF, DXF and PNG** bytes equal to the pre-change build.
+  existing test spec, gives **plan, SVG, PDF and PNG** bytes equal to the pre-change build.
   The SHA-256 of each is recorded in `tests/fixtures/known_single_sheet.json` before any Stage I
   code lands. They are recorded **on CI Linux** (`ubuntu-latest`, the only platform this repo's
   CI runs) at the pre-change `main` commit, by a one-off run of the test in record mode
@@ -504,12 +494,12 @@ The maintainer redesigns the editor after these stages.
   `gdt_on_sheet_1` met. A hand-built plan with a frame moved to `sheet: 2` and its datum on
   sheet 1 passes; one with the datum symbol also on sheet 2 and the frame on sheet 3 gives
   `datum_not_identified`.
-- **Title block and zones:** each sheet's `SHEET` cell reads `n OF m`. The three APPROVED BY
-  values of section 4 fit at 29 % on A4. Zones are 6×4 on A4 up to 24×16 on A0. `sheets::zone`
+- **Title block and zones:** each sheet's `SHEET` cell reads `n/m`, and the title-block grid is
+  unchanged. Zones are 6×4 on A4 up to 24×16 on A0. `sheets::zone`
   maps known points. The cross-reference texts appear in the drawn text of both sheets.
 - **Corner tables:** a table assigned to sheet 2 is placed towards its corner there, clear of
   the title block and the views.
-- **Formats:** the SVG count is m, the PDF page count is m, the DXF count is m, the PNG count is
+- **Formats:** the SVG count is m, the PDF page count is m, the PNG count is
   m, and each file's embedded spec round-trips through `draftwright spec`.
 - **Lint and review:** `lint_sheets` over one drawing equals `lint`. `review` of a two-sheet plan
   returns both SVGs and per-sheet structural issues.
@@ -534,7 +524,7 @@ and I3 build on it and can run in parallel; I4 follows I1 to I3 on the editor. D
 | Stream | Changes | Acceptance |
 | --- | --- | --- |
 | **I1: model and allocation** | `known_single_sheet.json` recorded first (CI Linux). `src/model.rs` (`Spec.sheets`, `sheet` on `ViewSpec` and `TableSpec`; `Plan.sheets`; `PlannedView.sheet`, `scale_note`, `xref`; `recover`'s floor; edit validation), `src/layout.rs` (`recover`'s floor, `plan_sheet`), `src/sheets.rs` (new: the search, packing, numbering, `zone`, `check`), `src/hole_table.rs` (`table_sheet`, `TableOutcome`), `src/items.rs` (`Item.sheet`), `src/dims/{placement,mod,gdt}.rs` (per-sheet audits), `src/tables.rs` (placement on sheets 2..m), `docs/model.md` | `known_single_sheet.json` unchanged; the allocation, hole-table, GD&T-assertion and check tests above pass; the full corpus suite, fmt and strict clippy pass |
-| **I2: sheet furniture, rendering, lint** | `src/title_block.rs` (multi-sheet bottom row, `n OF m`), `src/model.rs` render (`render_sheets`, border zones, cross-reference text), `src/section.rs` (cross-reference under the label), `src/output.rs` (`pdf_pages`), `src/png.rs`, `src/api.rs` (sheet files, `write`, `review`), `src/lint/mod.rs` (`lint_sheets`), `src/lint/structural.rs` (`cross_reference_missing`, per-sheet) | Title block, zone, cross-reference, format and lint tests pass; single-sheet bytes unchanged; a two-sheet PDF opens with 2 pages, and its text search finds both cross-references |
+| **I2: sheet furniture, rendering, lint** | `src/title_block.rs` (`n/m` in the SHEET cell), `src/model.rs` render (`render_sheets`, border zones, cross-reference text), `src/section.rs` (cross-reference under the label), `src/output.rs` (`pdf_pages`), `src/png.rs`, `src/api.rs` (sheet files, `write`, `review`), `src/lint/mod.rs` (`lint_sheets`), `src/lint/structural.rs` (`cross_reference_missing`, per-sheet) | Title block, zone, cross-reference, format and lint tests pass; single-sheet bytes unchanged; a two-sheet PDF opens with 2 pages, and its text search finds both cross-references |
 | **I3: MCP and sessions** | `src/session.rs` (delta `sheets`, `filter.sheet`, qualified addresses, `svg_fragments(sheet)`, `Stats.sheet_steps`), `src/stateless.rs` (`render(sheet)`, summary), `src/mcp.rs`, `schemas/mcp/*.json`, `tools/generate_mcp_schemas.py`, `docs/mcp.md`, the latency test | The MCP tests above pass; existing MCP baselines and the 4096-byte budgets unchanged for single-sheet parts; the scripted evaluation stays 7/7 |
 | **I4: editor compatibility** | In `draftwright-editor`, branch from `cxg-int/ed`: re-pin the draftwright `rev` in `Cargo.toml` to the commit landing I1 to I3; `crates/engine/src/lib.rs` (sheet-1 item filter). No UI change | Editor build, `crates/engine/tests/session.rs` and `web/smoke.cjs` pass; a two-sheet spec shows sheet 1 and survives a round trip unchanged |
 
@@ -569,10 +559,14 @@ So they are a stage of their own, with this design to be confirmed before it sta
   sheet 2, enlarged and cross-referenced. Every item that was reported dropped, or counted
   crowded, inside the region at the floor is placed on the detail, and `lint_sheets` credits it.
 
+## Decided at sign-off (maintainer, 2026-10-13)
+
+- The technical design is accepted as the Stage I plan.
+- Sections stay on sheet 1 unless sheet 1 overflows ("the next sheet with room" read as above).
+- The SHEET cell reads ISO 7200's `n/m`; the title-block grid does not change (section 4).
+- DXF is out of Stage I while its export is disabled.
+
 ## Open
 
-- **The SHEET cell:** widening it in multi-sheet documents (section 4) departs from Python's grid
-  and from ISO 7200's widths. The alternative is ISO 7200's own `n/m` (3.95 mm, fits today's
-  cell), but the policy says "SHEET n OF m".
 - **Stage J's region rule** (one region, the margin, items wholly inside) is a first design, to
   be confirmed before that stage starts.
