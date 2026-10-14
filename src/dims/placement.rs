@@ -304,6 +304,44 @@ fn lane_at(o: [f64; 4], side: Side, lane: usize) -> (f64, f64) {
     }
 }
 
+/// Exterior callout elbow rows, in paper mm; keys are the four Spec side names.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LabelRows {
+    pub outline: [f64; 4],
+    pub first_row: BTreeMap<String, f64>,
+    pub row_spacing: BTreeMap<String, f64>,
+}
+
+fn callout_step(side: Side, width: f64, canonical_width: f64) -> f64 {
+    if matches!(side, Side::Left | Side::Right) {
+        canonical_width.max(width) + super::SHOULDER + LANE
+    } else {
+        LANE
+    }
+}
+
+/// Rows for a view and the greater of its canonical and edited callout widths.
+pub fn label_rows(analysis: &Analysis, view: &PlannedView, width: f64) -> LabelRows {
+    let outline = Frame::new(analysis, view).outline();
+    let sides = [
+        ("above", Side::Above),
+        ("below", Side::Below),
+        ("left", Side::Left),
+        ("right", Side::Right),
+    ];
+    LabelRows {
+        outline,
+        first_row: sides
+            .iter()
+            .map(|(name, side)| (name.to_string(), lane_at(outline, *side, 0).0))
+            .collect(),
+        row_spacing: sides
+            .iter()
+            .map(|(name, side)| (name.to_string(), callout_step(*side, width, width)))
+            .collect(),
+    }
+}
+
 /// Whether world axis *axis* runs across the page in this view (else up it); none when the
 /// view looks along it.
 pub(super) fn across(frame: &Frame, axis: usize) -> Option<bool> {
@@ -961,6 +999,7 @@ pub(super) fn avoid_fixed(
     sides: &mut [Option<Side>],
     lanes: &mut [usize],
     fixed: &[bool],
+    drawn: &[bool],
     placed: &mut [Option<Placed>],
     obstacles: &[PlannedDimension],
     page: &Page,
@@ -985,6 +1024,10 @@ pub(super) fn avoid_fixed(
     if held.is_empty() {
         return;
     }
+    let callout_pin = items
+        .iter()
+        .zip(fixed)
+        .any(|(w, fixed)| *fixed && matches!(w.shape, Shape::Callout { .. }));
     let blocked = |p: &Placed| {
         held.iter().any(|(q, leader)| {
             boxes_overlap(p.label_box, q.label_box)
@@ -1014,6 +1057,7 @@ pub(super) fn avoid_fixed(
             placed[i] = Some(p);
             continue;
         }
+        let original = p;
         let opposite = match side {
             Side::Above => Side::Below,
             Side::Below => Side::Above,
@@ -1027,6 +1071,17 @@ pub(super) fn avoid_fixed(
             if let Some(p) = place(&frames[view], &items[i], side, lane)
                 && page.fits(&p, view)
                 && !blocked(&p)
+                && !placed.iter().enumerate().any(|(j, q)| {
+                    callout_pin
+                        && drawn[i]
+                        && drawn[j]
+                        && j != i
+                        && chosen[j] == Some(view)
+                        && matches!(items[j].shape, Shape::Linear { .. })
+                        && q.as_ref().is_some_and(|q| {
+                            dimension_lines_overlap(&p, q) && !dimension_lines_overlap(original, q)
+                        })
+                })
             {
                 placed[i] = Some(p);
                 sides[i] = Some(side);
@@ -1035,6 +1090,32 @@ pub(super) fn avoid_fixed(
             }
         }
     }
+}
+
+// Linear placements store their dimension line after the two extension lines.
+// Dimensions sharing a datum must stay on separate lines when moving around a pin.
+fn dimension_lines_overlap(p: &Placed, q: &Placed) -> bool {
+    let (Some(a), Some(b)) = (p.lines.get(2), q.lines.get(2)) else {
+        return false;
+    };
+    (0..2).any(|k| {
+        let along = 1 - k;
+        (a[0][k] - a[1][k]).abs() < 1e-6
+            && (b[0][k] - b[1][k]).abs() < 1e-6
+            && (a[0][k] - b[0][k]).abs() < 1e-6
+            && p.arrows.iter().any(|a| {
+                q.arrows
+                    .iter()
+                    .any(|b| (a[0][along] - b[0][along]).abs() < 1e-6)
+            })
+            && a[0][along]
+                .min(a[1][along])
+                .max(b[0][along].min(b[1][along]))
+                < a[0][along]
+                    .max(a[1][along])
+                    .min(b[0][along].max(b[1][along]))
+                    - 1e-6
+    })
 }
 
 /// A held (bare-pin) placement re-laid for the item's current label: the lines stay where the
@@ -1127,11 +1208,7 @@ pub(super) fn intent(
             let width = ink.max[0] - ink.min[0];
             // Horizontal callout labels need their measured width in a side column. Use the
             // canonical width so editing another item's text cannot move a pin's lane.
-            let step = if matches!(side, Side::Left | Side::Right) {
-                callout_width.max(width) + super::SHOULDER + LANE
-            } else {
-                LANE
-            };
+            let step = callout_step(side, width, callout_width);
             line += out * lane as f64 * step;
             let k = usize::from(matches!(side, Side::Above | Side::Below));
             let f = p
@@ -1142,7 +1219,11 @@ pub(super) fn intent(
             elbow[k] = line;
             elbow[1 - k] = o[1 - k] + f * (o[3 - k] - o[1 - k]);
             let tip = super::leaders::intent_tip(frame, sites, elbow);
-            let left = side == Side::Left;
+            let left = match side {
+                Side::Left => true,
+                Side::Right => false,
+                Side::Above | Side::Below => p.pinned && elbow[0] < tip[0] - 1e-9,
+            };
             let end = [
                 elbow[0]
                     + if left {
