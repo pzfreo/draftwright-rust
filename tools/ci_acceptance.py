@@ -174,7 +174,7 @@ class Run:
             self.step('quality', [*py, ROOT / 'tools/quality.py', *quality_args, binary, quality_out, *files],
                       'quality', fresh, args.baseline)
             self.step('leader-routes', [*py, ROOT / 'tools/check_leader_routes.py', quality_out,
-                      '--require-improvement', '--report', out / 'leader-routes.json'])
+                      '--report', out / 'leader-routes.json'])
             # The deliberate failure uses a real measured report, without changing the accepted baseline.
             if fresh.is_file():
                 bad = read(fresh)

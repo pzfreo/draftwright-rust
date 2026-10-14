@@ -802,8 +802,12 @@ fn route_reports(item: &Want, view_name: &str, outline: [f64; 4], shaft: [P2; 2]
     problems
 }
 
-/// Local callout refinement after interior placement, with the rest of the ink held fixed.
-/// A pad contact never buys a longer trip across a view or travel along its line-work.
+/// Local callout refinement after interior placement, with the rest of the ink held fixed
+/// (maintainer decision (iii): leaders and their text keep off extension lines). A callout in
+/// contact moves to the nearest station of its row with fewer contacts only when nothing a
+/// draftsman sees is worse: no longer by over 2 mm, no new crossing of model, hidden-edge or
+/// cutting-plane ink, no 2 mm run beside a model or extension line, text and arrowhead on no
+/// new extension line, elbow and text off the outline, and no worse on every placement tier.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn refine(
     analysis: &crate::model::Analysis,
@@ -822,9 +826,37 @@ pub(super) fn refine(
     let Some(ink) = analysis.edge_ink.as_ref() else {
         return updated;
     };
-    let mut model = Vec::new();
-    let mut uncertain = Vec::new();
-    for v in views {
+    // The linear dimensions' extension lines, each with its owner. Refinement moves only
+    // callouts, so these stay fixed throughout.
+    let extensions: Vec<(usize, [P2; 2])> = placed
+        .iter()
+        .enumerate()
+        .filter_map(|(j, p)| p.as_ref().map(|p| (j, p)))
+        .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
+        .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
+        .collect();
+    // Only a free callout already in contact is refined; most sheets have none, and then the
+    // view ink below is never gathered.
+    let todo: Vec<usize> = (0..items.len())
+        .filter(|&i| {
+            matches!(items[i].shape, Shape::Callout { .. })
+                && views_of[i].is_some()
+                && !spec
+                    .dimensions
+                    .get(&items[i].id)
+                    .is_some_and(|d| d.place.is_some())
+                && placed[i]
+                    .as_ref()
+                    .is_some_and(|p| extension_contacts(&extensions, &p.lines, p.label_box).0 > 0)
+        })
+        .collect();
+    if todo.is_empty() {
+        return updated;
+    }
+    // Each view's line-work for the route gates, gathered only once a candidate reaches it.
+    let view_ink = |v: &crate::model::PlannedView| {
+        let mut model: Vec<[P2; 2]> = Vec::new();
+        let mut uncertain: Vec<[f64; 4]> = Vec::new();
         let frame = Frame::new(analysis, v);
         if v.id == "v:iso" {
             let b = analysis.iso_bounds;
@@ -834,12 +866,12 @@ pub(super) fn refine(
                 v.at[0] + v.scale * b[2],
                 v.at[1] + v.scale * b[3],
             ]);
-            continue;
+            return (model, uncertain);
         }
         if v.cut.is_some() {
             // Section ink needs a cut B-rep: new routes stay outside its envelope.
             uncertain.push(frame.outline());
-            continue;
+            return (model, uncertain);
         }
         model.extend(
             ink.edges
@@ -900,7 +932,27 @@ pub(super) fn refine(
             );
             uncertain.push(b);
         }
-    }
+        (model, uncertain)
+    };
+    let view_reach: Vec<[f64; 4]> = views
+        .iter()
+        .map(|v| {
+            let b = if v.id == "v:iso" {
+                let b = analysis.iso_bounds;
+                [
+                    v.at[0] + v.scale * b[0],
+                    v.at[1] + v.scale * b[1],
+                    v.at[0] + v.scale * b[2],
+                    v.at[1] + v.scale * b[3],
+                ]
+            } else {
+                Frame::new(analysis, v).outline()
+            };
+            grow(b, 1.0)
+        })
+        .collect();
+    let gathered: Vec<std::cell::OnceCell<ViewInk>> =
+        views.iter().map(|_| std::cell::OnceCell::new()).collect();
     let cuts: Vec<_> = views
         .iter()
         .flat_map(|v| &v.line_work)
@@ -911,80 +963,201 @@ pub(super) fn refine(
         .iter()
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
-    for (i, w) in items.iter().enumerate() {
+    for i in todo {
+        let w = &items[i];
         let (Shape::Callout { sites }, Some(view), Some(old)) =
-            (&w.shape, views_of[i], placed[i].as_ref())
+            (&w.shape, views_of[i], placed[i].clone())
         else {
             continue;
         };
-        if spec
-            .dimensions
-            .get(&w.id)
-            .is_some_and(|d| d.place.is_some())
-        {
-            continue;
-        }
-        let extensions: Vec<_> = placed
+        let [tip, elbow] = old.lines[0];
+        let end = old.lines[1][1];
+        let right = end[0] >= elbow[0];
+        let frame = &frames[view];
+        let page_sites = page_sites(frame, sites);
+        let old_length = length(&old.lines);
+        let label = label_ink(&w.terms, font());
+        // Every candidate lies within this box: a leader no longer than the old one by 2 mm
+        // from an elbow in the row, then its shoulder and padded label.
+        let span = ROW * STEP
+            + old_length
+            + 2.0
+            + (label.max[0] - label.min[0])
+            + (label.max[1] - label.min[1])
+            + 4.0 * LABEL_PAD;
+        let extensions: Vec<(usize, [P2; 2])> = extensions
             .iter()
-            .enumerate()
-            .filter(|(j, _)| *j != i)
-            .filter_map(|(j, p)| p.as_ref().map(|p| (j, p)))
-            .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
-            .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
+            .filter(|(_, s)| touches_box(*s, grow([elbow[0], elbow[1], elbow[0], elbow[1]], span)))
+            .copied()
             .collect();
-        let contact = |lines: &[[P2; 2]], b: [f64; 4]| {
-            let pad = [
-                b[0] - LABEL_PAD,
-                b[1] - LABEL_PAD,
-                b[2] + LABEL_PAD,
-                b[3] + LABEL_PAD,
-            ];
-            let mut pairs = std::collections::BTreeSet::new();
-            for (j, e) in &extensions {
-                let b = [
-                    e[0][0].min(e[1][0]) - LABEL_PAD,
-                    e[0][1].min(e[1][1]) - LABEL_PAD,
-                    e[0][0].max(e[1][0]) + LABEL_PAD,
-                    e[0][1].max(e[1][1]) + LABEL_PAD,
-                ];
-                if touches_box(*e, pad) || lines.iter().any(|s| touches_box(*s, b)) {
-                    pairs.insert(*j);
+        let before = extension_contacts(&extensions, &old.lines, old.label_box);
+        // Every station of the local row, shoulder-only changes first, kept only while it is
+        // no longer than the old route by 2 mm and lowers the contacts without the text gaining
+        // one: text on an extension line is worse than a leader across it.
+        let mut candidates = Vec::new();
+        let reach = ROW as i32;
+        let shifts = std::iter::once([0, 0]).chain((-reach..=reach).flat_map(|x| {
+            (-reach..=reach)
+                .filter(move |y| x != 0 || *y != 0)
+                .map(move |y| [x, y])
+        }));
+        let shelf = (end[0] - elbow[0]).abs();
+        for shift in shifts {
+            let q = [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP);
+            let t = if shift == [0, 0] {
+                tip
+            } else {
+                let site = nearest(&page_sites, q);
+                if (q[0] - site.0[0]).hypot(q[1] - site.0[1]) <= site.1 {
+                    continue;
+                }
+                rim_tip(site, q)
+            };
+            if (q[0] - t[0]).hypot(q[1] - t[1]) < MIN_LEADER {
+                continue;
+            }
+            for right in [right, !right] {
+                // A shoulder never shrinks below the natural one: a stub reads as part of
+                // whatever line the elbow sits near.
+                for shoulder in [shelf, shelf + STEP, shelf + 2.0 * STEP] {
+                    let e = [q[0] + if right { shoulder } else { -shoulder }, q[1]];
+                    if (q[0] - t[0]) * (e[0] - q[0]) < -1e-9 {
+                        continue;
+                    }
+                    let lines = [[t, q], [q, e]];
+                    if length(&lines) > old_length + 2.0 + 1e-6 {
+                        continue;
+                    }
+                    let (_, lb) = label_geometry(q, e, right, label.min, label.max);
+                    let now = extension_contacts(&extensions, &lines, lb);
+                    if now.0 >= before.0 || now.1 > before.1 {
+                        continue;
+                    }
+                    let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
+                        + (e[0] - end[0]).hypot(e[1] - end[1]);
+                    candidates.push((now, moved, t, q, e, right, lb));
                 }
             }
-            pairs.len()
-        };
-        let runs = |lines: &[[P2; 2]]| {
-            lines.iter().any(|s| {
-                let ink = model.iter().chain(extensions.iter().map(|(_, s)| s));
-                let mut intervals: Vec<_> = ink.filter_map(|e| along_interval(*s, *e)).collect();
-                intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
-                let (mut start, mut stop) = (0.0_f64, 0.0_f64);
-                for (lo, hi) in intervals {
-                    if lo > stop + 1e-9 {
-                        start = lo;
-                    }
-                    stop = stop.max(hi);
-                    let length = (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]);
-                    if (stop - start) * length > 2.0 + 1e-6 {
-                        return true;
-                    }
-                }
-                false
-            })
-        };
-        let before = contact(&old.lines, old.label_box);
-        if before == 0 {
+        }
+        if candidates.is_empty() {
             continue;
         }
-        let ink = label_ink(&w.terms, font());
+        // The line-work near the candidates, so each one is tested against only what it can meet.
+        let mut region = old.label_box;
+        for (_, _, t, q, e, _, lb) in &candidates {
+            for p in [*t, *q, *e, [lb[0], lb[1]], [lb[2], lb[3]]] {
+                region = [
+                    region[0].min(p[0]),
+                    region[1].min(p[1]),
+                    region[2].max(p[0]),
+                    region[3].max(p[1]),
+                ];
+            }
+        }
+        for p in old.lines.iter().flatten() {
+            region = [
+                region[0].min(p[0]),
+                region[1].min(p[1]),
+                region[2].max(p[0]),
+                region[3].max(p[1]),
+            ];
+        }
+        let region = [
+            region[0] - 2.0 * LABEL_PAD,
+            region[1] - 2.0 * LABEL_PAD,
+            region[2] + 2.0 * LABEL_PAD,
+            region[3] + 2.0 * LABEL_PAD,
+        ];
+        let mut near_model: Vec<[P2; 2]> = Vec::new();
+        let mut uncertain: Vec<[f64; 4]> = Vec::new();
+        for (k, v) in views.iter().enumerate() {
+            if !boxes_meet(view_reach[k], region) {
+                continue;
+            }
+            let (m, u) = gathered[k].get_or_init(|| view_ink(v));
+            near_model.extend(m.iter().filter(|s| touches_box(**s, region)));
+            uncertain.extend(u);
+        }
+        let near_cuts: Vec<[P2; 2]> = cuts
+            .iter()
+            .filter(|s| touches_box(**s, region))
+            .copied()
+            .collect();
+        let near_lines: Vec<[P2; 2]> = near_model
+            .iter()
+            .copied()
+            .chain(
+                extensions
+                    .iter()
+                    .map(|(_, s)| *s)
+                    .filter(|s| touches_box(*s, region)),
+            )
+            .collect();
+        let crossed = |lines: &[[P2; 2]], e: [P2; 2]| lines.iter().any(|s| segments_cross(*s, e));
+        // The text and the elbow keep off the outline: a label or an elbow within the label
+        // pad of a model line reads as butting the part.
+        let on_model = |q: P2, lb: [f64; 4]| {
+            let pad = grow(lb, LABEL_PAD);
+            let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
+            (
+                near_model.iter().filter(|s| touches_box(**s, pad)).count(),
+                near_model.iter().any(|s| touches_box(*s, at)),
+            )
+        };
+        let (old_text_model, old_elbow_model) = on_model(elbow, old.label_box);
+        // The arrowhead keeps out of the extension lines it was clear of: a flare over the
+        // start of one reads as a contact whatever the shaft does.
+        let head_on = |t: P2, q: P2| {
+            let flare = head(arrow(t, q));
+            extensions
+                .iter()
+                .filter(|(_, e)| {
+                    let b = grow(
+                        [
+                            e[0][0].min(e[1][0]),
+                            e[0][1].min(e[1][1]),
+                            e[0][0].max(e[1][0]),
+                            e[0][1].max(e[1][1]),
+                        ],
+                        0.2,
+                    );
+                    flare.iter().any(|s| touches_box(*s, b))
+                })
+                .count()
+        };
+        let old_head = head_on(tip, elbow);
+        let route_safe = |lines: &[[P2; 2]]| {
+            !uncertain.iter().any(|b| {
+                lines
+                    .iter()
+                    .enumerate()
+                    .any(|(i, s)| touches_box(*s, *b) && *s != old.lines[i])
+            }) && !lines.iter().any(|s| runs_beside(*s, &near_lines))
+                && !near_model
+                    .iter()
+                    .chain(&near_cuts)
+                    .any(|s| crossed(lines, *s) && !crossed(&old.lines, *s))
+        };
+        candidates.retain(|(_, _, t, q, e, _, lb)| {
+            let (text_model, elbow_model) = on_model(*q, *lb);
+            text_model <= old_text_model
+                && (!elbow_model || old_elbow_model)
+                && head_on(*t, *q) <= old_head
+                && route_safe(&[[*t, *q], [*q, *e]])
+        });
+        if candidates.is_empty() {
+            continue;
+        }
+        // Fewest contacts first, then the least movement: the nearest acceptable route wins.
+        candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
         let job = Job {
             view,
             footprints: &footprints[view],
-            outline: frames[view].outline(),
+            outline: frame.outline(),
             area: page.area(view),
-            sites: page_sites(&frames[view], sites),
-            ink_min: ink.min,
-            ink_max: ink.max,
+            sites: page_sites.clone(),
+            ink_min: label.min,
+            ink_max: label.max,
             beyond: [CLEAR; 4],
         };
         let mut fixed = Fixed::new(
@@ -1012,47 +1185,18 @@ pub(super) fn refine(
             .filter(|(_, d)| d.kind == "ink" && d.basis == "cross")
             .map(|(j, _)| items.len() + j)
             .collect();
-        let [tip, elbow] = old.lines[0];
-        let end = old.lines[1][1];
-        let right = end[0] >= elbow[0];
         let Some(prior) = measure_at(&job, tip, elbow, end, right, &fixed, page) else {
             continue;
         };
-        let length = |p: &Placed| {
-            p.lines
-                .iter()
-                .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
-                .sum::<f64>()
-        };
-        let crossed = |lines: &[[P2; 2]], e| lines.iter().any(|s| segments_cross(*s, e));
         let interior = views
             .iter()
             .find(|v| v.id.trim_start_matches("v:") == view)
             .and_then(|v| {
                 proofs
                     .get(&v.id)
-                    .filter(|proof| proof.annotation_clear(v, old, true))
+                    .filter(|proof| proof.annotation_clear(v, &old, true))
                     .map(|proof| (v, proof))
             });
-        let route_safe = |lines: &[[P2; 2]]| {
-            // Reject geometry before measuring feature crossings (the expensive tier).
-            let next_length: f64 = lines
-                .iter()
-                .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
-                .sum();
-            next_length <= length(old) + 2.0 + 1e-6
-                && !uncertain.iter().any(|b| {
-                    lines
-                        .iter()
-                        .enumerate()
-                        .any(|(i, s)| touches_box(*s, *b) && *s != old.lines[i])
-                })
-                && !runs(lines)
-                && !model
-                    .iter()
-                    .chain(&cuts)
-                    .any(|s| crossed(lines, *s) && !crossed(&old.lines, *s))
-        };
         let acceptable = |c: &Candidate| {
             if c.hard > prior.hard
                 || c.crossings > prior.crossings
@@ -1068,65 +1212,13 @@ pub(super) fn refine(
             if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true)) {
                 return None;
             }
-            let contacts = contact(&p.lines, p.label_box);
-            if contacts >= before {
-                return None;
-            }
-            Some((contacts, c.score()))
+            Some(p)
         };
-        let mut best = None;
-        // Try shoulder-only changes first: an unchanged shaft needs no new silhouette proof.
-        // Then cover the local row, including stations between the eight compass directions.
-        let reach = ROW as i32;
-        let shifts = std::iter::once([0, 0]).chain((-reach..=reach).flat_map(|x| {
-            (-reach..=reach)
-                .filter(move |y| x != 0 || *y != 0)
-                .map(move |y| [x, y])
-        }));
-        for shift in shifts {
-            let q = [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP);
-            let t = if shift == [0, 0] {
-                tip
-            } else {
-                let site = nearest(&job.sites, q);
-                if (q[0] - site.0[0]).hypot(q[1] - site.0[1]) <= site.1 {
-                    continue;
-                }
-                rim_tip(site, q)
-            };
-            let shelf = (end[0] - elbow[0]).abs();
-            for right in [right, !right] {
-                for shoulder in [
-                    shelf,
-                    shelf * 0.75,
-                    shelf * 0.5,
-                    shelf * 0.25,
-                    shelf + STEP,
-                    shelf + 2.0 * STEP,
-                ] {
-                    let e = [q[0] + if right { shoulder } else { -shoulder }, q[1]];
-                    if (q[0] - t[0]) * (e[0] - q[0]) < -1e-9 {
-                        continue;
-                    }
-                    // Most stations cannot improve contact; avoid measuring their edge ink.
-                    if (q[0] - t[0]).hypot(q[1] - t[1]) < MIN_LEADER {
-                        continue;
-                    }
-                    let (_, lb) = label_geometry(q, e, right, job.ink_min, job.ink_max);
-                    if contact(&[[t, q], [q, e]], lb) >= before || !route_safe(&[[t, q], [q, e]]) {
-                        continue;
-                    }
-                    let Some(c) = measure_at(&job, t, q, e, right, &fixed, page) else {
-                        continue;
-                    };
-                    let Some(key) = acceptable(&c) else { continue };
-                    if best.as_ref().is_none_or(|(k, _)| key < *k) {
-                        best = Some((key, c.placed()));
-                    }
-                }
-            }
-        }
-        if let Some((_, p)) = best {
+        // Measuring a station against the placed ink is the expensive tier, so it runs last.
+        let chosen = candidates.iter().find_map(|&(_, _, t, q, e, right, _)| {
+            acceptable(&measure_at(&job, t, q, e, right, &fixed, page)?)
+        });
+        if let Some(p) = chosen {
             updated.insert(
                 w.id.clone(),
                 route_reports(w, view, job.outline, p.lines[0]),
@@ -1135,6 +1227,74 @@ pub(super) fn refine(
         }
     }
     updated
+}
+
+/// A view's straight line-work and the boxes of its line-work that is not known exactly.
+type ViewInk = (Vec<[P2; 2]>, Vec<[f64; 4]>);
+
+fn length(lines: &[[P2; 2]]) -> f64 {
+    lines
+        .iter()
+        .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+        .sum()
+}
+
+fn boxes_meet(a: [f64; 4], b: [f64; 4]) -> bool {
+    a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3]
+}
+
+fn grow(b: [f64; 4], d: f64) -> [f64; 4] {
+    [b[0] - d, b[1] - d, b[2] + d, b[3] + d]
+}
+
+/// A callout's contacts with the extension lines of linear dimensions (decision (iii)):
+/// the dimensions whose extension line the leader or the padded label touches, and of those,
+/// the ones the padded label touches.
+fn extension_contacts(
+    extensions: &[(usize, [P2; 2])],
+    lines: &[[P2; 2]],
+    label: [f64; 4],
+) -> (usize, usize) {
+    let pad = grow(label, LABEL_PAD);
+    let mut pairs = std::collections::BTreeSet::new();
+    let mut text = std::collections::BTreeSet::new();
+    for (j, e) in extensions {
+        let b = grow(
+            [
+                e[0][0].min(e[1][0]),
+                e[0][1].min(e[1][1]),
+                e[0][0].max(e[1][0]),
+                e[0][1].max(e[1][1]),
+            ],
+            LABEL_PAD,
+        );
+        let on_text = touches_box(*e, pad);
+        if on_text {
+            text.insert(*j);
+        }
+        if on_text || lines.iter().any(|s| touches_box(*s, b)) {
+            pairs.insert(*j);
+        }
+    }
+    (pairs.len(), text.len())
+}
+
+/// Whether a leader segment runs within 0.3 mm of the given line-work for over 2 mm.
+fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
+    let mut intervals: Vec<_> = ink.iter().filter_map(|e| along_interval(s, *e)).collect();
+    intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let length = (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]);
+    let (mut start, mut stop) = (0.0_f64, 0.0_f64);
+    for (lo, hi) in intervals {
+        if lo > stop + 1e-9 {
+            start = lo;
+        }
+        stop = stop.max(hi);
+        if (stop - start) * length > 2.0 + 1e-6 {
+            return true;
+        }
+    }
+    false
 }
 
 fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
@@ -2536,6 +2696,48 @@ mod tests {
             checked += 1;
         }
         assert!(checked > 0);
+    }
+
+    /// threaded_connector_109's groove callout starts with its label on one extension line and
+    /// its leader by two more; refinement takes the text off and drops one pair (3, 1) -> (2, 0).
+    #[test]
+    fn refinement_takes_callout_text_off_extension_lines() {
+        let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME")
+                    .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+            });
+        let Some(corpus) = corpus.filter(|p| p.is_dir()) else {
+            assert_ne!(
+                std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
+                Ok("1")
+            );
+            return;
+        };
+        let a =
+            crate::model::analyse_native(&corpus.join("cadgenbench/threaded_connector_109.step"))
+                .unwrap()
+                .1;
+        let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
+        let extensions: Vec<(usize, [P2; 2])> = plan
+            .dimensions
+            .iter()
+            .enumerate()
+            .filter_map(|(j, d)| Some((j, d.placed.as_ref()?)))
+            .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
+            .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
+            .collect();
+        let groove = plan
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:f:groove:1/groove.length")
+            .and_then(|d| d.placed.as_ref())
+            .unwrap();
+        assert_eq!(
+            extension_contacts(&extensions, &groove.lines, groove.label_box),
+            (2, 0)
+        );
     }
 
     /// Stations start at the natural one, alternate outwards, stay within the side and are

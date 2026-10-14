@@ -51,6 +51,41 @@ class LeaderRoutes(unittest.TestCase):
                         view='v:front', placed=placed)])
             self.assertEqual(routes.measures(plan, svg, {})['radius']['cutting_plane'], 1)
 
+    def test_a_moved_callout_may_not_gain_text_head_or_outline_contact(self):
+        base = self.row(text_extension=0, head_extension=0, elbow_outline=False, label_outline=False)
+        before = {'part': {'callout': base}}
+        moved = dict(route=[[0., 0.], [5., 7.]])
+        for key, value in (('text_extension', 1), ('head_extension', 1),
+                           ('elbow_outline', True), ('label_outline', True)):
+            changed = dict(base, **moved, **{key: value})
+            self.assertTrue(routes.check(before, {'part': {'callout': changed}}), key)
+            # An unmoved callout keeps its existing contact without failing.
+            self.assertFalse(routes.check({'part': {'callout': dict(base, **{key: value})}},
+                                          {'part': {'callout': dict(base, **{key: value})}}))
+        self.assertFalse(routes.check(before, {'part': {'callout': dict(base, **moved)}}))
+
+    def test_text_and_arrowhead_contacts_are_measured_from_the_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            svg = Path(tmp) / 'sheet.svg'
+            svg.write_text('<svg xmlns="http://www.w3.org/2000/svg"><g id="part">'
+                           '<line x1="0" y1="-5" x2="0" y2="20"/></g></svg>')
+            view = dict(id='v:front', at=[0., 0.], line_work=[])
+            # A linear dimension whose second extension line runs 0.5 mm under the label
+            # and through the arrowhead.
+            linear = dict(id='linear', kind='linear', view='v:front', placed=dict(
+                lines=[[[20., 0.], [20., 30.]], [[6., 4.5], [30., 4.5]], [[20., 20.], [30., 20.]]],
+                arrows=[[[20., 20.], [21., 20.]], [[30., 20.], [29., 20.]]], label_box=[0, 0, 0, 0]))
+            callout = dict(id='callout', kind='callout', view='v:front', placed=dict(
+                lines=[[[6., 4.], [10., 8.]], [[10., 8.], [13., 8.]]],
+                arrows=[[[6., 4.], [8., 6.]]], label_box=[14., 5., 19., 8.]))
+            m = routes.measures(dict(views=[view], dimensions=[linear, callout]), svg, {})['callout']
+            self.assertEqual((m['text_extension'], m['head_extension']), (1, 1))
+            self.assertFalse(m['elbow_outline'])
+            self.assertFalse(m['label_outline'])
+            callout['placed']['lines'][0][1] = [0.5, 8.]
+            m = routes.measures(dict(views=[view], dimensions=[linear, callout]), svg, {})['callout']
+            self.assertTrue(m['elbow_outline'])
+
     def test_existing_runs_are_reported_and_cannot_grow_or_move(self):
         before = {'part': {'callout': self.row(run=3.)}}
         self.assertFalse(routes.check(before, before))

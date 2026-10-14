@@ -1,5 +1,9 @@
 """Rendered leader acceptance: length, hidden/section/cut crossings and 0.3 mm runs.
 
+A moved callout's label may not gain an extension line within its 1 mm pad (text on an
+extension line is worse than a leader across one), its arrowhead may not gain an extension
+line within 0.2 mm, and its elbow or padded label may not come within 1 mm of the outline.
+
 Record origin/main with --record, then compare any quality.py output directory.
 The fixture records the original routes on all thirty quality parts.
 Compare common IDs; inventory and information coverage are checked by the Rust tests.
@@ -132,6 +136,32 @@ def longest_run(a, ink):
     return longest * math.dist(*a)
 
 
+PAD = 1.0
+ARROW_HALF = 2.7 / 6.0
+
+
+def grow(b, d):
+    return [b[0]-d, b[1]-d, b[2]+d, b[3]+d]
+
+
+def box_of(s):
+    return [min(s[0][0],s[1][0]), min(s[0][1],s[1][1]), max(s[0][0],s[1][0]), max(s[0][1],s[1][1])]
+
+
+def touches(s, b):
+    """quality.segment_box: the segment meets the closed box."""
+    return quality.segment_box(s, b)
+
+
+def head(arrow):
+    tip, tail = arrow
+    n = [tail[1]-tip[1], tip[0]-tail[0]]
+    k = ARROW_HALF / max(math.hypot(*n), 1e-12)
+    a = [tail[0]+k*n[0], tail[1]+k*n[1]]
+    b = [tail[0]-k*n[0], tail[1]-k*n[1]]
+    return [[tip,a],[a,b],[b,tip]]
+
+
 def measures(plan, svg, analysis):
     root = ET.parse(svg).getroot()
     layers = {g.get('id'): [points(e) for e in g]
@@ -177,7 +207,20 @@ def measures(plan, svg, analysis):
         counts = {k: sum(any(crosses(l,s) for l in lines) for s in ink)
                   for k,ink in [('hidden', segments.get('hidden', [])),
                                 ('section', section), ('cutting_plane', cuts)]}
-        out[d['id']] = dict(length=sum(math.dist(*l) for l in lines),
+        owners = [(o['id'], e) for o in plan['dimensions'] if o.get('placed')
+                  and len(o['placed'].get('arrows', [])) == 2
+                  and len(o['placed'].get('lines', [])) >= 3 for e in o['placed']['lines'][:2]]
+        pad = grow(p['label_box'], PAD)
+        text = len({o for o, e in owners if touches(e, pad)})
+        flare = [s for a in p.get('arrows', [])[:1] for s in head(a)]
+        heads = sum(any(touches(s, grow(box_of(e), .2)) for s in flare) for _, e in owners)
+        elbow = lines[0][1]
+        outline = segments.get('part', [])
+        near = grow([elbow[0], elbow[1], elbow[0], elbow[1]], PAD)
+        out[d['id']] = dict(text_extension=text, head_extension=heads,
+                            elbow_outline=any(touches(s, near) for s in outline),
+                            label_outline=any(touches(s, pad) for s in outline),
+                            length=sum(math.dist(*l) for l in lines),
                             run=max((longest_run(l,model) for l in lines), default=0),
                             route=route, label=label, **counts)
     return out
@@ -204,6 +247,10 @@ def check(before, after):
             moved = (len(a['route']) != len(b['route'])
                      or any(math.dist(x,y) > 1e-6 for x,y in zip(a['route'],b['route']))
                      or any(abs(x-y) > 1e-6 for x,y in zip(a['label'],b['label'])))
+            if moved:
+                for key in ('text_extension', 'head_extension', 'elbow_outline', 'label_outline'):
+                    if key in b and a[key] > b[key]:
+                        failures.append(f'{part}: {id_}: moved {key} {b[key]} -> {a[key]}')
             if a['run'] > 2.0 + 1e-6 and (moved or a['run'] > b['run'] + 1e-6):
                 failures.append(f"{part}: {id_}: runs beside model/hidden/extension {a['run']:.3f} mm")
     return failures

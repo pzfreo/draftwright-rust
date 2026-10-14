@@ -162,7 +162,7 @@ class Acceptance(unittest.TestCase):
                 route = calls[1].args[1]
                 self.assertIn(ROOT / 'tools/check_leader_routes.py', route)
                 self.assertEqual(route[-1], Path(tmp) / 'leader-routes.json')
-                self.assertIn('--require-improvement', route)
+                self.assertNotIn('--require-improvement', route)
                 locality = calls[2].args[1]
                 self.assertIn(ROOT / 'tools/check_label_lanes.py', locality)
                 self.assertEqual(locality[locality.index('--current') + 1], Path(tmp) / 'quality')

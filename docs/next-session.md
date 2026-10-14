@@ -6309,3 +6309,36 @@ base collinear runs and the tiny FTC-08 head graze above remain reported limits.
 No commit/push; finishing receipts are in `target/l1/fix-acceptance/` and
 `target/l1/fix-*.{log,json}`. Instructions retired could not be read in this
 sandbox, so no speed claim is made.
+
+## L1 takeover round (2026-10-14, Claude; supersedes the Codex L1 results above, overturnable)
+
+- Review findings fixed: a moved callout's label may not gain an extension line within its
+  1 mm pad (text on an extension line is worse than a leader across one); its arrowhead may
+  not gain an extension line within 0.2 mm; its elbow and padded label may not come within
+  1 mm of model ink it was clear of. Shoulders never shrink below the natural one (the 0.75,
+  0.5 and 0.25 fractions are gone): a stub shoulder read as part of the outline on CTC-01.
+- `tools/check_leader_routes.py` measures the same four things on the rendered sheet
+  (`text_extension`, `head_extension`, `elbow_outline`, `label_outline`); the fixture was
+  re-recorded from the same base renders (all 119 earlier rows identical). The check rejects
+  a426e2fe's cgb245 (text 0 -> 1), CTC-01 (elbow on outline) and FTC-08 (arrowhead onto the
+  extension line) as well as 0d46bc3.
+- Result on the thirty quality parts: **no callout moves; leader_on_extension stays 53.** The
+  three earlier "gains" were the regressions above. The acceptance item "contacts fall in
+  total" is not met on the thirty; the CI step no longer passes `--require-improvement` (rule
+  5), the flag stays for evidence.
+- On the 64-part survey the rule does move callouts on 7 parts outside the thirty, each
+  checked by eye and passing the route check: thumbwheel_thread_knurl and
+  hw_thumbwheel_notes_add 4 -> 2, string_post_tapped 7 -> 3, threaded_connector_109 14 -> 13,
+  nist_stc_06 e3 3 -> 2, nist_stc_09 e4 48 -> 47 (one leader/GD&T crossing finding gone),
+  nist_ctc_02 e2 38 -> 37. A Rust test pins threaded_connector_109's groove callout (3,1) -> (2,0).
+- Cost, retired instructions (`proc_pid_rusage`), against origin/main 9b57c937: refinement
+  skips sheets with no contacting callout before gathering view ink, gathers each view's ink
+  only where a candidate reaches, prefilters extension lines, and measures stations nearest
+  first, stopping at the first acceptable one. Thirty quality parts +1.2% total (worst
+  FTC-08 +3.3%); 64-part survey +1.1% (worst 10255 +4.1%), inside check_plan_time's 15%
+  margin. `check_plan_instructions.py` compares identical-output builds only, so it does not
+  apply to a behaviour change. Judgement call: the remaining cost is mostly refinement running
+  on each of the ~30 sheet-search trial plans; moving it to the final plan only would need
+  replumbing `plan_inventory`'s callers and is left alone.
+- The out-of-scope `--timeout`/`--render-timeout` harness options are dropped in favour of
+  main's `--part-timeout`/`--step-timeout` (merged origin/main 9b57c937).
