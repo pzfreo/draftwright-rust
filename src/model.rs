@@ -325,7 +325,7 @@ pub struct Plan {
     /// Dimensions and callouts, each with its ID, value, label, default flag and basis.
     #[serde(default)]
     pub dimensions: Vec<PlannedDimension>,
-    /// Canonical widths for the session's snap guide; not part of the drawing document.
+    /// Canonical widths for the editor's snap guide; not part of the drawing document.
     #[serde(skip)]
     pub(crate) callout_widths: BTreeMap<String, f64>,
     /// Dimensions the spec leaves out, and why (ADR4-8: an authored omission says so).
@@ -367,6 +367,14 @@ pub struct Plan {
     pub problems: Vec<Problem>,
     /// The spec the plan was made from, embedded in every output.
     pub spec: Spec,
+}
+
+impl Plan {
+    /// Widest canonical callout in a view, in paper mm. None for a view without
+    /// callouts or a deserialised Plan: this metadata is retained only by planning.
+    pub fn canonical_callout_width(&self, view: &str) -> Option<f64> {
+        self.callout_widths.get(view).copied()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

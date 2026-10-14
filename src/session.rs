@@ -459,13 +459,7 @@ impl Session {
                     .any(|p| p.view.as_deref() == v.id.strip_prefix("v:"))
             })
             .map(|v| {
-                let width = width.max(
-                    self.plan()
-                        .callout_widths
-                        .get(&v.id)
-                        .copied()
-                        .unwrap_or(0.0),
-                );
+                let width = width.max(self.plan().canonical_callout_width(&v.id).unwrap_or(0.0));
                 (
                     v.id.clone(),
                     crate::dims::label_rows(&self.analysis, v, width),

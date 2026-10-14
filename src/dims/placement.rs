@@ -320,7 +320,8 @@ fn callout_step(side: Side, width: f64, canonical_width: f64) -> f64 {
     }
 }
 
-pub(crate) fn label_rows(analysis: &Analysis, view: &PlannedView, width: f64) -> LabelRows {
+/// Rows for a view and the greater of its canonical and edited callout widths.
+pub fn label_rows(analysis: &Analysis, view: &PlannedView, width: f64) -> LabelRows {
     let outline = Frame::new(analysis, view).outline();
     let sides = [
         ("above", Side::Above),
@@ -998,6 +999,7 @@ pub(super) fn avoid_fixed(
     sides: &mut [Option<Side>],
     lanes: &mut [usize],
     fixed: &[bool],
+    drawn: &[bool],
     placed: &mut [Option<Placed>],
     obstacles: &[PlannedDimension],
     page: &Page,
@@ -1022,6 +1024,10 @@ pub(super) fn avoid_fixed(
     if held.is_empty() {
         return;
     }
+    let callout_pin = items
+        .iter()
+        .zip(fixed)
+        .any(|(w, fixed)| *fixed && matches!(w.shape, Shape::Callout { .. }));
     let blocked = |p: &Placed| {
         held.iter().any(|(q, leader)| {
             boxes_overlap(p.label_box, q.label_box)
@@ -1051,6 +1057,7 @@ pub(super) fn avoid_fixed(
             placed[i] = Some(p);
             continue;
         }
+        let original = p;
         let opposite = match side {
             Side::Above => Side::Below,
             Side::Below => Side::Above,
@@ -1064,6 +1071,17 @@ pub(super) fn avoid_fixed(
             if let Some(p) = place(&frames[view], &items[i], side, lane)
                 && page.fits(&p, view)
                 && !blocked(&p)
+                && !placed.iter().enumerate().any(|(j, q)| {
+                    callout_pin
+                        && drawn[i]
+                        && drawn[j]
+                        && j != i
+                        && chosen[j] == Some(view)
+                        && matches!(items[j].shape, Shape::Linear { .. })
+                        && q.as_ref().is_some_and(|q| {
+                            dimension_lines_overlap(&p, q) && !dimension_lines_overlap(original, q)
+                        })
+                })
             {
                 placed[i] = Some(p);
                 sides[i] = Some(side);
@@ -1072,6 +1090,32 @@ pub(super) fn avoid_fixed(
             }
         }
     }
+}
+
+// Linear placements store their dimension line after the two extension lines.
+// Dimensions sharing a datum must stay on separate lines when moving around a pin.
+fn dimension_lines_overlap(p: &Placed, q: &Placed) -> bool {
+    let (Some(a), Some(b)) = (p.lines.get(2), q.lines.get(2)) else {
+        return false;
+    };
+    (0..2).any(|k| {
+        let along = 1 - k;
+        (a[0][k] - a[1][k]).abs() < 1e-6
+            && (b[0][k] - b[1][k]).abs() < 1e-6
+            && (a[0][k] - b[0][k]).abs() < 1e-6
+            && p.arrows.iter().any(|a| {
+                q.arrows
+                    .iter()
+                    .any(|b| (a[0][along] - b[0][along]).abs() < 1e-6)
+            })
+            && a[0][along]
+                .min(a[1][along])
+                .max(b[0][along].min(b[1][along]))
+                < a[0][along]
+                    .max(a[1][along])
+                    .min(b[0][along].max(b[1][along]))
+                    - 1e-6
+    })
 }
 
 /// A held (bare-pin) placement re-laid for the item's current label: the lines stay where the

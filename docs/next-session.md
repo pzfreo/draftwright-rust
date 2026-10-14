@@ -6809,3 +6809,80 @@ No full Rust suite or all-job acceptance was run locally. No commit/push was mad
   or all-job acceptance was run; no speed claim is made from local wall time.
   Final logs: `final-rust-tests.log`, `single-sheet-final.log`, `clippy.log`,
   `test-quality-final.log`, `test-ci-acceptance-final.log`, `mcp-eval-final.log`.
+
+
+## E1 review fix (2026-10-14, unattended; overturnable judgements)
+
+- The review's plate above-left example is a real drafting regression: the 95
+  dimension covered the 50 dimension on the same lane. The earlier ink-count
+  improvement was not evidence of a better drawing. When relocating a free linear
+  dimension around a pinned callout, reject a candidate whose dimension line newly
+  overlaps another drawn dimension from the same datum in that view. Existing
+  overlaps and dimensions with different datums retain their inherited layout;
+  E1 does not repair those unrelated linear layouts or change linear-pin solving.
+  This conservative scope avoids moving the plate's left-hand 30 mm dimensions
+  across its right-hand leaders or changing the 10127 bare boss-height pin.
+  Acceptance covers along 0.05, 0.1 and 0.18 for native and reference-recognised
+  plates, including the left-facing label and the 95 outside the 50 when both are
+  below the view. No information is removed.
+- Supersede the earlier Session-only API judgement: the editor has its own Session.
+  Export `dims::label_rows` and `Plan::canonical_callout_width(view_id)` for its
+  existing stateless planning path. Keep widths private and unserialised; replayed
+  Plans return None explicitly rather than reconstructing widths from edited ink.
+  Public API acceptance uses a fresh Plan without a draftwright Session, then
+  checks agreement with the Session convenience API and the absent wire metadata.
+- Retain authored off-sheet pins with the existing error. Switching the text side
+  near a paper edge would contradict E1's explicit leader-direction rule; an
+  editor-side drag constraint or a future explicit choice can address this.
+- The scripted MCP stations [0, 0.4, 1] are not evidence of real-model task success.
+  A model following the task's natural start/middle/end positions now retains the
+  central bore's crossing and fails no_problems; it must inspect the finding and
+  choose a clear station. The unchanged task/judge is harder under correct pin
+  semantics. No task, judge or scripted answer is changed in this review fix.
+
+- Final visual receipts are under `target/e1-fix/`: the 95 mm location dimension
+  now sits 7 mm outside the 50 mm dimension for all three above-left stations,
+  in both native and reference-recognised plate plans. Every callout's ink and
+  the set of drawn dimensions are unchanged from the reviewed E1 commit; only
+  the 95 moves in those cases. The below-left and crossing pin sheets, and the
+  10127 bare boss-height pin sheet, keep their SVGs unchanged. These cases were
+  rendered with the release CLI and rasterised at 2400 px; the 95/50 baseline
+  ladder is now readable. No speed claim is made.
+- Final scoped checks pass: 26 Rust tests (pinned_callouts 3, label_rows 2,
+  placement_intent 13, session 8), fmt, strict release Clippy, Python quality 40
+  and CI acceptance 21 without skips, and scripted MCP 7/7 (16 calls). Schema
+  generation leaves no diff. All 300 quality baseline cells and all 30 default
+  SVGs are unchanged, rasterised at 2400 px and visually inspected. Receipts:
+  `rust-final.log`, `clippy-final.log`, `mcp-final.json`, `quality-receipt.json`,
+  `visual-receipt.json` and `base-tests.json`. The exact new combined side/lane
+  test fails on frozen d8a75b39 at the left-side assertion; public row access
+  fails compilation there. The reviewed E1 binary instead fails the lane check
+  (50 and 95 on the same line), as the saved before plans demonstrate.
+
+- The full byte guard identified deliberate lane repairs in nine saved pin cases:
+  the mounting-plate lane-100 callout (95 now outside 50) and eight AP242 CTC-01
+  callout-pin Specs (635 mm slot location now below the adjacent short slot-length
+  line instead of covering its outside arrow). Each moves exactly one linear
+  dimension by 7 mm; every leader, callout and drawn-item ID remains unchanged.
+  All nine before/after sheets were rendered with the release CLI, rasterised at
+  2400 px and inspected. No hard findings or lost information are introduced.
+  The eight dense CTC-01 cases each gain one cosmetic ink finding: six gain one
+  leader/dimension crossing, two gain one line/label contact. They also each gain
+  one outside-reserved-area info. This is accepted under the dense-NIST bar;
+  the actual measured regressions are retained here and in `fixture-audit.json`.
+- Update exactly those nine approved fingerprints (eight already E1-owned, one
+  new plate pin), preserving exact checks for every format. E1 owns 55 cases;
+  L1 still owns 253, 308 total. The frozen base, pin manifest, platform overrides,
+  Specs, MCP tasks and quality baseline are unchanged. Existing Linux/macOS PNG
+  hashes agree for all nine; the straight-line lane repairs retain that shared
+  renderer expectation (CI verifies Linux). This is an overturnable fixture
+  judgement, not a weakened check. CLI hashes before the fix were checked against
+  all inherited format expectations. No PMI-only pin case changes: the lane
+  guard distinguishes actual pinned callouts from PMI leader obstacles.
+
+- Final single-sheet guard passes all 1,876 records with those nine exact approved
+  pin replacements (`target/e1-fix/single-sheet-final.log`). The original guard's
+  assertions are unchanged; temporary diagnostic output used to identify the
+  changed cases was removed. All required checks are green. Final release binary
+  SHA-256: `9bf0c822036a4696f4a24f93785d7894736fd5147a65dc219a63fb9b3c88d0f5`.
+  No full Cargo suite or all-job acceptance was run. No commit or push was made.

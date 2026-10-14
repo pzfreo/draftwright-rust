@@ -109,3 +109,42 @@ fn outline(a: &Analysis, view: &model::PlannedView) -> [f64; 4] {
         view.at[1] + view.scale * 0.5 * (bounds[3] - bounds[1]),
     ]
 }
+
+#[test]
+fn above_left_pin_keeps_parallel_location_dimensions_readable() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (_, recognised) = model::analyse_with(
+        &root.join("tests/fixtures/parts/mounting_plate.step"),
+        Some(&root.join("tools/mcp-eval/features/plate.features.json")),
+    )
+    .unwrap();
+    for a in [plate(), recognised] {
+        for along in [0.05, 0.1, 0.18] {
+            let p = pinned(&a, ID, "above", along);
+            let ink = |id: &str| {
+                p.dimensions
+                    .iter()
+                    .find(|d| d.id == id)
+                    .unwrap()
+                    .placed
+                    .as_ref()
+                    .unwrap()
+            };
+            let callout = ink(ID);
+            assert!(callout.label_box[2] < callout.lines[0][1][0]);
+            let short = ink("d:f:hole:4/location.length.x");
+            let long = ink("d:f:hole:7/location.length.x");
+            let short_line = short.lines[2];
+            let long_line = long.lines[2];
+            assert!(
+                (short_line[0][1] - long_line[0][1]).abs() >= draftwright::dims::LANE - 1e-6,
+                "along {along}: 50 and 95 share a lane: {short:?}, {long:?}"
+            );
+            // When both lie below the view, the larger span must be outside the smaller.
+            let view = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+            if short_line[0][1] < view.at[1] && long_line[0][1] < view.at[1] {
+                assert!(long_line[0][1] < short_line[0][1]);
+            }
+        }
+    }
+}

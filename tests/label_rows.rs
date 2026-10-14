@@ -124,3 +124,26 @@ fn plate_rows_follow_automatic_frames_widths_and_explicit_pins() {
     assert!(session.label_rows("sheet").is_err());
     assert!(session.label_rows("d:missing/diameter").is_err());
 }
+
+#[test]
+fn stateless_editor_can_read_rows_without_a_session() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/mounting_plate.step");
+    let (_, analysis) = draftwright::model::analyse_native(&path).unwrap();
+    let plan = draftwright::model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let view = plan.views.iter().find(|v| v.id == "v:plan").unwrap();
+    let width = plan.canonical_callout_width(&view.id).unwrap();
+    let rows = dims::label_rows(&analysis, view, width);
+    assert!((rows.row_spacing["left"] - width - 10.0).abs() < 1e-6);
+    let session = Session::open(&path, api::Features::Native, Spec::default()).unwrap();
+    assert_eq!(
+        rows,
+        session
+            .label_rows("d:f:hole_pattern:1/bore.diameter")
+            .unwrap()["v:plan"]
+    );
+    let bytes = serde_json::to_value(&plan).unwrap();
+    assert!(bytes.get("callout_widths").is_none());
+    let replay: draftwright::model::Plan = serde_json::from_value(bytes).unwrap();
+    assert_eq!(replay.canonical_callout_width(&view.id), None);
+}

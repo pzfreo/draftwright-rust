@@ -1148,7 +1148,7 @@ These are **elbow coordinates**, not text baselines. Lane `n` is
 spacing is 7 mm; beside a view it is the greater of that view's widest canonical
 callout and this callout's current ink width, plus its 3 mm shoulder and 7 mm
 clearance. The resolver and query share the spacing calculation. Canonical widths
-are retained as private planning metadata, so another item's text edit cannot move
+are retained as planning metadata, so another item's text edit cannot move
 a pin's columns; the Plan's serialised shape is unchanged.
 
 This query performs no planning or projection, accepts the usual bare/qualified
@@ -1160,6 +1160,15 @@ A bare pin retains that automatic geometry. Dragging a pinned label into an
 interior blank region still needs a separate Spec design decision (issue #12's
 comment); these guides do not add that authoring operation. This Rust session query
 is available to editor bindings; it adds no MCP tool or JSON-lines operation.
+
+Editors that keep their own session can call public
+`dims::label_rows(&analysis, view, width)` directly. Pass the greater of the
+edited callout's ink width and `plan.canonical_callout_width(&view.id)` (paper mm).
+The latter returns `Option<f64>`: `None` means no canonical callout for that view,
+or a deserialised Plan whose non-wire metadata is absent. Keep the freshly planned
+Plan to use this API; do not infer canonical widths from edited placements.
+This uses the same calculation as `Session::label_rows` without requiring a
+`draftwright::Session`.
 
 `draftwright serve` keeps one Session per connection, behind `api::Service`. The additional
 operations advertised by `hello` are:
