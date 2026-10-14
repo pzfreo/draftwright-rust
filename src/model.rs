@@ -3306,30 +3306,80 @@ pub fn render_with(
     projections: &mut Projections,
 ) -> Result<Drawing, Unresolved> {
     if !plan.sheets.is_empty() {
-        let mut first = plan.clone();
-        first.views.retain(|v| v.sheet == 1);
-        first.tables.retain(|t| t.sheet == 1);
-        first.hole_table = first.hole_table.filter(|t| t.sheet == 1);
-        first.hole_tables.retain(|t| t.sheet == 1);
-        let geometry = render_geometry(part, analysis, &first, projections)?;
-        let remote: Vec<_> = plan
-            .views
-            .iter()
-            .filter(|v| v.sheet != 1 && v.cut.is_some())
-            .collect();
-        return render_annotations_with_cuts(
-            part,
-            analysis,
-            &first,
-            font,
-            geometry,
-            projections,
-            &BTreeMap::new(),
-            &remote,
-        );
+        return render_sheet_with(part, analysis, plan, &plan.sheet, font, projections);
     }
     let geometry = render_geometry(part, analysis, plan, projections)?;
     render_annotations(part, analysis, plan, font, geometry, projections)
+}
+
+/// Draw every planned sheet in order, each carrying the whole Spec. Projections are shared
+/// across the document; [`render`] remains the sheet-1 entry point.
+pub fn render_sheets(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+) -> Result<Vec<Drawing>, Unresolved> {
+    let mut projections = Projections::default();
+    let mut drawings = vec![render_with(part, analysis, plan, font, &mut projections)?];
+    for sheet in &plan.sheets {
+        drawings.push(render_sheet_with(
+            part,
+            analysis,
+            plan,
+            sheet,
+            font,
+            &mut projections,
+        )?);
+    }
+    Ok(drawings)
+}
+
+fn render_sheet_with(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    sheet: &PlannedSheet,
+    font: &Font,
+    projections: &mut Projections,
+) -> Result<Drawing, Unresolved> {
+    let mut selected = plan.clone();
+    selected.sheet = sheet.clone();
+    selected.views.retain(|v| v.sheet == sheet.number);
+    selected.tables.retain(|t| t.sheet == sheet.number);
+    selected.hole_table = selected.hole_table.filter(|t| t.sheet == sheet.number);
+    selected.hole_tables.retain(|t| t.sheet == sheet.number);
+    let carries = |id: &str| selected.views.iter().any(|v| v.id == id);
+    selected.dimensions.retain(|d| carries(&d.view));
+    selected.gdt.retain(|g| carries(&g.view));
+    selected.balloons.retain(|b| carries(&b.view));
+    if sheet.number > 1 {
+        selected.notes.clear();
+        selected.notes_block = None;
+        selected.radius_notes_block = None;
+        selected.radius_table = None;
+        selected.requirements.clear();
+        selected.omitted.clear();
+        selected.sheet.projection_symbol = None;
+    }
+    let geometry = render_geometry(part, analysis, &selected, projections)?;
+    let remote: Vec<_> = plan
+        .views
+        .iter()
+        .filter(|v| {
+            v.sheet != sheet.number && v.cut.as_ref().is_some_and(|c| carries(&c.marked_in))
+        })
+        .collect();
+    render_annotations_with_cuts(
+        part,
+        analysis,
+        &selected,
+        font,
+        geometry,
+        projections,
+        &BTreeMap::new(),
+        &remote,
+    )
 }
 
 /// Assembles a geometry layer with the plan's annotations and sheet furniture. Each dimension
@@ -3538,6 +3588,15 @@ fn render_annotations_with_cuts(
             }
             furniture.extend(f.ink);
             captions.extend(f.text);
+        }
+    }
+    for v in &plan.views {
+        if let Some(note) = &v.scale_note {
+            let view = View::new(v.direction, v.up).expect("a planned view");
+            let half_h = 0.5 * extent(analysis, &view).0[1] * v.scale;
+            let gap = if v.cut.is_some() { 17.0 } else { 7.0 };
+            captions.push((note.clone(), [v.at[0], v.at[1] - half_h - gap]));
+            caption_names.push(format!("{}/scale_note", v.id));
         }
     }
     // The border and the title block, lower right.

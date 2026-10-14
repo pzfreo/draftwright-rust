@@ -238,10 +238,19 @@ more sheets only when a blocked allocation could help, otherwise larger fixed
 paper or a lower floor. An unused rescue-table assignment reports
 `sheet_assignment_unused` with a remove edit.
 
-Stage I1 produces and checks these later-sheet plans. `model::render` continues to
-draw sheet 1, including the parent's cutting-plane furniture for a remote section;
-later-sheet rendering, repeated title furniture with `n/m`, and MCP
-sheet operations are the I2/I3 streams. The plan and spec schema versions stay the same;
+Stage I1 produces and checks these later-sheet plans. I2a adds
+`model::render_sheets`, one Drawing per sheet, while `model::render` continues to
+draw sheet 1, including the parent's cutting-plane furniture for a remote section.
+Every sheet repeats the unchanged title-block grid with a planned `n/m` SHEET
+value; an authored sheet label is replaced with `sheet_label_replaced` info.
+The projection symbol and general notes stay on sheet 1. SVG and PNG keep the
+sheet-1 filename and add `<stem>.sheet<n>.svg` / `.png` for later sheets; one PDF
+contains every sheet in order (`Drawing::pdf_pages`, single-sheet bytes unchanged).
+Every output embeds the whole Spec. Review keeps `svg` for sheet 1 and adds
+`sheets: [svg…]` for sheets 2..m, omitted for one sheet. Coverage and structural
+review still judge sheet 1 in this slice; I2b supplies combined coverage,
+per-sheet structural checks, zones and drawn cross-references. MCP sheet
+operations are I3's scope. The plan and spec schema versions stay the same;
 old documents read with single-sheet defaults.
 
 #### Placement (`place`, S3)
@@ -960,7 +969,7 @@ output is byte-identical to analysing the same STEP with the same features.
 with atomic replacement per destination. Concurrent callers use last-writer-wins per file
 (the last successful rename), and cleanup removes only their own staged copy. A multi-format
 export is not transactional: concurrent callers can publish different formats, and a later
-failure does not roll back formats already published. Destination names are unchanged.
+failure does not roll back formats already published. Single-sheet destination names are unchanged.
 
 **The spec in each output** (invariant 8): in the SVG's metadata, in the PDF's document
 information, and in the DXF as comments (group code 999) ahead of the first section. AutoCAD,
