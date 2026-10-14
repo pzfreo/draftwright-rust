@@ -1,6 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/get_spec.output.json",
   "type": "object",
   "anyOf": [
     {
@@ -10,7 +8,144 @@
           "type": "string"
         },
         "spec": {
-          "$ref": "#/$defs/s"
+          "type": "object",
+          "properties": {
+            "schema": {
+              "enum": [
+                "draftwright.spec/1",
+                "draftwright.spec/2"
+              ]
+            },
+            "binding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "sheets": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "max": {
+                  "enum": [
+                    null,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9
+                  ]
+                },
+                "smallest_scale": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "keep_together": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "hole_table": {
+                  "enum": [
+                    null,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9
+                  ]
+                },
+                "gdt_on_sheet_1": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            },
+            "sheet": {
+              "type": "object",
+              "properties": {
+                "size": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "scale": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "fit_limits": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "views": {
+              "$ref": "#/$defs/A"
+            },
+            "dimensions": {
+              "$ref": "#/$defs/A"
+            },
+            "annotations": {
+              "$ref": "#/$defs/A"
+            },
+            "features": {
+              "$ref": "#/$defs/A"
+            },
+            "dimension_source": {
+              "enum": [
+                "auto",
+                "authored"
+              ]
+            },
+            "hole_table": {
+              "enum": [
+                "auto",
+                "always",
+                "never"
+              ]
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "tables": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [
@@ -23,7 +158,29 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/e"
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "invalid",
+                "failed"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "choices": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -33,116 +190,6 @@
     }
   ],
   "$defs": {
-    "s": {
-      "type": "object",
-      "properties": {
-        "schema": {
-          "enum": [
-            "draftwright.spec/1",
-            "draftwright.spec/2"
-          ]
-        },
-        "binding": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "sheet": {
-          "type": "object",
-          "properties": {
-            "size": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "scale": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "title": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            "fit_limits": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "views": {
-          "$ref": "#/$defs/A"
-        },
-        "dimensions": {
-          "$ref": "#/$defs/A"
-        },
-        "annotations": {
-          "$ref": "#/$defs/A"
-        },
-        "features": {
-          "$ref": "#/$defs/A"
-        },
-        "dimension_source": {
-          "enum": [
-            "auto",
-            "authored"
-          ]
-        },
-        "hole_table": {
-          "enum": [
-            "auto",
-            "always",
-            "never"
-          ]
-        },
-        "notes": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        },
-        "tables": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    "e": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "enum": [
-            "invalid",
-            "failed"
-          ]
-        },
-        "message": {
-          "type": "string"
-        },
-        "choices": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "code",
-        "message"
-      ],
-      "additionalProperties": false
-    },
     "A": {
       "additionalProperties": {
         "type": "object"

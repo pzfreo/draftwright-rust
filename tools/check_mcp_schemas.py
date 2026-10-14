@@ -70,4 +70,19 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
         result = rpc('tools/call', {'name': tool['name'], 'arguments': {'unknown_field': True}})
         assert result['isError']
         validators[tool['name'], 'output'].validate(result['structuredContent'])
+    sheets = {'sheets': {'max': 2}, 'views': {'iso': {'sheet': 2}}}
+    summary = call('inspect_part', {'part_ref': part, 'spec': sheets})
+    assert summary['sheets'] == len(summary['sheet_details']) == 2
+    local = call('list_items', {'part_ref': part, 'spec': sheets, 'filter': {'sheet': 2}})
+    assert local['items'] and all(i['sheet'] == 2 for i in local['items'])
+    for tool in ('get_item', 'item_options'):
+        call(tool, {'part_ref': part, 'spec': sheets, 'id': 'sheet:2/v:iso'})
+    call('render', {'part_ref': part, 'spec': sheets, 'sheet': 2,
+                    'dpi': 30, 'overlay_ids': ['sheet:2/v:iso']})
+    for sheet in (0, 10):
+        assert not validators['render', 'input'].is_valid({'part_ref': part, 'sheet': sheet})
+    wrong = rpc('tools/call', {'name': 'get_item', 'arguments': {
+        'part_ref': part, 'spec': sheets, 'id': 'sheet:1/v:iso'}})
+    assert wrong['isError'] and 'sheet:2/v:iso' in wrong['structuredContent']['error']['choices']
+    validators['get_item', 'output'].validate(wrong['structuredContent'])
     print(f'{len(tools)} tool inputs, outputs and refusals validated; {len(validators)} published and served schemas agree')

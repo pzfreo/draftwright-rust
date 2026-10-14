@@ -1,64 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/render.input.json",
   "type": "object",
   "properties": {
     "part_ref": {
       "type": "string"
     },
     "spec": {
-      "$ref": "#/$defs/s"
-    },
-    "spec_version": {
-      "type": "string"
-    },
-    "drawing_ref": {
-      "type": "string"
-    },
-    "step": {
-      "type": "string"
-    },
-    "features": {
-      "type": "string"
-    },
-    "format": {
-      "enum": [
-        "png",
-        "pdf"
-      ]
-    },
-    "region": {
-      "type": "array",
-      "items": {
-        "type": "number"
-      },
-      "minItems": 4,
-      "maxItems": 4
-    },
-    "overlay_ids": {
-      "type": "boolean"
-    },
-    "dpi": {
-      "type": "number",
-      "exclusiveMinimum": 0,
-      "maximum": 400
-    }
-  },
-  "additionalProperties": false,
-  "anyOf": [
-    {
-      "required": [
-        "step"
-      ]
-    },
-    {
-      "required": [
-        "part_ref"
-      ]
-    }
-  ],
-  "$defs": {
-    "s": {
       "type": "object",
       "properties": {
         "schema": {
@@ -72,6 +18,61 @@
             "object",
             "null"
           ]
+        },
+        "sheets": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "max": {
+              "enum": [
+                null,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ]
+            },
+            "smallest_scale": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "keep_together": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "hole_table": {
+              "enum": [
+                null,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ]
+            },
+            "gdt_on_sheet_1": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         },
         "sheet": {
           "type": "object",
@@ -143,6 +144,74 @@
       },
       "additionalProperties": false
     },
+    "spec_version": {
+      "type": "string"
+    },
+    "drawing_ref": {
+      "type": "string"
+    },
+    "step": {
+      "type": "string"
+    },
+    "features": {
+      "type": "string"
+    },
+    "format": {
+      "enum": [
+        "png",
+        "pdf"
+      ]
+    },
+    "region": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "overlay_ids": {
+      "type": [
+        "boolean",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "sheet": {
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "dpi": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 400
+    }
+  },
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": [
+        "step"
+      ]
+    },
+    {
+      "required": [
+        "part_ref"
+      ]
+    }
+  ],
+  "$defs": {
     "A": {
       "additionalProperties": {
         "type": "object"
