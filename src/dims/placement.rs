@@ -1467,8 +1467,15 @@ impl<'a> Page<'a> {
     ) -> Page<'a> {
         Page {
             drawable: drawable(sheet),
-            views: outlines(analysis, views),
-            areas: views.iter().map(|v| (v.id.as_str(), v.area)).collect(),
+            views: outlines(analysis, views)
+                .into_iter()
+                .filter(|(id, _)| views.iter().any(|v| v.id == *id && v.sheet == sheet.number))
+                .collect(),
+            areas: views
+                .iter()
+                .filter(|v| v.sheet == sheet.number)
+                .map(|v| (v.id.as_str(), v.area))
+                .collect(),
             title_block: sheet.title_block,
         }
     }
@@ -1563,7 +1570,10 @@ pub(crate) fn collisions_cached(
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
     let interior_proofs = super::interior::proofs(analysis, views);
-    let outlines = outlines(analysis, views);
+    let outlines: Vec<_> = outlines(analysis, views)
+        .into_iter()
+        .filter(|(id, _)| views.iter().any(|v| v.id == *id && v.sheet == sheet.number))
+        .collect();
     let footprints: BTreeMap<_, _> = views
         .iter()
         .filter_map(|v| {
@@ -1575,6 +1585,12 @@ pub(crate) fn collisions_cached(
         .collect();
     let placed: Vec<(&PlannedDimension, &Placed)> = dims
         .iter()
+        .filter(|d| {
+            views
+                .iter()
+                .find(|v| v.id == d.view)
+                .map_or(sheet.number == 1, |v| v.sheet == sheet.number)
+        })
         .filter_map(|d| d.placed.as_ref().map(|p| (d, p)))
         .collect();
     let mut feature_problems = Vec::new();

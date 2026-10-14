@@ -205,6 +205,7 @@ fn geometry_cache_tracks_placement_scale_direction_up_cut_and_part() {
                     origin: [30.0, 20.0, 2.5],
                     normal: [0.0, 1.0, 0.0],
                     marked_in: "v:plan".into(),
+                    xref: None,
                 })
             }
             6 => v.cut.as_mut().unwrap().origin[1] += 1.0,

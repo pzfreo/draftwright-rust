@@ -171,13 +171,78 @@ The design also includes `sheet/projection`, `views/sections` and feature `ancho
 `"sections": [{"id": "A", "through": "f:hole:3"}]`,
 `"anchor": {"…": "fingerprint"}`, `"note": "REAM"`). These fields are not yet read.
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`), `views/<name>` (`omit`, `place`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
   `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>/fit`, `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
 - **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
   resolved against the part and its anchors on every plan. Measured values and resolved paper
   coordinates occur only in the Analysis and Plan.
+
+#### Sheet allocation (R5, Stage I)
+
+`sheets.max` allows 1–9 sheets; absent means one. `sheets.smallest_scale` is an ISO
+5455 scale floor, `keep_together` is a list of groups of view names (also allowing
+`hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
+one, and `gdt_on_sheet_1` records that requirement. A hole-table assignment does not
+request or force a table. Existing per-view legibility schedules remain on sheet 1.
+`views/<name>/sheet` assigns an auxiliary view; principal views accept only 1.
+`tables/<index>/sheet` assigns a corner table. All sheets share the first sheet's
+paper size, title and drawing number.
+
+An assignment must be within `1..sheets.max`, must agree with its keep-together
+group, and must put a view with `place.relative_to` on its anchor's sheet. Those
+relations also form implicit keep-together groups. Placement pins are kept;
+an explicit sheet assignment remains possible for an auxiliary group. A stated
+`sheet.scale` below `sheets.smallest_scale` is refused with choices to remove the
+scale or lower the floor. List-index edits are supported only for
+`tables/<index>/sheet`, with `set` and `remove`.
+
+Without sheet controls the existing planner path and serialized bytes are unchanged.
+A floor alone enters the existing recovery. With `sheets.max > 1`, each allocation
+prefix uses the existing finished-sheet recovery with the floor, including table
+recovery. There are at most four prefixes; H6's exhaustive selection supersedes
+R5's older six-retry estimate. Larger paper is tried before moving auxiliary content.
+The cumulative overflow order is isometric, section A–A, then a rescue hole table
+withdrawn for lack of table room. Assigned content moves first; a group containing a
+principal or a placement pin does not move automatically. Sections that fit stay
+on sheet 1. The first clean prefix wins; otherwise the fewest hard findings and
+required drops, largest first-sheet scale, then fewest moves choose the result.
+The sheet basis records every attempted or blocked prefix.
+
+Assigned corner tables are placed first on later sheets, then complete view blocks
+in wrapping rows, clear of the title block and each other. A view tries a fresh sheet
+at its parent's scale before taking a smaller standard scale. A long rescue table
+gets its own sheet; an explicit keep-together group shares that sheet and keeps clear
+of the table. Every balloon must still land on the plan view on sheet 1. A table
+that cannot fit even on its own sheet is withdrawn with its original dimension
+states and geometry restored. Nothing is silently removed. Empty assigned sheets
+are closed by renumbering, with `sheet_renumbered` and an edit to the actual sheet.
+
+`plan.sheet` remains sheet 1 (`sheet`). Optional `plan.sheets` contains sheets 2..m
+(`sheet:2` etc.); each carries `number` and, for a multi-sheet document, `zones`.
+Views, corner tables and hole tables carry `sheet`, omitted when 1. A moved view's
+`scale_note` records a scale different from its sheet's. A section's `xref` and its
+cut's `xref` refer both ways, with sheet, grid zone and resolved text position.
+Zones use 6×4 fields on A4, 8×6 on A3, 12×8 on A2, 16×12 on A1 and 24×16 on A0;
+numbers run left to right and letters top to bottom, skipping I and O.
+
+Item IDs survive moves. `items::Item.sheet` follows the carrying view or table;
+notes and drawing-wide requirements stay on sheet 1. Every Stage I dimension,
+frame and datum carrier is asserted to be on sheet 1. The generic datum check
+requires each referenced symbol on sheet 1 or the frame's sheet. Collision audits
+compare items only within their own sheet; later-sheet block audits check the
+border, title block and other blocks. A missing section cross-reference is an error.
+`sheet_below_smallest_scale` reports a floor that could not be reached, offering
+more sheets only when a blocked allocation could help, otherwise larger fixed
+paper or a lower floor. An unused rescue-table assignment reports
+`sheet_assignment_unused` with a remove edit.
+
+Stage I1 produces and checks these later-sheet plans. `model::render` continues to
+draw sheet 1, including the parent's cutting-plane furniture for a remote section;
+later-sheet rendering, repeated title furniture with `n/m`, and MCP
+sheet operations are the I2/I3 streams. The plan and spec schema versions stay the same;
+old documents read with single-sheet defaults.
 
 #### Placement (`place`, S3)
 
