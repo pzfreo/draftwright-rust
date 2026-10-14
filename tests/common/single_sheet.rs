@@ -256,9 +256,12 @@ pub fn compare() {
             // Bytes may differ between platforms in the last digit of libm results (arc
             // parameters in SVG/PDF; at least one captured spec's plan on Linux), so each OS
             // pins its own exact bytes where they differ from the portable record.
-            if record && current[format] != old[format] {
-                recorded.entry(name.clone()).or_insert_with(|| json!({}))[format] =
-                    current[format].clone();
+            // Recording rebuilds this OS's overrides from scratch, so stale ones never apply.
+            if record {
+                if current[format] != old[format] {
+                    recorded.entry(name.clone()).or_insert_with(|| json!({}))[format] =
+                        current[format].clone();
+                }
                 continue;
             }
             let want = platform[os]
