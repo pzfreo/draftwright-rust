@@ -6456,3 +6456,152 @@ reported above.
   otherwise equals the unassigned plan; left for I2 alongside the `lint_sheets` credit.
 - Integration ran on efficiency cores (`taskpolicy -b`) per the maintainer's request;
   fan RPM needs sudo, so the throttle watched `pmset -g therm` warnings instead.
+||||||| 9b57c937
+
+
+
+## Stage I L1 leader routing judgements (2026-10-13, Codex, overturnable)
+
+- The retry works after the exterior and interior assignments, on every automatic
+  callout, with the other ink fixed. Authored placement intents retain precedence.
+  Local candidates use the existing 1 mm paper station spacing within one 7 mm
+  text row, on either outward label side. The original physical attachment is held
+  for radius/edge callouts; diameter tips remain radial. A reduction in pairs is
+  accepted even if
+  another pair remains: complete clearance is not bought with a worse route.
+  Callouts already clear of extension ink do not trigger a collinearity-only
+  retry. The earlier bounded trials found no such repair on the thirty parts;
+  keep the pass focused on contact reduction. Collinearity remains a strict veto
+  on every moved route, and the rendered check still reports the 15 base runs.
+  A diameter candidate's elbow must remain outside its proven site's radius,
+  so the radial helper cannot substitute a centre-point tip for a rim attachment.
+- The small length margin is **2 paper mm**, counting the shaft and shoulder.
+  A move cannot increase hard blockers, annotation crossings, feature crossings,
+  text contacts, area overrun, centre-furniture contacts or travel beside a centre
+  stroke. Every moved leader must avoid more than 2 mm of contiguous travel within
+  0.3 mm of model, hidden or extension ink. Adjacent segments count together;
+  near-parallel travel is clipped to the finite segment's strip.
+- Visible and hidden edges are not distinguished in the Analysis. The gate uses
+  its projected edge chords and cylinder generators as conservative obstacles;
+  a new route cannot newly cross an individual projected edge or cutting-plane
+  stroke. Existing travel along a line does not credit a new crossing of it.
+  Without edge evidence the route stays. New routes stay
+  outside section/isometric envelopes and uncertain curved-face silhouette boxes.
+  Interior placements must retain their blank-face proof. The rendered acceptance
+  instrument independently counts actual hidden, section and cutting-plane ink.
+- There is a conflict in the brief's absolute collinearity target and its request
+  that the safeguard pass on untouched main. The strict contiguous-strip measure
+  finds **15 existing runs** on origin/main at 0419fa6c, not zero. The earlier
+  endpoint-only parallel measure found four (cgb207 twice, CTC-05 and FTC-08).
+  The acceptance fixture records main before implementation. Unchanged existing
+  runs are reported; a moved callout may not retain one, and an unchanged run may
+  not become longer. The absolute zero-run target is reported separately, never
+  represented as achieved by this baseline exception.
+- Text-pad contact uses closed clipping, matching `quality.py`: a line exactly on
+  the 1 mm pad boundary counts. Geometry and values are retained; this stream
+  withdraws no table, note, measurement or callout. No part/feature IDs enter the
+  routing rule, and `quality.py`'s existing contact measure is unchanged.
+- Latency is unmeasured: the concurrent machine's load was already above 8 and
+  reached 85.33 during verification. The required session-gate fallback, if needed,
+  is recorded with the final checks in the L1 status entry.
+- The required random-pin bar already fails on untouched main for FTC-07,
+  seed 2 with N=3 and N=8: ink 1 → 4, off-sheet 0 → 0. Both were reproduced with
+  the saved pristine main binary (`target/l1/base-pins-2-{3,8}.log`). The pins
+  cause the automatic front schedule to yield to its original dimensions.
+  Three findings belong to linear dimensions (the two pattern column pitches
+  and the polygonal boss height); the fourth is a pattern callout. Moving only
+  that callout cannot bring the three remaining findings under the 1.5× bar.
+  Keep this as an explicit unmet check, rather than changing the gate or making
+  an unrelated linear-layout/scheduling change in L1.
+
+## L1 fix round judgements (2026-10-13, Codex, overturnable)
+
+This supersedes the earlier L1 claim that holding a radius tip while moving its
+elbow is safe. The reviewer is correct: that changes the direction away from the
+arc centre. Every moved shaft now uses `rim_tip` for its proven site, whatever
+measurement it carries. Shoulder-only candidates preserve the original shaft.
+The slot-radius regression test permits unchanged original shafts, and requires
+every changed shaft to be exactly radial; it has no part-specific angular margin.
+
+The local search covers all integer paper stations within one 7 mm text row,
+rather than only eight rays. It also tries the existing shoulder fractions and
+one/two mm extensions. The length margin remains two mm for the entire route;
+all previous no-worse tiers, per-edge crossing and contiguous-run vetoes remain.
+Uncertain curved-face boxes and section/isometric envelopes still prevent a
+changed segment from entering unproved ink. They were an important reason for
+the earlier lack of gain. An identical segment inside such a box needs no new
+proof: allowing it enables shoulder/text changes without moving the shaft.
+No part or item IDs are routing exceptions.
+
+The rendered route safeguard is now called by the CI acceptance harness after
+its fresh thirty-part quality render. It reads cutting-plane strokes from the
+Plan's `line_work`, instead of reconstructing a horizontal cut from model Y.
+It compares shared callout IDs and applies the run guard to new IDs; it no longer
+freezes the inventory. Existing Rust coverage tests remain responsible for lost
+information. The 15 original runs are still explicit baseline exceptions, not
+an assertion that the absolute no-run target was achieved.
+
+Local finishing commands use the new optional `quality.py --timeout` and
+`ci_acceptance.py --render-timeout/--step-timeout` arguments to allow the
+throttled machine to finish. CI defaults remain 600 s per render/plan and 1500 s
+per harness step (the survey retains its longer budget); no quality, pin or
+route threshold changes. `/usr/bin/time -l` was attempted but its instruction
+counter is unavailable in this sandbox (`sysctl kern.clockrate: Operation not
+permitted`), so this round makes no planning-speed claim from wall time.
+
+Final visual judgement (2026-10-14, overturnable): FTC-08's revised R7.6
+shaft is exactly radial and shortens from 10.000 to 7.099 mm including the
+shoulder. The remaining location-extension pair is still reported. Its filled
+arrowhead grazes that extension by 0.028 paper mm (triangle half-width 0.45 mm),
+where the original triangle cleared it; this is below the stroke width and is
+retained under the dense-NIST cosmetic bar. The whole sheet and 2400 px detail
+show a correct, shorter radius pointer and readable text. This is not claimed
+as complete clearance of that pair, or as an absolute zero-contact result.
+
+
+L1 finishing result (2026-10-14): real contact reduction **53 → 49** on CGB245,
+CTC-01 and FTC-08; no part worse in the 300-cell CI or 420-cell extended audit,
+and no information/problem-list change. The seven named regression sheets are
+byte-identical to Stage I before. 823 Rust tests / 81 groups, fmt, strict Clippy,
+38/16 Python tests, the rendered route/locality guards, the 64-part survey and
+7/7 unchanged scripted MCP tasks pass; schemas have no diff. All nine pin cells
+complete (270 part runs); **2-3 and 2-8 remain NO-GO only on FTC-07, ink 1 → 4**.
+Exact failing Specs produce identical measured rows on saved main. This keeps
+the pre-existing bar visible: global acceptance is not claimed passed. The 15
+base collinear runs and the tiny FTC-08 head graze above remain reported limits.
+No commit/push; finishing receipts are in `target/l1/fix-acceptance/` and
+`target/l1/fix-*.{log,json}`. Instructions retired could not be read in this
+sandbox, so no speed claim is made.
+
+## L1 takeover round (2026-10-14, Claude; supersedes the Codex L1 results above, overturnable)
+
+- Review findings fixed: a moved callout's label may not gain an extension line within its
+  1 mm pad (text on an extension line is worse than a leader across one); its arrowhead may
+  not gain an extension line within 0.2 mm; its elbow and padded label may not come within
+  1 mm of model ink it was clear of. Shoulders never shrink below the natural one (the 0.75,
+  0.5 and 0.25 fractions are gone): a stub shoulder read as part of the outline on CTC-01.
+- `tools/check_leader_routes.py` measures the same four things on the rendered sheet
+  (`text_extension`, `head_extension`, `elbow_outline`, `label_outline`); the fixture was
+  re-recorded from the same base renders (all 119 earlier rows identical). The check rejects
+  a426e2fe's cgb245 (text 0 -> 1), CTC-01 (elbow on outline) and FTC-08 (arrowhead onto the
+  extension line) as well as 0d46bc3.
+- Result on the thirty quality parts: **no callout moves; leader_on_extension stays 53.** The
+  three earlier "gains" were the regressions above. The acceptance item "contacts fall in
+  total" is not met on the thirty; the CI step no longer passes `--require-improvement` (rule
+  5), the flag stays for evidence.
+- On the 64-part survey the rule does move callouts on 7 parts outside the thirty, each
+  checked by eye and passing the route check: thumbwheel_thread_knurl and
+  hw_thumbwheel_notes_add 4 -> 2, string_post_tapped 7 -> 3, threaded_connector_109 14 -> 13,
+  nist_stc_06 e3 3 -> 2, nist_stc_09 e4 48 -> 47 (one leader/GD&T crossing finding gone),
+  nist_ctc_02 e2 38 -> 37. A Rust test pins threaded_connector_109's groove callout (3,1) -> (2,0).
+- Cost, retired instructions (`proc_pid_rusage`), against origin/main 9b57c937: refinement
+  skips sheets with no contacting callout before gathering view ink, gathers each view's ink
+  only where a candidate reaches, prefilters extension lines, and measures stations nearest
+  first, stopping at the first acceptable one. Thirty quality parts +1.2% total (worst
+  FTC-08 +3.3%); 64-part survey +1.1% (worst 10255 +4.1%), inside check_plan_time's 15%
+  margin. `check_plan_instructions.py` compares identical-output builds only, so it does not
+  apply to a behaviour change. Judgement call: the remaining cost is mostly refinement running
+  on each of the ~30 sheet-search trial plans; moving it to the final plan only would need
+  replumbing `plan_inventory`'s callers and is left alone.
+- The out-of-scope `--timeout`/`--render-timeout` harness options are dropped in favour of
+  main's `--part-timeout`/`--step-timeout` (merged origin/main 9b57c937).
