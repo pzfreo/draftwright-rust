@@ -350,6 +350,59 @@ fn a_semantic_turned_knurl_prints_on_its_diameters_callout() {
 }
 
 #[test]
+fn a_turned_knurl_with_no_tooth_count_is_not_lowered() {
+    // Nothing confirms that the diametral pitch is the circular pitch, so it is not printed.
+    let (_, a) = spindle(|s| s.replace("#935,#937,#938", "#935,#938"));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let source = "manufacturing_requirement:#925";
+    let why = refused(&plan, source).unwrap();
+    assert!(
+        why.ends_with("turned knurl has no tooth count to confirm its pitch."),
+        "{why}"
+    );
+}
+
+/// The draftwright-editor's diamond knurl (pitch 1, 75 teeth, helix angle 30°) on the same
+/// spindle, its text edited by *edit*.
+fn diamond(edit: impl Fn(String) -> String) -> (draftwright::haecceity::Part, Analysis) {
+    let gz = root().join("tests/fixtures/turned_knurl/spindle_diamond_knurl.step.gz");
+    let text = String::from_utf8(gunzip(&std::fs::read(gz).unwrap())).unwrap();
+    analysed_bytes("spindle_diamond_knurl.step", edit(text).as_bytes())
+}
+
+#[test]
+fn a_semantic_diamond_knurl_prints_on_its_diameters_callout() {
+    let (_, a) = diamond(|s| s);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let source = "manufacturing_requirement:#925";
+    let labels: Vec<&str> = claimed(&plan, &a, source).iter().map(|c| c.1).collect();
+    assert_eq!(labels, ["ø24 MAX AFTER KNURL; DIAMOND KNURL P1"]);
+    assert_eq!(refused(&plan, source), None);
+}
+
+#[test]
+fn a_diagonal_turned_knurl_is_reported_not_drawn() {
+    // A valid diagonal knurl (helix angle and hand stated) reaches the port, which has no
+    // drawing for it: it stays a pmi_not_extracted error rather than a guessed callout.
+    let (_, a) = diamond(|s| {
+        s.replace("TURNED_KNURL('','diamond')", "TURNED_KNURL('','diagonal')")
+            .replace(
+                "#939,#942),#841);",
+                "#939,#942,#99999),#841);\n#99999=DESCRIPTIVE_REPRESENTATION_ITEM('helix hand','right');",
+            )
+    });
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        plan.problems.iter().any(|p| p.code == "pmi_not_extracted"
+            && p.message.contains("knurl:0:0 (turned_knurl)")
+            && p.message.contains("not projected")),
+        "{:#?}",
+        plan.problems
+    );
+    assert!(plan.dimensions.iter().all(|d| !d.label.contains("KNURL")));
+}
+
+#[test]
 fn a_turned_knurl_whose_pitch_and_teeth_disagree_is_not_lowered() {
     // π·24/1 is 75.4 teeth, not 60: the pitch is not the circular pitch the editor writes.
     let (_, a) = spindle(|s| s.replace("COUNT_MEASURE(75.)", "COUNT_MEASURE(60.)"));
