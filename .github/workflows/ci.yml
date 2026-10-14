@@ -45,6 +45,7 @@ jobs:
           path: |
             tests/fixtures/known_single_sheet.json
             tests/fixtures/known_single_sheet_main_pins.json
+            tests/fixtures/known_single_sheet_approved.json
           if-no-files-found: error
           retention-days: 14
 

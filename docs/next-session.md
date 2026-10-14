@@ -6456,8 +6456,6 @@ reported above.
   otherwise equals the unassigned plan; left for I2 alongside the `lint_sheets` credit.
 - Integration ran on efficiency cores (`taskpolicy -b`) per the maintainer's request;
   fan RPM needs sudo, so the throttle watched `pmset -g therm` warnings instead.
-||||||| 9b57c937
-
 
 
 ## Stage I L1 leader routing judgements (2026-10-13, Codex, overturnable)
@@ -6605,3 +6603,11 @@ sandbox, so no speed claim is made.
   replumbing `plan_inventory`'s callers and is left alone.
 - The out-of-scope `--timeout`/`--render-timeout` harness options are dropped in favour of
   main's `--part-timeout`/`--step-timeout` (merged origin/main 9b57c937).
+
+## L1 integration judgement (2026-10-14, unattended; overturnable)
+
+- I1's single-sheet oracle blocks every later drawing change. L1's 273 changed cases were
+  added as exact replacements in `tests/fixtures/known_single_sheet_approved.json` (one
+  manifest for all later streams, counted per stream) rather than re-recording
+  `known_single_sheet.json`, keeping I1's original fingerprint. Overturn by re-recording the
+  base manifest at a chosen commit if the oracle should move forward wholesale.
