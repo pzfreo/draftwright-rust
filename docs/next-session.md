@@ -6456,3 +6456,68 @@ reported above.
   otherwise equals the unassigned plan; left for I2 alongside the `lint_sheets` credit.
 - Integration ran on efficiency cores (`taskpolicy -b`) per the maintainer's request;
   fan RPM needs sudo, so the throttle watched `pmset -g therm` warnings instead.
+
+## I2a rendering slice (2026-10-14, unattended)
+
+- Base: `d0130dec51ad1c748f5484b660c343bea0417648` (`origin/main` at stream
+  start). No commit or push; the driver owns publication.
+- `model::render_sheets` renders each sheet in Plan order with one shared projection
+  cache. `render`/`render_with` still draw sheet 1. The selected sheet retains its
+  views, corner/hole tables and view-carried annotations; drawing-wide notes,
+  requirements and projection furniture stay on sheet 1. A remote section's
+  cutting-plane furniture still belongs to its parent on sheet 1.
+- Numbering is resolved after allocation in `title_block::number_sheets` (one call
+  in `sheets.rs`), preserving R1's renderer boundary. Every planned SHEET cell gets
+  `n/m`; the Spec and all cell boxes stay intact. The stale warning about a replaced
+  authored label is removed and its replacement uses the existing font-based
+  overflow check. `sheet_label_replaced` still explains the replacement. A4–A0,
+  all nine numbered sheets and an overwide value are covered by the new test.
+- Overturnable judgement: the sheet-1 PNG keeps `<stem>.png`, matching the existing
+  single-sheet contract and the SVG rule; later PNGs use `<stem>.sheet<n>.png`.
+  API `Files` names are suffixes (`svg`, `sheet2.svg`, `pdf`, `png`, `sheet2.png`),
+  which the existing atomic writer already handles, including a dotted prefix or
+  an output name ending in a format extension.
+- `Drawing::pdf_pages` writes one page per drawing and embeds the whole Spec once
+  in document information. Each page uses the existing path/text/font/link writer;
+  font subsets are per page in this thin slice. A one-page call keeps the original
+  object numbers and bytes. PNG uses the existing rasteriser per Drawing.
+- Review gains optional `sheets` SVGs for sheets 2..m. Its existing `lint` and
+  `structural` still judge sheet 1. Combined coverage, per-sheet structural checks,
+  drawn zones/cross-references and MCP sheet selection remain I2b/I3 work as scoped.
+  A multi-sheet review is therefore not yet a whole-document lint verdict.
+- Overturnable judgement: draw an auxiliary view's existing `scale_note` in I1's
+  reserved label band (7 mm below an uncut view, 17 mm below a section, leaving the
+  intervening band for I2b's reference). It states the view's actual planned scale
+  when it differs from the title block; it creates no new planning policy.
+- Visual evidence: `target/i2a/before` and `target/i2a/after`, FTC-06 with section
+  A–A explicitly on sheet 2. SVGs 1 -> 2, PNGs 1 -> 2, PDF pages 1 -> 2, section
+  captions 0 -> 1. Both SVGs were rasterised by resvg at 2400 px and inspected,
+  as were both PDF pages rasterised by Poppler. Sheet 1's 35 planned dimensions and all
+  other Plan content are unchanged except the title numbering; the only changed
+  sheet-1 raster pixels are in the SHEET cell (125 pixels, box
+  [2328,1630,2346,1643] on the 2400 x 1697 raster). Leaders and model/hidden/cut ink
+  are identical. The section is hatched, retains its caption and parent scale, and
+  clears the border/title block. The A4 plate preview also checks repeated title
+  values, sheet-1-only notes/projection and the sheet-2 corner table.
+- All 30 default quality parts were rendered and rasterised. All 300 baseline
+  cells are identical: ink 52 -> 52, off-sheet 0 -> 0, feature crossings 73 -> 73,
+  hidden-on-visible 2232 -> 2232, repeated labels 7 -> 7; other five totals are zero.
+- This sandbox rejected `taskpolicy -b` with `setpriority(): Operation not
+  permitted`. Cargo commands remain sequential with eight build/test workers and
+  generous operation limits; no wall-clock or instruction-speed claim is made.
+- The final `tests/sheets_render.rs` was also copied verbatim into a source archive
+  of the frozen base and run with an isolated Cargo target. All four tests fail
+  there at runtime (0 passed / 4 failed); source/test hashes are recorded in
+  `target/i2a/base-proof.json`, and the failures in `final-base-tests.log`. A prior
+  shared-target attempt reused the working library and was discarded as evidence.
+- Final verification: fmt and strict all-target release Clippy pass; 63 tests in
+  the five selected integration targets pass (api_analysis 9, output 7, sheets 28
+  including the 1,876-record single-sheet guard, sheets_render 4, title_block 15).
+  The final strengthened sheets_render target separately passes 4/4 after a fresh
+  project rebuild. Python quality 34/34 and acceptance 21/21 pass without skips;
+  schema generation leaves no diff; MCP 7/7 (16 calls); quality 300/300 unchanged.
+  The original byte manifest and quality baseline are untouched. Final release
+  binary SHA-256 is `5d97c84d317f266a517ee5e65f38ddbcb8effc2d54836c5277f5281a3152fecf`,
+  identical before/after the fresh rebuild, so all visual/quality receipts refer
+  to the final binary. Receipts: `target/i2a/receipt.json`, `required-rust.log`,
+  `final-tests.log`, `final-base-tests.log`, `quality-validation.log`.
