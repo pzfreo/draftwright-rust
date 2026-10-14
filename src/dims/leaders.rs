@@ -2703,27 +2703,23 @@ mod tests {
         assert!(checked > 0);
     }
 
-    /// threaded_connector_109's groove callout starts with its label on one extension line and
-    /// its leader by two more; refinement takes the text off and drops one pair (3, 1) -> (2, 0).
+    /// string_post_tapped's turned-step callouts start with their labels on extension lines:
+    /// `ø6` touches three dimensions' extension lines, two with its text, and `ø5` two, both with
+    /// its text. Refinement takes both labels off: (3, 2) -> (1, 0) and (2, 2) -> (0, 0).
     #[test]
     fn refinement_takes_callout_text_off_extension_lines() {
-        let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                std::env::var_os("HOME")
-                    .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
-            });
-        let Some(corpus) = corpus.filter(|p| p.is_dir()) else {
-            assert_ne!(
-                std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
-                Ok("1")
-            );
-            return;
-        };
-        let a =
-            crate::model::analyse_native(&corpus.join("cadgenbench/threaded_connector_109.step"))
-                .unwrap()
-                .1;
+        use std::io::Read as _;
+        let gz = include_bytes!("../../tests/fixtures/pmi/step/string_post_tapped.step.gz");
+        let mut bytes = Vec::new();
+        flate2::read::GzDecoder::new(&gz[..])
+            .read_to_end(&mut bytes)
+            .unwrap();
+        let a = crate::model::analyse_native_step(
+            std::path::Path::new("string_post_tapped.step"),
+            &bytes,
+        )
+        .unwrap()
+        .1;
         let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
         let extensions: Vec<(usize, [P2; 2])> = plan
             .dimensions
@@ -2733,16 +2729,22 @@ mod tests {
             .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
             .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
             .collect();
-        let groove = plan
-            .dimensions
-            .iter()
-            .find(|d| d.id == "d:f:groove:1/groove.length")
-            .and_then(|d| d.placed.as_ref())
-            .unwrap();
-        assert_eq!(
-            extension_contacts(&extensions, &groove.lines, groove.label_box),
-            (2, 0)
-        );
+        for (id, contacts) in [
+            ("d:f:turned_step:1/step.diameter", (1, 0)),
+            ("d:f:turned_step:2/step.diameter", (0, 0)),
+        ] {
+            let callout = plan
+                .dimensions
+                .iter()
+                .find(|d| d.id == id)
+                .and_then(|d| d.placed.as_ref())
+                .unwrap();
+            assert_eq!(
+                extension_contacts(&extensions, &callout.lines, callout.label_box),
+                contacts,
+                "{id}"
+            );
+        }
     }
 
     /// Stations start at the natural one, alternate outwards, stay within the side and are

@@ -182,7 +182,7 @@ jobs:
           - {job: quality-pins, label: quality-pins-3-1, pin_args: "--pin-cell 3-1", timeout: 30}
           - {job: quality-pins, label: quality-pins-3-3, pin_args: "--pin-cell 3-3", timeout: 30}
           - {job: quality-pins, label: quality-pins-3-8, pin_args: "--pin-cell 3-8", timeout: 30}
-          # The 64-part survey runs as four interleaved slices of the sorted part
+          # The 63-part survey runs as four interleaved slices of the sorted part
           # names (the slices partition the survey); each keeps the 3600 s per-call
           # budget, and the job limit stays at 120 min.
           - {job: repeated-spans, label: repeated-spans-1-4, pin_args: "--survey-shard 1/4", timeout: 120}

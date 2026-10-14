@@ -4071,7 +4071,7 @@ the nine quality/pin shards generates its own unpinned baseline with that exact
 executable, checks all 300 quality cells, and uses it for one
 seed 1/2/3 × N 1/3/8 comparison, always with `--require-go`. All nine checks
 must be required to enforce the complete 270-run grid.
-The survey requires 42 corpus files plus all 22 bundled AP242 fixtures (64).
+The survey requires 41 corpus files plus all 22 bundled AP242 fixtures (63).
 MCP requires the unchanged seven tasks and runs the Python quality tests, Node
 client tests (including real HTTP with the release binary), and new acceptance
 gate tests. The expected judge documents and rendered PNGs are also checked.

@@ -1,4 +1,4 @@
-"""Plan-cost budget for "draftwright plan" over the 64-part repeated-spans survey.
+"""Plan-cost budget for "draftwright plan" over the 63-part repeated-spans survey.
 
 DRAFTWRIGHT_CORPUS=... python3 -I tools/check_plan_time.py --out target/plan-time.json
 
@@ -59,21 +59,21 @@ def counted(command):
 def inputs(corpus, directory):
     files = [corpus / p for p in (ROOT / 'tools/repeated_span_parts.txt').read_text().splitlines()]
     fixtures = sorted((ROOT / 'tests/fixtures/pmi/step').glob('*.gz'))
-    if len(files) != 42 or len(fixtures) != 22:
-        raise ValueError('incomplete survey (42 corpus + 22 AP242 required)')
+    if len(files) != 41 or len(fixtures) != 22:
+        raise ValueError('incomplete survey (41 corpus + 22 AP242 required)')
     for fixture in fixtures:
         path = directory / fixture.name[:-3]
         path.write_bytes(gzip.decompress(fixture.read_bytes()))
         files.append(path)
-    if len({p.stem for p in files}) != 64 or not all(p.is_file() for p in files):
+    if len({p.stem for p in files}) != 63 or not all(p.is_file() for p in files):
         raise ValueError('missing/ambiguous survey input')
     return sorted(files, key=lambda p: p.stem)
 
 
 def verdict(parts, budget, key):
     """Gate on the instruction total when every part was counted and a figure exists."""
-    if len(parts) != 64:
-        raise ValueError('incomplete 64-part report')
+    if len(parts) != 63:
+        raise ValueError('incomplete 63-part report')
     counts = [row['instructions'] for row in parts.values()]
     figure = budget.get('instructions', {}).get(key)
     if budget.get('format') != FORMAT:

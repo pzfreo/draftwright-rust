@@ -937,7 +937,7 @@
     "label": "ø130.9",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "One span, one dimension (E3, ARCH0009-6): connector109's boss at z=139.42 has diameter 130.94, already stated by the overall diameter. The captured Python sheet repeats it as m_dia_z3 and dim_od (tests/fixtures/sheets/connector109.json.gz). The port's d:envelope/od.diameter now claims f:boss:4/boss.diameter and draws one ø130.9 across the same radial stations; the boss's length and the smaller diameters remain separate. Different bands stay separate, and omitting the overall diameter promotes the boss's own statement (tests/repeated_dimensions.rs)."
+    "reason": "One span, one dimension (E3, ARCH0009-6): connector109's boss at z=139.42 has diameter 130.94, already stated by the overall diameter. The captured Python sheet repeats it as m_dia_z3 and dim_od (tests/fixtures/sheets/connector109.json.gz). The port's d:envelope/od.diameter now claims f:boss:4/boss.diameter and draws one ø130.9 across the same radial stations; the boss's length and the smaller diameters remain separate. Different bands stay separate, and omitting the overall diameter promotes the boss's own statement (no longer under test: its test left with connector109's removal from the survey)."
   },
   {
     "part": "ftc06",
