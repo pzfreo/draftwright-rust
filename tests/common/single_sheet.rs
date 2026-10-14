@@ -210,6 +210,13 @@ pub fn compare() {
         );
         expected.insert(name.clone(), replacement.clone());
     }
+    // Per-OS svg/pdf hashes for cases whose drawing bytes differ from the portable record
+    // (last-digit libm differences in arc parameters). Each OS still pins exact bytes.
+    let platform_fixture = root.join("tests/fixtures/known_single_sheet_platform.json");
+    let mut platform: Value =
+        serde_json::from_slice(&std::fs::read(&platform_fixture).unwrap()).unwrap();
+    let os = std::env::consts::OS;
+    let mut recorded = serde_json::Map::new();
     if !record {
         assert_eq!(
             found.keys().collect::<Vec<_>>(),
@@ -224,8 +231,19 @@ pub fn compare() {
             assert_eq!(current, old, "{name}: refusal");
             continue;
         }
-        for format in ["plan", "svg", "pdf"] {
-            assert_eq!(current[format], old[format], "{name}: {format}");
+        assert_eq!(current["plan"], old["plan"], "{name}: plan");
+        for format in ["svg", "pdf"] {
+            // Plans are portable; drawing bytes may differ in the last digit of libm results.
+            if record && current[format] != old[format] {
+                recorded.entry(name.clone()).or_insert_with(|| json!({}))[format] =
+                    current[format].clone();
+                continue;
+            }
+            let want = platform[os]
+                .get(name)
+                .and_then(|r| r.get(format))
+                .unwrap_or(&old[format]);
+            assert_eq!(&current[format], want, "{name}: {format}");
         }
         if let Some(png) = old["png"].get(std::env::consts::OS) {
             assert_eq!(&current["png"][std::env::consts::OS], png, "{name}: PNG");
@@ -256,6 +274,12 @@ pub fn compare() {
                 }
             }
         }
+        platform[os] = Value::Object(recorded);
+        std::fs::write(
+            &platform_fixture,
+            serde_json::to_string_pretty(&platform).unwrap() + "\n",
+        )
+        .unwrap();
         std::fs::write(
             &pin_fixture,
             serde_json::to_string_pretty(&pins).unwrap() + "\n",
