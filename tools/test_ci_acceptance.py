@@ -187,6 +187,79 @@ class Acceptance(unittest.TestCase):
                             r'pin_args: "--survey-shard (\d)/4", timeout: 120', workflow)
         self.assertEqual(sorted(shards), [(str(k), str(k)) for k in range(1, 5)])
 
+    def test_ci_runs_plan_budget_with_release_binary(self):
+        runner = self.runner()
+        self.assertIn('plan-time', runner.JOBS)
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path('corpus')), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('plan-time')
+        command = step.call_args.args[1]
+        self.assertIn(ROOT / 'tools/check_plan_time.py', command)
+        self.assertEqual(command[command.index('--binary') + 1], Path('binary'))
+        self.assertEqual(command[command.index('--corpus') + 1], Path('corpus'))
+        self.assertNotIn('--record', command)
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        self.assertIn('job: plan-time, label: plan-time', workflow)
+
+    def test_plan_budget_gates_instructions_and_reports_without_a_counter(self):
+        spec = importlib.util.spec_from_file_location('plan_time', ROOT / 'tools/check_plan_time.py')
+        plan_time = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plan_time)
+        names = self.runner().survey_names()
+        parts = {p: {'instructions': 100, 'seconds': 1} for p in names}
+        budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6400}}
+        self.assertTrue(plan_time.verdict(parts, budget, 'darwin-arm64')['passed'])
+        slower = {p: {'instructions': 116, 'seconds': 1} for p in names}
+        self.assertFalse(plan_time.verdict(slower, budget, 'darwin-arm64')['passed'])
+        lowered = {**budget, 'instructions': {'darwin-arm64': 6400 * .7}}
+        self.assertFalse(plan_time.verdict(parts, lowered, 'darwin-arm64')['passed'])
+        # No figure for the platform, or no counter: report only, never fail.
+        for key, rows in (('linux-x86_64', parts),
+                          ('darwin-arm64', {p: {'instructions': None, 'seconds': 9} for p in names})):
+            report = plan_time.verdict(rows, budget, key)
+            self.assertEqual((report['gated'], report['passed']), (False, True))
+        with self.assertRaises(ValueError):
+            plan_time.verdict(dict(list(parts.items())[1:]), budget, 'darwin-arm64')
+        recorded = json.loads((ROOT / 'tools/plan-time-budget.json').read_text())
+        self.assertEqual(recorded['format'], plan_time.FORMAT)
+        self.assertIn('darwin-arm64', recorded['instructions'])
+
+    def test_require_go_rejects_partial_or_unrelated_jobs(self):
+        for options in (['--job', 'mcp'], ['--job', 'quality-pins', '--pin-cell', '1-1']):
+            command = [sys.executable, '-I', str(RUNNER), '--require-go', *options]
+            checked = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 2)
+            self.assertIn('full random-pin grid', checked.stderr)
+
+    def test_local_timeout_overrides_are_forwarded_without_changing_ci_defaults(self):
+        runner = self.runner()
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path('corpus'),
+                                        part_timeout=14400, survey_shard=(1, 4)), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('repeated-spans')
+        command = step.call_args.args[1]
+        self.assertEqual(command[command.index('--timeout') + 1], 14400)
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), survey_shard=(1, 4)), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('repeated-spans')
+        command = step.call_args.args[1]
+        self.assertEqual(command[command.index('--timeout') + 1], 3600)
+
+    def test_instruction_gate_checks_total_and_each_part_within_one_percent(self):
+        spec = importlib.util.spec_from_file_location('instructions', ROOT / 'tools/check_plan_instructions.py')
+        instructions = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(instructions)
+        self.assertTrue(instructions.assess({'a': {'base': 100, 'head': 55}})['passed'])
+        self.assertFalse(instructions.assess({'a': {'base': 100, 'head': 56}})['passed'])
+        self.assertTrue(instructions.assess({'a': {'base': 10000, 'head': 100},
+                                             'b': {'base': 1000, 'head': 1010}})['passed'])
+        report = instructions.assess({'a': {'base': 10000, 'head': 100}, 'b': {'base': 1000, 'head': 1011}})
+        self.assertLess(report['ratio'], .55)
+        self.assertFalse(report['passed'])
+        self.assertEqual(set(report['worse_parts']), {'b'})
+        with self.assertRaises(ValueError):
+            instructions.assess({'a': {'base': 100, 'head': 0}})
+
     def test_survey_shards_partition_the_64_parts(self):
         runner = self.runner()
         names = runner.survey_names()

@@ -433,6 +433,56 @@ fn table_recess_and_depth_symbols_are_drawn_inside_the_size_cell() {
     );
 }
 
+/// The CI pin grid's seed-2 reproducer: held labels removed the canonical plan's leader
+/// crossings, so the re-measured trigger dropped FTC-07's front schedule and its patterns
+/// returned as ladders that ran past the view's area. Pins keep the canonical schedule.
+#[test]
+fn held_labels_do_not_remove_the_canonical_schedule() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (_, analysis) =
+        model::analyse_native(&Path::new(&corpus).join("nist/nist_ftc_07_asme1_rd.stp")).unwrap();
+    let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    assert_eq!(tables(&base)[0]["id"], "hole_schedule_front");
+    let ops: Vec<_> = [
+        "d:step_level/step_height.length.h218_024",
+        "d:f:polygonal_boss:1/polygon_across_flats.length",
+        "d:f:hole:8/location.length.y",
+    ]
+    .iter()
+    .map(|id| serde_json::json!({"op":"set","path":format!("dimensions/{}/place",draftwright::items::key(id)),"value":{"pinned":true}}))
+    .collect();
+    let spec = model::edit(&Spec::default(), &serde_json::json!(ops)).unwrap();
+    let after = model::plan_recovered(&analysis, &spec).unwrap();
+    let (before, after_tables) = (tables(&base), tables(&after));
+    assert_eq!(
+        before.as_array().unwrap().len(),
+        after_tables.as_array().unwrap().len()
+    );
+    for field in ["id", "origin", "rows", "covered", "state"] {
+        assert_eq!(before[0][field], after_tables[0][field], "{field}");
+    }
+    let drawn = |p: &Plan| {
+        p.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .map(|d| d.id.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    assert_eq!(drawn(&base), drawn(&after));
+    for id in spec.dimensions.keys() {
+        assert_eq!(
+            base.dimensions.iter().find(|d| &d.id == id).unwrap().placed,
+            after
+                .dimensions
+                .iter()
+                .find(|d| &d.id == id)
+                .unwrap()
+                .placed,
+            "{id}"
+        );
+    }
+}
+
 #[test]
 fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     let Some(corpus) = corpus::dir() else { return };

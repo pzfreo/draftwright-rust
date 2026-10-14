@@ -4,8 +4,8 @@
 //! in recognition. The Analysis retains no complete outer wire, so solid bounds detect re-entry
 //! and measure the distance to an exit without pretending to describe a concave silhouette.
 
-use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::cell::{OnceCell, RefCell};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 
 use super::placement::Frame;
@@ -20,7 +20,7 @@ const HAIR: f64 = 0.05;
 enum Shape {
     Circle(P2, f64),
     Box([f64; 4]),
-    Loop(Vec<[P2; 2]>),
+    Loop(Vec<[P2; 2]>, [f64; 4]),
 }
 
 struct Footprint {
@@ -33,6 +33,16 @@ pub(super) struct Footprints {
     solids: Vec<[f64; 4]>,
     view: String,
     members: BTreeMap<String, BTreeSet<String>>,
+    // Shafts recur across jobs and the placement/refinement passes of this resolved view.
+    // Exact bits keep near-equal candidates distinct; no cache survives a changed frame.
+    counts: RefCell<HashMap<[u64; 4], usize>>,
+    index: OnceCell<Index>,
+}
+
+// A conservative broad phase only: surviving shapes use the unchanged crossing predicate.
+struct Index {
+    by_x: Vec<(usize, [f64; 4])>,
+    bounded: bool,
 }
 
 type Projections = BTreeMap<(String, Vec<u64>), Rc<Footprints>>;
@@ -113,6 +123,11 @@ fn clip(s: [P2; 2], b: [f64; 4]) -> Option<(f64, f64)> {
 }
 
 impl Shape {
+    fn polygon(edges: Vec<[P2; 2]>) -> Self {
+        let b = bounds(edges.iter().flatten().copied());
+        Self::Loop(edges, b)
+    }
+
     fn spans(&self, s: [P2; 2]) -> Vec<(f64, f64)> {
         let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
         let len2 = d[0] * d[0] + d[1] * d[1];
@@ -132,7 +147,7 @@ impl Shape {
                 let hi = ((-b + disc.sqrt()) / len2).min(1.0);
                 if hi > lo { vec![(lo, hi)] } else { vec![] }
             }
-            Self::Loop(edges) => {
+            Self::Loop(edges, _) => {
                 let cross = |a: P2, b: P2| a[0] * b[1] - a[1] * b[0];
                 let mut cuts = vec![0.0, 1.0];
                 for [a, b] in edges {
@@ -169,8 +184,12 @@ impl Shape {
         }
     }
 
+    #[cfg(test)]
     fn crossed(&self, s: [P2; 2]) -> bool {
-        let len = (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]);
+        self.crossed_with_length(s, (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]))
+    }
+
+    fn crossed_with_length(&self, s: [P2; 2], len: f64) -> bool {
         // Reject disjoint bounds before testing loop edges. Convex shapes need one interval.
         let Some((a, b)) = clip(s, self.bounds()) else {
             return false;
@@ -195,7 +214,7 @@ impl Shape {
         match self {
             Self::Circle(c, r) => [c[0] - r, c[1] - r, c[0] + r, c[1] + r],
             Self::Box(b) => *b,
-            Self::Loop(e) => bounds(e.iter().flatten().copied()),
+            Self::Loop(_, b) => *b,
         }
     }
 }
@@ -234,7 +253,7 @@ fn wire(w: &Wire, frame: &Frame) -> Shape {
             lines.push([a, b]);
         }
     }
-    Shape::Loop(lines)
+    Shape::polygon(lines)
 }
 
 impl Footprints {
@@ -464,6 +483,8 @@ impl Footprints {
             solids,
             view: format!("v:{view}"),
             members,
+            counts: RefCell::default(),
+            index: OnceCell::new(),
         }
     }
 
@@ -477,21 +498,52 @@ impl Footprints {
     /// Whether *shaft* crosses a feature's footprint, the view's material aside: an interior
     /// leader runs over material by design, and its ink proof keeps it off every edge.
     pub(super) fn crosses_feature(&self, shaft: [P2; 2]) -> bool {
-        self.features.iter().any(|f| f.shape.crossed(shaft))
+        let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
+        self.near(shaft)
+            .any(|f| f.shape.crossed_with_length(shaft, len))
     }
 
     pub(super) fn crossing_count(&self, shaft: [P2; 2]) -> usize {
-        self.crossed_ids(shaft).len()
+        let key = [shaft[0][0], shaft[0][1], shaft[1][0], shaft[1][1]].map(f64::to_bits);
+        if let Some(count) = self.counts.borrow().get(&key) {
+            return *count;
+        }
+        let count = self.crossed_ids(shaft).len();
+        self.counts.borrow_mut().insert(key, count);
+        count
+    }
+
+    fn near(&self, shaft: [P2; 2]) -> impl Iterator<Item = &Footprint> {
+        let index = self.index.get_or_init(|| {
+            let mut by_x: Vec<_> = self
+                .features
+                .iter()
+                .enumerate()
+                .map(|(i, f)| (i, f.shape.bounds()))
+                .collect();
+            let bounded = by_x
+                .iter()
+                .all(|(_, b)| b.iter().all(|v| v.is_finite()) && b[0] <= b[2] && b[1] <= b[3]);
+            by_x.sort_by(|a, b| a.1[0].total_cmp(&b.1[0]).then(a.0.cmp(&b.0)));
+            Index { by_x, bounded }
+        });
+        let b = bounds(shaft.into_iter());
+        let bounded = index.bounded && shaft.iter().flatten().all(|v| v.is_finite());
+        index
+            .by_x
+            .iter()
+            .take_while(move |(_, f)| !bounded || f[0] <= b[2])
+            .filter(move |(_, f)| !bounded || (f[2] >= b[0] && f[1] <= b[3] && f[3] >= b[1]))
+            .map(|(i, _)| &self.features[*i])
     }
 
     fn crossed_ids(&self, shaft: [P2; 2]) -> BTreeSet<&str> {
+        let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
         let mut result: BTreeSet<&str> = self
-            .features
-            .iter()
-            .filter(|f| f.shape.crossed(shaft))
+            .near(shaft)
+            .filter(|f| f.shape.crossed_with_length(shaft, len))
             .map(|f| f.id.as_str())
             .collect();
-        let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
         if self
             .solids
             .iter()
@@ -541,9 +593,13 @@ impl Footprints {
         shaft: [P2; 2],
         owners: &[Measurement],
     ) -> BTreeSet<String> {
-        self.features
-            .iter()
-            .filter(|f| f.id != self.view && !self.owned(&f.id, owners) && f.shape.crossed(shaft))
+        let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
+        self.near(shaft)
+            .filter(|f| {
+                f.id != self.view
+                    && !self.owned(&f.id, owners)
+                    && f.shape.crossed_with_length(shaft, len)
+            })
             .map(|f| f.id.clone())
             .collect()
     }
@@ -599,6 +655,8 @@ mod tests {
             view: "v:plan".into(),
             solids: vec![],
             members: BTreeMap::new(),
+            counts: RefCell::default(),
+            index: OnceCell::new(),
             features: vec![
                 footprint("f:own", [0.0, 0.0]),
                 footprint("f:other", [5.0, 0.0]),
@@ -623,6 +681,8 @@ mod tests {
         let f = Footprints {
             view: "v:plan".into(),
             solids: vec![],
+            counts: RefCell::default(),
+            index: OnceCell::new(),
             members: BTreeMap::from([(
                 "f:pattern".into(),
                 BTreeSet::from(["f:a".into(), "f:b".into()]),
@@ -761,7 +821,7 @@ mod tests {
         let f = Footprints {
             features: vec![Footprint {
                 id: "f:cavity".into(),
-                shape: Shape::Loop(
+                shape: Shape::polygon(
                     (0..vertices.len())
                         .map(|i| [vertices[i], vertices[(i + 1) % vertices.len()]])
                         .collect(),
@@ -770,6 +830,8 @@ mod tests {
             solids: vec![],
             view: "v:plan".into(),
             members: BTreeMap::new(),
+            counts: RefCell::default(),
+            index: OnceCell::new(),
         };
         let exit = [[1.0, 2.0], [-1.0, 2.0]];
         let reentry = [[1.0, 2.0], [7.0, 2.0]];
@@ -817,7 +879,7 @@ mod tests {
         let edges = (0..vertices.len())
             .map(|i| [vertices[i], vertices[(i + 1) % vertices.len()]])
             .collect();
-        let f = Shape::Loop(edges);
+        let f = Shape::polygon(edges);
         assert!(f.crossed([[1.0, 2.0], [7.0, 2.0]]));
         assert!(!f.crossed([[1.0, 2.0], [-1.0, 2.0]]));
     }
@@ -827,6 +889,8 @@ mod tests {
             view: "v:plan".into(),
             solids: vec![],
             members: BTreeMap::new(),
+            counts: RefCell::default(),
+            index: OnceCell::new(),
             features: vec![
                 Footprint {
                     id: "f:own".into(),

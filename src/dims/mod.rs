@@ -495,6 +495,16 @@ fn wants(
     Vec<Problem>,
     BTreeMap<String, pmi_dimensions::Note>,
 ) {
+    crate::planning::memo(analysis, "wants", Vec::new(), || wants_uncached(analysis))
+}
+
+fn wants_uncached(
+    analysis: &Analysis,
+) -> (
+    Vec<Want>,
+    Vec<Problem>,
+    BTreeMap<String, pmi_dimensions::Note>,
+) {
     let frame = QFrame(analysis.recognition.as_ref().map_or(
         [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         |r| r.frame,
@@ -685,6 +695,17 @@ pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::La
 }
 
 pub(crate) fn lanes_excluding(
+    analysis: &Analysis,
+    views: &[(&str, P3, P3)],
+    excluded: &BTreeSet<String>,
+) -> crate::layout::Lanes {
+    let key = serde_json::to_vec(&(views, excluded)).expect("lane inputs serialize");
+    crate::planning::memo(analysis, "lanes", key, || {
+        lanes_uncached(analysis, views, excluded)
+    })
+}
+
+fn lanes_uncached(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,

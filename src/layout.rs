@@ -1800,6 +1800,13 @@ pub fn fit_box(
     let right = matches!(prefer, Corner::BottomRight | Corner::TopRight);
     let top = matches!(prefer, Corner::TopLeft | Corner::TopRight);
     let (cx, cy) = (if right { rx1 } else { rx0 }, if top { ry1 } else { ry0 });
+    if [w, h, rx0, ry0, rx1, ry1, clearance]
+        .iter()
+        .all(|n| n.is_finite())
+        && xs.iter().chain(&ys).all(|n| n.is_finite())
+    {
+        return lazy_box(&xs, &ys, [w, h], [cx, cy], right, top, &obs);
+    }
     let mut ranked: Vec<(f64, f64, f64)> = Vec::new();
     for &bx in &xs {
         let sx = ((if right { bx + w } else { bx }) - cx).powi(2);
@@ -1822,6 +1829,103 @@ pub fn fit_box(
         .map(|(_, bx, by)| [bx, by])
 }
 
+// One candidate per X row; rows are merged in the original (distance, X, Y) order.
+struct BoxCandidate {
+    rank: (f64, f64, f64),
+    row: usize,
+}
+
+impl PartialEq for BoxCandidate {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for BoxCandidate {}
+
+impl PartialOrd for BoxCandidate {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for BoxCandidate {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .rank
+            .0
+            .total_cmp(&self.rank.0)
+            .then(other.rank.1.total_cmp(&self.rank.1))
+            .then(other.rank.2.total_cmp(&self.rank.2))
+            .then(other.row.cmp(&self.row))
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lazy_box(
+    xs: &[f64],
+    ys: &[f64],
+    [w, h]: [f64; 2],
+    [cx, cy]: [f64; 2],
+    right: bool,
+    top: bool,
+    obstacles: &[Rect],
+) -> Option<[f64; 2]> {
+    let sx: Vec<_> = xs
+        .iter()
+        .map(|&x| ((if right { x + w } else { x }) - cx).powi(2))
+        .collect();
+    let mut ys: Vec<_> = ys
+        .iter()
+        .map(|&y| (((if top { y + h } else { y }) - cy).powi(2), y))
+        .collect();
+    ys.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+    let mut rows = vec![(0, Vec::<usize>::new()); xs.len()];
+    let next = |row: usize, cursor: &mut (usize, Vec<usize>)| {
+        let i = if let Some(i) = cursor.1.pop() {
+            i
+        } else {
+            let start = cursor.0;
+            let &(sy, _) = ys.get(start)?;
+            let score = sx[row] + sy;
+            let mut end = start + 1;
+            // Adding X's score can round distinct Y scores to a tie. Such a run must
+            // still visit Y in ascending order, even when the preferred corner is above.
+            while end < ys.len() && (sx[row] + ys[end].0).total_cmp(&score).is_eq() {
+                end += 1;
+            }
+            cursor.0 = end;
+            if end == start + 1 {
+                start
+            } else {
+                cursor.1.extend(start..end);
+                cursor.1.sort_by(|&a, &b| ys[b].1.total_cmp(&ys[a].1));
+                cursor.1.pop().expect("non-empty tie")
+            }
+        };
+        Some(BoxCandidate {
+            rank: (sx[row] + ys[i].0, xs[row], ys[i].1),
+            row,
+        })
+    };
+    let mut ranked = std::collections::BinaryHeap::new();
+    for (row, cursor) in rows.iter_mut().enumerate() {
+        if let Some(candidate) = next(row, cursor) {
+            ranked.push(candidate);
+        }
+    }
+    while let Some(candidate) = ranked.pop() {
+        let (_, x, y) = candidate.rank;
+        if !obstacles.iter().any(|o| overlaps(&[x, y, x + w, y + h], o)) {
+            return Some([x, y]);
+        }
+        if let Some(candidate) = next(candidate.row, &mut rows[candidate.row]) {
+            ranked.push(candidate);
+        }
+    }
+    None
+}
+
 /// A table's place: first with breathing room, then at the hard clearance.
 pub(crate) fn fit_auxiliary_box(
     size: [f64; 2],
@@ -1837,4 +1941,129 @@ pub(crate) fn fit_auxiliary_box(
         return Some(p);
     }
     fit_box(size, region, obstacles, prefer, clearance)
+}
+
+#[cfg(test)]
+mod box_tests {
+    use super::*;
+
+    fn sorted_box(
+        [w, h]: [f64; 2],
+        region: Rect,
+        obstacles: &[Rect],
+        prefer: Corner,
+        clearance: f64,
+    ) -> Option<[f64; 2]> {
+        let [rx0, ry0, rx1, ry1] = region;
+        if w > rx1 - rx0 || h > ry1 - ry0 {
+            return None;
+        }
+        let obs: Vec<Rect> = obstacles
+            .iter()
+            .map(|b| {
+                [
+                    b[0] - clearance,
+                    b[1] - clearance,
+                    b[2] + clearance,
+                    b[3] + clearance,
+                ]
+            })
+            .filter(|b| overlaps(b, &region))
+            .collect();
+        let candidates = |lo: f64, hi: f64, size: f64, edges: Vec<f64>| {
+            let mut v: Vec<f64> = edges
+                .into_iter()
+                .flat_map(|e| [e, e - size])
+                .filter(|x| lo <= *x && *x <= hi - size)
+                .collect();
+            v.sort_by(f64::total_cmp);
+            v.dedup();
+            v
+        };
+        let mut x_edges = vec![rx0, rx1];
+        let mut y_edges = vec![ry0, ry1];
+        for o in &obs {
+            x_edges.extend([o[0], o[2]]);
+            y_edges.extend([o[1], o[3]]);
+        }
+        let xs = candidates(rx0, rx1, w, x_edges);
+        let ys = candidates(ry0, ry1, h, y_edges);
+        let right = matches!(prefer, Corner::BottomRight | Corner::TopRight);
+        let top = matches!(prefer, Corner::TopLeft | Corner::TopRight);
+        let (cx, cy) = (if right { rx1 } else { rx0 }, if top { ry1 } else { ry0 });
+        let mut ranked: Vec<(f64, f64, f64)> = Vec::new();
+        for &bx in &xs {
+            let sx = ((if right { bx + w } else { bx }) - cx).powi(2);
+            for &by in &ys {
+                let sy = ((if top { by + h } else { by }) - cy).powi(2);
+                ranked.push((sx + sy, bx, by));
+            }
+        }
+        ranked.sort_by(|a, b| {
+            a.0.total_cmp(&b.0)
+                .then(a.1.total_cmp(&b.1))
+                .then(a.2.total_cmp(&b.2))
+        });
+        ranked
+            .into_iter()
+            .find(|(_, bx, by)| {
+                let b = [*bx, *by, bx + w, by + h];
+                !obs.iter().any(|o| overlaps(&b, o))
+            })
+            .map(|(_, bx, by)| [bx, by])
+    }
+
+    #[test]
+    fn lazy_box_matches_the_complete_sorted_inventory() {
+        let mut state = 1_u64;
+        let mut number = || {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            (state >> 32) as f64 / u32::MAX as f64
+        };
+        for _ in 0..200 {
+            let mut obstacles = Vec::new();
+            for _ in 0..12 {
+                let x = number() * 120.0 - 10.0;
+                let y = number() * 100.0 - 10.0;
+                obstacles.push([x, y, x + number() * 30.0, y + number() * 30.0]);
+            }
+            let size = [number() * 45.0, number() * 45.0];
+            for corner in [
+                Corner::TopLeft,
+                Corner::TopRight,
+                Corner::BottomLeft,
+                Corner::BottomRight,
+            ] {
+                for clearance in [0.0, 2.0, 6.0] {
+                    assert_eq!(
+                        fit_box(size, [0.0, 0.0, 100.0, 80.0], &obstacles, corner, clearance),
+                        sorted_box(size, [0.0, 0.0, 100.0, 80.0], &obstacles, corner, clearance)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rounded_distance_ties_keep_the_original_coordinate_order() {
+        let xs = [0.0, 999.0];
+        let ys = [1.0, 1.0 + 1e-12, 1.0 + 2e-12];
+        let size = [1.0, 1.0];
+        let corner = [1000.0, 2.0 + 2e-12];
+        let obstacles = [[998.0, 0.0, 1001.0, 4.0]];
+        // X's score rounds the three distinct Y distances to one value; ascending Y wins.
+        assert_eq!(
+            lazy_box(&xs, &ys, size, corner, true, true, &obstacles),
+            Some([0.0, ys[0]])
+        );
+        for scale in [1.0, 1e150] {
+            let region = [0.0, 0.0, 1000.0 * scale, 10.0 * scale];
+            let obstacles = [[999.0 * scale, 0.0, 1000.0 * scale, 10.0 * scale]];
+            let size = [scale, scale];
+            assert_eq!(
+                fit_box(size, region, &obstacles, Corner::TopRight, 0.0),
+                sorted_box(size, region, &obstacles, Corner::TopRight, 0.0)
+            );
+        }
+    }
 }

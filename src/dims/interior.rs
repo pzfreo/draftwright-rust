@@ -66,6 +66,7 @@ fn bounds_of(points: impl IntoIterator<Item = P2>) -> [f64; 4] {
 /// A view's projected edge evidence, prepared once per view and planning pass, in model mm at
 /// 1:1 about the view's centre: every edge's chords, curved faces' silhouettes (or their boxes
 /// where a silhouette is not bounded exactly), and the planar faces square to the view.
+#[derive(Clone)]
 pub(super) struct Proof {
     centre: P2,
     /// Every chord, with the edge each belongs to at `edges[e]..edges[e + 1]`.
@@ -79,6 +80,7 @@ pub(super) struct Proof {
 }
 
 /// A uniform bucket grid over a view's chords: queries visit only nearby chords.
+#[derive(Clone)]
 struct Grid {
     origin: P2,
     cell: f64,
@@ -136,7 +138,10 @@ impl Grid {
 /// How far stored evidence may stray from the exact geometry, model mm.
 const SLACK: f64 = crate::model::projected_ink::TOLERANCE + crate::model::projected_ink::GRID;
 
-pub(super) fn proofs(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<String, Proof> {
+pub(super) fn proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
     let Some(ink) = analysis.edge_ink.as_ref() else {
         return BTreeMap::new();
     };
@@ -146,13 +151,18 @@ pub(super) fn proofs(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<Str
         .filter_map(|v| {
             let view = haecceity::hlr::View::new(v.direction, v.up)?;
             let centre = crate::model::extent(analysis, &view).1;
-            let mut proof = build(ink, v, centre)?;
+            let key =
+                serde_json::to_vec(&(v.direction, v.up)).expect("projection inputs serialize");
+            let mut proof = crate::planning::memo(analysis, "interior", key, || {
+                build(ink, v, centre).map(std::rc::Rc::new)
+            })?;
             // A cutting-plane line this view marks is fixed ink; its letters are boxes.
             for cut in views.iter().filter_map(|q| q.cut.as_ref()) {
                 let name = v.id.trim_start_matches("v:");
                 if cut.marked_in != v.id && cut.marked_in != name {
                     continue;
                 }
+                let proof = std::rc::Rc::make_mut(&mut proof);
                 let (x0, x1, y) = crate::model::cutting_line(analysis, v, &view, cut);
                 let (items, letters) = crate::section::cutting_plane(x0, x1, y);
                 for item in &items {

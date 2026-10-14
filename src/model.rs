@@ -1039,7 +1039,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
     {
         return Ok(plan.clone());
     }
-    let plan = recover_uncached(analysis, spec, first)?;
+    let plan = crate::planning::with(analysis, || recover_uncached(analysis, spec, first))?;
     let mut cached = memo.lock().expect("sheet memo lock");
     cached.retain(|(k, _)| *k != key);
     if cached.len() == 16 {
@@ -1335,7 +1335,9 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    recover(analysis, spec, plan_escalated(analysis, spec)?)
+    crate::planning::with(analysis, || {
+        recover(analysis, spec, plan_escalated(analysis, spec)?)
+    })
 }
 
 fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
@@ -1410,6 +1412,23 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
 }
 
 fn plan_escalated_with(
+    analysis: &Analysis,
+    spec: &Spec,
+    automatic_pair: bool,
+    candidate_arrangement: Option<layout::Arrangement>,
+) -> Result<Plan, Invalid> {
+    let key = serde_json::to_vec(&(
+        spec,
+        automatic_pair,
+        candidate_arrangement.map(|a| a.name()),
+    ))
+    .expect("candidate inputs serialize");
+    crate::planning::memo(analysis, "candidate", key, || {
+        plan_escalated_uncached(analysis, spec, automatic_pair, candidate_arrangement)
+    })
+}
+
+fn plan_escalated_uncached(
     analysis: &Analysis,
     spec: &Spec,
     automatic_pair: bool,
@@ -2173,6 +2192,53 @@ fn plan_with_presentation(
         }
     }
     crate::dims::gdt::validate_placements(analysis, spec, &views)?;
+    // Different arrangement requests can resolve to identical geometry. Solve that ink once,
+    // retaining each request's sheet and view explanations in its returned Plan.
+    let reusable = canonical.is_none()
+        && crate::planning::enabled(analysis)
+        && !crate::placement_intent::has_pins(spec);
+    let key = if reusable {
+        let mut geometry_sheet = sheet.clone();
+        geometry_sheet.basis.clear();
+        geometry_sheet.arrangement.clear();
+        let mut geometry_views = views.clone();
+        for view in &mut geometry_views {
+            view.basis.clear();
+        }
+        serde_json::to_vec(&(
+            spec,
+            given,
+            &geometry_sheet,
+            &geometry_views,
+            &problems,
+            &excluded,
+            &requirements,
+            &notes_given,
+            &radius_notes,
+            &inactive,
+            presentation.is_some(),
+        ))
+        .expect("resolved candidate inputs serialize")
+    } else {
+        Vec::new()
+    };
+    let sheet_basis = sheet.basis.clone();
+    let arrangement = sheet.arrangement.clone();
+    let view_bases: Vec<_> = views.iter().map(|v| v.basis.clone()).collect();
+    if reusable
+        && let Some(mut plan) =
+            crate::planning::lookup::<Plan>(analysis, "resolved_candidate", &key)
+    {
+        plan.sheet.basis = format!(
+            "{sheet_basis}; drawn-item fill {:.1}%",
+            plan.sheet.fill * 100.0
+        );
+        plan.sheet.arrangement = arrangement;
+        for (view, basis) in plan.views.iter_mut().zip(view_bases) {
+            view.basis = basis;
+        }
+        return Ok(plan);
+    }
     let footprint_cache = crate::dims::footprints::Cache::default();
     let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
     let mut fixed_spec = spec.clone();
@@ -2731,6 +2797,9 @@ fn plan_with_presentation(
     crate::completeness::report(analysis, &mut plan);
     plan.sheet.fill = crate::sheet_fit::fill(analysis, &plan);
     plan.sheet.basis += &format!("; drawn-item fill {:.1}%", plan.sheet.fill * 100.0);
+    if reusable {
+        crate::planning::store(analysis, "resolved_candidate", key, plan.clone());
+    }
     Ok(plan)
 }
 
