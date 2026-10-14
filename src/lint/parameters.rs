@@ -98,6 +98,7 @@ pub fn coverage(
             |state: &str, message: String, evidence: Option<String>, fix: Option<String>| {
                 let code = format!("{family}_requirement_{state}");
                 LintIssue {
+                    sheet: None,
                     id: format!("l:{code}:{id}/{parameter}"),
                     code,
                     severity: Severity::Warning,

@@ -232,6 +232,7 @@ pub fn not_dimensioned(
                 requirements.iter().map(|r| r.feature.clone()).collect();
             subjects.dedup();
             LintIssue {
+                sheet: None,
                 id: format!("l:feature_not_dimensioned:ø{}", fmt(*d)),
                 code: "feature_not_dimensioned".into(),
                 severity,
@@ -332,6 +333,7 @@ pub fn count_mismatch(
             .sum();
         if have > 0 && have < need {
             issues.push(LintIssue {
+                sheet: None,
                 id: format!("l:feature_count_mismatch:ø{}", fmt(d)),
                 code: "feature_count_mismatch".into(),
                 severity,
@@ -479,6 +481,7 @@ pub fn judge<'a>(
 
 fn sheet_issue(code: &str, message: String, subjects: Vec<String>, fix: &str) -> LintIssue {
     LintIssue {
+        sheet: None,
         id: format!("l:{code}:holes"),
         code: code.into(),
         severity: Severity::Warning,

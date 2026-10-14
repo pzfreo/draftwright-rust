@@ -65,6 +65,7 @@ const MANUFACTURING: [&str; 5] = [
 
 fn issue(code: &str, subject: &str, severity: Severity, message: String) -> LintIssue {
     LintIssue {
+        sheet: None,
         id: format!("l:{code}:{subject}"),
         code: code.into(),
         severity,
