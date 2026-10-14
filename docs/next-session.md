@@ -6442,3 +6442,17 @@ upstream pin fixture independently proven, no commits/pushes. The driver must
 update ancestry onto current main. The 288-byte-expectation replacements are
 upstream-only; the inherited 13 authored-pin layout limitations remain explicitly
 reported above.
+
+## I1 integration judgements (2026-10-14, unattended; overturnable)
+
+- `sheets::score` counts sheet 1 below `sheet_fit::min_legible_scale` as a hard
+  finding even with no `sheets.smallest_scale`, so `sheets.max > 1` alone can move iso
+  or a section when the finished sheet is illegibly small. Kept as I1 wrote it
+  (reviewer: reasonable; the seven reviewer parts are unchanged with max2 alone).
+- I1 must not reach users before I2: a sheet 1 can show a cutting plane whose section
+  and cross-reference appear in no rendered output yet (string_post A4 max2 5:1;
+  FTC-06 section_aa on sheet 2).
+- `r5_hole_table_assignment_does_not_force_a_table` should also assert the plan
+  otherwise equals the unassigned plan; left for I2 alongside the `lint_sheets` credit.
+- Integration ran on efficiency cores (`taskpolicy -b`) per the maintainer's request;
+  fan RPM needs sudo, so the throttle watched `pmset -g therm` warnings instead.
