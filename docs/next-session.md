@@ -6964,3 +6964,8 @@ No full Rust suite or all-job acceptance was run locally. No commit/push was mad
   callout problems, and the route is stable under an unrelated edit. The "middle" case stays
   covered by `placement_intent::right_pinned_callouts_have_clear_lanes_and_free_dimensions`,
   which requires that the crossing is reported.
+- CI on Linux also failed the single-sheet guard. The Linux platform overrides from #14 still
+  held SVG hashes for 16 native CTC-01 pin cases recorded before E1 re-approved them. They
+  were re-recorded with the `record_single_sheet` workflow on this branch (run 38604127566).
+  Only those 16 Linux SVG hashes changed. The macOS overrides, plans, the portable record, the
+  approved fixture and the main-pin manifest are byte-identical to the recording.
