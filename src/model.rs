@@ -4114,7 +4114,13 @@ pub fn render_annotations_with_items(
     Ok(Drawing {
         page: plan.sheet.page,
         layers,
-        link: None,
+        // The attribution link covers the "drawn by" cell, as draftwright's does.
+        link: plan
+            .sheet
+            .title_cells
+            .iter()
+            .find(|c| c.field == "designed_by")
+            .map(|c| c.cell),
         text,
         annotations,
         sheet,
