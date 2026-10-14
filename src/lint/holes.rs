@@ -604,6 +604,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 None if parameter == "bore.through" => f64::NAN,
                 None => {
                     issues.push(LintIssue {
+                    sheet: None,
                     id: format!("l:hole_requirement_unverifiable:{}/{parameter}", g.members[0]),
                     code: "hole_requirement_unverifiable".into(),
                     severity: Severity::Warning,
@@ -683,6 +684,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 ),
             };
             issues.push(LintIssue {
+                sheet: None,
                 id: format!("l:{code}:{}/{parameter}", g.members[0]),
                 code: code.into(),
                 severity: Severity::Warning,
@@ -709,6 +711,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     for (f, read) in holes::read(analysis) {
         if let Err(why) = read {
             issues.push(LintIssue {
+                sheet: None,
                 id: format!("l:hole_requirement_unverifiable:{}/?", f.id),
                 code: "hole_requirement_unverifiable".into(),
                 severity: Severity::Warning,

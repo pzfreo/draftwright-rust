@@ -932,6 +932,7 @@ pub fn radial_count(source: &Source) -> Option<usize> {
 
 fn issue(key: &str, severity: Severity, message: String, fix: &str) -> LintIssue {
     LintIssue {
+        sheet: None,
         id: format!("l:unrecognised_defining_geometry:{key}"),
         code: "unrecognised_defining_geometry".into(),
         severity,

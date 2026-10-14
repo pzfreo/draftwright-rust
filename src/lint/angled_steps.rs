@@ -42,6 +42,7 @@ pub fn coverage(analysis: &Analysis, _marks: &[Mark]) -> Vec<LintIssue> {
                         manufacturing geometry outside automatic drawing approval";
             let code = "angled_step_requirement_unsupported";
             LintIssue {
+                sheet: None,
                 id: format!("l:{code}:{}", f.id),
                 code: code.into(),
                 severity: Severity::Warning,

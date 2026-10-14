@@ -1012,29 +1012,51 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
             if v.sheet == parent.sheet {
                 return None;
             }
-            let letter = parent
+            let letters = parent
                 .line_work
                 .iter()
                 .find(|w| w.kind == "cutting_plane")
                 .and_then(|w| w.curves.first())
                 .map(|c| {
                     let b = c.bbox();
-                    crate::section::cutting_plane(b[0], b[2], b[1]).1[0]
+                    crate::section::cutting_plane(b[0], b[2], b[1]).1
                 })
-                .unwrap_or(parent.at);
-            let from = [letter[0], letter[1] + 5.];
+                .unwrap_or([parent.at; 2]);
             let projection =
                 crate::haecceity::hlr::View::new(v.direction, v.up).expect("section view");
             let caption = [
                 v.at[0],
                 v.at[1] - model::extent(analysis, &projection).0[1] * v.scale / 2. - 7.,
             ];
-            let at = [caption[0], caption[1] - 5.];
+            let from = reference_position(
+                analysis,
+                plan,
+                parent.sheet,
+                &format!(
+                    "SECTION {}–{}, SHEET {}, ZONE {}",
+                    cut.label,
+                    cut.label,
+                    v.sheet,
+                    zone(plan.sheet.page, caption)
+                ),
+                &letters.map(|p| [p[0], p[1] + 5.]),
+            );
+            let at = reference_position(
+                analysis,
+                plan,
+                v.sheet,
+                &format!(
+                    "FROM SHEET {}, ZONE {}",
+                    parent.sheet,
+                    zone(plan.sheet.page, letters[0])
+                ),
+                &[[caption[0], caption[1] - 5.]],
+            );
             Some((
                 v.id.clone(),
                 CrossRef {
                     sheet: parent.sheet,
-                    zone: zone(plan.sheet.page, letter),
+                    zone: zone(plan.sheet.page, letters[0]),
                     at,
                 },
                 CrossRef {
@@ -1050,6 +1072,131 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
         v.xref = Some(from);
         v.cut.as_mut().unwrap().xref = Some(to);
     }
+}
+
+/// Keep the whole address clear of existing ink, using obstacle boundaries as deterministic
+/// candidates. This changes only the new furniture; the allocation's view bands stay intact.
+fn reference_position(
+    analysis: &Analysis,
+    plan: &Plan,
+    number: u32,
+    text: &str,
+    anchors: &[[f64; 2]],
+) -> [f64; 2] {
+    use std::sync::OnceLock;
+    static FONT: OnceLock<crate::text::Font> = OnceLock::new();
+    let font = FONT.get_or_init(|| {
+        crate::text::Font::new(include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec())
+            .expect("bundled section font")
+    });
+    let laid = font.text(text, crate::section::FONT_SIZE);
+    let mut local = plan.clone();
+    local.sheet = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .find(|s| s.number == number)
+        .unwrap()
+        .clone();
+    local.views.retain(|v| v.sheet == number);
+    let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+    local.dimensions.retain(|d| carries(&d.view));
+    local.gdt.retain(|g| carries(&g.view));
+    local.balloons.retain(|b| carries(&b.view));
+    local.tables.retain(|t| t.sheet == number);
+    local.hole_table = local.hole_table.filter(|t| t.sheet == number);
+    local.hole_tables.retain(|t| t.sheet == number);
+    if number > 1 {
+        local.notes_block = None;
+        local.radius_notes_block = None;
+        local.radius_table = None;
+    }
+    let mut obstacles = crate::sheet_fit::footprints(analysis, &local);
+    obstacles.extend(crate::sheet_fit::furniture_footprints(analysis, &local));
+    obstacles.push(local.sheet.title_block);
+    for v in &plan.views {
+        if let Some(cut) = &v.cut
+            && let Some(parent) = local.views.iter().find(|p| p.id == cut.marked_in)
+            && let Some(curve) = parent
+                .line_work
+                .iter()
+                .find(|w| w.kind == "cutting_plane")
+                .and_then(|w| w.curves.first())
+        {
+            let b = curve.bbox();
+            let (ink, letters) = crate::section::cutting_plane(b[0], b[2], b[1]);
+            obstacles.extend(crate::output::items_bbox(&ink));
+            let label = font.text(&cut.label, crate::section::FONT_SIZE);
+            obstacles.extend(letters.map(|at| {
+                [
+                    at[0] + label.min[0],
+                    at[1] + label.min[1],
+                    at[0] + label.max[0],
+                    at[1] + label.max[1],
+                ]
+            }));
+        }
+    }
+    let [w, h] = local.sheet.page;
+    let limits = [
+        layout::MARGIN + 1. - laid.min[0],
+        layout::MARGIN + 1. - laid.min[1],
+        w - layout::MARGIN - 1. - laid.max[0],
+        h - layout::MARGIN - 1. - laid.max[1],
+    ];
+    let mut xs: Vec<_> = anchors
+        .iter()
+        .map(|p| p[0].clamp(limits[0], limits[2]))
+        .collect();
+    let mut ys: Vec<_> = anchors
+        .iter()
+        .map(|p| p[1].clamp(limits[1], limits[3]))
+        .collect();
+    for b in &obstacles {
+        xs.extend([b[0] - 1. - laid.max[0], b[2] + 1. - laid.min[0]]);
+        ys.extend([b[1] - 1. - laid.max[1], b[3] + 1. - laid.min[1]]);
+    }
+    xs.retain(|x| *x >= limits[0] && *x <= limits[2]);
+    ys.retain(|y| *y >= limits[1] && *y <= limits[3]);
+    xs.sort_by(f64::total_cmp);
+    xs.dedup();
+    ys.sort_by(f64::total_cmp);
+    ys.dedup();
+    xs.into_iter()
+        .flat_map(|x| ys.iter().map(move |y| [x, *y]))
+        .filter(|at| {
+            let b = [
+                at[0] + laid.min[0] - 0.5,
+                at[1] + laid.min[1] - 0.5,
+                at[0] + laid.max[0] + 0.5,
+                at[1] + laid.max[1] + 0.5,
+            ];
+            obstacles.iter().all(|other| !overlap(b, *other))
+        })
+        .min_by(|a, b| {
+            let distance = |p: [f64; 2]| {
+                anchors
+                    .iter()
+                    .map(|anchor| {
+                        let near = if anchors.len() > 1 {
+                            [
+                                anchor[0].clamp(p[0] + laid.min[0], p[0] + laid.max[0]),
+                                anchor[1].clamp(p[1] + laid.min[1], p[1] + laid.max[1]),
+                            ]
+                        } else {
+                            p
+                        };
+                        (near[0] - anchor[0]).powi(2) + (near[1] - anchor[1]).powi(2)
+                    })
+                    .fold(f64::INFINITY, f64::min)
+            };
+            distance(*a)
+                .total_cmp(&distance(*b))
+                .then(a[1].total_cmp(&b[1]))
+                .then(a[0].total_cmp(&b[0]))
+        })
+        .unwrap_or([
+            anchors[0][0].clamp(limits[0], limits[2]),
+            anchors[0][1].clamp(limits[1], limits[3]),
+        ])
 }
 
 fn problem(code: &str, severity: &str, subject: &str, message: String, fix: Vec<Op>) -> Problem {

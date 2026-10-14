@@ -3507,6 +3507,7 @@ fn render_annotations_with_cuts(
     // What lint's sheet checks read: each view's visible box, and each thing drawn, by name.
     let mut sheet = Sheet::default();
     let mut caption_names: Vec<String> = Vec::new();
+    let mut references = Vec::new();
     let mut layers: Vec<Layer> = layer_styles()
         .into_iter()
         .map(|(name, style)| Layer {
@@ -3653,6 +3654,32 @@ fn render_annotations_with_cuts(
             }
             furniture.extend(f.ink);
             captions.extend(f.text);
+            for (reference, prefix, name, target) in [
+                (
+                    v.xref.as_ref().filter(|_| !remote),
+                    "FROM".to_string(),
+                    format!("{}/xref", v.id),
+                    format!("section_{l}_left"),
+                ),
+                (
+                    cut.xref.as_ref().filter(|_| f.chain.is_some()),
+                    format!("SECTION {}–{},", cut.label, cut.label),
+                    format!("{}/cut/xref", v.id),
+                    "section_caption".into(),
+                ),
+            ] {
+                if let Some(r) = reference {
+                    references.push((
+                        captions.len(),
+                        name.clone(),
+                        prefix.clone(),
+                        target,
+                        r.clone(),
+                    ));
+                    captions.push((format!("{prefix} SHEET {}, ZONE {}", r.sheet, r.zone), r.at));
+                    caption_names.push(name);
+                }
+            }
         }
     }
     for v in &plan.views {
@@ -3768,14 +3795,65 @@ fn render_annotations_with_cuts(
             interior: false,
         })
     };
-    for ((s, at), name) in captions.iter().zip(&caption_names) {
+    for (index, ((s, at), name)) in captions.iter().zip(&caption_names).enumerate() {
         let size = crate::section::FONT_SIZE;
         let run = (s.as_str(), "IBMPlexMono-Regular.ttf", size);
         let from = dims.len();
-        label(font.text(s, size), *at, dims, Some(run));
+        if let Some(run) = label(font.text(s, size), *at, dims, Some(run))
+            && let Some((_, name, prefix, target, r)) =
+                references.iter().find(|(i, ..)| *i == index)
+        {
+            sheet.references.push(crate::output::DrawnReference {
+                name: name.clone(),
+                target: target.clone(),
+                prefix: prefix.clone(),
+                sheet: r.sheet,
+                zone: r.zone.clone(),
+                run,
+            });
+        }
         sheet
             .items
             .extend(labelled(name, Kind::Caption, &dims[from..]));
+    }
+    if let Some(grid) = &plan.sheet.zones {
+        // All zone furniture lives outside the drawable border, preserving every view band.
+        for n in 0..grid.columns {
+            let x = (f64::from(n) + 0.5) * w / f64::from(grid.columns);
+            let value = (n + 1).to_string();
+            for y in [MARGIN / 2., h - MARGIN / 2.] {
+                label(
+                    font.text(&value, 3.),
+                    [x, y],
+                    dims,
+                    Some((&value, "IBMPlexMono-Regular.ttf", 3.)),
+                );
+            }
+            if n > 0 {
+                let x = f64::from(n) * w / f64::from(grid.columns);
+                for (a, b) in [(0., MARGIN), (h - MARGIN, h)] {
+                    dims.push(Item::Edge(Curve::Line([x, a], [x, b])));
+                }
+            }
+        }
+        for n in 0..grid.rows {
+            let y = h - (f64::from(n) + 0.5) * h / f64::from(grid.rows);
+            let value = (b"ABCDEFGHJKLMNPQRSTUVWXYZ"[n as usize] as char).to_string();
+            for x in [MARGIN / 2., w - MARGIN / 2.] {
+                label(
+                    font.text(&value, 3.),
+                    [x, y],
+                    dims,
+                    Some((&value, "IBMPlexMono-Regular.ttf", 3.)),
+                );
+            }
+            if n > 0 {
+                let y = h - f64::from(n) * h / f64::from(grid.rows);
+                for (a, b) in [(0., MARGIN), (w - MARGIN, w)] {
+                    dims.push(Item::Edge(Curve::Line([a, y], [b, y])));
+                }
+            }
+        }
     }
     // Each cell: its dividers, its label at its lower left, and its value (none drawn for a
     // field not supplied) centred in it, whole, and searchable. The ink is the font-safe value.

@@ -412,7 +412,7 @@ fn write_file(
 #[derive(Clone, Debug, Serialize)]
 pub struct Review {
     pub svg: String,
-    /// SVGs for sheets 2..m. Coverage and per-sheet structural review follow in I2b.
+    /// SVGs for sheets 2..m, in document order.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sheets: Vec<String>,
     /// The plan's problems, and the drawing's: what could not be drawn as planned.
@@ -450,8 +450,8 @@ fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
         svg: drawing.svg(),
         sheets: drawings.iter().skip(1).map(Drawing::svg).collect(),
         problems: plan.problems,
-        lint: lint::lint(&analysis, drawing),
-        structural: lint::structural::check(drawing),
+        lint: lint::lint_sheets(&analysis, &drawings),
+        structural: lint::structural::check_sheets(&drawings),
     })
 }
 

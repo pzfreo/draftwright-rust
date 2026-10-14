@@ -253,6 +253,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             |state: &str, message: String, evidence: Option<String>, fix: Option<String>| {
                 let code = format!("channel_requirement_{state}");
                 LintIssue {
+                    sheet: None,
                     id: format!("l:{code}:{id}/{}", w.role),
                     code,
                     severity: Severity::Warning,
