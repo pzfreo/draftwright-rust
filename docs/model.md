@@ -268,6 +268,13 @@ frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`:
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
 
+A pinned callout above or below a view puts its text on the side its leader runs to:
+an elbow left of the tip carries text to the left, and a vertical leader defaults to the
+right. Left/right columns keep their stated side. A pinned callout's bend and label are
+never slid to avoid a feature crossing. The existing `leader_through_feature` warning
+names the callout and crossed feature in `subjects`, also names the callout in `refs`,
+and explains that the pinned label's leader crosses part features and keeps its position.
+
 Existing angular PMI keeps its measured sector: `lane` increases the radius in paper steps and
 `along` selects a fraction of its arc. A requested `side` is reported as
 `placement_side_not_applicable`, with a fix removing that field; it cannot change the sector.
@@ -1131,6 +1138,39 @@ paths to choices, ranges or forms, including tolerance strings, bare view keys, 
 and fit classes valid for each associated hole/boss's nominal size. A descriptor's `paths`
 shares its choices across all listed member paths. Collisions are reported by preview/apply;
 queries do not run trial plans.
+
+`Session::label_rows(callout_address)` returns a serialisable map keyed by compatible
+shown principal view IDs (`v:plan`, etc.) for an editor's exterior snap guide. Each
+`dims::LabelRows` has `outline: [left, bottom, right, top]`, `first_row` and
+`row_spacing`; the latter two are maps keyed by `above`, `below`, `left`, `right`.
+All coordinates and spacings are paper millimetres, with y increasing upwards.
+These are **elbow coordinates**, not text baselines. Lane `n` is
+`first_row[side] + sign * n * row_spacing[side]`, with sign +1 above/right and
+−1 below/left. The first row is 10 mm outside the projected envelope. Above/below
+spacing is 7 mm; beside a view it is the greater of that view's widest canonical
+callout and this callout's current ink width, plus its 3 mm shoulder and 7 mm
+clearance. The resolver and query share the spacing calculation. Canonical widths
+are retained as planning metadata, so another item's text edit cannot move
+a pin's columns; the Plan's serialised shape is unchanged.
+
+This query performs no planning or projection, accepts the usual bare/qualified
+item addresses, and refuses non-callouts. Re-read it after applying an edit to a
+view, sheet or this callout's text. It describes explicit exterior `side/lane/along`
+placement. Automatic labels can lie inside the view or use the automatic solver's
+other exterior candidates; read their actual geometry through `item`/`plan`.
+A bare pin retains that automatic geometry. Dragging a pinned label into an
+interior blank region still needs a separate Spec design decision (issue #12's
+comment); these guides do not add that authoring operation. This Rust session query
+is available to editor bindings; it adds no MCP tool or JSON-lines operation.
+
+Editors that keep their own session can call public
+`dims::label_rows(&analysis, view, width)` directly. Pass the greater of the
+edited callout's ink width and `plan.canonical_callout_width(&view.id)` (paper mm).
+The latter returns `Option<f64>`: `None` means no canonical callout for that view,
+or a deserialised Plan whose non-wire metadata is absent. Keep the freshly planned
+Plan to use this API; do not infer canonical widths from edited placements.
+This uses the same calculation as `Session::label_rows` without requiring a
+`draftwright::Session`.
 
 `draftwright serve` keeps one Session per connection, behind `api::Service`. The additional
 operations advertised by `hello` are:

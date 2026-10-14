@@ -586,6 +586,21 @@ pub(crate) fn finish(plan: &mut Plan, _analysis: &Analysis) {
         )
         .collect();
     for p in &mut plan.problems {
+        if p.code == "leader_through_feature"
+            && let Some(id) = p.subjects.first().filter(|id| {
+                pins.contains_key(*id)
+                    && plan
+                        .dimensions
+                        .iter()
+                        .any(|d| d.id == **id && d.kind == "callout")
+            })
+        {
+            p.message = format!(
+                "The pinned label's leader crosses part features: {} crosses {}. Its bend and label are kept at the prescribed position.",
+                id, p.subjects[1]
+            );
+            p.refs.push(id.clone());
+        }
         if p.code.starts_with("annotation_") {
             if let Some((_, path)) = p.subjects.iter().find_map(|id| pins.get_key_value(id)) {
                 p.fix = vec![Op::set(path, json!({}))];

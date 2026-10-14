@@ -1047,7 +1047,34 @@ fn right_pinned_callouts_have_clear_lanes_and_free_dimensions() {
             .filter(|p| p.subjects.iter().any(|id| ids.contains(&id.as_str())))
             .collect();
         if alongs == ["start", "middle", "end"] {
-            assert!(problems.is_empty(), "{alongs:?}: {problems:?}");
+            // The central bore's prescribed middle station crosses the small right hole.
+            // Report that crossing instead of quietly moving its pin to a clear station.
+            assert_eq!(problems.len(), 1, "{alongs:?}: {problems:?}");
+            assert_eq!(problems[0].code, "leader_through_feature");
+            assert_eq!(problems[0].subjects, [ids[1], "f:hole:7"]);
+            assert!(problems[0].refs.contains(&ids[1].into()));
+        }
+        let view = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+        let height = view.scale * (a.envelope[1][1] - a.envelope[0][1]);
+        for (id, along) in ids.iter().zip(alongs) {
+            let fraction = match along {
+                "start" => 0.0,
+                "middle" => 0.5,
+                _ => 1.0,
+            };
+            let bend = p
+                .dimensions
+                .iter()
+                .find(|d| d.id == *id)
+                .unwrap()
+                .placed
+                .as_ref()
+                .unwrap()
+                .lines[0][1];
+            assert!(
+                (bend[1] - (view.at[1] + (fraction - 0.5) * height)).abs() < 1e-6,
+                "{id} slid from its pinned station: {bend:?}"
+            );
         }
         let boxes: Vec<_> = ids
             .iter()
