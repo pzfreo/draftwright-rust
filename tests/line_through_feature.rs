@@ -61,10 +61,12 @@ fn right_pinned_plate_callouts_clear_other_holes_and_report_no_callout_problem()
         "d:f:hole:4/bore.diameter",
         "d:f:hole:7/bore.diameter",
     ];
+    // A pin is never moved: the centre bore takes a clear station (0.4) rather than "middle",
+    // which crosses the small right hole and is reported (see placement_intent).
     let mut s = Spec::default();
     for (lane, id) in ids.iter().enumerate() {
         s=model::edit(&s,&json!([{"op":"set","path":format!("dimensions/{}/place",draftwright::items::key(id)),
-            "value":{"view":"plan","side":"right","lane":lane,"along":(["start","middle","end"][lane]),"pinned":true}}])).unwrap();
+            "value":{"view":"plan","side":"right","lane":lane,"along":([json!("start"),json!(0.4),json!("end")][lane]),"pinned":true}}])).unwrap();
     }
     let plan = model::plan_recovered(&a, &s).unwrap();
     let small = a.features.iter().find(|f| f.id == "f:hole:7").unwrap();

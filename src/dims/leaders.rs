@@ -1409,7 +1409,8 @@ pub(super) fn intent_tip(frame: &Frame, sites: &[(super::P3, f64)], elbow: P2) -
 }
 
 /// Keep a prescribed strip and lane. Prefer its station; shift only to reduce feature
-/// crossings without increasing contacts with other prescribed pins. Free ink yields later.
+/// crossings without increasing contacts with other prescribed pins. A pin keeps its ink;
+/// the finished-plan audit reports its feature crossings. Free ink yields later.
 pub(super) fn route_intent(
     footprints: &Footprints,
     frame: &Frame,
@@ -1417,7 +1418,11 @@ pub(super) fn route_intent(
     p: &mut Placed,
     side: crate::placement_intent::Side,
     obstacles: &[(&str, &Placed)],
+    pinned: bool,
 ) {
+    if pinned {
+        return;
+    }
     let Shape::Callout { sites } = &w.shape else {
         return;
     };

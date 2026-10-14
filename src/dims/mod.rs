@@ -88,6 +88,8 @@ use crate::model::{Analysis, DimensionSource, Invalid, PlannedSheet, PlannedView
 use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
 pub use leaders::clear_routes;
+pub use placement::LabelRows;
+pub use placement::label_rows;
 use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
 pub(crate) use tolerance::{check as check_tolerances, choices as fit_choices};
@@ -1160,6 +1162,7 @@ pub(crate) fn plan_inventory(
                 placed,
                 side,
                 &pin_ink,
+                spec.dimensions[&w.id].place.as_ref().unwrap().pinned,
             );
         }
     }
@@ -1214,6 +1217,7 @@ pub(crate) fn plan_inventory(
         &mut sides,
         &mut lane,
         &fixed,
+        &drawn,
         &mut placed,
         obstacles,
         &page,

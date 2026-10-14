@@ -6791,3 +6791,181 @@ No full Rust suite or all-job acceptance was run locally. No commit/push was mad
   `base-proof.json`, `final-base-tests.log`, `base-carrier-test.log`,
   `base-lint-tests.log`, `final-artifacts.json`, `visual-figures.json`,
   `pdf-search.json`, `quality/baseline.json`, and `mcp.json`.
+
+
+## E1 pinned callout labels (2026-10-14, unattended; overturnable judgements)
+
+- Frozen base: `d8a75b39c844c03065bd3c3815691be2bcfbaeb5` (origin/main at
+  stream start). No commit or push; the driver owns publication.
+- Above/below explicit callouts use the automatic solver's horizontal-direction
+  rule; a vertical shaft defaults right. Left/right columns retain their side.
+  `route_intent` skips pins, leaving their resolved tips, bends, shoulders and text
+  intact. The finished feature audit keeps its existing warning code and subjects,
+  adds the callout to refs, and explains the retained pinned crossing.
+- Conservative API judgement: expose exterior elbow rows through
+  `Session::label_rows(callout_address)`, keyed by compatible principal view ID,
+  without changing Plan wire bytes or adding an MCP operation. Canonical widths
+  are private, unserialised Plan metadata; Session always constructs a fresh Plan.
+  A deserialised/replayed State is not a Session and cannot query these guides.
+  Editor bindings can serialise the result next to their placement responses.
+- The plate's three default callout labels are interior, so their automatic bends
+  are not on the explicit exterior lane grid. The guide uses exactly their carrying
+  view frames and canonical label widths; the acceptance test checks all four
+  sides and lanes 0–2 against actual resolved pins, and confirms a bare pin keeps
+  the automatic interior geometry. Designing a draggable interior pin is expressly
+  out of scope. This distinction can be overturned with the later Spec decision.
+- A user pin can deliberately put text off the sheet. The extreme-left examples
+  retain their requested bend and correctly report that resulting overrun; they
+  are not moved back or clipped in the Plan. Fitting left-drag examples accompany
+  these cases in the visual receipts. No note, table or dimension is removed.
+
+- Direction correction is limited to pinned above/below placements in this thin
+  slice. Unpinned explicit intent keeps its existing routing/text rule as well as
+  the automatic solver's unchanged behavior. This conservative boundary avoids
+  extending the pinned-label fix into free-placement changes.
+- The old right-pin regression assumed the router silently moved the middle
+  bore off the small right hole. It now requires the exact retained station and
+  that one warning, still requiring no other problem and nonoverlapping lanes.
+  The scripted MCP task still requires all three pins, every other dimension and
+  no problems. Its prescribed stations are now `[0, 0.4, 1]`, placing the centre
+  bore on a clear station rather than relying on forbidden pin movement. The
+  task conditions/judge are unchanged; this is an editor action, not a planner
+  threshold or part-specific production rule.
+
+- The full single-sheet oracle includes authored pins that embodied the old bugs.
+  E1 records 54 exact replacements in `known_single_sheet_approved.json`: 20
+  mounting-plate, 16 native CTC-01 and 18 AP242 CTC-01 cases. There are 52
+  drawing changes and two warning-only changes. Twenty supersede L1-owned cases,
+  so the manifest's current ownership counts are L1 253, E1 54 (307 unique cases).
+  The original `known_single_sheet.json`, main-pin manifest, platform overrides,
+  saved Specs and CI quality baseline are unchanged. All changed cases contain
+  dimension pins. This is an overturnable exact-fixture judgement needed to
+  reconcile repaired pin behavior with the inherited whole-document byte oracle.
+- All 54 affected pinned sheets were independently rendered with the frozen-base
+  and changed release binaries and rasterised with resvg at 2400 px. Their 54 base
+  Plan hashes and 108 SVG hashes agree with the independent guard receipts.
+  Before/after contact sheets were inspected: no placed dimension is lost. Some
+  authored positions remain crowded or cross ink, as a pin requires; findings
+  remain visible. These are pin-correctness repairs, not an automatic-quality gain.
+- Fitting above/below left drags: bend `(48,165)` / `(48,85)` is unchanged;
+  label box x range `[51,83.793]` becomes `[12.207,45]`. Total leader length is
+  unchanged at 57.573 mm. Ink is 2 -> 1 above, 3 -> 3 below; off-sheet stays zero.
+  The central-bore crossing pin's bend is `(70,165)` -> authored `(80,165)`;
+  displacement is 10 -> 0 mm, total leader length 53.950 -> 52.719 mm.
+  Its requested crossing is now reported (feature crossings 0 -> 1; ink 2 -> 4),
+  with the text/shoulder at the authored position rather than on a shifted route.
+- Exterior rows on the default plate: outline `[30,95,130,155]`, first elbow rows
+  above 165, below 85, left 20, right 140 mm. Row spacing is 7 mm above/below and
+  42.793 mm beside the view. Guides describe the current resolved frames; re-read
+  them after committing an edit or pin. They do not promise that a future Spec
+  leaves the current frame or presentation unchanged.
+- Base-red receipts: both new `pinned_callouts` tests fail at runtime on the frozen
+  base; the strengthened right-pin test also fails at runtime. `label_rows` fails
+  compilation there because the new session method is absent (not a runtime red
+  claim). Exact final test sources were used. Receipts live under `target/e1/`:
+  `final-base-tests.log`, `base-existing-pin-test.log`, `final-base-rows.log`,
+  `pinned-quality-receipt.json`, `pinned-cases-receipt.json`,
+  `default-svg-comparison.json` and `quality-final-receipt.json`.
+
+- Final verification: fmt and strict all-target release Clippy pass; 24 scoped
+  Rust tests pass (pinned_callouts 2, label_rows 1, placement_intent 13, session 8),
+  plus the single-sheet invariant (1 test, all 1,876 records). Python quality 40
+  and CI acceptance 21 pass without skips; Node client 8 and scripted MCP 7/7
+  (16 calls) pass. Generated MCP schemas leave no diff. All 300 quality cells and
+  all 30 default SVGs are unchanged from the base; every quality SVG was rendered
+  with the release CLI, rasterised at 2400 px and inspected. No full Cargo suite
+  or all-job acceptance was run; no speed claim is made from local wall time.
+  Final logs: `final-rust-tests.log`, `single-sheet-final.log`, `clippy.log`,
+  `test-quality-final.log`, `test-ci-acceptance-final.log`, `mcp-eval-final.log`.
+
+
+## E1 review fix (2026-10-14, unattended; overturnable judgements)
+
+- The review's plate above-left example is a real drafting regression: the 95
+  dimension covered the 50 dimension on the same lane. The earlier ink-count
+  improvement was not evidence of a better drawing. When relocating a free linear
+  dimension around a pinned callout, reject a candidate whose dimension line newly
+  overlaps another drawn dimension from the same datum in that view. Existing
+  overlaps and dimensions with different datums retain their inherited layout;
+  E1 does not repair those unrelated linear layouts or change linear-pin solving.
+  This conservative scope avoids moving the plate's left-hand 30 mm dimensions
+  across its right-hand leaders or changing the 10127 bare boss-height pin.
+  Acceptance covers along 0.05, 0.1 and 0.18 for native and reference-recognised
+  plates, including the left-facing label and the 95 outside the 50 when both are
+  below the view. No information is removed.
+- Supersede the earlier Session-only API judgement: the editor has its own Session.
+  Export `dims::label_rows` and `Plan::canonical_callout_width(view_id)` for its
+  existing stateless planning path. Keep widths private and unserialised; replayed
+  Plans return None explicitly rather than reconstructing widths from edited ink.
+  Public API acceptance uses a fresh Plan without a draftwright Session, then
+  checks agreement with the Session convenience API and the absent wire metadata.
+- Retain authored off-sheet pins with the existing error. Switching the text side
+  near a paper edge would contradict E1's explicit leader-direction rule; an
+  editor-side drag constraint or a future explicit choice can address this.
+- The scripted MCP stations [0, 0.4, 1] are not evidence of real-model task success.
+  A model following the task's natural start/middle/end positions now retains the
+  central bore's crossing and fails no_problems; it must inspect the finding and
+  choose a clear station. The unchanged task/judge is harder under correct pin
+  semantics. No task, judge or scripted answer is changed in this review fix.
+
+- Final visual receipts are under `target/e1-fix/`: the 95 mm location dimension
+  now sits 7 mm outside the 50 mm dimension for all three above-left stations,
+  in both native and reference-recognised plate plans. Every callout's ink and
+  the set of drawn dimensions are unchanged from the reviewed E1 commit; only
+  the 95 moves in those cases. The below-left and crossing pin sheets, and the
+  10127 bare boss-height pin sheet, keep their SVGs unchanged. These cases were
+  rendered with the release CLI and rasterised at 2400 px; the 95/50 baseline
+  ladder is now readable. No speed claim is made.
+- Final scoped checks pass: 26 Rust tests (pinned_callouts 3, label_rows 2,
+  placement_intent 13, session 8), fmt, strict release Clippy, Python quality 40
+  and CI acceptance 21 without skips, and scripted MCP 7/7 (16 calls). Schema
+  generation leaves no diff. All 300 quality baseline cells and all 30 default
+  SVGs are unchanged, rasterised at 2400 px and visually inspected. Receipts:
+  `rust-final.log`, `clippy-final.log`, `mcp-final.json`, `quality-receipt.json`,
+  `visual-receipt.json` and `base-tests.json`. The exact new combined side/lane
+  test fails on frozen d8a75b39 at the left-side assertion; public row access
+  fails compilation there. The reviewed E1 binary instead fails the lane check
+  (50 and 95 on the same line), as the saved before plans demonstrate.
+
+- The full byte guard identified deliberate lane repairs in nine saved pin cases:
+  the mounting-plate lane-100 callout (95 now outside 50) and eight AP242 CTC-01
+  callout-pin Specs (635 mm slot location now below the adjacent short slot-length
+  line instead of covering its outside arrow). Each moves exactly one linear
+  dimension by 7 mm; every leader, callout and drawn-item ID remains unchanged.
+  All nine before/after sheets were rendered with the release CLI, rasterised at
+  2400 px and inspected. No hard findings or lost information are introduced.
+  The eight dense CTC-01 cases each gain one cosmetic ink finding: six gain one
+  leader/dimension crossing, two gain one line/label contact. They also each gain
+  one outside-reserved-area info. This is accepted under the dense-NIST bar;
+  the actual measured regressions are retained here and in `fixture-audit.json`.
+- Update exactly those nine approved fingerprints (eight already E1-owned, one
+  new plate pin), preserving exact checks for every format. E1 owns 55 cases;
+  L1 still owns 253, 308 total. The frozen base, pin manifest, platform overrides,
+  Specs, MCP tasks and quality baseline are unchanged. Existing Linux/macOS PNG
+  hashes agree for all nine; the straight-line lane repairs retain that shared
+  renderer expectation (CI verifies Linux). This is an overturnable fixture
+  judgement, not a weakened check. CLI hashes before the fix were checked against
+  all inherited format expectations. No PMI-only pin case changes: the lane
+  guard distinguishes actual pinned callouts from PMI leader obstacles.
+
+- Final single-sheet guard passes all 1,876 records with those nine exact approved
+  pin replacements (`target/e1-fix/single-sheet-final.log`). The original guard's
+  assertions are unchanged; temporary diagnostic output used to identify the
+  changed cases was removed. All required checks are green. Final release binary
+  SHA-256: `9bf0c822036a4696f4a24f93785d7894736fd5147a65dc219a63fb9b3c88d0f5`.
+  No full Cargo suite or all-job acceptance was run. No commit or push was made.
+
+## E1 integration (2026-10-14, unattended; overturnable judgement)
+
+- CI found that `line_through_feature::right_pinned_plate_callouts_clear_other_holes_and_report_no_callout_problem`
+  pinned the centre bore at "middle" and expected the router to slide it clear. E1 removed
+  that sliding on purpose. The test now uses the clear station 0.4, the same as
+  `tools/mcp-eval/scripted-ops.mjs`. All of its assertions are kept: the shaft avoids the small hole, there are no
+  callout problems, and the route is stable under an unrelated edit. The "middle" case stays
+  covered by `placement_intent::right_pinned_callouts_have_clear_lanes_and_free_dimensions`,
+  which requires that the crossing is reported.
+- CI on Linux also failed the single-sheet guard. The Linux platform overrides from #14 still
+  held SVG hashes for 16 native CTC-01 pin cases recorded before E1 re-approved them. They
+  were re-recorded with the `record_single_sheet` workflow on this branch (run 38604127566).
+  Only those 16 Linux SVG hashes changed. The macOS overrides, plans, the portable record, the
+  approved fixture and the main-pin manifest are byte-identical to the recording.
