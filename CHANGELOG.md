@@ -4,10 +4,26 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.1.0-alpha.2 (2026-10-14)
 
 ### Changed
 
+- Pinned to quiddity-rust `v0.1.0-alpha.3` (from `v0.1.0-alpha.1`). Its recognition document's
+  new `section_recesses` family (`SectionRecess`, `SectionRecessRefusal`) is admitted as known
+  and not yet read, as the other recess families are; without that every part with a section
+  recess was refused. No drawing changes: across the single-sheet guard's 1876 cases the new pin
+  leaves SVG, PDF and PNG bytes unchanged and each plan differs only in its
+  `features_not_recognised` warning (the recogniser's version, and section recesses counted from
+  the document); the version bump then changes only the loader version in each plan's binding
+  and each file's embedded Spec. The guard is re-baselined for this (`quiddity-alpha3`).
+- Multiple sheets: a plan allocates views and tables across sheets (SHEET n/m), every sheet is
+  rendered, sessions and MCP work on multi-sheet plans, and sheets carry ISO 5457 zones and
+  section cross-references (`lint_sheets`).
+- Leader routes keep callout text, arrowheads and elbows off extension lines and the outline;
+  pinned callout labels keep their place and side.
+- Fits print their ISO 286 limits (`sheet/fit_limits: false` prints the class alone); repeated
+  spans are drawn once; the title block credits draftwright in DRAWN BY.
+- DXF export is disabled until it is fixed.
 - Stable identity (`draftwright.spec/2`): a dimension's ID is `d:<feature>/<parameter>`, never
   its view, so moving it to another view, omitting a view or changing the sheet or scale keeps
   it; the view is the item's `view` and may be chosen in the spec (`dimensions/<id>/view`). A
@@ -24,6 +40,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   else it names in `refs`, and a machine-readable `fix` (edit operations) where one resolves it;
   `items::items` and `items::label` list every item with the text it draws, an omitted
   dimension's and a GD&T item's label included (`docs/model.md`, "Plan").
+- Placement as intent, a session core (apply, preview, undo and redo, queries) and a stateless
+  MCP core with its cache and schemas.
+- AP242 semantic `turned_knurl` PMI is drawn.
 
 ## 0.1.0-alpha.1 (2026-10-10)
 

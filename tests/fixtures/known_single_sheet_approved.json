@@ -2,25 +2,8 @@
   "cases": {},
   "note": "Exact replacements for deliberate drawing changes merged after I1's single-sheet oracle. Each case keeps every format exact; the stream that changed it is named in streams. Applied after known_single_sheet_main_pins.json.",
   "rebaseline": {
-    "change": "attribution",
-    "folded_streams": {
-      "e1-pinned-labels": {
-        "cases": 55,
-        "integration_base": "d8a75b39c844c03065bd3c3815691be2bcfbaeb5",
-        "note": "Exact pinned-callout repairs: side follows shaft, authored bend retained, crossing warning carries pin provenance; review fix separates newly coincident shared-datum linear lanes. No default case changes.",
-        "replaces_l1_cases": 20
-      },
-      "l1-leaders": {
-        "cases": 253,
-        "commit": "843c65949b8ec1a4147849cda63415006004e6ef",
-        "integration_base": "d0130dec51ad1c748f5484b660c343bea0417648"
-      },
-      "turned-knurl": {
-        "cases": 1,
-        "commit": "e974840a54fa9a7d2a48b573d2d121fe6ea7b680",
-        "integration_base": "d8a75b39c844c03065bd3c3815691be2bcfbaeb5"
-      }
-    },
+    "change": "quiddity-alpha3: draftwright 0.1.0-alpha.2 on quiddity-rust v0.1.0-alpha.3 (plan-only: the loader version and the features_not_recognised warning; SVG, PDF and PNG unchanged)",
+    "folded_streams": {},
     "note": "known_single_sheet.json was re-recorded whole for this change; the main pins and these streams' replacements were folded into it.",
     "os": "macos"
   },

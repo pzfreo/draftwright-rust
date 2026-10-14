@@ -6,8 +6,8 @@ fully-annotated engineering drawings from STEP B-rep. No OpenCascade: geometry c
 kernel, and features from the Rust port of quiddity, both in
 [quiddity-rust](https://github.com/pzfreo/quiddity-rust).
 
-**Status: alpha 1** (`0.1.0-alpha.1`, not yet tagged: the version and tag are set when the
-release is cut). Its gates are in `docs/alpha1.md`; what changed is in `CHANGELOG.md`. It is an
+**Status: alpha 2** (`0.1.0-alpha.2`, 2026-10-14, on quiddity-rust `v0.1.0-alpha.3`). Alpha 1's
+gates are in `docs/alpha1.md`; what changed is in `CHANGELOG.md`. It is an
 alpha: every drawing reports what it does not state, but drawings are not yet as clean as Python
 draftwright's on dense parts (see "Known limitations"). The port is checked against
 what Python draftwright produces, and every difference has a verdict (rust-correct, rust-wrong,
@@ -232,10 +232,10 @@ every corpus-backed test; without it they are skipped.
 
 ## Taking a new haecceity
 
-haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. Alpha 1 pins them to the
-tag `v0.1.0-alpha.1` (`Cargo.toml`), one commit in `Cargo.lock`. To follow the development
-branch again, set `branch = "prototype/rust-port"` in place of the tag in `Cargo.toml`; then, to
-move the pin to what is pushed on that branch:
+haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. Alpha 2 pins them to the
+tag `v0.1.0-alpha.3` (`Cargo.toml`), one commit in `Cargo.lock`. To follow the development
+branch again, set `branch = "main"` in place of the tag in `Cargo.toml`; then, to move the pin
+to what is pushed on that branch:
 
 1. `cargo update -p haecceity -p quiddity`. Both must name the same commit (the `source` lines
    in `Cargo.lock`); `tests/native.rs` (`quiddity_and_haecceity_are_pinned_together`) fails if
