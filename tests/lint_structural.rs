@@ -97,6 +97,7 @@ fn sheet(views: &[(&str, [f64; 4])], items: Vec<Drawn>) -> Drawing {
         text: Vec::new(),
         annotations: Vec::new(),
         sheet: Sheet {
+            references: Vec::new(),
             centre_marks: BTreeMap::new(),
             frames: BTreeMap::new(),
             drawable: Some([10.0, 10.0, 287.0, 200.0]),
@@ -957,6 +958,7 @@ fn structural_checks_on_pythons_sheets_agree_with_pythons_lint() {
             text: Vec::new(),
             annotations: Vec::new(),
             sheet: Sheet {
+                references: Vec::new(),
                 centre_marks: BTreeMap::new(),
                 frames: BTreeMap::new(),
                 drawable: Some([10.0, 10.0, w - 10.0, h - 10.0]),
@@ -1302,6 +1304,7 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
         text,
         annotations,
         sheet: Sheet {
+            references: Vec::new(),
             centre_marks: BTreeMap::new(),
             frames: BTreeMap::new(),
             drawable: c.page_bbox,

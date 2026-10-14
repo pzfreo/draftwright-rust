@@ -425,11 +425,25 @@ pub struct DrawnField {
     pub ink: [f64; 4],
 }
 
+/// A remote section address claimed by rendered furniture, with its actual text run.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DrawnReference {
+    pub name: String,
+    /// Name of the target's actual caption or cutting-plane letter.
+    pub target: String,
+    pub prefix: String,
+    pub sheet: u32,
+    pub zone: String,
+    pub run: usize,
+}
+
 /// The sheet as lint's sheet checks read it (`crate::lint::structural`): where the drawing may
 /// go, and the views and things drawn, measured from the ink as it was drawn. Written to no file
 /// format.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sheet {
+    /// Remote section addresses, verified against printed text by structural lint.
+    pub references: Vec<DrawnReference>,
     /// The drawable area, inside the border (`[x0, y0, x1, y1]`); none when no border is drawn.
     pub drawable: Option<[f64; 4]>,
     /// Each view drawn, in drawing order.
@@ -832,13 +846,14 @@ impl Drawing {
     /// labels' text invisible over them in the embedded fonts (looked up by file name in
     /// *fonts*), and the attribution link.
     pub fn pdf(&self, fonts: &dyn Fn(&str) -> Option<Vec<u8>>) -> Vec<u8> {
-        use pdf_writer::types::{
-            ActionType, AnnotationType, CidFontType, FontFlags, LineCapStyle, SystemInfo,
-            TextRenderingMode, UnicodeCmap,
-        };
-        use pdf_writer::{Content, Filter, Finish, Name, Pdf, Rect, Ref, Str, TextStr};
+        Self::pdf_pages(std::slice::from_ref(self), fonts)
+    }
 
-        const K: f64 = 72.0 / 25.4;
+    /// One PDF page per drawing, in order, with the first drawing's whole Spec embedded.
+    /// A single drawing uses precisely the same objects and bytes as [`Self::pdf`].
+    pub fn pdf_pages(drawings: &[Drawing], fonts: &dyn Fn(&str) -> Option<Vec<u8>>) -> Vec<u8> {
+        use pdf_writer::{Finish, Name, Pdf, Ref, Str, TextStr};
+
         let (catalog, tree, page, content_id, info, link_id) = (
             Ref::new(1),
             Ref::new(2),
@@ -854,17 +869,53 @@ impl Drawing {
         };
         let mut pdf = Pdf::new();
         pdf.catalog(catalog).pages(tree);
-        pdf.pages(tree).kids([page]).count(1);
+        let mut pages = vec![(page, content_id, link_id)];
+        for _ in 1..drawings.len() {
+            pages.push((alloc(), alloc(), alloc()));
+        }
+        pdf.pages(tree)
+            .kids(pages.iter().take(drawings.len()).map(|p| p.0))
+            .count(drawings.len() as i32);
         let mut doc_info = pdf.document_info(info);
         doc_info
             .title(TextStr(GENERATED_BY))
             .creator(TextStr(GENERATED_BY))
             .producer(TextStr("draftwright"));
-        if let Some(spec) = &self.spec {
+        if let Some(spec) = drawings.first().and_then(|d| d.spec.as_ref()) {
             doc_info.pair(Name(b"DraftwrightSpec"), Str(spec.as_bytes()));
         }
         doc_info.finish();
 
+        for (drawing, (page, content_id, link_id)) in drawings.iter().zip(pages) {
+            drawing.pdf_page(
+                &mut pdf,
+                (tree, page, content_id, link_id),
+                fonts,
+                &mut alloc,
+            );
+        }
+        pdf.finish()
+    }
+
+    fn pdf_page(
+        &self,
+        pdf: &mut pdf_writer::Pdf,
+        (tree, page, content_id, link_id): (
+            pdf_writer::Ref,
+            pdf_writer::Ref,
+            pdf_writer::Ref,
+            pdf_writer::Ref,
+        ),
+        fonts: &dyn Fn(&str) -> Option<Vec<u8>>,
+        alloc: &mut dyn FnMut() -> pdf_writer::Ref,
+    ) {
+        use pdf_writer::types::{
+            ActionType, AnnotationType, CidFontType, FontFlags, LineCapStyle, SystemInfo,
+            TextRenderingMode, UnicodeCmap,
+        };
+        use pdf_writer::{Content, Filter, Finish, Name, Rect, Str};
+
+        const K: f64 = 72.0 / 25.4;
         let mut c = Content::new();
         c.save_state();
         c.transform([K as f32, 0.0, 0.0, K as f32, 0.0, 0.0]);
@@ -1180,7 +1231,6 @@ impl Drawing {
                 .action_type(ActionType::Uri)
                 .uri(Str(LINK.as_bytes()));
         }
-        pdf.finish()
     }
 }
 

@@ -429,3 +429,30 @@ pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
     }
     out
 }
+
+/// Resolve ISO 7200 sheet numbers in the Plan, keeping the grid and authored Spec intact.
+pub(crate) fn number_sheets(plan: &mut crate::model::Plan) {
+    if plan.sheets.is_empty() {
+        return;
+    }
+    let count = plan.sheets.len() + 1;
+    // The authored label no longer reaches the sheet; audit its replacement instead.
+    plan.problems.retain(|p| {
+        !(["title_field_overflow", "annotation_off_sheet"].contains(&p.code.as_str())
+            && p.refs.iter().any(|r| r == "title_block/sheet"))
+    });
+    for sheet in std::iter::once(&mut plan.sheet).chain(&mut plan.sheets) {
+        let value = format!("{}/{count}", sheet.number);
+        sheet.title.insert("sheet".into(), value.clone());
+        for cell in sheet.title_cells.iter_mut().filter(|c| c.field == "sheet") {
+            cell.value = Some(value.clone());
+            for mut problem in problems(std::slice::from_ref(cell), sheet.page) {
+                if sheet.number > 1 {
+                    problem.id += &format!(":sheet:{}", sheet.number);
+                    problem.subjects = vec![format!("sheet:{}", sheet.number)];
+                }
+                plan.problems.push(problem);
+            }
+        }
+    }
+}

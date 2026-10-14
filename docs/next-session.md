@@ -4071,7 +4071,7 @@ the nine quality/pin shards generates its own unpinned baseline with that exact
 executable, checks all 300 quality cells, and uses it for one
 seed 1/2/3 × N 1/3/8 comparison, always with `--require-go`. All nine checks
 must be required to enforce the complete 270-run grid.
-The survey requires 42 corpus files plus all 22 bundled AP242 fixtures (64).
+The survey requires 41 corpus files plus all 22 bundled AP242 fixtures (63).
 MCP requires the unchanged seven tasks and runs the Python quality tests, Node
 client tests (including real HTTP with the release binary), and new acceptance
 gate tests. The expected judge documents and rendered PNGs are also checked.
@@ -6456,3 +6456,538 @@ reported above.
   otherwise equals the unassigned plan; left for I2 alongside the `lint_sheets` credit.
 - Integration ran on efficiency cores (`taskpolicy -b`) per the maintainer's request;
   fan RPM needs sudo, so the throttle watched `pmset -g therm` warnings instead.
+
+
+## Stage I L1 leader routing judgements (2026-10-13, Codex, overturnable)
+
+- The retry works after the exterior and interior assignments, on every automatic
+  callout, with the other ink fixed. Authored placement intents retain precedence.
+  Local candidates use the existing 1 mm paper station spacing within one 7 mm
+  text row, on either outward label side. The original physical attachment is held
+  for radius/edge callouts; diameter tips remain radial. A reduction in pairs is
+  accepted even if
+  another pair remains: complete clearance is not bought with a worse route.
+  Callouts already clear of extension ink do not trigger a collinearity-only
+  retry. The earlier bounded trials found no such repair on the thirty parts;
+  keep the pass focused on contact reduction. Collinearity remains a strict veto
+  on every moved route, and the rendered check still reports the 15 base runs.
+  A diameter candidate's elbow must remain outside its proven site's radius,
+  so the radial helper cannot substitute a centre-point tip for a rim attachment.
+- The small length margin is **2 paper mm**, counting the shaft and shoulder.
+  A move cannot increase hard blockers, annotation crossings, feature crossings,
+  text contacts, area overrun, centre-furniture contacts or travel beside a centre
+  stroke. Every moved leader must avoid more than 2 mm of contiguous travel within
+  0.3 mm of model, hidden or extension ink. Adjacent segments count together;
+  near-parallel travel is clipped to the finite segment's strip.
+- Visible and hidden edges are not distinguished in the Analysis. The gate uses
+  its projected edge chords and cylinder generators as conservative obstacles;
+  a new route cannot newly cross an individual projected edge or cutting-plane
+  stroke. Existing travel along a line does not credit a new crossing of it.
+  Without edge evidence the route stays. New routes stay
+  outside section/isometric envelopes and uncertain curved-face silhouette boxes.
+  Interior placements must retain their blank-face proof. The rendered acceptance
+  instrument independently counts actual hidden, section and cutting-plane ink.
+- There is a conflict in the brief's absolute collinearity target and its request
+  that the safeguard pass on untouched main. The strict contiguous-strip measure
+  finds **15 existing runs** on origin/main at 0419fa6c, not zero. The earlier
+  endpoint-only parallel measure found four (cgb207 twice, CTC-05 and FTC-08).
+  The acceptance fixture records main before implementation. Unchanged existing
+  runs are reported; a moved callout may not retain one, and an unchanged run may
+  not become longer. The absolute zero-run target is reported separately, never
+  represented as achieved by this baseline exception.
+- Text-pad contact uses closed clipping, matching `quality.py`: a line exactly on
+  the 1 mm pad boundary counts. Geometry and values are retained; this stream
+  withdraws no table, note, measurement or callout. No part/feature IDs enter the
+  routing rule, and `quality.py`'s existing contact measure is unchanged.
+- Latency is unmeasured: the concurrent machine's load was already above 8 and
+  reached 85.33 during verification. The required session-gate fallback, if needed,
+  is recorded with the final checks in the L1 status entry.
+- The required random-pin bar already fails on untouched main for FTC-07,
+  seed 2 with N=3 and N=8: ink 1 → 4, off-sheet 0 → 0. Both were reproduced with
+  the saved pristine main binary (`target/l1/base-pins-2-{3,8}.log`). The pins
+  cause the automatic front schedule to yield to its original dimensions.
+  Three findings belong to linear dimensions (the two pattern column pitches
+  and the polygonal boss height); the fourth is a pattern callout. Moving only
+  that callout cannot bring the three remaining findings under the 1.5× bar.
+  Keep this as an explicit unmet check, rather than changing the gate or making
+  an unrelated linear-layout/scheduling change in L1.
+
+## L1 fix round judgements (2026-10-13, Codex, overturnable)
+
+This supersedes the earlier L1 claim that holding a radius tip while moving its
+elbow is safe. The reviewer is correct: that changes the direction away from the
+arc centre. Every moved shaft now uses `rim_tip` for its proven site, whatever
+measurement it carries. Shoulder-only candidates preserve the original shaft.
+The slot-radius regression test permits unchanged original shafts, and requires
+every changed shaft to be exactly radial; it has no part-specific angular margin.
+
+The local search covers all integer paper stations within one 7 mm text row,
+rather than only eight rays. It also tries the existing shoulder fractions and
+one/two mm extensions. The length margin remains two mm for the entire route;
+all previous no-worse tiers, per-edge crossing and contiguous-run vetoes remain.
+Uncertain curved-face boxes and section/isometric envelopes still prevent a
+changed segment from entering unproved ink. They were an important reason for
+the earlier lack of gain. An identical segment inside such a box needs no new
+proof: allowing it enables shoulder/text changes without moving the shaft.
+No part or item IDs are routing exceptions.
+
+The rendered route safeguard is now called by the CI acceptance harness after
+its fresh thirty-part quality render. It reads cutting-plane strokes from the
+Plan's `line_work`, instead of reconstructing a horizontal cut from model Y.
+It compares shared callout IDs and applies the run guard to new IDs; it no longer
+freezes the inventory. Existing Rust coverage tests remain responsible for lost
+information. The 15 original runs are still explicit baseline exceptions, not
+an assertion that the absolute no-run target was achieved.
+
+Local finishing commands use the new optional `quality.py --timeout` and
+`ci_acceptance.py --render-timeout/--step-timeout` arguments to allow the
+throttled machine to finish. CI defaults remain 600 s per render/plan and 1500 s
+per harness step (the survey retains its longer budget); no quality, pin or
+route threshold changes. `/usr/bin/time -l` was attempted but its instruction
+counter is unavailable in this sandbox (`sysctl kern.clockrate: Operation not
+permitted`), so this round makes no planning-speed claim from wall time.
+
+Final visual judgement (2026-10-14, overturnable): FTC-08's revised R7.6
+shaft is exactly radial and shortens from 10.000 to 7.099 mm including the
+shoulder. The remaining location-extension pair is still reported. Its filled
+arrowhead grazes that extension by 0.028 paper mm (triangle half-width 0.45 mm),
+where the original triangle cleared it; this is below the stroke width and is
+retained under the dense-NIST cosmetic bar. The whole sheet and 2400 px detail
+show a correct, shorter radius pointer and readable text. This is not claimed
+as complete clearance of that pair, or as an absolute zero-contact result.
+
+
+L1 finishing result (2026-10-14): real contact reduction **53 → 49** on CGB245,
+CTC-01 and FTC-08; no part worse in the 300-cell CI or 420-cell extended audit,
+and no information/problem-list change. The seven named regression sheets are
+byte-identical to Stage I before. 823 Rust tests / 81 groups, fmt, strict Clippy,
+38/16 Python tests, the rendered route/locality guards, the 64-part survey and
+7/7 unchanged scripted MCP tasks pass; schemas have no diff. All nine pin cells
+complete (270 part runs); **2-3 and 2-8 remain NO-GO only on FTC-07, ink 1 → 4**.
+Exact failing Specs produce identical measured rows on saved main. This keeps
+the pre-existing bar visible: global acceptance is not claimed passed. The 15
+base collinear runs and the tiny FTC-08 head graze above remain reported limits.
+No commit/push; finishing receipts are in `target/l1/fix-acceptance/` and
+`target/l1/fix-*.{log,json}`. Instructions retired could not be read in this
+sandbox, so no speed claim is made.
+
+## L1 takeover round (2026-10-14, Claude; supersedes the Codex L1 results above, overturnable)
+
+- Review findings fixed: a moved callout's label may not gain an extension line within its
+  1 mm pad (text on an extension line is worse than a leader across one); its arrowhead may
+  not gain an extension line within 0.2 mm; its elbow and padded label may not come within
+  1 mm of model ink it was clear of. Shoulders never shrink below the natural one (the 0.75,
+  0.5 and 0.25 fractions are gone): a stub shoulder read as part of the outline on CTC-01.
+- `tools/check_leader_routes.py` measures the same four things on the rendered sheet
+  (`text_extension`, `head_extension`, `elbow_outline`, `label_outline`); the fixture was
+  re-recorded from the same base renders (all 119 earlier rows identical). The check rejects
+  a426e2fe's cgb245 (text 0 -> 1), CTC-01 (elbow on outline) and FTC-08 (arrowhead onto the
+  extension line) as well as 0d46bc3.
+- Result on the thirty quality parts: **no callout moves; leader_on_extension stays 53.** The
+  three earlier "gains" were the regressions above. The acceptance item "contacts fall in
+  total" is not met on the thirty; the CI step no longer passes `--require-improvement` (rule
+  5), the flag stays for evidence.
+- On the 64-part survey the rule does move callouts on 7 parts outside the thirty, each
+  checked by eye and passing the route check: thumbwheel_thread_knurl and
+  hw_thumbwheel_notes_add 4 -> 2, string_post_tapped 7 -> 3, threaded_connector_109 14 -> 13,
+  nist_stc_06 e3 3 -> 2, nist_stc_09 e4 48 -> 47 (one leader/GD&T crossing finding gone),
+  nist_ctc_02 e2 38 -> 37. A Rust test pins threaded_connector_109's groove callout (3,1) -> (2,0).
+- Cost, retired instructions (`proc_pid_rusage`), against origin/main 9b57c937: refinement
+  skips sheets with no contacting callout before gathering view ink, gathers each view's ink
+  only where a candidate reaches, prefilters extension lines, and measures stations nearest
+  first, stopping at the first acceptable one. Thirty quality parts +1.2% total (worst
+  FTC-08 +3.3%); 64-part survey +1.1% (worst 10255 +4.1%), inside check_plan_time's 15%
+  margin. `check_plan_instructions.py` compares identical-output builds only, so it does not
+  apply to a behaviour change. Judgement call: the remaining cost is mostly refinement running
+  on each of the ~30 sheet-search trial plans; moving it to the final plan only would need
+  replumbing `plan_inventory`'s callers and is left alone.
+- The out-of-scope `--timeout`/`--render-timeout` harness options are dropped in favour of
+  main's `--part-timeout`/`--step-timeout` (merged origin/main 9b57c937).
+
+## L1 integration judgement (2026-10-14, unattended; overturnable)
+
+- I1's single-sheet oracle blocks every later drawing change. L1's 273 changed cases were
+  added as exact replacements in `tests/fixtures/known_single_sheet_approved.json` (one
+  manifest for all later streams, counted per stream) rather than re-recording
+  `known_single_sheet.json`, keeping I1's original fingerprint. Overturn by re-recording the
+  base manifest at a chosen commit if the oracle should move forward wholesale.
+
+## I2a rendering slice (2026-10-14, unattended)
+
+- Base: `d0130dec51ad1c748f5484b660c343bea0417648` (`origin/main` at stream
+  start). No commit or push; the driver owns publication.
+- `model::render_sheets` renders each sheet in Plan order with one shared projection
+  cache. `render`/`render_with` still draw sheet 1. The selected sheet retains its
+  views, corner/hole tables and view-carried annotations; drawing-wide notes,
+  requirements and projection furniture stay on sheet 1. A remote section's
+  cutting-plane furniture still belongs to its parent on sheet 1.
+- Numbering is resolved after allocation in `title_block::number_sheets` (one call
+  in `sheets.rs`), preserving R1's renderer boundary. Every planned SHEET cell gets
+  `n/m`; the Spec and all cell boxes stay intact. The stale warning about a replaced
+  authored label is removed and its replacement uses the existing font-based
+  overflow check. `sheet_label_replaced` still explains the replacement. A4–A0,
+  all nine numbered sheets and an overwide value are covered by the new test.
+- Overturnable judgement: the sheet-1 PNG keeps `<stem>.png`, matching the existing
+  single-sheet contract and the SVG rule; later PNGs use `<stem>.sheet<n>.png`.
+  API `Files` names are suffixes (`svg`, `sheet2.svg`, `pdf`, `png`, `sheet2.png`),
+  which the existing atomic writer already handles, including a dotted prefix or
+  an output name ending in a format extension.
+- `Drawing::pdf_pages` writes one page per drawing and embeds the whole Spec once
+  in document information. Each page uses the existing path/text/font/link writer;
+  font subsets are per page in this thin slice. A one-page call keeps the original
+  object numbers and bytes. PNG uses the existing rasteriser per Drawing.
+- Review gains optional `sheets` SVGs for sheets 2..m. Its existing `lint` and
+  `structural` still judge sheet 1. Combined coverage, per-sheet structural checks,
+  drawn zones/cross-references and MCP sheet selection remain I2b/I3 work as scoped.
+  A multi-sheet review is therefore not yet a whole-document lint verdict.
+- Overturnable judgement: draw an auxiliary view's existing `scale_note` in I1's
+  reserved label band (7 mm below an uncut view, 17 mm below a section, leaving the
+  intervening band for I2b's reference). It states the view's actual planned scale
+  when it differs from the title block; it creates no new planning policy.
+- Visual evidence: `target/i2a/before` and `target/i2a/after`, FTC-06 with section
+  A–A explicitly on sheet 2. SVGs 1 -> 2, PNGs 1 -> 2, PDF pages 1 -> 2, section
+  captions 0 -> 1. Both SVGs were rasterised by resvg at 2400 px and inspected,
+  as were both PDF pages rasterised by Poppler. Sheet 1's 35 planned dimensions and all
+  other Plan content are unchanged except the title numbering; the only changed
+  sheet-1 raster pixels are in the SHEET cell (125 pixels, box
+  [2328,1630,2346,1643] on the 2400 x 1697 raster). Leaders and model/hidden/cut ink
+  are identical. The section is hatched, retains its caption and parent scale, and
+  clears the border/title block. The A4 plate preview also checks repeated title
+  values, sheet-1-only notes/projection and the sheet-2 corner table.
+- All 30 default quality parts were rendered and rasterised. All 300 baseline
+  cells are identical: ink 52 -> 52, off-sheet 0 -> 0, feature crossings 73 -> 73,
+  hidden-on-visible 2232 -> 2232, repeated labels 7 -> 7; other five totals are zero.
+- This sandbox rejected `taskpolicy -b` with `setpriority(): Operation not
+  permitted`. Cargo commands remain sequential with eight build/test workers and
+  generous operation limits; no wall-clock or instruction-speed claim is made.
+- The final `tests/sheets_render.rs` was also copied verbatim into a source archive
+  of the frozen base and run with an isolated Cargo target. All four tests fail
+  there at runtime (0 passed / 4 failed); source/test hashes are recorded in
+  `target/i2a/base-proof.json`, and the failures in `final-base-tests.log`. A prior
+  shared-target attempt reused the working library and was discarded as evidence.
+- Final verification: fmt and strict all-target release Clippy pass; 63 tests in
+  the five selected integration targets pass (api_analysis 9, output 7, sheets 28
+  including the 1,876-record single-sheet guard, sheets_render 4, title_block 15).
+  The final strengthened sheets_render target separately passes 4/4 after a fresh
+  project rebuild. Python quality 34/34 and acceptance 21/21 pass without skips;
+  schema generation leaves no diff; MCP 7/7 (16 calls); quality 300/300 unchanged.
+  The original byte manifest and quality baseline are untouched. Final release
+  binary SHA-256 is `5d97c84d317f266a517ee5e65f38ddbcb8effc2d54836c5277f5281a3152fecf`,
+  identical before/after the fresh rebuild, so all visual/quality receipts refer
+  to the final binary. Receipts: `target/i2a/receipt.json`, `required-rust.log`,
+  `final-tests.log`, `final-base-tests.log`, `quality-validation.log`.
+
+
+## I3 implementation judgements (2026-10-14, unattended; overturnable)
+
+- Preserve the existing Rust sheet-1 call signatures for the editor. Add explicit
+  `render_sheet`, `drawing_on_sheet`, `svg_fragments_on_sheet` and Cache page methods;
+  Rust cannot express an optional trailing argument. MCP uses optional `sheet`.
+- `near` searches always stay on the source item's sheet, even with a bare ID.
+  A region alone searches the same paper rectangle across sheets; specify
+  `filter.sheet` to constrain it. Stateless invalid sheets/near addresses refuse.
+- Retain `overlay_ids` booleans and additionally accept an ID array so R5's
+  qualified overlay addresses have a real consumer. Explicit overlays must belong
+  to the selected page; no item silently disappears from an explicit overlay list.
+- I1's PlannedSheet stores `number`, not `id`; the sheets collection patch derives
+  `sheet:n` keys from number. Do not add a redundant stored ID to the Plan.
+- R5 describes RenderedItem.items as items::Item, but the actual field is output
+  ink primitives. Add optional `provenance: Vec<items::Item>` for multi-sheet ink,
+  rather than changing that field's type. Single-sheet wire bytes stay unchanged.
+- A small renderer assembly helper filters an allocated Plan and cached geometry
+  by sheet and passes remote section cuts to their parent sheet. It does not
+  allocate, format n/m, invent zones or draw cross-references; those remain I2.
+  I2 should share this selection helper with its renderer, retaining the session
+  annotation cache and the complete source Spec on each page.
+- Sheet 1 is explicit in multi-sheet Item serialization. A private wire adapter
+  remembers an explicit sheet field on replay; default single-sheet items omit it.
+- Regenerated schemas omit redundant dialect/canonical-ID metadata (MCP's default
+  is 2020-12), inline one-use definitions, and compact equivalent nullable/enum
+  forms. Constraints are retained; apply/preview keep their public `$defs/op`.
+  The pre-existing 39,500-byte schema budget is retained, rather than increased.
+- `/usr/bin/time -l` fails at `sysctl kern.clockrate: Operation not permitted`,
+  including on `true`. Darwin's `proc_pid_rusage` for this process works: the
+  latency test reads rusage_info_v4.ri_instructions (word 31, verified against
+  the installed SDK header) around each edit and MCP reply. No child-process
+  access, wall-time inference or new dependency is needed. CI owns latency;
+  local elapsed timings are diagnostic only.
+- To retain default single-sheet item/options bytes, `move_to_sheet` and the
+  view-sheet descriptor appear when the author supplies `Spec.sheets` controls.
+  Set `sheets/max` before querying moves. A default Spec still has only sheet 1;
+  the MCP description gives the two-edit batch that enables and assigns a view.
+
+I3 verification is complete: 72 scoped Rust tests, 55 Python tests, 300/300 quality
+cells, the 1,876-record single-sheet guard, 24 schemas and scripted MCP 7/7 pass.
+The seven new Rust acceptance tests were red on frozen main before implementation;
+the final latency test and extended independent schema checker have separate base
+red receipts. See the I3 status entry and `target/i3-final-receipt.json` for counts,
+byte budgets, native instruction measurements and the loaded/isolated timing figures.
+No full Rust suite or all-job acceptance was run locally. No commit/push was made.
+
+## I2b zones, references and lint (2026-10-14, unattended; overturnable judgements)
+
+- Base: `0dc1a85306123b57f04f92c7f45debafc9ddbe58` (`origin/main` at this
+  stream's start). No commit or push; the driver publishes the work.
+- Draw I1's grids in the existing 10 mm outer margin, on actual multi-sheet
+  documents only. Both pairs of borders carry labels; ticks meet the unchanged
+  drawable border. The grid and zone lookup keep I1's whole-page partitions.
+- The stored parent-reference position was too narrow for the complete address:
+  both named parts initially clipped it at the left border and through model ink.
+  Resolve only the new text against the existing page's finished-item footprints,
+  section furniture and title block. Candidate positions come from obstacle
+  boundaries with 1 mm clearance and a 0.5 mm label pad, with 1 mm inside the border.
+  Prefer the closest label edge to either cutting-plane letter; retain the section's
+  existing caption band for the return address. Neither a dimension nor a leader
+  moves. Overturnable: a fully obstructed page keeps the complete address at a
+  clamped position, leaving structural lint to report the collision; it never
+  silently removes or shrinks the information.
+- `Drawing.sheet.references` records the rendered address's claim, target caption
+  or letter and actual text-run index, like annotation measurement claims. Lint
+  reads no Plan/Spec: it checks printed text, infers the required reciprocal pair
+  from drawn section views and cutting letters even if those records are removed,
+  and verifies the target zone using the printed margin grid and target ink box.
+- `lint_sheets` rebases local text-run indices and reads all coverage evidence once,
+  retaining schedule coordinate origins, source claims, note authority and drawn
+  centre marks. Structural checks retain page-local positions. `check_sheets`
+  accepts the complete document in `render_sheets` order; later-page findings carry
+  `sheet` and a qualified issue ID. Single-sheet issue fields and IDs are unchanged.
+  Overturnable: coverage remains document-wide and carries no individual sheet.
+- The 2026-10-14 maintainer decision is added to R5: with `sheets.max > 1`, sheet 1's
+  legibility floor applies without an explicit `smallest_scale`. I1 already applies
+  the floor in recovery/allocation scoring; this slice changes no allocation policy.
+  Existing authored-scale and placement-pin precedence is retained.
+- Base proof: the exact final drawing tests and PDF helper were copied into a source
+  archive of the base and rebuilt in a separate Cargo target. Four new drawing
+  tests and the strengthened I1/I2a section tests fail at runtime. The three new lint
+  API tests are unbuildable on the base (`lint_sheets`, `check_sheets` and rendered
+  reference records do not exist); this is API-addition red evidence, not three
+  claimed runtime failures. Source/test hashes and logs are in
+  `target/i2b/base-proof.json`, `final-base-tests.log` and `base-lint-tests.log`.
+
+- Final verification: 79 scoped integration tests pass (api_analysis 9,
+  lint_structural 18, output 7, sheets 28, sheets_lint 3, sheets_mcp 6,
+  sheets_render 4, sheets_xref 4), including the 1,876-record single-sheet guard;
+  the two lint-independence unit guards also pass. Fmt and strict all-target
+  release Clippy pass. Python quality 40/40 and acceptance 21/21 pass without
+  skips. MCP remains 7/7 with 16 calls; schema regeneration leaves no diff.
+- Visual evidence: both sheets of string_post (fixed A4, max 2, floor 5:1) and
+  FTC-06 (section explicitly on sheet 2) were rendered before/after, rasterised
+  at 2400 px with resvg and inspected. Each gains two readable addresses and
+  grids on both pages; PDF search finds both addresses in each two-page file.
+  String_post has 20 border labels per page, FTC-06 40 (both previously zero).
+  Source/return zones are B2/B1 and C2/C1 respectively. Their 14/35 dimensions
+  remain identical, as do callout leader lengths 120.629543/232.591045 mm,
+  all planned witnesses/arrows, centre/cutting ink, notes, tables and problems.
+  The SVG part/hidden groups are byte-identical on all four pages. No information
+  was removed. All thirty default quality sheets were rasterised and inspected.
+- Quality: all 300 baseline cells are identical. Ink 52 -> 52, off-sheet 0 -> 0,
+  feature crossings 73 -> 73, hidden-on-visible 2232 -> 2232, repeated labels
+  7 -> 7; the other five baseline totals stay zero. The quality baseline and
+  original single-sheet fixture are untouched. No speed claim is made.
+- Final binary SHA-256: `5d41e5f6d8a0150d6a23d1fa45d739708d62c76bb26e3fd1b6e81b9a74474ac3`.
+  The final verification was repeated after source-documentation cleanup; all 36
+  final SVG/PDF artifacts are byte-identical to the visually reviewed renders.
+  Receipts: `target/i2b/receipt.json`, `required-tests.log`, `lint-guard.log`,
+  `base-proof.json`, `final-base-tests.log`, `base-carrier-test.log`,
+  `base-lint-tests.log`, `final-artifacts.json`, `visual-figures.json`,
+  `pdf-search.json`, `quality/baseline.json`, and `mcp.json`.
+
+## Semantic turned_knurl drawn (2026-10-14, unattended; overturnable)
+
+`src/pmi.rs` now projects haecceity's AP242 `turned_knurl` (straight or diamond) to a
+structured knurl record, so the draftwright-editor's knurls are drawn (the editor's spindle:
+`ø24 MAX AFTER KNURL; STRAIGHT KNURL P1` on the ⌀24 callout, `tests/pmi_thread_knurl.rs`).
+Judgements, each the conservative choice:
+- `diametral_pitch` is read as the linear (circular) pitch only when the knurl's
+  `number_of_teeth` confirms it (|π·major diameter / pitch − teeth| ≤ 1, the integrator's
+  decision). A disagreeing count, and a knurl with no tooth count at all (nothing to confirm the
+  reading), are reported `pmi_not_lowered`, never drawn. The alias refusal for
+  attribute-set knurls without prose is unchanged.
+- A diagonal turned_knurl is not projected (draftwright has no diagonal knurl); it stays
+  `pmi_not_extracted`.
+- The spindle fixture is `tests/fixtures/turned_knurl/spindle_turned_knurl.step.gz`, not
+  `tests/fixtures/pmi/step/`: every file there needs draftwright (Python) captures for the
+  census, coverage and drawings comparisons, and Python never reads a turned_knurl.
+- `hw_thread_replaced`'s knurl #6564 is on a planar face, so it moves from
+  `pmi_not_extracted` to `pmi_not_lowered` (not cylindrical); its plan hash is an approved
+  single-sheet replacement (stream `turned-knurl`).
+- Cosmetic, not fixed: on the spindle the long ø24 callout runs about 16 mm past the front
+  view's reserved area (a `dimension_crowds` advisory).
+
+
+## E1 pinned callout labels (2026-10-14, unattended; overturnable judgements)
+
+- Frozen base: `d8a75b39c844c03065bd3c3815691be2bcfbaeb5` (origin/main at
+  stream start). No commit or push; the driver owns publication.
+- Above/below explicit callouts use the automatic solver's horizontal-direction
+  rule; a vertical shaft defaults right. Left/right columns retain their side.
+  `route_intent` skips pins, leaving their resolved tips, bends, shoulders and text
+  intact. The finished feature audit keeps its existing warning code and subjects,
+  adds the callout to refs, and explains the retained pinned crossing.
+- Conservative API judgement: expose exterior elbow rows through
+  `Session::label_rows(callout_address)`, keyed by compatible principal view ID,
+  without changing Plan wire bytes or adding an MCP operation. Canonical widths
+  are private, unserialised Plan metadata; Session always constructs a fresh Plan.
+  A deserialised/replayed State is not a Session and cannot query these guides.
+  Editor bindings can serialise the result next to their placement responses.
+- The plate's three default callout labels are interior, so their automatic bends
+  are not on the explicit exterior lane grid. The guide uses exactly their carrying
+  view frames and canonical label widths; the acceptance test checks all four
+  sides and lanes 0–2 against actual resolved pins, and confirms a bare pin keeps
+  the automatic interior geometry. Designing a draggable interior pin is expressly
+  out of scope. This distinction can be overturned with the later Spec decision.
+- A user pin can deliberately put text off the sheet. The extreme-left examples
+  retain their requested bend and correctly report that resulting overrun; they
+  are not moved back or clipped in the Plan. Fitting left-drag examples accompany
+  these cases in the visual receipts. No note, table or dimension is removed.
+
+- Direction correction is limited to pinned above/below placements in this thin
+  slice. Unpinned explicit intent keeps its existing routing/text rule as well as
+  the automatic solver's unchanged behavior. This conservative boundary avoids
+  extending the pinned-label fix into free-placement changes.
+- The old right-pin regression assumed the router silently moved the middle
+  bore off the small right hole. It now requires the exact retained station and
+  that one warning, still requiring no other problem and nonoverlapping lanes.
+  The scripted MCP task still requires all three pins, every other dimension and
+  no problems. Its prescribed stations are now `[0, 0.4, 1]`, placing the centre
+  bore on a clear station rather than relying on forbidden pin movement. The
+  task conditions/judge are unchanged; this is an editor action, not a planner
+  threshold or part-specific production rule.
+
+- The full single-sheet oracle includes authored pins that embodied the old bugs.
+  E1 records 54 exact replacements in `known_single_sheet_approved.json`: 20
+  mounting-plate, 16 native CTC-01 and 18 AP242 CTC-01 cases. There are 52
+  drawing changes and two warning-only changes. Twenty supersede L1-owned cases,
+  so the manifest's current ownership counts are L1 253, E1 54 (307 unique cases).
+  The original `known_single_sheet.json`, main-pin manifest, platform overrides,
+  saved Specs and CI quality baseline are unchanged. All changed cases contain
+  dimension pins. This is an overturnable exact-fixture judgement needed to
+  reconcile repaired pin behavior with the inherited whole-document byte oracle.
+- All 54 affected pinned sheets were independently rendered with the frozen-base
+  and changed release binaries and rasterised with resvg at 2400 px. Their 54 base
+  Plan hashes and 108 SVG hashes agree with the independent guard receipts.
+  Before/after contact sheets were inspected: no placed dimension is lost. Some
+  authored positions remain crowded or cross ink, as a pin requires; findings
+  remain visible. These are pin-correctness repairs, not an automatic-quality gain.
+- Fitting above/below left drags: bend `(48,165)` / `(48,85)` is unchanged;
+  label box x range `[51,83.793]` becomes `[12.207,45]`. Total leader length is
+  unchanged at 57.573 mm. Ink is 2 -> 1 above, 3 -> 3 below; off-sheet stays zero.
+  The central-bore crossing pin's bend is `(70,165)` -> authored `(80,165)`;
+  displacement is 10 -> 0 mm, total leader length 53.950 -> 52.719 mm.
+  Its requested crossing is now reported (feature crossings 0 -> 1; ink 2 -> 4),
+  with the text/shoulder at the authored position rather than on a shifted route.
+- Exterior rows on the default plate: outline `[30,95,130,155]`, first elbow rows
+  above 165, below 85, left 20, right 140 mm. Row spacing is 7 mm above/below and
+  42.793 mm beside the view. Guides describe the current resolved frames; re-read
+  them after committing an edit or pin. They do not promise that a future Spec
+  leaves the current frame or presentation unchanged.
+- Base-red receipts: both new `pinned_callouts` tests fail at runtime on the frozen
+  base; the strengthened right-pin test also fails at runtime. `label_rows` fails
+  compilation there because the new session method is absent (not a runtime red
+  claim). Exact final test sources were used. Receipts live under `target/e1/`:
+  `final-base-tests.log`, `base-existing-pin-test.log`, `final-base-rows.log`,
+  `pinned-quality-receipt.json`, `pinned-cases-receipt.json`,
+  `default-svg-comparison.json` and `quality-final-receipt.json`.
+
+- Final verification: fmt and strict all-target release Clippy pass; 24 scoped
+  Rust tests pass (pinned_callouts 2, label_rows 1, placement_intent 13, session 8),
+  plus the single-sheet invariant (1 test, all 1,876 records). Python quality 40
+  and CI acceptance 21 pass without skips; Node client 8 and scripted MCP 7/7
+  (16 calls) pass. Generated MCP schemas leave no diff. All 300 quality cells and
+  all 30 default SVGs are unchanged from the base; every quality SVG was rendered
+  with the release CLI, rasterised at 2400 px and inspected. No full Cargo suite
+  or all-job acceptance was run; no speed claim is made from local wall time.
+  Final logs: `final-rust-tests.log`, `single-sheet-final.log`, `clippy.log`,
+  `test-quality-final.log`, `test-ci-acceptance-final.log`, `mcp-eval-final.log`.
+
+
+## E1 review fix (2026-10-14, unattended; overturnable judgements)
+
+- The review's plate above-left example is a real drafting regression: the 95
+  dimension covered the 50 dimension on the same lane. The earlier ink-count
+  improvement was not evidence of a better drawing. When relocating a free linear
+  dimension around a pinned callout, reject a candidate whose dimension line newly
+  overlaps another drawn dimension from the same datum in that view. Existing
+  overlaps and dimensions with different datums retain their inherited layout;
+  E1 does not repair those unrelated linear layouts or change linear-pin solving.
+  This conservative scope avoids moving the plate's left-hand 30 mm dimensions
+  across its right-hand leaders or changing the 10127 bare boss-height pin.
+  Acceptance covers along 0.05, 0.1 and 0.18 for native and reference-recognised
+  plates, including the left-facing label and the 95 outside the 50 when both are
+  below the view. No information is removed.
+- Supersede the earlier Session-only API judgement: the editor has its own Session.
+  Export `dims::label_rows` and `Plan::canonical_callout_width(view_id)` for its
+  existing stateless planning path. Keep widths private and unserialised; replayed
+  Plans return None explicitly rather than reconstructing widths from edited ink.
+  Public API acceptance uses a fresh Plan without a draftwright Session, then
+  checks agreement with the Session convenience API and the absent wire metadata.
+- Retain authored off-sheet pins with the existing error. Switching the text side
+  near a paper edge would contradict E1's explicit leader-direction rule; an
+  editor-side drag constraint or a future explicit choice can address this.
+- The scripted MCP stations [0, 0.4, 1] are not evidence of real-model task success.
+  A model following the task's natural start/middle/end positions now retains the
+  central bore's crossing and fails no_problems; it must inspect the finding and
+  choose a clear station. The unchanged task/judge is harder under correct pin
+  semantics. No task, judge or scripted answer is changed in this review fix.
+
+- Final visual receipts are under `target/e1-fix/`: the 95 mm location dimension
+  now sits 7 mm outside the 50 mm dimension for all three above-left stations,
+  in both native and reference-recognised plate plans. Every callout's ink and
+  the set of drawn dimensions are unchanged from the reviewed E1 commit; only
+  the 95 moves in those cases. The below-left and crossing pin sheets, and the
+  10127 bare boss-height pin sheet, keep their SVGs unchanged. These cases were
+  rendered with the release CLI and rasterised at 2400 px; the 95/50 baseline
+  ladder is now readable. No speed claim is made.
+- Final scoped checks pass: 26 Rust tests (pinned_callouts 3, label_rows 2,
+  placement_intent 13, session 8), fmt, strict release Clippy, Python quality 40
+  and CI acceptance 21 without skips, and scripted MCP 7/7 (16 calls). Schema
+  generation leaves no diff. All 300 quality baseline cells and all 30 default
+  SVGs are unchanged, rasterised at 2400 px and visually inspected. Receipts:
+  `rust-final.log`, `clippy-final.log`, `mcp-final.json`, `quality-receipt.json`,
+  `visual-receipt.json` and `base-tests.json`. The exact new combined side/lane
+  test fails on frozen d8a75b39 at the left-side assertion; public row access
+  fails compilation there. The reviewed E1 binary instead fails the lane check
+  (50 and 95 on the same line), as the saved before plans demonstrate.
+
+- The full byte guard identified deliberate lane repairs in nine saved pin cases:
+  the mounting-plate lane-100 callout (95 now outside 50) and eight AP242 CTC-01
+  callout-pin Specs (635 mm slot location now below the adjacent short slot-length
+  line instead of covering its outside arrow). Each moves exactly one linear
+  dimension by 7 mm; every leader, callout and drawn-item ID remains unchanged.
+  All nine before/after sheets were rendered with the release CLI, rasterised at
+  2400 px and inspected. No hard findings or lost information are introduced.
+  The eight dense CTC-01 cases each gain one cosmetic ink finding: six gain one
+  leader/dimension crossing, two gain one line/label contact. They also each gain
+  one outside-reserved-area info. This is accepted under the dense-NIST bar;
+  the actual measured regressions are retained here and in `fixture-audit.json`.
+- Update exactly those nine approved fingerprints (eight already E1-owned, one
+  new plate pin), preserving exact checks for every format. E1 owns 55 cases;
+  L1 still owns 253, 308 total. The frozen base, pin manifest, platform overrides,
+  Specs, MCP tasks and quality baseline are unchanged. Existing Linux/macOS PNG
+  hashes agree for all nine; the straight-line lane repairs retain that shared
+  renderer expectation (CI verifies Linux). This is an overturnable fixture
+  judgement, not a weakened check. CLI hashes before the fix were checked against
+  all inherited format expectations. No PMI-only pin case changes: the lane
+  guard distinguishes actual pinned callouts from PMI leader obstacles.
+
+- Final single-sheet guard passes all 1,876 records with those nine exact approved
+  pin replacements (`target/e1-fix/single-sheet-final.log`). The original guard's
+  assertions are unchanged; temporary diagnostic output used to identify the
+  changed cases was removed. All required checks are green. Final release binary
+  SHA-256: `9bf0c822036a4696f4a24f93785d7894736fd5147a65dc219a63fb9b3c88d0f5`.
+  No full Cargo suite or all-job acceptance was run. No commit or push was made.
+
+## E1 integration (2026-10-14, unattended; overturnable judgement)
+
+- CI found that `line_through_feature::right_pinned_plate_callouts_clear_other_holes_and_report_no_callout_problem`
+  pinned the centre bore at "middle" and expected the router to slide it clear. E1 removed
+  that sliding on purpose. The test now uses the clear station 0.4, the same as
+  `tools/mcp-eval/scripted-ops.mjs`. All of its assertions are kept: the shaft avoids the small hole, there are no
+  callout problems, and the route is stable under an unrelated edit. The "middle" case stays
+  covered by `placement_intent::right_pinned_callouts_have_clear_lanes_and_free_dimensions`,
+  which requires that the crossing is reported.
+- CI on Linux also failed the single-sheet guard. The Linux platform overrides from #14 still
+  held SVG hashes for 16 native CTC-01 pin cases recorded before E1 re-approved them. They
+  were re-recorded with the `record_single_sheet` workflow on this branch (run 38604127566).
+  Only those 16 Linux SVG hashes changed. The macOS overrides, plans, the portable record, the
+  approved fixture and the main-pin manifest are byte-identical to the recording.

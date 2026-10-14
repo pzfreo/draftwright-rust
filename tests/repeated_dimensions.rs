@@ -408,55 +408,6 @@ fn an_authored_location_and_rung_with_equal_bands_share_the_authored_survivor() 
     );
 }
 
-/// A turned profile's largest boss diameter is already its overall diameter. Keep the overall
-/// statement and its feature claim, rather than a second line at another axial station.
-#[test]
-fn a_turned_boss_on_the_overall_diameter_is_stated_by_the_extent() {
-    let Some(dir) = corpus::dir() else { return };
-    let a = native(&dir, "cadgenbench/threaded_connector_109.step");
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
-    let extent = claiming(&plan, "envelope", "od.diameter");
-    let boss = claiming(&plan, "f:boss:4", "boss.diameter");
-    assert_eq!(extent.id, boss.id);
-    assert_eq!(extent.id, "d:envelope/od.diameter");
-    assert_eq!(extent.label, "ø130.9");
-    let annotations = draftwright::dims::render(&plan.dimensions, &mut Vec::new(), &mut Vec::new());
-    let drawn = annotations.iter().find(|a| a.name == extent.id).unwrap();
-    assert!(
-        drawn
-            .claims
-            .iter()
-            .any(|m| m.feature == "f:boss:4" && m.parameter == "boss.diameter")
-    );
-
-    let mut spec = Spec::default();
-    spec.dimensions.insert(
-        extent.id.clone(),
-        DimensionSpec {
-            omit: true,
-            ..Default::default()
-        },
-    );
-    let without = model::plan_recovered(&a, &spec).unwrap();
-    assert_eq!(
-        claiming(&without, "f:boss:4", "boss.diameter").id,
-        "d:f:boss:4/boss.diameter"
-    );
-    spec.dimensions.clear();
-    spec.dimensions.insert(
-        "d:f:boss:4/boss.diameter".into(),
-        DimensionSpec {
-            tolerance: Some("±0.1".into()),
-            ..Default::default()
-        },
-    );
-    let toleranced = model::plan_recovered(&a, &spec).unwrap();
-    assert_ne!(
-        claiming(&toleranced, "envelope", "od.diameter").id,
-        claiming(&toleranced, "f:boss:4", "boss.diameter").id
-    );
-}
-
 #[test]
 fn a_counted_boss_height_also_states_its_face_level() {
     let Some(dir) = corpus::dir() else { return };

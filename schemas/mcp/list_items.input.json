@@ -1,105 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/list_items.input.json",
   "type": "object",
   "properties": {
     "part_ref": {
       "type": "string"
     },
     "spec": {
-      "$ref": "#/$defs/s"
-    },
-    "spec_version": {
-      "type": "string"
-    },
-    "drawing_ref": {
-      "type": "string"
-    },
-    "cursor": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "limit": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 100
-    },
-    "detail": {
-      "type": "boolean"
-    },
-    "filter": {
-      "type": "object",
-      "properties": {
-        "view": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "kind": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "state": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/t"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "feature": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "region": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "number"
-              },
-              "minItems": 4,
-              "maxItems": 4
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "near": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "radius": {
-          "anyOf": [
-            {
-              "type": "number",
-              "minimum": 0
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  "required": [
-    "part_ref"
-  ],
-  "additionalProperties": false,
-  "$defs": {
-    "s": {
       "type": "object",
       "properties": {
         "schema": {
@@ -114,20 +19,44 @@
             "null"
           ]
         },
+        "sheets": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/C"
+            },
+            "smallest_scale": {
+              "$ref": "#/$defs/B"
+            },
+            "keep_together": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "hole_table": {
+              "$ref": "#/$defs/C"
+            },
+            "gdt_on_sheet_1": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
         "sheet": {
           "type": "object",
           "properties": {
             "size": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/$defs/B"
             },
             "scale": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/$defs/B"
             },
             "title": {
               "type": "object",
@@ -184,63 +113,153 @@
       },
       "additionalProperties": false
     },
-    "t": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "enum": [
-                "shown",
-                "omitted_by_user",
-                "not_authored"
-              ]
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "const": "covered"
-            },
-            "by": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "by"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "const": "not_drawable"
-            },
-            "reason_code": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "reason_code"
-          ],
-          "additionalProperties": false
-        }
-      ]
+    "spec_version": {
+      "type": "string"
     },
+    "drawing_ref": {
+      "type": "string"
+    },
+    "cursor": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "detail": {
+      "type": "boolean"
+    },
+    "filter": {
+      "type": "object",
+      "properties": {
+        "sheet": {
+          "$ref": "#/$defs/C"
+        },
+        "view": {
+          "$ref": "#/$defs/B"
+        },
+        "kind": {
+          "$ref": "#/$defs/B"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "shown",
+                        "omitted_by_user",
+                        "not_authored"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "covered"
+                    },
+                    "by": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "by"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "not_drawable"
+                    },
+                    "reason_code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "reason_code"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feature": {
+          "$ref": "#/$defs/B"
+        },
+        "region": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "near": {
+          "$ref": "#/$defs/B"
+        },
+        "radius": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "part_ref"
+  ],
+  "additionalProperties": false,
+  "$defs": {
     "A": {
       "additionalProperties": {
         "type": "object"
       },
       "type": "object"
+    },
+    "B": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "C": {
+      "enum": [
+        null,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
     }
   }
 }

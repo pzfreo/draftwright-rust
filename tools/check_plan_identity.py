@@ -1,4 +1,4 @@
-"""Capture/compare exact CLI plan JSON and every sheet SVG over the 64-part survey.
+"""Capture/compare exact CLI plan JSON and every sheet SVG over the 63-part survey.
 
 The 30 quality parts must be a subset. Run --record with an origin/main release
 binary into a fresh directory, then --reference that directory with the new binary.
@@ -65,7 +65,7 @@ def main():
     if reference is not None and manifest.keys() != reference.keys():
         raise ValueError('reference part set changed')
     (args.out / 'manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
-    print('64 survey parts / 30 quality parts: ' +
+    print('63 survey parts / 30 quality parts: ' +
           ('reference capture complete' if args.record else 'exact plan JSON and SVG PASS'))
 
 

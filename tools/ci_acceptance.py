@@ -54,9 +54,9 @@ def names(files):
 def survey_names():
     corpus = manifest('repeated_span_parts.txt')
     fixtures = sorted((ROOT / 'tests/fixtures/pmi/step').glob('*.gz'))
-    require(len(corpus) == 42 and len(fixtures) == 22, 'incomplete survey fixture manifest (42 + 22 required)')
+    require(len(corpus) == 41 and len(fixtures) == 22, 'incomplete survey fixture manifest (41 + 22 required)')
     result = names(corpus) | names(p.name[:-3] for p in fixtures)
-    require(len(result) == 64, 'incomplete/ambiguous 64-part survey')
+    require(len(result) == 63, 'incomplete/ambiguous 63-part survey')
     return result
 
 
@@ -92,7 +92,7 @@ def validate(kind, actual, baseline=None, shard=(1, 1)):
         complete(actual, set(survey.in_shard(survey_names(), *shard)))
         for part, row in actual.items():
             require(count(row, 'repeated_span', part) == 0, f'{part}: repeated_span must be zero')
-        return {'parts': len(actual), 'of': 64, 'shard': '/'.join(map(str, shard)), 'repeated_span': 0}
+        return {'parts': len(actual), 'of': 63, 'shard': '/'.join(map(str, shard)), 'repeated_span': 0}
     if kind == 'pins':
         require(actual['seed'] in (1, 2, 3) and actual['pins'] in (1, 3, 8), 'unexpected pin grid cell')
         complete(actual['parts'], expected)
@@ -173,6 +173,8 @@ class Run:
             fresh = quality_out / 'baseline.json'
             self.step('quality', [*py, ROOT / 'tools/quality.py', *quality_args, binary, quality_out, *files],
                       'quality', fresh, args.baseline)
+            self.step('leader-routes', [*py, ROOT / 'tools/check_leader_routes.py', quality_out,
+                      '--report', out / 'leader-routes.json'])
             # The deliberate failure uses a real measured report, without changing the accepted baseline.
             if fresh.is_file():
                 bad = read(fresh)

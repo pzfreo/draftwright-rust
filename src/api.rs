@@ -41,7 +41,7 @@ const EXTENSIONS: [&str; 4] = ["svg", "dxf", "pdf", "png"];
 /// The PNG's resolution when none is given, pixels per inch (draftwright's).
 pub use crate::png::DPI;
 
-/// Rendered files: each format's name and its bytes.
+/// Rendered files: each suffix (`svg`, `sheet2.svg`, `pdf`, etc.) and its bytes.
 pub type Files = Vec<(String, Vec<u8>)>;
 
 /// The operations [`call`] answers, in the order they are usually used.
@@ -217,19 +217,20 @@ pub fn edit(spec: &Spec, ops: &Value) -> Result<Spec, Error> {
 
 /// The analysis, the plan and the drawing of the STEP file at *step* under *spec*. The plan's
 /// problems include the drawing's: what could not be drawn as planned.
-fn drawn(step: &Path, given: Given, spec: &Spec) -> Result<(Analysis, Plan, Drawing), Error> {
+fn drawn(step: &Path, given: Given, spec: &Spec) -> Result<(Analysis, Plan, Vec<Drawing>), Error> {
     let (part, analysis) = read(step, given)?;
     let mut plan = model::plan_recovered(&analysis, spec)?;
     let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
-    let drawing = model::render(&part, &analysis, &plan, &font).map_err(|e| {
+    let drawings = model::render_sheets(&part, &analysis, &plan, &font).map_err(|e| {
         Error::failed(format!(
             "cannot draw {}: the kernel did not resolve its {e} on reading",
             step.display()
         ))
     })?;
-    plan.problems.extend(drawing.problems.iter().cloned());
+    plan.problems
+        .extend(drawings.iter().flat_map(|d| d.problems.iter().cloned()));
     plan.status = crate::completeness::status(&plan.problems);
-    Ok((analysis, plan, drawing))
+    Ok((analysis, plan, drawings))
 }
 
 /// The plan (its problems with the drawing's), and the drawing in each of *formats* (from
@@ -303,22 +304,34 @@ fn rendered(
             "png export needs dpi > 0, got {dpi}"
         )));
     }
-    let (_, plan, drawing) = drawn(step, given, spec)?;
-    let files = formats
-        .iter()
-        .map(|&format| {
-            let bytes = match format {
-                "svg" => drawing.svg().into_bytes(),
-                "png" => drawing.png(dpi).map_err(Error::invalid)?,
-                _ => drawing.pdf(&|name| match name {
+    let (_, plan, drawings) = drawn(step, given, spec)?;
+    let mut files = Vec::new();
+    for &format in formats {
+        if format == "pdf" {
+            files.push((
+                format.into(),
+                Drawing::pdf_pages(&drawings, &|name| match name {
                     "IBMPlexMono-Regular.ttf" => Some(MONO.to_vec()),
                     crate::title_block::FONT => Some(crate::title_block::FONT_DATA.to_vec()),
                     _ => None,
                 }),
-            };
-            Ok((format.to_string(), bytes))
-        })
-        .collect::<Result<_, Error>>()?;
+            ));
+        } else {
+            for (i, drawing) in drawings.iter().enumerate() {
+                let suffix = if i == 0 {
+                    format.into()
+                } else {
+                    format!("sheet{}.{format}", i + 1)
+                };
+                let bytes = if format == "svg" {
+                    drawing.svg().into_bytes()
+                } else {
+                    drawing.png(dpi).map_err(Error::invalid)?
+                };
+                files.push((suffix, bytes));
+            }
+        }
+    }
     Ok((plan, files))
 }
 
@@ -399,6 +412,9 @@ fn write_file(
 #[derive(Clone, Debug, Serialize)]
 pub struct Review {
     pub svg: String,
+    /// SVGs for sheets 2..m, in document order.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sheets: Vec<String>,
     /// The plan's problems, and the drawing's: what could not be drawn as planned.
     pub problems: Vec<Problem>,
     /// What lint finds on the rendered drawing, judged against the part's analysis alone
@@ -428,12 +444,14 @@ pub fn review_analysed(step: &Path, analysis: &Analysis, spec: &Spec) -> Result<
 }
 
 fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
-    let (analysis, plan, drawing) = drawn(step, given, spec)?;
+    let (analysis, plan, drawings) = drawn(step, given, spec)?;
+    let drawing = &drawings[0];
     Ok(Review {
         svg: drawing.svg(),
+        sheets: drawings.iter().skip(1).map(Drawing::svg).collect(),
         problems: plan.problems,
-        lint: lint::lint(&analysis, &drawing),
-        structural: lint::structural::check(&drawing),
+        lint: lint::lint_sheets(&analysis, &drawings),
+        structural: lint::structural::check_sheets(&drawings),
     })
 }
 

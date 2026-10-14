@@ -68,15 +68,5 @@
     "kind": "span",
     "verdict": "rust-correct",
     "evidence": "The AP242 STC-10 hole row and face level both measure 12.5 mm above the base in front. Their arrow stations coincide, despite different witnesses: the location witnesses the hole row while the rung witnesses the level support. One location claims both measurements. Python height-ladder candidates have no cross-family dedup (origin/main:src/draftwright/annotations/_height_ladder.py); exhaustive PMI oracle comparisons remain unchanged."
-  },
-  {
-    "part": "threaded_connector_109",
-    "items": [
-      "d:envelope/od.diameter",
-      "d:f:boss:4/boss.diameter"
-    ],
-    "kind": "span",
-    "verdict": "rust-correct",
-    "evidence": "The boss at z=139.42 has the overall diameter 130.94 mm: the radial stations are identical in front, although the witnesses stand at different axial stations. Keep d:envelope/od.diameter and its boss claim. Python repeats it as dim_od and m_dia_z3 in tests/fixtures/sheets/connector109.json.gz. The existing known_dimensions oracle now records this as rust-correct; omission fallback and a distinct Spec tolerance are checked in tests/repeated_dimensions.rs."
   }
 ]

@@ -1,6 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/apply_ops.output.json",
   "type": "object",
   "anyOf": [
     {
@@ -31,10 +29,149 @@
                           "item": {
                             "anyOf": [
                               {
-                                "$ref": "#/$defs/c"
+                                "type": "object",
+                                "properties": {
+                                  "sheet": {
+                                    "enum": [
+                                      1,
+                                      2,
+                                      3,
+                                      4,
+                                      5,
+                                      6,
+                                      7,
+                                      8,
+                                      9
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "view": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "state": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "enum": [
+                                              "shown",
+                                              "omitted_by_user",
+                                              "not_authored"
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "const": "covered"
+                                          },
+                                          "by": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "by"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "const": "not_drawable"
+                                          },
+                                          "reason_code": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "reason_code"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "kind",
+                                  "label",
+                                  "view",
+                                  "state"
+                                ],
+                                "additionalProperties": false
                               },
                               {
-                                "$ref": "#/$defs/i"
+                                "type": "object",
+                                "properties": {
+                                  "item": {
+                                    "type": "object"
+                                  },
+                                  "value": {
+                                    "type": [
+                                      "number",
+                                      "null"
+                                    ]
+                                  },
+                                  "dimension_kind": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "placement": {
+                                    "type": [
+                                      "object",
+                                      "null"
+                                    ]
+                                  },
+                                  "anchors": {
+                                    "$ref": "#/$defs/A"
+                                  },
+                                  "features": {
+                                    "$ref": "#/$defs/A"
+                                  },
+                                  "basis": {
+                                    "type": "string"
+                                  },
+                                  "operations": {
+                                    "$ref": "#/$defs/A"
+                                  }
+                                },
+                                "required": [
+                                  "item",
+                                  "value",
+                                  "dimension_kind",
+                                  "placement",
+                                  "anchors",
+                                  "features",
+                                  "basis",
+                                  "operations"
+                                ],
+                                "additionalProperties": false
                               },
                               {
                                 "$ref": "#/$defs/u"
@@ -76,10 +213,65 @@
                           "problem": {
                             "anyOf": [
                               {
-                                "$ref": "#/$defs/p"
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "severity": {
+                                    "type": "string"
+                                  },
+                                  "message": {
+                                    "type": "string"
+                                  },
+                                  "subjects": {
+                                    "$ref": "#/$defs/A"
+                                  },
+                                  "refs": {
+                                    "$ref": "#/$defs/A"
+                                  },
+                                  "fix": {
+                                    "$ref": "#/$defs/B"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "severity",
+                                  "message",
+                                  "subjects"
+                                ],
+                                "additionalProperties": false
                               },
                               {
-                                "$ref": "#/$defs/r"
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "severity": {
+                                    "type": "string"
+                                  },
+                                  "subjects": {
+                                    "$ref": "#/$defs/A"
+                                  },
+                                  "fix": {
+                                    "$ref": "#/$defs/B"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "severity",
+                                  "subjects"
+                                ],
+                                "additionalProperties": false
                               },
                               {
                                 "$ref": "#/$defs/u"
@@ -104,15 +296,11 @@
                   "minimum": 0
                 },
                 "next_cursor": {
-                  "anyOf": [
-                    {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
                 }
               },
               "required": [
@@ -148,7 +336,26 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/e"
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "invalid",
+                "failed"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "choices": {
+              "$ref": "#/$defs/A"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -158,141 +365,6 @@
     }
   ],
   "$defs": {
-    "c": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "type": "string"
-        },
-        "label": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "view": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "state": {
-          "$ref": "#/$defs/t"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "label",
-        "view",
-        "state"
-      ],
-      "additionalProperties": false
-    },
-    "t": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "enum": [
-                "shown",
-                "omitted_by_user",
-                "not_authored"
-              ]
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "const": "covered"
-            },
-            "by": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "by"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "const": "not_drawable"
-            },
-            "reason_code": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "reason_code"
-          ],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "i": {
-      "type": "object",
-      "properties": {
-        "item": {
-          "type": "object"
-        },
-        "value": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "dimension_kind": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "placement": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "anchors": {
-          "$ref": "#/$defs/A"
-        },
-        "features": {
-          "$ref": "#/$defs/A"
-        },
-        "basis": {
-          "type": "string"
-        },
-        "operations": {
-          "$ref": "#/$defs/A"
-        }
-      },
-      "required": [
-        "item",
-        "value",
-        "dimension_kind",
-        "placement",
-        "anchors",
-        "features",
-        "basis",
-        "operations"
-      ],
-      "additionalProperties": false
-    },
     "u": {
       "type": "object",
       "properties": {
@@ -309,40 +381,6 @@
       "required": [
         "id",
         "detail_ref"
-      ],
-      "additionalProperties": false
-    },
-    "p": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "code": {
-          "type": "string"
-        },
-        "severity": {
-          "type": "string"
-        },
-        "message": {
-          "type": "string"
-        },
-        "subjects": {
-          "$ref": "#/$defs/A"
-        },
-        "refs": {
-          "$ref": "#/$defs/A"
-        },
-        "fix": {
-          "$ref": "#/$defs/B"
-        }
-      },
-      "required": [
-        "id",
-        "code",
-        "severity",
-        "message",
-        "subjects"
       ],
       "additionalProperties": false
     },
@@ -386,55 +424,6 @@
           "additionalProperties": false
         }
       ]
-    },
-    "r": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "code": {
-          "type": "string"
-        },
-        "severity": {
-          "type": "string"
-        },
-        "subjects": {
-          "$ref": "#/$defs/A"
-        },
-        "fix": {
-          "$ref": "#/$defs/B"
-        }
-      },
-      "required": [
-        "id",
-        "code",
-        "severity",
-        "subjects"
-      ],
-      "additionalProperties": false
-    },
-    "e": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "enum": [
-            "invalid",
-            "failed"
-          ]
-        },
-        "message": {
-          "type": "string"
-        },
-        "choices": {
-          "$ref": "#/$defs/A"
-        }
-      },
-      "required": [
-        "code",
-        "message"
-      ],
-      "additionalProperties": false
     },
     "A": {
       "items": {

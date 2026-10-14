@@ -1188,13 +1188,13 @@
   "evidence": "Not a draftwright requirement (specify-core's 'pmi-assist answers' property, which haecceity does not model); draftwright's census does not hold it, the port reports it as info, as the plan does (as string_post_tapped.step's finding:#3221, rust-correct). port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
  },
  {
-  "code": "pmi_not_extracted",
+  "code": "pmi_not_lowered",
   "file": "hw_thread_replaced.step",
   "python": null,
   "rust": "error",
-  "source": "knurl:0:0",
+  "source": "manufacturing_requirement:#6564",
   "verdict": "rust-correct",
-  "evidence": "A knurl (U14: written with the replacing thread) haecceity's writer states as an AP242 turned knurl feature (#6564; with its 'thread manufacturing' attribute set where the file has one), the form specify-core-rust writes. draftwright never sees it: its Part 21 pass reads specify-core's 'manufacturing requirement' properties and XCAF has no thread or knurl, so its census holds no source and its drawing silently lacks it. The port's reading holds it (haecceity reads it) and reports it pmi_not_extracted as an error because src/pmi.rs projects only the requirement-property form to a record: true, and the honest outcome. Neither draws it; projecting haecceity's thread and knurl features to records (so they can be drawn as the requirement records are) is a gap recorded in docs/next-session.md."
+  "evidence": "A knurl (U14: written with the replacing thread) haecceity's writer states as an AP242 turned knurl feature (#6564), the form specify-core-rust and the draftwright-editor write. draftwright never sees it: its Part 21 pass reads specify-core's 'manufacturing requirement' properties and XCAF has no thread or knurl, so its census holds no source and its drawing silently lacks it. The port projects it to a structured knurl record (its pitch 0.8 agrees with its 78 teeth on its major diameter 20) and refuses to draw it, reporting pmi_not_lowered as an error, because its one face (#961) is not cylindrical: true, and the honest outcome. Beyond Python."
  },
  {
   "code": "pmi_not_extracted",

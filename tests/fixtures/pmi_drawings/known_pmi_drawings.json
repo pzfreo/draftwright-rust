@@ -8526,6 +8526,27 @@
   "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete, pmi_dropped); the port states its span once, on the PMI dimension of the same span and label, which claims it (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions)."
  },
  {
+  "file": "hw_thread_replaced.step",
+  "record": "manufacturing_requirement:#6564",
+  "port": "manufacturing_requirement:#6564",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "codes": [
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "kind": "knurl",
+    "label": "knurl"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "Beyond Python: the port projects the AP242 turned_knurl #6564 (straight, pitch 0.8 agreeing with its 78 teeth on major diameter 20) to a structured knurl record; draftwright's Part 21 pass never reads a turned_knurl, so it has no record. Its one face (#961) is not cylindrical, so native lowering reports it pmi_not_lowered rather than drawing it. tests/pmi_thread_knurl.rs checks the drawn case on the editor's spindle knurl."
+ },
+ {
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
   "record": "dimension:0:1:4:91",
   "port": "dimension:#15466",

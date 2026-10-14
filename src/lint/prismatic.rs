@@ -73,6 +73,7 @@ fn issue(
     fix: &str,
 ) -> LintIssue {
     LintIssue {
+        sheet: None,
         id: format!("l:{code}:prismatic"),
         code: code.into(),
         severity: Severity::Warning,

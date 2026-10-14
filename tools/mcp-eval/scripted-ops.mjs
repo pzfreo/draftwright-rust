@@ -8,7 +8,8 @@ export function pinCallouts(task, items) {
     if (!items.some(item => item.id === id)) throw new Error(`summary missing required callout ${id}`);
     return set(`dimensions/${segment(id)}/place`, {
       view: condition.view, side: condition.side, lane: i,
-      along: ['start', 'middle', 'end'][i], pinned: condition.pinned,
+      // Stagger the pins off centre: the router must not repair a prescribed crossing.
+      along: [0, 0.4, 1][i], pinned: condition.pinned,
     });
   });
 }

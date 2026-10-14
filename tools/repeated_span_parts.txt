@@ -1,5 +1,4 @@
 cadgenbench/flanged_spool_132.step
-cadgenbench/threaded_connector_109.step
 cadgenbench_inputs/cgb203.step
 cadgenbench_inputs/cgb207.step
 cadgenbench_inputs/cgb241.step

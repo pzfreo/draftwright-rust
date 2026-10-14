@@ -1,4 +1,4 @@
-"""Count the complete 64-part CLI survey on macOS, comparing two release binaries.
+"""Count the complete 63-part CLI survey on macOS, comparing two release binaries.
 
 Darwin's proc_pid_rusage reads retired instructions for the unreaped child. This
 uses the same kernel counter as time -l without its sandbox-blocked clock sysctl.
@@ -63,7 +63,7 @@ def main():
     if resumed and (resumed.get('complete') or resumed['operation'] != args.operation
                     or resumed.get('runs', 1) != args.runs):
         parser.error('--resume requires an interrupted report with matching operation and runs')
-    if initial and (not initial.get('complete') or len(initial.get('parts', {})) != 64
+    if initial and (not initial.get('complete') or len(initial.get('parts', {})) != 63
                     or initial.get('runs', 1) != 1 or initial['operation'] != args.operation or args.runs < 2):
         parser.error('--initial-results requires a complete matching report and --runs >= 2')
     if args.corpus is None:
@@ -116,7 +116,7 @@ def main():
                                 'input_sha256': hashlib.sha256(part.read_bytes()).hexdigest(),
                                 'base_samples': base_samples, 'head_samples': head_samples}
             report = {'format': 'draftwright.plan-instructions/1', 'operation': args.operation,
-                      **provenance, 'parts': parts, 'complete': len(parts) == 64, **assess(parts)}
+                      **provenance, 'parts': parts, 'complete': len(parts) == 63, **assess(parts)}
             report['passed'] = report['complete'] and report['passed']
             args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
             print(f'{part.stem}: {base} -> {head} ({head / base:.4f})', flush=True)

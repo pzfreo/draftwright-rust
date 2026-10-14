@@ -67,11 +67,11 @@ class Acceptance(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn('incomplete' if not error else 'render failed', result.stderr)
 
-    def test_survey_requires_all_64_parts_and_zero_repeated_spans(self):
+    def test_survey_requires_all_63_parts_and_zero_repeated_spans(self):
         names = [Path(p).stem for p in (ROOT / 'tools/repeated_span_parts.txt').read_text().splitlines()]
         names += [Path(p.name[:-3]).stem for p in (ROOT / 'tests/fixtures/pmi/step').glob('*.gz')]
         result = {name: {'repeated_span': 0} for name in names}
-        self.assertEqual(len(result), 64)
+        self.assertEqual(len(result), 63)
         self.assertEqual(self.check('survey', result).returncode, 0)
         for bad in (dict(list(result.items())[1:]), {**result, names[0]: {'repeated_span': 1}},
                     {**result, names[0]: {'error': 'render failed'}}):
@@ -158,12 +158,16 @@ class Acceptance(unittest.TestCase):
                 with patch.object(run, 'step') as step:
                     run.execute('quality-pins')
                 calls = step.call_args_list
-                self.assertEqual([c.args[0] for c in calls], ['quality', 'label-lane-locality', 'pins-' + cell])
-                locality = calls[1].args[1]
+                self.assertEqual([c.args[0] for c in calls], ['quality', 'leader-routes', 'label-lane-locality', 'pins-' + cell])
+                route = calls[1].args[1]
+                self.assertIn(ROOT / 'tools/check_leader_routes.py', route)
+                self.assertEqual(route[-1], Path(tmp) / 'leader-routes.json')
+                self.assertNotIn('--require-improvement', route)
+                locality = calls[2].args[1]
                 self.assertIn(ROOT / 'tools/check_label_lanes.py', locality)
                 self.assertEqual(locality[locality.index('--current') + 1], Path(tmp) / 'quality')
                 self.assertEqual(locality[locality.index('--after-binary') + 1], args.binary)
-                command = calls[2].args[1]
+                command = calls[3].args[1]
                 self.assertIn('--require-go', command)
                 self.assertEqual(command[command.index('--baseline') + 1],
                                  Path(tmp) / 'quality/baseline.json')
@@ -203,11 +207,11 @@ class Acceptance(unittest.TestCase):
         spec.loader.exec_module(plan_time)
         names = self.runner().survey_names()
         parts = {p: {'instructions': 100, 'seconds': 1} for p in names}
-        budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6400}}
+        budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6300}}
         self.assertTrue(plan_time.verdict(parts, budget, 'darwin-arm64')['passed'])
         slower = {p: {'instructions': 116, 'seconds': 1} for p in names}
         self.assertFalse(plan_time.verdict(slower, budget, 'darwin-arm64')['passed'])
-        lowered = {**budget, 'instructions': {'darwin-arm64': 6400 * .7}}
+        lowered = {**budget, 'instructions': {'darwin-arm64': 6300 * .7}}
         self.assertFalse(plan_time.verdict(parts, lowered, 'darwin-arm64')['passed'])
         # No figure for the platform, or no counter: report only, never fail.
         for key, rows in (('linux-x86_64', parts),
@@ -256,7 +260,7 @@ class Acceptance(unittest.TestCase):
         with self.assertRaises(ValueError):
             instructions.assess({'a': {'base': 100, 'head': 0}})
 
-    def test_survey_shards_partition_the_64_parts(self):
+    def test_survey_shards_partition_the_63_parts(self):
         runner = self.runner()
         names = runner.survey_names()
         slices = [runner.survey.in_shard(names, k, 4) for k in range(1, 5)]
@@ -300,7 +304,7 @@ class Acceptance(unittest.TestCase):
                     patch.object(survey.quality, 'table'):
                 self.assertEqual(survey.main(), 1)
             results = json.loads((Path(tmp) / 'baseline.json').read_text())
-            self.assertEqual(len(results), 64)
+            self.assertEqual(len(results), 63)
             self.assertTrue(all('timed out' in row['error'] for row in results.values()))
 
     def test_failed_subprocess_reports_exit_before_missing_results(self):

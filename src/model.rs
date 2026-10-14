@@ -325,6 +325,9 @@ pub struct Plan {
     /// Dimensions and callouts, each with its ID, value, label, default flag and basis.
     #[serde(default)]
     pub dimensions: Vec<PlannedDimension>,
+    /// Canonical widths for the editor's snap guide; not part of the drawing document.
+    #[serde(skip)]
+    pub(crate) callout_widths: BTreeMap<String, f64>,
     /// Dimensions the spec leaves out, and why (ADR4-8: an authored omission says so).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub omitted: Vec<Omitted>,
@@ -364,6 +367,14 @@ pub struct Plan {
     pub problems: Vec<Problem>,
     /// The spec the plan was made from, embedded in every output.
     pub spec: Spec,
+}
+
+impl Plan {
+    /// Widest canonical callout in a view, in paper mm. None for a view without
+    /// callouts or a deserialised Plan: this metadata is retained only by planning.
+    pub fn canonical_callout_width(&self, view: &str) -> Option<f64> {
+        self.callout_widths.get(view).copied()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -461,7 +472,7 @@ pub struct Problem {
     /// What else it names that is no item of the plan or feature of the Analysis: a PMI
     /// record's source (its Part 21 provenance, `geometric_tolerance:#123`), a source not read,
     /// a family the recogniser does not give, a view the plan does not draw, a spec entry not
-    /// applied.
+    /// applied. Pinned leader crossings also repeat the callout ID as pin provenance.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refs: Vec<String>,
     /// The edit that resolves it, as [`edit`] takes it, where there is one.
@@ -2785,6 +2796,18 @@ fn plan_with_presentation(
         table_outcome: crate::hole_table::TableOutcome::None,
         table_restore: None,
         views,
+        callout_widths: {
+            let mut widths: BTreeMap<String, f64> = BTreeMap::new();
+            for d in canonical.as_ref().map_or(&inventory, |p| &p.dimensions) {
+                if d.kind == "callout"
+                    && let Some(p) = &d.placed
+                {
+                    let width = widths.entry(d.view.clone()).or_default();
+                    *width = width.max(p.label_box[2] - p.label_box[0]);
+                }
+            }
+            widths
+        },
         dimensions,
         omitted,
         notes,
@@ -3225,6 +3248,9 @@ pub struct RenderedItem {
     pub text: Vec<TextRun>,
     pub annotations: Vec<Annotation>,
     pub drawn: Vec<Drawn>,
+    /// Session ink's owning items; absent for the unchanged single-sheet wire format.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub provenance: Vec<crate::items::Item>,
 }
 
 impl RenderedItem {
@@ -3306,30 +3332,80 @@ pub fn render_with(
     projections: &mut Projections,
 ) -> Result<Drawing, Unresolved> {
     if !plan.sheets.is_empty() {
-        let mut first = plan.clone();
-        first.views.retain(|v| v.sheet == 1);
-        first.tables.retain(|t| t.sheet == 1);
-        first.hole_table = first.hole_table.filter(|t| t.sheet == 1);
-        first.hole_tables.retain(|t| t.sheet == 1);
-        let geometry = render_geometry(part, analysis, &first, projections)?;
-        let remote: Vec<_> = plan
-            .views
-            .iter()
-            .filter(|v| v.sheet != 1 && v.cut.is_some())
-            .collect();
-        return render_annotations_with_cuts(
-            part,
-            analysis,
-            &first,
-            font,
-            geometry,
-            projections,
-            &BTreeMap::new(),
-            &remote,
-        );
+        return render_sheet_with(part, analysis, plan, &plan.sheet, font, projections);
     }
     let geometry = render_geometry(part, analysis, plan, projections)?;
     render_annotations(part, analysis, plan, font, geometry, projections)
+}
+
+/// Draw every planned sheet in order, each carrying the whole Spec. Projections are shared
+/// across the document; [`render`] remains the sheet-1 entry point.
+pub fn render_sheets(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+) -> Result<Vec<Drawing>, Unresolved> {
+    let mut projections = Projections::default();
+    let mut drawings = vec![render_with(part, analysis, plan, font, &mut projections)?];
+    for sheet in &plan.sheets {
+        drawings.push(render_sheet_with(
+            part,
+            analysis,
+            plan,
+            sheet,
+            font,
+            &mut projections,
+        )?);
+    }
+    Ok(drawings)
+}
+
+fn render_sheet_with(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    sheet: &PlannedSheet,
+    font: &Font,
+    projections: &mut Projections,
+) -> Result<Drawing, Unresolved> {
+    let mut selected = plan.clone();
+    selected.sheet = sheet.clone();
+    selected.views.retain(|v| v.sheet == sheet.number);
+    selected.tables.retain(|t| t.sheet == sheet.number);
+    selected.hole_table = selected.hole_table.filter(|t| t.sheet == sheet.number);
+    selected.hole_tables.retain(|t| t.sheet == sheet.number);
+    let carries = |id: &str| selected.views.iter().any(|v| v.id == id);
+    selected.dimensions.retain(|d| carries(&d.view));
+    selected.gdt.retain(|g| carries(&g.view));
+    selected.balloons.retain(|b| carries(&b.view));
+    if sheet.number > 1 {
+        selected.notes.clear();
+        selected.notes_block = None;
+        selected.radius_notes_block = None;
+        selected.radius_table = None;
+        selected.requirements.clear();
+        selected.omitted.clear();
+        selected.sheet.projection_symbol = None;
+    }
+    let geometry = render_geometry(part, analysis, &selected, projections)?;
+    let remote: Vec<_> = plan
+        .views
+        .iter()
+        .filter(|v| {
+            v.sheet != sheet.number && v.cut.as_ref().is_some_and(|c| carries(&c.marked_in))
+        })
+        .collect();
+    render_annotations_with_cuts(
+        part,
+        analysis,
+        &selected,
+        font,
+        geometry,
+        projections,
+        &BTreeMap::new(),
+        &remote,
+    )
 }
 
 /// Assembles a geometry layer with the plan's annotations and sheet furniture. Each dimension
@@ -3375,6 +3451,68 @@ pub fn render_annotations_with_items(
     )
 }
 
+/// Session assembly selects the already allocated page and keeps geometry in Plan order.
+/// Sheet furniture remains the renderer's responsibility (R5 I2).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn render_annotations_on_sheet(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+    mut geometry: GeometryLayer,
+    projections: &mut Projections,
+    items: &BTreeMap<String, RenderedItem>,
+    number: u32,
+) -> Result<Drawing, Unresolved> {
+    if plan.sheets.is_empty() && number == 1 {
+        return render_annotations_with_items(
+            part,
+            analysis,
+            plan,
+            font,
+            geometry,
+            projections,
+            items,
+        );
+    }
+    let mut selected = plan.clone();
+    selected.sheet = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .find(|s| s.number == number)
+        .expect("the session validates its sheet number")
+        .clone();
+    selected.views.retain(|v| v.sheet == number);
+    let local = |id: &str| selected.views.iter().any(|v| v.id == id);
+    geometry.views.retain(|(id, _)| local(id));
+    selected.dimensions.retain(|d| local(&d.view));
+    selected.gdt.retain(|g| local(&g.view));
+    selected.balloons.retain(|b| local(&b.view));
+    selected.tables.retain(|t| t.sheet == number);
+    selected.hole_table = selected.hole_table.filter(|t| t.sheet == number);
+    selected.hole_tables.retain(|t| t.sheet == number);
+    if number != 1 {
+        selected.notes.clear();
+        selected.requirements.clear();
+        selected.radius_table = None;
+        selected.sheet.projection_symbol = None;
+    }
+    let remote = plan
+        .views
+        .iter()
+        .filter(|v| v.sheet != number && v.cut.as_ref().is_some_and(|c| local(&c.marked_in)))
+        .collect::<Vec<_>>();
+    render_annotations_with_cuts(
+        part,
+        analysis,
+        &selected,
+        font,
+        geometry,
+        projections,
+        items,
+        &remote,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_annotations_with_cuts(
     part: &Part,
@@ -3392,6 +3530,7 @@ fn render_annotations_with_cuts(
     // What lint's sheet checks read: each view's visible box, and each thing drawn, by name.
     let mut sheet = Sheet::default();
     let mut caption_names: Vec<String> = Vec::new();
+    let mut references = Vec::new();
     let mut layers: Vec<Layer> = layer_styles()
         .into_iter()
         .map(|(name, style)| Layer {
@@ -3538,6 +3677,41 @@ fn render_annotations_with_cuts(
             }
             furniture.extend(f.ink);
             captions.extend(f.text);
+            for (reference, prefix, name, target) in [
+                (
+                    v.xref.as_ref().filter(|_| !remote),
+                    "FROM".to_string(),
+                    format!("{}/xref", v.id),
+                    format!("section_{l}_left"),
+                ),
+                (
+                    cut.xref.as_ref().filter(|_| f.chain.is_some()),
+                    format!("SECTION {}–{},", cut.label, cut.label),
+                    format!("{}/cut/xref", v.id),
+                    "section_caption".into(),
+                ),
+            ] {
+                if let Some(r) = reference {
+                    references.push((
+                        captions.len(),
+                        name.clone(),
+                        prefix.clone(),
+                        target,
+                        r.clone(),
+                    ));
+                    captions.push((format!("{prefix} SHEET {}, ZONE {}", r.sheet, r.zone), r.at));
+                    caption_names.push(name);
+                }
+            }
+        }
+    }
+    for v in &plan.views {
+        if let Some(note) = &v.scale_note {
+            let view = View::new(v.direction, v.up).expect("a planned view");
+            let half_h = 0.5 * extent(analysis, &view).0[1] * v.scale;
+            let gap = if v.cut.is_some() { 17.0 } else { 7.0 };
+            captions.push((note.clone(), [v.at[0], v.at[1] - half_h - gap]));
+            caption_names.push(format!("{}/scale_note", v.id));
         }
     }
     // The border and the title block, lower right.
@@ -3644,14 +3818,65 @@ fn render_annotations_with_cuts(
             interior: false,
         })
     };
-    for ((s, at), name) in captions.iter().zip(&caption_names) {
+    for (index, ((s, at), name)) in captions.iter().zip(&caption_names).enumerate() {
         let size = crate::section::FONT_SIZE;
         let run = (s.as_str(), "IBMPlexMono-Regular.ttf", size);
         let from = dims.len();
-        label(font.text(s, size), *at, dims, Some(run));
+        if let Some(run) = label(font.text(s, size), *at, dims, Some(run))
+            && let Some((_, name, prefix, target, r)) =
+                references.iter().find(|(i, ..)| *i == index)
+        {
+            sheet.references.push(crate::output::DrawnReference {
+                name: name.clone(),
+                target: target.clone(),
+                prefix: prefix.clone(),
+                sheet: r.sheet,
+                zone: r.zone.clone(),
+                run,
+            });
+        }
         sheet
             .items
             .extend(labelled(name, Kind::Caption, &dims[from..]));
+    }
+    if let Some(grid) = &plan.sheet.zones {
+        // All zone furniture lives outside the drawable border, preserving every view band.
+        for n in 0..grid.columns {
+            let x = (f64::from(n) + 0.5) * w / f64::from(grid.columns);
+            let value = (n + 1).to_string();
+            for y in [MARGIN / 2., h - MARGIN / 2.] {
+                label(
+                    font.text(&value, 3.),
+                    [x, y],
+                    dims,
+                    Some((&value, "IBMPlexMono-Regular.ttf", 3.)),
+                );
+            }
+            if n > 0 {
+                let x = f64::from(n) * w / f64::from(grid.columns);
+                for (a, b) in [(0., MARGIN), (h - MARGIN, h)] {
+                    dims.push(Item::Edge(Curve::Line([x, a], [x, b])));
+                }
+            }
+        }
+        for n in 0..grid.rows {
+            let y = h - (f64::from(n) + 0.5) * h / f64::from(grid.rows);
+            let value = (b"ABCDEFGHJKLMNPQRSTUVWXYZ"[n as usize] as char).to_string();
+            for x in [MARGIN / 2., w - MARGIN / 2.] {
+                label(
+                    font.text(&value, 3.),
+                    [x, y],
+                    dims,
+                    Some((&value, "IBMPlexMono-Regular.ttf", 3.)),
+                );
+            }
+            if n > 0 {
+                let y = h - f64::from(n) * h / f64::from(grid.rows);
+                for (a, b) in [(0., MARGIN), (w - MARGIN, w)] {
+                    dims.push(Item::Edge(Curve::Line([a, y], [b, y])));
+                }
+            }
+        }
     }
     // Each cell: its dividers, its label at its lower left, and its value (none drawn for a
     // field not supplied) centred in it, whole, and searchable. The ink is the font-safe value.

@@ -32,31 +32,31 @@ pub const INSTRUCTIONS: &str = "Register STEP with inspect_part {step}; keep par
 fn description(tool: &str) -> &'static str {
     match tool {
         "inspect_part" => {
-            "Register a local STEP path (optional recognition JSON in features) and obtain part_ref and initial spec_version. Summary includes key_items (envelope sizes and a size/representative item per feature, bounded; list_items finds the rest). problem_filter optionally returns a paged problem_page with fixes in this same call. With part_ref, summarize the Spec's sheet, views, item/problem counts. detail=true adds a lossless plan_ref readable with resources/read."
+            "Register a local STEP path (optional recognition JSON in features) and obtain part_ref and initial spec_version. Summary includes key_items (envelope sizes and a size/representative item per feature, bounded; list_items finds the rest). problem_filter optionally returns a paged problem_page with fixes in this same call. With part_ref, summarize the Spec's sheet, views, item/problem counts; multi-sheet results add sheets and sheet_details (number, size, scale, page). detail=true adds a lossless plan_ref readable with resources/read."
         }
         "list_items" => {
-            "List stable item IDs, labels, views, kinds and typed states for part_ref plus spec or spec_version. Filter by view/kind/state/feature or near an ID/region. Follow next_cursor with the same input. detail=true adds placement and anchors; default omits geometry."
+            "List stable item IDs, labels, views, kinds, sheet numbers (absent means sheet 1) and typed states for part_ref plus spec or spec_version. Filter by view/kind/state/feature or near an ID/region. Follow next_cursor with the same input. detail=true adds placement and anchors; default omits geometry."
         }
         "get_item" => {
-            "Read one stable item id: label, state, value, explanation (basis) and allowed operations. Supply part_ref plus spec or spec_version. detail=true includes resolved geometry, anchors and features. Unknown IDs return nearest valid IDs."
+            "Read one stable item id: label, state, value, explanation (basis) and allowed operations. Supply part_ref plus spec or spec_version. detail=true includes resolved geometry, anchors and features. IDs accept sheet:<n>/<id>; a wrong sheet offers the correct address. An absent sheet means sheet 1. Unknown IDs return nearest valid IDs."
         }
         "list_problems" => {
             "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Default rows include corrective Spec ops; detail=true adds explanations. Use filter.feature for one query covering a whole feature."
         }
         "item_options" => {
-            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Options are candidates; preview_ops checks their effects."
+            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Options are candidates; preview_ops checks their effects."
         }
         "preview_ops" => {
             "Try up to 32 Spec ops without saving or changing the drawing head. Supply part_ref and spec or spec_version. Ops are set/add {path,value} or remove {path}, with RFC6901 escaping (~1 for a slash inside an ID). Returns paged change/problem events and lossless delta_ref."
         }
         "apply_ops" => {
-            "Commit up to 32 Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Batch all edits for one request in ops. Tolerances are strings \"±T\" or \"+U -L\"; fits use features/f:hole:1/fit (e.g. H7). View paths use bare names, views/iso/omit; title drawing number is sheet/title/number. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
+            "Commit up to 32 Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Batch all edits for one request in ops. Tolerances are strings \"±T\" or \"+U -L\"; fits use features/f:hole:1/fit (e.g. H7). Move views with set views/<name>/sheet n (no new op kind); set sheets/max first in the same batch. View paths use bare names, views/iso/omit; title drawing number is sheet/title/number. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
         }
         "view_sheet" => {
-            "Render a PNG for visual review of part_ref plus spec or spec_version. Optional region is paper millimetres [left,bottom,right,top], y up; overlay_ids labels items for reference. dpi defaults to 150, maximum 400. Returns image content and artifact_ref; exports embed the Spec."
+            "Render a PNG for visual review of part_ref plus spec or spec_version. Optional region is paper millimetres [left,bottom,right,top], y up; sheet defaults to 1; overlay_ids is true for all local items or a list of bare or sheet:<n>/<id> addresses on that sheet. dpi defaults to 150, maximum 400. Returns image content and artifact_ref; exports embed the Spec."
         }
         "render_pdf" => {
-            "Render the delivery PDF for part_ref plus spec or spec_version, returning artifact_ref, MIME type, byte size and Spec hash. Read bytes using resources/read {uri:draftwright:<artifact_ref>}. The PDF embeds the bound Spec for resuming the drawing."
+            "Render the delivery PDF for part_ref plus spec or spec_version, returning artifact_ref, MIME type, byte size and Spec hash. Read bytes using resources/read {uri:draftwright:<artifact_ref>}. sheet selects one page (default 1). The PDF embeds the bound Spec for resuming the drawing."
         }
         "get_spec" => {
             "Read the complete author Spec and immutable spec_version. Supply part_ref and a spec_version (or inline spec); without either, read drawing_ref's current head (default: default). Keep this version as apply_ops parent; queries otherwise use the default Spec when no version is supplied."
@@ -65,7 +65,7 @@ fn description(tool: &str) -> &'static str {
             "One-shot recognition of a local STEP path, optionally using validated recognition JSON in features. Returns the full Analysis document including features and semantic PMI. Prefer inspect_part when editing: it registers the reusable content/cache handle."
         }
         "render" => {
-            "One-shot PNG or PDF render from a local STEP path (optional features) or registered part_ref, with optional spec/spec_version. format is png or pdf; PNG accepts region, overlay_ids and dpi. Returns artifact metadata; read it via resources/read or use view_sheet for MCP image content."
+            "One-shot PNG or PDF render from a local STEP path (optional features) or registered part_ref, with optional spec/spec_version. format is png or pdf; sheet selects one page (default 1). PNG accepts region, overlay_ids (boolean or ID list) and dpi. Returns artifact metadata; read it via resources/read or use view_sheet for MCP image content."
         }
         _ => unreachable!("published tool"),
     }
@@ -208,7 +208,11 @@ fn spec(cache: &Cache, args: &Value) -> Result<Spec, Error> {
     }
 }
 fn compact(i: &ItemAnswer) -> Value {
-    json!({"id":i.item.id,"kind":i.item.kind,"label":i.item.label,"view":i.item.view,"state":i.item.state})
+    let mut row = json!({"id":i.item.id,"kind":i.item.kind,"label":i.item.label,"view":i.item.view,"state":i.item.state});
+    if i.item.explicit_sheet || i.item.sheet != 1 {
+        row["sheet"] = json!(i.item.sheet);
+    }
+    row
 }
 fn small(cache: &Cache, row: Value) -> Result<Value, Error> {
     if value_bytes(&row) < PAGE_BYTES / 4 {
@@ -513,9 +517,6 @@ fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
             let filter: ItemFilter =
                 serde_json::from_value(args.get("filter").cloned().unwrap_or_else(|| json!({})))
                     .map_err(|e| Error::invalid(e.to_string()))?;
-            if let Some(id) = &filter.near {
-                cache.item(part_ref, &given, id)?;
-            }
             page(
                 cache,
                 cache
@@ -611,13 +612,24 @@ fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
                 .map(|r| serde_json::from_value(r.clone()))
                 .transpose()
                 .map_err(|e| Error::invalid(format!("valid region: {e}")))?;
-            let bytes = cache.render(
+            let ids = args["overlay_ids"].as_array().map(|ids| {
+                ids.iter()
+                    .map(|id| {
+                        id.as_str()
+                            .expect("overlay IDs are schema-validated")
+                            .to_owned()
+                    })
+                    .collect::<Vec<_>>()
+            });
+            let bytes = cache.render_sheet_with_ids(
                 part_ref,
                 &given,
                 region,
                 format,
                 args["overlay_ids"] == true,
                 args["dpi"].as_f64().unwrap_or(crate::png::DPI),
+                args["sheet"].as_u64().unwrap_or(1) as u32,
+                ids.as_deref(),
             )?;
             Ok(
                 json!({"artifact_ref":cache.artifact(&bytes,format)?,"mime_type":if format=="png"{"image/png"}else{"application/pdf"},"bytes":bytes.len(),"spec_version":spec_hash(cache.session(part_ref,&given)?.spec())}),

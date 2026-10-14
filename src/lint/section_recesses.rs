@@ -1106,6 +1106,7 @@ pub fn coverage(analysis: &Analysis, _marks: &[Mark]) -> Vec<LintIssue> {
             Refusal::Invalid(r) => format!("its record is not valid ({r})"),
         };
         issues.push(LintIssue {
+            sheet: None,
             id: format!("l:{code}:{}", f.id),
             code: code.into(),
             severity: Severity::Warning,
@@ -1144,6 +1145,7 @@ pub fn coverage(analysis: &Analysis, _marks: &[Mark]) -> Vec<LintIssue> {
         let code = "section_recess_recognition_refused";
         let faces: Vec<String> = r.faces.iter().map(usize::to_string).collect();
         issues.push(LintIssue {
+            sheet: None,
             id: format!("l:{code}:{}", i + 1),
             code: code.into(),
             severity: Severity::Warning,

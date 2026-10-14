@@ -238,10 +238,21 @@ more sheets only when a blocked allocation could help, otherwise larger fixed
 paper or a lower floor. An unused rescue-table assignment reports
 `sheet_assignment_unused` with a remove edit.
 
-Stage I1 produces and checks these later-sheet plans. `model::render` continues to
-draw sheet 1, including the parent's cutting-plane furniture for a remote section;
-later-sheet rendering, repeated title furniture with `n/m`, and MCP
-sheet operations are the I2/I3 streams. The plan and spec schema versions stay the same;
+Stage I1 produces and checks these later-sheet plans. I2a adds
+`model::render_sheets`, one Drawing per sheet, while `model::render` continues to
+draw sheet 1, including the parent's cutting-plane furniture for a remote section.
+Every sheet repeats the unchanged title-block grid with a planned `n/m` SHEET
+value; an authored sheet label is replaced with `sheet_label_replaced` info.
+The projection symbol and general notes stay on sheet 1. SVG and PNG keep the
+sheet-1 filename and add `<stem>.sheet<n>.svg` / `.png` for later sheets; one PDF
+contains every sheet in order (`Drawing::pdf_pages`, single-sheet bytes unchanged).
+Every output embeds the whole Spec. Review keeps `svg` for sheet 1 and adds
+`sheets: [svg…]` for sheets 2..m, omitted for one sheet. Coverage reads the marks of
+every sheet once; structural checks run per sheet and
+later-sheet issues carry their sheet number. Border zones and reciprocal section
+addresses are drawn as searchable text, and structural lint checks that each
+address reaches its rendered target in the printed grid. MCP sheet
+operations are I3's scope. The plan and spec schema versions stay the same;
 old documents read with single-sheet defaults.
 
 #### Placement (`place`, S3)
@@ -256,6 +267,13 @@ frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`:
 | `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; callout columns on the left/right use the widest canonical label on that view plus shoulder and clearance, so labels at the same along position have distinct columns; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
+
+A pinned callout above or below a view puts its text on the side its leader runs to:
+an elbow left of the tip carries text to the left, and a vertical leader defaults to the
+right. Left/right columns keep their stated side. A pinned callout's bend and label are
+never slid to avoid a feature crossing. The existing `leader_through_feature` warning
+names the callout and crossed feature in `subjects`, also names the callout in `refs`,
+and explains that the pinned label's leader crosses part features and keeps its position.
 
 Existing angular PMI keeps its measured sector: `lane` increases the radius in paper steps and
 `along` selects a fraction of its arc. A requested `side` is reported as
@@ -960,7 +978,7 @@ output is byte-identical to analysing the same STEP with the same features.
 with atomic replacement per destination. Concurrent callers use last-writer-wins per file
 (the last successful rename), and cleanup removes only their own staged copy. A multi-format
 export is not transactional: concurrent callers can publish different formats, and a later
-failure does not roll back formats already published. Destination names are unchanged.
+failure does not roll back formats already published. Single-sheet destination names are unchanged.
 
 **The spec in each output** (invariant 8): in the SVG's metadata, in the PDF's document
 information, and in the DXF as comments (group code 999) ahead of the first section. AutoCAD,
@@ -1120,6 +1138,39 @@ paths to choices, ranges or forms, including tolerance strings, bare view keys, 
 and fit classes valid for each associated hole/boss's nominal size. A descriptor's `paths`
 shares its choices across all listed member paths. Collisions are reported by preview/apply;
 queries do not run trial plans.
+
+`Session::label_rows(callout_address)` returns a serialisable map keyed by compatible
+shown principal view IDs (`v:plan`, etc.) for an editor's exterior snap guide. Each
+`dims::LabelRows` has `outline: [left, bottom, right, top]`, `first_row` and
+`row_spacing`; the latter two are maps keyed by `above`, `below`, `left`, `right`.
+All coordinates and spacings are paper millimetres, with y increasing upwards.
+These are **elbow coordinates**, not text baselines. Lane `n` is
+`first_row[side] + sign * n * row_spacing[side]`, with sign +1 above/right and
+−1 below/left. The first row is 10 mm outside the projected envelope. Above/below
+spacing is 7 mm; beside a view it is the greater of that view's widest canonical
+callout and this callout's current ink width, plus its 3 mm shoulder and 7 mm
+clearance. The resolver and query share the spacing calculation. Canonical widths
+are retained as planning metadata, so another item's text edit cannot move
+a pin's columns; the Plan's serialised shape is unchanged.
+
+This query performs no planning or projection, accepts the usual bare/qualified
+item addresses, and refuses non-callouts. Re-read it after applying an edit to a
+view, sheet or this callout's text. It describes explicit exterior `side/lane/along`
+placement. Automatic labels can lie inside the view or use the automatic solver's
+other exterior candidates; read their actual geometry through `item`/`plan`.
+A bare pin retains that automatic geometry. Dragging a pinned label into an
+interior blank region still needs a separate Spec design decision (issue #12's
+comment); these guides do not add that authoring operation. This Rust session query
+is available to editor bindings; it adds no MCP tool or JSON-lines operation.
+
+Editors that keep their own session can call public
+`dims::label_rows(&analysis, view, width)` directly. Pass the greater of the
+edited callout's ink width and `plan.canonical_callout_width(&view.id)` (paper mm).
+The latter returns `Option<f64>`: `None` means no canonical callout for that view,
+or a deserialised Plan whose non-wire metadata is absent. Keep the freshly planned
+Plan to use this API; do not infer canonical widths from edited placements.
+This uses the same calculation as `Session::label_rows` without requiring a
+`draftwright::Session`.
 
 `draftwright serve` keeps one Session per connection, behind `api::Service`. The additional
 operations advertised by `hello` are:
