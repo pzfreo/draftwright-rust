@@ -1,51 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/apply_ops.input.json",
   "type": "object",
   "properties": {
     "part_ref": {
       "type": "string"
     },
     "spec": {
-      "$ref": "#/$defs/s"
-    },
-    "spec_version": {
-      "type": "string"
-    },
-    "drawing_ref": {
-      "type": "string"
-    },
-    "cursor": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "limit": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 100
-    },
-    "detail": {
-      "type": "boolean"
-    },
-    "ops": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/op"
-      },
-      "maxItems": 32
-    },
-    "parent": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "part_ref",
-    "ops",
-    "parent"
-  ],
-  "additionalProperties": false,
-  "$defs": {
-    "s": {
       "type": "object",
       "properties": {
         "schema": {
@@ -59,6 +18,61 @@
             "object",
             "null"
           ]
+        },
+        "sheets": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "max": {
+              "enum": [
+                null,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ]
+            },
+            "smallest_scale": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "keep_together": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "hole_table": {
+              "enum": [
+                null,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ]
+            },
+            "gdt_on_sheet_1": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         },
         "sheet": {
           "type": "object",
@@ -130,6 +144,42 @@
       },
       "additionalProperties": false
     },
+    "spec_version": {
+      "type": "string"
+    },
+    "drawing_ref": {
+      "type": "string"
+    },
+    "cursor": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "detail": {
+      "type": "boolean"
+    },
+    "ops": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/op"
+      },
+      "maxItems": 32
+    },
+    "parent": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "part_ref",
+    "ops",
+    "parent"
+  ],
+  "additionalProperties": false,
+  "$defs": {
     "op": {
       "anyOf": [
         {

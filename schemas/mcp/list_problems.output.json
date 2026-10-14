@@ -1,6 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/list_problems.output.json",
   "type": "object",
   "anyOf": [
     {
@@ -11,13 +9,84 @@
           "items": {
             "anyOf": [
               {
-                "$ref": "#/$defs/p"
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "subjects": {
+                    "$ref": "#/$defs/A"
+                  },
+                  "refs": {
+                    "$ref": "#/$defs/A"
+                  },
+                  "fix": {
+                    "$ref": "#/$defs/B"
+                  }
+                },
+                "required": [
+                  "id",
+                  "code",
+                  "severity",
+                  "message",
+                  "subjects"
+                ],
+                "additionalProperties": false
               },
               {
-                "$ref": "#/$defs/r"
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string"
+                  },
+                  "subjects": {
+                    "$ref": "#/$defs/A"
+                  },
+                  "fix": {
+                    "$ref": "#/$defs/B"
+                  }
+                },
+                "required": [
+                  "id",
+                  "code",
+                  "severity",
+                  "subjects"
+                ],
+                "additionalProperties": false
               },
               {
-                "$ref": "#/$defs/u"
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "detail_ref": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "detail_ref"
+                ],
+                "additionalProperties": false
               }
             ]
           }
@@ -27,15 +96,11 @@
           "minimum": 0
         },
         "next_cursor": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 0
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
         }
       },
       "required": [
@@ -49,7 +114,26 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/e"
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "invalid",
+                "failed"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "choices": {
+              "$ref": "#/$defs/A"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -59,40 +143,6 @@
     }
   ],
   "$defs": {
-    "p": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "code": {
-          "type": "string"
-        },
-        "severity": {
-          "type": "string"
-        },
-        "message": {
-          "type": "string"
-        },
-        "subjects": {
-          "$ref": "#/$defs/A"
-        },
-        "refs": {
-          "$ref": "#/$defs/A"
-        },
-        "fix": {
-          "$ref": "#/$defs/B"
-        }
-      },
-      "required": [
-        "id",
-        "code",
-        "severity",
-        "message",
-        "subjects"
-      ],
-      "additionalProperties": false
-    },
     "op": {
       "anyOf": [
         {
@@ -133,74 +183,6 @@
           "additionalProperties": false
         }
       ]
-    },
-    "r": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "code": {
-          "type": "string"
-        },
-        "severity": {
-          "type": "string"
-        },
-        "subjects": {
-          "$ref": "#/$defs/A"
-        },
-        "fix": {
-          "$ref": "#/$defs/B"
-        }
-      },
-      "required": [
-        "id",
-        "code",
-        "severity",
-        "subjects"
-      ],
-      "additionalProperties": false
-    },
-    "u": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "detail_ref": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "detail_ref"
-      ],
-      "additionalProperties": false
-    },
-    "e": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "enum": [
-            "invalid",
-            "failed"
-          ]
-        },
-        "message": {
-          "type": "string"
-        },
-        "choices": {
-          "$ref": "#/$defs/A"
-        }
-      },
-      "required": [
-        "code",
-        "message"
-      ],
-      "additionalProperties": false
     },
     "A": {
       "items": {

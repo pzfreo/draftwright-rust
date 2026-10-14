@@ -7,22 +7,26 @@ S = {'type': 'string'}
 B = {'type': 'boolean'}
 N = {'type': 'number'}
 I = {'type': 'integer', 'minimum': 0}
+SHEET = {'enum':list(range(1, 10))}
 def arr(item, **kw): return {'type': 'array', 'items': item, **kw}
-def obj(props, required=(), extra=False): return {'type':'object', 'properties':props, **({'required':list(required)} if required else {}), 'additionalProperties':extra}
+def obj(props, required=(), extra=False): return {'type':'object', 'properties':props, **({'required':list(required)} if required else {}), **({'additionalProperties':extra} if extra is not True else {})}
 def ref(name): return {'$ref':'#/$defs/'+name}
 def nullable(s):
-    if set(s) == {'type'}: return {'type':[s['type'], 'null']}
+    if set(s) == {'enum'}: return {'enum':[None, *s['enum']]}
+    # Type-specific constraints do not apply to null; avoid a redundant anyOf wrapper.
+    if isinstance(s.get('type'), str) and not any(k in s for k in ('enum', 'const')):
+        return {**s, 'type':[s['type'], 'null']}
     return {'anyOf':[s, {'type':'null'}]}
 state={'anyOf':[obj({'kind':{'enum':['shown','omitted_by_user','not_authored']}},['kind']), obj({'kind':{'const':'covered'},'by':S},['kind','by']),obj({'kind':{'const':'not_drawable'},'reason_code':S},['kind','reason_code'])]}
 op={'anyOf':[obj({'op':{'enum':['set','add']},'path':S,'value':{}},['op','path','value']),obj({'op':{'const':'remove'},'path':S},['op','path'])]}
 place=obj({'view':{'enum':['front','plan','side']},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'pinned':B})
-compact=obj({'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':ref('state')},['id','kind','label','view','state'])
+compact=obj({'sheet':SHEET,'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':ref('state')},['id','kind','label','view','state'])
 item=obj({'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
 problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(ref('op'))},['id','code','severity','message','subjects'])
 rectangle=arr(N,minItems=4,maxItems=4)
-filter_=obj({'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
+filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
-spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'})})
+spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'})})
 defs={'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
 problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op'))},['id','code','severity','subjects'])
@@ -32,7 +36,7 @@ row_problem={'anyOf':[ref('problem'),ref('problem_small'),ref('stub')]}
 def paged(row):return obj({'items':arr(row),'total':I,'next_cursor':nullable(I)},['items','total','next_cursor'])
 page=paged({'anyOf':[obj({'change':{'enum':['changed','added']},'item':row_item},['change','item']),obj({'change':{'const':'removed'},'id':S},['change','id']),obj({'change':{'enum':['problem_added','problem_resolved']},'problem':row_problem},['change','problem']),ref('stub')]})
 delta=obj({'events':page,'delta_ref':S,'plans':I},['events','delta_ref','plans'])
-summary=obj({'part_ref':S,'part':S,'face_count':I,'status':{'enum':['clear','needs_attention']},'completeness':obj({'claimed_faces':I,'faces':I,'unplanned_features':I},['claimed_faces','faces','unplanned_features']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'sheet':obj({'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['size','scale','page']),'views':arr(S),'items':I,'problems':I,'spec_version':S,'plan_ref':S,'key_items':arr(obj({'id':S,'label':nullable(S)},['id','label']))},['part_ref','part','face_count','status','completeness','envelope','sheet','views','items','problems','spec_version'])
+summary=obj({'part_ref':S,'part':S,'face_count':I,'status':{'enum':['clear','needs_attention']},'completeness':obj({'claimed_faces':I,'faces':I,'unplanned_features':I},['claimed_faces','faces','unplanned_features']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'sheet':obj({'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['size','scale','page']),'sheets':SHEET,'sheet_details':arr(obj({'number':SHEET,'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['number','size','scale','page'])),'views':arr(S),'items':I,'problems':I,'spec_version':S,'plan_ref':S,'key_items':arr(obj({'id':S,'label':nullable(S)},['id','label']))},['part_ref','part','face_count','status','completeness','envelope','sheet','views','items','problems','spec_version'])
 common={'part_ref':S,'spec':ref('spec'),'spec_version':S,'drawing_ref':S}
 paging={'cursor':I,'limit':{'type':'integer','minimum':1,'maximum':100},'detail':B}
 artifact=obj({'artifact_ref':S,'mime_type':{'enum':['image/png','application/pdf']},'bytes':I,'spec_version':S},['artifact_ref','mime_type','bytes','spec_version'])
@@ -41,15 +45,42 @@ tools={
 'list_items':(obj({**common,**paging,'filter':filter_},['part_ref']),paged(row_item)),
 'get_item':(obj({**common,'id':S,'detail':B},['part_ref','id']),obj({'item':{'anyOf':[ref('item'), obj({**compact['properties'],'basis':S,'value':nullable(N),'operations':arr(S)},[*compact['required'],'basis','value','operations'])]}},['item'])),
 'list_problems':(obj({**common,**paging,'filter':problem_filter},['part_ref']),paged(row_problem)),
-'item_options':(obj({**common,'id':S},['part_ref','id']),obj({'id':S,'operations':arr(S),'placements':arr(place),'view_anchors':arr(S),'scales':arr(S),'settable':{'type':'object','additionalProperties':obj({'choices':arr({}),'range':arr(N,minItems=2,maxItems=2),'integer':B,'forms':arr(S),'fields':arr(S),'paths':arr(S)})}},['id','operations','placements','view_anchors','scales','settable'])),
+'item_options':(obj({**common,'id':S},['part_ref','id']),obj({'id':S,'operations':arr(S),'placements':arr(place),'view_anchors':arr(S),'scales':arr(S),'settable':{'type':'object','additionalProperties':obj({'choices':arr({}),'range':arr(N,minItems=2,maxItems=2),'integer':B,'forms':arr(S),'fields':arr(S),'paths':arr(S),'consequences':arr(S)})}},['id','operations','placements','view_anchors','scales','settable'])),
 'preview_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=MAX_OPS)},['part_ref','ops']),delta),
 'apply_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=MAX_OPS),'parent':S},['part_ref','ops','parent']),obj({'spec_version':S,'delta':delta},['spec_version','delta'])),
-'view_sheet':(obj({**common,'region':rectangle,'overlay_ids':B,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}},['part_ref']),artifact),
-'render_pdf':(obj(common,['part_ref']),artifact),
+'view_sheet':(obj({**common,'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}},['part_ref']),artifact),
+'render_pdf':(obj({**common,'sheet':SHEET},['part_ref']),artifact),
 'get_spec':(obj(common,['part_ref']),obj({'spec_version':S,'spec':ref('spec')},['spec_version','spec'])),
 'analyse':(obj({'step':S,'features':S},['step']),obj({'schema':{'const':'draftwright.analysis/7'},'binding':obj({'source_sha256':S,'part':S,'face_count':I,'loader':S},['source_sha256','part','face_count','loader']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'features':arr({'type':'object'}),'iso_bounds':rectangle},['schema','binding','envelope','iso_bounds'],True)),
-'render':(obj({**common,'step':S,'features':S,'format':{'enum':['png','pdf']},'region':rectangle,'overlay_ids':B,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}}),artifact),
+'render':(obj({**common,'step':S,'features':S,'format':{'enum':['png','pdf']},'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}}),artifact),
 }
+def inline_single_use(schema, keep=()):
+    """A one-use local definition costs a reference and key without sharing any shape."""
+    from collections import Counter
+    from copy import deepcopy
+    schema = deepcopy(schema)
+    while True:
+        counts = Counter()
+        def count(value):
+            if isinstance(value, dict):
+                if '$ref' in value: counts[value['$ref']] += 1
+                for child in value.values(): count(child)
+            elif isinstance(value, list):
+                for child in value: count(child)
+        count(schema)
+        names = sorted(name for name in schema['$defs']
+                       if name not in keep and counts['#/$defs/' + name] == 1)
+        if not names: return schema
+        definitions = {name: schema['$defs'].pop(name) for name in names}
+        def replace(value):
+            if isinstance(value, dict):
+                name = value.get('$ref', '').removeprefix('#/$defs/')
+                if name in definitions: return replace(definitions[name])
+                return {k: replace(v) for k, v in value.items()}
+            if isinstance(value, list): return [replace(v) for v in value]
+            return value
+        schema = replace(schema)
+
 def share_repeated(schema):
     """Factor repeated shapes only when the complete standalone schema gets smaller."""
     from collections import Counter
@@ -66,9 +97,10 @@ def share_repeated(schema):
         count(schema)
         best = None
         for shape, occurrences in counts.items():
-            if occurrences < 2 or len(shape) < 35: continue
+            if occurrences < 2: continue
             name = chr(ord('A') + index)
             replacement = ref(name)
+            if len(shape) <= len(encoded(replacement)): continue
             def replace(value):
                 if isinstance(value, dict):
                     if encoded(value) == shape: return replacement
@@ -114,5 +146,9 @@ for tool,(inp,out) in tools.items():
             elif isinstance(s,list):
                 for value in s: collect(value)
         collect(schema)
-        schema={'$schema':'https://json-schema.org/draft/2020-12/schema','$id':f'https://draftwright.io/schemas/mcp/{tool}.{kind}.json',**schema,'$defs':used}
-        Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(short_names(share_repeated(schema)),indent=2)+'\n')
+        # MCP defaults to 2020-12; local refs need no repeated canonical $id URL.
+        schema={**schema,'$defs':used}
+        keep = ('op',) if kind == 'input' and tool in ('apply_ops', 'preview_ops') else ()
+        schema = short_names(share_repeated(inline_single_use(schema, keep)))
+        if not schema['$defs']: del schema['$defs']
+        Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

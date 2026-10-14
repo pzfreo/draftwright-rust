@@ -87,12 +87,10 @@ pub fn key(id: &str) -> String {
 
 /// A plan item, as a caller lists it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(from = "ItemWire", into = "ItemWire")]
 pub struct Item {
-    #[serde(
-        default = "crate::sheets::one",
-        skip_serializing_if = "crate::sheets::is_one"
-    )]
     pub sheet: u32,
+    pub(crate) explicit_sheet: bool,
     pub id: String,
     /// `sheet`, `view`, `dimension`, `control_frame`, `datum_feature`, `label`, `requirement`,
     /// `note`, `table`, `hole_table` or `balloon`.
@@ -109,6 +107,53 @@ pub struct Item {
     pub label: Option<String>,
 }
 
+// Ownership is explicit on every multi-sheet item, including sheet 1. The optional wire
+// field preserves the old single-sheet bytes and remembers that distinction on replay.
+#[derive(Serialize, Deserialize)]
+struct ItemWire {
+    #[serde(
+        default,
+        deserialize_with = "read_sheet",
+        skip_serializing_if = "Option::is_none"
+    )]
+    sheet: Option<u32>,
+    id: String,
+    kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    view: Option<String>,
+    state: State,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
+}
+fn read_sheet<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u32>, D::Error> {
+    u32::deserialize(d).map(Some)
+}
+impl From<Item> for ItemWire {
+    fn from(i: Item) -> Self {
+        Self {
+            sheet: (i.explicit_sheet || i.sheet != 1).then_some(i.sheet),
+            id: i.id,
+            kind: i.kind,
+            view: i.view,
+            state: i.state,
+            label: i.label,
+        }
+    }
+}
+impl From<ItemWire> for Item {
+    fn from(i: ItemWire) -> Self {
+        Self {
+            sheet: i.sheet.unwrap_or(1),
+            explicit_sheet: i.sheet.is_some(),
+            id: i.id,
+            kind: i.kind,
+            view: i.view,
+            state: i.state,
+            label: i.label,
+        }
+    }
+}
+
 /// A feature control frame's compartments as one line.
 pub fn frame_label(cells: &[String]) -> String {
     cells.join(" | ")
@@ -121,6 +166,7 @@ pub fn frame_label(cells: &[String]) -> String {
 pub fn items(plan: &Plan) -> Vec<Item> {
     let item =
         |id: &str, kind: &str, view: Option<&str>, state: &State, label: Option<String>| Item {
+            explicit_sheet: !plan.sheets.is_empty(),
             sheet: view
                 .and_then(|id| plan.views.iter().find(|v| v.id == id))
                 .map_or(1, |v| v.sheet),

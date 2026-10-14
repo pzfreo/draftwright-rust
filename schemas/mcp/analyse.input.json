@@ -1,6 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/analyse.input.json",
   "type": "object",
   "properties": {
     "step": {
@@ -13,6 +11,5 @@
   "required": [
     "step"
   ],
-  "additionalProperties": false,
-  "$defs": {}
+  "additionalProperties": false
 }

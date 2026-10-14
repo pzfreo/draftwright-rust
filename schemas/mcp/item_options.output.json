@@ -1,6 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/item_options.output.json",
   "type": "object",
   "anyOf": [
     {
@@ -95,6 +93,9 @@
               },
               "paths": {
                 "$ref": "#/$defs/A"
+              },
+              "consequences": {
+                "$ref": "#/$defs/A"
               }
             },
             "additionalProperties": false
@@ -115,7 +116,26 @@
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/e"
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "invalid",
+                "failed"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "choices": {
+              "$ref": "#/$defs/A"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -125,28 +145,6 @@
     }
   ],
   "$defs": {
-    "e": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "enum": [
-            "invalid",
-            "failed"
-          ]
-        },
-        "message": {
-          "type": "string"
-        },
-        "choices": {
-          "$ref": "#/$defs/A"
-        }
-      },
-      "required": [
-        "code",
-        "message"
-      ],
-      "additionalProperties": false
-    },
     "A": {
       "items": {
         "type": "string"
