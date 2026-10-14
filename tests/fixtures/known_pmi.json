@@ -3982,5 +3982,19 @@
     },
     "verdict": "rust-correct",
     "evidence": "S5 projects semantic internal metric thread #704 with its uniquely paired thread manufacturing attribute into a native requirement. The Python reader leaves the semantic thread as an unextracted census source. tests/editor_session.rs independently checks the thread designation, fit, support and complete thread/attribute provenance against haecceity for all four records."
+  },
+  {
+    "file": "hw_thread_replaced.step.gz",
+    "record": "manufacturing_requirement:#6564",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "knurl",
+      "label": "knurl"
+    },
+    "verdict": "rust-correct",
+    "evidence": "Beyond Python: the port projects the AP242 turned_knurl #6564 (straight, diametral pitch 0.8, 78 teeth, major diameter 20) to a structured knurl record; draftwright's Part 21 pass never reads a turned_knurl, so its census holds no source. Its pitch is lowered as the linear pitch because its tooth count agrees (pi*20/0.8 = 78.5); the record is still not drawn here (one face is not cylindrical, reported pmi_not_lowered). tests/pmi_thread_knurl.rs checks the drawn and the pitch/teeth-mismatch cases on the editor's spindle knurl."
   }
 ]

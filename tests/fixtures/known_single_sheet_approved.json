@@ -2367,6 +2367,15 @@
       },
       "svg": "d544f9a280418cd361005d63a115b487b6cb2659c053f5c979b4d423e5a13c5c"
     },
+    "pmi/step/hw_thread_replaced.step:default": {
+      "pdf": "6f24682f8272d00f2ac0ff075bde5a98dd972493388bad5337379893a2814057",
+      "plan": "a64edb258bc827a6e2e20f93c416b17f93ca50324e8724c93d0fe6253e0c5a11",
+      "png": {
+        "linux": "ff879df1a6725e3370d2213851d97853923030bf14fa37dd00da7bf50407e9aa",
+        "macos": "ff879df1a6725e3370d2213851d97853923030bf14fa37dd00da7bf50407e9aa"
+      },
+      "svg": "e7f1638111ea4f615d1a6c5a4c547f4f1b3c7c85711f546b05cadd9aac9f5aec"
+    },
     "pmi/step/hw_thumbwheel_notes_add.step:default": {
       "pdf": "96a68ad5b009d6b26aff865527eeb48bf685e90066a7629dff581e6f7c7a5b3c",
       "plan": "a1ed8bce368ff1b872671891eacf68c8ec8156b842ee942141cf84d43bee8b4a",
@@ -2785,6 +2794,11 @@
       "cases": 253,
       "commit": "843c65949b8ec1a4147849cda63415006004e6ef",
       "integration_base": "d0130dec51ad1c748f5484b660c343bea0417648"
+    },
+    "turned-knurl": {
+      "cases": 1,
+      "commit": "e974840a54fa9a7d2a48b573d2d121fe6ea7b680",
+      "integration_base": "d8a75b39c844c03065bd3c3815691be2bcfbaeb5"
     }
   }
 }
