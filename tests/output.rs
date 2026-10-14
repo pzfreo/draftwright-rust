@@ -367,7 +367,7 @@ fn title_block_values_reach_the_pdf_text_layer() {
     model::recognise(&part, &mut a, &json).unwrap();
     let (date, long) = ("2026-09-11", "ENGINEERING REVIEW GROUP / draftwright");
     let spec: Spec = serde_json::from_value(json!({ "sheet": { "size": "A2", "title": {
-        "title": "FRAME", "date": date, "drawn_by": long } } }))
+        "title": "FRAME", "date": date, "drawn_by": "ENGINEERING REVIEW GROUP" } } }))
     .unwrap();
     let plan = model::plan(&a, &spec).unwrap();
     assert!(

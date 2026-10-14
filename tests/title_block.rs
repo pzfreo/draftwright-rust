@@ -320,7 +320,12 @@ fn a_title_key_with_no_cell_is_refused() {
     }
     for (key, field) in title_block::KEYS {
         let (plan, _) = sheet("A4", json!({ key: "X" }));
-        assert_eq!(cell(&plan, field).value.as_deref(), Some("X"), "{key}");
+        let expected = if key == "drawn_by" {
+            "X / draftwright"
+        } else {
+            "X"
+        };
+        assert_eq!(cell(&plan, field).value.as_deref(), Some(expected), "{key}");
     }
 }
 
@@ -428,6 +433,7 @@ fn no_date_field_when_no_date_was_supplied() {
                 ("drawing_number", "DRW-0042"),
                 ("units", "mm"),
                 ("format", "A4"),
+                ("designed_by", "draftwright"),
             ])
         );
     }
@@ -437,8 +443,9 @@ fn no_date_field_when_no_date_was_supplied() {
 }
 
 /// draftwright's overflow fixture: a drawn-by value wider than its cell on A2, whose excess runs
-/// into the block, not off the page. (draftwright appends " / draftwright" to the author; the
-/// port draws the value as given, so the test supplies the whole string.)
+/// into the block, not off the page. The spec gives the author; the cell credits draftwright
+/// after it, as draftwright's does.
+const AUTHOR: &str = "ENGINEERING REVIEW GROUP";
 const OVERFLOWING: &str = "ENGINEERING REVIEW GROUP / draftwright";
 
 /// ISSUE-1536-a `test_a_field_crossing_cells_inside_page_is_reported`: the overflow is one
@@ -446,7 +453,7 @@ const OVERFLOWING: &str = "ENGINEERING REVIEW GROUP / draftwright";
 /// inside the page and nothing is off the sheet.
 #[test]
 fn a_field_crossing_cells_inside_the_page_is_reported() {
-    let (plan, _) = sheet("A2", json!({ "title": "FRAME", "drawn_by": OVERFLOWING }));
+    let (plan, _) = sheet("A2", json!({ "title": "FRAME", "drawn_by": AUTHOR }));
     let [x0, _, x1, _] = cell(&plan, "designed_by").cell;
     let [w, _] = title_block::measure(OVERFLOWING);
     assert!(w > x1 - x0);
@@ -524,10 +531,12 @@ fn all_rendered_fields_and_multiline_heights_are_checked() {
             "{field}: {:?}",
             plan.problems
         );
-        assert!(
-            drawing.text.iter().any(|t| t.text == value.trim()),
-            "{field}"
-        );
+        let drawn = if key == "drawn_by" {
+            title_block::attribution(&value)
+        } else {
+            value.trim().to_string()
+        };
+        assert!(drawing.text.iter().any(|t| t.text == drawn), "{field}");
         let off: Vec<_> = plan
             .problems
             .iter()
@@ -548,7 +557,7 @@ fn all_rendered_fields_and_multiline_heights_are_checked() {
 /// `tests/output.rs`), and drawing it changes nothing in the plan.
 #[test]
 fn export_keeps_the_full_overflowing_value() {
-    let (plan, drawing) = sheet("A2", json!({ "title": "FRAME", "drawn_by": OVERFLOWING }));
+    let (plan, drawing) = sheet("A2", json!({ "title": "FRAME", "drawn_by": AUTHOR }));
     assert_eq!(
         drawing
             .text
@@ -558,7 +567,7 @@ fn export_keeps_the_full_overflowing_value() {
         1
     );
     assert!(drawing.svg().contains(&format!(">{OVERFLOWING}</text>")));
-    let (again, _) = sheet("A2", json!({ "title": "FRAME", "drawn_by": OVERFLOWING }));
+    let (again, _) = sheet("A2", json!({ "title": "FRAME", "drawn_by": AUTHOR }));
     assert_eq!(
         serde_json::to_string(&plan).unwrap(),
         serde_json::to_string(&again).unwrap()
@@ -649,4 +658,35 @@ fn a_value_is_drawn_as_it_is_measured() {
             "drawn {b:?}, measured {want:?}"
         );
     }
+}
+
+/// The "drawn by" cell always credits draftwright, alone when the spec names no author, and the
+/// drawing's attribution link covers that cell (draftwright's `_attribution_author` and
+/// `add_svg_hyperlink`), linking to draftwright.io in the SVG and the PDF.
+#[test]
+fn the_drawn_by_cell_credits_draftwright_and_carries_the_link() {
+    let (plan, drawing) = sheet("A4", json!({ "title": "FRAME" }));
+    let c = cell(&plan, "designed_by");
+    assert_eq!(c.value.as_deref(), Some("draftwright"));
+    assert_eq!(drawing.link, Some(c.cell));
+    assert!(drawing.text.iter().any(|t| t.text == "draftwright"));
+    let svg = drawing.svg();
+    assert!(svg.contains("<a xlink:href=\"https://draftwright.io\""));
+    let pdf = drawing.pdf(&|_| None);
+    assert!(
+        pdf.windows(b"https://draftwright.io".len())
+            .any(|w| w == b"https://draftwright.io")
+    );
+    let (plan, _) = sheet("A4", json!({ "drawn_by": "  A. Fitter  " }));
+    assert_eq!(
+        cell(&plan, "designed_by").value.as_deref(),
+        Some("A. Fitter / draftwright")
+    );
+    // A whitespace-only author counts as none (draftwright's tests/test_export_formats.py).
+    let (plan, _) = sheet("A4", json!({ "drawn_by": "   " }));
+    assert_eq!(
+        cell(&plan, "designed_by").value.as_deref(),
+        Some("draftwright")
+    );
+    assert_eq!(title_block::attribution("   "), "draftwright");
 }

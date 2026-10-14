@@ -199,6 +199,10 @@ pub fn cells(block: [f64; 4], title: &BTreeMap<String, String>, size: &str) -> V
     let [x0, y0, x1, _] = block;
     let width = x1 - x0;
     let value = |field: &str| -> Option<String> {
+        if field == "designed_by" {
+            let author = title.get("drawn_by").map_or("", String::as_str);
+            return Some(attribution(author));
+        }
         let v = match field {
             "units" => "mm",
             "format" => size,
@@ -230,6 +234,18 @@ pub fn cells(block: [f64; 4], title: &BTreeMap<String, String>, size: &str) -> V
         }
     }
     out
+}
+
+/// The ISO 7200 "drawn by" value: the author and draftwright, or draftwright alone when no
+/// author is given (draftwright's `_attribution_author`). The cell always credits draftwright,
+/// and the drawing links it to [`crate::output::LINK`].
+pub fn attribution(author: &str) -> String {
+    let author = author.trim();
+    if author.is_empty() {
+        "draftwright".into()
+    } else {
+        format!("{author} / draftwright")
+    }
 }
 
 /// The top of the drawn grid, page mm.
