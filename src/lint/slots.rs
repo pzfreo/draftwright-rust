@@ -312,6 +312,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             Err(why) => why,
         };
         issues.push(LintIssue {
+            sheet: None,
             id: format!("l:slot_requirement_unverifiable:{}/?", p.id),
             code: "slot_requirement_unverifiable".into(),
             severity: Severity::Warning,

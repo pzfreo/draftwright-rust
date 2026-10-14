@@ -425,11 +425,25 @@ pub struct DrawnField {
     pub ink: [f64; 4],
 }
 
+/// A remote section address claimed by rendered furniture, with its actual text run.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DrawnReference {
+    pub name: String,
+    /// Name of the target's actual caption or cutting-plane letter.
+    pub target: String,
+    pub prefix: String,
+    pub sheet: u32,
+    pub zone: String,
+    pub run: usize,
+}
+
 /// The sheet as lint's sheet checks read it (`crate::lint::structural`): where the drawing may
 /// go, and the views and things drawn, measured from the ink as it was drawn. Written to no file
 /// format.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sheet {
+    /// Remote section addresses, verified against printed text by structural lint.
+    pub references: Vec<DrawnReference>,
     /// The drawable area, inside the border (`[x0, y0, x1, y1]`); none when no border is drawn.
     pub drawable: Option<[f64; 4]>,
     /// Each view drawn, in drawing order.

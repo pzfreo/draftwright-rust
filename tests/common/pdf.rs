@@ -213,6 +213,20 @@ pub fn pdf_text(pdf: &[u8]) -> Vec<String> {
         .values()
         .find(|(d, _)| d.contains("/Contents"))
         .expect("a page");
+    page_text(&objects, page)
+}
+
+/// Searchable text of every PDF page, using that page's font resources.
+pub fn pdf_text_pages(bytes: &[u8]) -> Vec<Vec<String>> {
+    let objects = pdf_objects(bytes);
+    objects
+        .values()
+        .filter(|(d, _)| d.contains("/Type /Page\n"))
+        .map(|(page, _)| page_text(&objects, page))
+        .collect()
+}
+
+fn page_text(objects: &BTreeMap<u32, (String, Vec<u8>)>, page: &str) -> Vec<String> {
     let content = &objects[&reference(page, "/Contents")].1;
     let fonts = &page[page.find("/Font").expect("fonts") + 5..];
     let fonts = &fonts[..fonts.find(">>").unwrap()];

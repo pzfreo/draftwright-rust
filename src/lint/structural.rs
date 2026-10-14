@@ -75,6 +75,7 @@ const MIN_CROSSING: f64 = 0.5;
 
 fn issue(id: String, code: &str, severity: Severity, message: String) -> LintIssue {
     LintIssue {
+        sheet: None,
         id,
         code: code.into(),
         severity,
@@ -97,6 +98,7 @@ fn issue(id: String, code: &str, severity: Severity, message: String) -> LintIss
 pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     let mut issues = derived_view_identifiers(drawing);
     issues.extend(scale_stated(drawing));
+    issues.extend(cross_references(drawing));
     issues.extend(annotation_items(drawing));
     issues.extend(annotation_pairs(drawing));
     issues.extend(fixed_ink_contacts(drawing));
@@ -104,6 +106,145 @@ pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     issues.extend(view_annotations(drawing));
     issues.extend(view_boxes(drawing));
     issues
+}
+
+/// Compare positions within each page, retaining page identity on later-sheet findings.
+pub fn check_sheets(drawings: &[Drawing]) -> Vec<LintIssue> {
+    drawings
+        .iter()
+        .enumerate()
+        .flat_map(|(index, drawing)| {
+            let mut found = check(drawing);
+            // A missing furniture record cannot exempt a section: derive the reciprocal pair
+            // from the section view and the cutting-plane letter actually drawn on another page.
+            for (page, target) in drawings.iter().enumerate() {
+                for view in target
+                    .sheet
+                    .views
+                    .iter()
+                    .filter(|v| v.name.starts_with("v:section_"))
+                {
+                    let Some(letter) = derived_view_identifier(&view.name) else {
+                        continue;
+                    };
+                    let marker = format!("section_{}_left", letter.to_lowercase());
+                    let source = drawings
+                        .iter()
+                        .position(|d| d.sheet.items.iter().any(|i| i.name == marker));
+                    let Some(source) = source.filter(|source| *source != page) else {
+                        continue;
+                    };
+                    let name = if index == page {
+                        format!("{}/xref", view.name)
+                    } else if index == source {
+                        format!("{}/cut/xref", view.name)
+                    } else {
+                        continue;
+                    };
+                    if !drawing.sheet.references.iter().any(|r| r.name == name) {
+                        let mut i = issue(
+                            format!("l:cross_reference_missing:{name}"),
+                            "cross_reference_missing",
+                            Severity::Error,
+                            format!(
+                                "{name} is missing from the drawn section's reciprocal addresses."
+                            ),
+                        );
+                        i.annotation = Some(name);
+                        found.push(i);
+                    }
+                }
+            }
+            for r in &drawing.sheet.references {
+                let target = r
+                    .sheet
+                    .checked_sub(1)
+                    .and_then(|n| drawings.get(n as usize));
+                let zone = target.and_then(|d| {
+                    let at = d.sheet.items.iter().find(|i| i.name == r.target)?.label?;
+                    drawn_zone(d, [(at[0] + at[2]) / 2., (at[1] + at[3]) / 2.])
+                });
+                if zone.as_ref() != Some(&r.zone)
+                    && !found.iter().any(|i| {
+                        i.code == "cross_reference_missing"
+                            && i.annotation.as_deref() == Some(&r.name)
+                    })
+                {
+                    let mut i = issue(
+                        format!("l:cross_reference_missing:{}", r.name),
+                        "cross_reference_missing",
+                        Severity::Error,
+                        format!(
+                            "{} does not address its target on sheet {} in the drawn grid.",
+                            r.name, r.sheet
+                        ),
+                    );
+                    i.annotation = Some(r.name.clone());
+                    found.push(i);
+                }
+            }
+            found.into_iter().map(move |mut i| {
+                if index > 0 {
+                    i.sheet = Some(index as u32 + 1);
+                    i.id = format!("sheet:{}/{}", index + 1, i.id);
+                }
+                i
+            })
+        })
+        .collect()
+}
+
+/// Read the grid from its printed margin labels, independently of the planner's zone table.
+fn drawn_zone(drawing: &Drawing, at: P) -> Option<String> {
+    let b = drawing.sheet.drawable?;
+    let columns = drawing
+        .text
+        .iter()
+        .filter(|t| t.at[1] > b[3] && t.text.parse::<usize>().is_ok())
+        .count();
+    let letters = b"ABCDEFGHJKLMNPQRSTUVWXYZ";
+    let rows = drawing
+        .text
+        .iter()
+        .filter(|t| t.at[0] < b[0] && t.text.len() == 1 && letters.contains(&t.text.as_bytes()[0]))
+        .count();
+    if columns == 0 || rows == 0 || rows > letters.len() {
+        return None;
+    }
+    let col = ((at[0] / drawing.page[0] * columns as f64).floor() as usize).min(columns - 1);
+    let row = (((drawing.page[1] - at[1]) / drawing.page[1] * rows as f64).floor() as usize)
+        .min(rows - 1);
+    Some(format!("{}{}", letters[row] as char, col + 1))
+}
+
+fn cross_references(drawing: &Drawing) -> Vec<LintIssue> {
+    drawing
+        .sheet
+        .references
+        .iter()
+        .filter_map(|r| {
+            let expected = format!("{} SHEET {}, ZONE {}", r.prefix, r.sheet, r.zone);
+            if drawing.text.get(r.run).is_some_and(|t| t.text == expected)
+                && drawing
+                    .sheet
+                    .items
+                    .iter()
+                    .any(|i| i.name == r.name && i.label.is_some())
+            {
+                return None;
+            }
+            let mut i = issue(
+                format!("l:cross_reference_missing:{}", r.name),
+                "cross_reference_missing",
+                Severity::Error,
+                format!("{} must print {expected}.", r.name),
+            );
+            i.annotation = Some(r.name.clone());
+            i.at = drawing.text.get(r.run).map(|t| t.at);
+            i.fix = Some("Restore the section's reciprocal sheet and zone address.".into());
+            Some(i)
+        })
+        .collect()
 }
 
 /// The semantic identifier a derived view's name encodes (draftwright's
