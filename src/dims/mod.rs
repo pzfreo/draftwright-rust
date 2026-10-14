@@ -1292,13 +1292,35 @@ pub(crate) fn plan_inventory(
         obstacles,
         cache,
     );
+    let interior_proofs = interior::proofs(analysis, views);
+    let refined = leaders::refine(
+        analysis,
+        spec,
+        cache,
+        views,
+        &frames,
+        &all,
+        &chosen,
+        &mut placed,
+        &page,
+        obstacles,
+        &interior_proofs,
+    );
     // Interior candidates already clear all settled ink. Remove only stale leader findings
     // involving replaced geometry; collisions below independently inspect the finished ink.
-    let leader_problems: Vec<_> = leader_problems
+    let mut leader_problems: Vec<_> = leader_problems
         .into_iter()
-        .filter(|p| !p.subjects.iter().any(|s| interior.contains(s)))
+        .filter(|p| {
+            !p.subjects.iter().any(|s| {
+                interior.contains(s)
+                    || (matches!(
+                        p.code.as_str(),
+                        "annotation_line_over_view" | "annotation_leader_long"
+                    ) && refined.contains_key(s))
+            })
+        })
         .collect();
-    let interior_proofs = interior::proofs(analysis, views);
+    leader_problems.extend(refined.into_values().flatten());
     let inventory = all
         .iter()
         .enumerate()

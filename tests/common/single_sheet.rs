@@ -217,6 +217,27 @@ pub fn compare() {
         serde_json::from_slice(&std::fs::read(&platform_fixture).unwrap()).unwrap();
     let os = std::env::consts::OS;
     let mut recorded = serde_json::Map::new();
+    // Deliberate drawing changes merged after I1 (e.g. L1's leader refinement) replace exact
+    // expectations case by case; every format of every case is still compared exactly.
+    let approved_fixture = root.join("tests/fixtures/known_single_sheet_approved.json");
+    let mut approved: Value =
+        serde_json::from_slice(&std::fs::read(&approved_fixture).unwrap()).unwrap();
+    let approved_cases: BTreeMap<String, Value> =
+        serde_json::from_value(approved["cases"].clone()).unwrap();
+    let per_stream: u64 = approved["streams"]
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|s| s["cases"].as_u64().unwrap())
+        .sum();
+    assert_eq!(per_stream, approved_cases.len() as u64);
+    for (name, replacement) in &approved_cases {
+        assert!(
+            known.contains_key(name),
+            "approved replacement for an unknown case: {name}"
+        );
+        expected.insert(name.clone(), replacement.clone());
+    }
     if !record {
         assert_eq!(
             found.keys().collect::<Vec<_>>(),
@@ -252,6 +273,15 @@ pub fn compare() {
     }
     if record {
         for (name, old) in known {
+            if approved_cases.contains_key(&name) {
+                let current = &found[&name]["png"];
+                let prior = approved["cases"][&name]["png"].as_object_mut().unwrap();
+                for (platform, value) in current.as_object().unwrap() {
+                    prior.insert(platform.clone(), value.clone());
+                }
+                found.insert(name, old);
+                continue;
+            }
             if adjustments.contains_key(&name) {
                 let current = &found[&name]["png"];
                 let prior = pins["cases"][&name]["png"].as_object_mut().unwrap();
@@ -287,6 +317,11 @@ pub fn compare() {
         std::fs::write(
             &pin_fixture,
             serde_json::to_string_pretty(&pins).unwrap() + "\n",
+        )
+        .unwrap();
+        std::fs::write(
+            &approved_fixture,
+            serde_json::to_string_pretty(&approved).unwrap() + "\n",
         )
         .unwrap();
         std::fs::write(
