@@ -1,6 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://draftwright.io/schemas/mcp/analyse.output.json",
   "type": "object",
   "anyOf": [
     {
@@ -67,14 +65,35 @@
         "binding",
         "envelope",
         "iso_bounds"
-      ],
-      "additionalProperties": true
+      ]
     },
     {
       "type": "object",
       "properties": {
         "error": {
-          "$ref": "#/$defs/e"
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "invalid",
+                "failed"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "choices": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -82,32 +101,5 @@
       ],
       "additionalProperties": false
     }
-  ],
-  "$defs": {
-    "e": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "enum": [
-            "invalid",
-            "failed"
-          ]
-        },
-        "message": {
-          "type": "string"
-        },
-        "choices": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "code",
-        "message"
-      ],
-      "additionalProperties": false
-    }
-  }
+  ]
 }

@@ -15,7 +15,8 @@ use crate::output::Drawing;
 use crate::placement_intent::{Along, Place, Slot};
 use crate::text::Font;
 
-const COLLECTIONS: [&str; 10] = [
+const COLLECTIONS: [&str; 11] = [
+    "sheets",
     "views",
     "dimensions",
     "omitted",
@@ -57,6 +58,8 @@ pub struct ItemAnswer {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ItemFilter {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sheet: Option<u32>,
     pub view: Option<String>,
     pub kind: Option<String>,
     pub state: Option<ItemState>,
@@ -137,7 +140,18 @@ impl State {
         font: &Font,
         cache: &mut Projections,
     ) -> Result<Drawing, Error> {
-        model::render_annotations_with_items(
+        self.render_sheet(part, analysis, font, cache, 1)
+    }
+    pub fn render_sheet(
+        &self,
+        part: &Part,
+        analysis: &Analysis,
+        font: &Font,
+        cache: &mut Projections,
+        sheet: u32,
+    ) -> Result<Drawing, Error> {
+        self.check_sheet(sheet)?;
+        model::render_annotations_on_sheet(
             part,
             analysis,
             &self.plan,
@@ -145,32 +159,44 @@ impl State {
             self.geometry.clone(),
             cache,
             &self.annotations,
+            sheet,
         )
         .map_err(|e| Error::failed(format!("cannot render session: {e}")))
+    }
+    pub fn check_sheet(&self, sheet: u32) -> Result<(), Error> {
+        if sheet == 1 || self.plan.sheets.iter().any(|s| s.number == sheet) {
+            return Ok(());
+        }
+        Err(Error {
+            choices: std::iter::once(&self.plan.sheet)
+                .chain(&self.plan.sheets)
+                .map(|s| s.number.to_string())
+                .collect(),
+            ..Error::invalid(format!("there is no sheet {sheet}"))
+        })
     }
 }
 
 fn document(p: &Plan) -> Value {
     serde_json::to_value(p).expect("a plan serialises")
 }
+fn record_id(v: &Value) -> String {
+    v["id"].as_str().map(String::from).unwrap_or_else(|| {
+        format!(
+            "sheet:{}",
+            v["number"].as_u64().expect("a sheet has a number")
+        )
+    })
+}
 fn records(v: &Value) -> BTreeMap<String, Value> {
     v.as_array()
         .into_iter()
         .flatten()
-        .map(|v| {
-            (
-                v["id"].as_str().expect("a planned record has an ID").into(),
-                v.clone(),
-            )
-        })
+        .map(|v| (record_id(v), v.clone()))
         .collect()
 }
 fn order(v: &Value) -> Vec<String> {
-    v.as_array()
-        .into_iter()
-        .flatten()
-        .map(|v| v["id"].as_str().unwrap().into())
-        .collect()
+    v.as_array().into_iter().flatten().map(record_id).collect()
 }
 fn patch(old: &Plan, new: &Plan) -> PlanDelta {
     let (a, b) = (document(old), document(new));
@@ -302,6 +328,8 @@ impl Delta {
 pub struct Stats {
     /// Complete recovered-planner invocations, excluding previews and queries.
     pub plans: usize,
+    /// Actual recovered sheet-1 runs, summed across committed planner invocations.
+    pub sheet_steps: usize,
     pub projections: usize,
     pub bounds: usize,
     pub annotations: usize,
@@ -310,11 +338,14 @@ pub struct Stats {
 #[derive(Clone, Default)]
 struct Planner {
     calls: usize,
+    sheet_steps: usize,
 }
 impl Planner {
     fn plan(&mut self, analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
         self.calls += 1;
-        Ok(model::plan_recovered(analysis, spec)?)
+        Ok(crate::planning::with(analysis, || {
+            crate::sheets::allocate_counted(analysis, spec, &mut self.sheet_steps)
+        })?)
     }
 }
 struct Evaluation {
@@ -408,6 +439,7 @@ impl Session {
         let p = self.projections.stats();
         Stats {
             plans: self.planner.calls,
+            sheet_steps: self.planner.sheet_steps,
             projections: p.projections,
             bounds: p.bounds,
             ..self.stats
@@ -463,11 +495,43 @@ impl Session {
     }
     /// SVG fragments in sheet coordinates, sharing the full renderer's styles and text.
     pub fn svg_fragments(&self, delta: Option<&Delta>) -> BTreeMap<String, String> {
+        self.svg_fragments_on_sheet(delta, 1)
+            .expect("sheet 1 exists")
+    }
+    pub fn drawing_on_sheet(&self, sheet: u32) -> Result<Drawing, Error> {
+        if sheet == 1 {
+            return Ok(self.drawing.clone());
+        }
+        self.state.render_sheet(
+            &self.part,
+            &self.analysis,
+            &self.font,
+            &mut self.projections.clone(),
+            sheet,
+        )
+    }
+    pub fn svg_fragments_on_sheet(
+        &self,
+        delta: Option<&Delta>,
+        sheet: u32,
+    ) -> Result<BTreeMap<String, String>, Error> {
+        self.state.check_sheet(sheet)?;
+        let selected = (sheet != 1)
+            .then(|| self.drawing_on_sheet(sheet))
+            .transpose()?;
+        let drawing = selected.as_ref().unwrap_or(&self.drawing);
         let mut out = BTreeMap::new();
+        let on_sheet = |id: &str| {
+            self.plan()
+                .views
+                .iter()
+                .any(|v| v.id == id && v.sheet == sheet)
+        };
+        let owners = items::items(self.plan());
+        let annotation_on_sheet = |id: &str| owners.iter().any(|i| i.id == id && i.sheet == sheet);
         let blank = || Drawing {
-            page: self.drawing.page,
-            layers: self
-                .drawing
+            page: drawing.page,
+            layers: drawing
                 .layers
                 .iter()
                 .map(|l| crate::output::Layer {
@@ -484,7 +548,9 @@ impl Session {
             spec: None,
         };
         for (id, geometry) in &self.state.geometry.views {
-            if delta.is_some_and(|d| !d.geometry.views.iter().any(|(v, _)| v == id)) {
+            if !on_sheet(id)
+                || delta.is_some_and(|d| !d.geometry.views.iter().any(|(v, _)| v == id))
+            {
                 continue;
             }
             let mut d = blank();
@@ -493,7 +559,7 @@ impl Session {
             out.insert(id.clone(), d.svg());
         }
         for (id, item) in &self.state.annotations {
-            if delta.is_some_and(|d| !d.annotations.contains_key(id)) {
+            if !annotation_on_sheet(id) || delta.is_some_and(|d| !d.annotations.contains_key(id)) {
                 continue;
             }
             let mut d = blank();
@@ -503,6 +569,7 @@ impl Session {
         }
         let furniture_changed = delta.is_none_or(|d| {
             d.plan.fields.keys().any(|k| k != "spec")
+                || (!self.plan().sheets.is_empty() && d.plan.collections.contains_key("views"))
                 || d.plan.collections.keys().any(|k| {
                     !matches!(
                         k.as_str(),
@@ -511,12 +578,13 @@ impl Session {
                 })
         });
         if furniture_changed {
-            let mut d = self.drawing.clone();
+            let mut d = drawing.clone();
             let visible: usize = self
                 .state
                 .geometry
                 .views
                 .iter()
+                .filter(|(id, _)| on_sheet(id))
                 .map(|(_, g)| g.visible.len())
                 .sum();
             let hidden: usize = self
@@ -524,17 +592,30 @@ impl Session {
                 .geometry
                 .views
                 .iter()
+                .filter(|(id, _)| on_sheet(id))
                 .map(|(_, g)| g.hidden.len())
                 .sum();
-            let ink: usize = self.state.annotations.values().map(|a| a.items.len()).sum();
-            let text: usize = self.state.annotations.values().map(|a| a.text.len()).sum();
+            let ink: usize = self
+                .state
+                .annotations
+                .iter()
+                .filter(|(id, _)| annotation_on_sheet(id))
+                .map(|(_, a)| a.items.len())
+                .sum();
+            let text: usize = self
+                .state
+                .annotations
+                .iter()
+                .filter(|(id, _)| annotation_on_sheet(id))
+                .map(|(_, a)| a.text.len())
+                .sum();
             d.layers[0].items.drain(..visible);
             d.layers[1].items.drain(..hidden);
             d.layers[2].items.drain(..ink);
             d.text.drain(..text);
             out.insert("furniture".into(), d.svg());
         }
-        out
+        Ok(out)
     }
     pub fn pmi_report(&self) -> Value {
         let mut lowered = Vec::new();
@@ -698,7 +779,18 @@ impl Session {
         self.planner = evaluated.planner;
         self.stats.annotations += evaluated.rendered;
     }
-    pub fn item(&self, id: &str) -> Result<ItemAnswer, Error> {
+    pub fn item(&self, address: &str) -> Result<ItemAnswer, Error> {
+        let (sheet, id) = item_address(address)?;
+        let item = self.bare_item(id)?;
+        if sheet.is_some_and(|n| n != item.item.sheet) {
+            return Err(Error {
+                choices: vec![format!("sheet:{}/{}", item.item.sheet, id)],
+                ..Error::invalid(format!("{id} is on sheet {}", item.item.sheet))
+            });
+        }
+        Ok(item)
+    }
+    fn bare_item(&self, id: &str) -> Result<ItemAnswer, Error> {
         answers(self.plan(), &self.analysis)
             .into_iter()
             .find(|i| i.item.id == id)
@@ -721,9 +813,9 @@ impl Session {
             .near
             .as_ref()
             .and_then(|id| self.item(id).ok())
-            .and_then(|i| item_bounds(&i));
+            .and_then(|i| item_bounds(&i).map(|bounds| (i.item.sheet, bounds)));
         let region = filter.region.or_else(|| {
-            near.map(|[a, b, c, d]| {
+            near.map(|(_, [a, b, c, d])| {
                 let r = filter.radius.unwrap_or(10.0).max(0.0);
                 [a - r, b - r, c + r, d + r]
             })
@@ -731,15 +823,17 @@ impl Session {
         answers(self.plan(), &self.analysis)
             .into_iter()
             .filter(|i| {
-                filter.view.as_ref().is_none_or(|v| {
-                    i.item
-                        .view
+                filter.sheet.is_none_or(|n| i.item.sheet == n)
+                    && near.is_none_or(|(n, _)| i.item.sheet == n)
+                    && filter.view.as_ref().is_none_or(|v| {
+                        i.item.view.as_ref().is_some_and(|w| {
+                            w.trim_start_matches("v:") == v.trim_start_matches("v:")
+                        })
+                    })
+                    && filter
+                        .kind
                         .as_ref()
-                        .is_some_and(|w| w.trim_start_matches("v:") == v.trim_start_matches("v:"))
-                }) && filter
-                    .kind
-                    .as_ref()
-                    .is_none_or(|k| &i.item.kind == k || i.dimension_kind.as_ref() == Some(k))
+                        .is_none_or(|k| &i.item.kind == k || i.dimension_kind.as_ref() == Some(k))
                     && filter.state.as_ref().is_none_or(|s| &i.item.state == s)
                     && filter
                         .feature
@@ -847,7 +941,7 @@ impl Session {
             operations: item.operations,
             placements,
             view_anchors,
-            scales: if id == "sheet" {
+            scales: if item.item.kind == "sheet" {
                 crate::layout::SCALES.map(model::scale_name).to_vec()
             } else {
                 Vec::new()
@@ -882,6 +976,47 @@ fn settable(
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
         if item.item.kind == "view" {
+            // Preserve default single-sheet answers until the author enables sheet controls.
+            if session.spec().sheets.is_some() {
+                let name = id.trim_start_matches("v:");
+                let max = session
+                    .spec()
+                    .sheets
+                    .as_ref()
+                    .and_then(|s| s.max)
+                    .unwrap_or(1);
+                let mut consequences = Vec::new();
+                for group in session
+                    .spec()
+                    .sheets
+                    .iter()
+                    .flat_map(|s| &s.keep_together)
+                    .filter(|g| g.iter().any(|v| v == name))
+                {
+                    consequences.push(format!(
+                        "Must share a sheet with keep_together group: {}",
+                        group.join(", ")
+                    ));
+                }
+                for (view, intent) in &session.spec().views {
+                    if let Some(place) = &intent.place
+                        && (view == name || place.relative_to == name)
+                    {
+                        consequences.push(format!(
+                        "{view} must share a sheet with {}; remove views/{}/place to separate them",
+                        place.relative_to,
+                        items::key(view)
+                    ));
+                    }
+                }
+                if ["front", "plan", "side"].contains(&name) {
+                    consequences.push("Principal views must stay on sheet 1".into());
+                }
+                fields.insert(format!("{base}/sheet"), json!({
+                "choices":(1..=if ["front", "plan", "side"].contains(&name) {1} else {max}).collect::<Vec<_>>(),
+                "consequences":consequences,
+            }));
+            }
             fields.insert(
                 format!("{base}/place/relative_to"),
                 choices(json!(
@@ -963,7 +1098,7 @@ fn settable(
         }
         fields.insert(paths[0].clone(), descriptor);
     }
-    if id == "sheet" {
+    if item.item.kind == "sheet" {
         fields.insert(
             "sheet/size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),
@@ -981,6 +1116,21 @@ fn settable(
     fields
 }
 
+/// IDs remain unique; a qualifier checks ownership rather than changing identity.
+pub(crate) fn item_address(address: &str) -> Result<(Option<u32>, &str), Error> {
+    if let Some((prefix, id)) = address.split_once('/')
+        && let Some(n) = prefix.strip_prefix("sheet:")
+    {
+        let sheet = n
+            .parse::<u32>()
+            .ok()
+            .filter(|n| (1..=9).contains(n))
+            .ok_or_else(|| Error::invalid("item addresses use sheet:<1..9>/<id>"))?;
+        return Ok((Some(sheet), id));
+    }
+    Ok((None, address))
+}
+
 fn depends_on(spec: &Spec, view: &str, id: &str) -> bool {
     let mut at = view.trim_start_matches("v:");
     for _ in 0..spec.views.len() {
@@ -995,15 +1145,26 @@ fn depends_on(spec: &Spec, view: &str, id: &str) -> bool {
     false
 }
 fn annotation_changed(old: &Plan, new: &Plan, id: &str) -> bool {
-    old.dimensions
-        .iter()
-        .find(|d| d.id == id)
-        .map(|d| (&d.view, &d.kind, &d.terms, &d.measurements, &d.placed))
-        != new
+    let carrier_sheet = |p: &Plan| {
+        p.dimensions
+            .iter()
+            .find(|d| d.id == id)
+            .map(|d| &d.view)
+            .or_else(|| p.gdt.iter().find(|g| g.id == id).map(|g| &g.view))
+            .and_then(|id| p.views.iter().find(|v| &v.id == id))
+            .map(|v| v.sheet)
+    };
+    carrier_sheet(old) != carrier_sheet(new)
+        || old
             .dimensions
             .iter()
             .find(|d| d.id == id)
             .map(|d| (&d.view, &d.kind, &d.terms, &d.measurements, &d.placed))
+            != new
+                .dimensions
+                .iter()
+                .find(|d| d.id == id)
+                .map(|d| (&d.view, &d.kind, &d.terms, &d.measurements, &d.placed))
         || old
             .gdt
             .iter()
@@ -1016,6 +1177,11 @@ fn annotation_changed(old: &Plan, new: &Plan, id: &str) -> bool {
                 .map(|d| (&d.view, &d.cells, &d.placed))
 }
 fn ink(plan: &Plan, old: Option<&State>) -> BTreeMap<String, RenderedItem> {
+    let owners = if plan.sheets.is_empty() {
+        Vec::new()
+    } else {
+        items::items(plan)
+    };
     plan.dimensions
         .iter()
         .map(|d| (&d.id, AnnotationItem::Dimension(d)))
@@ -1025,7 +1191,14 @@ fn ink(plan: &Plan, old: Option<&State>) -> BTreeMap<String, RenderedItem> {
                 .filter(|s| !annotation_changed(&s.plan, plan, id))
                 .and_then(|s| s.annotations.get(id))
                 .cloned();
-            (id.clone(), kept.unwrap_or_else(|| model::render_item(item)))
+            let mut rendered = kept.unwrap_or_else(|| model::render_item(item));
+            rendered.provenance = owners
+                .iter()
+                .find(|i| &i.id == id)
+                .cloned()
+                .into_iter()
+                .collect();
+            (id.clone(), rendered)
         })
         .collect()
 }
@@ -1044,8 +1217,13 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 operations: Vec::new(),
                 item: item.clone(),
             };
-            if id == "sheet" {
-                a.basis = plan.sheet.basis.clone();
+            if item.kind == "sheet" {
+                a.basis = std::iter::once(&plan.sheet)
+                    .chain(&plan.sheets)
+                    .find(|s| s.number == item.sheet)
+                    .expect("a sheet item has a planned sheet")
+                    .basis
+                    .clone();
                 a.operations = ["size", "scale", "title"].map(String::from).into();
             }
             if let Some(v) = plan.views.iter().find(|v| &v.id == id) {
@@ -1056,6 +1234,9 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 });
                 a.basis = v.basis.clone();
                 a.operations = ["omit", "place", "pin"].map(String::from).into();
+                if plan.spec.sheets.is_some() {
+                    a.operations.push("move_to_sheet".into());
+                }
                 a.anchors = plan
                     .spec
                     .views
@@ -1237,7 +1418,8 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
                     .find(|v| &v.id == id)
                     .expect("geometry has a planned view");
                 a.is_none_or(|a| {
-                    a.at != b.at
+                    a.sheet != b.sheet
+                        || a.at != b.at
                         || a.scale != b.scale
                         || a.direction != b.direction
                         || a.up != b.up
@@ -1283,7 +1465,10 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
         annotations: new
             .annotations
             .iter()
-            .filter(|(id, _)| annotation_changed(&old.plan, &new.plan, id))
+            .filter(|(id, v)| {
+                annotation_changed(&old.plan, &new.plan, id)
+                    || old.annotations.get(*id).map(|a| &a.provenance) != Some(&v.provenance)
+            })
             .map(|(id, v)| (id.clone(), v.clone()))
             .collect(),
         geometry_order: (view_ids(old) != view_ids(new)).then(|| view_ids(new)),

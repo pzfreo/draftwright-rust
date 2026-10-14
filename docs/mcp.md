@@ -43,11 +43,11 @@ Use different drawing references for independent branches/tasks.
 | `item_options` | `id` | Operations, relative placements, compatible view anchors and scales, plus every settable escaped Spec path and its choices/forms/ranges |
 | `preview_ops` | `ops`, `cursor`, `limit`, `detail` | Paged delta events, planner count and lossless delta artifact; no Spec version/head is kept |
 | `apply_ops` | `parent`, `ops`, `drawing_ref`, `limit`, `detail` | Immutable new Spec hash and paged delta; stale parent refuses with current head in message and choices |
-| `view_sheet` | `region`, `overlay_ids`, `dpi` | PNG artifact metadata plus MCP image content for vision clients |
-| `render_pdf` | — | PDF artifact metadata |
+| `view_sheet` | `sheet`, `region`, `overlay_ids`, `dpi` | PNG artifact metadata plus MCP image content for vision clients |
+| `render_pdf` | `sheet` | PDF artifact metadata |
 | `get_spec` | Optional version/Spec, or drawing head | Spec and its immutable version hash |
 | `analyse` | `step`, optional `features` | One-shot full Analysis document |
-| `render` | `step`/`part_ref`, optional `features`, `format` (`png`/`pdf`), PNG region/overlay/dpi | One-shot render artifact metadata |
+| `render` | `step`/`part_ref`, optional `features`, `format` (`png`/`pdf`), `sheet`, PNG region/overlay/dpi | One-shot render artifact metadata |
 
 Tool input and output schemas are standalone draft-2020-12 files under `schemas/mcp/`.
 Both adapters serve exactly those documents in `tools/list`, with `outputSchema` and
@@ -328,3 +328,69 @@ unmet explicit `hole_table: always` request retains warning severity. The fallba
 itself loses no requirement. Coaxial rows use a shared shown tag; per-row entry
 cells distinguish them. `pcd` in the Plan names the circle's proven centre,
 diameter and member IDs; its actual angular positions print in the schedule.
+
+## Multiple sheets (R5, I3)
+
+Sheet numbers run from 1 to 9. Item IDs remain unique and survive moves. Wherever
+an item address is accepted (`get_item`, `item_options`, `list_items.filter.near`
+and an overlay ID list), `sheet:<n>/<id>` checks the item's sheet. A wrong qualifier
+is refused with the actual sheet and the correct address in `error.choices`.
+Bare IDs keep working. `list_items.filter.sheet` selects one sheet; a `near` search
+is local to its item's sheet, including when its ID is bare. A region without a
+sheet filter applies the same paper rectangle to every sheet.
+
+List rows, item answers and delta items carry `sheet` in a multi-sheet drawing,
+including `sheet: 1`. An absent field means sheet 1; single-sheet result shapes
+and the 4096-byte paging budget are unchanged. `inspect_part` adds `sheets` (the
+count) and `sheet_details` (number, size, scale and page for every sheet) only when
+there is more than one sheet. Analysis remains independent of sheets.
+
+After enabling `Spec.sheets` (for example `set sheets/max 2`), a view's
+`item_options` includes `move_to_sheet`. Its settable
+`views/<name>/sheet` descriptor lists sheet choices and `consequences` explaining
+keep-together groups and placement relations. Principal views offer only sheet 1.
+Apply the usual Spec edits, for example:
+
+```json
+[
+  {"op":"set","path":"sheets/max","value":2},
+  {"op":"set","path":"views/iso/sheet","value":2}
+]
+```
+
+The whole batch is validated together. A conflicting keep-together assignment or
+`place.relative_to` relation is refused by the same model validation as the CLI.
+There is no new `move` op kind. Moving a view reports it and its carried items as
+`changed`; their IDs survive. `PlanDelta.collections.sheets` patches sheets 2..m,
+keyed by derived `sheet:n` IDs. Geometry is still keyed by view ID. Rendered session
+annotations gain optional `provenance` containing their owning items on multi-sheet
+documents; it travels in `State.annotations` and `Delta.annotations`.
+
+`view_sheet`, `render` and `render_pdf` accept `sheet` (default 1). Each returns
+one selected page, retaining the complete embedded Spec. ID overlays are local:
+`overlay_ids: true` labels every bounded item on that sheet; an array labels only
+the supplied bare or qualified addresses and refuses items on another sheet.
+The existing boolean form remains supported.
+
+The Rust methods `State::render` and `Session::svg_fragments` retain their sheet-1
+signatures. Select another sheet with `State::render_sheet`,
+`Session::drawing_on_sheet`, `Session::svg_fragments_on_sheet`, or
+`Cache::render_sheet`. Invalid page numbers return valid sheet choices. The session
+keeps geometry for every sheet so deltas can replay without projecting again.
+`Stats.sheet_steps` counts actual recovered sheet-1 runs, summed across committed
+invocations; blocked preflight prefixes do not count. Previews leave Stats untouched.
+`plans`, the 32-op limit and correction budgets keep their existing meanings.
+
+Schemas inline one-use definitions and use equivalent nullable types and enums.
+They omit redundant canonical `$id` URLs and the dialect annotation, using MCP's
+[default JSON Schema 2020-12 dialect](https://modelcontextprotocol.io/specification/2025-11-25/basic#schema-dialect).
+`$defs/op` remains published by apply/preview input schemas. This keeps the existing
+39,500-byte schema budget without loosening any validation constraint.
+
+`cargo test --release --test sheets_mcp` covers addressing, filtering, move/replay,
+render selection and schema controls. `cargo test --release --test multi_sheet_latency
+-- --nocapture` measures the fixed-A4 string_post 5:1 overflow case, including JSON
+delta encoding, and reports actual sheet steps. It retains the 150 ms bound unless
+`DRAFTWRIGHT_LATENCY_GATE=0`; local loaded-machine timings do not establish speed.
+I2 owns later-sheet title numbering, zones and cross-reference furniture; the I3
+session assembly selects that renderer's page and ink without allocating anew.

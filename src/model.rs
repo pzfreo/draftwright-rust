@@ -3225,6 +3225,9 @@ pub struct RenderedItem {
     pub text: Vec<TextRun>,
     pub annotations: Vec<Annotation>,
     pub drawn: Vec<Drawn>,
+    /// Session ink's owning items; absent for the unchanged single-sheet wire format.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub provenance: Vec<crate::items::Item>,
 }
 
 impl RenderedItem {
@@ -3422,6 +3425,68 @@ pub fn render_annotations_with_items(
         projections,
         items,
         &[],
+    )
+}
+
+/// Session assembly selects the already allocated page and keeps geometry in Plan order.
+/// Sheet furniture remains the renderer's responsibility (R5 I2).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn render_annotations_on_sheet(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+    mut geometry: GeometryLayer,
+    projections: &mut Projections,
+    items: &BTreeMap<String, RenderedItem>,
+    number: u32,
+) -> Result<Drawing, Unresolved> {
+    if plan.sheets.is_empty() && number == 1 {
+        return render_annotations_with_items(
+            part,
+            analysis,
+            plan,
+            font,
+            geometry,
+            projections,
+            items,
+        );
+    }
+    let mut selected = plan.clone();
+    selected.sheet = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .find(|s| s.number == number)
+        .expect("the session validates its sheet number")
+        .clone();
+    selected.views.retain(|v| v.sheet == number);
+    let local = |id: &str| selected.views.iter().any(|v| v.id == id);
+    geometry.views.retain(|(id, _)| local(id));
+    selected.dimensions.retain(|d| local(&d.view));
+    selected.gdt.retain(|g| local(&g.view));
+    selected.balloons.retain(|b| local(&b.view));
+    selected.tables.retain(|t| t.sheet == number);
+    selected.hole_table = selected.hole_table.filter(|t| t.sheet == number);
+    selected.hole_tables.retain(|t| t.sheet == number);
+    if number != 1 {
+        selected.notes.clear();
+        selected.requirements.clear();
+        selected.radius_table = None;
+        selected.sheet.projection_symbol = None;
+    }
+    let remote = plan
+        .views
+        .iter()
+        .filter(|v| v.sheet != number && v.cut.as_ref().is_some_and(|c| local(&c.marked_in)))
+        .collect::<Vec<_>>();
+    render_annotations_with_cuts(
+        part,
+        analysis,
+        &selected,
+        font,
+        geometry,
+        projections,
+        items,
+        &remote,
     )
 }
 

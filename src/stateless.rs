@@ -305,7 +305,14 @@ impl Cache {
         spec: &Spec,
         filter: &ItemFilter,
     ) -> Result<Vec<ItemAnswer>, Error> {
-        Ok(self.session(part_ref, spec)?.items(filter))
+        let session = self.session(part_ref, spec)?;
+        if let Some(sheet) = filter.sheet {
+            session.state().check_sheet(sheet)?;
+        }
+        if let Some(id) = &filter.near {
+            session.item(id)?;
+        }
+        Ok(session.items(filter))
     }
     pub fn item(&self, part_ref: &str, spec: &Spec, id: &str) -> Result<ItemAnswer, Error> {
         self.session(part_ref, spec)?.item(id)
@@ -350,13 +357,19 @@ impl Cache {
             }
             features.extend(item.features.iter().cloned());
         }
-        Ok(
-            json!({"part_ref":part_ref,"part":s.analysis().binding.part,"face_count":s.analysis().binding.face_count,
+        let mut summary = json!({"part_ref":part_ref,"part":s.analysis().binding.part,"face_count":s.analysis().binding.face_count,
             "envelope":s.analysis().envelope,"sheet":{"size":s.plan().sheet.size,"scale":s.plan().sheet.scale,"page":s.plan().sheet.page},
             "views":s.plan().views.iter().map(|v|&v.id).collect::<Vec<_>>(),"items":s.items(&ItemFilter::default()).len(),
             "status":crate::completeness::status(&s.state().problems),"completeness":s.plan().completeness,
-            "key_items":keys,"problems":s.state().problems.len(),"spec_version":spec_hash(s.spec())}),
-        )
+            "key_items":keys,"problems":s.state().problems.len(),"spec_version":spec_hash(s.spec())});
+        if !s.plan().sheets.is_empty() {
+            summary["sheets"] = json!(s.plan().sheets.len() + 1);
+            summary["sheet_details"] = json!(std::iter::once(&s.plan().sheet)
+                .chain(&s.plan().sheets)
+                .map(|sheet| json!({"number":sheet.number,"size":sheet.size,"scale":sheet.scale,"page":sheet.page}))
+                .collect::<Vec<_>>());
+        }
+        Ok(summary)
     }
 
     pub fn render(
@@ -368,10 +381,65 @@ impl Cache {
         overlay: bool,
         dpi: f64,
     ) -> Result<Vec<u8>, Error> {
+        self.render_sheet(part_ref, spec, region, format, overlay, dpi, 1)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_sheet(
+        &self,
+        part_ref: &str,
+        spec: &Spec,
+        region: Option<[f64; 4]>,
+        format: &str,
+        overlay: bool,
+        dpi: f64,
+        sheet: u32,
+    ) -> Result<Vec<u8>, Error> {
+        self.render_sheet_with_ids(part_ref, spec, region, format, overlay, dpi, sheet, None)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_sheet_with_ids(
+        &self,
+        part_ref: &str,
+        spec: &Spec,
+        region: Option<[f64; 4]>,
+        format: &str,
+        overlay: bool,
+        dpi: f64,
+        sheet: u32,
+        ids: Option<&[String]>,
+    ) -> Result<Vec<u8>, Error> {
         let s = self.session(part_ref, spec)?;
-        let mut drawing = s.drawing().clone();
-        if overlay {
-            for item in s.items(&ItemFilter::default()) {
+        s.state().check_sheet(sheet)?;
+        let selected = ids
+            .map(|ids| {
+                ids.iter()
+                    .map(|id| {
+                        let item = s.item(id)?;
+                        if item.item.sheet != sheet {
+                            return Err(Error {
+                                choices: vec![format!(
+                                    "sheet:{}/{}",
+                                    item.item.sheet, item.item.id
+                                )],
+                                ..Error::invalid(format!(
+                                    "{} is on sheet {}",
+                                    item.item.id, item.item.sheet
+                                ))
+                            });
+                        }
+                        Ok(item)
+                    })
+                    .collect::<Result<Vec<_>, Error>>()
+            })
+            .transpose()?;
+        let mut drawing = s.drawing_on_sheet(sheet)?;
+        if overlay || selected.is_some() {
+            for item in selected.unwrap_or_else(|| {
+                s.items(&ItemFilter {
+                    sheet: Some(sheet),
+                    ..Default::default()
+                })
+            }) {
                 if let Some(bounds) = crate::session::item_bounds(&item) {
                     let font = crate::text::Font::new(api::MONO.to_vec()).expect("bundled font");
                     let run = crate::output::TextRun {

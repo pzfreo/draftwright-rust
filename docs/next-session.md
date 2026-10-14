@@ -6676,3 +6676,50 @@ sandbox, so no speed claim is made.
   identical before/after the fresh rebuild, so all visual/quality receipts refer
   to the final binary. Receipts: `target/i2a/receipt.json`, `required-rust.log`,
   `final-tests.log`, `final-base-tests.log`, `quality-validation.log`.
+
+
+## I3 implementation judgements (2026-10-14, unattended; overturnable)
+
+- Preserve the existing Rust sheet-1 call signatures for the editor. Add explicit
+  `render_sheet`, `drawing_on_sheet`, `svg_fragments_on_sheet` and Cache page methods;
+  Rust cannot express an optional trailing argument. MCP uses optional `sheet`.
+- `near` searches always stay on the source item's sheet, even with a bare ID.
+  A region alone searches the same paper rectangle across sheets; specify
+  `filter.sheet` to constrain it. Stateless invalid sheets/near addresses refuse.
+- Retain `overlay_ids` booleans and additionally accept an ID array so R5's
+  qualified overlay addresses have a real consumer. Explicit overlays must belong
+  to the selected page; no item silently disappears from an explicit overlay list.
+- I1's PlannedSheet stores `number`, not `id`; the sheets collection patch derives
+  `sheet:n` keys from number. Do not add a redundant stored ID to the Plan.
+- R5 describes RenderedItem.items as items::Item, but the actual field is output
+  ink primitives. Add optional `provenance: Vec<items::Item>` for multi-sheet ink,
+  rather than changing that field's type. Single-sheet wire bytes stay unchanged.
+- A small renderer assembly helper filters an allocated Plan and cached geometry
+  by sheet and passes remote section cuts to their parent sheet. It does not
+  allocate, format n/m, invent zones or draw cross-references; those remain I2.
+  I2 should share this selection helper with its renderer, retaining the session
+  annotation cache and the complete source Spec on each page.
+- Sheet 1 is explicit in multi-sheet Item serialization. A private wire adapter
+  remembers an explicit sheet field on replay; default single-sheet items omit it.
+- Regenerated schemas omit redundant dialect/canonical-ID metadata (MCP's default
+  is 2020-12), inline one-use definitions, and compact equivalent nullable/enum
+  forms. Constraints are retained; apply/preview keep their public `$defs/op`.
+  The pre-existing 39,500-byte schema budget is retained, rather than increased.
+- `/usr/bin/time -l` fails at `sysctl kern.clockrate: Operation not permitted`,
+  including on `true`. Darwin's `proc_pid_rusage` for this process works: the
+  latency test reads rusage_info_v4.ri_instructions (word 31, verified against
+  the installed SDK header) around each edit and MCP reply. No child-process
+  access, wall-time inference or new dependency is needed. CI owns latency;
+  local elapsed timings are diagnostic only.
+- To retain default single-sheet item/options bytes, `move_to_sheet` and the
+  view-sheet descriptor appear when the author supplies `Spec.sheets` controls.
+  Set `sheets/max` before querying moves. A default Spec still has only sheet 1;
+  the MCP description gives the two-edit batch that enables and assigns a view.
+
+I3 verification is complete: 72 scoped Rust tests, 55 Python tests, 300/300 quality
+cells, the 1,876-record single-sheet guard, 24 schemas and scripted MCP 7/7 pass.
+The seven new Rust acceptance tests were red on frozen main before implementation;
+the final latency test and extended independent schema checker have separate base
+red receipts. See the I3 status entry and `target/i3-final-receipt.json` for counts,
+byte budgets, native instruction measurements and the loaded/isolated timing figures.
+No full Rust suite or all-job acceptance was run locally. No commit/push was made.

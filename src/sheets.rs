@@ -319,10 +319,20 @@ fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
 
 /// Specs without sheet controls take precisely the pre-R5 planner path.
 pub(crate) fn allocate(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    allocate_counted(analysis, spec, &mut 0)
+}
+
+/// Count actual recovered sheet-1 runs, including prefixes whose packing later fails.
+pub(crate) fn allocate_counted(
+    analysis: &Analysis,
+    spec: &Spec,
+    steps: &mut usize,
+) -> Result<Plan, Invalid> {
     if spec.sheets.is_none()
         && spec.views.values().all(|v| v.sheet.is_none())
         && spec.tables.iter().all(|t| t.sheet.is_none())
     {
+        *steps += 1;
         return run(analysis, spec);
     }
     let migrated = model::migrate(spec, analysis)?;
@@ -342,6 +352,7 @@ pub(crate) fn allocate(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
             }
         }
     }
+    *steps += 1;
     let mut first = run(analysis, &working(analysis, spec, &moved))?;
     let long = first.table_outcome == hole_table::TableOutcome::NoPlace;
     let possible = candidates(analysis, spec, long);
@@ -369,6 +380,7 @@ pub(crate) fn allocate(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
             if moved.contains_key("hole_table") {
                 copy.sheets.as_mut().unwrap().hole_table = Some(2);
             }
+            *steps += 1;
             first = run(analysis, &copy)?;
         }
         let mut p = first.clone();
