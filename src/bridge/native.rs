@@ -14,10 +14,11 @@
 //! none of them as such: it reads pockets, channels, blind slots and passages as `section_recess`
 //! features (Python's published `SectionRecess`, one section-geometry record into which Python
 //! projects its internal pocket, prismatic pocket, channel, blind slot and passage readings;
-//! Python's document has no `prismatic_pockets`), and the document has no section recesses, only
-//! the internal records, which no reader here understands. Producing draftwright's section
-//! recesses from them would be Python's projection rebuilt in draftwright; that is
-//! quiddity-rust's to publish (a schema question). The other families draftwright neither draws
+//! Python's document has no `prismatic_pockets`). Since quiddity-rust 0.1.0-alpha.2 the
+//! document also publishes that projection, as the `section_recesses` family (`SectionRecess`
+//! records and `SectionRecessRefusal`s, an additive family of the same schema); it is known and
+//! not yet read here, so draftwright's section recesses come through the bridge as before
+//! (reading them is the G7b reader stream). The other families draftwright neither draws
 //! nor lints (oriented chamfers, circular face patterns, thin-wall bodies, interior voids,
 //! sheet-metal bodies, repeating radial profiles, freeform surfaces) are known and not read
 //! either.
@@ -142,6 +143,10 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
     ("pads", &["RaisedPad"]),
     ("step_levels", &["FaceLevel"]),
     ("risers", &["RiserEvidence"]),
+    (
+        "section_recesses",
+        &["SectionRecess", "SectionRecessRefusal"],
+    ),
 ];
 
 /// The families read here: each record is a feature, except an oriented slot pattern's, which is

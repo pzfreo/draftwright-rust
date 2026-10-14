@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "draftwright"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "chrono",
  "dxf",
@@ -323,8 +323,8 @@ dependencies = [
 
 [[package]]
 name = "haecceity"
-version = "0.1.0-alpha.1"
-source = "git+https://github.com/pzfreo/quiddity-rust?tag=v0.1.0-alpha.1#4583c740f74bf872a0214ef104feb48a6fed01a2"
+version = "0.1.0-alpha.3"
+source = "git+https://github.com/pzfreo/quiddity-rust?tag=v0.1.0-alpha.3#5f7b88e79f4581de8acc652c30515667e8f655ad"
 dependencies = [
  "flate2",
  "i_overlay",
@@ -683,8 +683,8 @@ checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "quiddity"
-version = "0.1.0-alpha.1"
-source = "git+https://github.com/pzfreo/quiddity-rust?tag=v0.1.0-alpha.1#4583c740f74bf872a0214ef104feb48a6fed01a2"
+version = "0.1.0-alpha.3"
+source = "git+https://github.com/pzfreo/quiddity-rust?tag=v0.1.0-alpha.3#5f7b88e79f4581de8acc652c30515667e8f655ad"
 dependencies = [
  "flate2",
  "haecceity",
