@@ -45,14 +45,22 @@ fn analysed(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
         })
         .unwrap();
     let name = gz.file_name().unwrap().to_string_lossy().into_owned();
+    analysed_bytes(
+        name.strip_suffix(".gz").unwrap(),
+        &gunzip(&std::fs::read(&gz).unwrap()),
+    )
+}
+
+/// The STEP file *name* of *bytes*' part and Analysis, from its own scratch file.
+fn analysed_bytes(name: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let scratch = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_thread_knurl")
         .join(n.to_string());
     std::fs::create_dir_all(&scratch).unwrap();
-    let path = scratch.join(name.strip_suffix(".gz").unwrap());
-    std::fs::write(&path, gunzip(&std::fs::read(&gz).unwrap())).unwrap();
+    let path = scratch.join(name);
+    std::fs::write(&path, bytes).unwrap();
     let out = model::analyse_native(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
     out
@@ -304,6 +312,59 @@ fn a_requirement_no_one_feature_owns_is_reported_with_draftwrights_reason() {
         "{why}"
     );
     assert!(records(&a).iter().any(|r| r.source_id == source));
+}
+
+/// The draftwright-editor's straight knurl (AP242 `turned_knurl`, pitch 1, 75 teeth) on the ⌀24
+/// cylinder of draftwright.io's spindle sample, its text edited by *edit*. Beyond draftwright:
+/// its Part 21 pass never reads a `turned_knurl`.
+fn spindle(edit: impl Fn(String) -> String) -> (draftwright::haecceity::Part, Analysis) {
+    let gz = root().join("tests/fixtures/turned_knurl/spindle_turned_knurl.step.gz");
+    let text = String::from_utf8(gunzip(&std::fs::read(gz).unwrap())).unwrap();
+    analysed_bytes("spindle_turned_knurl.step", edit(text).as_bytes())
+}
+
+#[test]
+fn a_semantic_turned_knurl_prints_on_its_diameters_callout() {
+    let (part, a) = spindle(|s| s);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let source = "manufacturing_requirement:#925";
+    let labels: Vec<&str> = claimed(&plan, &a, source).iter().map(|c| c.1).collect();
+    assert_eq!(labels, ["ø24 MAX AFTER KNURL; STRAIGHT KNURL P1"]);
+    assert_eq!(refused(&plan, source), None);
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "pmi_not_extracted" && p.message.contains("turned_knurl")),
+        "{:#?}",
+        plan.problems
+    );
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    assert!(
+        pdf::svg_text(&drawing.svg())
+            .join(" ")
+            .contains("STRAIGHT KNURL P1")
+    );
+}
+
+#[test]
+fn a_turned_knurl_whose_pitch_and_teeth_disagree_is_not_lowered() {
+    // π·24/1 is 75.4 teeth, not 60: the pitch is not the circular pitch the editor writes.
+    let (_, a) = spindle(|s| s.replace("COUNT_MEASURE(75.)", "COUNT_MEASURE(60.)"));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let source = "manufacturing_requirement:#925";
+    let why = refused(&plan, source).unwrap();
+    assert!(
+        why.ends_with("turned knurl pitch 1 and tooth count 60 disagree: π·24/1 is 75.4 teeth."),
+        "{why}"
+    );
+    assert!(
+        claimed(&plan, &a, source)
+            .iter()
+            .all(|c| !c.1.contains("KNURL"))
+    );
 }
 
 #[test]

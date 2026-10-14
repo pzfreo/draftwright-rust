@@ -6723,3 +6723,25 @@ the final latency test and extended independent schema checker have separate bas
 red receipts. See the I3 status entry and `target/i3-final-receipt.json` for counts,
 byte budgets, native instruction measurements and the loaded/isolated timing figures.
 No full Rust suite or all-job acceptance was run locally. No commit/push was made.
+
+## Semantic turned_knurl drawn (2026-10-14, unattended; overturnable)
+
+`src/pmi.rs` now projects haecceity's AP242 `turned_knurl` (straight or diamond) to a
+structured knurl record, so the draftwright-editor's knurls are drawn (the editor's spindle:
+`ø24 MAX AFTER KNURL; STRAIGHT KNURL P1` on the ⌀24 callout, `tests/pmi_thread_knurl.rs`).
+Judgements, each the conservative choice:
+- `diametral_pitch` is read as the linear (circular) pitch only when the knurl's
+  `number_of_teeth` confirms it (|π·major diameter / pitch − teeth| ≤ 1, the integrator's
+  decision). A disagreeing count, and a knurl with no tooth count at all (nothing to confirm the
+  reading), are reported `pmi_not_lowered`, never drawn. The alias refusal for
+  attribute-set knurls without prose is unchanged.
+- A diagonal turned_knurl is not projected (draftwright has no diagonal knurl); it stays
+  `pmi_not_extracted`.
+- The spindle fixture is `tests/fixtures/turned_knurl/spindle_turned_knurl.step.gz`, not
+  `tests/fixtures/pmi/step/`: every file there needs draftwright (Python) captures for the
+  census, coverage and drawings comparisons, and Python never reads a turned_knurl.
+- `hw_thread_replaced`'s knurl #6564 is on a planar face, so it moves from
+  `pmi_not_extracted` to `pmi_not_lowered` (not cylindrical); its plan hash is an approved
+  single-sheet replacement (stream `turned-knurl`).
+- Cosmetic, not fixed: on the spindle the long ø24 callout runs about 16 mm past the front
+  view's reserved area (a `dimension_crowds` advisory).

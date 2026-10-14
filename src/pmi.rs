@@ -735,6 +735,7 @@ struct Used {
     general: Vec<bool>,
     attributes: Vec<bool>,
     threads: Vec<bool>,
+    knurls: Vec<bool>,
 }
 
 /// A structured requirement: a user defined attribute set described 'pmi-assist'.
@@ -783,7 +784,11 @@ impl PartReader<'_> {
             general: vec![false; self.pmi.general.len()],
             attributes: vec![false; self.pmi.attributes.len()],
             threads: vec![false; self.pmi.threads.len()],
+            knurls: vec![false; self.pmi.knurls.len()],
         };
+        for r in self.semantic_knurls(&mut used) {
+            self.keep(r, records, sources);
+        }
         for r in self.semantic_threads(&mut used) {
             self.keep(r, records, sources);
         }
@@ -795,6 +800,58 @@ impl PartReader<'_> {
             self.keep(r, records, sources);
         }
         self.not_projected(sources, &used);
+    }
+
+    // AP242 turned_knurl as a structured knurl: its pattern, its major diameter as the maximum
+    // diameter after knurling and its diametral pitch, the circular pitch specify-core writes,
+    // as draftwright's linear pitch, but only where its number of teeth confirms that reading
+    // (π·major diameter / pitch within one tooth of it); otherwise the record is not lowered.
+    fn semantic_knurls(&self, used: &mut Used) -> Vec<Record> {
+        let mut out = Vec::new();
+        for (index, k) in self.pmi.knurls.iter().enumerate() {
+            let pattern = match k.pattern {
+                pmi::KnurlPattern::Straight => "straight",
+                pmi::KnurlPattern::Diamond => "diamond",
+                pmi::KnurlPattern::Diagonal => continue,
+            };
+            let own = self
+                .prov
+                .knurls
+                .get(index)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let mut r = self.record(
+                Category::ManufacturingRequirement,
+                own.first().copied().unwrap_or(0),
+                own,
+                self.support(&[k.feature]),
+                Vec::new(),
+            );
+            r.source_id = format!("manufacturing_requirement:#{}", r.part21_id);
+            r.kind = "knurl".into();
+            r.label = "knurl".into();
+            let (pitch, diameter) = (k.diametral_pitch.mm(), k.major_diameter.mm());
+            r.fields = vec![
+                ("pattern".into(), Field::Text(pattern.into())),
+                ("pitch".into(), Field::Length(pitch)),
+                ("maximum diameter".into(), Field::Length(diameter)),
+            ];
+            let teeth = std::f64::consts::PI * diameter / pitch;
+            match k.number_of_teeth {
+                Some(n) if (teeth - f64::from(n.0)).abs() <= 1.0 => {}
+                Some(n) => r.blockers.push(format!(
+                    "turned knurl pitch {pitch} and tooth count {} disagree: \
+                     π·{diameter}/{pitch} is {teeth:.1} teeth",
+                    n.0
+                )),
+                None => r
+                    .blockers
+                    .push("turned knurl has no tooth count to confirm its pitch".into()),
+            }
+            used.knurls[index] = true;
+            out.push(r);
+        }
+        out
     }
 
     // Semantic threads use their stated manufacturing fields and the native lowering rules.
@@ -936,7 +993,7 @@ impl PartReader<'_> {
                 Category::ManufacturingRequirement,
                 pmi.knurls.len(),
                 &prov.knurls,
-                &none,
+                &used.knurls,
             ),
             (
                 "surface_texture",
