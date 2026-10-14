@@ -685,13 +685,13 @@
       "svg": "035179263d9804c7bc70eca5dc1035d92834ab2ffab2fb515395b9faab611123"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:07bf9a43657486b005027d531dc3d3dc45760df852ef22d2c107e626005c1fe3": {
-      "pdf": "4eb1766f9366cd153875ad60f4558f5e377c171cf194563b018e5bca0fd366e1",
-      "plan": "1048326d20e0366c2c5f5319ab92afca4b2de8e2556647fdb33414872b7aa211",
+      "pdf": "3d182381f8cc2e8514de64d82c576bc795b6970a9157b1013b09198e75cf80c3",
+      "plan": "a954ded0b3d04ad963cbbc8495a10d7f5f94468b735db5b120ba87a23667e548",
       "png": {
-        "linux": "a0cda4f59dce28b0a807700402d1060a7c14c820afe73abb61b046f6c5ed3e8e",
-        "macos": "a0cda4f59dce28b0a807700402d1060a7c14c820afe73abb61b046f6c5ed3e8e"
+        "linux": "989d185515fbbc84e909d180462ab7b3dce5ee338d6f36c6bf34fc4d4dc689d0",
+        "macos": "989d185515fbbc84e909d180462ab7b3dce5ee338d6f36c6bf34fc4d4dc689d0"
       },
-      "svg": "99e14800dfc32aaab2ec43067f1e51633558c0e90b229f656585c4dadcb31f89"
+      "svg": "4d53ad262c02f9358cdb8c0a5409450fba2de88b13913faf2d3c4f824f336b96"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:0e2bbb9dc3cbaa8a4ac7ea43fd72ddaf8ca2ac3d1a8ce3eae55a44933381ec65": {
       "pdf": "657109857c0521e1da350760c5aeb57ed1e418b85754aba9a806e84d7017770c",
@@ -703,31 +703,31 @@
       "svg": "c3e51c61773567e28682efff01ae9953d8b6ae197682d6b550b23a568a79a1cf"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:24c8197c09bec971d7aa8918fbd0abdc6d90267e3f814b8efbaabce43bb0b0db": {
-      "pdf": "4ac5faf504579500aebf4b816c8c1de39f6f322c068fc33631610eca9c455cf7",
-      "plan": "1d9d2ff3c058b15fd0109f26cfba1b6847d00d4ec63fe2b4281d7d12839ba5f1",
+      "pdf": "3a24e892752cc984ad1cd7c3ce3ced2edb343f0aaeefd2ef7a78086d88aa6662",
+      "plan": "ab3d4edcc4438af718973c25330f817a819fe97d3900bb0eb3b162adced31057",
       "png": {
-        "linux": "14cbbe3d398e7def05858f8cc26a0fcb531077c29079f8647aeee5ccfa470614",
-        "macos": "14cbbe3d398e7def05858f8cc26a0fcb531077c29079f8647aeee5ccfa470614"
+        "linux": "866652e9e8ae189eb87141b2f0728ecb38487953e4e69071d0d9be162cf48448",
+        "macos": "866652e9e8ae189eb87141b2f0728ecb38487953e4e69071d0d9be162cf48448"
       },
-      "svg": "668ad2d6967e5c70e600b3e2cb776d4c2ee7464853775cb9fbb77d2df84abd2b"
+      "svg": "434567ab8cfc18cc76ba5878f0b83024ed2d7b0748d7ae1ec02c96d0bfab3775"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:2ca00badefe0619095eeaccfca2532f3f635ef6ccd40371ed9f7f829ae08b5fb": {
-      "pdf": "06d17f7b21812b7abbd438b47fbc63b173a784823bdf928076c5ee4ab9319550",
-      "plan": "52f49e1d975c6c9c3af4fe6d0ca09613f374f7bfc9ea81afebf16474aaca56bc",
+      "pdf": "bf84e8b8de4ade9d0fd98ade8924191d21a4b89856eb2bc10d41d8ce9ec2050c",
+      "plan": "a2c263e6a749579bca06818388ea599af1a81d947985a7ff0b8185919fa5bca3",
       "png": {
-        "linux": "0da4da775835faef42c6f446028e281043702420e9e796ead90c34e1612e7c8f",
-        "macos": "0da4da775835faef42c6f446028e281043702420e9e796ead90c34e1612e7c8f"
+        "linux": "9cd1513184baab690290fcffe81b6cb515113aec74d95993db4a5cbe9875a584",
+        "macos": "9cd1513184baab690290fcffe81b6cb515113aec74d95993db4a5cbe9875a584"
       },
-      "svg": "79ce1e3679e0da10c466f62691e386fa344d98a0bfed9f2d6422d9fe1da62333"
+      "svg": "1e2c22a786e6e369c5c8c2b79c851b20e94faead9c4b43ee1a5f4351bfe6b17e"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:340afa97e6c3ff88efe498d700936997e041c456f3da28c4d2bbc588e04ba021": {
-      "pdf": "f37ea408becd21fce31757d0339f3a81d5c9e33f26e320ee2d81a50ab7e0f111",
-      "plan": "601b6813a2c905ae94c235a4aa4e2ba6f9fbcd7c401e430655f0f053cf1d2615",
+      "pdf": "cd496b107e7a4aab03cb95b9706c6263cf3a1cc497e8a19a155eff8c08df656f",
+      "plan": "9402c5b569e5134d319e011ac40bb55003e0240c32727abc73311712f180a073",
       "png": {
-        "linux": "f282101306aa47ab22d60a80c1dc1fd290f6f11eac78f988addaa4ce6a940498",
-        "macos": "f282101306aa47ab22d60a80c1dc1fd290f6f11eac78f988addaa4ce6a940498"
+        "linux": "789c935b5db8dd5894b415f3dc0ee16cbccbd47971c85c235ef144360f8ca69b",
+        "macos": "789c935b5db8dd5894b415f3dc0ee16cbccbd47971c85c235ef144360f8ca69b"
       },
-      "svg": "e699ff84be44899cdca461940d1661b4f9c39824bea0a7ecf385b92c8b147fca"
+      "svg": "552ec56f8fffea6ef021bc40013f3016b7d21c8237b6c268a1d4e994c5fbd75c"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:3bdfcf20bc96353f7f922f51bd144195583b41e98eda4cefae65d830052ea2a7": {
       "pdf": "e1c9a217068d848a29632159010e3402fac9200dd1395d26e8d7a27b945f79f9",
@@ -739,22 +739,22 @@
       "svg": "4146d34f6d368a96866006e3b18fc0d330c87571ffe5f08834733bc518521db7"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:3fbce1d605faa2155149b571f48f05e5da348a35139d151532f0969d3011675d": {
-      "pdf": "09e4bbd5a19064c5f83552266678d647332e4cad6541e49bb66bc03eb0a7a4ca",
-      "plan": "29e8df6447b4c4ae38c51c67280a6be994a0de1c67dafb4928ffb4f64309cf2a",
+      "pdf": "5802fa24efee9296b288b164c0f055d9ed4d9900d3933858e747f16f5fb286dd",
+      "plan": "4462d70b27c4bae7c11bd621aaa28cb96a0bfbf11ec1d4911ca41912ffd33cf5",
       "png": {
-        "linux": "db852910d499476d9977ad6dbd9ef1d673c8cc7959e77179dc779d1334a4b0e7",
-        "macos": "db852910d499476d9977ad6dbd9ef1d673c8cc7959e77179dc779d1334a4b0e7"
+        "linux": "8e0a79e91a75fb6ff15e92049bc53077ba46e99e94caa4eded9d12d3e9554fa6",
+        "macos": "8e0a79e91a75fb6ff15e92049bc53077ba46e99e94caa4eded9d12d3e9554fa6"
       },
-      "svg": "4ca4fe388f7fe4bc33d8d9a944170d4ddb5a956eb1a836da3f72589ee07b3250"
+      "svg": "bf6c4377d8aee8c76a48a5e1656db824e886c9b247bf21acf591f797cdb1ee34"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:414f892e3da06a6e36c1f94b464da37929bd7a61345c72d48ec90de8a30b11ad": {
-      "pdf": "79ebb26ea3d72da8ff41f2759c17d90982c45dcd37d9f1dfbd51aeae61dc6b25",
-      "plan": "26972daefbf6945e447ced0368e076b68da4c1046e88fa3eba74fb295f437488",
+      "pdf": "222c729c21420c86e5cf69c915764b036189bdb9753392c181ea7515cd3298e0",
+      "plan": "d1c86a194c6afb1850c97f8050fdbd227bf69a619f6e3c5fc2e33bc93c54d51e",
       "png": {
-        "linux": "3766e6b659e71a2d4f98e478295483b740a6e997d4f5a530a67bb363ec1482bf",
-        "macos": "3766e6b659e71a2d4f98e478295483b740a6e997d4f5a530a67bb363ec1482bf"
+        "linux": "007f5ae911a958404c1be410def86420d1f3b091891edceaa767bae70d9f62b8",
+        "macos": "007f5ae911a958404c1be410def86420d1f3b091891edceaa767bae70d9f62b8"
       },
-      "svg": "b54956f5e0714e323f5c1b657a30ff88e45803d0e916ecbcaf91931a577adb57"
+      "svg": "03ec0fb014588bb9e7f276ce5cb488f39e38c921ff96cd3c4a082b6142e41a77"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:495954548f1cf3936e65ac74d1f7c1cabc014a66c2ed9dbbe78737c755f6c7bd": {
       "pdf": "1276565024191740f0ebdbc17a2d0c7ef40d6637fb6ce5afe41a79c2bb923057",
@@ -766,13 +766,13 @@
       "svg": "e1aa2195990f0e65ed85bb3344501c5df42bb3a30d206886b19a21c8e6223aad"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:55848fdc98f0097d17dd9684ae39652221af638cf8e9df4df78e74a48a472c26": {
-      "pdf": "730090ece66dd45eb17b8c043b0be224d952628d39089320572d3d75dc53a194",
-      "plan": "865cb26395de78610c247ee59e67b98f6c1b837364907d78aa8cc9ed0d21beb3",
+      "pdf": "e4f9daf8d967a342e16681fa83c19f270eb76e611821f808bfde8428ca2aed39",
+      "plan": "df3f1b49e6be0ee7f1e3066c384450dd5d94ccea922ac8823e115f28d42cd8f7",
       "png": {
-        "linux": "72bd0304e700798d106a347346b863c8fd97c77984b085a7b139ae0d0c7a207f",
-        "macos": "72bd0304e700798d106a347346b863c8fd97c77984b085a7b139ae0d0c7a207f"
+        "linux": "bdbb1f2df90b6654032314f1a79bc99948d4b75b2a1b0969beb135a47b1509dd",
+        "macos": "bdbb1f2df90b6654032314f1a79bc99948d4b75b2a1b0969beb135a47b1509dd"
       },
-      "svg": "9dbf546c95407324af6ebe29f8a8a850d34c6b7ced886fb6c838e2b48cc94ae2"
+      "svg": "b83c87cbac004748f52bb5727f76531bf24bc3ed1ac39d676a3c14d60d37cefe"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:55fd65bf309371b92abeac8fb5b0a07123ed1ca3b4c9a1ff48be6a65ff489491": {
       "pdf": "d2210430a3a4bb11f40714bf5412d30062ce1f33e4369ca9752c61b5e2febf37",
@@ -793,13 +793,13 @@
       "svg": "9059b352ba74ca7084b3b51a9a09a6443758e6e80026a1c483bd274e7f594ee4"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:585a8c68bc62f403b72dcb0170e1bb65076a3d7a74396ea65c9ad947d55f13ca": {
-      "pdf": "ab0a4fe8cc42c5e990e7b8ff42c2d90982a1bda1301d8a5649d1fbd7a6aac583",
-      "plan": "b12cb482f667592492fba43a72edf3b64b1af5edd04e9b62a988baf5e8b2015f",
+      "pdf": "176ff916a4896e087ba6b224bf55fad33b6bdb51ae5d934c2cd6aae7952c5ce5",
+      "plan": "08133624f6bf66f4ecb0facc06e47b2527f766aafb89f349ea5aef56eaba5524",
       "png": {
-        "linux": "4e103ef6b34b63c4bcb652649e3b1f71f8bb5f9cf6aef249d0c9027f874c5d49",
-        "macos": "4e103ef6b34b63c4bcb652649e3b1f71f8bb5f9cf6aef249d0c9027f874c5d49"
+        "linux": "93deef7183a1f07f899c1f15e631b0556f01718c0bcdf971fa4f484074e6f483",
+        "macos": "93deef7183a1f07f899c1f15e631b0556f01718c0bcdf971fa4f484074e6f483"
       },
-      "svg": "efe199a8e59ff0c7561897e04a22d483e549d25e05746ae1999a12fe3ed570bd"
+      "svg": "7d87558d36aa70cfd6a02409a7b5b77f5956e2821bb1c198eebfbb3c6b77c089"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:59fa2c695818d337738915909660ef0cfd6317858b94bbe49995a1432e7f68dc": {
       "pdf": "a69f4ab7ed64aefc39cd2820b2a853d5bc23204e2a6b43e5db93c7c4fd753cf0",
@@ -811,31 +811,31 @@
       "svg": "5b892cdb586e3c85e9f39982479a04085f90d66d5bae029df203e3ec581aa1fc"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:5c6420042bd341501d36d3991fc5a7c4513b8dc7e3c1650d0f41a055ef2124ed": {
-      "pdf": "b8acf46a0527ba99f1a307b5614385953d2520032a8c8a2083a2e100bb99d600",
-      "plan": "93663bbed81e7ee19c615d75292e1495cc4030f01340482d45d134dac6fd1792",
+      "pdf": "0a2c0d4501b3a3f28d8881401ead1af258d1d1bc9f9c6b57676ae082a622ca8b",
+      "plan": "6e221be3b3445d31d4d72544cb99b8c879d4a3a5b759f397350b4a75a69f6242",
       "png": {
-        "linux": "32f6f8e339cff9e3b35458e269c14b4bbef81bdde47bfe57b366c561a0b7fd5d",
-        "macos": "32f6f8e339cff9e3b35458e269c14b4bbef81bdde47bfe57b366c561a0b7fd5d"
+        "linux": "2eee524a63e317ed7db46805b9e3490e09abf3192a820abdd638096192af836b",
+        "macos": "2eee524a63e317ed7db46805b9e3490e09abf3192a820abdd638096192af836b"
       },
-      "svg": "2394f7a6eac9df86d3b0b363eb426a3b863f294d79db2557b588509ddd66a52b"
+      "svg": "d7d60c7a4ead30628017e562c142d6ce792c26e440d575cdb6b077dd945ca4ad"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:60367eeba140d31f4a063d79fc726a4582e89b304cc7d9ba79fea754fea765d7": {
-      "pdf": "316009615e64ad4018b234dd4be8fd709520934b6852393a0acc7086b65281ef",
-      "plan": "a43fcc7a4ea09611f4749554bb493e625fc0478f3c22ab77051bb961772d63b7",
+      "pdf": "f2fcbfd3b7eaecaaa74c622c9dac47c458798467dedbc6e15ba8986f5934321e",
+      "plan": "36ffd12335b9f0672309481d665873223599380e471b5c00f21bc77b9cf05ac0",
       "png": {
-        "linux": "33ada6a8f0845ee10e66e36d7a50d2e8c6f952c2a973d0bd722c0e417623f0f3",
-        "macos": "33ada6a8f0845ee10e66e36d7a50d2e8c6f952c2a973d0bd722c0e417623f0f3"
+        "linux": "7f49db8b745c7976b37c986aef7c103941229f3bb818e8f5973c152e81cf0915",
+        "macos": "7f49db8b745c7976b37c986aef7c103941229f3bb818e8f5973c152e81cf0915"
       },
-      "svg": "52f28e3e42f79ffe4219e512ab7642d21e9beb517df8afacba82b72c7bbb5f6f"
+      "svg": "8624939df356965cc8b1cedbc3cf0f5d20d7af8ce91a94774b766c7b96e50dc6"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:6701db865bf75614d4dde2214c515f982cde20eb59c37c90278228655669a6c0": {
-      "pdf": "2f6e2a46c751cd3f145d7a1be772675f26f874a080122b48a51b9f625735f865",
-      "plan": "898f6cb176f4872cbefe8052c6215d5e3c2e1faf3b665d0c653d08c9c3434637",
+      "pdf": "8f479bb25ce6b1e38d31b99e371ac2a320c4a371125242b64729d5511b5b59e3",
+      "plan": "682cf525f30f3faf68f16b6b5f5819e3cc8a6410701ddfe0234b87c4f1c170ef",
       "png": {
-        "linux": "fe0b4e37cc206f080249c567d007a8b72fa17ef5c1775ad9260bec02a7e1c45a",
-        "macos": "fe0b4e37cc206f080249c567d007a8b72fa17ef5c1775ad9260bec02a7e1c45a"
+        "linux": "daeeac00a2a020ce1dd62c20566c90a952274eae81aebcb1bc35db19ef184331",
+        "macos": "daeeac00a2a020ce1dd62c20566c90a952274eae81aebcb1bc35db19ef184331"
       },
-      "svg": "0b4d0f80bbdbd8c3aac2bd548a600dcb1f0da6eeaea3a63013590cfd7735f5ae"
+      "svg": "784c3261eaea4b62365f60639400c800ef2a41f3e50cb8af24c59ccee246bf49"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:76539254967655dbcfc60929461939f5e40db55c6ca13d431b2a3c45c864b272": {
       "pdf": "09ec8c8efdd75a90e1e4a430212deff1e33b11cc502bf16e46e358a75351e8dd",
@@ -847,13 +847,13 @@
       "svg": "6f97f364e6bcf75bb09dbdc23ba23bbc6ac4f57962e9f070275b956bb8c964a3"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:7e37ada61380e7499b673ba1796bf998f587c5adc78e7b4a9e6bfa683724cbe3": {
-      "pdf": "bdf06b6e5a362a5ad054f4e20f6c64caa3374d80c35cf4711670fdc96498f6ce",
-      "plan": "8de738d29251cb8f5ba3d3c1c2a2bf713d81a41eec1d289dd7a26902ed719f7c",
+      "pdf": "6f2a7f127b7a8185f70af5017292e5ea303142d0bee12ee9d369972dd965362b",
+      "plan": "78c975171622d78a0e673a341f327e5981d2b10885f9830cc5f4bced3b85202e",
       "png": {
-        "linux": "e2b5d58bac571b244f282440698d91089e2096385d227726721ecd586a4df84e",
-        "macos": "e2b5d58bac571b244f282440698d91089e2096385d227726721ecd586a4df84e"
+        "linux": "c758ade8dd19f7f9c9007a220b3543361622caff0fd2778ea40c174751b7a33b",
+        "macos": "c758ade8dd19f7f9c9007a220b3543361622caff0fd2778ea40c174751b7a33b"
       },
-      "svg": "8f137ff56b2d31b1561b5a5282197c97b1f9659c6f9e59216ca93463ba80d336"
+      "svg": "dfa521f69289b30824b25b4a9056250431f5109fbaf7df77c908daaebd96d703"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:8cfd64f5bb9cc84470736eebc52e2f423c03ee4a6f36d17df7973d11bb04056b": {
       "pdf": "07d17900d96b47a84468c662a5a7e0d3efb65effa9b9febeff9dab827b8f8220",
@@ -874,40 +874,40 @@
       "svg": "2ce2e52240a238c0957c08ba9779b7626f8104d066029b96a386e27ccee3d7b1"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:9c29c6f26415ad1e0ce1e9cd9469af16331ddf4b41a8856711c1fcdb56c2c051": {
-      "pdf": "97df7b3d7f789b4dd63be3ca12e893136b104a1be8fbbaa694d8303fda365649",
-      "plan": "e75af8f83e81757551c77dbf05990ff684066e5a6081b1322761d9dc159f0707",
+      "pdf": "46d88165cce58a27787ce7a5df04f423354d6b3110033fb6240e19e67c19217c",
+      "plan": "65a160afb6c9ceb4dfc955f0904aab6e7d7901df049b254281d3f34ed923acc7",
       "png": {
-        "linux": "cb085094490efa6fb2bbf8b1d91471bf2d72e94b4df11ea0ade362e8977f45c6",
-        "macos": "cb085094490efa6fb2bbf8b1d91471bf2d72e94b4df11ea0ade362e8977f45c6"
+        "linux": "9f4ba49fd095e7b601a265f11bff1df018a1d369d925a154597fdd2dc55b8647",
+        "macos": "9f4ba49fd095e7b601a265f11bff1df018a1d369d925a154597fdd2dc55b8647"
       },
-      "svg": "d47eb8ba5e611b59164dfbb6e04dfeb7f28e30c1a4be35f5086bce7fd0c2cb45"
+      "svg": "0d4adc9a2f0a25b23a3e26ad04221d4345735fad4cecf18dc3096b7089be4fcd"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:9f4cebce8430a221d45cbc97bb182c92bb800eb6d2bfc4653cea492446dd01ed": {
-      "pdf": "57e7a5ab949dbf0d5a3a00fb9db01299a0faf8dffce388525dcf9be60acf1b23",
-      "plan": "81bdbaec0b974975e33dc696d28abad3bd15f5d82f71fc269b90e715927fd17a",
+      "pdf": "f826e6f7b72485be497a0e4ba632dcdc1df954a45371f02a83afe18fafddac9b",
+      "plan": "8cc3fa05c24f16927dd168438f17c5c3003002e3e9fe7a5ec8a0273a87ead0a7",
       "png": {
-        "linux": "6b98a9678094de2a0445227a518ff09b62457b81bd8c9175f9f8d8920c7d6a3d",
-        "macos": "6b98a9678094de2a0445227a518ff09b62457b81bd8c9175f9f8d8920c7d6a3d"
+        "linux": "2f24f52dc085a1450bbe65c883ad771785245258e2e6378257ff638977af8e5a",
+        "macos": "2f24f52dc085a1450bbe65c883ad771785245258e2e6378257ff638977af8e5a"
       },
-      "svg": "6df39e264831d4bc2fafab1b1413bcbf8fc88b3d8d8959df4e2693299508d603"
+      "svg": "5be52e12eda99c6626c16627030a3c6d7bdb2cad4d75cc4b1279749621b5ab2e"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:a7dafaffb2ccc2ef82515374d549c706ec00cd3ee36542f7372805fe84681efc": {
-      "pdf": "1c8dc9c72b2547257b2bd0d5531689dbbac5e5c3739dc8a6c6b34a268a72829d",
-      "plan": "f7c7e020e24bfb6d633362d2397d355da727a4b50c4f524c6fa0d38030f21f71",
+      "pdf": "794f5e6c1ce1031447f576bc8752fa643af3363b027695e63374e6d55a7fc123",
+      "plan": "9a0400d46d7d8e86c49fdf45369e4271ca24dbefb354fcc4a7fa4b41410881bf",
       "png": {
-        "linux": "4be616765f1ad1a5f4de5b636eb1561d105f6eaefb122332f9004172ef2bad4a",
-        "macos": "4be616765f1ad1a5f4de5b636eb1561d105f6eaefb122332f9004172ef2bad4a"
+        "linux": "8511134b32a3e791a0ff092074e9e26ee7ecae58b1ff31224c063bdda47226bd",
+        "macos": "8511134b32a3e791a0ff092074e9e26ee7ecae58b1ff31224c063bdda47226bd"
       },
-      "svg": "17c568389a84e02254bd58f8e42c213317faa4a05a1f67760961a16f6b68ffdc"
+      "svg": "a9ad9f1bef3016d8447b0867b46633bdefe47826f12e25251e911b5342833369"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:cb217ab38084e5c69178d7fc450de1fa40dd53e56218bb3b413efeda8cdb23a1": {
-      "pdf": "cf6f7059b6c3d2a2278aed649ac79e60a9db11cf025470f33c7c9f0233080b48",
-      "plan": "46c581ee38b570cae8cd074ef821cbb4e8357fc53a92d7a4a1b15ec7aa9247fd",
+      "pdf": "2ba5093e9ec78432499fd894084b4912e67c68b350f4dfee17d04c32c73a8b76",
+      "plan": "d067c547bb62aa959d49d96b49aedb642260fdc4f91a2de6fb4f68798560869f",
       "png": {
-        "linux": "1983c1f82b0c412f216069b522d2731adda0c3a5e0ee14faa8fb88dc85ffb084",
-        "macos": "1983c1f82b0c412f216069b522d2731adda0c3a5e0ee14faa8fb88dc85ffb084"
+        "linux": "021cad50936ed873431fdc214cdff2cb36b3287d496f2c6f05242f1d5134fd4b",
+        "macos": "021cad50936ed873431fdc214cdff2cb36b3287d496f2c6f05242f1d5134fd4b"
       },
-      "svg": "4454b164a9bfcc073fafa1f4baeaf13d4c79661776c34fc47d911adb24acb07f"
+      "svg": "9e4ef9a6353eaed79d3058fed2ccc37f8c93c1f8a220ddd23b413868d0c8d7c0"
     },
     "corpus/nist/nist_ctc_02_asme1_rc.stp:spec:71617a17bc3d46237f13b96ea74dd8145dfbc7aeb19144c1957d93b23f7ba4b2": {
       "pdf": "0b69ec4e098629fbc12fe7a743de94bb30ddc3eef69f6e61eed631f38425e236",
@@ -1386,6 +1386,24 @@
       },
       "svg": "9bed54deb5b56122084c5b385469f224fe9137799d97434509382176233db256"
     },
+    "parts/mounting_plate.step:spec:2a3c23d7d0dfc44af03d474ee76918cf6e2ec61dd7ca06abe295ce069cda2fb1": {
+      "pdf": "c445d88d38361e45ddd0dddf9856da9fd974d5a7a669f6a1135bc00f9decc520",
+      "plan": "57dba55c5aec5ab286e2cc11783107a9403f3b073f691d589cbb7a9478c6759e",
+      "png": {
+        "linux": "421850c046080cf1982a508987f4b158980061efd41ebb79b06dd1e7e812b5c4",
+        "macos": "421850c046080cf1982a508987f4b158980061efd41ebb79b06dd1e7e812b5c4"
+      },
+      "svg": "efa28c85461bc9afa712861651dc64970ad30f264aa20188fda151d7427acd29"
+    },
+    "parts/mounting_plate.step:spec:2eb8c989a1db6758a85a783133995ad93a931512f04efd17646da114cf016541": {
+      "pdf": "56674085988153838e555f86ed5fb2d429f77fe2706b35d9c2fad4ae53360242",
+      "plan": "1a7010cf738ef8826961c85c2bdcff8b0826835f548669b4ddd277d3150885e2",
+      "png": {
+        "linux": "fbe7207714f639b990bbcbc7b53c6c2355f9bba4a6969485123cc48874865b2c",
+        "macos": "fbe7207714f639b990bbcbc7b53c6c2355f9bba4a6969485123cc48874865b2c"
+      },
+      "svg": "8f7851448085c3952b177131b563d55a2d95092266e0f83e330f4990768d0dd5"
+    },
     "parts/mounting_plate.step:spec:331cc7d0d59cb5f6132876c13a7f834db4226c5d43b7fad2464c5ee60cdd262d": {
       "pdf": "834728076149ef883c85adbd8fd04795d690b35dac654107c285ed19dece5004",
       "plan": "6d9219c6953116918152b7d8d9956ed9c30a29fc61e10beb0dd021296905c44d",
@@ -1404,6 +1422,15 @@
       },
       "svg": "610743bf500817d240a240d3b9fdcd38b0d4637eeeedf0a1e4b26fbba0ae6f78"
     },
+    "parts/mounting_plate.step:spec:3ba4ed37634d1bdd0d388206da95ad597bf73c8b523ba49cb1c54e3754310c2f": {
+      "pdf": "aa1fb813c35ef3f373e75e41125ea2352facfa4cc085a6ae2f56dbe58313c4a9",
+      "plan": "2a3af57378f7d44fe30724ff37051a42959620e81748437b536f90feb82099b3",
+      "png": {
+        "linux": "89aaf23af4c6f31fd20b4df3f79c07a9ead47aa3030a6767040b2010b0345161",
+        "macos": "89aaf23af4c6f31fd20b4df3f79c07a9ead47aa3030a6767040b2010b0345161"
+      },
+      "svg": "8504d5a63df1270a7008366a5b8751a4699dd119541d241c02eca3b128b9a8fc"
+    },
     "parts/mounting_plate.step:spec:44a8f3bbc27da62d289aab970988a77b86519e114a01670cf7b3846b66b13487": {
       "pdf": "624f9a04a0c74b147e94b2a3d557c437838aecfa6049c854300531d4cf223a5d",
       "plan": "0acc3470bb1970b04bd42a2edbe2bb8d0519713f8dba6445e3a811032102840d",
@@ -1414,13 +1441,58 @@
       "svg": "6fcbfee572077177e829b924afae82e712f631c4281eb4c7e57ec2a19dfcc4b3"
     },
     "parts/mounting_plate.step:spec:4644c1dd5fecbdb413cd0a6a880f4beecd2f77bac8712959c4caddf815a0008c": {
-      "pdf": "e4a44122784784743550f11de6fba9069befc7c1c4d0dcfd2776ebba23e35193",
-      "plan": "a12aaabcd25d1e996afc3ff812378e65df9afc9678b2c3de42a51057e3c4b4ac",
+      "pdf": "ebb38b37b296521954660381d8a72af78f7ed9844503cef0383538aa985786c7",
+      "plan": "bfe1ac02b10aacd33d549b8b7936bff95988a04035f7e29d93edc4f4551fda2e",
       "png": {
-        "linux": "6eec081c0a5e38fd3a7890be541129c22343e5cdeafa048d215cbaf185f0db26",
-        "macos": "6eec081c0a5e38fd3a7890be541129c22343e5cdeafa048d215cbaf185f0db26"
+        "linux": "172119e6111299fbe013e800c46407cc97a8887a0a90d7625f9be14b06cbc7fa",
+        "macos": "172119e6111299fbe013e800c46407cc97a8887a0a90d7625f9be14b06cbc7fa"
       },
-      "svg": "be4465eb738be82d3d7afd429e880250820253930fe96c8f6a56334ccd12ebc3"
+      "svg": "64a97e02eab02ef58e5eee07c2532ab5895906480b82b04bbfc0798b125491a7"
+    },
+    "parts/mounting_plate.step:spec:4ee9b66ea225107c2230f53b6a82c1f632687add39b34766b48215a0110862e6": {
+      "pdf": "677c14aa191434f74ac53e3d3714d9de0bea37cceb2bd817e331e517e08462ab",
+      "plan": "cfddc9f1969570fa944e3d1fc5a277a0a5d13bba7ed36c2832a097bf74b52b8f",
+      "png": {
+        "linux": "897b0799df22a637f04ead75a06b10111558bc351b3c9ae88d7533dce69c1568",
+        "macos": "897b0799df22a637f04ead75a06b10111558bc351b3c9ae88d7533dce69c1568"
+      },
+      "svg": "ca15a63c7886b6b3fc3f9cab7c1d28d397dd50c964d6febd116d2e3b49729ce7"
+    },
+    "parts/mounting_plate.step:spec:5111363deae04e224f7ddba038b4a59b162b110c84a043c61a86a65a6d7bbfc1": {
+      "pdf": "6ed5a3bd08a0b22ea493654df3848367de99485059527e30e2da77fdb5dcf64f",
+      "plan": "569852d384e3347d23f5067dcaa24d8a98241a86d26b08f76d8a1d1956d749b0",
+      "png": {
+        "linux": "d79066c95fffe3f7bd74c9c76a0930fbd869a6b8dc0ddbbae2c19fd125a337b8",
+        "macos": "d79066c95fffe3f7bd74c9c76a0930fbd869a6b8dc0ddbbae2c19fd125a337b8"
+      },
+      "svg": "0af06f29ee105c0ae53a4d746b68186e11150e7701e9b97a3278bfeaa137cd76"
+    },
+    "parts/mounting_plate.step:spec:51a44aec8b7a3d854d458c2a0706f7ea1b9919bc95eb7e1621143ed3feada0b8": {
+      "pdf": "ca522facb487dc48d0b60cee027141c9e69a03e07eac79f8c79db46d508b7036",
+      "plan": "fec051ed1aa4976a7e9d93897009a7b703e952009361bda5c425b00230f98095",
+      "png": {
+        "linux": "33929098765514b42a5f617e66f4a95849373586b5f757190c74a9c1b41a1d39",
+        "macos": "33929098765514b42a5f617e66f4a95849373586b5f757190c74a9c1b41a1d39"
+      },
+      "svg": "0ec6596828f807c3bfec1f228f3199644cef7c24d8c3d6f056d6ad8430a79645"
+    },
+    "parts/mounting_plate.step:spec:5683fb6acb7d861fa7ff797784dce59faa8361dc3216932ac35fd62cd3b8a1f3": {
+      "pdf": "dc65031926f0f22636563a455162d106716c27920d9e6a7254d5f3978f989b9f",
+      "plan": "71f758550219e5f63bbd427c391c52817ad81a1123e20fec6a55386cbbe767f1",
+      "png": {
+        "linux": "a18340c650b02ec5e4c8f1047f4e0c5eac1f270d9e0e039b53df629498139a92",
+        "macos": "a18340c650b02ec5e4c8f1047f4e0c5eac1f270d9e0e039b53df629498139a92"
+      },
+      "svg": "7a0214d1709461ab8d6cea479ae09ae5194ea3a8dfe711ec99a95477cb776260"
+    },
+    "parts/mounting_plate.step:spec:6016d06b1928bcd18a1f03b2dcec7a7fcede54414824b53e3d67ffa9c0f37e5c": {
+      "pdf": "7dbaa77b3f2201580b8a9a89e23ad7b715c0ee0f0e239a60d3a172d19ba33844",
+      "plan": "e47ffb59539481525f1c00f7bfa453147294fb02d33112ec2e0dded28db43fb5",
+      "png": {
+        "linux": "e453defadb540c586fc7fc9ecc83753434caaa66364ce042732dd3a0b0550b72",
+        "macos": "e453defadb540c586fc7fc9ecc83753434caaa66364ce042732dd3a0b0550b72"
+      },
+      "svg": "f71f41ccf0b40b2ce7c58238053a49944a300c11c00e5980ba9c4fbb8884bb4b"
     },
     "parts/mounting_plate.step:spec:650501d60ea925902a2d7f792e2bebec69912182c620abfef4651af54c06e30f": {
       "pdf": "15e947b4615d2309da66b4650c8c9b327948f3d49251aef3ffdbd82f84cc215a",
@@ -1440,6 +1512,15 @@
       },
       "svg": "fd7139e345c8259b8891ca64e49648c693f4aea74fde82af4aeb5fe9d64bd8f6"
     },
+    "parts/mounting_plate.step:spec:6900a0865cbb2e9c4e820ea7762696733d173a60bdefe4c7a9694c79836a8105": {
+      "pdf": "f5f835666b26491bb1bc5042e4664147a845949598a786b8144a8add9cffa4fb",
+      "plan": "91aa2804d561e34e40daf84de047cf9c9c9484724520473c39566459110d375c",
+      "png": {
+        "linux": "061cf7e6a2e31f2a2f449119b42c4702ddf388284d3445b41baa1c1e7e894f30",
+        "macos": "061cf7e6a2e31f2a2f449119b42c4702ddf388284d3445b41baa1c1e7e894f30"
+      },
+      "svg": "afd3cc443021314a2a690b14d73a8045c007c7937f030f7b2e22c08c981e7eaa"
+    },
     "parts/mounting_plate.step:spec:71733ee64a54b4d0a238c8f6fd61fa0fc67486a0fdb9c766f00be5bfd04ac14f": {
       "pdf": "d5cbed33f555cb4fe05a2aef55a3207353f065c1050f1e8d3cc33a5736363a82",
       "plan": "2e400555dc71b9c36ea5e1eddfa0964a0697aa1cd819174e8202fd47647296ad",
@@ -1450,13 +1531,13 @@
       "svg": "32185c0bd5cca1e52560757bb2f29b16359ba415fc7c3bd8eab53368c0945aea"
     },
     "parts/mounting_plate.step:spec:7560195ee5b8932af2a3e132679675cf3476ef3ec2422a36f08ed9235d894bc8": {
-      "pdf": "a4f010a6447f9cedb7f23fa6c92dc8956b33455a027466560f4b7de3714809f7",
-      "plan": "fe6d3ef926a123521f03c074436ce3cf1001dee434f30a73719d069211e49dd1",
+      "pdf": "5bdd907789f7c6d187d469899f803447b336a8b584eff16b8e0fd251c9842ec0",
+      "plan": "3a42a7dbab7767df4601d65de87c9e0a15823cd7073dd65e90e1baf16350ab9b",
       "png": {
-        "linux": "f97eaedee67f9ce60f105aaf2122ceccade34a51abbaed4a816a347b7b4a4be3",
-        "macos": "f97eaedee67f9ce60f105aaf2122ceccade34a51abbaed4a816a347b7b4a4be3"
+        "linux": "85230c40c01c1063d4df32d4e14b3390a4058545bd177b502bd8541e7e8e40f3",
+        "macos": "85230c40c01c1063d4df32d4e14b3390a4058545bd177b502bd8541e7e8e40f3"
       },
-      "svg": "e272413af3d49dc55478e8790b5f86e3c37375c6921685c705eecb19a7945671"
+      "svg": "faefa20c6fe9e50315ed2aa49c09d4f72fb3b11a167fe121ec4123b8718fb74c"
     },
     "parts/mounting_plate.step:spec:7b1461b37462f41487dc93a757b56ecc0191cac34a6b8b4d347a9e514bdb9b1e": {
       "pdf": "49c31bb3148bf6921beb21f97e9a756732644f877be6f2857e7113463fb8ff28",
@@ -1503,6 +1584,24 @@
       },
       "svg": "5a3d96ef17d03afad39660983fddc727a378f935d73e4989505c0ed9876d9c54"
     },
+    "parts/mounting_plate.step:spec:96212c1adfc0a4bb10e1bb7ccc59aa30bce1a1d3d46e855157d848642fea9ad8": {
+      "pdf": "ca169e47849aa289efbc6eec8e295dcea4e6c92ebc099ee3d9163c96562d30d8",
+      "plan": "c56e8e6c76ea69a0431618f052e1c301659d2a561f04a1f95fcefbebaacc97ec",
+      "png": {
+        "linux": "b6ec0f2df7449bb261ea006aae5f1c684c12aa93b0f6fb258e3decc2c6de3df2",
+        "macos": "b6ec0f2df7449bb261ea006aae5f1c684c12aa93b0f6fb258e3decc2c6de3df2"
+      },
+      "svg": "661c9934b84f61e0aa6a973d7c40a7da91cf04a999db4f00b21fd7a51478dc71"
+    },
+    "parts/mounting_plate.step:spec:96e160cd489cdbde22daa9a1e0c939db9e1d420813c9b4fcfe45265814749229": {
+      "pdf": "0a72e9ee8a9cc3e02525b3f5ebef9bf69663bd8c2878a49abd384811b6c93022",
+      "plan": "39931769ef40c4520c3d440d7a5f18f31c590ca328f7271448c0a43f7c676fff",
+      "png": {
+        "linux": "dec6360e291a32f27f45facef24bbf57d7f4ac222cf41ca24329e8d0d0866c44",
+        "macos": "dec6360e291a32f27f45facef24bbf57d7f4ac222cf41ca24329e8d0d0866c44"
+      },
+      "svg": "449a173f8f2f09e31cfa5058ae34cf64567097d8adae80caa6e19d27973ea4ba"
+    },
     "parts/mounting_plate.step:spec:98f1639e26561247cd2e4f5f2b4e2f0ba7d6f328de3ccc4079b9787959f10d7c": {
       "pdf": "b0e42a209da32df7a2c3e9d2e74493340c46ce06dcc466c7fc312739ce30f547",
       "plan": "13fa6d309a7503a6247551db83c391e212918033450d976c79c57f502c5f8c76",
@@ -1529,6 +1628,24 @@
         "macos": "e6b96707ef5140cf2d357753b7c6becb8b281983133410a2f029afd0a54f43ed"
       },
       "svg": "f02faa25e8eec6bebb39f312e91934cb732b6acda5617be5b11842ece54c5697"
+    },
+    "parts/mounting_plate.step:spec:b5f5af21185e5150558908bab7984a104586a8c661ff52ce21edc35d98256ab4": {
+      "pdf": "83eccad452c65e897dfcc403fea08a1f9ea5f5a2ae5aa2d469ef77a9488f96dc",
+      "plan": "d5163e5288715547995d59638310474b1aa1b0788ba7bb34e4200ebb46aabf8f",
+      "png": {
+        "linux": "c1f064936946ed59912a539ea5788d7bb1ce37d25750bbc34174a5e1f6088ee7",
+        "macos": "c1f064936946ed59912a539ea5788d7bb1ce37d25750bbc34174a5e1f6088ee7"
+      },
+      "svg": "c8b276f6556abe06ea9f8f03b370bbf2d319af80f0cb1ead5143bb4035961939"
+    },
+    "parts/mounting_plate.step:spec:bc7b4193ef427957c7520e6eb3f58e12b4d8666d1ef90cd219afb0f18ac39c53": {
+      "pdf": "13e861b7810ad4c772a2054650bbba141f0fb98cff8d360bf267afb5dfa75fa3",
+      "plan": "0088a029bae1c421fe86d6117788a3251830a47de4a9fa284d6f730174f4406f",
+      "png": {
+        "linux": "6aee385340ac481c37c92af7c2ce642fdbc90b3aa2bfdaaf4e3bce6450f689f6",
+        "macos": "6aee385340ac481c37c92af7c2ce642fdbc90b3aa2bfdaaf4e3bce6450f689f6"
+      },
+      "svg": "70d1cd0ab9e13161e5b3a6c955573913f443f8e7f1bc6c54e1280d99df319077"
     },
     "parts/mounting_plate.step:spec:c39e5fb3f854ef732da827a9996622be172c6e9c70251a7d57756440bc47085c": {
       "pdf": "80e5e09d2e118797f8cbf8291c833de908daacbd129d52580a17c385788f9ed2",
@@ -1557,6 +1674,24 @@
       },
       "svg": "0fd187e3459c3b522362228f35532b85e86fbd6fa918881fb9f1a4e78ab3bd53"
     },
+    "parts/mounting_plate.step:spec:d3e2304fa36d22ed1d38458a1c4d317a3d3dcf07bc7e8ff95b6728b00a449a2e": {
+      "pdf": "07dfa60bfff833313e0c7362ac3fa52eafd8c447a8717d09c59f8d7441319fe4",
+      "plan": "c2285a75c7452c44088220f66f2166852aeaec7e060cb3232e7f883336be46f7",
+      "png": {
+        "linux": "dc4a73d1942e40ac12843ab5a38c29adcc997d1741fc9c68d8a454be7db09f94",
+        "macos": "dc4a73d1942e40ac12843ab5a38c29adcc997d1741fc9c68d8a454be7db09f94"
+      },
+      "svg": "e6e186621ed0c5f9e6ae491d6589292cf5a14a9a7debcfb2df589437150f9b00"
+    },
+    "parts/mounting_plate.step:spec:d6a5c546b77546303cdb29506fe64a7db8681b956da0913c958028d7ecb1ad23": {
+      "pdf": "c1ab31ab66080dc4a4983e66faa325148cd548210f356d69e30a5f8b1b9272e4",
+      "plan": "557b9595f4eb84fc13170ce247044fe7f324e9a067e5a57bf12b49561de6fab0",
+      "png": {
+        "linux": "a2d43eb29639ba4aa79485b06d71997580ba9c37e7c9d73ce5aa5bc019eb98a5",
+        "macos": "a2d43eb29639ba4aa79485b06d71997580ba9c37e7c9d73ce5aa5bc019eb98a5"
+      },
+      "svg": "b44f43a8b32fa2d752321b96c9993d1eae2cf27f7ebaa2a3fa74a650fdfa60da"
+    },
     "parts/mounting_plate.step:spec:dbac4ca0dc2c5d07d041f7c519f009c6561dd2f719d378be316ab676e6e78526": {
       "pdf": "7458495d010e5de9af26e250c77b575648e3bfb0268d3390db93cf017a559a39",
       "plan": "55bbad977d3292a006043046fe6b58e388aaac7f0d41eda2365c86f715cee2bc",
@@ -1566,6 +1701,24 @@
       },
       "svg": "3c0b2453f95d7290f2647d03e5e8a2774257314429421822cce919ea0da75776"
     },
+    "parts/mounting_plate.step:spec:de1bb7fba0b9b5acc031c9abbe51de6c4f01b4020f02b0fe4a23a6c3d3d4e266": {
+      "pdf": "46ec705689086c30ca3ec2e7a9d7e6b79a16bf628d99ce030c564008fc22a19d",
+      "plan": "93b5ada00773fe7d3cff102557c6a3ac98d80e4b24bc79d245efbb5257c0546f",
+      "png": {
+        "linux": "bf72eff7a04d079101444058fa686c1c1c8a0facc854d545e58358c98e61d120",
+        "macos": "bf72eff7a04d079101444058fa686c1c1c8a0facc854d545e58358c98e61d120"
+      },
+      "svg": "1260692e1c0e8723f0069250bb55dedca107cc549086017e35ed5429ce747ebe"
+    },
+    "parts/mounting_plate.step:spec:ded38b131374e309d424e1faa5cdc8b11af811bb1cebbb54ae899e5e82264445": {
+      "pdf": "fa6df926360b6f86a424c2d5fae611dc1de28750c405e73e7c280cda8363ca51",
+      "plan": "6ae4ef89ef24b188286ddf773b2b453df19b385c31e8a8b41fd380729b8cf50a",
+      "png": {
+        "linux": "1a7d3ad094af555d1d7e35565b2425f8a49b9e74d0000d2fbce16a430e484b8c",
+        "macos": "1a7d3ad094af555d1d7e35565b2425f8a49b9e74d0000d2fbce16a430e484b8c"
+      },
+      "svg": "954e5da95fab882b18b89f9232222bc07f77cf24699361c3bf502ad8221b10d8"
+    },
     "parts/mounting_plate.step:spec:ebb5d54fa88123395e8a459fcad15458a0dab20c9e952cacd31aa98ce938e38f": {
       "pdf": "5f5c9041430445afa9758a8025e5d9ada9fcc59857d61340ea85352eac72e5a6",
       "plan": "71f78d0262b2976012781106f25ce12de1d0dddc27a0086978c62a5cb1f8a9d4",
@@ -1574,6 +1727,15 @@
         "macos": "383628de8e7cc4297fe9e81e1881f9bb7684b6de15c11565e7b6ecc2952d10c8"
       },
       "svg": "18b1bcd8dfa02f20db99b4d48b4353ed0e65f7ff92b35b6c9f08666f01d4f61f"
+    },
+    "parts/mounting_plate.step:spec:eec0e20ebbf58461d2fd14356004068d273716b1494b8c1547c0343d45f0e5ea": {
+      "pdf": "da587291d4fc00ac7c3f9a1e39a42397f096f39455c1c5564b69a65241a8663c",
+      "plan": "6c2efef244af0e9accf5308e8753e1bc91aed7749a7b868c224c96d3f8589b7a",
+      "png": {
+        "linux": "57433c061e8fb011cd351c53fe806eb6b6252963526db8eee11ca3134582e3db",
+        "macos": "57433c061e8fb011cd351c53fe806eb6b6252963526db8eee11ca3134582e3db"
+      },
+      "svg": "3f691ac7efdbf71782f2ee5fdaedd23596191b85a7a6a5f6879e08d58c29e4b7"
     },
     "parts/mounting_plate.step:spec:f574f37ac5f7abc0af19d58205ea36bcd7e9fceeda7688a6d574ee99cccdc9e5": {
       "pdf": "72cc8e27896ed8b6b4917956df4de73d3584a36c898fed3c9efba171379d2afa",
@@ -2223,6 +2385,24 @@
       },
       "svg": "e0029aecbc6372c0c28b778c18f6894246c1eae1829d948bea10c196a39277ff"
     },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:03fa94509a59f34e9ba6376cc08edeae7e6b10a2bc76057cb17f9da367a000f3": {
+      "pdf": "031b8e4efe2b2d26673a3145970caf733f941e9414eca0f19bfd897a56247411",
+      "plan": "5f412d86746a2cf04217d77878a98dbd36b88fcc0139b93c7def19547d93dc7f",
+      "png": {
+        "linux": "3eefe7bcc844b0f1d267313b9bd7a80abf0f7357c620f60ef9df3bdf9bdfffcf",
+        "macos": "3eefe7bcc844b0f1d267313b9bd7a80abf0f7357c620f60ef9df3bdf9bdfffcf"
+      },
+      "svg": "b20efd50d05b0b5832b784df412d4a634ae25a1c830d668a7e1ce113990f2b60"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:0a250c507a7dc8e9136ed30ecf918f528a9e806b07fa438a2bf1868c881d54bc": {
+      "pdf": "9ef43d363a78b96b087c61ec448bfb23d6cadd6a79c29fdac55ec9dfdc5d8e94",
+      "plan": "b7dc570968619774c26a92d36e58274015e2bceaf7510ba0db82a8f6c12408a5",
+      "png": {
+        "linux": "d07c1f41becd0c205461cc3da8b69bd8ac9eb7097909e4262f65314d7379645d",
+        "macos": "d07c1f41becd0c205461cc3da8b69bd8ac9eb7097909e4262f65314d7379645d"
+      },
+      "svg": "7dfb5352ccc104f437712b2b5bca786dc37b0571b2e19dd31d8075b4b8275698"
+    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:1f8d5f59100f2fcd3fd8436b50369ae49c65e914d192807e1d5086c5abd14fe7": {
       "pdf": "fed49c4e85fff67f51f8b322a44587460ebdb581de9954bbe72b8fcba2a2f01d",
       "plan": "aba8db4088150e0761f9bde289ae9a5615921cbdad86fbed4c0f0cabf080404b",
@@ -2232,14 +2412,41 @@
       },
       "svg": "b14b6f835b6a24822bba73091fc2db9f76c9305d9eb7de099f3f10827bf16f2e"
     },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:294f9a45495dcbea9ebca2347581914d6aec0a3fc01350e565bfbfdd431a8765": {
+      "pdf": "9233e89eb2a0fc3a00d489c2ba7c5dfffffeee68b70bef877473fb8ff742205b",
+      "plan": "27121f64ea1605d693e39ff1c09c0db02d42d2ecaacfbc1c9039e29fef0d3518",
+      "png": {
+        "linux": "167a58da55d2f5ff12e1ee9ea845fcc6b2652994ce4a6b904a60b9c704805462",
+        "macos": "167a58da55d2f5ff12e1ee9ea845fcc6b2652994ce4a6b904a60b9c704805462"
+      },
+      "svg": "1847862e110d390f749b8603e9797f5287ba73de33fc48f29b7d3ebf0b0e7304"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:42f9302eeacacf1f0a74cb2b1336c5cfbcc71221b0b6f51dc2c65742ebb380e9": {
+      "pdf": "a645613a107720947409e7a3573c7e48c08ec6102861e53f51ee9b118f8f5137",
+      "plan": "28a32e722f9a7e801e4d99a6ff97f46178ea2cb1a4a3a26cb2aae39e0f18863a",
+      "png": {
+        "linux": "1b130bc946da19da7b53b9c84fe5f299df2ca9cf5097273bc01d1a16018afde4",
+        "macos": "1b130bc946da19da7b53b9c84fe5f299df2ca9cf5097273bc01d1a16018afde4"
+      },
+      "svg": "4161c5c13fc300406113dbee42412d57caf3f9a2dcdc16b7294b75d65b4febeb"
+    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:483f93bab2e0f857b7fda576052d3e2f32984bd5c69d1b3076faa6c9134d5f69": {
       "pdf": "ffdfa448ebbb9e7e680b893728883c68104f08ab955fc1df80ae82af90aceab9",
-      "plan": "675a29f6c2af960e5fe7074308f7eb1576ad692cc30b862f744174705798ef75",
+      "plan": "d5280557300d1054a3dfa99fd4d614e271fca9d8762c50578633c5da37b9027f",
       "png": {
         "linux": "a71c77572f42238488eec64a6c6804cac730aae70c38cf3a55232bab3b1b10d6",
         "macos": "a71c77572f42238488eec64a6c6804cac730aae70c38cf3a55232bab3b1b10d6"
       },
       "svg": "d12c126ef08035685b9e3d084bbfce1bc6485e51aacfde04e777ffd94dea9826"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:55db4f312b3ae0fcc5a100128b52485e5c6e7e0296d75d6ed668b2928160621b": {
+      "pdf": "d726508a20ea987bbfb5acb0fc9254fa198f6802c17d121f0c7c99fdf0ca9273",
+      "plan": "cbf7f29afdd17a6467d8242a57ff4c94f9911417e6d3b789d2b5197c7cd826e4",
+      "png": {
+        "linux": "07d8a0fda2ecbdd9a23fb4587634bfc5c82ca65ab145a9b268d751e779fc9af0",
+        "macos": "07d8a0fda2ecbdd9a23fb4587634bfc5c82ca65ab145a9b268d751e779fc9af0"
+      },
+      "svg": "f800fa30ee71293ac0fe9d61aa38c6a80e17db23552b7b8f85dddb99df2448fe"
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:568a722a7482427c304d099054522a91498da23a76f2ec4da8664a32e23e9cba": {
       "pdf": "92355b099f48cebd32809b110ee7ba29995d9646ddf170670ee70e409a8a0fe6",
@@ -2249,6 +2456,15 @@
         "macos": "60bd1cc91eb9116bf14b89a8dd83809a0891fb7ca95a2b7eee2bf07fe5b4c647"
       },
       "svg": "69375c5eca3ac2324f1fae622833d59ea348b23a328b99220834f109f8ea079d"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:5a5b227b7ea8aafcb9d05ec9614bd21b3f2429f2d3d459e6c5ebf9624ba795ef": {
+      "pdf": "76fede353a1a886d024c5f68c2ea36eee549479427916b4d12ccadcebcd74815",
+      "plan": "50172290918b7c6f75fb94b4f6bf75efe479dd52e649fcd4e215f3432f2bae7d",
+      "png": {
+        "linux": "18f2b646c7d85aa8fabf7120c3dd64421b32f72f342c169f1fdf6872f591c912",
+        "macos": "18f2b646c7d85aa8fabf7120c3dd64421b32f72f342c169f1fdf6872f591c912"
+      },
+      "svg": "72065bfc634171c7f886e5c368417fe6eca654cd2a6458ac3cf9bf696afebd3d"
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:650501d60ea925902a2d7f792e2bebec69912182c620abfef4651af54c06e30f": {
       "pdf": "8e559e2950baf7acdf9f56459ae1f1bf27cb1d51364f52c9a62e97ceaaf4fa3f",
@@ -2286,6 +2502,24 @@
       },
       "svg": "e09158e0d8067898d50aeb28c3671dad59bcab056594610f1030c88c6dc91533"
     },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:872b8227f8054aa55e3559e8b9c70cd9447cd0c4387cecd0bd24f2996effce80": {
+      "pdf": "bbd194a64f23a9dec876b2e0fae8e86b9125dd46e8848159200298560ad9c7e9",
+      "plan": "585532732a05a1ae076f3d33fdd0a7248eea1228f92a66dbaaeeff3781cbeefc",
+      "png": {
+        "linux": "4c2370b8db4b19cb73c485cbadf45babac55d6a914a2c45f2c9dfed3cc4d0a87",
+        "macos": "4c2370b8db4b19cb73c485cbadf45babac55d6a914a2c45f2c9dfed3cc4d0a87"
+      },
+      "svg": "8fd1088e576a27e496a58d671503f36a81313b598bea6020d41a07525dc1bef3"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:8976374b2f4cdef27ea068cb0fe9ca14b7129760034b5b50f467b92909f42c92": {
+      "pdf": "f760519e7d8671cea64f1625cc9d14fb6eef03007ae8f7693165bb682a4a3633",
+      "plan": "680152179cec733e2e2138f466663a495fc03ac4b9b40668668da89ca7b92f19",
+      "png": {
+        "linux": "53d1df29b87eb4248f2e02437d69e1ab7e4f637b59365e2e6aec9da4699326ad",
+        "macos": "53d1df29b87eb4248f2e02437d69e1ab7e4f637b59365e2e6aec9da4699326ad"
+      },
+      "svg": "19ad162574fdc612774f64c9639ce616fb3d1ec1dbb63112d400dae799ee243a"
+    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:8bef50cbb3baa6f71f93f5d918d25a3a0433eb541c74d481e5db5d54cd588c08": {
       "pdf": "e41c01dd440de479edb063cb222f4c9f2e1c54f5bdbbb6ed8ee0926f4de2d15d",
       "plan": "166a31d1eef9aea5d48e9ad54746f04ef1abee664afecac7489b1d13ef552fa7",
@@ -2304,6 +2538,42 @@
       },
       "svg": "7b3a179b67e6eb5da468a4563fc4df3e717e49738e9b0954a1f763eb6e1bf398"
     },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:937dc9689712424ce95cd6024736211fa4f8b2b1d7b196fea1c84da5de8ac8ea": {
+      "pdf": "385100d9b8ce8bbfe33d493ef1cec8367ae76a9ac6b590d252acb91b5a2bee43",
+      "plan": "6c994faf3f6e6d77c190f7e2f31fe804e3337acd810959879a3a57ab5259e7ad",
+      "png": {
+        "linux": "ff82894ccf9b38a02feea9237cd3168059f8a1be1e1796f6c6a08d198ad6c04a",
+        "macos": "ff82894ccf9b38a02feea9237cd3168059f8a1be1e1796f6c6a08d198ad6c04a"
+      },
+      "svg": "24310be442b9c1350e5a9210dfcaf8965d6f8e907e787766e2c0a878496028c4"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:98a15b23e4b5d1b92a1e7e7ed9ba841872ada78ba60d1ffd4baacc96d4a75e3a": {
+      "pdf": "153de48964d81104fb274656dff4c6194916d18ff1e019f055edd19a7858db05",
+      "plan": "8c70b67bcce4419436ebfa7c13e065c3172d492cdefa3e45fffbe3085150eef4",
+      "png": {
+        "linux": "e88e922817f69beaea5625cae15dc4fadfd317b96fce32918a8dca2f31dcb108",
+        "macos": "e88e922817f69beaea5625cae15dc4fadfd317b96fce32918a8dca2f31dcb108"
+      },
+      "svg": "d7850da95dd5342c6201c2f18275fba06bb0f14134f38be3d0a5871175fc8543"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:9a193c7874181ebc946ae6d3bf0948fec4858acb6dd897f083e2469effdcc2f7": {
+      "pdf": "2bd8132fe353d01723fc6e8e1407cc3eca08e67f3892c357e565595e4a62f8be",
+      "plan": "2f6b04928cbf0e2901b29609449463f9f76479d26c028784dde3b009e2da7cf7",
+      "png": {
+        "linux": "f807fe215062c437dfe8d5b99b29c2f5ebf4fa8bea90ffbc78ab1fde1fd7309e",
+        "macos": "f807fe215062c437dfe8d5b99b29c2f5ebf4fa8bea90ffbc78ab1fde1fd7309e"
+      },
+      "svg": "5dc83cde1e190f44a471667fa22233ec97d2fb4946a3f3b77b03aaa197343ba0"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:9b74ad45b5de5ac7e3329f59b12e3424c6eb7e6b3d67588b26799e311e68e857": {
+      "pdf": "09c47d50a31ae023779e26a1bd9d3bdd2bbe2021f2a71482740212a3dc2b966e",
+      "plan": "721c32d8feb2e5a881a5bbc9c7d32d3e87c0b2e285d6d305466fe259f0f3847c",
+      "png": {
+        "linux": "a979528e21da08a513e6ebf9ed388f8923fa64678c05b18b4082cbdde11ff633",
+        "macos": "a979528e21da08a513e6ebf9ed388f8923fa64678c05b18b4082cbdde11ff633"
+      },
+      "svg": "18331f7cad1e568ad4a8f164c90373aa2f990f82d60ecc90bf3d066023e150ce"
+    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:a0d5d1f567ba62d6aa5b75508d16f65eb1e975d96e2388906417257f80567134": {
       "pdf": "be72287fd116f2dda4dda729bf8e390c26daa37e05241864a2937358641ee316",
       "plan": "dd279d6c9d362bb0bc2fb299edad796a557214e676ae10c337aba4b17dc6e9cc",
@@ -2312,6 +2582,15 @@
         "macos": "a2210aad469a5a37753954169395b8e7839257ecf012fba34f298b9950ee88f4"
       },
       "svg": "ffb5418697bfa2eda859a181bd50fb44c69c135a6461ddd1481cf373858168b0"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:bdb3c1a61ac5ecaca99591748e5b744e4bbad2c68b493c68ca7ad96003e75e4c": {
+      "pdf": "cd391681d1a23b288994bf6436a759d3e2c4ee927301718878ccc807780c3159",
+      "plan": "4bc89d1b6fc93d91ba4e9461e97de47bb8ad2ef7225f39d98f0bfbbebbd1ef23",
+      "png": {
+        "linux": "bb195d9faf687bc0140ff411d13bb60f6d343a5d090325d658d2978b36b6d964",
+        "macos": "bb195d9faf687bc0140ff411d13bb60f6d343a5d090325d658d2978b36b6d964"
+      },
+      "svg": "3cedd591452f4f5822d39cca966e529334396dbaf6fe0a17858e43d0b0334b42"
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:bf872152a1a1b4d9f3da6b2edcc18a9de30cd3dd0c160419fec26ecd33633d46": {
       "pdf": "6cd498f2f37c81d8c4e56a67f95d195cc0d56e2c4f9e281a29e588de29f2a78f",
@@ -2340,6 +2619,15 @@
       },
       "svg": "e23b7c61b5e594c2f1f6ac32129b23ee68aa6d920a269003e98cf53e3ff2adf0"
     },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:dca67364cea75586c1dc8716a18c2b58a554bcf6e7e18ca9598886a1f952362f": {
+      "pdf": "cf744a4c692efcfc2cf7cb57c64e3a69282855f3860615f58999b47ad84275e6",
+      "plan": "f74c60fece754e378704999b6a151219a97e8eb9756145a725d524d2aeb71d69",
+      "png": {
+        "linux": "4985bffb01d24eba51011467cb70bbdd3221322901246a96b6dbaca661b6188d",
+        "macos": "4985bffb01d24eba51011467cb70bbdd3221322901246a96b6dbaca661b6188d"
+      },
+      "svg": "d008d29f2d75dd6bcfe60fe78f790316a3eeca27871bdcde586bc880440bec05"
+    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:e05ad7f41077d579378b0da582fe1fcdfb96c2203cece58253e690cd56dbdfae": {
       "pdf": "cd68ba5076c348a1a003f912835d19a0b15ee0d4ba18c1eefb1cf9f2ba1af2c8",
       "plan": "52cbb091e88f3944284b0bc4a918827394bb95021fdd737899bd75a571987b6b",
@@ -2349,14 +2637,32 @@
       },
       "svg": "91795a01f9c7c8476b6f16c1f8dcbb65f8a4b117d9178eedd40002af02d34f8a"
     },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:e4bf6be805d8fd37590456431d6a9774602454e0aeba8a9b2bc36bae713962df": {
+      "pdf": "d3381acf4ac2cf6de7abbd93607392b3c89b628a27c0d8fa68c1d81ff68fe525",
+      "plan": "5bb680207cd3ae63d254964b7a0534e10ba424b0572ddab5e8c3307f7bdd87fb",
+      "png": {
+        "linux": "bdfdddaf70faa5743fd29a12e0ef815561cda3f1fb08bda0f7e35cbe30cdbe59",
+        "macos": "bdfdddaf70faa5743fd29a12e0ef815561cda3f1fb08bda0f7e35cbe30cdbe59"
+      },
+      "svg": "147d58f93f7b78b7e31bb76e5d70a20a1f79598a489624d25c91dae312978cf0"
+    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:e740a8aa611470466bf37ddc9b08290470438bcc5610203767f5c1f1aa4349b9": {
       "pdf": "1c475e354c05ff8ab0fcf5ce6da8e5c3b8d36dfa69f7c129e9d88c9ffe02b22a",
-      "plan": "a0c5e590695422a6a14f28b16c326901c294a35451537483970f9bda8b864b0e",
+      "plan": "a0c63d79d7de6d6fb0ba0eeab3da09d981773e60fc75e6d9dcd62d7c5de52c3f",
       "png": {
         "linux": "ded5bdfbfa7422edbd840d1981a03ebc288b32bb5f21046ce2a8989e6fd7db3f",
         "macos": "ded5bdfbfa7422edbd840d1981a03ebc288b32bb5f21046ce2a8989e6fd7db3f"
       },
       "svg": "55da6a445edc022d311d44d8225933f805c0d8ed46275874cb17e8a72c2f5ba4"
+    },
+    "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:f68289cf10ac3a554c54ee6e65b2aef8aa71edba70757e46efeefa6925219dcc": {
+      "pdf": "f5347cf29a6e1e6010187accef174bf4822c0f453abe8c8e3c6fd5c0556b3492",
+      "plan": "dbde4adf734ed148e41fa9319ee1b42013dde1c2a1e8afa2060a058f3152c1a1",
+      "png": {
+        "linux": "176e881b55078c5ac04a0f88a06e099916b404b648bfe9d104034e9b1c2f39f9",
+        "macos": "176e881b55078c5ac04a0f88a06e099916b404b648bfe9d104034e9b1c2f39f9"
+      },
+      "svg": "c707d2ef11d4d12237383846be810806d9f6b2b4809b4e71563f9af7458182f7"
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:f872bf72073f3fbe94f8316cbdf6ac7538985f5cce0c5f3fa7846b25a0ec33c0": {
       "pdf": "590626d7071d1c36cc0721aaf9b2fd06e8f6c992a7452118523e4f79caaefc12",
@@ -2460,8 +2766,14 @@
   },
   "note": "Exact replacements for deliberate drawing changes merged after I1's single-sheet oracle. Each case keeps every format exact; the stream that changed it is named in streams. Applied after known_single_sheet_main_pins.json.",
   "streams": {
+    "e1-pinned-labels": {
+      "cases": 54,
+      "integration_base": "d8a75b39c844c03065bd3c3815691be2bcfbaeb5",
+      "note": "Exact pinned-callout repairs: side follows shaft, authored bend retained, crossing warning carries pin provenance. No default case changes.",
+      "replaces_l1_cases": 20
+    },
     "l1-leaders": {
-      "cases": 273,
+      "cases": 253,
       "commit": "843c65949b8ec1a4147849cda63415006004e6ef",
       "integration_base": "d0130dec51ad1c748f5484b660c343bea0417648"
     }

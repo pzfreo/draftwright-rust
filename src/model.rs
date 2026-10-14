@@ -325,6 +325,9 @@ pub struct Plan {
     /// Dimensions and callouts, each with its ID, value, label, default flag and basis.
     #[serde(default)]
     pub dimensions: Vec<PlannedDimension>,
+    /// Canonical widths for the session's snap guide; not part of the drawing document.
+    #[serde(skip)]
+    pub(crate) callout_widths: BTreeMap<String, f64>,
     /// Dimensions the spec leaves out, and why (ADR4-8: an authored omission says so).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub omitted: Vec<Omitted>,
@@ -461,7 +464,7 @@ pub struct Problem {
     /// What else it names that is no item of the plan or feature of the Analysis: a PMI
     /// record's source (its Part 21 provenance, `geometric_tolerance:#123`), a source not read,
     /// a family the recogniser does not give, a view the plan does not draw, a spec entry not
-    /// applied.
+    /// applied. Pinned leader crossings also repeat the callout ID as pin provenance.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refs: Vec<String>,
     /// The edit that resolves it, as [`edit`] takes it, where there is one.
@@ -2785,6 +2788,18 @@ fn plan_with_presentation(
         table_outcome: crate::hole_table::TableOutcome::None,
         table_restore: None,
         views,
+        callout_widths: {
+            let mut widths: BTreeMap<String, f64> = BTreeMap::new();
+            for d in canonical.as_ref().map_or(&inventory, |p| &p.dimensions) {
+                if d.kind == "callout"
+                    && let Some(p) = &d.placed
+                {
+                    let width = widths.entry(d.view.clone()).or_default();
+                    *width = width.max(p.label_box[2] - p.label_box[0]);
+                }
+            }
+            widths
+        },
         dimensions,
         omitted,
         notes,

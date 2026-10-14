@@ -304,6 +304,43 @@ fn lane_at(o: [f64; 4], side: Side, lane: usize) -> (f64, f64) {
     }
 }
 
+/// Exterior callout elbow rows, in paper mm; keys are the four Spec side names.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LabelRows {
+    pub outline: [f64; 4],
+    pub first_row: BTreeMap<String, f64>,
+    pub row_spacing: BTreeMap<String, f64>,
+}
+
+fn callout_step(side: Side, width: f64, canonical_width: f64) -> f64 {
+    if matches!(side, Side::Left | Side::Right) {
+        canonical_width.max(width) + super::SHOULDER + LANE
+    } else {
+        LANE
+    }
+}
+
+pub(crate) fn label_rows(analysis: &Analysis, view: &PlannedView, width: f64) -> LabelRows {
+    let outline = Frame::new(analysis, view).outline();
+    let sides = [
+        ("above", Side::Above),
+        ("below", Side::Below),
+        ("left", Side::Left),
+        ("right", Side::Right),
+    ];
+    LabelRows {
+        outline,
+        first_row: sides
+            .iter()
+            .map(|(name, side)| (name.to_string(), lane_at(outline, *side, 0).0))
+            .collect(),
+        row_spacing: sides
+            .iter()
+            .map(|(name, side)| (name.to_string(), callout_step(*side, width, width)))
+            .collect(),
+    }
+}
+
 /// Whether world axis *axis* runs across the page in this view (else up it); none when the
 /// view looks along it.
 pub(super) fn across(frame: &Frame, axis: usize) -> Option<bool> {
@@ -1127,11 +1164,7 @@ pub(super) fn intent(
             let width = ink.max[0] - ink.min[0];
             // Horizontal callout labels need their measured width in a side column. Use the
             // canonical width so editing another item's text cannot move a pin's lane.
-            let step = if matches!(side, Side::Left | Side::Right) {
-                callout_width.max(width) + super::SHOULDER + LANE
-            } else {
-                LANE
-            };
+            let step = callout_step(side, width, callout_width);
             line += out * lane as f64 * step;
             let k = usize::from(matches!(side, Side::Above | Side::Below));
             let f = p
@@ -1142,7 +1175,11 @@ pub(super) fn intent(
             elbow[k] = line;
             elbow[1 - k] = o[1 - k] + f * (o[3 - k] - o[1 - k]);
             let tip = super::leaders::intent_tip(frame, sites, elbow);
-            let left = side == Side::Left;
+            let left = match side {
+                Side::Left => true,
+                Side::Right => false,
+                Side::Above | Side::Below => p.pinned && elbow[0] < tip[0] - 1e-9,
+            };
             let end = [
                 elbow[0]
                     + if left {

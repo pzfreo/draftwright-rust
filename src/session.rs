@@ -429,6 +429,50 @@ impl Session {
     pub fn plan(&self) -> &Plan {
         &self.state.plan
     }
+    /// Exterior elbow rows for pinning a callout in each compatible principal view.
+    /// Reads the current frames and canonical widths without planning or projecting.
+    pub fn label_rows(
+        &self,
+        address: &str,
+    ) -> Result<BTreeMap<String, crate::dims::LabelRows>, Error> {
+        let item = self.item(address)?;
+        if item.dimension_kind.as_deref() != Some("callout") {
+            return Err(Error::invalid("label rows require a callout"));
+        }
+        let d = self
+            .plan()
+            .dimensions
+            .iter()
+            .find(|d| d.id == item.item.id)
+            .unwrap();
+        let ink = crate::dims::label_ink(&d.terms, crate::dims::font());
+        let width = ink.max[0] - ink.min[0];
+        let options = self.options(address)?;
+        Ok(self
+            .plan()
+            .views
+            .iter()
+            .filter(|v| {
+                options
+                    .placements
+                    .iter()
+                    .any(|p| p.view.as_deref() == v.id.strip_prefix("v:"))
+            })
+            .map(|v| {
+                let width = width.max(
+                    self.plan()
+                        .callout_widths
+                        .get(&v.id)
+                        .copied()
+                        .unwrap_or(0.0),
+                );
+                (
+                    v.id.clone(),
+                    crate::dims::label_rows(&self.analysis, v, width),
+                )
+            })
+            .collect())
+    }
     pub fn state(&self) -> &State {
         &self.state
     }
