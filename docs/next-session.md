@@ -6954,3 +6954,13 @@ No full Rust suite or all-job acceptance was run locally. No commit/push was mad
   changed cases was removed. All required checks are green. Final release binary
   SHA-256: `9bf0c822036a4696f4a24f93785d7894736fd5147a65dc219a63fb9b3c88d0f5`.
   No full Cargo suite or all-job acceptance was run. No commit or push was made.
+
+## E1 integration (2026-10-14, unattended; overturnable judgement)
+
+- CI found that `line_through_feature::right_pinned_plate_callouts_clear_other_holes_and_report_no_callout_problem`
+  pinned the centre bore at "middle" and expected the router to slide it clear. E1 removed
+  that sliding on purpose. The test now uses the clear station 0.4, the same as
+  `tools/mcp-eval/scripted-ops.mjs`. All of its assertions are kept: the shaft avoids the small hole, there are no
+  callout problems, and the route is stable under an unrelated edit. The "middle" case stays
+  covered by `placement_intent::right_pinned_callouts_have_clear_lanes_and_free_dimensions`,
+  which requires that the crossing is reported.
