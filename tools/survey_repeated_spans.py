@@ -73,8 +73,11 @@ def main():
     keep = set(in_shard({p.stem for p in files}, *args.shard))
     files = [p for p in files if p.stem in keep]
     (args.out / 'inputs.txt').write_text(''.join(f'{p}\n' for p in files))
+    # The verdict is repeated_span, read from the plan; review feeds only quality cells, and it
+    # took most of CI's slowest shard (modelled threads in hidden-line removal).
     with ThreadPoolExecutor(4) as executor:
-        results = dict(executor.map(lambda p: quality.one(str(p), args.binary, str(args.out), timeout=args.timeout), files))
+        results = dict(executor.map(lambda p: quality.one(str(p), args.binary, str(args.out),
+                                                          timeout=args.timeout, review=False), files))
     (args.out / 'baseline.json').write_text(json.dumps(results, indent=1, sort_keys=True) + '\n')
     quality.table(results)
     return int(any('error' in p or p['repeated_span'] for p in results.values()))

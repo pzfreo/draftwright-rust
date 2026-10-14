@@ -515,7 +515,7 @@ def footprint_fill(a, p, furniture=()):
     return (union_area(clipped)-union_area(in_title))/((w-20)*(h-20)-(tb[2]-tb[0])*(tb[3]-tb[1]))
 
 
-def one(f, dw, out, spec=None, timeout=600):
+def one(f, dw, out, spec=None, timeout=600, review=True):
     name = os.path.basename(f).split(".")[0]
     os.makedirs(out, exist_ok=True)
     extra = ["--spec", spec] if spec else []
@@ -546,7 +546,7 @@ def one(f, dw, out, spec=None, timeout=600):
         fill = 0.0
     codes = collections.Counter(x["code"] for x in rend.get("problems", []))
     # Render reports planning problems. Centre-line contacts are judged on actual drawn labels.
-    if any(v.get("line_work") or v.get("cut") for v in plan["views"]):
+    if review and any(v.get("line_work") or v.get("cut") for v in plan["views"]):
         try:
             q = subprocess.run([dw, "review", f, *extra], capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired as error:

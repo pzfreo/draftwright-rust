@@ -44,7 +44,7 @@ fn tried(attempts: &[Attempt]) -> Vec<(Retry, bool)> {
 #[test]
 fn a_hard_failure_tries_a_scale_each_way_on_its_sheet_before_a_larger_sheet() {
     let mut calls = Vec::new();
-    let attempts = layout::recover(2.0, A4, false, hard(), &mut |r| {
+    let attempts = layout::recover(2.0, A4, false, hard(), None, &mut |r| {
         calls.push(r);
         Some(if r == Retry::Sheet("A3") {
             Findings::default()
@@ -74,7 +74,7 @@ fn hard_layout_validity_comes_before_completeness() {
         hard: 1,
         dropped: 1,
     };
-    let attempts = layout::recover(10.0, A3, false, both, &mut |r| {
+    let attempts = layout::recover(10.0, A3, false, both, None, &mut |r| {
         Some(if r == Retry::Scale(5.0) {
             Findings::default()
         } else {
@@ -85,7 +85,7 @@ fn hard_layout_validity_comes_before_completeness() {
 
     // Each rejected try: a hard failure without the loss, then the loss without a hard failure.
     let mut answers = vec![hard(), dropped()].into_iter();
-    let attempts = layout::recover(2.0, A3, false, both, &mut |_| {
+    let attempts = layout::recover(2.0, A3, false, both, None, &mut |_| {
         Some(answers.next().unwrap_or_default())
     });
     assert_eq!(
@@ -103,7 +103,7 @@ fn hard_layout_validity_comes_before_completeness() {
 /// sheets.
 #[test]
 fn a_required_loss_tries_larger_scales_then_larger_sheets() {
-    let attempts = layout::recover(2.0, A4, false, dropped(), &mut |r| {
+    let attempts = layout::recover(2.0, A4, false, dropped(), None, &mut |r| {
         Some(if r == Retry::Sheet("A3") {
             Findings::default()
         } else {
@@ -126,7 +126,7 @@ fn a_required_loss_tries_larger_scales_then_larger_sheets() {
 /// [`an_info_or_view_box_finding_is_not_a_hard_failure`].
 #[test]
 fn a_required_loss_is_not_traded_for_unreadable_ink() {
-    let attempts = layout::recover(1.0, A4, false, dropped(), &mut |r| {
+    let attempts = layout::recover(1.0, A4, false, dropped(), None, &mut |r| {
         Some(match r {
             Retry::Sheet("A3") => Findings::default(),
             _ => hard(),
@@ -144,7 +144,7 @@ fn a_required_loss_is_not_traded_for_unreadable_ink() {
 /// tries nothing, so never spends a larger sheet.
 #[test]
 fn a_valid_complete_plan_tries_nothing() {
-    let attempts = layout::recover(2.0, A4, false, Findings::default(), &mut |_| {
+    let attempts = layout::recover(2.0, A4, false, Findings::default(), None, &mut |_| {
         panic!("a valid, complete plan is re-planned")
     });
     assert!(attempts.is_empty());
@@ -155,7 +155,7 @@ fn a_valid_complete_plan_tries_nothing() {
 #[test]
 fn the_recovery_is_bounded_and_keeps_the_first_plan_when_nothing_is_clean() {
     for first in [hard(), dropped()] {
-        let attempts = layout::recover(1.0, A4, false, first, &mut |r| {
+        let attempts = layout::recover(1.0, A4, false, first, None, &mut |r| {
             (r != Retry::Scale(0.5)).then_some(hard())
         });
         assert_eq!(attempts.len(), 2 + 4, "{first:?}");
@@ -168,7 +168,7 @@ fn the_recovery_is_bounded_and_keeps_the_first_plan_when_nothing_is_clean() {
 #[test]
 fn a_named_sheet_is_never_left() {
     for first in [hard(), dropped()] {
-        let attempts = layout::recover(2.0, A4, true, first, &mut |_| Some(hard()));
+        let attempts = layout::recover(2.0, A4, true, first, None, &mut |_| Some(hard()));
         assert!(
             attempts.iter().all(|a| matches!(a.retry, Retry::Scale(_))),
             "{attempts:?}"
