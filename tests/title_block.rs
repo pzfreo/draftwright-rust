@@ -682,4 +682,11 @@ fn the_drawn_by_cell_credits_draftwright_and_carries_the_link() {
         cell(&plan, "designed_by").value.as_deref(),
         Some("A. Fitter / draftwright")
     );
+    // A whitespace-only author counts as none (draftwright's tests/test_export_formats.py).
+    let (plan, _) = sheet("A4", json!({ "drawn_by": "   " }));
+    assert_eq!(
+        cell(&plan, "designed_by").value.as_deref(),
+        Some("draftwright")
+    );
+    assert_eq!(title_block::attribution("   "), "draftwright");
 }

@@ -238,6 +238,63 @@ pub fn compare() {
         );
         expected.insert(name.clone(), replacement.clone());
     }
+    // Re-baseline: a deliberate change to every case's bytes (e.g. the title block's
+    // attribution, which is on every sheet) replaces the whole record from this OS's current
+    // output. Prove first, outside this test, that the drawings differ only by that change. The
+    // value names the change. The case set and every refusal must stay the same. Main-pin and
+    // approved replacements fold into the new record, and every OS's overrides and the other
+    // OSes' PNG hashes are dropped as stale. Run it on macOS (the portable record's OS), then
+    // record Linux with DRAFTWRIGHT_RECORD_SINGLE_SHEET=1 (CI's record_single_sheet input). The
+    // normal run then asserts every format of every case again.
+    if let Ok(change) = std::env::var("DRAFTWRIGHT_REBASELINE_SINGLE_SHEET") {
+        assert!(!record, "re-baseline and record are separate runs");
+        assert_eq!(
+            found.keys().collect::<Vec<_>>(),
+            expected.keys().collect::<Vec<_>>(),
+            "a re-baseline keeps the case set"
+        );
+        for (name, old) in &expected {
+            let current = &found[name];
+            if old.get("refused").is_some() || old.get("panicked").is_some() {
+                assert_eq!(current, old, "{name}: refusal");
+            } else {
+                assert!(current.get("plan").is_some(), "{name}: newly refused");
+            }
+        }
+        let mut portable = found.clone();
+        for row in portable.values_mut() {
+            row.as_object_mut().unwrap().remove("png");
+        }
+        pins["base_portable_sha256"] = json!(hash(&serde_json::to_vec(&portable).unwrap()));
+        pins["cases"] = json!({});
+        pins["rebaselined_for"] = json!(change);
+        let folded = approved["streams"].take();
+        approved["streams"] = json!({});
+        approved["cases"] = json!({});
+        approved["rebaseline"] = json!({
+            "change": change,
+            "os": std::env::consts::OS,
+            "note": "known_single_sheet.json was re-recorded whole for this change; the main \
+                     pins and these streams' replacements were folded into it.",
+            "folded_streams": folded,
+        });
+        for overrides in platform.as_object_mut().unwrap().values_mut() {
+            *overrides = json!({});
+        }
+        for (path, value) in [
+            (&platform_fixture, &platform),
+            (&pin_fixture, &pins),
+            (&approved_fixture, &approved),
+        ] {
+            std::fs::write(path, serde_json::to_string_pretty(value).unwrap() + "\n").unwrap();
+        }
+        std::fs::write(
+            &fixture,
+            serde_json::to_string_pretty(&found).unwrap() + "\n",
+        )
+        .unwrap();
+        return;
+    }
     if !record {
         assert_eq!(
             found.keys().collect::<Vec<_>>(),

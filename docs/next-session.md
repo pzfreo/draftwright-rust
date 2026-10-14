@@ -6991,3 +6991,21 @@ Judgements, each the conservative choice:
   were re-recorded with the `record_single_sheet` workflow on this branch (run 38604127566).
   Only those 16 Linux SVG hashes changed. The macOS overrides, plans, the portable record, the
   approved fixture and the main-pin manifest are byte-identical to the recording.
+
+## Attribution re-baseline (2026-10-14, unattended; overturnable)
+
+- The DRAWN BY cell now always reads "<author> / draftwright" (or "draftwright") and carries
+  the https://draftwright.io link, so every one of the 1,677 rendered single-sheet cases
+  changes in plan, SVG, PDF and PNG. Rather than 1,677 approved replacements, the single-sheet
+  guard gained an explicit re-baseline mode, `DRAFTWRIGHT_REBASELINE_SINGLE_SHEET=<change>`:
+  it requires the same case set and identical refusals, rewrites `known_single_sheet.json`
+  from current output, folds the main-pin and approved streams into it (recorded under
+  `rebaseline` in `known_single_sheet_approved.json`), and clears the platform overrides.
+  Linux overrides and PNGs are then re-recorded with the `record_single_sheet` workflow. This
+  overturns the L1 judgement above (keep I1's original fingerprint). The normal run still
+  asserts every format of every case.
+- Evidence that only the attribution changed: all 1,677 cases were rendered on main
+  (72c82952) and on the branch with a temporary dump hook, and compared. Plans differ only in
+  the designed_by value (plus three overflow-lint messages on test plate specs quoting it);
+  SVGs differ only in the link URL, the designed_by text and glyphs inside that cell, and the
+  new link rectangle over it. A two-sheet plate render shows the same on both sheets.
