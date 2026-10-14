@@ -210,8 +210,8 @@ pub fn compare() {
         );
         expected.insert(name.clone(), replacement.clone());
     }
-    // Per-OS svg/pdf hashes for cases whose drawing bytes differ from the portable record
-    // (last-digit libm differences in arc parameters). Each OS still pins exact bytes.
+    // Per-OS hashes for cases whose bytes differ from the portable record (last-digit libm
+    // differences). Each OS still pins exact bytes.
     let platform_fixture = root.join("tests/fixtures/known_single_sheet_platform.json");
     let mut platform: Value =
         serde_json::from_slice(&std::fs::read(&platform_fixture).unwrap()).unwrap();
@@ -231,9 +231,10 @@ pub fn compare() {
             assert_eq!(current, old, "{name}: refusal");
             continue;
         }
-        assert_eq!(current["plan"], old["plan"], "{name}: plan");
-        for format in ["svg", "pdf"] {
-            // Plans are portable; drawing bytes may differ in the last digit of libm results.
+        for format in ["plan", "svg", "pdf"] {
+            // Bytes may differ between platforms in the last digit of libm results (arc
+            // parameters in SVG/PDF; at least one captured spec's plan on Linux), so each OS
+            // pins its own exact bytes where they differ from the portable record.
             if record && current[format] != old[format] {
                 recorded.entry(name.clone()).or_insert_with(|| json!({}))[format] =
                     current[format].clone();
