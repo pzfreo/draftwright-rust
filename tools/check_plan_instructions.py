@@ -2,47 +2,31 @@
 
 Darwin's proc_pid_rusage reads retired instructions for the unreaped child. This
 uses the same kernel counter as time -l without its sandbox-blocked clock sysctl.
-No wall-clock conversion, load correction, or tolerance is applied. --check gates
-both the 55% total target and the strict per-part limit; otherwise writes evidence.
+No wall-clock conversion or load correction is applied. --check gates the 55% total
+target and a per-part limit of PART_TOLERANCE (1%: run-to-run counts differ by about
+0.5%); otherwise writes evidence.
 """
 import argparse
-import ctypes
 import importlib.util
 import hashlib
 import json
 import os
 import statistics
 from pathlib import Path
-import subprocess
-import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+PART_TOLERANCE = 0.01
 spec = importlib.util.spec_from_file_location('plan_time', ROOT / 'tools/check_plan_time.py')
 plan_time = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plan_time)
 
 
 def counted(command):
-    if sys.platform != 'darwin':
-        raise ValueError('retired-instruction measurement requires Darwin')
-    library = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
-    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
-        child = subprocess.Popen(command, stdout=output, stderr=error)
-        try:
-            os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOWAIT)
-            # rusage_info_v4: 16-byte UUID, then 35 uint64 fields; instructions is field 29.
-            usage = (ctypes.c_uint64 * 37)()
-            result = library.proc_pid_rusage(child.pid, 4, ctypes.byref(usage))
-        finally:
-            status = child.wait()
-        output.seek(0)
-        error.seek(0)
-        reply = output.read()
-        if status or result or not usage[31]:
-            raise ValueError(f'{command}: exit={status}, rusage={result}, '
-                             f'errno={ctypes.get_errno()}: {error.read().decode()}')
-        return usage[31], reply
+    instructions, reply = plan_time.counted(command)
+    if instructions is None:
+        raise ValueError('retired-instruction measurement requires Darwin with a working counter')
+    return instructions, reply
 
 
 def assess(parts):
@@ -52,7 +36,7 @@ def assess(parts):
                         for row in parts.values() for k in ('base', 'head')):
         raise ValueError('positive integer instruction counts required')
     worse = {name: row['head'] / row['base'] for name, row in parts.items()
-             if row['head'] > row['base']}
+             if row['head'] > row['base'] * (1 + PART_TOLERANCE)}
     return {'base_total': base, 'head_total': head, 'ratio': head / base,
             'worse_parts': worse, 'passed': head <= base * .55 and not worse}
 

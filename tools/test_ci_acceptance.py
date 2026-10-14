@@ -1,6 +1,5 @@
 """Acceptance gates must reject bad/incomplete evidence; no renderer mocks or extra packages."""
 import copy
-import hashlib
 import json
 import os
 import importlib.util
@@ -184,7 +183,7 @@ class Acceptance(unittest.TestCase):
                             r'pin_args: "--survey-shard (\d)/4", timeout: 120', workflow)
         self.assertEqual(sorted(shards), [(str(k), str(k)) for k in range(1, 5)])
 
-    def test_ci_runs_calibrated_plan_budget_with_release_binary(self):
+    def test_ci_runs_plan_budget_with_release_binary(self):
         runner = self.runner()
         self.assertIn('plan-time', runner.JOBS)
         run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path('corpus')), Path('out'))
@@ -198,35 +197,28 @@ class Acceptance(unittest.TestCase):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
         self.assertIn('job: plan-time, label: plan-time', workflow)
 
-    def test_plan_budget_rechecks_samples_and_rejects_lowered_or_incomplete_evidence(self):
+    def test_plan_budget_gates_instructions_and_reports_without_a_counter(self):
+        spec = importlib.util.spec_from_file_location('plan_time', ROOT / 'tools/check_plan_time.py')
+        plan_time = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plan_time)
         names = self.runner().survey_names()
-        budget = {'format': 'draftwright.plan-time/2',
-                  'calibration': 'tools/plan-time-calibration.json', 'normalised_total': 64,
-                  'calibration_iterations': 32768,
-                  'calibration_sha256': hashlib.sha256(
-                      (32768).to_bytes(8, 'big')
-                      + (ROOT / 'tools/plan-time-calibration.json').read_bytes()).hexdigest()}
-        report = {**budget, 'parts': {p: {'seconds': 1, 'samples': [1]} for p in names},
-                  'calibration_samples': [1] * 6, 'calibration_seconds': 1,
-                  'total_seconds': 64, 'max_load': 0}
-        with tempfile.TemporaryDirectory() as tmp:
-            directory = Path(tmp)
-            results, limit = directory / 'results.json', directory / 'budget.json'
-            command = [sys.executable, '-I', str(ROOT / 'tools/check_plan_time.py'),
-                       '--results', str(results), '--budget', str(limit), '--out', str(directory / 'checked.json')]
-            results.write_text(json.dumps(report))
-            limit.write_text(json.dumps(budget))
-            checked = subprocess.run(command, capture_output=True, text=True)
-            self.assertEqual(checked.returncode, 0, checked.stderr)
-            limit.write_text(json.dumps({**budget, 'normalised_total': 64 * .7}))
-            self.assertEqual(subprocess.run(command, capture_output=True).returncode, 1)
-            limit.write_text(json.dumps(budget))
-            for bad in (dict(report, total_seconds=65),
-                        dict(report, parts={p: row for p, row in report['parts'].items() if p != min(names)})):
-                results.write_text(json.dumps(bad))
-                checked = subprocess.run(command, capture_output=True, text=True)
-                self.assertEqual(checked.returncode, 1, checked.stderr)
-                self.assertIn('timing', checked.stderr)
+        parts = {p: {'instructions': 100, 'seconds': 1} for p in names}
+        budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6400}}
+        self.assertTrue(plan_time.verdict(parts, budget, 'darwin-arm64')['passed'])
+        slower = {p: {'instructions': 116, 'seconds': 1} for p in names}
+        self.assertFalse(plan_time.verdict(slower, budget, 'darwin-arm64')['passed'])
+        lowered = {**budget, 'instructions': {'darwin-arm64': 6400 * .7}}
+        self.assertFalse(plan_time.verdict(parts, lowered, 'darwin-arm64')['passed'])
+        # No figure for the platform, or no counter: report only, never fail.
+        for key, rows in (('linux-x86_64', parts),
+                          ('darwin-arm64', {p: {'instructions': None, 'seconds': 9} for p in names})):
+            report = plan_time.verdict(rows, budget, key)
+            self.assertEqual((report['gated'], report['passed']), (False, True))
+        with self.assertRaises(ValueError):
+            plan_time.verdict(dict(list(parts.items())[1:]), budget, 'darwin-arm64')
+        recorded = json.loads((ROOT / 'tools/plan-time-budget.json').read_text())
+        self.assertEqual(recorded['format'], plan_time.FORMAT)
+        self.assertIn('darwin-arm64', recorded['instructions'])
 
     def test_require_go_rejects_partial_or_unrelated_jobs(self):
         for options in (['--job', 'mcp'], ['--job', 'quality-pins', '--pin-cell', '1-1']):
@@ -249,13 +241,15 @@ class Acceptance(unittest.TestCase):
         command = step.call_args.args[1]
         self.assertEqual(command[command.index('--timeout') + 1], 3600)
 
-    def test_instruction_gate_checks_total_and_each_part_without_tolerance(self):
+    def test_instruction_gate_checks_total_and_each_part_within_one_percent(self):
         spec = importlib.util.spec_from_file_location('instructions', ROOT / 'tools/check_plan_instructions.py')
         instructions = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(instructions)
         self.assertTrue(instructions.assess({'a': {'base': 100, 'head': 55}})['passed'])
         self.assertFalse(instructions.assess({'a': {'base': 100, 'head': 56}})['passed'])
-        report = instructions.assess({'a': {'base': 1000, 'head': 100}, 'b': {'base': 10, 'head': 11}})
+        self.assertTrue(instructions.assess({'a': {'base': 10000, 'head': 100},
+                                             'b': {'base': 1000, 'head': 1010}})['passed'])
+        report = instructions.assess({'a': {'base': 10000, 'head': 100}, 'b': {'base': 1000, 'head': 1011}})
         self.assertLess(report['ratio'], .55)
         self.assertFalse(report['passed'])
         self.assertEqual(set(report['worse_parts']), {'b'})

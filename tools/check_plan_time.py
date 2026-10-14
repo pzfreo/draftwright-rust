@@ -1,44 +1,59 @@
-"""Serial CLI plan budget, in units of a fixed same-run calibration plan.
+"""Plan-cost budget for "draftwright plan" over the 64-part repeated-spans survey.
 
 DRAFTWRIGHT_CORPUS=... python3 -I tools/check_plan_time.py --out target/plan-time.json
-Use --record deliberately after validating a performance change; CI only compares.
-The survey is the same 42 corpus parts + 22 AP242 fixtures as repeated-spans.
+
+The gate counts retired instructions, not wall time: the count does not depend on
+load, core type or runner speed, so a fixed budget holds anywhere the same
+instruction set runs. Each part is planned once and its instructions are read
+from the kernel (Darwin proc_pid_rusage). The run fails when the survey total is
+more than MARGIN above the figure tools/plan-time-budget.json records for this
+platform. Where no counter or no recorded figure exists (GitHub's Linux runners),
+the job measures and reports wall time only and does not fail: wall time on a
+shared runner is too noisy to gate on. Use --record deliberately after a
+performance change, on the platform whose figure you are updating.
 """
 import argparse
+import ctypes
 import gzip
-import hashlib
 import json
-import math
 import os
 from pathlib import Path
-import statistics
+import platform
 import subprocess
+import sys
 import tempfile
-import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-CALIBRATION = 'tools/plan-time-calibration.json'
-CALIBRATION_ITERATIONS = 32768
+FORMAT = 'draftwright.plan-instructions-budget/1'
+MARGIN = 0.15
 
 
-def calibration_fingerprint():
-    source = (ROOT / CALIBRATION).read_bytes()
-    return hashlib.sha256(CALIBRATION_ITERATIONS.to_bytes(8, 'big') + source).hexdigest()
+def platform_key():
+    return f'{sys.platform}-{platform.machine()}'
 
 
-def calibration_time(binary):
-    request = json.dumps(json.loads((ROOT / CALIBRATION).read_text()), separators=(',', ':')).encode() + b'\n'
-    start = time.perf_counter()
-    reply = subprocess.run([str(binary), 'serve'], input=request * CALIBRATION_ITERATIONS,
-                           capture_output=True, check=True, timeout=3600)
-    seconds = (time.perf_counter() - start) / CALIBRATION_ITERATIONS
-    lines = reply.stdout.splitlines()
-    if (len(lines) != CALIBRATION_ITERATIONS or any(line != lines[0] for line in lines)
-            or not json.loads(lines[0]).get('ok')
-            or 'dimensions' not in json.loads(lines[0]).get('result', {})):
-        raise ValueError('calibration did not replay the fixed plan')
-    return seconds
+def counted(command):
+    """Run command; return (retired instructions or None, stdout bytes)."""
+    if sys.platform != 'darwin':
+        reply = subprocess.run(command, capture_output=True, check=True, timeout=3600)
+        return None, reply.stdout
+    library = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
+    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
+        child = subprocess.Popen(command, stdout=output, stderr=error)
+        try:
+            os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOWAIT)
+            # rusage_info_v4: 16-byte UUID, then uint64 fields; ri_instructions is word 31.
+            usage = (ctypes.c_uint64 * 37)()
+            result = library.proc_pid_rusage(child.pid, 4, ctypes.byref(usage))
+        finally:
+            status = child.wait()
+        output.seek(0)
+        error.seek(0)
+        if status or result:
+            raise ValueError(f'{command}: exit={status}, rusage={result}, '
+                             f'errno={ctypes.get_errno()}: {error.read().decode()}')
+        return usage[31] or None, output.read()
 
 
 def inputs(corpus, directory):
@@ -55,54 +70,21 @@ def inputs(corpus, directory):
     return sorted(files, key=lambda p: p.stem)
 
 
-def timed(binary, part):
-    start = time.perf_counter()
-    command = [str(binary), 'plan', str(part)]
-    reply = subprocess.run(command, capture_output=True,
-                           check=True, timeout=3600)
-    seconds = time.perf_counter() - start
-    if 'dimensions' not in json.loads(reply.stdout):
-        raise ValueError(f'{part}: not a plan')
-    return seconds
-
-
-def within_budget(total, calibration, budget):
-    return total / calibration <= budget['normalised_total'] * 1.15
-
-
-def finish(measured, args):
-    expected = {Path(p).stem for p in (ROOT / 'tools/repeated_span_parts.txt').read_text().splitlines()}
-    expected |= {Path(p.name[:-3]).stem for p in (ROOT / 'tests/fixtures/pmi/step').glob('*.gz')}
-    if len(expected) != 64 or set(measured['parts']) != expected:
-        raise ValueError('incomplete 64-part timing report')
-    def median(values):
-        if not values or not all(type(v) in (int, float) and math.isfinite(v) and v > 0 for v in values):
-            raise ValueError('invalid timing samples')
-        return statistics.median(values)
-    if len(measured['calibration_samples']) != 6:
-        raise ValueError('six calibration samples required')
-    cal = median(measured['calibration_samples'])
-    seconds = {p: median(row['samples']) for p, row in measured['parts'].items()}
-    total = sum(seconds[p] for p in sorted(seconds))
-    if cal != measured['calibration_seconds'] or total != measured['total_seconds'] or any(
-            seconds[p] != row['seconds'] for p, row in measured['parts'].items()):
-        raise ValueError('timing aggregates differ from samples')
-    budget = json.loads(args.budget.read_text())
-    if (budget['format'] != measured['format'] or measured['format'] != 'draftwright.plan-time/2'
-            or budget['calibration'] != measured['calibration'] or measured['calibration'] != CALIBRATION
-            or budget['calibration_sha256'] != measured['calibration_sha256']
-            or budget['calibration_iterations'] != CALIBRATION_ITERATIONS
-            or measured['calibration_iterations'] != CALIBRATION_ITERATIONS
-            or measured['calibration_sha256'] != calibration_fingerprint()
-            or not math.isfinite(budget['normalised_total']) or budget['normalised_total'] <= 0):
-        raise ValueError('incompatible calibration budget')
-    measured.update(normalised_total=total / cal, budget=budget,
-                    passed=within_budget(total, cal, budget))
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(measured, indent=2, sort_keys=True) + '\n')
-    print(f'{total:.3f}s / {cal:.6f}s = {total / cal:.3f} calibration plans; '
-          f'limit {budget["normalised_total"] * 1.15:.3f}; load <= {measured["max_load"]:.2f}')
-    return int(not measured['passed'])
+def verdict(parts, budget, key):
+    """Gate on the instruction total when every part was counted and a figure exists."""
+    if len(parts) != 64:
+        raise ValueError('incomplete 64-part report')
+    counts = [row['instructions'] for row in parts.values()]
+    figure = budget.get('instructions', {}).get(key)
+    if budget.get('format') != FORMAT:
+        raise ValueError('incompatible plan budget')
+    if figure is None or any(c is None for c in counts):
+        return {'gated': False, 'passed': True, 'limit': None,
+                'reason': f'no instruction counter or recorded figure for {key}; informational'}
+    total = sum(counts)
+    limit = figure * (1 + MARGIN)
+    return {'gated': True, 'passed': total <= limit, 'limit': limit, 'instructions_total': total,
+            'ratio_to_budget': total / figure}
 
 
 def main():
@@ -112,56 +94,38 @@ def main():
     parser.add_argument('--budget', type=Path, default=ROOT / 'tools/plan-time-budget.json')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--record', action='store_true')
-    parser.add_argument('--runs', type=int, default=1)
-    parser.add_argument('--max-load', type=float, help='Reject measurements above this 1-minute load')
-    parser.add_argument('--results', type=Path, help='Recheck a complete measured report (budget controls)')
     args = parser.parse_args()
-    if args.results:
-        if args.record or args.max_load is not None or args.runs != 1:
-            parser.error('--results cannot record or change measurement options')
-        return finish(json.loads(args.results.read_text()), args)
-    if args.corpus is None or args.runs < 1:
-        parser.error('corpus and a positive run count are required')
-    loads = []
-    def load():
-        loads.append(os.getloadavg()[0])
-        if args.max_load is not None and loads[-1] >= args.max_load:
-            raise ValueError(f'load {loads[-1]:.2f} >= {args.max_load}; timing unmeasured')
-    load()
-    stop = threading.Event()
-    def monitor():
-        while not stop.wait(1):
-            loads.append(os.getloadavg()[0])
-    thread = threading.Thread(target=monitor)
-    thread.start()
-    try:
-        samples = [calibration_time(args.binary) for _ in range(3)]
-        parts = {}
-        with tempfile.TemporaryDirectory(prefix='draftwright-plan-time-') as tmp:
-            for part in inputs(args.corpus, Path(tmp)):
-                load()
-                values = [timed(args.binary, part) for _ in range(args.runs)]
-                parts[part.stem] = {'seconds': statistics.median(values), 'samples': values}
-                print(f'{part.stem}: {parts[part.stem]["seconds"]:.3f}s', flush=True)
-        samples += [calibration_time(args.binary) for _ in range(3)]
-        load()
-    finally:
-        stop.set()
-        thread.join()
-    if args.max_load is not None and max(loads) >= args.max_load:
-        raise ValueError(f'load reached {max(loads):.2f}; timing unmeasured')
-    cal = statistics.median(samples)
-    total = sum(p['seconds'] for p in parts.values())
-    measured = {'format': 'draftwright.plan-time/2', 'calibration': CALIBRATION,
-                'calibration_sha256': calibration_fingerprint(),
-                'calibration_iterations': CALIBRATION_ITERATIONS,
-                'calibration_seconds': cal, 'calibration_samples': samples,
-                'total_seconds': total, 'normalised_total': total / cal,
-                'max_load': max(loads), 'parts': parts}
+    if args.corpus is None:
+        parser.error('corpus required')
+    key = platform_key()
+    parts = {}
+    with tempfile.TemporaryDirectory(prefix='draftwright-plan-time-') as tmp:
+        for part in inputs(args.corpus, Path(tmp)):
+            start = time.perf_counter()
+            instructions, reply = counted([str(args.binary), 'plan', str(part)])
+            seconds = time.perf_counter() - start
+            if 'dimensions' not in json.loads(reply):
+                raise ValueError(f'{part}: not a plan')
+            parts[part.stem] = {'instructions': instructions, 'seconds': seconds}
+            print(f'{part.stem}: {instructions} instructions, {seconds:.3f}s', flush=True)
+    budget = json.loads(args.budget.read_text())
     if args.record:
-        args.budget.write_text(json.dumps({k: measured[k] for k in
-                              ('format', 'calibration', 'calibration_sha256', 'calibration_iterations', 'normalised_total')}, indent=2) + '\n')
-    return finish(measured, args)
+        if any(row['instructions'] is None for row in parts.values()):
+            parser.error(f'no instruction counter on {key}; nothing to record')
+        budget.setdefault('instructions', {})[key] = sum(r['instructions'] for r in parts.values())
+        args.budget.write_text(json.dumps(budget, indent=2, sort_keys=True) + '\n')
+    report = {'platform': key, 'parts': parts, 'budget': budget,
+              'total_seconds': sum(r['seconds'] for r in parts.values()),
+              **verdict(parts, budget, key)}
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+    if report['gated']:
+        print(f'{report["instructions_total"]} instructions; limit {report["limit"]:.0f} '
+              f'({report["ratio_to_budget"]:.3f} of budget); wall {report["total_seconds"]:.1f}s: '
+              + ('PASS' if report['passed'] else 'FAIL'))
+    else:
+        print(f'wall {report["total_seconds"]:.1f}s; {report["reason"]}')
+    return int(not report['passed'])
 
 
 if __name__ == '__main__':

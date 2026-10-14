@@ -1,7 +1,6 @@
 {
-  "format": "draftwright.plan-time/2",
-  "calibration": "tools/plan-time-calibration.json",
-  "calibration_sha256": "1e05edf56b564705bf9cd560946c7b50c1bce21877281477e29e7058c6ff6f83",
-  "calibration_iterations": 32768,
-  "normalised_total": 10218707.368825901
+  "format": "draftwright.plan-instructions-budget/1",
+  "instructions": {
+    "darwin-arm64": 3177525490268
+  }
 }
