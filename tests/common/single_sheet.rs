@@ -262,18 +262,21 @@ pub fn compare() {
                 found.insert(name, old);
                 continue;
             }
-            if let Some(prior) = old.get("png").and_then(Value::as_object)
-                && let Some(current) = found
-                    .get_mut(&name)
-                    .and_then(|r| r.get_mut("png"))
-                    .and_then(Value::as_object_mut)
-            {
-                for (platform, hash) in prior {
-                    current
-                        .entry(platform.clone())
-                        .or_insert_with(|| hash.clone());
+            // The portable record keeps its bytes: this OS's differing plan/svg/pdf went to the
+            // platform overrides above, and only its PNG hash is added here.
+            let mut row = old.clone();
+            if let (Some(png), Some(current)) = (
+                row.get_mut("png").and_then(Value::as_object_mut),
+                found
+                    .get(&name)
+                    .and_then(|r| r.get("png"))
+                    .and_then(Value::as_object),
+            ) {
+                for (platform, hash) in current {
+                    png.insert(platform.clone(), hash.clone());
                 }
             }
+            found.insert(name, row);
         }
         platform[os] = Value::Object(recorded);
         std::fs::write(
