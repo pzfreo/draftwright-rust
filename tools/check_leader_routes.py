@@ -1,7 +1,8 @@
 """Rendered leader acceptance: length, hidden/section/cut crossings and 0.3 mm runs.
 
 Record origin/main with --record, then compare any quality.py output directory.
-The immutable fixture records every placed callout on all thirty quality parts.
+The fixture records the original routes on all thirty quality parts.
+Compare common IDs; inventory and information coverage are checked by the Rust tests.
 Unchanged pre-existing runs are reported; moving a callout may not retain one.
 Dashes are judged by their underlying stroke; curves use 0.002 mm chord error.
 """
@@ -139,26 +140,9 @@ def measures(plan, svg, analysis):
     extensions = [line for d in plan['dimensions'] if d.get('placed')
                   and len(d['placed'].get('arrows', [])) == 2
                   for line in d['placed']['lines'][:2]]
-    cuts = []
-    for v in plan['views']:
-        cut = v.get('cut')
-        if not cut:
-            continue
-        marked = next((m for m in plan['views'] if m['id'].removeprefix('v:')
-                       == cut['marked_in'].removeprefix('v:')), None)
-        if not marked:
-            continue
-        up, toward = marked['up'], marked['direction']
-        right = [up[1]*toward[2]-up[2]*toward[1], up[2]*toward[0]-up[0]*toward[2],
-                 up[0]*toward[1]-up[1]*toward[0]]
-        lo, hi = analysis['envelope']
-        centre = [(a+b)/2 for a,b in zip(lo,hi)]
-        def page(q):
-            return [marked['at'][k] + marked['scale'] * sum(
-                d[j]*(q[j]-centre[j]) for j in range(3)) for k,d in enumerate((right,up))]
-        a, b = page([lo[0],cut['origin'][1],lo[2]]), page([hi[0],cut['origin'][1],hi[2]])
-        y = page(cut['origin'])[1]
-        cuts.append([[min(a[0],b[0])-4,y],[max(a[0],b[0])+4,y]])
+    # Use the resolved strokes the renderer draws, regardless of the cut's model axis.
+    cuts = [curve['Line'] for v in plan['views'] for w in v.get('line_work', [])
+            if w['kind'] == 'cutting_plane' for curve in w['curves'] if 'Line' in curve]
     section_views = [v for v in plan['views'] if v.get('cut')]
     def in_section(c):
         if not c:
@@ -205,8 +189,9 @@ def check(before, after):
         failures.append('incomplete thirty-part inventory')
     for part, old in before.items():
         now = after.get(part, {})
-        if set(old) != set(now):
-            failures.append(f'{part}: callout inventory changed (information needs review)')
+        for id_, a in now.items():
+            if id_ not in old and a['run'] > 2.0 + 1e-6:
+                failures.append(f"{part}: {id_}: new route runs beside ink {a['run']:.3f} mm")
         for id_, b in old.items():
             if id_ not in now:
                 continue

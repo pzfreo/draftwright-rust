@@ -6156,3 +6156,62 @@ canonical (try) frames, not the first estimate's.
   that callout cannot bring the three remaining findings under the 1.5× bar.
   Keep this as an explicit unmet check, rather than changing the gate or making
   an unrelated linear-layout/scheduling change in L1.
+
+## L1 fix round judgements (2026-10-13, Codex, overturnable)
+
+This supersedes the earlier L1 claim that holding a radius tip while moving its
+elbow is safe. The reviewer is correct: that changes the direction away from the
+arc centre. Every moved shaft now uses `rim_tip` for its proven site, whatever
+measurement it carries. Shoulder-only candidates preserve the original shaft.
+The slot-radius regression test permits unchanged original shafts, and requires
+every changed shaft to be exactly radial; it has no part-specific angular margin.
+
+The local search covers all integer paper stations within one 7 mm text row,
+rather than only eight rays. It also tries the existing shoulder fractions and
+one/two mm extensions. The length margin remains two mm for the entire route;
+all previous no-worse tiers, per-edge crossing and contiguous-run vetoes remain.
+Uncertain curved-face boxes and section/isometric envelopes still prevent a
+changed segment from entering unproved ink. They were an important reason for
+the earlier lack of gain. An identical segment inside such a box needs no new
+proof: allowing it enables shoulder/text changes without moving the shaft.
+No part or item IDs are routing exceptions.
+
+The rendered route safeguard is now called by the CI acceptance harness after
+its fresh thirty-part quality render. It reads cutting-plane strokes from the
+Plan's `line_work`, instead of reconstructing a horizontal cut from model Y.
+It compares shared callout IDs and applies the run guard to new IDs; it no longer
+freezes the inventory. Existing Rust coverage tests remain responsible for lost
+information. The 15 original runs are still explicit baseline exceptions, not
+an assertion that the absolute no-run target was achieved.
+
+Local finishing commands use the new optional `quality.py --timeout` and
+`ci_acceptance.py --render-timeout/--step-timeout` arguments to allow the
+throttled machine to finish. CI defaults remain 600 s per render/plan and 1500 s
+per harness step (the survey retains its longer budget); no quality, pin or
+route threshold changes. `/usr/bin/time -l` was attempted but its instruction
+counter is unavailable in this sandbox (`sysctl kern.clockrate: Operation not
+permitted`), so this round makes no planning-speed claim from wall time.
+
+Final visual judgement (2026-10-14, overturnable): FTC-08's revised R7.6
+shaft is exactly radial and shortens from 10.000 to 7.099 mm including the
+shoulder. The remaining location-extension pair is still reported. Its filled
+arrowhead grazes that extension by 0.028 paper mm (triangle half-width 0.45 mm),
+where the original triangle cleared it; this is below the stroke width and is
+retained under the dense-NIST cosmetic bar. The whole sheet and 2400 px detail
+show a correct, shorter radius pointer and readable text. This is not claimed
+as complete clearance of that pair, or as an absolute zero-contact result.
+
+
+L1 finishing result (2026-10-14): real contact reduction **53 → 49** on CGB245,
+CTC-01 and FTC-08; no part worse in the 300-cell CI or 420-cell extended audit,
+and no information/problem-list change. The seven named regression sheets are
+byte-identical to Stage I before. 823 Rust tests / 81 groups, fmt, strict Clippy,
+38/16 Python tests, the rendered route/locality guards, the 64-part survey and
+7/7 unchanged scripted MCP tasks pass; schemas have no diff. All nine pin cells
+complete (270 part runs); **2-3 and 2-8 remain NO-GO only on FTC-07, ink 1 → 4**.
+Exact failing Specs produce identical measured rows on saved main. This keeps
+the pre-existing bar visible: global acceptance is not claimed passed. The 15
+base collinear runs and the tiny FTC-08 head graze above remain reported limits.
+No commit/push; finishing receipts are in `target/l1/fix-acceptance/` and
+`target/l1/fix-*.{log,json}`. Instructions retired could not be read in this
+sandbox, so no speed claim is made.

@@ -671,7 +671,7 @@ def pinned_one(f, args, baseline):
     try:
         if "error" in baseline[name]:
             raise ValueError(baseline[name]["error"])
-        p = subprocess.run([args.dw, "plan", f], capture_output=True, text=True, timeout=600)
+        p = subprocess.run([args.dw, "plan", f], capture_output=True, text=True, timeout=args.timeout)
         if p.returncode:
             raise ValueError(p.stderr or p.stdout)
         spec, ids = random_pins(json.loads(p.stdout), name, args.seed, args.pins)
@@ -679,7 +679,7 @@ def pinned_one(f, args, baseline):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as output:
             json.dump(spec, output, indent=1, sort_keys=True)
-        _, after = one(f, args.dw, f"{args.out}/pinned", path)
+        _, after = one(f, args.dw, f"{args.out}/pinned", path, timeout=args.timeout)
         if "error" in after:
             raise ValueError(after["error"])
         before = baseline[name]
@@ -714,12 +714,15 @@ def main():
     parser.add_argument("--baseline", help="Reuse this unpinned baseline JSON (same binary and parts)")
     parser.add_argument("--require-go", action="store_true", help="Exit 1 if any part fails the pin bar")
     parser.add_argument("--require-no-repeated-span", action="store_true", help="Exit 1 if any placed linear span repeats")
+    parser.add_argument("--timeout", type=int, default=600, help="Per-command wall timeout in seconds")
     parser.add_argument("dw")
     parser.add_argument("out")
     parser.add_argument("files", nargs="+")
     args = parser.parse_args()
     if (args.seed is None) != (args.pins is None) or (args.pins is not None and args.pins < 1):
         parser.error("provide both --seed and --pins (N >= 1)")
+    if args.timeout < 1:
+        parser.error("timeout must be positive")
     os.makedirs(args.out, exist_ok=True)
     if args.baseline:
         with open(args.baseline) as source:
@@ -728,7 +731,7 @@ def main():
             parser.error("baseline parts must equal the requested parts")
     else:
         with ThreadPoolExecutor(4) as ex:
-            res = dict(ex.map(lambda f: one(f, args.dw, args.out), args.files))
+            res = dict(ex.map(lambda f: one(f, args.dw, args.out, timeout=args.timeout), args.files))
     with open(f"{args.out}/baseline.json", "w") as output:
         json.dump(res, output, indent=1, sort_keys=True)
     if args.pins is not None:

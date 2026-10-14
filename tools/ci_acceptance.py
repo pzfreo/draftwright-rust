@@ -138,6 +138,7 @@ class Run:
         self.metrics = {}
 
     def step(self, label, argv, kind=None, result=None, baseline=None, timeout=1500):
+        timeout = max(timeout, getattr(self.args, 'step_timeout', 0))
         start = time.monotonic()
         record = {'name': label, 'command': [str(a) for a in argv]}
         try:
@@ -168,8 +169,11 @@ class Run:
             files = [args.corpus / p for p in manifest('quality_parts.txt')]
             quality_out = out / 'quality'
             fresh = quality_out / 'baseline.json'
-            self.step('quality', [*py, ROOT / 'tools/quality.py', binary, quality_out, *files],
+            budget = ['--timeout', getattr(args, 'render_timeout', 600)]
+            self.step('quality', [*py, ROOT / 'tools/quality.py', *budget, binary, quality_out, *files],
                       'quality', fresh, args.baseline)
+            self.step('leader-routes', [*py, ROOT / 'tools/check_leader_routes.py', quality_out,
+                      '--require-improvement', '--report', out / 'leader-routes.json'])
             # The deliberate failure uses a real measured report, without changing the accepted baseline.
             if fresh.is_file():
                 bad = read(fresh)
@@ -189,7 +193,7 @@ class Run:
             for cell in cells:
                 seed, pins = map(int, cell.split('-'))
                 pin_out = out / f'pins-{cell}'
-                self.step(f'pins-{cell}', [*py, ROOT / 'tools/quality.py', '--seed', seed,
+                self.step(f'pins-{cell}', [*py, ROOT / 'tools/quality.py', *budget, '--seed', seed,
                           '--pins', pins, '--baseline', fresh, '--require-go', binary, pin_out, *files],
                           'pins', pin_out / 'random-pins.json', fresh)
         elif job == 'repeated-spans':
@@ -210,9 +214,12 @@ class Run:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--job', choices=(*JOBS, 'all'), default='all')
+    parser.add_argument('--require-go', action='store_true', help='Require the pin bar (already enforced for every pin cell)')
     parser.add_argument('--pin-cell', choices=PIN_CELLS, help='Run one seed-N cell with a fresh baseline')
     parser.add_argument('--survey-shard', type=survey.shard_arg, default=(1, 1), metavar='K/N',
                         help='Run one of N slices of the repeated-span survey')
+    parser.add_argument('--render-timeout', type=int, default=600, help='Per-render/plan wall budget; increase on throttled machines')
+    parser.add_argument('--step-timeout', type=int, default=1500, help='Minimum wall budget for each acceptance subprocess')
     parser.add_argument('--binary', type=Path, default=Path('target/release/draftwright'))
     parser.add_argument('--corpus', type=Path, default=os.environ.get('DRAFTWRIGHT_CORPUS'))
     parser.add_argument('--out', type=Path, default=Path('target/acceptance'))
@@ -221,6 +228,8 @@ def main():
     parser.add_argument('--results', type=Path)
     parser.add_argument('--documents-dir', type=Path, help='Check saved MCP judge documents and PNGs')
     args = parser.parse_args()
+    if args.render_timeout < 1 or args.step_timeout < 1:
+        parser.error('timeouts must be positive')
     if args.pin_cell and args.job != 'quality-pins':
         parser.error('--pin-cell requires --job quality-pins')
     if args.survey_shard != (1, 1) and args.job != 'repeated-spans' and args.check_results != 'survey':

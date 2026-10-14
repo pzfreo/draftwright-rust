@@ -16,6 +16,48 @@ quality = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(quality)
 
 
+route_spec = importlib.util.spec_from_file_location('leader_routes', Path(__file__).with_name('check_leader_routes.py'))
+routes = importlib.util.module_from_spec(route_spec)
+route_spec.loader.exec_module(routes)
+
+
+class LeaderRoutes(unittest.TestCase):
+    def row(self, **changes):
+        row = dict(length=10., run=0., route=[[0., 0.], [6., 6.]], label=[7., 5., 12., 8.],
+                   hidden=0, section=0, cutting_plane=0)
+        return dict(row, **changes)
+
+    def test_length_crossings_and_collinear_runs_are_independent_vetoes(self):
+        before = {'part': {'callout': self.row()}}
+        for changes in (dict(length=12.01), dict(hidden=1), dict(section=1),
+                        dict(cutting_plane=1), dict(run=2.01, route=[[0., 0.], [0., 10.]])):
+            self.assertTrue(routes.check(before, {'part': {'callout': self.row(**changes)}}))
+        self.assertFalse(routes.check(before, {'part': {'callout': self.row(length=12.)}}))
+
+    def test_inventory_can_evolve_but_new_routes_get_the_run_guard(self):
+        before = {'part': {'old': self.row()}}
+        self.assertFalse(routes.check(before, {'part': {'new': self.row()}}))
+        self.assertTrue(routes.check(before, {'part': {'new': self.row(run=3.)}}))
+
+    def test_cutting_planes_use_resolved_strokes_for_any_axis(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            svg = Path(tmp) / 'sheet.svg'
+            svg.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+            view = dict(id='v:front', at=[0., 0.], line_work=[dict(kind='cutting_plane',
+                        curves=[{'Line': [[3., -1.], [3., 7.]]}])])
+            placed = dict(lines=[[[0., 0.], [6., 6.]], [[6., 6.], [9., 6.]]],
+                          label_box=[10., 5., 15., 8.], arrows=[])
+            plan = dict(views=[view], dimensions=[dict(id='radius', kind='callout',
+                        view='v:front', placed=placed)])
+            self.assertEqual(routes.measures(plan, svg, {})['radius']['cutting_plane'], 1)
+
+    def test_existing_runs_are_reported_and_cannot_grow_or_move(self):
+        before = {'part': {'callout': self.row(run=3.)}}
+        self.assertFalse(routes.check(before, before))
+        for changes in (dict(run=3.01), dict(label=[8., 5., 13., 8.])):
+            self.assertTrue(routes.check(before, {'part': {'callout': self.row(**dict(dict(run=3.), **changes))}}))
+
+
 class ScheduleInk(unittest.TestCase):
     def test_schedule_furniture_is_counted_against_edges_and_labels(self):
         plan = {'dimensions': [], 'balloons': [

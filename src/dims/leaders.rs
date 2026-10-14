@@ -876,8 +876,7 @@ pub(super) fn refine(
             .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
             .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
             .collect();
-        let contact = |p: &Placed| {
-            let b = p.label_box;
+        let contact = |lines: &[[P2; 2]], b: [f64; 4]| {
             let pad = [
                 b[0] - LABEL_PAD,
                 b[1] - LABEL_PAD,
@@ -892,7 +891,7 @@ pub(super) fn refine(
                     e[0][0].max(e[1][0]) + LABEL_PAD,
                     e[0][1].max(e[1][1]) + LABEL_PAD,
                 ];
-                if touches_box(*e, pad) || p.lines.iter().any(|s| touches_box(*s, b)) {
+                if touches_box(*e, pad) || lines.iter().any(|s| touches_box(*s, b)) {
                     pairs.insert(*j);
                 }
             }
@@ -917,7 +916,7 @@ pub(super) fn refine(
                 false
             })
         };
-        let before = contact(old);
+        let before = contact(&old.lines, old.label_box);
         if before == 0 {
             continue;
         }
@@ -986,9 +985,12 @@ pub(super) fn refine(
                 .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
                 .sum();
             next_length <= length(old) + 2.0 + 1e-6
-                && !uncertain
-                    .iter()
-                    .any(|b| lines.iter().any(|s| touches_box(*s, *b)))
+                && !uncertain.iter().any(|b| {
+                    lines
+                        .iter()
+                        .enumerate()
+                        .any(|(i, s)| touches_box(*s, *b) && *s != old.lines[i])
+                })
                 && !runs(lines)
                 && !model
                     .iter()
@@ -1010,54 +1012,52 @@ pub(super) fn refine(
             if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true)) {
                 return None;
             }
-            let contacts = contact(&p);
+            let contacts = contact(&p.lines, p.label_box);
             if contacts >= before {
                 return None;
             }
             Some((contacts, c.score()))
         };
         let mut best = None;
-        // One text row around the incumbent, at the existing paper station spacing.
-        // Local moves preserve physical radius attachments; diameter tips remain radial.
-        for n in 1..=ROW as usize {
-            for delta in [
-                [-1., 0.],
-                [1., 0.],
-                [0., -1.],
-                [0., 1.],
-                [-1., -1.],
-                [-1., 1.],
-                [1., -1.],
-                [1., 1.],
-            ] {
-                let shift = delta.map(|x| x * n as f64 * STEP);
-                let q = [0, 1].map(|k| elbow[k] + shift[k]);
-                let t = if w
-                    .measurements
-                    .iter()
-                    .any(|m| m.parameter.ends_with(".diameter"))
-                {
-                    let site = nearest(&job.sites, q);
-                    if (q[0] - site.0[0]).hypot(q[1] - site.0[1]) <= site.1 {
-                        continue;
-                    }
-                    rim_tip(site, q)
-                } else {
-                    tip
-                };
-                for right in [right, !right] {
-                    let e = [
-                        q[0] + if right {
-                            (end[0] - elbow[0]).abs()
-                        } else {
-                            -(end[0] - elbow[0]).abs()
-                        },
-                        q[1],
-                    ];
+        // Try shoulder-only changes first: an unchanged shaft needs no new silhouette proof.
+        // Then cover the local row, including stations between the eight compass directions.
+        let reach = ROW as i32;
+        let shifts = std::iter::once([0, 0]).chain((-reach..=reach).flat_map(|x| {
+            (-reach..=reach)
+                .filter(move |y| x != 0 || *y != 0)
+                .map(move |y| [x, y])
+        }));
+        for shift in shifts {
+            let q = [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP);
+            let t = if shift == [0, 0] {
+                tip
+            } else {
+                let site = nearest(&job.sites, q);
+                if (q[0] - site.0[0]).hypot(q[1] - site.0[1]) <= site.1 {
+                    continue;
+                }
+                rim_tip(site, q)
+            };
+            let shelf = (end[0] - elbow[0]).abs();
+            for right in [right, !right] {
+                for shoulder in [
+                    shelf,
+                    shelf * 0.75,
+                    shelf * 0.5,
+                    shelf * 0.25,
+                    shelf + STEP,
+                    shelf + 2.0 * STEP,
+                ] {
+                    let e = [q[0] + if right { shoulder } else { -shoulder }, q[1]];
                     if (q[0] - t[0]) * (e[0] - q[0]) < -1e-9 {
                         continue;
                     }
-                    if !route_safe(&[[t, q], [q, e]]) {
+                    // Most stations cannot improve contact; avoid measuring their edge ink.
+                    if (q[0] - t[0]).hypot(q[1] - t[1]) < MIN_LEADER {
+                        continue;
+                    }
+                    let (_, lb) = label_geometry(q, e, right, job.ink_min, job.ink_max);
+                    if contact(&[[t, q], [q, e]], lb) >= before || !route_safe(&[[t, q], [q, e]]) {
                         continue;
                     }
                     let Some(c) = measure_at(&job, t, q, e, right, &fixed, page) else {
@@ -1503,6 +1503,23 @@ fn measure(
     measure_at(job, tip, elbow, end, right, fixed, page)
 }
 
+fn label_geometry(elbow: P2, end: P2, right: bool, ink_min: P2, ink_max: P2) -> (P2, [f64; 4]) {
+    let at_x = if right {
+        end[0] + 1.0 - ink_min[0]
+    } else {
+        end[0] - 1.0 - ink_max[0]
+    };
+    let label_at = [at_x, elbow[1] - 0.5 * CAP];
+    let ink = super::LabelInk {
+        glyphs: Vec::new(),
+        strokes: Vec::new(),
+        min: ink_min,
+        max: ink_max,
+    };
+    let lb = label_box(&ink, label_at, 0.0);
+    (label_at, lb)
+}
+
 fn measure_at(
     job: &Job,
     tip: P2,
@@ -1516,19 +1533,7 @@ fn measure_at(
     if shaft < MIN_LEADER {
         return None;
     }
-    let at_x = if right {
-        end[0] + 1.0 - job.ink_min[0]
-    } else {
-        end[0] - 1.0 - job.ink_max[0]
-    };
-    let label_at = [at_x, elbow[1] - 0.5 * CAP];
-    let ink = super::LabelInk {
-        glyphs: Vec::new(),
-        strokes: Vec::new(),
-        min: job.ink_min,
-        max: job.ink_max,
-    };
-    let lb = label_box(&ink, label_at, 0.0);
+    let (label_at, lb) = label_geometry(elbow, end, right, job.ink_min, job.ink_max);
     let segs = [[tip, elbow], [elbow, end]];
     let o = job.outline;
     let mut hard = 0u32;
@@ -2348,6 +2353,65 @@ mod tests {
             let l = [elbow[0] - t[0], elbow[1] - t[1]];
             assert!((r[0] * l[1] - r[1] * l[0]).abs() < 1e-9 && r[0] * l[0] + r[1] * l[1] > 0.0);
         }
+    }
+
+    #[test]
+    fn refined_slot_radius_leaders_point_towards_the_arc_centre() {
+        let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME")
+                    .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+            });
+        let Some(corpus) = corpus.filter(|p| p.is_dir()) else {
+            assert_ne!(
+                std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
+                Ok("1")
+            );
+            return;
+        };
+        let a = crate::model::analyse_native(&corpus.join("nist/nist_ftc_08_asme1_rc.stp"))
+            .unwrap()
+            .1;
+        let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
+        let wants = super::super::wants(&a).0;
+        let baseline: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/leader_routes.json")).unwrap();
+        let before = &baseline["parts"]["nist_ftc_08_asme1_rc"];
+        let mut checked = 0;
+        for d in &plan.dimensions {
+            if !d
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "slot_end_radius.radius")
+            {
+                continue;
+            }
+            let Some(p) = &d.placed else { continue };
+            let w = wants.iter().find(|w| w.id == d.id).unwrap();
+            let Shape::Callout { sites } = &w.shape else {
+                panic!("radius needs arc sites")
+            };
+            let v = plan.views.iter().find(|v| v.id == d.view).unwrap();
+            let sites = page_sites(&Frame::new(&a, v), sites);
+            let [tip, elbow] = p.lines[0];
+            let (centre, _) = nearest(&sites, tip);
+            let r = [tip[0] - centre[0], tip[1] - centre[1]];
+            let shaft = [elbow[0] - tip[0], elbow[1] - tip[1]];
+            let unchanged = [tip, elbow].iter().enumerate().all(|(i, p)| {
+                (0..2).all(|k| {
+                    (p[k] - v.at[k] - before[&d.id]["route"][i][k].as_f64().unwrap()).abs() < 1e-6
+                })
+            });
+            if !unchanged {
+                let sine = (r[0] * shaft[1] - r[1] * shaft[0]).abs()
+                    / (r[0].hypot(r[1]) * shaft[0].hypot(shaft[1]));
+                assert!(sine < 1e-9, "{}: moved radius leader must be radial", d.id);
+                assert!(r[0] * shaft[0] + r[1] * shaft[1] > 0.0);
+            }
+            checked += 1;
+        }
+        assert!(checked > 0);
     }
 
     /// Stations start at the natural one, alternate outwards, stay within the side and are
