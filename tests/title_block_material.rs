@@ -61,13 +61,14 @@ fn fixtures() -> BTreeMap<String, (String, Vec<u8>)> {
 }
 
 /// The part and its Analysis (no recognition: the title block does not need it), read from a
-/// scratch file of its own, as the tests run in parallel.
+/// scratch file of its own, as the tests run in parallel (in one process under cargo test, in
+/// one process each under nextest, so the directory names the process too).
 fn analysed(file: &str, bytes: &[u8]) -> (Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("title_block_material")
-        .join(n.to_string());
+        .join(format!("{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
     std::fs::write(&path, bytes).unwrap();

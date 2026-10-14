@@ -210,6 +210,13 @@ pub fn compare() {
         );
         expected.insert(name.clone(), replacement.clone());
     }
+    // Per-OS hashes for cases whose bytes differ from the portable record (last-digit libm
+    // differences). Each OS still pins exact bytes.
+    let platform_fixture = root.join("tests/fixtures/known_single_sheet_platform.json");
+    let mut platform: Value =
+        serde_json::from_slice(&std::fs::read(&platform_fixture).unwrap()).unwrap();
+    let os = std::env::consts::OS;
+    let mut recorded = serde_json::Map::new();
     // Deliberate drawing changes merged after I1 (e.g. L1's leader refinement) replace exact
     // expectations case by case; every format of every case is still compared exactly.
     let approved_fixture = root.join("tests/fixtures/known_single_sheet_approved.json");
@@ -246,9 +253,26 @@ pub fn compare() {
             continue;
         }
         for format in ["plan", "svg", "pdf"] {
-            assert_eq!(current[format], old[format], "{name}: {format}");
+            // Bytes may differ between platforms in the last digit of libm results (arc
+            // parameters in SVG/PDF; at least one captured spec's plan on Linux), so each OS
+            // pins its own exact bytes where they differ from the portable record.
+            // Recording rebuilds this OS's overrides from scratch, so stale ones never apply.
+            if record {
+                if current[format] != old[format] {
+                    recorded.entry(name.clone()).or_insert_with(|| json!({}))[format] =
+                        current[format].clone();
+                }
+                continue;
+            }
+            let want = platform[os]
+                .get(name)
+                .and_then(|r| r.get(format))
+                .unwrap_or(&old[format]);
+            assert_eq!(&current[format], want, "{name}: {format}");
         }
-        if let Some(png) = old["png"].get(std::env::consts::OS) {
+        if let Some(png) = old["png"].get(std::env::consts::OS)
+            && !record
+        {
             assert_eq!(&current["png"][std::env::consts::OS], png, "{name}: PNG");
         }
     }
@@ -273,19 +297,28 @@ pub fn compare() {
                 found.insert(name, old);
                 continue;
             }
-            if let Some(prior) = old.get("png").and_then(Value::as_object)
-                && let Some(current) = found
-                    .get_mut(&name)
-                    .and_then(|r| r.get_mut("png"))
-                    .and_then(Value::as_object_mut)
-            {
-                for (platform, hash) in prior {
-                    current
-                        .entry(platform.clone())
-                        .or_insert_with(|| hash.clone());
+            // The portable record keeps its bytes: this OS's differing plan/svg/pdf went to the
+            // platform overrides above, and only its PNG hash is added here.
+            let mut row = old.clone();
+            if let (Some(png), Some(current)) = (
+                row.get_mut("png").and_then(Value::as_object_mut),
+                found
+                    .get(&name)
+                    .and_then(|r| r.get("png"))
+                    .and_then(Value::as_object),
+            ) {
+                for (platform, hash) in current {
+                    png.insert(platform.clone(), hash.clone());
                 }
             }
+            found.insert(name, row);
         }
+        platform[os] = Value::Object(recorded);
+        std::fs::write(
+            &platform_fixture,
+            serde_json::to_string_pretty(&platform).unwrap() + "\n",
+        )
+        .unwrap();
         std::fs::write(
             &pin_fixture,
             serde_json::to_string_pretty(&pins).unwrap() + "\n",
