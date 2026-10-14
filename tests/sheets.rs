@@ -200,7 +200,9 @@ fn r5_corner_table_on_sheet_two_has_a_place() {
 #[test]
 fn r5_floor_is_reported_with_an_actionable_paper_fix() {
     let a = analysed("plate");
-    let s = spec(json!({"sheet":{"size":"A4"},"sheets":{"smallest_scale":"10:1"}}));
+    let s = spec(
+        json!({"sheet":{"size":"A4"},"sheets":{"smallest_scale":"10:1"},"views":{"iso":{"omit":true},"section_aa":{"omit":true}}}),
+    );
     let p = value(&a, &s);
     let q = p["problems"]
         .as_array()
@@ -213,7 +215,7 @@ fn r5_floor_is_reported_with_an_actionable_paper_fix() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|op| op["path"] == "sheets/max" || op["path"] == "sheet/size")
+            .any(|op| op["path"] == "sheet/size" && op["value"] == "A3")
     );
 }
 
@@ -610,11 +612,8 @@ fn r5_paper_runs_before_a_further_sheet() {
     assert!(p.sheet.scale_factor >= 5.);
     assert_ne!(p.sheet.size, "A4");
     assert!(p.sheets.is_empty());
-    assert!(
-        p.sheet
-            .basis
-            .contains("paper recovery before sheet allocation")
-    );
+    assert!(p.sheet.basis.contains("smallest fit"));
+    assert!(p.sheet.basis.contains("step 0: 0 hard findings"));
 }
 
 #[test]
@@ -684,5 +683,113 @@ fn r5_narrow_section_blocks_reserve_caption_and_reference_width() {
         !draftwright::sheets::check(&p)
             .iter()
             .any(|p| p.code == "annotation_off_sheet")
+    );
+}
+
+#[test]
+fn r5_allowing_extra_sheets_preserves_the_finished_sheet() {
+    for name in [
+        "mfcadpp/1000.step",
+        "gramel/GRM-03_thumbwheel_drive_screw.step",
+        "gramel/string_post.step",
+        "ttt_inputs/sm-hanger.step",
+        "cadgenbench_inputs/cgb203.step",
+        "mfcadpp/10020.step",
+        "mfcadpp/10063.step",
+    ] {
+        let a = analysed(name);
+        let mut ordinary = value(&a, &Spec::default());
+        let mut allowed = value(&a, &spec(json!({"sheets":{"max":2}})));
+        assert!(allowed.get("sheets").is_none(), "{name}");
+        for p in [&mut ordinary, &mut allowed] {
+            p.as_object_mut().unwrap().remove("spec");
+            p["sheet"].as_object_mut().unwrap().remove("basis");
+        }
+        assert_eq!(ordinary, allowed, "{name}");
+    }
+}
+
+#[test]
+fn r5_remote_section_retains_parent_cutting_plane_ink() {
+    let root = std::env::var("DRAFTWRIGHT_CORPUS").unwrap();
+    let (part, a) =
+        model::analyse_native(&Path::new(&root).join("gramel/string_post.step")).unwrap();
+    let p = model::plan_recovered(
+        &a,
+        &spec(json!({"sheet":{"size":"A4","scale":"5:1"},"sheets":{"max":2},"views":{"section_aa":{"sheet":2}}})),
+    )
+    .unwrap();
+    let font = draftwright::text::Font::open(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fonts")
+            .join(draftwright::dims::FONT),
+    )
+    .unwrap();
+    let drawing = model::render(&part, &a, &p, &font).unwrap();
+    for name in [
+        "section_line",
+        "section_arrow_left",
+        "section_arrow_right",
+        "section_a_left",
+        "section_a_right",
+    ] {
+        assert!(drawing.sheet.items.iter().any(|i| i.name == name), "{name}");
+    }
+    assert_eq!(drawing.text.iter().filter(|t| t.text == "A").count(), 2);
+    for letter in drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|i| ["section_a_left", "section_a_right"].contains(&i.name.as_str()))
+    {
+        for d in p.dimensions.iter().filter_map(|d| d.placed.as_ref()) {
+            let a = letter.ink;
+            let b = d.label_box;
+            assert!(
+                !(a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]),
+                "letter overlaps a dimension label"
+            );
+        }
+    }
+}
+
+#[test]
+fn r5_table_sheet_edits_are_narrow_and_transactional() {
+    let s = spec(json!({"sheets":{"max":2},"tables":[{"id":"t:1","rows":[["A"]],"sheet":2}]}));
+    let removed = api::edit(&s, &json!([{"op":"remove","path":"tables/0/sheet"}])).unwrap();
+    assert_eq!(removed.tables[0].sheet, None);
+    for (path, value) in [
+        ("tables/1/sheet", json!(1)),
+        ("tables/0/sheet", json!(3)),
+        ("tables/0/rows/0/0", json!("B")),
+        ("tables/0", json!({"id":"t:2","rows":[["B"]]})),
+    ] {
+        assert!(
+            api::edit(&s, &json!([{"op":"set","path":path,"value":value}])).is_err(),
+            "{path}"
+        );
+    }
+    assert!(api::edit(&s, &json!([{"op":"remove","path":"tables/0"}])).is_err());
+    assert_eq!(s.tables[0].sheet, Some(2));
+}
+
+#[test]
+fn r5_impossible_assignment_keeps_ink_and_reports_the_floor() {
+    let mut a = analysed("prismatic");
+    a.iso_bounds = [-1e9, -1e9, 1e9, 1e9];
+    let s = spec(
+        json!({"sheet":{"size":"A4","scale":"1:1"},"sheets":{"max":2,"smallest_scale":"1:1"},"views":{"iso":{"sheet":2}}}),
+    );
+    let p = model::plan_recovered(&a, &s).unwrap();
+    assert!(p.views.iter().any(|v| v.id == "v:iso" && v.sheet == 2));
+    assert!(
+        p.problems
+            .iter()
+            .any(|p| p.code == "sheet_below_smallest_scale" && p.subjects == ["sheet:2"])
+    );
+    assert!(
+        p.problems
+            .iter()
+            .any(|p| p.code == "annotation_off_sheet" && p.subjects == ["v:iso"])
     );
 }

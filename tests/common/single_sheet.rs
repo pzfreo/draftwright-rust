@@ -164,13 +164,59 @@ pub fn compare() {
     let fixture = root.join("tests/fixtures/known_single_sheet.json");
     let known: BTreeMap<String, Value> =
         serde_json::from_slice(&std::fs::read(&fixture).unwrap()).unwrap();
+    // Current main's canonical-pin repair intentionally changes some pre-I1 pinned sheets.
+    // Keep the original manifest; these exact replacements were recorded from d1193921
+    // independently of I1, and all other cases still compare against the original bytes.
+    let pin_fixture = root.join("tests/fixtures/known_single_sheet_main_pins.json");
+    let mut pins: Value = serde_json::from_slice(&std::fs::read(&pin_fixture).unwrap()).unwrap();
+    assert_eq!(
+        pins["upstream_commit"],
+        "d1193921abbe3ab9035f54df1e298beb042a7569"
+    );
+    let mut portable = known.clone();
+    for row in portable.values_mut() {
+        row.as_object_mut().unwrap().remove("png");
+    }
+    assert_eq!(
+        hash(&serde_json::to_vec(&portable).unwrap()),
+        pins["base_portable_sha256"]
+    );
+    let adjustments: BTreeMap<String, Value> =
+        serde_json::from_value(pins["cases"].clone()).unwrap();
+    let pinned_specs: std::collections::BTreeSet<_> = saved
+        .values()
+        .flatten()
+        .filter(|spec| {
+            let value = serde_json::to_value(spec).unwrap();
+            ["dimensions", "annotations", "views"].iter().any(|name| {
+                value[name]
+                    .as_object()
+                    .is_some_and(|entries| entries.values().any(|e| e["place"]["pinned"] == true))
+            }) && value
+                .get("hole_table")
+                .is_none_or(|policy| policy == "auto")
+        })
+        .map(|spec| hash(&serde_json::to_vec(spec).unwrap()))
+        .collect();
+    let mut expected = known.clone();
+    for (name, replacement) in &adjustments {
+        assert!(
+            known.contains_key(name),
+            "upstream added a baseline case: {name}"
+        );
+        assert!(
+            pinned_specs.contains(name.rsplit(":spec:").next().unwrap()),
+            "upstream replacement is not an automatic pinned schedule: {name}"
+        );
+        expected.insert(name.clone(), replacement.clone());
+    }
     if !record {
         assert_eq!(
             found.keys().collect::<Vec<_>>(),
-            known.keys().collect::<Vec<_>>()
+            expected.keys().collect::<Vec<_>>()
         );
     }
-    for (name, old) in &known {
+    for (name, old) in &expected {
         let current = found
             .get(name)
             .unwrap_or_else(|| panic!("lost baseline case {name}"));
@@ -187,6 +233,16 @@ pub fn compare() {
     }
     if record {
         for (name, old) in known {
+            if adjustments.contains_key(&name) {
+                let current = &found[&name]["png"];
+                let prior = pins["cases"][&name]["png"].as_object_mut().unwrap();
+                for (platform, value) in current.as_object().unwrap() {
+                    prior.insert(platform.clone(), value.clone());
+                }
+                // Linux recording extends the upstream manifest, never rewrites base bytes.
+                found.insert(name, old);
+                continue;
+            }
             if let Some(prior) = old.get("png").and_then(Value::as_object)
                 && let Some(current) = found
                     .get_mut(&name)
@@ -200,6 +256,11 @@ pub fn compare() {
                 }
             }
         }
+        std::fs::write(
+            &pin_fixture,
+            serde_json::to_string_pretty(&pins).unwrap() + "\n",
+        )
+        .unwrap();
         std::fs::write(
             fixture,
             serde_json::to_string_pretty(&found).unwrap() + "\n",

@@ -6107,12 +6107,12 @@ canonical (try) frames, not the first estimate's.
 
 Overturnable judgements and handoff notes:
 
-- R5's seven-call paper-recovery description predates H6's exhaustive finished-sheet
-  selection. Specs without `sheets.max > 1` retain H6 exactly, with an optional author
-  floor; explicit multi-sheet allocation uses the existing bounded layout ladder,
-  floor-aware, at most six retries per cumulative prefix. The public `model::recover`
-  signature is retained: its floor comes from the Spec, avoiding an unnecessary
-  shared-caller API break. `layout::recover` takes the explicit optional floor.
+- Superseded in the 2026-10-14 fix round: the bounded multi-sheet ladder
+  bypassed H6 and made clean drawings worse. Every prefix now calls the existing
+  `recover`, including its table recovery, with the optional floor. The public
+  signature remains unchanged; the floor comes from the Spec. Overturnable judgement:
+  preserve drafting quality over R5's obsolete seven-call bound. There are still at
+  most four prefixes, but each uses H6's finished-sheet search; no claim of 28 calls.
 - `sheets.hole_table` addresses the rescue table R5 describes (`hole_table::escalate`),
   rather than H1's newer per-view legibility schedules. Those schedules remain on
   sheet 1. An explicit keep-together group containing a rescue table takes precedence
@@ -6169,11 +6169,10 @@ as the section caption does. `sheets::check` emits `sheet_label_replaced` when a
 allocated multi-sheet document has an authored SHEET label, including a blank one;
 I2 owns drawing the `n/m` replacement and should not append a duplicate diagnostic.
 
-Visual handoff: filtering `render()` to sheet-1 views removes the old section
-renderer that supplied its parent's cutting-plane arrows/letters. The parent's
-cutting-plane `line_work` is planned and used as a placement obstacle. I2 must draw
-those markings from the whole plan's cuts/sheet-1 furniture, including when the
-section is on another sheet. The temporary later-sheet SVGs in `target/i1-visual`
+Visual handoff, updated in the 2026-10-14 fix round: `render()` draws the parent's
+cutting-plane chain, arrows and letters from the whole plan even when the section
+is on another sheet. Its letter/arrow placement obstacles are also retained.
+I2 must add the cross-reference text and later-sheet furniture. The temporary later-sheet SVGs in `target/i1-visual`
 are geometry previews, not completed I2 output: cross-reference and per-view scale
 text, `n/m`, and zone-border furniture still belong to I2. Notes/projection furniture
 are sheet-1 only.
@@ -6192,7 +6191,10 @@ The final-source three-part planning timing replay had load averages 18.33–18.
 The loaded median wall times (base → final) were GRM-03 28.524 → 28.992 ms, 10020
 18.698 → 18.877 ms and FTC-06 586.426 → 580.985 ms; every Plan JSON was identical.
 These figures are observations under load, not accepted latency measurements.
-The sandbox also denies the system counter needed by `/usr/bin/time -l`.
+The earlier denial should not be treated as universal: the reviewer measured
+instructions with `/usr/bin/time -l`. A fresh fix-round probe through this run's
+exec sandbox still exits with `sysctl kern.clockrate: Operation not permitted`
+(`/tmp/i1-time-probe.log`); do not substitute wall-clock speed claims.
 
 The Stage I carrier `debug_assert!` runs at the completion of allocation, beside
 the check call. The public generic `sheets::check` remains usable on R5's hand-built
@@ -6259,3 +6261,90 @@ the original 3,600-second per-operation limit; only the first driver's outer
 6,600-second deadline was absent. All timeout retries passed. The two base-identical
 FTC-07 pin targets remain unmet and are explicitly recorded in the status report.
 The byte fixture remains frozen. No commit or push was made.
+
+
+## I1 fix round (unattended, 2026-10-14)
+
+- Step zero and every overflow prefix use the established finished-sheet recovery.
+  `tools/check_sheet_recovery.py` and the seven-part integration guard compare the
+  whole Plan except Spec and sheet basis. The script fails on base `0419fa6`
+  (unknown sheets field) and initial I1 `cf717e7a` (1000 differs).
+- Sheet-1 rendering consumes remote sections' Cuts as well as local sections.
+  It draws the parent's planned cutting-plane chain, both wings/arrows and letters,
+  with the same audit names, without projecting or hatching the remote section.
+  Placement obstacles recover the remote cut's label from its planned line-work ID,
+  retaining letter/arrow obstacles even after the temporary carrier is removed.
+  The render test also checks that the letters overlap no dimension label at A4 5:1.
+  This supersedes the old handoff of missing cutting-plane ink to I2. Later-sheet
+  rendering, zone borders, cross-reference text and n/m remain I2's scope.
+- A forced view that cannot pack at any standard scale is retained at the smallest
+  standard scale on its assigned sheet. The per-sheet audit reports its overflow,
+  and the floor warning remains actionable. Overturnable judgement: retain explicit
+  ink with hard findings instead of refusing the document or silently losing ink.
+- New list-index edit support is limited to `tables/<index>/sheet` set/remove.
+  Other list-index edits keep their pre-I1 refusal behavior. Tests cover removal,
+  out-of-range indices, invalid sheet numbers and unrelated nested list paths.
+- The floor-fix test now requires exactly `set sheet/size A3` with auxiliary views
+  omitted (principals alone); no either-path assertion remains.
+- Current main is `d1193921`, one commit beyond the original base. Its entire code
+  and test patch is applied to the working files. The driver must place the final
+  commit on current main: git ancestry/index writes are prohibited in this run.
+- I3 handoff: `tools/generate_mcp_schemas.py`'s closed Spec shape must gain `sheets`
+  (max, smallest_scale, keep_together, hole_table, gdt_on_sheet_1); item schemas
+  must admit `sheet`, and summaries/filters/operations must expose sheet addressing.
+  View and table input schemas currently allow extra properties, so their sheet
+  assignments are already admitted. The closed Spec rejects the top-level sheets
+  control until I3 merges. Schema generation remains unchanged in this I1 round.
+
+Final validation receipts are recorded in the status entry: all required checks
+pass (853 Rust tests, 270/270 pins, 300/300 quality, 64/64 survey, 7/7 MCP). The original frozen byte manifest stays intact.
+
+The fixed-A4 string_post floor case still needs both cumulative moves under the
+established H6 solver: step 0 and iso-only step 1 each retain 2:1 with one floor
+finding; step 2 is clean at 5:1. This is no longer a recovery bypass. Replaying
+A4 5:1 with only iso omitted (`target/i1-fix-final/section-on-one.plan.json`)
+places the plan area up to y=229.5 mm, beyond the 200 mm drawable top, and reports
+two `annotation_off_sheet` centreline findings. The right-hand whitespace alone
+is not evidence of a valid finished layout. Both later-sheet previews retain
+all 14 dimensions on sheet 1, with no geometry-coverage findings. Broader H6
+packing improvements are an overturnable follow-up, rather than a part-specific
+allocation exception.
+
+The required merge of current main changes the original byte oracle for pinned
+schedules. The frozen byte test exposed CTC-01's captured width-omitted/bare-hole-pin
+Spec. An independent library archived from `d1193921` was built without I1, and
+both builds replayed every original input: all 1,876 complete records match exactly.
+Against `0419fa6`, d119 changes 288 automatic pinned-schedule Plan hashes, of which
+13 mounting-plate cases also change SVG/PDF/macOS PNG. No default, refusal or panic
+case changes; the other 275 changes are Plan-only. The CTC-01 drawing was inspected
+before/after and is identical. Receipts: `/tmp/i1-current-main-records.json`,
+`/tmp/i1-fixed-records.json`, and `tests/fixtures/known_single_sheet_main_pins.json`.
+
+Overturnable judgement: keep `known_single_sheet.json` byte-for-byte intact and
+add the independently recorded d119 expectations separately. The guard checks
+every case and format exactly, with only those 288 exact Spec-hash replacements;
+it requires placement pins and auto schedules, and checks the original portable
+manifest's fingerprint. This measures I1 against the required current-main base,
+without hiding a stream regression behind a general pin exemption. Linux record
+mode extends the separate pinned PNG expectations and preserves the original
+portable/macOS bytes; the opt-in CI artifact now contains both manifests.
+
+Upstream visual caveat, measured rather than concealed by the additive oracle:
+all 13 changed mounting-plate drawings were rendered/rasterised and inspected.
+D119 keeps the canonical *absence* of a table in these authored/pinned cases, so
+hole sizes and positions return to the direct callouts/pattern dimensions. Finished
+lint reports no new coverage loss (the 11 authored missing-overall findings remain
+11), and duplicate-measurement findings fall 66 → 0. But the Plan's hard layout
+findings over these 13 cases rise 31 → 56, including overlapping explicitly placed
+callouts. These are byte-identical to independently built current main, so they
+are inherited d119 behavior, not an I1 allocation regression. They remain an
+upstream follow-up; no quality threshold or per-part workaround hides them.
+Evidence: `target/i1-fix-final/upstream-pin-visual/audit.json` and 26 review PNGs.
+
+
+Fix-round completion: required checks pass with the final release binary; see the
+status entry and `target/i1-fix-final/receipt.json`. Original fixture unchanged,
+upstream pin fixture independently proven, no commits/pushes. The driver must
+update ancestry onto current main. The 288-byte-expectation replacements are
+upstream-only; the inherited 13 authored-pin layout limitations remain explicitly
+reported above.

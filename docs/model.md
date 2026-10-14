@@ -195,12 +195,14 @@ group, and must put a view with `place.relative_to` on its anchor's sheet. Those
 relations also form implicit keep-together groups. Placement pins are kept;
 an explicit sheet assignment remains possible for an auxiliary group. A stated
 `sheet.scale` below `sheets.smallest_scale` is refused with choices to remove the
-scale or lower the floor. Table index paths work with `set` and `remove` too.
+scale or lower the floor. List-index edits are supported only for
+`tables/<index>/sheet`, with `set` and `remove`.
 
 Without sheet controls the existing planner path and serialized bytes are unchanged.
 A floor alone enters the existing recovery. With `sheets.max > 1`, each allocation
-prefix uses R5's bounded, floor-aware paper recovery: at most six paper/scale retries
-after its initial estimate. Larger paper is tried before moving auxiliary content.
+prefix uses the existing finished-sheet recovery with the floor, including table
+recovery. There are at most four prefixes; H6's exhaustive selection supersedes
+R5's older six-retry estimate. Larger paper is tried before moving auxiliary content.
 The cumulative overflow order is isometric, section A–A, then a rescue hole table
 withdrawn for lack of table room. Assigned content moves first; a group containing a
 principal or a placement pin does not move automatically. Sections that fit stay
@@ -237,7 +239,8 @@ paper or a lower floor. An unused rescue-table assignment reports
 `sheet_assignment_unused` with a remove edit.
 
 Stage I1 produces and checks these later-sheet plans. `model::render` continues to
-draw sheet 1; later-sheet rendering, repeated title furniture with `n/m`, and MCP
+draw sheet 1, including the parent's cutting-plane furniture for a remote section;
+later-sheet rendering, repeated title furniture with `n/m`, and MCP
 sheet operations are the I2/I3 streams. The plan and spec schema versions stay the same;
 old documents read with single-sheet defaults.
 

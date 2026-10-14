@@ -1717,22 +1717,27 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
     {
         return selection;
     }
-    // A bare pin on a scalar already covered by the default table does not resurrect its
-    // ladder. Callout pins remain additive, so a visible authored callout is never replaced.
-    let covered_pins: BTreeSet<String> = if plan
-        .spec
-        .dimensions
+    // Placement pins keep the canonical (unpinned) plan's sheet and frames (`model::plan_with`);
+    // they keep its hole presentation too, so each view is scheduled exactly when the canonical
+    // plan schedules it. Re-measuring the trigger on the pinned layout would let a pin's held
+    // placement add or remove a whole table. A bare pin on a scalar already covered by the
+    // default table does not resurrect its ladder. Callout pins remain additive, so a visible
+    // authored callout is never replaced.
+    let canonical = crate::placement_intent::has_pins(&plan.spec)
+        .then(|| {
+            let mut base = crate::model::Spec::default();
+            base.sheet.size = plan.spec.sheet.size.clone();
+            base.sheet.scale = plan.spec.sheet.scale.clone();
+            base.hole_table = plan.spec.hole_table;
+            crate::model::plan_recovered(analysis, &base).ok()
+        })
+        .flatten();
+    let covered_pins: BTreeSet<String> = canonical
         .iter()
-        .any(|(id, e)| id.starts_with("d:f:hole") && e.place.as_ref().is_some_and(|p| p.pinned))
-    {
-        let mut base = crate::model::Spec::default();
-        base.sheet.size = plan.spec.sheet.size.clone();
-        base.sheet.scale = plan.spec.sheet.scale.clone();
-        base.hole_table = plan.spec.hole_table;
-        crate::model::plan_recovered(analysis, &base).ok().into_iter().flat_map(|p| p.omitted).filter(|o| matches!(&o.state, crate::items::State::Covered { by } if by.starts_with("hole_schedule_"))).map(|o| o.id).collect()
-    } else {
-        BTreeSet::new()
-    };
+        .flat_map(|p| &p.omitted)
+        .filter(|o| matches!(&o.state, crate::items::State::Covered { by } if by.starts_with("hole_schedule_")))
+        .map(|o| o.id.clone())
+        .collect();
     let read: BTreeMap<_, _> = holes::read(analysis)
         .into_iter()
         .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?)))
@@ -1797,9 +1802,14 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 ) && callouts.iter().any(|d| p.subjects.contains(&d.id))
             })
             .count();
-        if plan.spec.hole_table != Setting::Always
-            && !(n >= 6 && (crowded > 0 || locations.len() > 8 || conflicts > 0))
-        {
+        let wanted = match &canonical {
+            Some(base) if plan.spec.hole_table == Setting::Auto => base
+                .hole_tables
+                .iter()
+                .any(|t| t.id == format!("hole_schedule_{}", view.id.trim_start_matches("v:"))),
+            _ => n >= 6 && (crowded > 0 || locations.len() > 8 || conflicts > 0),
+        };
+        if plan.spec.hole_table != Setting::Always && !wanted {
             continue;
         }
         // Use the theoretical intersection of the minimum datum planes.

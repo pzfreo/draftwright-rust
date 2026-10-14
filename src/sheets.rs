@@ -370,17 +370,9 @@ pub(crate) fn allocate(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
             first = run(analysis, &copy)?;
         }
         let mut p = first.clone();
-        if !pack(analysis, spec, &moved, &mut p) {
+        if !pack_with_overflow(analysis, spec, &moved, &mut p, step == 0) {
             tried.push(format!("step {step}: blocked by sheets.max"));
             blocked = true;
-            if step == 0 {
-                // Explicit content remains represented even if it exceeds its paper at every scale.
-                return Err(Invalid {
-                    message: "Assigned content cannot fit within sheets.max at any standard scale."
-                        .into(),
-                    choices: vec!["set sheet/size A0".into(), "set sheets/max 9".into()],
-                });
-            }
             continue;
         }
         previous = p.clone();
@@ -599,6 +591,16 @@ fn extra_sheet(first: &PlannedSheet, number: u32) -> PlannedSheet {
 
 /// Pack assigned groups first, then fill the remaining sheets from 2 upwards. A group is atomic.
 fn pack(analysis: &Analysis, spec: &Spec, moved: &BTreeMap<String, u32>, plan: &mut Plan) -> bool {
+    pack_with_overflow(analysis, spec, moved, plan, false)
+}
+
+fn pack_with_overflow(
+    analysis: &Analysis,
+    spec: &Spec,
+    moved: &BTreeMap<String, u32>,
+    plan: &mut Plan,
+    allow_overflow: bool,
+) -> bool {
     plan.sheets.clear();
     plan.views
         .retain(|v| v.sheet == 1 && !moved.contains_key(v.id.trim_start_matches("v:")));
@@ -805,6 +807,35 @@ fn pack(analysis: &Analysis, spec: &Spec, moved: &BTreeMap<String, u32>, plan: &
             if found.is_some() {
                 break;
             }
+        }
+        if found.is_none()
+            && allow_overflow
+            && let Some(n) = assigned
+        {
+            let sheet = sheets
+                .get(&n)
+                .cloned()
+                .unwrap_or_else(|| extra_sheet(&plan.sheet, n));
+            let mut views = blocks.get(&n).cloned().unwrap_or_default();
+            for name in &names {
+                if let Some(mut view) = auxiliary(
+                    analysis,
+                    name,
+                    layout::SCALES[15],
+                    n,
+                    plan.sheet.scale_factor,
+                ) {
+                    let top = views
+                        .last()
+                        .map_or(sheet.page[1] - layout::MARGIN, |v| v.area[1] - 10.);
+                    let delta = [layout::MARGIN - view.area[0], top - view.area[3]];
+                    shift(&mut view, delta);
+                    views.push(view);
+                }
+            }
+            // Keep assigned ink even when no standard scale fits. The finished-sheet audit
+            // reports overflow; the floor check offers a corrective intent.
+            found = Some((n, sheet, views));
         }
         let Some((n, sheet, views)) = found else {
             return false;

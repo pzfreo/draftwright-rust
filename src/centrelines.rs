@@ -734,9 +734,15 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
             };
             if w.kind == "cutting_plane"
                 && let Curve::Line(a, b) = w.curves[0]
-                && let Some(cut) = views.iter().filter_map(|v| v.cut.as_ref()).find(|c| {
-                    c.marked_in == v.id && w.id == format!("ink:{}:cut:{}", v.id, c.label)
-                })
+                && let Some(label) = views
+                    .iter()
+                    .filter_map(|v| v.cut.as_ref())
+                    .find(|c| {
+                        c.marked_in == v.id && w.id == format!("ink:{}:cut:{}", v.id, c.label)
+                    })
+                    .map(|c| c.label.as_str())
+                    // A remote section's carrier is absent, but its planned line keeps the label.
+                    .or_else(|| w.id.strip_prefix(&format!("ink:{}:cut:", v.id)))
             {
                 let (_, letters) = crate::section::cutting_plane(a[0], b[0], a[1]);
                 // Use the renderer's own wing and filled arrow outlines.
@@ -760,7 +766,7 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                     placed.label_box = bounds;
                     out.push(arrow);
                 }
-                let laid = crate::dims::font().text(&cut.label, crate::section::FONT_SIZE);
+                let laid = crate::dims::font().text(label, crate::section::FONT_SIZE);
                 for (k, at) in letters.into_iter().enumerate() {
                     let mut letter = obstacle.clone();
                     letter.id = format!("{}:letter:{k}", w.id);

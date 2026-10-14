@@ -1090,14 +1090,6 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
         return Ok(first);
     }
-    if spec
-        .sheets
-        .as_ref()
-        .and_then(|s| s.max)
-        .is_some_and(|max| max > 1)
-    {
-        return recover_allocated(analysis, spec, first, min_legible_scale);
-    }
     if !first.hole_tables.is_empty() {
         return recover_tables(analysis, spec, first);
     }
@@ -1372,95 +1364,6 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         });
     }
     Ok(chosen)
-}
-
-/// R5's bounded paper ladder for each allocation prefix. The established H6 selection stays
-/// untouched for specs without sheets.max; a multi-sheet prefix spends at most six retries.
-fn recover_allocated(
-    analysis: &Analysis,
-    spec: &Spec,
-    mut first: Plan,
-    floor: f64,
-) -> Result<Plan, Invalid> {
-    let required = carried(&first);
-    let judge = |p: &Plan| {
-        let mut f = findings(p);
-        if p.sheet.scale_factor < floor && crate::sheets::floor(spec).is_none_or(|s| floor > s) {
-            f.hard += 1;
-        }
-        f.hard += usize::from(!drawn_items_fit(analysis, p));
-        f.dropped += required.difference(&carried(p)).count() + undrawn_gdt(p);
-        f
-    };
-    let seed = judge(&first);
-    let mut chosen = None;
-    let attempts = layout::recover(
-        first.sheet.scale_factor,
-        first.sheet.page,
-        spec.sheet.size.is_some(),
-        seed,
-        Some(floor),
-        &mut |retry| {
-            let mut named = spec.clone();
-            match retry {
-                layout::Retry::Scale(scale) => {
-                    named.sheet.size = Some(first.sheet.size.clone());
-                    named.sheet.scale = Some(scale_name(scale));
-                }
-                layout::Retry::Sheet(size) => {
-                    named.sheet.size = Some(size.into());
-                    named.sheet.scale =
-                        (first.sheet.scale_factor < floor).then(|| scale_name(floor));
-                }
-            }
-            let mut candidate = plan_escalated_with(analysis, &named, true, None).ok()?;
-            let f = judge(&candidate);
-            if f.clean() {
-                candidate.sheet.default = true;
-                candidate.spec = first.spec.clone();
-                chosen = Some(candidate);
-            }
-            Some(f)
-        },
-    );
-    let tried = attempts
-        .iter()
-        .map(|a| {
-            format!(
-                "{:?}: {}",
-                a.retry,
-                a.findings
-                    .map_or_else(|| "not a candidate".into(), |f| said(f, f.dropped))
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("; ");
-    if let Some(mut p) = chosen {
-        p.sheet.basis += &format!("; floor-aware paper recovery before sheet allocation: {tried}");
-        p.problems.push(Problem {
-            id: "p:layout_replanned:sheet".into(),
-            code: "layout_replanned".into(),
-            severity: "info".into(),
-            message: format!(
-                "Sheet choice changed from {} at {} to {} at {} before auxiliary sheet allocation.",
-                first.sheet.size, first.sheet.scale, p.sheet.size, p.sheet.scale
-            ),
-            subjects: vec!["sheet".into()],
-            ..Default::default()
-        });
-        return Ok(p);
-    }
-    if !seed.clean() {
-        first.sheet.basis +=
-            &format!("; floor-aware paper recovery exhausted before sheet allocation: {tried}");
-        first.problems.push(Problem {
-            id: "p:layout_recovery_exhausted:sheet".into(), code: "layout_recovery_exhausted".into(),
-            severity: if first.sheet.scale_factor < floor { "warning" } else { "info" }.into(),
-            message: format!("No clean bounded paper retry at or above {}; the initial drawing and findings are kept. Tried {tried}.", scale_name(floor)),
-            subjects: vec!["sheet".into()], ..Default::default()
-        });
-    }
-    Ok(first)
 }
 
 /// [`plan`] with draftwright's bounded layout recovery applied ([`recover`]): the plan every
@@ -2982,6 +2885,12 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         let mut at = &mut doc;
         for key in parents {
             if at.is_array() {
+                if path.len() != 3 || path[0] != "tables" || path[2] != "sheet" || kind == "add" {
+                    return Err(invalid(
+                        "List-index edits are supported only for tables/<index>/sheet.",
+                        &[],
+                    ));
+                }
                 let index = key
                     .parse::<usize>()
                     .ok()
@@ -3001,21 +2910,6 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
                     object.get_mut(key).ok_or_else(absent)?
                 };
             }
-        }
-        if let Some(list) = at.as_array_mut() {
-            let index = last
-                .parse::<usize>()
-                .ok()
-                .filter(|i| *i < list.len())
-                .ok_or_else(|| invalid(format!("{last:?} is not an existing list index."), &[]))?;
-            match kind {
-                "set" => list[index] = op["value"].clone(),
-                "remove" => {
-                    list.remove(index);
-                }
-                _ => return Err(invalid("Append to the list's path, not an index.", &[])),
-            }
-            continue;
         }
         let object = at
             .as_object_mut()
@@ -3351,7 +3245,21 @@ pub fn render_with(
         first.hole_table = first.hole_table.filter(|t| t.sheet == 1);
         first.hole_tables.retain(|t| t.sheet == 1);
         let geometry = render_geometry(part, analysis, &first, projections)?;
-        return render_annotations(part, analysis, &first, font, geometry, projections);
+        let remote: Vec<_> = plan
+            .views
+            .iter()
+            .filter(|v| v.sheet != 1 && v.cut.is_some())
+            .collect();
+        return render_annotations_with_cuts(
+            part,
+            analysis,
+            &first,
+            font,
+            geometry,
+            projections,
+            &BTreeMap::new(),
+            &remote,
+        );
     }
     let geometry = render_geometry(part, analysis, plan, projections)?;
     render_annotations(part, analysis, plan, font, geometry, projections)
@@ -3388,6 +3296,29 @@ pub fn render_annotations_with_items(
     projections: &mut Projections,
     items: &BTreeMap<String, RenderedItem>,
 ) -> Result<Drawing, Unresolved> {
+    render_annotations_with_cuts(
+        part,
+        analysis,
+        plan,
+        font,
+        geometry,
+        projections,
+        items,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_annotations_with_cuts(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+    geometry: GeometryLayer,
+    projections: &mut Projections,
+    items: &BTreeMap<String, RenderedItem>,
+    remote_sections: &[&PlannedView],
+) -> Result<Drawing, Unresolved> {
     // Section furniture (hatch, cutting plane), and its text: what, where.
     let mut furniture: Vec<Item> = Vec::new();
     let mut captions: Vec<(String, [f64; 2])> = Vec::new();
@@ -3415,7 +3346,6 @@ pub fn render_annotations_with_items(
     );
     for (v, (name, geometry)) in plan.views.iter().zip(geometry.views) {
         assert_eq!(v.id, name, "geometry follows plan view order");
-        let plane = v.cut.as_ref().and_then(|c| Plane::new(c.origin, c.normal));
         if geometry.undrawn > 0 {
             undrawn.insert(v.id.clone(), geometry.undrawn);
         }
@@ -3467,8 +3397,23 @@ pub fn render_annotations_with_items(
         }
         layers[0].items.extend(geometry.visible);
         layers[1].items.extend(geometry.hidden);
+    }
+    for v in plan.views.iter().chain(remote_sections.iter().copied()) {
+        let plane = v.cut.as_ref().and_then(|c| Plane::new(c.origin, c.normal));
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
-            let f = section_furniture(part, analysis, plan, v, (plane, cut), projections)?;
+            let remote = v.sheet != plan.sheet.number;
+            let f = if remote {
+                let mut f = Furniture {
+                    ink: Vec::new(),
+                    hatch: 0,
+                    chain: None,
+                    text: Vec::new(),
+                };
+                cutting_furniture(plan, cut, &mut f);
+                f
+            } else {
+                section_furniture(part, analysis, plan, v, (plane, cut), projections)?
+            };
             // draftwright's pieces, each by its ink: the hatch, the chain line by its line, and
             // each end's arrowhead and wing stub (`section::cutting_plane`'s order).
             let mut piece = |name: String, kind: Kind, ink: &[Item], lines: Vec<[[f64; 2]; 2]>| {
@@ -3518,15 +3463,12 @@ pub fn render_annotations_with_items(
             }
             // draftwright's names: the caption, then the cutting plane's letters.
             let l = cut.label.to_lowercase();
-            caption_names.extend(
-                [
-                    "section_caption".into(),
-                    format!("section_{l}_left"),
-                    format!("section_{l}_right"),
-                ]
-                .into_iter()
-                .take(f.text.len()),
-            );
+            if !remote {
+                caption_names.push("section_caption".into());
+            }
+            if f.chain.is_some() {
+                caption_names.extend([format!("section_{l}_left"), format!("section_{l}_right")]);
+            }
             furniture.extend(f.ink);
             captions.extend(f.text);
         }
@@ -4252,7 +4194,7 @@ fn section_furniture(
     (plane, cut): (&Plane, &Cut),
     projections: &mut Projections,
 ) -> Result<Furniture, Unresolved> {
-    use crate::section::{HATCH_SPACING, cutting_plane, hatch};
+    use crate::section::{HATCH_SPACING, hatch};
     let mut out = Furniture {
         ink: Vec::new(),
         hatch: 0,
@@ -4342,6 +4284,13 @@ fn section_furniture(
         format!("SECTION {l}\u{2013}{l}"),
         [v.at[0], v.at[1] - half_h - 7.0],
     ));
+    cutting_furniture(plan, cut, &mut out);
+    Ok(out)
+}
+
+fn cutting_furniture(plan: &Plan, cut: &Cut, out: &mut Furniture) {
+    use crate::section::cutting_plane;
+    let l = &cut.label;
     if let Some(w) = plan
         .views
         .iter()
@@ -4354,7 +4303,6 @@ fn section_furniture(
         out.chain = Some([a, b]);
         out.text.extend(letters.map(|at| (l.clone(), at)));
     }
-    Ok(out)
 }
 
 /// Where the cutting-plane line of *cut* runs on the view *m* that marks it (page mm): from
