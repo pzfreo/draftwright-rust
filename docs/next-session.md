@@ -7009,3 +7009,6 @@ Judgements, each the conservative choice:
   the designed_by value (plus three overflow-lint messages on test plate specs quoting it);
   SVGs differ only in the link URL, the designed_by text and glyphs inside that cell, and the
   new link rectangle over it. A two-sheet plate render shows the same on both sheets.
+- Linux recorded by workflow run 38625399679 (record-single-sheet): it only added Linux PNG
+  hashes and rebuilt the Linux overrides, which again cover 915 cases (913 SVG, 307 PDF,
+  11 plan), the same counts as before the re-baseline.
