@@ -270,7 +270,9 @@ pub fn compare() {
                 .unwrap_or(&old[format]);
             assert_eq!(&current[format], want, "{name}: {format}");
         }
-        if let Some(png) = old["png"].get(std::env::consts::OS) {
+        if let Some(png) = old["png"].get(std::env::consts::OS)
+            && !record
+        {
             assert_eq!(&current["png"][std::env::consts::OS], png, "{name}: PNG");
         }
     }
