@@ -247,9 +247,11 @@ The projection symbol and general notes stay on sheet 1. SVG and PNG keep the
 sheet-1 filename and add `<stem>.sheet<n>.svg` / `.png` for later sheets; one PDF
 contains every sheet in order (`Drawing::pdf_pages`, single-sheet bytes unchanged).
 Every output embeds the whole Spec. Review keeps `svg` for sheet 1 and adds
-`sheets: [svg…]` for sheets 2..m, omitted for one sheet. Coverage and structural
-review still judge sheet 1 in this slice; I2b supplies combined coverage,
-per-sheet structural checks, zones and drawn cross-references. MCP sheet
+`sheets: [svg…]` for sheets 2..m, omitted for one sheet. Coverage reads the marks of
+every sheet once; structural checks run per sheet and
+later-sheet issues carry their sheet number. Border zones and reciprocal section
+addresses are drawn as searchable text, and structural lint checks that each
+address reaches its rendered target in the printed grid. MCP sheet
 operations are I3's scope. The plan and spec schema versions stay the same;
 old documents read with single-sheet defaults.
 

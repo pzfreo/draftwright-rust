@@ -6723,3 +6723,71 @@ the final latency test and extended independent schema checker have separate bas
 red receipts. See the I3 status entry and `target/i3-final-receipt.json` for counts,
 byte budgets, native instruction measurements and the loaded/isolated timing figures.
 No full Rust suite or all-job acceptance was run locally. No commit/push was made.
+
+## I2b zones, references and lint (2026-10-14, unattended; overturnable judgements)
+
+- Base: `0dc1a85306123b57f04f92c7f45debafc9ddbe58` (`origin/main` at this
+  stream's start). No commit or push; the driver publishes the work.
+- Draw I1's grids in the existing 10 mm outer margin, on actual multi-sheet
+  documents only. Both pairs of borders carry labels; ticks meet the unchanged
+  drawable border. The grid and zone lookup keep I1's whole-page partitions.
+- The stored parent-reference position was too narrow for the complete address:
+  both named parts initially clipped it at the left border and through model ink.
+  Resolve only the new text against the existing page's finished-item footprints,
+  section furniture and title block. Candidate positions come from obstacle
+  boundaries with 1 mm clearance and a 0.5 mm label pad, with 1 mm inside the border.
+  Prefer the closest label edge to either cutting-plane letter; retain the section's
+  existing caption band for the return address. Neither a dimension nor a leader
+  moves. Overturnable: a fully obstructed page keeps the complete address at a
+  clamped position, leaving structural lint to report the collision; it never
+  silently removes or shrinks the information.
+- `Drawing.sheet.references` records the rendered address's claim, target caption
+  or letter and actual text-run index, like annotation measurement claims. Lint
+  reads no Plan/Spec: it checks printed text, infers the required reciprocal pair
+  from drawn section views and cutting letters even if those records are removed,
+  and verifies the target zone using the printed margin grid and target ink box.
+- `lint_sheets` rebases local text-run indices and reads all coverage evidence once,
+  retaining schedule coordinate origins, source claims, note authority and drawn
+  centre marks. Structural checks retain page-local positions. `check_sheets`
+  accepts the complete document in `render_sheets` order; later-page findings carry
+  `sheet` and a qualified issue ID. Single-sheet issue fields and IDs are unchanged.
+  Overturnable: coverage remains document-wide and carries no individual sheet.
+- The 2026-10-14 maintainer decision is added to R5: with `sheets.max > 1`, sheet 1's
+  legibility floor applies without an explicit `smallest_scale`. I1 already applies
+  the floor in recovery/allocation scoring; this slice changes no allocation policy.
+  Existing authored-scale and placement-pin precedence is retained.
+- Base proof: the exact final drawing tests and PDF helper were copied into a source
+  archive of the base and rebuilt in a separate Cargo target. Four new drawing
+  tests and the strengthened I1/I2a section tests fail at runtime. The three new lint
+  API tests are unbuildable on the base (`lint_sheets`, `check_sheets` and rendered
+  reference records do not exist); this is API-addition red evidence, not three
+  claimed runtime failures. Source/test hashes and logs are in
+  `target/i2b/base-proof.json`, `final-base-tests.log` and `base-lint-tests.log`.
+
+- Final verification: 79 scoped integration tests pass (api_analysis 9,
+  lint_structural 18, output 7, sheets 28, sheets_lint 3, sheets_mcp 6,
+  sheets_render 4, sheets_xref 4), including the 1,876-record single-sheet guard;
+  the two lint-independence unit guards also pass. Fmt and strict all-target
+  release Clippy pass. Python quality 40/40 and acceptance 21/21 pass without
+  skips. MCP remains 7/7 with 16 calls; schema regeneration leaves no diff.
+- Visual evidence: both sheets of string_post (fixed A4, max 2, floor 5:1) and
+  FTC-06 (section explicitly on sheet 2) were rendered before/after, rasterised
+  at 2400 px with resvg and inspected. Each gains two readable addresses and
+  grids on both pages; PDF search finds both addresses in each two-page file.
+  String_post has 20 border labels per page, FTC-06 40 (both previously zero).
+  Source/return zones are B2/B1 and C2/C1 respectively. Their 14/35 dimensions
+  remain identical, as do callout leader lengths 120.629543/232.591045 mm,
+  all planned witnesses/arrows, centre/cutting ink, notes, tables and problems.
+  The SVG part/hidden groups are byte-identical on all four pages. No information
+  was removed. All thirty default quality sheets were rasterised and inspected.
+- Quality: all 300 baseline cells are identical. Ink 52 -> 52, off-sheet 0 -> 0,
+  feature crossings 73 -> 73, hidden-on-visible 2232 -> 2232, repeated labels
+  7 -> 7; the other five baseline totals stay zero. The quality baseline and
+  original single-sheet fixture are untouched. No speed claim is made.
+- Final binary SHA-256: `5d41e5f6d8a0150d6a23d1fa45d739708d62c76bb26e3fd1b6e81b9a74474ac3`.
+  The final verification was repeated after source-documentation cleanup; all 36
+  final SVG/PDF artifacts are byte-identical to the visually reviewed renders.
+  Receipts: `target/i2b/receipt.json`, `required-tests.log`, `lint-guard.log`,
+  `base-proof.json`, `final-base-tests.log`, `base-carrier-test.log`,
+  `base-lint-tests.log`, `final-artifacts.json`, `visual-figures.json`,
+  `pdf-search.json`, `quality/baseline.json`, and `mcp.json`.

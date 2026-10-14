@@ -111,6 +111,9 @@ pub struct Requirement {
 pub struct LintIssue {
     /// Stable within one drawing: `l:<code>:<subject>`.
     pub id: String,
+    /// Page of a structural finding; absent means sheet 1. Coverage is document-wide.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sheet: Option<u32>,
     /// The stable machine-readable check, e.g. `hole_requirement_missing`.
     pub code: String,
     pub severity: Severity,
@@ -212,6 +215,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     let mut relief_issues = Vec::new();
     if !blends::relief_stated(analysis, drawing) {
         relief_issues.push(LintIssue {
+            sheet: None,
             code: "relief_profile_requirement_missing".into(),
             severity: Severity::Warning,
             message: "Grouped shallow relief profiles have no placed model-governing note.".into(),
@@ -322,6 +326,45 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     issues
 }
 
+/// Coverage over all sheets, counted once. Text-run indices remain local to each annotation
+/// until they are rebased into this drawing-wide evidence inventory; no positions are audited.
+pub fn lint_sheets(analysis: &Analysis, drawings: &[Drawing]) -> Vec<LintIssue> {
+    let Some(first) = drawings.first() else {
+        return check(analysis, &[]);
+    };
+    let mut combined = first.clone();
+    for drawing in &drawings[1..] {
+        let offset = combined.text.len();
+        combined.text.extend(drawing.text.iter().cloned());
+        combined
+            .annotations
+            .extend(drawing.annotations.iter().cloned().map(|mut a| {
+                for run in &mut a.runs {
+                    *run += offset;
+                }
+                a
+            }));
+        combined
+            .sheet
+            .views
+            .extend(drawing.sheet.views.iter().cloned());
+        combined
+            .sheet
+            .items
+            .extend(drawing.sheet.items.iter().cloned());
+        combined.sheet.frames.extend(drawing.sheet.frames.clone());
+        for (view, centres) in &drawing.sheet.centre_marks {
+            combined
+                .sheet
+                .centre_marks
+                .entry(view.clone())
+                .or_default()
+                .extend(centres);
+        }
+    }
+    lint(analysis, &combined)
+}
+
 /// Every ported rule's findings on a drawing whose annotations are *marks*.
 pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let verified: Vec<_> = marks
@@ -377,6 +420,7 @@ fn uncovered(
     message: String,
 ) -> LintIssue {
     LintIssue {
+        sheet: None,
         id: format!("l:{code}:{feature}/{parameter}"),
         code: code.into(),
         severity: if analysis.solid_count.is_some_and(|n| n > 1) {

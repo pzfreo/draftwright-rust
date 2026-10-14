@@ -181,6 +181,7 @@ fn issue(
     evidence: Option<String>,
 ) -> LintIssue {
     LintIssue {
+        sheet: None,
         id,
         code: "profiled_bore_not_dimensioned".into(),
         severity: Severity::Warning,

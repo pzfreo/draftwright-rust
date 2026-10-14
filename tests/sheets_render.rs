@@ -196,10 +196,15 @@ fn remote_section_has_its_hatch_and_caption_on_sheet_two() {
     let (plan, files) = api::render_from(&path, api::Features::Native, &s, &["svg"], 24.).unwrap();
     assert_eq!(files.len(), 2);
     let text = |i: usize| pdf::svg_text(std::str::from_utf8(&files[i].1).unwrap());
-    assert!(!text(0).iter().any(|t| t.starts_with("SECTION ")));
-    assert_eq!(text(0).iter().filter(|t| *t == "A").count(), 2);
+    assert!(
+        text(0)
+            .iter()
+            .any(|t| t.starts_with("SECTION A–A, SHEET 2, ZONE "))
+    );
+    // Row A is labelled on both borders of each page, in addition to the two cut letters.
+    assert_eq!(text(0).iter().filter(|t| *t == "A").count(), 4);
     assert!(text(1).iter().any(|t| t == "SECTION A–A"));
-    assert!(!text(1).iter().any(|t| t == "A"));
+    assert_eq!(text(1).iter().filter(|t| *t == "A").count(), 2);
     let section = plan.views.iter().find(|v| v.id == "v:section_aa").unwrap();
     let ink = output::read_svg(std::str::from_utf8(&files[1].1).unwrap());
     assert!(

@@ -566,6 +566,12 @@ So they are a stage of their own, with this design to be confirmed before it sta
 - The SHEET cell reads ISO 7200's `n/m`; the title-block grid does not change (section 4).
 - DXF is out of Stage I while its export is disabled.
 
+## Maintainer decision (2026-10-14)
+
+With `sheets.max > 1`, sheet 1's legibility floor applies even when
+`sheets.smallest_scale` is absent. The absent explicit floor does not make an
+illegible sheet 1 a clean allocation candidate. Single-sheet defaults stay unchanged.
+
 ## Open
 
 - **Stage J's region rule** (one region, the margin, items wholly inside) is a first design, to

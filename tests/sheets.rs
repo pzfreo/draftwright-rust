@@ -735,7 +735,25 @@ fn r5_remote_section_retains_parent_cutting_plane_ink() {
     ] {
         assert!(drawing.sheet.items.iter().any(|i| i.name == name), "{name}");
     }
-    assert_eq!(drawing.text.iter().filter(|t| t.text == "A").count(), 2);
+    let [x0, y0, x1, y1] = drawing.sheet.drawable.unwrap();
+    assert_eq!(
+        drawing
+            .text
+            .iter()
+            .filter(|t| t.text == "A"
+                && t.at[0] >= x0
+                && t.at[0] <= x1
+                && t.at[1] >= y0
+                && t.at[1] <= y1)
+            .count(),
+        2
+    );
+    assert!(
+        drawing
+            .text
+            .iter()
+            .any(|t| t.text.starts_with("SECTION A–A, SHEET 2, ZONE "))
+    );
     for letter in drawing
         .sheet
         .items
