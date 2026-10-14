@@ -426,6 +426,7 @@ pub(crate) fn allocate(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
             vec![Op::remove("sheets/hole_table")],
         ));
     }
+    crate::title_block::number_sheets(&mut p);
     p.problems.extend(check_with_search(
         &p,
         blocked || (maximum(spec) == 1 && !possible.is_empty()),
