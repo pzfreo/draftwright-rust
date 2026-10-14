@@ -13,6 +13,8 @@ import re
 import os
 from pathlib import Path
 
+EXCLUDED = {'cadgenbench/threaded_connector_109.step'}
+
 module = importlib.util.spec_from_file_location('quality', Path(__file__).with_name('quality.py'))
 quality = importlib.util.module_from_spec(module)
 module.loader.exec_module(quality)
@@ -63,6 +65,9 @@ def main():
                  or str(p.relative_to(corpus)) in sources)}
     used.update(corpus / json.loads(gzip.decompress(p.read_bytes()))['binding']['file']
                 for p in Path('tests/fixtures/sheets').glob('*.gz'))
+    # Left out by the maintainer: real drawings rarely model threads, so the part is a poor
+    # survey case. Tests and sheet facts that mirror the Python corpus still read it.
+    used -= {corpus / p for p in EXCLUDED}
     assert used <= set(files), f'add test inputs to the manifest: {sorted(used - set(files))}'
     for fixture in sorted(Path('tests/fixtures/pmi/step').glob('*.gz')):
         path = inputs / fixture.name[:-3]
