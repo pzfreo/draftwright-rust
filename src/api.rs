@@ -145,8 +145,7 @@ pub(crate) fn analysed(
 /// ([`model::analyse_step_part`]): each one's index, name, product id, face count and number of
 /// placements.
 pub fn parts(step: &Path) -> Result<Vec<model::FilePart>, Error> {
-    let bytes = std::fs::read(step)
-        .map_err(|e| Error::invalid(format!("cannot read {}: {e}", step.display())))?;
+    let bytes = model::read_step_file(step).map_err(Error::invalid)?;
     Ok(model::parts(step, &bytes)?)
 }
 
