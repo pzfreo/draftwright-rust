@@ -7038,8 +7038,8 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
     the caller's own request by its keys.
 - **#25 subjects.** `unclaimed_geometry` now has the unclaimed faces as subjects, `face:<index>`
   (no feature has them, by definition), and keeps its ID `p:unclaimed_geometry:sheet` so an
-  editor that remembers it still matches. A part with many unclaimed faces lists them all (153 on
-  one corpus part); the editor labels unknown IDs "Related item", so it may want to collapse face
+  editor that remembers it still matches. A part with many unclaimed faces lists them all (up to
+  420, on nist_ctc_02, over the 30 quality parts, measured at integration); the editor labels unknown IDs "Related item", so it may want to collapse face
   subjects. `hole_table_unavailable` when no hole has a proven datum corner names the hole
   callouts. Title-block problems (general tolerance, material, field overflow, sheet label) keep
   `sheet`: the title block is drawn on the sheet and their fixes edit `sheet/title/…`. The
