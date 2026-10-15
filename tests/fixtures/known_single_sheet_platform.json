@@ -2952,6 +2952,10 @@
       "pdf": "49b2705325a52d2daa7be978428b668d5fd3993a18027a6c0db8c42743245874",
       "svg": "80f7dd43694f8ffac9916acb15c076f31c3ccecaf2183d3e269204a44d5864f0"
     },
+    "pmi/step/hw_every_kind.step:default": {
+      "pdf": "8d3ce2435225ec645daf1b0597dc4b76200ea740784978708c8730c0cad85c53",
+      "svg": "fb20007d5dce3e0c298cba1c81cc98dd432a3b7f90613aa2ce20673b18807086"
+    },
     "pmi/step/hw_spool_fits_intent.step:default": {
       "pdf": "3e7d5bcb494feba13b9e70f827a99deb91111a231ca9a7489f2647632f854f8e",
       "svg": "1f173476d564cf7e84df5f55b42777d34147cd078176443a0b7a7660674b427b"
