@@ -329,7 +329,7 @@ fn dimension(r: &Record) -> Result<(), String> {
 fn materials(report: &Report) -> Vec<LintIssue> {
     match report.materials.as_slice() {
         [] => Vec::new(),
-        [m] if report.parts.len() > 1 => vec![sourced(
+        [m] if !report.owns(m) => vec![sourced(
             "step_material_unavailable",
             &m.source_id,
             Severity::Warning,

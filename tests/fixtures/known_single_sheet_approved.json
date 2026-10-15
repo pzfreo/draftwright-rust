@@ -1,5 +1,51 @@
 {
-  "cases": {},
+  "cases": {
+    "pmi/step/assembly_plate_pin.step:default": {
+      "pdf": "90dad928624bc4cae5cc066ef819e7bbc56de9d1d47948f098b14006c5036bc8",
+      "plan": "0f32be17ecf466906602c218882fded5c521ca5b2fbbeb64b419ac3770c2bcba",
+      "png": {
+        "linux": "60b923b1099c69ae9b3203982b5ca83ef15154ac7574868fbad3a7c062d112b5",
+        "macos": "60b923b1099c69ae9b3203982b5ca83ef15154ac7574868fbad3a7c062d112b5"
+      },
+      "svg": "7b1d096bb516d7b46b53d2ae5bfcc1f009cdbee3bfffd1e85eb3fa98d75ff09c"
+    },
+    "pmi/step/assembly_plate_pin.step:spec:4ab114ca38a7a6f9865a5dd4094565a35179c8bf97ac5a3d55ff0675ccec7589": {
+      "pdf": "1e04c66e0d12f347f8e2f3356246dafab975f63b8ede491fabd3f3b89ddd96f6",
+      "plan": "dfb7857b026160aa45b69bf76ad73e19bc94614bc3b5120ac6c60b023fdf01c9",
+      "png": {
+        "linux": "5827060e9efa00eeb3792b5883cfdcb8aec10addaab4ce8d57cd00ada1bbe235",
+        "macos": "5827060e9efa00eeb3792b5883cfdcb8aec10addaab4ce8d57cd00ada1bbe235"
+      },
+      "svg": "d16e61286743c44c971aa95d2a05cc8188134fe6c272f048235e5e2caedfa64f"
+    },
+    "pmi/step/assembly_plate_pin.step:spec:b04471db070f405dbd8748bd71a800e353bcc24e2bde2b5d49844e5b134c2af9": {
+      "pdf": "252074043222c63dfb846daa6cd0517f9a766234dbab3296a491abd78e6e3b6d",
+      "plan": "3c83829ea97d774d2a23116fc8653c5c6d4d8a10e4568df607891e1a8bbb2973",
+      "png": {
+        "linux": "6e5ee6d3356233778c3ac390e67a72cbbf01f4c703b06c28507e9d01a0b37569",
+        "macos": "6e5ee6d3356233778c3ac390e67a72cbbf01f4c703b06c28507e9d01a0b37569"
+      },
+      "svg": "4e94238b0ed8c20b13f0b114c013b22bd8c25332569588660cbeaa56899418bd"
+    },
+    "pmi/step/hw_assembly_plate_pin_intent.step:default": {
+      "pdf": "d73e83e2b7a98c219e3084484d32d9a5d9afbc944b7c10c57ba826982b1442ba",
+      "plan": "8eb33759952067c8f1aaffdf0da6b7a65e6a474d1d6a16b316409ed506a9205c",
+      "png": {
+        "linux": "6df838a1e4110be288e3481b0ba54eaaa530e70080b5a320da0a77353d09e9ac",
+        "macos": "6df838a1e4110be288e3481b0ba54eaaa530e70080b5a320da0a77353d09e9ac"
+      },
+      "svg": "1de0095779b5b80d200159069685e4fee6649d92521ef69670af3175cc230e79"
+    },
+    "pmi/step/hw_assembly_plate_pin_intent.step:spec:6d4f60c06c96ca13f06dd38caf28cbd47ad3957ef9314ff0988f644f1306f2fd": {
+      "pdf": "b41043c692874c9dc04e5676a6fcdc49a540d98457c26d2d7a6267249df28ef7",
+      "plan": "7e82430697158a4741c2fa61a83b6f22b9818f435fd27478efd5f8e91199c92c",
+      "png": {
+        "linux": "b75e16da7975a2571c828801fce5eca22af677b61eb5a8cbdb4fd2ac10d4cae0",
+        "macos": "b75e16da7975a2571c828801fce5eca22af677b61eb5a8cbdb4fd2ac10d4cae0"
+      },
+      "svg": "e3cbf1122a44687841db0c53b4c0ca537b8ff693f3ec3e1508b0b494f1844c8f"
+    }
+  },
   "note": "Exact replacements for deliberate drawing changes merged after I1's single-sheet oracle. Each case keeps every format exact; the stream that changed it is named in streams. Applied after known_single_sheet_main_pins.json.",
   "rebaseline": {
     "change": "f3-problem-language",
@@ -7,5 +53,10 @@
     "note": "known_single_sheet.json was re-recorded whole for this change; the main pins and these streams' replacements were folded into it.",
     "os": "macos"
   },
-  "streams": {}
+  "streams": {
+    "g3-draw-assembly-part": {
+      "cases": 5,
+      "note": "The D4 warning assembly_drawn_whole: an assembly drawn whole (no part chosen) gains one plan problem naming its parts. Only the plan changes; SVG, PDF and PNG are byte-identical. Plan hashes re-recorded on the f3-problem-language merge (its problem wording applies to these plans too)."
+    }
+  }
 }

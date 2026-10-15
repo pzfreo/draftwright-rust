@@ -45,7 +45,9 @@ pub use crate::png::DPI;
 pub type Files = Vec<(String, Vec<u8>)>;
 
 /// The operations [`call`] answers, in the order they are usually used.
-pub const OPERATIONS: [&str; 6] = ["analyse", "plan", "edit", "render", "review", "spec"];
+pub const OPERATIONS: [&str; 7] = [
+    "analyse", "plan", "edit", "render", "review", "spec", "parts",
+];
 
 /// Why an operation did not complete.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -125,13 +127,27 @@ impl<'a> From<Option<&'a Path>> for Features<'a> {
     }
 }
 
-/// The part at *step* and its analysis, with its features from *features*.
-pub(crate) fn analysed(step: &Path, features: Features) -> Result<(Part, Analysis), Error> {
+/// The part at *step* (part *part* of an assembly alone, when given) and its analysis, with its
+/// features from *features*.
+pub(crate) fn analysed(
+    step: &Path,
+    part: Option<usize>,
+    features: Features,
+) -> Result<(Part, Analysis), Error> {
     Ok(match features {
-        Features::None => model::analyse(step)?,
-        Features::Python(json) => model::analyse_with(step, Some(json))?,
-        Features::Native => model::analyse_native(step)?,
+        Features::None => model::analyse_with_part(step, None, part)?,
+        Features::Python(json) => model::analyse_with_part(step, Some(json), part)?,
+        Features::Native => model::analyse_native_part(step, part)?,
     })
+}
+
+/// The distinct parts of the STEP file at *step*, in the order a part is chosen by
+/// ([`model::analyse_step_part`]): each one's index, name, product id, face count and number of
+/// placements.
+pub fn parts(step: &Path) -> Result<Vec<model::FilePart>, Error> {
+    let bytes = std::fs::read(step)
+        .map_err(|e| Error::invalid(format!("cannot read {}: {e}", step.display())))?;
+    Ok(model::parts(step, &bytes)?)
 }
 
 /// The Analysis of the STEP file at *step*, with the features in *features*, Python quiddity's
@@ -142,7 +158,16 @@ pub fn analyse(step: &Path, features: Option<&Path>) -> Result<Analysis, Error> 
 
 /// The Analysis of the STEP file at *step*, with its features from *features*.
 pub fn analyse_from(step: &Path, features: Features) -> Result<Analysis, Error> {
-    Ok(analysed(step, features)?.1)
+    analyse_part(step, None, features)
+}
+
+/// [`analyse_from`] of part *part* of an assembly alone, when given.
+pub fn analyse_part(
+    step: &Path,
+    part: Option<usize>,
+    features: Features,
+) -> Result<Analysis, Error> {
+    Ok(analysed(step, part, features)?.1)
 }
 
 /// The Plan for the STEP file at *step* (with *features*, as for [`analyse`]) under *spec*.
@@ -152,7 +177,17 @@ pub fn plan(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Plan, E
 
 /// The Plan for the STEP file at *step*, with its features from *features*, under *spec*.
 pub fn plan_from(step: &Path, features: Features, spec: &Spec) -> Result<Plan, Error> {
-    let (_, analysis) = analysed(step, features)?;
+    plan_part(step, None, features, spec)
+}
+
+/// [`plan_from`] of part *part* of an assembly alone, when given.
+pub fn plan_part(
+    step: &Path,
+    part: Option<usize>,
+    features: Features,
+    spec: &Spec,
+) -> Result<Plan, Error> {
+    let (_, analysis) = analysed(step, part, features)?;
     Ok(model::plan_recovered(&analysis, spec)?)
 }
 
@@ -166,8 +201,9 @@ pub fn plan_analysed(analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
 /// Where an operation that draws takes the part's Analysis from.
 #[derive(Clone, Copy)]
 enum Given<'a> {
-    /// Analysed from the STEP file, with its features from these.
-    Features(Features<'a>),
+    /// Analysed from the STEP file (one part of it alone, when given), with its features from
+    /// these.
+    Features(Features<'a>, Option<usize>),
     /// The caller's, checked against the STEP file.
     Analysis(&'a Analysis),
 }
@@ -175,13 +211,14 @@ enum Given<'a> {
 /// The part at *step* and its analysis, as *given*.
 fn read(step: &Path, given: Given) -> Result<(Part, Analysis), Error> {
     match given {
-        Given::Features(features) => analysed(step, features),
+        Given::Features(features, part) => analysed(step, part, features),
         Given::Analysis(analysis) => Ok((bound(step, analysis)?, analysis.clone())),
     }
 }
 
 /// The part at *step*, read without recognition, when *analysis* is of this version and was made
-/// from that very file: one part is never drawn with another's analysis.
+/// from that very file: one part is never drawn with another's analysis. The part of an assembly
+/// it was made from alone (`binding.part_index`) is read alone again.
 fn bound(step: &Path, analysis: &Analysis) -> Result<Part, Error> {
     if analysis.schema != ANALYSIS_SCHEMA {
         return Err(Error {
@@ -193,7 +230,7 @@ fn bound(step: &Path, analysis: &Analysis) -> Result<Part, Error> {
             ))
         });
     }
-    let (part, read) = model::analyse(step)?;
+    let (part, read) = model::analyse_with_part(step, None, analysis.binding.part_index)?;
     let (given, found) = (&analysis.binding, &read.binding);
     if given.source_sha256 != found.source_sha256 || given.face_count != found.face_count {
         return Err(Error::invalid(format!(
@@ -264,7 +301,19 @@ pub fn render_from(
     formats: &[&str],
     dpi: f64,
 ) -> Result<(Plan, Files), Error> {
-    rendered(step, Given::Features(features), spec, formats, dpi)
+    render_part(step, None, features, spec, formats, dpi)
+}
+
+/// [`render_from`] of part *part* of an assembly alone, when given.
+pub fn render_part(
+    step: &Path,
+    part: Option<usize>,
+    features: Features,
+    spec: &Spec,
+    formats: &[&str],
+    dpi: f64,
+) -> Result<(Plan, Files), Error> {
+    rendered(step, Given::Features(features, part), spec, formats, dpi)
 }
 
 /// [`render_at`] from *analysis* (made by [`analyse`] from the STEP file at *step*) in place of
@@ -434,7 +483,17 @@ pub fn review(step: &Path, features: Option<&Path>, spec: &Spec) -> Result<Revie
 
 /// [`review`], with the part's features from *features*.
 pub fn review_from(step: &Path, features: Features, spec: &Spec) -> Result<Review, Error> {
-    reviewed(step, Given::Features(features), spec)
+    review_part(step, None, features, spec)
+}
+
+/// [`review_from`] of part *part* of an assembly alone, when given.
+pub fn review_part(
+    step: &Path,
+    part: Option<usize>,
+    features: Features,
+    spec: &Spec,
+) -> Result<Review, Error> {
+    reviewed(step, Given::Features(features, part), spec)
 }
 
 /// [`review`] from *analysis* in place of analysing the STEP file again, refused as
@@ -479,6 +538,13 @@ pub fn spec(drawing: &Path) -> Result<Spec, Error> {
 /// | `render` | `step`, `features`? or `analysis`?, `spec`?, `output`, `formats`?, `dpi`? | `{written, problems}` |
 /// | `review` | `step`, `features`? or `analysis`?, `spec`? | `{svg, problems, lint}` |
 /// | `spec` | `drawing` | the Spec embedded in the drawing |
+/// | `parts` | `step` | `{parts}`: the file's distinct parts ([`parts`]) |
+///
+/// `analyse`, `plan`, `render` and `review` also take `part`, the index of one part of an
+/// assembly (as `parts` lists them) to draw alone, in its own frame and with its PMI only.
+/// Without it the whole file is drawn as one part, and an assembly's plan warns
+/// (`assembly_drawn_whole`). An `analysis` already names its part (`binding.part_index`): a
+/// `part` beside it must be the same.
 ///
 /// `step`, `features`, `output` and `drawing` are file paths; `features` is Python quiddity's
 /// recognition JSON for the STEP file ([`crate::bridge`]). `analysis` is the Analysis document
@@ -524,21 +590,42 @@ fn dispatch(op: &str, args: &Value) -> Result<Value, Error> {
                 .map_err(|e| Error::invalid(format!("the spec is not valid: {e}"))),
         }
     };
-    // The caller's Analysis, if given: only in place of features, which it already carries.
+    let part = request_part(op, args)?;
+    // The caller's Analysis, if given: only in place of features, which it already carries, and
+    // of a part, which it names.
     let analysis = || -> Result<Option<Analysis>, Error> {
-        match args.get("analysis") {
-            None | Some(Value::Null) => Ok(None),
-            Some(_) if features.is_some() => Err(Error::invalid(format!(
-                "{op} takes \"analysis\" or \"features\", not both: the analysis already carries \
-                 the features it was made with."
-            ))),
-            Some(a) => serde_json::from_value(a.clone())
-                .map(Some)
-                .map_err(|e| Error::invalid(format!("the analysis is not valid: {e}"))),
+        let analysis: Option<Analysis> = match args.get("analysis") {
+            None | Some(Value::Null) => None,
+            Some(_) if features.is_some() => {
+                return Err(Error::invalid(format!(
+                    "{op} takes \"analysis\" or \"features\", not both: the analysis already \
+                     carries the features it was made with."
+                )));
+            }
+            Some(a) => Some(
+                serde_json::from_value(a.clone())
+                    .map_err(|e| Error::invalid(format!("the analysis is not valid: {e}")))?,
+            ),
+        };
+        if let Some(a) = &analysis
+            && part.is_some()
+            && part != a.binding.part_index
+        {
+            return Err(Error::invalid(format!(
+                "{op}'s \"part\" ({}) is not the part the analysis was made from ({}); omit \
+                 \"part\", or analyse that part again.",
+                part.map_or("none".into(), |k| k.to_string()),
+                a.binding
+                    .part_index
+                    .map_or("the whole file".into(), |k| format!("part {k}"))
+            )));
         }
+        Ok(analysis)
     };
+    let features = Features::from(features);
     match op {
-        "analyse" => Ok(json_of(&analyse(text("step")?, features)?)),
+        "analyse" => Ok(json_of(&analyse_part(text("step")?, part, features)?)),
+        "parts" => Ok(json!({ "parts": parts(text("step")?)? })),
         "plan" => match analysis()? {
             Some(analysis) => {
                 if args.get("step").is_some_and(|s| !s.is_null()) {
@@ -546,7 +633,12 @@ fn dispatch(op: &str, args: &Value) -> Result<Value, Error> {
                 }
                 Ok(json_of(&plan_analysed(&analysis, &given()?)?))
             }
-            None => Ok(json_of(&plan(text("step")?, features, &given()?)?)),
+            None => Ok(json_of(&plan_part(
+                text("step")?,
+                part,
+                features,
+                &given()?,
+            )?)),
         },
         "edit" => {
             let ops = args
@@ -574,13 +666,13 @@ fn dispatch(op: &str, args: &Value) -> Result<Value, Error> {
             let output = text("output")?;
             let (plan, files) = match analysis()? {
                 Some(a) => render_analysed(text("step")?, &a, &given()?, &formats, dpi)?,
-                None => render_at(text("step")?, features, &given()?, &formats, dpi)?,
+                None => render_part(text("step")?, part, features, &given()?, &formats, dpi)?,
             };
             Ok(json!({ "written": write(output, &files)?, "problems": plan.problems }))
         }
         "review" => Ok(json_of(&match analysis()? {
             Some(a) => review_analysed(text("step")?, &a, &given()?)?,
-            None => review(text("step")?, features, &given()?)?,
+            None => review_part(text("step")?, part, features, &given()?)?,
         })),
         "spec" => Ok(json_of(&spec(text("drawing")?)?)),
         other => Err(Error {
@@ -592,6 +684,22 @@ fn dispatch(op: &str, args: &Value) -> Result<Value, Error> {
 
 fn json_of(document: &impl Serialize) -> Value {
     serde_json::to_value(document).expect("a document serialises")
+}
+
+/// A request's `part`: the index of one part of an assembly, or none.
+pub(crate) fn request_part(op: &str, args: &Value) -> Result<Option<usize>, Error> {
+    match args.get("part") {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => v
+            .as_u64()
+            .and_then(|k| usize::try_from(k).ok())
+            .map(Some)
+            .ok_or_else(|| {
+                Error::invalid(format!(
+                    "{op}'s \"part\" is a part's index (0, 1, …), as the parts operation lists them"
+                ))
+            }),
+    }
 }
 
 /// Additional operations on the connection's one live part; batch operations still work.
@@ -648,12 +756,18 @@ impl Service {
                 .transpose()
                 .map_err(|e| Error::invalid(format!("invalid spec: {e}")))?
                 .unwrap_or_default();
+            let part = request_part(op, args)?;
             let session = if let Some(a) = args.get("analysis").filter(|a| !a.is_null()) {
                 if args.get("features").is_some_and(|v| !v.is_null()) {
                     return Err(Error::invalid("open takes analysis or features, not both"));
                 }
                 let analysis: Analysis = serde_json::from_value(a.clone())
                     .map_err(|e| Error::invalid(format!("invalid analysis: {e}")))?;
+                if part.is_some() && part != analysis.binding.part_index {
+                    return Err(Error::invalid(
+                        "open's part is not the part the analysis was made from; omit part",
+                    ));
+                }
                 crate::session::Session::new(bound(Path::new(step), &analysis)?, analysis, spec)?
             } else {
                 let features = match args.get("features") {
@@ -667,7 +781,7 @@ impl Service {
                         ));
                     }
                 };
-                crate::session::Session::open(Path::new(step), features, spec)?
+                crate::session::Session::open_part(Path::new(step), part, features, spec)?
             };
             let result = json_of(session.state());
             self.session = Some(session);
@@ -723,7 +837,7 @@ impl Service {
 }
 
 /// Stateless subprocess operations; tool calls use the same published MCP schemas.
-pub const STATELESS_OPERATIONS: [&str; 14] = [
+pub const STATELESS_OPERATIONS: [&str; 15] = [
     "stateless_apply",
     "stateless_preview",
     "mcp_inspect_part",
@@ -738,6 +852,7 @@ pub const STATELESS_OPERATIONS: [&str; 14] = [
     "mcp_get_spec",
     "mcp_analyse",
     "mcp_render",
+    "mcp_parts",
 ];
 
 #[cfg(test)]

@@ -370,7 +370,17 @@ pub struct Session {
 }
 impl Session {
     pub fn open(step: &Path, features: Features<'_>, spec: Spec) -> Result<Self, Error> {
-        let (part, analysis) = api::analysed(step, features)?;
+        Self::open_part(step, None, features, spec)
+    }
+    /// [`Session::open`] of part *part* of an assembly alone, when given
+    /// ([`crate::model::analyse_step_part`]).
+    pub fn open_part(
+        step: &Path,
+        part: Option<usize>,
+        features: Features<'_>,
+        spec: Spec,
+    ) -> Result<Self, Error> {
+        let (part, analysis) = api::analysed(step, part, features)?;
         Self::new(part, analysis, spec)
     }
     pub fn new(part: Part, analysis: Analysis, spec: Spec) -> Result<Self, Error> {
@@ -513,7 +523,9 @@ impl Session {
             self.spec(),
             &serde_json::to_value(ops).expect("ops serialise"),
         )?;
-        let reading = crate::pmi::read(bytes, &self.part).map_err(Error::invalid)?;
+        // A part of an assembly read alone takes its own PMI only.
+        let reading = crate::pmi::read_part(bytes, &self.part, self.analysis.binding.part_index)
+            .map_err(Error::invalid)?;
         let previous = self
             .analysis
             .pmi

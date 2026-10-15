@@ -15,6 +15,8 @@
 //!   drawing
 //! - `draftwright edit s.json ops.json`: the edited Spec
 //! - `draftwright spec drawing.(svg|dxf|pdf|png)`: the Spec embedded in a rendered drawing
+//! - `draftwright parts part.step`: the file's distinct parts (`{parts: [{part, name,
+//!   product_id, faces, instances}]}`), by which one part of an assembly is chosen
 //! - `draftwright serve`: the JSON-lines service. One request per line on stdin, such as
 //!   `{"id": 1, "op": "plan", "step": "part.step", "spec": {…}}`, and one reply per line on
 //!   stdout: `{"id": 1, "ok": true, "result": …}` or `{"id": 1, "ok": false, "error": {"code",
@@ -33,6 +35,10 @@
 //! used in place of analysing the file again; it is refused with `--features` or
 //! `--no-features`, or when made from another file. `serve` takes Python's JSON or none, as
 //! [`draftwright::api::call`] does.
+//!
+//! `analyse`, `plan`, `render` and `review` take `--part K`: part K of an assembly (as `parts`
+//! lists them) drawn alone, in its own frame and with its PMI only. Without it the whole file is
+//! drawn as one part, and an assembly's plan warns (`assembly_drawn_whole`), naming its parts.
 //!
 //! Exit codes: 0 done; 2 the request is invalid (the JSON error says what would be accepted);
 //! 1 something failed and nothing was written in its place.
@@ -96,7 +102,7 @@ fn read_json(path: &str) -> Result<Value, Error> {
 
 /// Runs the command, its arguments put as [`api::call`] takes them.
 fn run(args: &[String]) -> Result<Value, Error> {
-    let usage = "usage: draftwright (analyse|plan|render|review|edit|spec|serve) …";
+    let usage = "usage: draftwright (analyse|plan|render|review|edit|spec|parts|serve) …";
     let command = args.first().ok_or_else(|| Error::invalid(usage))?;
     let arg = |i: usize| {
         args.get(i)
@@ -113,6 +119,15 @@ fn run(args: &[String]) -> Result<Value, Error> {
         None => Value::Null,
     };
     let no_features = args.iter().any(|a| a == "--no-features");
+    let part = flag(args, "--part")
+        .map(|k| {
+            k.parse::<usize>().map_err(|_| {
+                Error::invalid(format!(
+                    "--part {k:?} is not a part's index; `draftwright parts <step>` lists them"
+                ))
+            })
+        })
+        .transpose()?;
     if no_features && (features.is_some() || !analysis.is_null()) {
         return Err(Error::invalid(
             "--no-features is not taken with --features or --analysis: it means no features at all.",
@@ -148,12 +163,13 @@ fn run(args: &[String]) -> Result<Value, Error> {
         let native = Features::Native;
         return guarded(command, || {
             Ok(match command.as_str() {
-                "analyse" => json_of(&api::analyse_from(step, native)?),
-                "plan" => json_of(&api::plan_from(step, native, &spec)?),
-                "review" => json_of(&api::review_from(step, native, &spec)?),
+                "analyse" => json_of(&api::analyse_part(step, part, native)?),
+                "plan" => json_of(&api::plan_part(step, part, native, &spec)?),
+                "review" => json_of(&api::review_part(step, part, native, &spec)?),
                 _ => {
                     let (output, dpi) = (output()?, dpi()?.unwrap_or(api::DPI));
-                    let (plan, files) = api::render_from(step, native, &spec, &formats(), dpi)?;
+                    let (plan, files) =
+                        api::render_part(step, part, native, &spec, &formats(), dpi)?;
                     let written = api::write(std::path::Path::new(output), &files)?;
                     json!({ "written": written, "problems": plan.problems })
                 }
@@ -167,21 +183,28 @@ fn run(args: &[String]) -> Result<Value, Error> {
             "features": features,
             "analysis": analysis,
             "spec": spec,
+            "part": part,
         }),
-        "analyse" | "plan" | "review" => {
-            json!({ "step": arg(1)?, "features": features, "analysis": analysis, "spec": spec })
-        }
+        "analyse" | "plan" | "review" => json!({
+            "step": arg(1)?,
+            "features": features,
+            "analysis": analysis,
+            "spec": spec,
+            "part": part,
+        }),
         "render" => json!({
             "step": arg(1)?,
             "features": features,
             "analysis": analysis,
             "spec": spec,
+            "part": part,
             "output": output()?,
             "formats": formats(),
             "dpi": dpi()?,
         }),
         "edit" => json!({ "spec": read_json(arg(1)?)?, "ops": read_json(arg(2)?)? }),
         "spec" => json!({ "drawing": arg(1)? }),
+        "parts" => json!({ "step": arg(1)? }),
         other => {
             return Err(Error::invalid(format!(
                 "{other:?} is not a command. {usage}"

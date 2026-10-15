@@ -64,6 +64,25 @@ pub struct Binding {
     pub part: String,
     pub face_count: usize,
     pub loader: String,
+    /// The part of an assembly read alone, by its index in the file's distinct parts
+    /// (haecceity's order, as `draftwright parts` lists them): `part` is then that part's name,
+    /// and the Analysis is in the part's own frame. Absent when the whole file was read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part_index: Option<usize>,
+}
+
+/// One distinct part of a STEP file, as `draftwright parts` lists it (specify-core's
+/// `{part, name, faces, instances}`, with the product's id): what a caller chooses a part of an
+/// assembly by. The index is the identity; the name and product id are reported beside it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FilePart {
+    pub part: usize,
+    pub name: String,
+    pub product_id: String,
+    pub faces: usize,
+    /// How many times the part is placed.
+    pub instances: usize,
 }
 
 /// What the part is: regenerable from its STEP file, never edited.
@@ -130,6 +149,11 @@ pub struct Analysis {
     /// symbols ([`crate::pmi_lowering`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pmi: Option<crate::pmi::Reading>,
+    /// The file's distinct parts, when it holds more than one (an assembly): absent for a file
+    /// of one part. With no part chosen (`binding.part_index` absent) they are drawn together
+    /// as one, and the plan warns (`assembly_drawn_whole`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parts: Vec<FilePart>,
 }
 
 /// A family of features the recogniser did not give the Analysis (quiddity's family name).
@@ -567,6 +591,45 @@ pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_with(path, None)
 }
 
+/// The distinct parts of the STEP file *bytes* (named *path*, for messages), in haecceity's
+/// order: what [`analyse_step_part`]'s *part* indexes.
+pub fn parts(path: &Path, bytes: &[u8]) -> Result<Vec<FilePart>, Unanalysed> {
+    let defs = haecceity::step::read_part_definitions(bytes).map_err(|e| step_refused(path, e))?;
+    Ok(file_parts(&defs))
+}
+
+fn file_parts(defs: &[haecceity::step::PartDefinition]) -> Vec<FilePart> {
+    defs.iter()
+        .enumerate()
+        .map(|(part, d)| FilePart {
+            part,
+            name: d.name.clone(),
+            product_id: d.product_id.clone(),
+            faces: d.faces.len(),
+            instances: d.placements.len(),
+        })
+        .collect()
+}
+
+/// `0: plate, 1: pin`: an assembly's parts as a message names them.
+pub fn part_list(parts: &[FilePart]) -> String {
+    parts
+        .iter()
+        .map(|p| format!("{}: {}", p.part, p.name))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Why *path* could not be read as STEP: a file that does not parse is not STEP; one that parses
+/// but holds what the kernel does not model (or lost on reading) is the kernel's failure.
+fn step_refused(path: &Path, e: haecceity::step::StepError) -> Unanalysed {
+    let failed = !matches!(e, haecceity::step::StepError::Parse(_));
+    unanalysed(
+        failed,
+        format!("cannot read {} as STEP: {e}", path.display()),
+    )
+}
+
 /// Reads the STEP file at *path*, with its features from *recognition*: Python quiddity's JSON
 /// for the same file, written by `tools/recognise.py` ([`crate::bridge`]). Refused when the
 /// kernel did not resolve a face or edge the isometric draws.
@@ -574,9 +637,19 @@ pub fn analyse_with(
     path: &Path,
     recognition: Option<&Path>,
 ) -> Result<(Part, Analysis), Unanalysed> {
+    analyse_with_part(path, recognition, None)
+}
+
+/// [`analyse_with`], reading one part of an assembly alone when *part* is given
+/// ([`analyse_step_part`]).
+pub fn analyse_with_part(
+    path: &Path,
+    recognition: Option<&Path>,
+    part: Option<usize>,
+) -> Result<(Part, Analysis), Unanalysed> {
     let bytes = std::fs::read(path)
         .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
-    let (part, mut analysis) = analyse_step(path, &bytes)?;
+    let (part, mut analysis) = analyse_step_part(path, &bytes, part)?;
     if let Some(r) = recognition {
         let json = std::fs::read_to_string(r)
             .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", r.display())))?;
@@ -602,15 +675,49 @@ pub fn analyse_with(
 /// for messages), as [`analyse_with`] reads a file, without features: for callers that have the
 /// file's bytes and no file system, such as a browser.
 pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
-    let part = haecceity::read_step(bytes).map_err(|e| {
-        // A file that does not parse is not STEP; one that parses but holds what the kernel
-        // does not model (or lost on reading) is the kernel's failure.
-        let failed = !matches!(e, haecceity::step::StepError::Parse(_));
-        unanalysed(
-            failed,
-            format!("cannot read {} as STEP: {e}", path.display()),
-        )
-    })?;
+    analyse_step_part(path, bytes, None)
+}
+
+/// [`analyse_step`], of one part of the file when *part* is given: part *k* of [`parts`], read
+/// alone in its own frame (`haecceity::StepFile::part`, its first placement's shape with no
+/// placement applied), its PMI only (other parts' records are dropped). The binding names the
+/// part and its index. With none, the whole file is read as one part, as it always was; an
+/// assembly's parts are then listed in `parts` and the plan warns that they are drawn together.
+/// Refused, naming the parts, when there is no part *k*.
+pub fn analyse_step_part(
+    path: &Path,
+    bytes: &[u8],
+    chosen: Option<usize>,
+) -> Result<(Part, Analysis), Unanalysed> {
+    // The file's part definitions are read in both cases (the PMI reading needs them too, and
+    // is given these rather than reading them again).
+    let (part, defs, name) = match chosen {
+        None => (
+            haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?,
+            haecceity::step::read_part_definitions(bytes)
+                .map_err(|e| format!("cannot read the parts: {e}")),
+            path.file_stem().map_or(String::new(), |s| {
+                s.to_string_lossy().trim_end_matches(".step").to_string()
+            }),
+        ),
+        Some(k) => {
+            let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(path, e))?;
+            if k >= file.parts.len() {
+                return Err(unanalysed(
+                    false,
+                    format!(
+                        "{} has {} part(s) ({}); there is no part {k}",
+                        path.display(),
+                        file.parts.len(),
+                        part_list(&file_parts(&file.parts))
+                    ),
+                ));
+            }
+            let part = file.part(k).map_err(|e| step_refused(path, e))?;
+            let name = file.parts[k].name.clone();
+            (part, Ok(file.parts), name)
+        }
+    };
     let b = part.bounds();
     let (level_supports, risers) = crate::dims::levels::evidence(&part);
     let mut analysis = Analysis {
@@ -620,11 +727,10 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
                 .iter()
                 .map(|x| format!("{x:02x}"))
                 .collect(),
-            part: path.file_stem().map_or(String::new(), |s| {
-                s.to_string_lossy().trim_end_matches(".step").to_string()
-            }),
+            part: name,
             face_count: part.faces.len(),
             loader: LOADER.into(),
+            part_index: chosen,
         },
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
@@ -655,7 +761,16 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
         risers,
         principal_profiles: crate::lint::profiles::evidence(&part),
         unrecognised: Vec::new(),
-        pmi: crate::pmi::attach(bytes, &part),
+        pmi: crate::pmi::attach_with(
+            bytes,
+            &part,
+            defs.as_deref().map_err(String::as_str),
+            chosen,
+        ),
+        parts: match &defs {
+            Ok(defs) if defs.len() > 1 => file_parts(defs),
+            _ => Vec::new(),
+        },
     };
     let (_, toward, up) = VIEWS[3];
     let iso = View::new(toward, up).expect("standard view");
@@ -696,7 +811,16 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
 
 /// [`analyse_step`], with its features from Rust quiddity's recognition, as [`analyse_native`].
 pub fn analyse_native_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
-    let (part, mut analysis) = analyse_step(path, bytes)?;
+    analyse_native_step_part(path, bytes, None)
+}
+
+/// [`analyse_native_step`] of one part of the file when *part* is given ([`analyse_step_part`]).
+pub fn analyse_native_step_part(
+    path: &Path,
+    bytes: &[u8],
+    part: Option<usize>,
+) -> Result<(Part, Analysis), Unanalysed> {
+    let (part, mut analysis) = analyse_step_part(path, bytes, part)?;
     recognise_native(&part, &mut analysis).map_err(|e| {
         unanalysed(
             true,
@@ -730,7 +854,15 @@ pub const NOT_IN_NATIVE_DOCUMENT: [&str; 1] = ["section_recesses"];
 /// Refused, as the kernel's failure, when the native reader refuses the document; never read as
 /// a part without features.
 pub fn analyse_native(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
-    let (part, mut analysis) = analyse_with(path, None)?;
+    analyse_native_part(path, None)
+}
+
+/// [`analyse_native`] of one part of the file when *part* is given ([`analyse_step_part`]).
+pub fn analyse_native_part(
+    path: &Path,
+    part: Option<usize>,
+) -> Result<(Part, Analysis), Unanalysed> {
+    let (part, mut analysis) = analyse_with_part(path, None, part)?;
     recognise_native(&part, &mut analysis).map_err(|e| {
         unanalysed(
             true,
@@ -1722,6 +1854,24 @@ fn plan_with_presentation(
                     .collect(),
             });
         }
+    }
+    // An assembly drawn whole (no part chosen): its parts are drawn together as one, as they
+    // always were (the maintainer's D4), and the plan says how to draw one alone.
+    if !analysis.parts.is_empty() && analysis.binding.part_index.is_none() {
+        problems.push(Problem {
+            id: "p:assembly_drawn_whole:part".into(),
+            code: "assembly_drawn_whole".into(),
+            severity: "warning".into(),
+            message: format!(
+                "{} is an assembly of {} parts ({}); they are drawn together as one. To draw one part alone, choose it by its index: --part K on the command line, or \"part\": K in a request.",
+                analysis.binding.part,
+                analysis.parts.len(),
+                part_list(&analysis.parts)
+            ),
+            subjects: Vec::new(),
+            refs: analysis.parts.iter().map(|p| p.name.clone()).collect(),
+            ..Default::default()
+        });
     }
     if !analysis.unrecognised.is_empty() {
         let named = analysis
