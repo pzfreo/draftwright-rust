@@ -7037,3 +7037,8 @@ Judgements, each the conservative choice:
     part's drawing's.
   - The stateless MCP keys a part as `<sha>_p<k>-<engine>`; `part` beside a `part_ref` is
     refused.
+
+- G3 integration (overturnable): the MCP schema byte budget in
+  tests/engine_version.rs went from 39,500 to 40,750. The new `parts` tool and the `part`
+  arguments bring the schemas to 40,501 bytes. The old budget left no room for a new tool.
+  Trimming other tools' schemas to fit would have changed unrelated wire contracts.
