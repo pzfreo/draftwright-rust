@@ -1118,6 +1118,133 @@ fn dimension_lines_overlap(p: &Placed, q: &Placed) -> bool {
     })
 }
 
+/// #32: two parallel dimension lines closer than this, mm, read as one line.
+const SAME_LINE: f64 = 0.5;
+/// #32: a linear label further than this from its own dimension line, mm (one text height),
+/// no longer reads as that line's. The layout keeps it within [`LIFT`] across the line and,
+/// beyond a short span's end, 1 mm past the line run on to it.
+pub(crate) const STRAY_TEXT: f64 = TEXT;
+
+/// A linear dimension read from its ink alone, in the layout's (and the drawing's) order: the two
+/// extension lines across, then the dimension line. The page axis the line runs along (0: x),
+/// its offset across, the span between the extension lines and the line's drawn extent.
+struct LinearInk {
+    k: usize,
+    offset: f64,
+    span: [f64; 2],
+    extent: [f64; 2],
+}
+
+fn linear_ink(lines: &[[P2; 2]]) -> Option<LinearInk> {
+    let [e0, e1, d] = lines else {
+        return None;
+    };
+    let k = (0..2)
+        .find(|&k| (d[0][1 - k] - d[1][1 - k]).abs() < 1e-6 && (d[0][k] - d[1][k]).abs() > 1e-6)?;
+    if [e0, e1].iter().any(|e| (e[0][k] - e[1][k]).abs() > 1e-6)
+        || (e0[0][k] - e1[0][k]).abs() < 1e-6
+    {
+        return None;
+    }
+    let (a, b) = (e0[0][k], e1[0][k]);
+    Some(LinearInk {
+        k,
+        offset: d[0][1 - k],
+        span: [a.min(b), a.max(b)],
+        extent: [d[0][k].min(d[1][k]), d[0][k].max(d[1][k])],
+    })
+}
+
+/// #32: whether two linear dimensions (by their lines) are drawn on one dimension line over
+/// overlapping spans, so their arrows and extension lines run into each other. Chained
+/// dimensions meeting at one extension line do not overlap.
+pub(crate) fn shared_dimension_line(a: &[[P2; 2]], b: &[[P2; 2]]) -> bool {
+    let (Some(p), Some(q)) = (linear_ink(a), linear_ink(b)) else {
+        return false;
+    };
+    p.k == q.k
+        && (p.offset - q.offset).abs() < SAME_LINE
+        && p.span[1].min(q.span[1]) - p.span[0].max(q.span[0]) > SAME_LINE
+}
+
+/// #32: how far a linear dimension's label box lies from its own dimension line, mm (0 on it or
+/// touching it); none when *lines* are not a linear dimension's.
+pub(crate) fn label_gap(lines: &[[P2; 2]], label: [f64; 4]) -> Option<f64> {
+    let l = linear_ink(lines)?;
+    let (k, c) = (l.k, 1 - l.k);
+    let along = (l.extent[0] - label[k + 2])
+        .max(label[k] - l.extent[1])
+        .max(0.0);
+    let across = (label[c] - l.offset).max(l.offset - label[c + 2]).max(0.0);
+    Some(along.hypot(across))
+}
+
+/// #32: re-runs the stack spacing of each side an explicit placement (a proposed fix, or an
+/// edit) puts linear dimensions on. An item asking for a lane another dimension's line already
+/// takes over an overlapping span moves out lane by lane until its line is its own, the shorter
+/// span inside (so extension lines do not cross the longer line). Pinned and offset placements
+/// keep their ink; an item that collides with nothing keeps its requested lane, so a layout with
+/// no shared line is unchanged. *occupied* are the automatic linear items' lines by view.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn respace(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    chosen: &[Option<&'static str>],
+    places: &[Option<&crate::placement_intent::Place>],
+    sides: &[Option<Side>],
+    lanes: &[usize],
+    occupied: &mut BTreeMap<&'static str, Vec<Vec<[P2; 2]>>>,
+    page: &Page,
+    intended: &mut [Option<Placed>],
+) {
+    let span = |p: &Placed| linear_ink(&p.lines).map_or(0.0, |l| l.span[1] - l.span[0]);
+    let mut order: Vec<usize> = (0..items.len())
+        .filter(|&i| {
+            matches!(items[i].shape, Shape::Linear { .. })
+                && chosen[i].is_some()
+                && sides[i].is_some()
+                && intended[i].is_some()
+                && places[i].is_some_and(|p| !p.pinned && p.offset.is_none())
+        })
+        .collect();
+    let requested = |i: usize| places[i].and_then(|p| p.lane).unwrap_or(lanes[i]);
+    order.sort_by(|&a, &b| {
+        (chosen[a], requested(a))
+            .cmp(&(chosen[b], requested(b)))
+            .then(
+                span(intended[a].as_ref().unwrap()).total_cmp(&span(intended[b].as_ref().unwrap())),
+            )
+            .then(a.cmp(&b))
+    });
+    for i in order {
+        let (Some(v), Some(side), Some(place)) = (chosen[i], sides[i], places[i]) else {
+            continue;
+        };
+        let taken = occupied.entry(v).or_default();
+        let free = |p: &Placed| !taken.iter().any(|q| shared_dimension_line(&p.lines, q));
+        if !free(intended[i].as_ref().unwrap()) {
+            // Bounded like the automatic lanes' search (`avoid_fixed`): 64 lanes out, the
+            // nearest that also fits the page (on it, clear of the other views), else the
+            // nearest free one, whose overrun is then reported.
+            let free_lanes: Vec<Placed> = (requested(i) + 1..requested(i) + 64)
+                .filter_map(|lane| {
+                    let mut p = place.clone();
+                    p.lane = Some(lane);
+                    intent(&frames[v], &items[i], &p, side, lanes[i], 0.0).filter(|p| free(p))
+                })
+                .collect();
+            let moved = free_lanes
+                .iter()
+                .find(|p| page.fits(p, v))
+                .or(free_lanes.first());
+            if let Some(p) = moved {
+                intended[i] = Some(p.clone());
+            }
+        }
+        taken.push(intended[i].as_ref().unwrap().lines.clone());
+    }
+}
+
 /// A held (bare-pin) placement re-laid for the item's current label: the lines stay where the
 /// automatic layout put them, and only the label is re-set from *terms*. A linear or angular label
 /// keeps its centre along its direction; a callout's keeps the edge at its shoulder and the
@@ -1267,7 +1394,18 @@ pub(super) fn intent(
             .fold(f64::NEG_INFINITY, f64::max);
         let ink = label_ink(&w.terms, font());
         let width = ink.max[0] - ink.min[0];
-        placed.label_at[k] = lo + along.fraction() * (hi - lo) - 0.5 * width - ink.min[0];
+        if along == crate::placement_intent::Along::Slot(crate::placement_intent::Slot::Outside) {
+            // #32: `outside` sets the label just past the line's far end, the line run on to it,
+            // as a span too short for its label has it (`place_linear_at`); 1.25 of a long span
+            // stranded the text far from its line.
+            let end = (hi + ARROW + 2.0).max(placed.lines[2][0][k].max(placed.lines[2][1][k]));
+            placed.label_at[k] = end + 1.0 - ink.min[0];
+            let line = &mut placed.lines[2];
+            let far = usize::from(line[1][k] >= line[0][k]);
+            line[far][k] = end;
+        } else {
+            placed.label_at[k] = lo + along.fraction() * (hi - lo) - 0.5 * width - ink.min[0];
+        }
         placed.label_box = label_box(&ink, placed.label_at, placed.rotation);
     }
     Some(placed)
@@ -1754,6 +1892,20 @@ pub(crate) fn collisions_cached(
                 );
             }
         }
+        // #32: a linear label stranded away from its own dimension line.
+        if d.kind == "linear"
+            && let Some(gap) = label_gap(&p.lines, p.label_box).filter(|g| *g > STRAY_TEXT)
+        {
+            problem(
+                "dimension_text_stray",
+                "error",
+                vec![d.id.clone()],
+                format!(
+                    "The text of {} lies {gap:.1} mm from its dimension line.",
+                    named(d)
+                ),
+            );
+        }
         let lb = p.label_box;
         let ends = p
             .lines
@@ -1823,6 +1975,24 @@ pub(crate) fn collisions_cached(
     }
     for (i, (a, pa)) in placed.iter().enumerate() {
         for (b, pb) in &placed[i + 1..] {
+            // #32: two linear dimensions on one dimension line over overlapping spans (an
+            // explicit lane the stack could not re-space): their arrows and extension lines run
+            // into each other, whatever crossing the move cleared.
+            if a.kind == "linear"
+                && b.kind == "linear"
+                && shared_dimension_line(&pa.lines, &pb.lines)
+            {
+                problem(
+                    "dimension_line_shared",
+                    "error",
+                    vec![a.id.clone(), b.id.clone()],
+                    format!(
+                        "{} and {} are drawn on one dimension line over overlapping spans.",
+                        crate::wording::capital(&named(a)),
+                        named(b)
+                    ),
+                );
+            }
             if boxes_overlap(pa.label_box, pb.label_box) {
                 problem(
                     "annotation_overlap",
