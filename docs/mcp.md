@@ -223,6 +223,10 @@ are strings (`±T` or `+U -L`); fits use `features/<id>/fit`. View keys are bare
 and the drawing number is `sheet/title/number`. Compatible view/side pairs remain in
 `placements`; candidates require preview/apply, and a view relation needs both
 `relative_to` and `side`. Set several subfields by setting their complete `place` object.
+A callout also lists `place/offset` (`range` per component of the pair): its bend's `[dx, dy]`
+from its automatic leader tip in paper mm, which can put the label inside the view. It is a
+pinned form of its own: set `{"offset":[dx,dy],"pinned":true}` with no side, lane or along
+(`docs/model.md`, Placement). The `place` schema in `schemas/mcp/` lists it.
 
 Common unambiguous vocabulary errors include valid choices and an explicit
 `Corrected op: {JSON}` in the refusal message. They keep the invalid edit unapplied;
