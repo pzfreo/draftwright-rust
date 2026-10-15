@@ -968,6 +968,53 @@
   "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
  },
  {
+  "file": "hw_every_kind.step",
+  "record": "manufacturing_requirement:#6703",
+  "port": "manufacturing_requirement:#6703",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "default_surface_finish",
+      "rides_on": null,
+      "text": "Ra 3.2",
+      "view": null
+     }
+    ]
+   },
+   "record": {
+    "kind": "surface_texture",
+    "label": "Ra 3.2 µm unless otherwise specified"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright reads no AP242 surface texture (ISO 10303-1110; OpenCascade's XCAF has none), so it has no record and its drawing silently lacks it. The port reads it (draftwright-rust #18): the part's own texture, Ra 3.2 any process allowed, is drawn as the default finish symbol beside the title block, as draftwright draws the same default stated in words (DefaultSurfaceFinish)."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "manufacturing_requirement:#6715",
+  "port": "manufacturing_requirement:#6715",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "codes": [
+     "pmi_not_lowered"
+    ],
+    "outcome": "refused"
+   },
+   "record": {
+    "kind": "surface_finish",
+    "label": "Ra 0.8 µm, Rz 4 µm"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright reads no AP242 surface texture (ISO 10303-1110; OpenCascade's XCAF has none), so it has no record and its drawing silently lacks it. The port reads it (draftwright-rust #18): the face texture (Ra 0.8 and Rz 4, material removal required, on the profile tolerance's two faces) would be drawn as an ISO 1302 symbol on its face's edge line, but one face is neither planar nor cylindrical, so no view shows it edge-on and it is refused (pmi_not_lowered), not guessed."
+ },
+ {
   "file": "hw_spool_fits_intent.step",
   "record": "dimension:0:1:4:3",
   "port": "dimension:#6398",

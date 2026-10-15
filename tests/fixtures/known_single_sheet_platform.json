@@ -1309,7 +1309,7 @@
       "svg": "51491641cd40d973b2c33494d73dea90f966b49651bd444beeb901496fb25a7a"
     },
     "corpus/mfcadpp/10127.step:spec:acd1bf04eaa9c31b77dc50e39c1795108808285f632f39a37179e0957af45069": {
-      "plan": "94606f8c6969d2aec063c136a6e4eee3886c60474d48c99c0af334dfc86c07d9",
+      "plan": "783580c422b9f426e8c1a0ccb061c8f702f553f90431c994fa26bdc3857e01d8",
       "svg": "c7bcb83595aab457b80e511ddb6b078127c45fc9b9f3d591fc13c389294d9da4"
     },
     "corpus/mfcadpp/10127.step:spec:acd24c521bbc2a11bb31bd18d8e9c9640444a2cddfb1af3e0997eca63556a18a": {
@@ -2772,7 +2772,7 @@
     },
     "parts/plate.step:spec:9a03f584ef2aaa4120c4942b97c31bf41c0b37c5a1ca21ce173b77d69959c43d": {
       "pdf": "a89e6a03b9657a7e3b3839424637ab0da30f3c071fce43ff572ec9e8b81f8c0f",
-      "plan": "b7f8b45c404c2fed37a0082cd3a97c32804172b340bf21918af08787cbeb7159",
+      "plan": "134764edc71b97120637dc3a32f9dc68538342a40eedca678590be54611b44b7",
       "svg": "ce9aa51eb62a6f2ef511644149c09446afbd1d3522f9d75c58458b55fd7336f1"
     },
     "parts/turned.step:default": {
@@ -2953,8 +2953,8 @@
       "svg": "80f7dd43694f8ffac9916acb15c076f31c3ccecaf2183d3e269204a44d5864f0"
     },
     "pmi/step/hw_every_kind.step:default": {
-      "pdf": "577834bad7f5a91c413e6a689297ad070c32df8b023a06d1c26fea65c65a6b3f",
-      "svg": "6135a3d2f45bd2a38ac1425cd43592f9a2a80237a32d613334271727008366ac"
+      "pdf": "8d3ce2435225ec645daf1b0597dc4b76200ea740784978708c8730c0cad85c53",
+      "svg": "fb20007d5dce3e0c298cba1c81cc98dd432a3b7f90613aa2ce20673b18807086"
     },
     "pmi/step/hw_spool_fits_intent.step:default": {
       "pdf": "3e7d5bcb494feba13b9e70f827a99deb91111a231ca9a7489f2647632f854f8e",
@@ -2976,7 +2976,7 @@
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:00ac8b427572c9f0e40a33966fcbc33ab1828f7e26068db901755920313a35f3": {
       "pdf": "42f6cd6d5053b5d3606247c953b1d8273505edf272607ef38313b4b0882cac06",
-      "plan": "214be25bbe29c8c3a46536e81c9aaa306de2b71816f4d4d6a4b21578f1f288ad",
+      "plan": "866627a050b9f5f617c6f52f0e7a82566025d65e54d5e48ce778e5d6599246e7",
       "svg": "83584e28e2a8182a5fa76296fb0355c6c5572d2c6a7794e8a1061f3a2f06dbf2"
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:1f8d5f59100f2fcd3fd8436b50369ae49c65e914d192807e1d5086c5abd14fe7": {
@@ -2992,7 +2992,7 @@
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:8cfd64f5bb9cc84470736eebc52e2f423c03ee4a6f36d17df7973d11bb04056b": {
       "pdf": "32b0e6417a5a48f4bb3438475500276a7e63bd8518ef396d7720d9091f55df88",
-      "plan": "a6e09700c223c688b9fba749debc2fde863ea230d5b4a11968afff39be5ad40b",
+      "plan": "aab16d92ceb7febec16163fe0eb0098aa42e2817420852c48ae5f691603848d4",
       "svg": "143ff3dac77daf1f734fe8cd70ded2f8e5ee6ba0f91f49027f4cc61b194950e9"
     },
     "pmi/step/nist_ctc_02_asme1_ap242-e2.stp:default": {

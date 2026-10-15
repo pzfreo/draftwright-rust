@@ -30,7 +30,9 @@
 //!   (`PartReader::requirements`); a structured statement left unpaired is a record of its own;
 //!   text on a shape aspect is a surface label (a 'NOTE' aspect) or a common label (XCAF's
 //!   `CommonLabel`, a `dimension` of kind `common_label`) (`PartReader::labels`). Their `value`
-//!   is `None` (draftwright's placeholder 0).
+//!   is `None` (draftwright's placeholder 0). AP242 surface textures (ISO 1302), which
+//!   draftwright does not read, are records too (`PartReader::semantic_textures`): the part's
+//!   own a default `surface_texture`, one on faces a `surface_finish`.
 //! - The faces a record applies to replace draftwright's XCAF shapes: `faces`, the drawing's face
 //!   indices (haecceity's, the file's own order, as [`crate::bridge`] uses), `face_ids` their
 //!   `ADVANCED_FACE` instances, and `face_groups`, a location's two sides or a size's one
@@ -45,7 +47,7 @@
 //!   blockers). Not read: every haecceity finding not on a record's instances; every item
 //!   haecceity reads that the port does not project (attribute sets that are no label or
 //!   structured requirement, general tolerance tables, AP242 `thread` and `turned_knurl`
-//!   features and ISO 1302 surface textures, which draftwright does not read, material,
+//!   features the port does not read as records, material,
 //!   standards, datum targets, tolerance relations); and every record whose face or edge does
 //!   not resolve to the drawing's part, which is never guessed. Presentation is counted
 //!   ([`Accounting`]), as draftwright's `presentation_only` dimensions are, not read.
@@ -650,6 +652,9 @@ pub fn report_part(
             Category::ManufacturingRequirement if crate::pmi_lowering::owned_kind(&r.kind) => {
                 Some(crate::pmi_lowering::requirement_geometry(part, r))
             }
+            Category::ManufacturingRequirement if r.kind == "surface_finish" => {
+                Some(finish_geometry(part, r))
+            }
             _ => None,
         };
     }
@@ -808,6 +813,7 @@ struct Used {
     attributes: Vec<bool>,
     threads: Vec<bool>,
     knurls: Vec<bool>,
+    textures: Vec<bool>,
 }
 
 /// A structured requirement: a user defined attribute set described 'pmi-assist'.
@@ -857,11 +863,15 @@ impl PartReader<'_> {
             attributes: vec![false; self.pmi.attributes.len()],
             threads: vec![false; self.pmi.threads.len()],
             knurls: vec![false; self.pmi.knurls.len()],
+            textures: vec![false; self.pmi.surface_textures.len()],
         };
         for r in self.semantic_knurls(&mut used) {
             self.keep(r, records, sources);
         }
         for r in self.semantic_threads(&mut used) {
+            self.keep(r, records, sources);
+        }
+        for r in self.semantic_textures(&mut used) {
             self.keep(r, records, sources);
         }
         // Structured requirements first: their attribute sets are not labels.
@@ -1021,6 +1031,63 @@ impl PartReader<'_> {
         out
     }
 
+    // AP242 surface textures (ISO 10303-1110, ISO 1302) as manufacturing requirements, which
+    // draftwright does not read: the part's own (no faces) is its default finish, kind
+    // `surface_texture` and labelled as draftwright's text route states one (`Ra 3.2 µm unless
+    // otherwise specified`), which `pmi_lowering::sheet_requirements` draws beside the title
+    // block; one on faces is kind `surface_finish` (draftwright's face finish), labelled with its
+    // parameters (`Ra 0.8 µm`), which `pmi_lowering` draws as an ISO 1302 symbol on its face.
+    // The fields keep the material removal condition and each parameter's value in mm.
+    fn semantic_textures(&self, used: &mut Used) -> Vec<Record> {
+        let mut out = Vec::new();
+        for (index, t) in self.pmi.surface_textures.iter().enumerate() {
+            let own = self
+                .prov
+                .surface_textures
+                .get(index)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let subject = self
+                .subject(own, &|n| n == "SURFACE_TEXTURE_REPRESENTATION")
+                .or_else(|| own.first().copied())
+                .unwrap_or(0);
+            let support = t.on.map(|f| self.support(&[f])).unwrap_or_default();
+            let mut r = self.record(
+                Category::ManufacturingRequirement,
+                subject,
+                own,
+                support,
+                Vec::new(),
+            );
+            r.source_id = format!("manufacturing_requirement:#{}", r.part21_id);
+            let stated: Vec<String> = t
+                .parameters
+                .iter()
+                .map(|p| format!("{} {} µm", p.characteristic, fmt_g3(p.value.mm() * 1000.0)))
+                .collect();
+            if t.on.is_none() {
+                r.kind = "surface_texture".into();
+                r.label = format!("{} unless otherwise specified", stated.join(", "));
+            } else {
+                r.kind = "surface_finish".into();
+                r.label = stated.join(", ");
+            }
+            r.fields = std::iter::once((
+                "material removal".to_string(),
+                Field::Text(t.material_removal.term().into()),
+            ))
+            .chain(
+                t.parameters
+                    .iter()
+                    .map(|p| (p.characteristic.clone(), Field::Length(p.value.mm()))),
+            )
+            .collect();
+            used.textures[index] = true;
+            out.push(r);
+        }
+        out
+    }
+
     /// Keeps a read record, or reports the one whose support does not resolve.
     fn keep(&self, record: Record, records: &mut Vec<Record>, sources: &mut Vec<Source>) {
         if let Some(why) = record.blockers.iter().find(|b| b.starts_with(UNRESOLVED)) {
@@ -1079,7 +1146,7 @@ impl PartReader<'_> {
                 Category::ManufacturingRequirement,
                 pmi.surface_textures.len(),
                 &prov.surface_textures,
-                &none,
+                &used.textures,
             ),
             (
                 "note",
@@ -2722,6 +2789,17 @@ fn datum_geometry(part: &Part, r: &Record) -> Geometry {
         reasons,
         ..Geometry::default()
     }
+}
+
+/// A face surface finish's attachment: a datum's ([`datum_geometry`]), as its ISO 1302 symbol
+/// attaches where a datum feature symbol does, on its face's edge line in the view that sees the
+/// face edge-on (or on the profile of a cylinder); the reasons name the finish.
+fn finish_geometry(part: &Part, r: &Record) -> Geometry {
+    let mut g = datum_geometry(part, r);
+    for why in &mut g.reasons {
+        *why = why.replace("datum reference", "surface finish");
+    }
+    g
 }
 
 /// The proven sites on face *f* (box *b*, of *kind*, its normal or axis along *k*), the one

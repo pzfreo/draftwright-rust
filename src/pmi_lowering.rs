@@ -102,6 +102,15 @@ pub enum Glyph {
     },
     /// A surface or common label's text.
     Label { text: String },
+    /// A face's ISO 1302 surface texture symbol: its parameters, one per line (`Ra 0.8`, in
+    /// µm), and its material removal condition (ISO 10303-1110's term: `any process allowed`,
+    /// `material removal required` or `no material removal`).
+    Finish {
+        lines: Vec<String>,
+        removal: String,
+        /// `plane` or `cylinder`.
+        surface: String,
+    },
 }
 
 /// Modifiers a feature control frame draws (draftwright's `_SUPPORTED_GTOL_SCOPE_MODIFIERS` and
@@ -203,23 +212,7 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                 let lowered = identified(lowered, &ids, r);
                 match lowered {
                     Ok(mut item) => {
-                        // draftwright's `_datum_alternate_view`: a y-normal plane whose side
-                        // view is not drawn is shown in the plan, below for left and above for
-                        // right.
-                        if let Glyph::Datum { surface, .. } = &item.glyph
-                            && surface == "plane"
-                            && item.view == "side"
-                            && !shown("side")
-                            && shown("plan")
-                        {
-                            item.side = if item.side == "left" {
-                                "below"
-                            } else {
-                                "above"
-                            };
-                            item.view = "plan";
-                            item.basis += "; the side view is not drawn, so the plan carries it";
-                        }
+                        alternate_view(&mut item, shown);
                         items.push(item);
                     }
                     Err(reasons) => problems.push(Problem {
@@ -228,6 +221,29 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
                         severity: "error".into(),
                         message: format!(
                             "PMI {} ({}) is not drawn: {}.",
+                            r.source_id,
+                            r.label,
+                            reasons.join("; ")
+                        ),
+                        subjects: Vec::new(),
+                        refs: vec![r.source_id.clone()],
+                        ..Default::default()
+                    }),
+                }
+            }
+            // A face's surface texture is its ISO 1302 symbol, attached as a datum's symbol is.
+            Category::ManufacturingRequirement if r.kind == "surface_finish" => {
+                match identified(surface_finish(r, centre), &ids, r) {
+                    Ok(mut item) => {
+                        alternate_view(&mut item, shown);
+                        items.push(item);
+                    }
+                    Err(reasons) => problems.push(Problem {
+                        id: format!("p:pmi_not_lowered:{}", r.source_id),
+                        code: "pmi_not_lowered".into(),
+                        severity: "error".into(),
+                        message: format!(
+                            "PMI surface finish {} ({}) is not drawn: {}.",
                             r.source_id,
                             r.label,
                             reasons.join("; ")
@@ -260,8 +276,7 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
             }
             // Other manufacturing requirements are read, not drawn yet: said with draftwright's
             // code for a record that produced no feature, never dropped. A face's requirement is
-            // a warning; a part's note is information. Face finishes are not drawn
-            // (`lower_ap242_face_finishes`).
+            // a warning; a part's note is information.
             _ => {
                 let face = !r.faces.is_empty() || !r.edges.is_empty();
                 problems.push(Problem {
@@ -282,6 +297,25 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
         }
     }
     (items, problems)
+}
+
+/// draftwright's `_datum_alternate_view`: a y-normal plane whose side view is not drawn is shown
+/// in the plan, below for left and above for right (a datum's symbol, and a face finish's).
+fn alternate_view(item: &mut Lowered, shown: &dyn Fn(&str) -> bool) {
+    if let Glyph::Datum { surface, .. } | Glyph::Finish { surface, .. } = &item.glyph
+        && surface == "plane"
+        && item.view == "side"
+        && !shown("side")
+        && shown("plan")
+    {
+        item.side = if item.side == "left" {
+            "below"
+        } else {
+            "above"
+        };
+        item.view = "plan";
+        item.basis += "; the side view is not drawn, so the plan carries it";
+    }
 }
 
 /// *lowered* with its record's item ID, or refused when the record has none: its identity is
@@ -494,6 +528,10 @@ pub struct SheetRequirement {
     /// note's text.
     pub value: String,
     pub basis: String,
+    /// A default finish's material removal condition as an AP242 surface texture states it
+    /// (`material removal required`, `no material removal`); empty for any process allowed, and
+    /// for a finish stated in words.
+    pub removal: String,
 }
 
 /// The Analysis's drawing-wide requirements (draftwright's `lower_ap242_document_requirements`),
@@ -560,6 +598,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
                     d, r.source_id
                 ),
                 value: d,
+                removal: String::new(),
             }),
             Err(why) => refuse(&mut problems, r, why),
         },
@@ -586,6 +625,18 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
                     r.label, r.source_id
                 ),
                 value: ra,
+                removal: r
+                    .fields
+                    .iter()
+                    .find_map(|(n, f)| match f {
+                        crate::pmi::Field::Text(t)
+                            if n == "material removal" && t != "any process allowed" =>
+                        {
+                            Some(t.clone())
+                        }
+                        _ => None,
+                    })
+                    .unwrap_or_default(),
             }),
             None => refuse(
                 &mut problems,
@@ -623,6 +674,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
                     r.label.trim(),
                     r.source_id
                 ),
+                removal: String::new(),
             });
         }
     }
@@ -709,7 +761,11 @@ pub fn plan_sheet(
             "default_surface_finish" => {
                 planned.carrier = "sheet".into();
                 planned.text = format!("Ra {}", r.value);
-                planned.placed = Some(crate::title_block::default_finish(block, &planned.text));
+                planned.placed = Some(crate::title_block::default_finish(
+                    block,
+                    &planned.text,
+                    &r.removal,
+                ));
             }
             _ => {}
         }
@@ -880,16 +936,64 @@ fn control_frame(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
 /// is not one.
 fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
     let mut reasons = blockers(r);
+    if r.label.trim().is_empty() {
+        reasons.push("the datum has no letter".into());
+    }
+    let at = edge_on(r, centre, "datum", reasons)?;
+    Ok(Lowered {
+        id: String::new(),
+        source: r.source_id.clone(),
+        glyph: Glyph::Datum {
+            letter: r.label.trim().to_string(),
+            surface: at.surface.clone(),
+        },
+        view: at.view,
+        side: at.side,
+        site: at.site,
+        alternatives: at.alternatives,
+        faces: r.faces.clone(),
+        basis: format!(
+            "source-authored: the AP242 datum {} ({}) on a {} along {}, drawn edge-on in the {} view on the {} side {}",
+            r.label.trim(),
+            r.source_id,
+            at.surface,
+            at.axis.to_lowercase(),
+            at.view,
+            at.side,
+            at.how
+        ),
+    })
+}
+
+/// Where a datum feature symbol, or a face's surface finish symbol, attaches.
+struct EdgeOn {
+    view: &'static str,
+    side: &'static str,
+    site: [f64; 3],
+    alternatives: Vec<[f64; 3]>,
+    surface: String,
+    axis: String,
+    how: &'static str,
+}
+
+/// The view that sees record *r*'s plane or cylinder edge-on (x and z: the front; y: the side),
+/// its first proven site and the strip its outward normal points to (a plane's) or its site lies
+/// on (a cylinder's), or why there is none (*reasons* already met, then the attachment's; *noun*
+/// names the record: `datum` or `surface finish`).
+fn edge_on(
+    r: &Record,
+    centre: [f64; 3],
+    noun: &str,
+    reasons: Vec<String>,
+) -> Result<EdgeOn, Vec<String>> {
+    let mut reasons = reasons;
     let g = r.geometry.as_ref();
     let axis = g.and_then(|g| g.axis.as_deref());
     let surface = g.and_then(|g| g.surface.clone());
     let site = g.and_then(|g| g.sites.first().copied());
-    if r.label.trim().is_empty() {
-        reasons.push("the datum has no letter".into());
-    }
     let (Some(axis), Some(surface), Some(site)) = (axis, surface, site) else {
         if reasons.is_empty() {
-            reasons.push("datum reference surface is unavailable".into());
+            reasons.push(format!("{noun} reference surface is unavailable"));
         }
         return Err(dedup(reasons));
     };
@@ -910,9 +1014,9 @@ fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
     };
     let side = match g.and_then(|g| g.normal) {
         Some(n) if n[across].abs() < 0.9 => {
-            return Err(vec![
-                "datum surface normal cannot be shown by an axial leader in this view".into(),
-            ]);
+            return Err(vec![format!(
+                "{noun} surface normal cannot be shown by an axial leader in this view"
+            )]);
         }
         Some(n) => {
             if n[across] > 0.0 {
@@ -922,7 +1026,9 @@ fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
             }
         }
         None if planar => {
-            return Err(vec!["datum reference surface has no outward normal".into()]);
+            return Err(vec![format!(
+                "{noun} reference surface has no outward normal"
+            )]);
         }
         None => {
             if site[across] >= centre[across] {
@@ -937,23 +1043,59 @@ fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
     } else {
         "its site on the profile lies on"
     };
-    Ok(Lowered {
-        id: String::new(),
-        source: r.source_id.clone(),
-        glyph: Glyph::Datum {
-            letter: r.label.trim().to_string(),
-            surface: surface.clone(),
-        },
+    Ok(EdgeOn {
         view,
         side,
         site,
         alternatives: g.map(|g| g.alternatives.clone()).unwrap_or_default(),
+        surface,
+        axis: axis.to_string(),
+        how,
+    })
+}
+
+/// A face's AP242 surface texture (`surface_finish`) as its ISO 1302 symbol, attached as a
+/// datum feature symbol is ([`edge_on`]), or why it is not: its reading's or attachment's
+/// blockers, or no parameter to state.
+fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
+    let mut reasons = blockers(r);
+    let mut removal = String::new();
+    let mut lines = Vec::new();
+    for (name, value) in &r.fields {
+        match value {
+            crate::pmi::Field::Text(t) if name == "material removal" => removal = t.clone(),
+            crate::pmi::Field::Length(mm) => {
+                lines.push(format!("{name} {}", crate::pmi::fmt_g3(mm * 1000.0)));
+            }
+            crate::pmi::Field::Text(_) => {}
+        }
+    }
+    if lines.is_empty() {
+        reasons.push("the surface texture states no parameter".into());
+    }
+    let at = edge_on(r, centre, "surface finish", reasons)?;
+    Ok(Lowered {
+        id: String::new(),
+        source: r.source_id.clone(),
+        glyph: Glyph::Finish {
+            lines,
+            removal,
+            surface: at.surface.clone(),
+        },
+        view: at.view,
+        side: at.side,
+        site: at.site,
+        alternatives: at.alternatives,
         faces: r.faces.clone(),
         basis: format!(
-            "source-authored: the AP242 datum {} ({}) on a {surface} along {}, drawn edge-on in the {view} view on the {side} side {how}",
-            r.label.trim(),
+            "source-authored: the AP242 surface texture {} ({}) on a {} along {}, its ISO 1302 symbol on a leader from the face's edge in the {} view on the {} side {}",
+            r.label,
             r.source_id,
-            axis.to_lowercase()
+            at.surface,
+            at.axis.to_lowercase(),
+            at.view,
+            at.side,
+            at.how
         ),
     })
 }

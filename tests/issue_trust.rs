@@ -649,13 +649,31 @@ fn diagnostics_are_the_same_every_run() {
 }
 
 /// ISSUE-1514-a: a projection the port does not draw is refused before any input is read, on
-/// every entry point. The port draws third-angle only and its spec has no projection to choose,
-/// so any projection asked for is refused as a field the sheet does not have, naming the ones
-/// it does: by `plan`, `render` and `review` (the service, the MCP server and the command line
-/// all call them), with the STEP file never opened and nothing written, and by `edit`.
+/// every entry point. The port draws first and third angle (`sheet/projection`), so any other
+/// method is refused when the spec is read, naming the methods there are: by `plan`, `render`
+/// and `review` (the service, the MCP server and the command line all call them), with the
+/// STEP file never opened and nothing written, and by `edit`. The two it draws pass that check
+/// and fail only on the missing part.
 #[test]
 fn a_projection_is_refused_before_the_part_is_read() {
-    for projection in ["unknown", "first", "third"] {
+    for projection in ["first", "third"] {
+        let dir = scratch(&format!("projection-{projection}"));
+        let missing = dir.join("missing.step");
+        let spec = json!({ "sheet": { "projection": projection } });
+        let e = api::call(
+            "plan",
+            &json!({ "step": missing, "spec": spec,
+                "output": dir.join("out").display().to_string() }),
+        )
+        .unwrap_err();
+        assert!(e.message.contains("missing.step"), "{e}");
+        model::edit(
+            &Spec::default(),
+            &json!([{ "op": "set", "path": "sheet/projection", "value": projection }]),
+        )
+        .unwrap();
+    }
+    for projection in ["unknown", "second", ""] {
         let dir = scratch(&format!("projection-{projection}"));
         let missing = dir.join("missing.step");
         let spec = json!({ "sheet": { "projection": projection } });
@@ -668,7 +686,8 @@ fn a_projection_is_refused_before_the_part_is_read() {
             .unwrap_err();
             assert_eq!(e.code, "invalid", "{op}: {e}");
             assert!(e.message.contains("projection"), "{op}: {e}");
-            assert!(e.message.contains("scale"), "{op}: {e}");
+            assert!(e.message.contains("first"), "{op}: {e}");
+            assert!(e.message.contains("third"), "{op}: {e}");
             assert!(!e.message.contains("missing.step"), "{op}: {e}");
         }
         let e = model::edit(

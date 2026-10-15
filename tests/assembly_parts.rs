@@ -275,3 +275,50 @@ fn the_service_and_mcp_list_parts_and_take_a_part() {
     assert_eq!(replies[5]["ok"], false);
     assert_eq!(replies[5]["error"]["code"], "invalid");
 }
+
+/// A file of one part: choosing it (`--part 0`) draws what the file draws without `--part`, byte
+/// for byte, with the title its file stem gives (not the STEP product's name, `COMPOUND` here).
+#[test]
+fn part_zero_of_a_single_part_file_draws_as_without_part() {
+    let plate = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/parts/plate.step")
+        .display()
+        .to_string();
+    let render = |name: &str, part: &[&str]| {
+        let out = scratch(name);
+        let mut args = vec!["render", &plate];
+        args.extend_from_slice(part);
+        args.extend(["-o", out.to_str().unwrap(), "--formats", "svg,pdf"]);
+        let (code, r) = run(&args);
+        assert_eq!(code, Some(0), "{r}");
+        (
+            std::fs::read(out.with_extension("svg")).unwrap(),
+            std::fs::read(out.with_extension("pdf")).unwrap(),
+        )
+    };
+    let (whole_svg, whole_pdf) = render("plate_whole", &[]);
+    let (part_svg, part_pdf) = render("plate_part0", &["--part", "0"]);
+    assert!(
+        whole_svg == part_svg,
+        "--part 0 of a single part changes the SVG"
+    );
+    assert!(
+        whole_pdf == part_pdf,
+        "--part 0 of a single part changes the PDF"
+    );
+    assert!(!String::from_utf8_lossy(&part_svg).contains(">COMPOUND<"));
+    // An analysis of the whole file is one of its part 0.
+    let (code, a) = run(&["analyse", &plate, "--no-features"]);
+    assert_eq!(code, Some(0), "{a}");
+    let analysis = scratch("plate_analysis.json");
+    std::fs::write(&analysis, a.to_string()).unwrap();
+    let (code, plan) = run(&[
+        "plan",
+        &plate,
+        "--analysis",
+        analysis.to_str().unwrap(),
+        "--part",
+        "0",
+    ]);
+    assert_eq!(code, Some(0), "{plan}");
+}

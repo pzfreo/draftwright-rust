@@ -102,7 +102,8 @@ fn tools() -> Value {
                 order; given no id it takes the next n:<k>; likewise \"path\": \"tables\" with \
                 {\"rows\": [[…], …]} appends a table, taking the next t:<k>), with a path into the spec: \
                 sheet/size (A4, A3, A2, A1, A0), sheet/scale (ISO 5455, e.g. 2:1, 1:1, \
-                1:2), sheet/title/<field> (title, number, material, …), views/<front|plan|side|iso>/omit \
+                1:2), sheet/projection (first or third angle), \
+                sheet/title/<field> (title, number, material, …), views/<front|plan|side|iso>/omit \
                 (true leaves the view out), dimension_source (auto: the defaults less what is \
                 omitted; authored: exactly the dimensions listed), dimensions/<id>/omit (true \
                 leaves that dimension out; IDs are the plan's, d:<feature>/<parameter>, \

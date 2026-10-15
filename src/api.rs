@@ -216,6 +216,14 @@ fn read(step: &Path, given: Given) -> Result<(Part, Analysis), Error> {
     }
 }
 
+/// Whether *analysis* was made from the *part* a request names: any, when it names none. Part 0
+/// of a file of one part is the whole file, which its analysis binds (no `part_index`).
+fn made_of_part(analysis: &Analysis, part: Option<usize>) -> bool {
+    part.is_none()
+        || part == analysis.binding.part_index
+        || (part == Some(0) && analysis.binding.part_index.is_none() && analysis.parts.is_empty())
+}
+
 /// The part at *step*, read without recognition, when *analysis* is of this version and was made
 /// from that very file: one part is never drawn with another's analysis. The part of an assembly
 /// it was made from alone (`binding.part_index`) is read alone again.
@@ -608,8 +616,7 @@ fn dispatch(op: &str, args: &Value) -> Result<Value, Error> {
             ),
         };
         if let Some(a) = &analysis
-            && part.is_some()
-            && part != a.binding.part_index
+            && !made_of_part(a, part)
         {
             return Err(Error::invalid(format!(
                 "{op}'s \"part\" ({}) is not the part the analysis was made from ({}); omit \
@@ -763,7 +770,7 @@ impl Service {
                 }
                 let analysis: Analysis = serde_json::from_value(a.clone())
                     .map_err(|e| Error::invalid(format!("invalid analysis: {e}")))?;
-                if part.is_some() && part != analysis.binding.part_index {
+                if !made_of_part(&analysis, part) {
                     return Err(Error::invalid(
                         "open's part is not the part the analysis was made from; omit part",
                     ));
