@@ -52,6 +52,9 @@
                   }
                 ]
               },
+              "offset": {
+                "$ref": "#/$defs/B"
+              },
               "pinned": {
                 "type": "boolean"
               }
@@ -75,12 +78,7 @@
                 "items": {}
               },
               "range": {
-                "type": "array",
-                "items": {
-                  "type": "number"
-                },
-                "minItems": 2,
-                "maxItems": 2
+                "$ref": "#/$defs/B"
               },
               "integer": {
                 "type": "boolean"
@@ -149,6 +147,14 @@
       "items": {
         "type": "string"
       },
+      "type": "array"
+    },
+    "B": {
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2,
       "type": "array"
     }
   }

@@ -80,6 +80,20 @@ pub struct ProblemFilter {
     pub feature: Option<String>,
 }
 
+/// Where a callout's bend sits relative to its automatic leader tip, in paper mm (y up): the
+/// origin of a pinned `place.offset` (#12). `offset` is `bend - tip`; pinning it reproduces
+/// the bend. To pin a dragged bend `b`, set `place` to `{offset: b - tip, pinned: true}`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CalloutOffset {
+    /// The view the automatic tip is in, `v:plan` etc.
+    pub view: String,
+    /// The automatic leader tip.
+    pub tip: [f64; 2],
+    /// The callout's bend as drawn now.
+    pub bend: [f64; 2],
+    pub offset: [f64; 2],
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Options {
     pub id: String,
@@ -476,6 +490,36 @@ impl Session {
                 )
             })
             .collect())
+    }
+    /// The callout's bend against its automatic leader tip, for pinning a drag with
+    /// `place.offset`. Reads planning metadata only, without planning or projecting. Refuses a
+    /// non-callout, or a callout with no automatic placement or not drawn in that view.
+    pub fn callout_offset(&self, address: &str) -> Result<CalloutOffset, Error> {
+        let item = self.item(address)?;
+        if item.dimension_kind.as_deref() != Some("callout") {
+            return Err(Error::invalid("a callout offset requires a callout"));
+        }
+        let id = item.item.id.as_str();
+        let Some((view, tip)) = self.plan().automatic_callout_tip(id) else {
+            return Err(Error::invalid(format!(
+                "{id} has no automatic placement to measure an offset from"
+            )));
+        };
+        let Some(bend) = self
+            .plan()
+            .dimensions
+            .iter()
+            .find(|d| d.id == id && d.view == view)
+            .and_then(|d| Some(d.placed.as_ref()?.lines.first()?[1]))
+        else {
+            return Err(Error::invalid(format!("{id} is not drawn in {view}")));
+        };
+        Ok(CalloutOffset {
+            view: view.into(),
+            tip,
+            bend,
+            offset: [bend[0] - tip[0], bend[1] - tip[1]],
+        })
     }
     pub fn state(&self) -> &State {
         &self.state
@@ -969,6 +1013,7 @@ impl Session {
                                 side: serde_json::from_value(side.clone()).ok(),
                                 lane: None,
                                 along: Some(Along::Slot(Slot::Middle)),
+                                offset: None,
                                 pinned: false,
                             })
                         })
@@ -1105,6 +1150,13 @@ fn settable(
                 format!("{base}/place/along"),
                 json!({"choices":["start","middle","end","outside"],"range":[0,1]}),
             );
+            // #12: a pinned callout's bend from its automatic leader tip, [dx, dy] paper mm.
+            if item.dimension_kind.as_deref() == Some("callout") {
+                fields.insert(
+                    format!("{base}/place/offset"),
+                    json!({"range":[-1000,1000]}),
+                );
+            }
         }
         fields.insert(
             format!("{base}/place/pinned"),
