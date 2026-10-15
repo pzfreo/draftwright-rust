@@ -2968,12 +2968,6 @@
       "pdf": "015b5731aad5de9c641df0bfb72462f6a840616bc69a3c6edf28441d15e628fa",
       "svg": "61415038d55e3aca3fb0b2bcf84099e123e3b8a3be700bf292c76feee53dc8ed"
     },
-    "pmi/step/hw_thumbwheel_notes_add.step:default": {
-      "svg": "5e7bbc5d04d3be96571493d469cea460073165d3e1a0fcf4e5e51c7872410a84"
-    },
-    "pmi/step/hw_thumbwheel_thread_knurl_intent.step:default": {
-      "svg": "d442a46be81ee3a69123d7aef20a4024a099857b4e46d4ea7087e463974eb024"
-    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:00ac8b427572c9f0e40a33966fcbc33ab1828f7e26068db901755920313a35f3": {
       "pdf": "42f6cd6d5053b5d3606247c953b1d8273505edf272607ef38313b4b0882cac06",
       "plan": "ff34cf1a3cc006bf15052e858f94b5de090f345021078d84bc57a4ca705b54bc",
@@ -3057,9 +3051,6 @@
     "pmi/step/spool_fits.step:spec:dffccac0b807104b4336e376718f4c6acfbac84a3ce8eb00d229ecab24998a4b": {
       "pdf": "3ed407dd27cc9dbf22f0b5112804839e59535f0a4b59b21809acf39bed2a107c",
       "svg": "5ebafc93390eb6755575a8789f83b1543d0136cf6caa880f031f486612357d82"
-    },
-    "pmi/step/thumbwheel_thread_knurl.step:default": {
-      "svg": "c259924ed2e1e64d0e885692650fbb9e491263873b4b7b07476bdee71a48cb0c"
     }
   },
   "macos": {}

@@ -8114,6 +8114,32 @@
   "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
  },
  {
+  "file": "hw_thumbwheel_thread_knurl_intent.step",
+  "record": "manufacturing_requirement:#726",
+  "port": "manufacturing_requirement:#726",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "dimension",
+      "rides_on": "step.diameter",
+      "text": "M5 x 0.8-6g RH, FULL AVAILABLE LENGTH",
+      "view": "front"
+     }
+    ]
+   },
+   "record": {
+    "kind": "external_thread",
+    "label": "external thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "Stream f1-ext-threads-knurl (#23) reads this semantic external metric thread and its uniquely paired manufacturing attribute (pitch 0.8, thread length) into one structured external_thread, lowered to the ø5 turned step: its callout prints the designation in place of the plain diameter (ISO 6410, as #23 asks) and the front view draws the minor-diameter thin lines. Python leaves the semantic thread unextracted, so has no paired record. tests/pmi_thread_knurl.rs checks the same path on the editor's spindle."
+ },
+ {
   "file": "assembly_plate_pin.step",
   "record": "dimension:0:1:4:6",
   "port": "dimension:#1358",

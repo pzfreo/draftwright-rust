@@ -7012,3 +7012,28 @@ Judgements, each the conservative choice:
 - Linux recorded by workflow run 38625399679 (record-single-sheet): it only added Linux PNG
   hashes and rebuilt the Linux overrides, which again cover 915 cases (913 SVG, 307 PDF,
   11 plan), the same counts as before the re-baseline.
+
+## F1 external threads and knurls drawn (2026-10-15, unattended; overturnable judgements)
+
+- haecceity's AP242 external `thread` (the editor's M10×1.5-6g on the spindle's ⌀10) is now
+  projected like the internal one, as a structured `external_thread`, and lowered to its turned
+  step. Its callout prints draftwright's designation (`M10 x 1.5-6g RH, FULL AVAILABLE LENGTH`)
+  **in place of** the plain `ø10`, as #23 asks (draftwright prints `ø10 M10 x …`). Kept: "RH"
+  and ", FULL AVAILABLE LENGTH" exactly as draftwright prints them. When the table is used
+  (`SEE MFG n`) the diameter stays.
+- Thread and knurl depiction are render furniture on a new `thin` layer (only drawings that
+  have such lines get it), not plan items: no wire-format change, and they are not annotation
+  obstacles or lint `Drawn` items. Profile views only; section views and end views (ISO 6410's
+  ¾ circle) are not drawn. Minor diameter d3 = d − 1.22687·P. The thread is drawn over its
+  cylinder (not over a tip chamfer). No separate limit line: ownership requires the thread
+  length to be the step's cylinder or span, so the shoulder edge is the limit and the step
+  length dimension states the length.
+- Knurl band: middle half of the knurled length (all of it when that is under one gap), lines
+  the pitch apart on paper but at least 3 mm, straight along the axis or diamond at ±30°.
+  Python draftwright draws neither; this is the usual convention, not a port.
+- Byte guard: nine cases change, all parts that carry threads or knurls (bolt_thread_knurl ×6,
+  thumbwheel_thread_knurl, hw_thumbwheel_notes_add: SVG/PDF/PNG gain only the `thin` layer;
+  hw_thumbwheel_thread_knurl_intent: its haecceity-written M5 external thread is now projected,
+  so its plan changes too). Approved under stream `f1-ext-threads-knurl` with macOS hashes; the
+  three stale Linux SVG overrides for those cases were removed. Linux must be recorded with
+  CI's `record_single_sheet` workflow before the guard passes on Linux.

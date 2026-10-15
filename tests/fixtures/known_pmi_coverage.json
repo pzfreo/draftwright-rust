@@ -1230,28 +1230,10 @@
   "code": "pmi_not_extracted",
   "file": "hw_thumbwheel_thread_knurl_intent.step",
   "python": null,
-  "rust": "info",
-  "source": "attribute_set:0:1",
-  "verdict": "rust-correct",
-  "evidence": "The 'thread manufacturing' attribute set haecceity's writer puts on the thread's feature (GENERAL_PROPERTY 'thread manufacturing', user defined attribute; its lengths are the thread's drill and depth data). draftwright's census does not hold it; the port reports it as info, not projected (as it reports other attribute sets, e.g. string_post_tapped.step's finding:#3221, rust-correct). It belongs to the thread the port also reports unprojected (thread:0:1); it would be consumed with that thread when haecceity's thread features are projected (docs/next-session.md)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "python": null,
   "rust": "error",
   "source": "dimension:#685",
   "verdict": "undetermined",
   "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#685 (ø10) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (thumbwheel_thread_knurl.step dimension:#651 'ø10 -0.013/-0.028', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#685 (ø10) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "thread:0:1",
-  "verdict": "rust-correct",
-  "evidence": "A thread haecceity's writer states as an AP242 THREAD feature (#726; with its 'thread manufacturing' attribute set where the file has one), the form specify-core-rust writes. draftwright never sees it: its Part 21 pass reads specify-core's 'manufacturing requirement' properties and XCAF has no thread or knurl, so its census holds no source and its drawing silently lacks it. The port's reading holds it (haecceity reads it) and reports it pmi_not_extracted as an error because src/pmi.rs projects only the requirement-property form to a record: true, and the honest outcome. Neither draws it; projecting haecceity's thread and knurl features to records (so they can be drawn as the requirement records are) is a gap recorded in docs/next-session.md."
  },
  {
   "code": "pmi_not_lowered",
