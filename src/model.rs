@@ -315,6 +315,10 @@ pub struct SheetSpec {
     /// unless false, which prints the class alone (`⌀10 H7`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fit_limits: Option<bool>,
+    /// ISO 5456-2's projection method, `first` or `third` (angle): where the plan and side sit
+    /// about the front, and the symbol beside the title block. Third angle unless set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projection: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -541,6 +545,9 @@ pub const SECTION: &str = "section_aa";
 const LOADER: &str = concat!("haecceity via draftwright ", env!("CARGO_PKG_VERSION"));
 
 /// A scale as printed: `n:1` or `1:n`.
+/// The Spec's projection methods (`sheet/projection`), ISO 5456-2's first and third angle.
+pub const PROJECTIONS: [&str; 2] = ["first", "third"];
+
 pub(crate) fn scale_name(s: f64) -> String {
     if s >= 1.0 {
         format!("{}:1", fmt_ratio(s))
@@ -1223,6 +1230,67 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
     Ok(plan)
 }
 
+/// The nearest sheet and scale that hold the views when a pinned pair does not (#13), as the
+/// edit that sets them, chosen by the engine's own search: the pinned sheet at the scale the
+/// recovery picks for it, else the pinned scale on the smallest sheet that holds it, else the
+/// automatic pair. A pair is offered only when, pinned, its finished drawing fits. Only for a
+/// spec that pins both (each search unpins one, so this never recurses).
+fn fit_fix(
+    analysis: &Analysis,
+    spec: &Spec,
+) -> Result<Option<(Vec<crate::items::Op>, String, String)>, Invalid> {
+    let (Some(size), Some(scale)) = (&spec.sheet.size, &spec.sheet.scale) else {
+        return Ok(None);
+    };
+    let unpinned = |size: bool, scale: bool| {
+        let mut open = spec.clone();
+        if size {
+            open.sheet.size = None;
+        }
+        if scale {
+            open.sheet.scale = None;
+        }
+        open
+    };
+    let mut tried = BTreeSet::new();
+    for (open_size, open_scale) in [(false, true), (true, false), (true, true)] {
+        let open = unpinned(open_size, open_scale);
+        let found = if open_scale {
+            recover(analysis, &open, plan_escalated(analysis, &open)?)?
+        } else {
+            plan_escalated(analysis, &open)?
+        };
+        let pair = (found.sheet.size.clone(), found.sheet.scale.clone());
+        if (&pair.0, &pair.1) == (size, scale) || !tried.insert(pair.clone()) {
+            continue;
+        }
+        let mut pinned = spec.clone();
+        pinned.sheet.size = Some(pair.0.clone());
+        pinned.sheet.scale = Some(pair.1.clone());
+        let mut p = plan_escalated(analysis, &pinned)?;
+        let doubted = p
+            .problems
+            .iter()
+            .any(|q| matches!(q.code.as_str(), "page_fit_uncertain" | "views_do_not_fit"));
+        let fits = !doubted || drawn_items_fit(analysis, &p) || {
+            crate::sheet_fit::correct_estimate(analysis, &mut p);
+            drawn_items_fit(analysis, &p)
+        };
+        if !fits {
+            continue;
+        }
+        let mut ops = Vec::new();
+        if pair.0 != *size {
+            ops.push(crate::items::Op::set("sheet/size", pair.0.clone().into()));
+        }
+        if pair.1 != *scale {
+            ops.push(crate::items::Op::set("sheet/scale", pair.1.clone().into()));
+        }
+        return Ok(Some((ops, pair.0, pair.1)));
+    }
+    Ok(None)
+}
+
 fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
     let min_legible_scale = crate::sheets::floor(spec).map_or_else(
@@ -1231,6 +1299,45 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     );
     first.sheet.fill = crate::sheet_fit::fill(analysis, &first);
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
+        // A pinned sheet and scale are judged as the automatic search judges its candidates
+        // (#13): the packed estimate's doubt is withdrawn when the finished drawing's items and
+        // views all fit the sheet, so the pair the engine would choose itself raises nothing.
+        // When they really do not fit, the problem carries the nearest pair that does.
+        if let Some(i) = first
+            .problems
+            .iter()
+            .position(|q| q.code == "page_fit_uncertain")
+        {
+            // The drawing as planned first; failing that, after the measured correction the
+            // automatic search gives its candidates (so the pinned pair is drawn as the search
+            // would draw it; a no-op for pinned placements).
+            let mut corrected = first.clone();
+            if !drawn_items_fit(analysis, &corrected) {
+                crate::sheet_fit::correct_estimate(analysis, &mut corrected);
+            }
+            if drawn_items_fit(analysis, &corrected) {
+                first = corrected;
+                first.problems.remove(i);
+                first.sheet.fill = crate::sheet_fit::fill(analysis, &first);
+                if let Some((basis, _)) = first.sheet.basis.rsplit_once("; drawn-item fill ") {
+                    first.sheet.basis =
+                        format!("{basis}; drawn-item fill {:.1}%", first.sheet.fill * 100.0);
+                }
+                first.sheet.basis = first.sheet.basis.replacen(
+                    "; the views may not fit",
+                    "; the finished drawing fits",
+                    1,
+                );
+                first.status = crate::completeness::status(&first.problems);
+            } else if let Some((fix, size, scale)) = fit_fix(analysis, spec)? {
+                let p = &mut first.problems[i];
+                p.message = format!(
+                    "{}; {size} at {scale} fits.",
+                    p.message.trim_end_matches('.')
+                );
+                p.fix = fix;
+            }
+        }
         return Ok(first);
     }
     if !first.hole_tables.is_empty() {
@@ -1763,6 +1870,7 @@ fn plan_with_presentation(
         let mut base = Spec::default();
         base.sheet.size = spec.sheet.size.clone();
         base.sheet.scale = spec.sheet.scale.clone();
+        base.sheet.projection = spec.sheet.projection.clone();
         base.hole_table = spec.hole_table;
         Some(plan_recovered(analysis, &base)?)
     } else {
@@ -1994,6 +2102,17 @@ fn plan_with_presentation(
         ),
         None => None,
     };
+    // ISO 5456-2's two methods: third angle (draftwright's) unless the spec says first.
+    let first_angle = match spec.sheet.projection.as_deref() {
+        None | Some("third") => false,
+        Some("first") => true,
+        Some(p) => {
+            return Err(invalid(
+                format!("{p:?} is not a projection method."),
+                &PROJECTIONS,
+            ));
+        }
+    };
 
     let page = page.or_else(|| presentation.map(|p| p.page));
     // A schedule removes annotation demand; it must not shrink or enlarge the proven feature ink.
@@ -2053,6 +2172,7 @@ fn plan_with_presentation(
     );
     request.automatic_pair = automatic_pair;
     request.candidate_arrangement = candidate_arrangement;
+    request.first_angle = first_angle;
     request.sections = usize::from(section.is_some());
     // The tables are reserved towards their corners and the general notes block top right, in
     // draftwright's order, unless only a fallback would make room for them: then each is placed
@@ -2121,13 +2241,13 @@ fn plan_with_presentation(
         }
     }
     request.strips = strips;
-    let size = layout::PAGES
-        .iter()
-        .find(|(_, w, h)| [*w, *h] == pick.page)
-        .map_or_else(
-            || format!("{}x{}", pick.page[0], pick.page[1]),
-            |p| p.0.into(),
-        );
+    let page_name = |page: [f64; 2]| {
+        layout::PAGES
+            .iter()
+            .find(|(_, w, h)| [*w, *h] == page)
+            .map_or_else(|| format!("{}x{}", page[0], page[1]), |p| p.0.into())
+    };
+    let size = page_name(pick.page);
     let scale = scale_name(pick.scale);
     match pick.fallback {
         Some(Fallback::Computed) => problems.push(Problem {
@@ -2228,14 +2348,23 @@ fn plan_with_presentation(
                     g.plan,
                     pv.footprint(g.plan[0], g.plan[1]),
                     pick.scale,
-                    "third-angle: the plan sits above the front, past both views' bands".into(),
+                    if first_angle {
+                        "first-angle: the plan sits below the front, past both views' bands"
+                    } else {
+                        "third-angle: the plan sits above the front, past both views' bands"
+                    }
+                    .into(),
                 ),
                 "side" => (
                     g.side,
                     sv.footprint(g.side[0], g.side[1]),
                     pick.scale,
-                    "third-angle: the right side sits right of the front, past both views' bands"
-                        .into(),
+                    if first_angle {
+                        "first-angle: the right side sits left of the front, past both views' bands"
+                    } else {
+                        "third-angle: the right side sits right of the front, past both views' bands"
+                    }
+                    .into(),
                 ),
                 _ => (
                     g.iso_centre,
@@ -2353,7 +2482,7 @@ fn plan_with_presentation(
         state: ItemState::Shown,
         title,
         title_cells,
-        projection_symbol: Some(title_block::projection(g.title_block)),
+        projection_symbol: Some(title_block::projection(g.title_block, first_angle)),
     };
     if let Some(base) = &canonical {
         sheet.page = base.sheet.page;
@@ -2362,7 +2491,7 @@ fn plan_with_presentation(
         sheet.basis = base.sheet.basis.clone()
             + "; anchor frames and sheet choice kept fixed for placement pins";
         sheet.title_cells = title_block::cells(sheet.title_block, &sheet.title, &sheet.size);
-        sheet.projection_symbol = Some(title_block::projection(sheet.title_block));
+        sheet.projection_symbol = Some(title_block::projection(sheet.title_block, first_angle));
     }
     if canonical.is_some() || spec.views.values().any(|v| v.place.is_some()) {
         crate::placement_intent::views(

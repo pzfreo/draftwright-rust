@@ -183,18 +183,38 @@ mention takes its default.
 }
 ```
 
-The design also includes `sheet/projection`, `views/sections` and feature `anchor`/`note`
-(as in the original example: `"projection": "first-angle"`,
-`"sections": [{"id": "A", "through": "f:hole:3"}]`,
+The design also includes `views/sections` and feature `anchor`/`note`
+(as in the original example: `"sections": [{"id": "A", "through": "f:hole:3"}]`,
 `"anchor": {"…": "fingerprint"}`, `"note": "REAM"`). These fields are not yet read.
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
   `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>/fit`, `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
 - **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
   resolved against the part and its anchors on every plan. Measured values and resolved paper
   coordinates occur only in the Analysis and Plan.
+
+#### Projection method and a pinned sheet's fit
+
+`sheet/projection` is ISO 5456-2's method, `first` or `third` (angle); absent means third, and the
+plan is then byte for byte what it was before the field existed (`third` set explicitly differs only
+in the spec it echoes). First angle puts the plan below the front and the right side view left of
+it, the same blocks and bands mirrored within the packed group, and draws the first-angle symbol
+(the cone's large end beside the circles) where the third-angle symbol goes;
+`sheet.projection_symbol.method` says `first-angle` or `third-angle`, and the views' bases say
+which side each sits. The session's `item_options` for `sheet` lists the choices. Other sheets of a
+multi-sheet drawing carry no projected views, so the setting only arranges sheet 1.
+
+A spec that pins both `sheet/size` and `sheet/scale` is judged as the automatic search judges its
+candidates: when the packed estimate doubts the fit, the finished drawing (after the same measured
+correction the search applies) is checked, and if every drawn item and view lies on the sheet and
+off the title block, `page_fit_uncertain` is not raised (the basis says "the finished drawing
+fits"). So pinning the pair the engine would choose itself raises nothing. When the views really
+do not fit, the problem's `fix` sets the nearest pair that does, found by the engine's own search:
+the pinned sheet at the scale the recovery picks for it, else the pinned scale on the smallest sheet
+that holds it, else the automatic pair; each is offered only when, pinned, its drawing fits. The
+message names it (`…; A4 at 1:1 fits.`).
 
 #### Sheet allocation (R5, Stage I)
 

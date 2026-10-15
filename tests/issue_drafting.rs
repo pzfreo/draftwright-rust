@@ -458,7 +458,8 @@ fn what_the_spec_asks_of_the_views_is_kept_or_reported() {
 /// largest standard scale at which the views fit it, and draftwright's recovery
 /// (`model::recover`, which `model::plan` does not apply yet) keeps it, re-planning at most its
 /// scale on that sheet; pinned with a scale too large for it, both are kept, before and after
-/// the recovery, and the misfit reported.
+/// the recovery, and the misfit reported (with the nearest pair that fits as its fix), unless the
+/// finished drawing fits after all (#13).
 #[test]
 fn a_sheet_the_spec_names_is_never_escalated() {
     for (name, analysis, _) in planned() {
@@ -479,7 +480,36 @@ fn a_sheet_the_spec_names_is_never_escalated() {
             );
             let both_spec = spec(json!({ "sheet": { "size": size, "scale": "10:1" } }));
             let before = serde_json::to_value(&both).unwrap();
-            let kept = model::recover(analysis, &both_spec, both).unwrap();
+            let fit = |p: &model::Plan| {
+                p.problems
+                    .iter()
+                    .position(|q| q.code == "page_fit_uncertain")
+            };
+            let reported = fit(&both).map(|i| both.problems[i].message.clone());
+            let mut kept = model::recover(analysis, &both_spec, both).unwrap();
+            assert_eq!(
+                (kept.sheet.size.as_str(), kept.sheet.scale.as_str()),
+                (size, "10:1"),
+                "{name}"
+            );
+            // #13: a misfit the finished drawing disproves (after the measured correction every
+            // automatic candidate gets) is withdrawn, and says so; a real one is kept, the
+            // recovery adding only the nearest pair that fits as its fix.
+            if reported.is_some() && fit(&kept).is_none() {
+                assert!(
+                    kept.sheet.basis.contains("the finished drawing fits"),
+                    "{name}"
+                );
+                continue;
+            }
+            if let (Some(i), Some(message)) = (fit(&kept), reported) {
+                let p = &mut kept.problems[i];
+                assert!(
+                    p.message.starts_with(message.trim_end_matches('.')),
+                    "{name}"
+                );
+                (p.message, p.fix) = (message, Vec::new());
+            }
             assert_eq!(serde_json::to_value(&kept).unwrap(), before, "{name}");
         }
     }

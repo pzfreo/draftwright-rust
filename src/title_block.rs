@@ -263,8 +263,9 @@ pub fn scale_note(block: [f64; 4], text: &str) -> [f64; 2] {
     [right - w / 2.0, top(block) + FURNITURE_GAP + h / 2.0]
 }
 
-/// The projection-method symbol's resolved paper geometry. The native planner uses third
-/// angle: plan above front and right side to the right. This is sheet furniture, not a view.
+/// The projection-method symbol's resolved paper geometry: `third-angle` (plan above front and
+/// right side to the right, the default) or `first-angle` (plan below, right side to the left),
+/// as the Spec's `sheet/projection` says. This is sheet furniture, not a view.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectionPlaced {
@@ -274,11 +275,19 @@ pub struct ProjectionPlaced {
 
 /// ISO 5456-2's cone elevation and concentric end view, as build123d_drafting's
 /// `ProjectionSymbol`: large diameter h, small diameter 0.6h, length 1.3h and gap 0.5h.
-/// Third angle puts the small end next to the circles. The 3 mm symbol and its 0.15 mm
-/// stroke fit inside the reserved band, right of the scale note, as Python places them.
-pub fn projection(block: [f64; 4]) -> ProjectionPlaced {
+/// Third angle puts the small end next to the circles; first angle (*first_angle*, the Spec's
+/// `sheet/projection`) the large end, the cone turned end for end in the same place. The 3 mm
+/// symbol and its 0.15 mm stroke fit inside the reserved band, right of the scale note, as
+/// Python places them.
+pub fn projection(block: [f64; 4], first_angle: bool) -> ProjectionPlaced {
     let h = TEXT;
     let (big, small, len) = (0.5 * h, 0.3 * h, 1.3 * h);
+    // The cone's diameters at its left (x = 0) and right (x = len) ends.
+    let (left, right) = if first_angle {
+        (small, big)
+    } else {
+        (big, small)
+    };
     let cx = len + 0.5 * h + big;
     let at = [
         block[2] - 3.0 - PROJECTION_LINE / 2.0 - (cx + big + 0.25 * h),
@@ -286,10 +295,10 @@ pub fn projection(block: [f64; 4]) -> ProjectionPlaced {
     ];
     let m = |p: P| [p[0] + at[0], p[1] + at[1]];
     let mut curves: Vec<Curve> = [
-        [[0.0, -big], [0.0, big]],
-        [[len, -small], [len, small]],
-        [[0.0, big], [len, small]],
-        [[0.0, -big], [len, -small]],
+        [[0.0, -left], [0.0, left]],
+        [[len, -right], [len, right]],
+        [[0.0, left], [len, right]],
+        [[0.0, -left], [len, -right]],
         [[-0.25 * h, 0.0], [cx + big + 0.25 * h, 0.0]],
     ]
     .into_iter()
@@ -304,7 +313,12 @@ pub fn projection(block: [f64; 4]) -> ProjectionPlaced {
         t1: std::f64::consts::TAU,
     }));
     ProjectionPlaced {
-        method: "third-angle".into(),
+        method: if first_angle {
+            "first-angle"
+        } else {
+            "third-angle"
+        }
+        .into(),
         curves,
     }
 }
