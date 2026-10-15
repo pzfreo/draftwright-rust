@@ -1967,7 +1967,7 @@ mod tests {
         assert!(
             reported[0]
                 .message
-                .starts_with("1 projected edge piece in v:front")
+                .starts_with("1 projected edge piece in the front view had no length to draw")
         );
     }
 
