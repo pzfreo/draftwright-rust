@@ -917,6 +917,24 @@ or text that disagrees with the cylinder is `pmi_not_lowered` (error) with draft
 requirement a boss owns is refused too, as the boss callout prints none yet
 (`tests/pmi_thread_knurl.rs`).
 
+A semantic AP242 `thread` (haecceity's, with its 'thread manufacturing' attribute set: pitch,
+and a thread length for an external one) is read as draftwright's structured `internal_thread` or
+`external_thread`; a `turned_knurl` as a structured `knurl`. Beyond draftwright (#23), an external
+thread whose callout prints it (not `SEE MFG n`) prints its designation in place of the plain
+diameter (`M10 x 1.5-6g RH, FULL AVAILABLE LENGTH`, not `ø10 M10 x …`), and a turned step's
+external thread or knurl is drawn in its profile views (not section views) on the SVG/PDF/DXF
+layer `thin` (thin continuous, 0.25 mm; only a drawing that has such lines has the layer): ISO
+6410's thin line each side of the axis at the minor diameter d3 = d − 1.22687·P over the thread
+length, and a knurl's band over the middle half of its length (lines along the axis for a
+straight knurl, crossed at 30° for a diamond one, the pitch apart on paper but at least 3 mm).
+The thread's limit is the step's own end (ownership requires the stated length to be the step's
+cylinder or span), so the shoulder edge is its limit line and the step length dimensions it. The
+plan is unchanged: these lines are render furniture, not plan items. In the session's SVG
+fragments they travel in their view's fragment (layer `thin`), not in `furniture`, so they move
+with the view. A turned step's diameter callout is led to the silhouette at 15° or more to it: a
+leader along the silhouette would lie on the part's edge (ISO 128-22), so the placer counts one as
+a hard blocker.
+
 **IDs and views.** A dimension's ID names what it measures, never the view that carries it
 (`draftwright.spec/2`; version 1 added `@<view>`). The view is the item's `view`. Omitting that
 view moves the dimension to its next view under the same ID (the basis says so), and so does a

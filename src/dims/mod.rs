@@ -417,7 +417,8 @@ struct Want {
     basis: String,
     shape: Shape,
     /// For a turned part's diameter: its turning axis. The diameter is then drawn across
-    /// whichever radial axis the carrying view shows.
+    /// whichever radial axis the carrying view shows; a step diameter's callout, led to the
+    /// silhouette, keeps its leader off the silhouette's direction ([`leaders`]).
     turning: Option<usize>,
 }
 

@@ -3705,6 +3705,10 @@ fn render_annotations_with_cuts(
         style: crate::output::centre_style(),
         items: Vec::new(),
     });
+    // Threads and knurls drawn over turned steps' outlines, on a layer of their own that only a
+    // part carrying them has (so every other sheet's bytes are unchanged).
+    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
+    let mut thin: Vec<Item> = Vec::new();
     let mut undrawn = BTreeMap::new();
     assert_eq!(
         plan.views.len(),
@@ -3762,8 +3766,20 @@ fn render_annotations_with_cuts(
             }
             layers[3].items.extend(ink);
         }
+        thin.extend(
+            crate::cosmetic::ink(analysis, &manufacturing, v)
+                .into_iter()
+                .map(Item::Edge),
+        );
         layers[0].items.extend(geometry.visible);
         layers[1].items.extend(geometry.hidden);
+    }
+    if !thin.is_empty() {
+        layers.push(Layer {
+            name: "thin".into(),
+            style: crate::output::thin_style(),
+            items: thin,
+        });
     }
     for v in plan.views.iter().chain(remote_sections.iter().copied()) {
         let plane = v.cut.as_ref().and_then(|c| Plane::new(c.origin, c.normal));

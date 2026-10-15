@@ -238,6 +238,10 @@ fn diameters(
         }
         let text = fmt(b.diameter);
         let mut terms = vec![format!("ø{text}")];
+        // An external thread's designation stands in place of the diameter (ISO 6410).
+        if manufacturing.replaces_diameter(&f.id) {
+            terms.clear();
+        }
         // A thread or knurl the band carries follows its diameter (`_manufacturing_suffix`),
         // before the `OD` rider (`_external_diameter_rider`).
         terms.extend(manufacturing.terms(&f.id).0);
@@ -313,7 +317,7 @@ fn diameters(
                 shape: Shape::Callout {
                     sites: members.iter().flat_map(|(_, c)| sites(c)).collect(),
                 },
-                turning: None,
+                turning: Some(b.axis),
             }
         })
         .collect()
@@ -600,6 +604,10 @@ fn overall(
     // A thread or knurl the bands it states carry follows the diameter (beyond draftwright,
     // whose overall diameter prints none and whose lint then finds the requirement not drawn).
     if let Some((f, _)) = share.first() {
+        // An external thread's designation stands in place of the diameter (ISO 6410).
+        if share.len() == 1 && manufacturing.replaces_diameter(&f.id) {
+            terms.clear();
+        }
         terms.extend(manufacturing.terms(&f.id).0);
     }
     let mut measurements = vec![Measurement {

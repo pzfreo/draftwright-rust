@@ -519,9 +519,6 @@
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:116fd55b963d5de2465d0fb145c8425a89821a09c0160a5ae611ba76b7c886b9": {
       "svg": "9fcbd5867589fd6ca84c9a41de75ac2693911de5ec254d68c45ba351760dc64b"
     },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:11ef62a4f7fa6312af73e789b0584dfe43fd4c1f9451fac079c7cf10aeb7a121": {
-      "svg": "db21ff2d40dc7ac76ab7924d0756a029a3b71f6f912773cc10a783a9444853ed"
-    },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:15dba95be6a292bfa408ffd82a98e93673473ce30fbfed853b67314ddef1af5c": {
       "svg": "6579a22f697786cb6b67674acbef2eec54a2c7efc5c339a152c4143163f351a6"
     },
@@ -546,9 +543,6 @@
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:1f8d5f59100f2fcd3fd8436b50369ae49c65e914d192807e1d5086c5abd14fe7": {
       "svg": "fda9d4aa78a8a709d92aa34984f2a699ec56dfa1f73f37ce7776d29e6f750f30"
     },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:2267b0bd4e69066802580f6a0a796d176393cc691689bd486811bded6c63a42d": {
-      "svg": "483361a04e400a6a1423fe79d3fe53c01b82a0eddf5895a358342284dbc4684b"
-    },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:26793145d5fe810f8c6af0a4967c30f95047872da60ea1459a29169c899f5584": {
       "svg": "c53146383cd2d34b49a8f0a321f4c677ccddf16e367e92cd61a7a353ff5ed50a"
     },
@@ -567,9 +561,6 @@
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:3033693a4b943859c664d0d7bb05cfffbcd86b13dcc026aa0131f31f883c5a9a": {
       "svg": "16064a4cb5265e2e35156a638625922dd5d88f10e410f477bd55922a1cdb7a7c"
     },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:308ba50fee4d1dbc2ccba4d5843cc9c8ab73b24b0095f40d9550c0c6160f0948": {
-      "svg": "2b67480bdb78fa56e964abcba8d1d425cd8908af6a3e758ec03274d17750b911"
-    },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:3455c4481fe6d774e911836907feccfc3f2dba4b9a35da4ca50cf6a29ed0b884": {
       "svg": "088f68f4c6ca23da3153292ca102029a2f687853e35d7954a75c989991db0d36"
     },
@@ -582,9 +573,6 @@
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:3c598534ff78f3441e6cfacfc16cbad8fd097ea037541e8eb0a5dae9940bd78a": {
       "svg": "22446f1e2f097910f294c06b13947abe6721aab8e46b9ae1bf3a2a71b56a7323"
     },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:3c7c930b4d97c7895118cc19b05bb74bcbd4a66784ad98d1bde5b8158a9bec0e": {
-      "svg": "5737ceeab6915b93a79b1ede35a1e608a09735f3eb630e724b7b72845131908b"
-    },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:3da143ac89f46cb433ade12a54ebe9f3423b5d6db044b6c81b6a8a62ea3477d6": {
       "svg": "8cf825e5991938c3e43b59f363d89d48e44e4d40ad062e324a3c8b7b1c3bba86"
     },
@@ -594,12 +582,6 @@
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:4189c6e082d4adb8219309572e3f9af190101466e9e04961f808dc7acb5fecb8": {
       "svg": "e3f26ef1302d906e39a31d011322d2e397645d308e3374dbf69c1b89c3e3d52d"
     },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:43c17790743dc9362cedea44fd5ad01d10d1cdfe3fce3d311d6b9d6c330c3ed8": {
-      "svg": "10fc7a0d838f191b1a692c2187fb9c1cea9dae7b82d38c0e574c107900dbaae4"
-    },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:4683f501bd3418fee83a4c9124379d214c02a763a215e5bebdeb5d342494c72a": {
-      "svg": "e55c0a4c32788ca03ca7400bc3e4d1d5f313667885d21c79cde24cc54d96b955"
-    },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:47fb326225df97858d3c497ebb753e52db1cd3e4711a3486e0247b17c4dfd48f": {
       "svg": "6a6d600dfad58087d01d2436bfb75ded9dcbc88b360fb0b0c25f066a46521178"
     },
@@ -608,9 +590,6 @@
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:4f8d990775680eeda325dfc497ab5da3a2813ddd407d015ee56b0a9532546605": {
       "svg": "647e04a17f060a1ceeee749d14b348c57903fa7f7a8b6173b51fb9900922c6e5"
-    },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:5048bfde14fec2c8d3e87c119017755bcd139ca52f8ee2312c74b191848ee970": {
-      "svg": "4f0c6599e92b6718f4e3d6bf704a8f07ec5c34c11560ec6fe1dcbe8a719b0cc3"
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:5213964830cc02073114e5f65f7fe131690a990167851d23745f26ade4cb124f": {
       "svg": "ecfcd32d815eb279e6cb891855865bb6e48cd7f14c52bb2b025f79fa00e30890"
@@ -630,17 +609,11 @@
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:5dc4ca10fd5328ef091042e7fa5c09ca630913cabd01e69fa2eada99d0d99f1a": {
       "svg": "2810503a7bfa27684c8cefd2b135e31df603a49cb79d865614feae4a9c6f2189"
     },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:650501d60ea925902a2d7f792e2bebec69912182c620abfef4651af54c06e30f": {
-      "svg": "e55c0a4c32788ca03ca7400bc3e4d1d5f313667885d21c79cde24cc54d96b955"
-    },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:6923c07257d329235fd6073b6f802af0a4fbddee7498cee34238a9269f82b507": {
       "svg": "419c23a8f26fbdaf706c2e6146f5e37b1717bc8e3ed52d5159b01436631463f4"
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:69490d34c6660ffe1861b8e6b00edd5d89463c6015b5d1455dc794231e5d982b": {
       "svg": "ad67f1089b8c579064128ffb1d916e72349eb1cc9aff9a084c08e0b9ea0dc2bd"
-    },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:6a372f45679ee341b5a0886ed343f556d6602f48fa78c4e1e9dc90ccb7137977": {
-      "svg": "acc8e8816389ef53df2acb83c1e6895dd0cd7e86647b66d2fdef646c55f7edc1"
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:6bdc4821889aec74cb9ad59aa5ae4bc9b5eba995d52ffada6cab229933591688": {
       "svg": "7d42599bf0651834e505fa51acc9db9558ff815a13d2eebf86fcd3f53a3521ea"
@@ -674,9 +647,6 @@
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:750b2721c6d5227f5d8aef5031d8de1701d595f315177ef41ebddae0ed996787": {
       "svg": "d2ad01187fdaeba94e1f88ddc32aa474d4c66dd8fd4f7bad1cd2df8102e13c9d"
-    },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:76539254967655dbcfc60929461939f5e40db55c6ca13d431b2a3c45c864b272": {
-      "svg": "d581e2fd79d7cc3360926eff8e235cffbdb90ed00146487efba9f3d72e2bdff8"
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:78c27d9519325d3b2b3f23ad7521ac733c534f207ebbb8e597f2c047d41b82b8": {
       "svg": "9f4162430d4a307bc8b3552e69f305ef6199c3abb5a61a14cd93dc9138be4a6a"
@@ -713,9 +683,6 @@
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:8726df8afa1a1681322a23426484bc4a15a3f6992609e2e82f304a6b11a9f5f2": {
       "svg": "531c4526feb0bdedcd0fa9b34df0904a48e57ba87b899bfe5667790ec219a1c0"
-    },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:897c7e97c171d6bc1368d8c32e1806626de20be6ad45d32cf68d15941e5c3c04": {
-      "svg": "4e27aeb0239e6d1cfd59e93975dfae2be16d70382be8724f2634aa30e9db1f86"
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:8bef50cbb3baa6f71f93f5d918d25a3a0433eb541c74d481e5db5d54cd588c08": {
       "svg": "b907e2892055cecd43d0a285cb9f3f462ccd744f3fbc1462c5cf0572828d6385"
@@ -801,23 +768,11 @@
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:c81aec2516a6b9167bde443daf7c2ba205b6b728ead37a57fb97062a49a1ad7b": {
       "svg": "6bde2cf565f836de200381f77ca3a18db6545d4c2dc01d1a51949fad4ee63e74"
     },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:ca54f9d6204570503d302bdcb6299ae6dfa72dfe57bbaa064012bc915d5f4c3e": {
-      "svg": "17d020393923a870af1be59d6b5ff214a6dba3d77c7713a64f2ecb7daa9b1a1e"
-    },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:cb2c77dff5a88c9d87b702087314ce00025190a871faf2af0842d89f3dec0e42": {
-      "svg": "d5607e243055b6fde86c281f8199f24b022ea24e74c1dbef5144d1a61698d6ff"
-    },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:ccf4d0db4e48934cc99719ba34fa5d4fcb2734e853ecf2a82203b875ec7a8f63": {
       "svg": "3fcb04e6081ea82e984ac5e5471bfb5f84de5dd53b34ae26affcefcfc36b20d6"
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:cd889dfa1ba5ed74adabac1b6545ad1c1787a7a78a9439018a1196f0eb51c74f": {
       "svg": "a6de0a40073c5d4b079c90f6be06fea51d4695cffe25e4ba6f873db936df8b4c"
-    },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:cff41f6f453fdc995e1840958fdff0e6d4863d105b77902fb1a1ebeefa165114": {
-      "svg": "b97b8e3180634ddc0c813a6689e6acfb779ac14e2470f5307c62602b5de6d9ff"
-    },
-    "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:d1f9cabdfa01d96da22d5ded14537b12c4fe257fdd1c12bc8c4a7897c2c4b347": {
-      "svg": "5ca3736db204327a96df70f7cb45ede3341bdb1c282550c51d1d2a77acc3c627"
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:d2b4e18a4daf4ab9c81ed8e4b272c1d6facf6e37fcf5b9a8048b08fe8c6691fa": {
       "svg": "527b3ea6405a95c36ef70867c67e0dc4d5fa583b2ef1686d525e7163b11e89b6"
@@ -881,9 +836,6 @@
     },
     "corpus/gramel/GRM-03_thumbwheel_drive_screw.step:spec:fff6faa92fc36d43888f41b1af762f88f0d25ef853ab210347789b9d39d139b3": {
       "svg": "5823d2b0268f89249057d4e9b0133795d00c77fd2aed6db1da5c6ae87e8fcf05"
-    },
-    "corpus/gramel/string_post.step:spec:1c29f39db68e8b009a719d83ec1389d96a1e350a2d6b4bc142069453c99e3569": {
-      "plan": "5a9b5f9ccb04d7649709f07fb43b5829b3450ac384687464930fc0e10c3d9931"
     },
     "corpus/mfcadpp/10060.step:default": {
       "svg": "5c4c59a732fd59acb5c575a12d63042fe93cea12c4066657314234121cd9852b"
@@ -2249,22 +2201,6 @@
       "pdf": "b17653da9c77ceb40cd40ecc284334a82334017572f4126a1b1c8cc989abc70b",
       "svg": "ec5148255fe993fa25bc667f21e6e887005123103afe0f5a0ebecdddb7ff3f2d"
     },
-    "corpus/nist/nist_ctc_05_asme1_rd.stp:default": {
-      "pdf": "fea905d9b3e6220dc9102c331f5c5420be30d378253456c3b1ac2437aa0597ee",
-      "svg": "793d7fd607d02b005d39a3a7020f6c3ef24676a54d281b3cefcec694cf94ffca"
-    },
-    "corpus/nist/nist_ctc_05_asme1_rd.stp:spec:71617a17bc3d46237f13b96ea74dd8145dfbc7aeb19144c1957d93b23f7ba4b2": {
-      "pdf": "e765f719c8521cce75f4d25fc17b0c5ed09c1c649a3efa90e2d10f9b59da808b",
-      "svg": "5dd8ccacd9c40e10d40285d5e70993b59bb451424aadecb3c7fcde3b36c194f9"
-    },
-    "corpus/nist/nist_ctc_05_asme1_rd.stp:spec:ab80a759b2234280163f8e72e04db4d4d3bf02abee0aaed8d84c452c7e1a1b4b": {
-      "pdf": "63f28b75864bda0ecf8f7aa43b00510f78b4a5b43e6373f7ca2ae88ccd3dcaa5",
-      "svg": "084a7b40552a03f381d92eecef81d405b5f52875d037d3071bf6b25df9a932c0"
-    },
-    "corpus/nist/nist_ctc_05_asme1_rd.stp:spec:b3d1dbd005881c1b0afa94e48ca0a0afc0e66ef29f592d9494e7372a9d3ca99a": {
-      "pdf": "e765f719c8521cce75f4d25fc17b0c5ed09c1c649a3efa90e2d10f9b59da808b",
-      "svg": "5dd8ccacd9c40e10d40285d5e70993b59bb451424aadecb3c7fcde3b36c194f9"
-    },
     "corpus/nist/nist_ftc_06_asme1_rd.stp:default": {
       "pdf": "3597ab59468d037c42f56df4bbb13f172b78e17f153985ff919e5fb681be4720",
       "svg": "23df5ad6ea24a42ca4c22ab610f7b2501c34a66b9c4fd999e4cb26835f6f5753"
@@ -2827,10 +2763,6 @@
       "pdf": "c88d6b74efc04b8dcf00948e4b8451bac6ff4abd44a983ba9c178fbb13ad10a2",
       "svg": "4395d67cb4936c79a38529035eea5c61c1771732b51689c994c535ddf0f3607d"
     },
-    "parts/turned.step:spec:76ca308d6c6648248784e4d74859cb4ed222c5f3b5d91f30b20b48dc7c3c7ea8": {
-      "pdf": "dfb7f1a88d590ad9501dc59d95ac9643e57440bb3dab41ad00823750af1818ad",
-      "svg": "7f90ca37d99d57b0ff24538f998900bffd452d4b3465eea0d0cf98575118c1cb"
-    },
     "parts/turned.step:spec:867cfc1a38a5058174fd6bcaa237e1d5785c6cf08b02bfb7222b7783cc9d4e32": {
       "pdf": "85247fc4a73bea7a4964705e629b114be6ce3e4ec28f64f3b9d592a8a0f2a431",
       "svg": "61e24ed957807e1df4a1b8200e215f26873285380d487ca8dff145179802af72"
@@ -2858,10 +2790,6 @@
     "parts/turned.step:spec:ab1df324bd975739e618041979921eda63f70ab3c7261459d276dd26c0d7fa69": {
       "pdf": "c4195434c638a63ac36ff4d337bf6ab52c696463cafae1bc61067a53029d86a9",
       "svg": "5c9b94e98f8fd885cb27caee646932736faa8c3038f45c906e71f907a95838c4"
-    },
-    "parts/turned.step:spec:abdce8007c03a6c13912ec9174d117d04921bcb9ab746d7169dd1e40dd9aafda": {
-      "pdf": "4eac2f91dea943bbb5f06f9d6daea15b4387ccd70bab33c8c92db326f23e1f2e",
-      "svg": "251d424a08d3d30f09e20764cf3112b7021133fd1be803574388c74372e69fc8"
     },
     "parts/turned.step:spec:acd1bf04eaa9c31b77dc50e39c1795108808285f632f39a37179e0957af45069": {
       "pdf": "e8e7fcbb5697b516cb5abac6460ac5727f44bf55c5bd52b3127dd765054d5b63",
@@ -2968,12 +2896,6 @@
       "pdf": "015b5731aad5de9c641df0bfb72462f6a840616bc69a3c6edf28441d15e628fa",
       "svg": "61415038d55e3aca3fb0b2bcf84099e123e3b8a3be700bf292c76feee53dc8ed"
     },
-    "pmi/step/hw_thumbwheel_notes_add.step:default": {
-      "svg": "5e7bbc5d04d3be96571493d469cea460073165d3e1a0fcf4e5e51c7872410a84"
-    },
-    "pmi/step/hw_thumbwheel_thread_knurl_intent.step:default": {
-      "svg": "d442a46be81ee3a69123d7aef20a4024a099857b4e46d4ea7087e463974eb024"
-    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:00ac8b427572c9f0e40a33966fcbc33ab1828f7e26068db901755920313a35f3": {
       "pdf": "42f6cd6d5053b5d3606247c953b1d8273505edf272607ef38313b4b0882cac06",
       "plan": "214be25bbe29c8c3a46536e81c9aaa306de2b71816f4d4d6a4b21578f1f288ad",
@@ -3025,41 +2947,6 @@
     "pmi/step/nist_stc_10_asme1_ap242-e2.stp:default": {
       "pdf": "53136b4a9f863f6612cb599e2ec7467320b1cc0e168835b495e1197330051955",
       "svg": "5e567ab559538b1f25663428615f44ff0a0403f1aea975a5b5ad4ee7287ae114"
-    },
-    "pmi/step/spool_fits.step:default": {
-      "pdf": "2efb0ecafc627b0915758f209ecc751cb4d70494b10f32aed40abc5c41f15708",
-      "svg": "2ac7e16f5990bee8d5d496439398a4c761d08ca21a40ef3753fff157c27e76a6"
-    },
-    "pmi/step/spool_fits.step:spec:219689b512f9910347c6aba5e2059522c3ca9d5ccd99148d6625488e7d121ab6": {
-      "pdf": "fc05be772bab7c41cca44a78782e693244569c9540a2cc04094742b38b04c25a",
-      "svg": "ebc9f3be306eb703eeb503ee152ac34c4555f81fa9f6e2ace3f3a75d1f4ed118"
-    },
-    "pmi/step/spool_fits.step:spec:36e9bcea03a667b957806ba18ef97a4aa52caf6b8a650ebd8419df0d25310d07": {
-      "pdf": "42a8990b92e6a3a9125f7de98ab0535b778ea9bba4795f01d9bb8f503374cb58",
-      "svg": "0404f8722994d17b81996b41f887d494bcf54e2e8a2254c87e64f95f9e255215"
-    },
-    "pmi/step/spool_fits.step:spec:4073fe09b7ccbf8ec6ebbad2e7c5ba84c06592545a77f9855952faedea7428bf": {
-      "pdf": "1c4f186ce8fa447e4f56c98a18e7ab160c9768736bf791f1b14c476b81e67e1b",
-      "svg": "065857f509f3979bb1b147e67c3f8dc8d3491480b71b01b82e72b5ba9d861c2a"
-    },
-    "pmi/step/spool_fits.step:spec:a2feabf220a6abc4b31a6cf7211340c4a4950320ef0df3e9ba22ec041fc2c4e4": {
-      "pdf": "2bea0c02a933b2e5ac903a4bcf306db83ea7bf183b2c8fe90412780f9bce6eff",
-      "svg": "9cf5c47c48a3601842d9fa955d0f6395469dbc601be8d332c6f3fda03a223c74"
-    },
-    "pmi/step/spool_fits.step:spec:a878fa23eb1b7999524cce90b0c5d838c24e362167c27e46e9c2a7f65805a87f": {
-      "pdf": "15cbddcc428753c53f06f58e6dbd6e7d904fac1b430b58b22fce7f1e163c3528",
-      "svg": "fb54dc2005a89f4999bd353b1822cf259c0941bf60cf321f8d8b868766c40e24"
-    },
-    "pmi/step/spool_fits.step:spec:bd5da2ba31760935df1df88b72ba415c8b1f6e45f50907ec85edf33146c81eec": {
-      "pdf": "5caba598cab6e8aabcff8b1b5245b1d3ccac07d97e19301d9efd9a5174b17f1f",
-      "svg": "395e3afba038d19989c38f266be989a5e6758239b2920971d34a6b80546f1be8"
-    },
-    "pmi/step/spool_fits.step:spec:dffccac0b807104b4336e376718f4c6acfbac84a3ce8eb00d229ecab24998a4b": {
-      "pdf": "3ed407dd27cc9dbf22f0b5112804839e59535f0a4b59b21809acf39bed2a107c",
-      "svg": "5ebafc93390eb6755575a8789f83b1543d0136cf6caa880f031f486612357d82"
-    },
-    "pmi/step/thumbwheel_thread_knurl.step:default": {
-      "svg": "c259924ed2e1e64d0e885692650fbb9e491263873b4b7b07476bdee71a48cb0c"
     }
   },
   "macos": {}

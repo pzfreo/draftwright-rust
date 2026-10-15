@@ -7095,4 +7095,65 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   dimension_rules 19, dims_grooves_flats 7, placement_intent 13, wording unit 2; fmt; strict
   release Clippy; Python quality 40 and CI acceptance 21; schema generation no diff; scripted
   MCP 7/7 with `tasks.json` and the scripted answers unchanged. No quality.py run: no SVG changed.
-||||||| d95f5709
+
+## F1 external threads and knurls drawn (2026-10-15, unattended; overturnable judgements)
+
+- haecceity's AP242 external `thread` (the editor's M10×1.5-6g on the spindle's ⌀10) is now
+  projected like the internal one, as a structured `external_thread`, and lowered to its turned
+  step. Its callout prints draftwright's designation (`M10 x 1.5-6g RH, FULL AVAILABLE LENGTH`)
+  **in place of** the plain `ø10`, as #23 asks (draftwright prints `ø10 M10 x …`). Kept: "RH"
+  and ", FULL AVAILABLE LENGTH" exactly as draftwright prints them. When the table is used
+  (`SEE MFG n`) the diameter stays.
+- Thread and knurl depiction are render furniture on a new `thin` layer (only drawings that
+  have such lines get it), not plan items: no wire-format change, and they are not annotation
+  obstacles or lint `Drawn` items. Profile views only; section views and end views (ISO 6410's
+  ¾ circle) are not drawn. Minor diameter d3 = d − 1.22687·P. The thread is drawn over its
+  cylinder (not over a tip chamfer). No separate limit line: ownership requires the thread
+  length to be the step's cylinder or span, so the shoulder edge is the limit and the step
+  length dimension states the length.
+- Knurl band: middle half of the knurled length (all of it when that is under one gap), lines
+  the pitch apart on paper but at least 3 mm, straight along the axis or diamond at ±30°.
+  Python draftwright draws neither; this is the usual convention, not a port.
+- Byte guard: nine cases change, all parts that carry threads or knurls (bolt_thread_knurl ×6,
+  thumbwheel_thread_knurl, hw_thumbwheel_notes_add: SVG/PDF/PNG gain only the `thin` layer;
+  hw_thumbwheel_thread_knurl_intent: its haecceity-written M5 external thread is now projected,
+  so its plan changes too). Approved under stream `f1-ext-threads-knurl` with macOS hashes; the
+  three stale Linux SVG overrides for those cases were removed. Linux must be recorded with
+  CI's `record_single_sheet` workflow before the guard passes on Linux.
+
+## F1 fix round (2026-10-15, unattended; overturnable judgements)
+
+- Review major (leader on the outline): a turned step's diameter callout may no longer take a
+  leader within 15° of the silhouette it points at (hard blocker in `dims/leaders.rs`, applied
+  to every turned step diameter, `Want::turning` now set on those callouts). 15° is a judgement:
+  ISO 128-22 asks for an angle but states no figure. The spindle's
+  `M10 x 1.5-6g RH, FULL AVAILABLE LENGTH` now meets the ⌀10 silhouette at an angle; with that
+  the default sheet's fill tie (A3 2:1 28.1% against A4 1:1 28.6%) goes to A4 1:1, where the
+  leader also meets it at an angle (A3 2:1 still does when the Spec names it; both checked by
+  `the_threads_leader_meets_the_silhouette_at_an_angle`).
+- The same defect was common on base sheets (vertical leaders running down a silhouette), so
+  the rule moves 37 single-sheet cases beyond the 9 already approved, 46 in all (GRM-03 ×15, GRM-05,
+  string_post ×2, nist_ctc_05 ×4, turned ×2, assembly_plate_pin ×3,
+  hw_assembly_plate_pin_intent ×2, spool_fits ×8; the 6 bolt_thread_knurl cases already
+  approved move again). Plans were diffed old/new per case: only callout leaders (and, in a few, the
+  neighbour callouts the joint assignment re-solves) move; turned.step's tolerance spec
+  (abdce800) flips A3 2:1 → A4 1:1 on a 0.1% fill tie. Looked at as a draftsman: GRM-03,
+  GRM-05 and assembly_plate_pin read better; on bolt_thread_knurl and turned.step at A4 1:1
+  the only clear alternative the placer finds is a longer leader across the part to the far
+  silhouette. That is unambiguous where the old one was not, but it is not pretty. Requiring the leader to
+  arrive from outside the part was tried (as a hard blocker and as a crossing-weight penalty);
+  it flipped the sheets of assembly_plate_pin (A4 1:5 → A2 1:1) and spool_fits (→ A3 1:2) and
+  did not improve the bolt, so it was dropped. Better candidates for silhouette sites (an
+  angled leader from above, clear of the step dimensions' extension lines) are the follow-up.
+- Review minor (editor staleness): the session's view fragments now carry their view's
+  thread/knurl thin lines (layer `thin`), and `furniture` none, so a moved view's lines move with
+  it (`thread_and_knurl_lines_travel_in_their_views_fragment`).
+- Review minor (no limit line; thread shorter than its band, or no length): unchanged and
+  still refused with draftwright's reasons. The ownership rules are draftwright's
+  (`lower_ap242_manufacturing_requirements`): an external thread is owned only when its length
+  is the step's cylinder or span, or when its prose says full available length. Drawing a
+  partial thread (minor-diameter line over the stated length from the free end, a thick limit
+  line, a length dimension) means choosing the free end and adding a dimension item. That is
+  a separate change.
+- Linux single-sheet hashes for every approved case of this stream still need CI's
+  `record_single_sheet` workflow; stale Linux overrides of the changed cases were removed.
