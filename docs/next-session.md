@@ -7096,3 +7096,40 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   release Clippy; Python quality 40 and CI acceptance 21; schema generation no diff; scripted
   MCP 7/7 with `tasks.json` and the scripted answers unchanged. No quality.py run: no SVG changed.
 ||||||| d95f5709
+
+## F2: surface texture from the PMI as ISO 1302 symbols (draftwright-rust #18)
+
+- **Projection** (`src/pmi.rs`, `PartReader::semantic_textures`): every haecceity
+  `SurfaceTexture` is a manufacturing-requirement record, so none is reported
+  `pmi_not_extracted` any more. The part's own (`on: None`) is kind `surface_texture`, labelled
+  `Ra 3.2 µm unless otherwise specified` (what draftwright's text route states), so the existing
+  `sheet_requirements` draws it as the default finish; one on faces is kind `surface_finish`
+  (draftwright's face-finish kind), labelled `Ra 0.8 µm`. `fields` hold `material removal` and
+  each parameter (characteristic → mm). Its geometry is a datum's (`finish_geometry`).
+- **General symbol**: unchanged geometry beside the title block; `material removal required`
+  adds ISO 1302's bar, `no material removal` its circle (`FinishPlaced.arcs`, optional, absent
+  otherwise). Python does not draw the ISO 1302 `(✓)` general-requirement form, so neither does
+  the port.
+- **Face symbol** (`gdt` kind `surface_finish`): attached as a datum symbol is (`pmi_lowering::
+  edge_on`, factored out of `datum` with byte-identical messages), drawn standing on its leader's
+  shelf with the arrowhead on the face's edge line, parameters stacked under the bar. It keeps its
+  strip (no retries across the part); it may use the face's other proven sites. Python only draws
+  a face finish on one external cylinder; the port takes planes and cylinders, as for datums.
+- **Judgement calls (overturnable)**: a part-wide texture with any parameter but one `Ra` is
+  refused as not a supported document default (no multi-parameter general symbol); a note-route
+  default and an AP242 default on the same part are two defaults, so both are refused as
+  ambiguous (none of the fixtures has both); a refused face finish is a `pmi_not_lowered`
+  error, like the other refused PMI.
+- **Changed sheets**: manufacturing_pmi (3 guard cases) and hw_every_kind gain the default finish
+  symbol (`Ra 3.2`); plan diff is the requirement, the not-projected problems and sheet
+  fill/basis; SVG diff the symbol only. Approved under stream `f2-surface-texture` with macOS
+  PNG hashes. hw_every_kind's stale Linux platform override was removed: **record Linux with
+  `record_single_sheet`** on the PR. hw_every_kind's face texture is on two faces, one neither
+  planar nor cylindrical: refused honestly.
+- **Seen by eye** (scratch variants of the face fixture): top face (symbol above the front
+  view), bottom face (below), left face (left, moved to another site on the edge line because
+  datum C holds the first), -y face in the side view, where the face is datum B's too and the
+  leader crosses B's frame (reported as `annotation_ink_overlap`/`annotation_leader_crossing`;
+  cosmetic, the strip is the only one the face allows).
+- Unrelated: `docs/next-session.md` on main ends with a stray `||||||| d95f5709` merge marker
+  (line 7098); left as found.

@@ -263,6 +263,7 @@ fn rust_text(l: &Lowered) -> Value {
     match &l.glyph {
         Glyph::Datum { letter, .. } => json!(letter),
         Glyph::Label { text } => json!(text),
+        Glyph::Finish { lines, .. } => json!(lines.join(", ")),
         Glyph::ControlFrame {
             characteristic,
             tolerance,
@@ -301,7 +302,7 @@ fn rust_scope(l: &Lowered) -> Value {
             all_over,
             ..
         } => json!({"all_around": all_around, "all_over": all_over}),
-        Glyph::Datum { .. } | Glyph::Label { .. } => Value::Null,
+        Glyph::Datum { .. } | Glyph::Label { .. } | Glyph::Finish { .. } => Value::Null,
     }
 }
 
@@ -395,6 +396,7 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
             Some(Glyph::ControlFrame { .. }) => "control_frame",
             Some(Glyph::Datum { .. }) => "datum_ref",
             Some(Glyph::Label { .. }) => "note",
+            Some(Glyph::Finish { .. }) => "finish",
             None => "raw",
         };
         if item["lowered"] != outcome {

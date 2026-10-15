@@ -996,22 +996,13 @@
   "evidence": "Not a draftwright requirement (specify-core's 'pmi-assist answers' property, which haecceity does not model); draftwright's census does not hold it, the port reports it as info, as the plan does (as string_post_tapped.step's finding:#3221, rust-correct). port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
  },
  {
-  "code": "pmi_not_extracted",
+  "code": "pmi_not_lowered",
   "file": "hw_every_kind.step",
   "python": null,
   "rust": "error",
-  "source": "surface_texture:0:0",
+  "source": "manufacturing_requirement:#6715",
   "verdict": "rust-correct",
-  "evidence": "A surface texture requirement (haecceity's writer, quiddity-rust decision 5 of 2026-10-09; #6695-#6707 on the part's product definition shape #4: Ra 3.2, any process allowed, a part-wide finish; specify-core's Python files state that default as a requirement in words, drawn by both as the default finish symbol, e.g. thumbwheel_thread_knurl.step's #780 'Ra 3.2 µm unless otherwise specified'). draftwright never sees it: OpenCascade's XCAF has no surface texture (quiddity-rust docs/step-ap242.md, known_pmi_write.json 'occt': 'its two surface textures (XCAF has none; not-applicable)'), so its census holds no source and its drawing silently lacks it. The port's reading holds it (haecceity reads it) but does not project it to a draftwright record, so it reports it pmi_not_extracted as an error: true, and the honest outcome. Drawing it (a face finish symbol) is not ported in either: a gap recorded in docs/next-session.md, not a draftwright behaviour to match."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_every_kind.step",
-  "python": null,
-  "rust": "error",
-  "source": "surface_texture:0:1",
-  "verdict": "rust-correct",
-  "evidence": "A surface texture requirement (haecceity's writer, quiddity-rust decision 5 of 2026-10-09; #6708-#6727 on feature 9's shape aspect #6529, the two faces of the profile tolerance: Ra 0.8 and Rz 4, material removal required). draftwright never sees it: OpenCascade's XCAF has no surface texture (quiddity-rust docs/step-ap242.md, known_pmi_write.json 'occt': 'its two surface textures (XCAF has none; not-applicable)'), so its census holds no source and its drawing silently lacks it. The port's reading holds it (haecceity reads it) but does not project it to a draftwright record, so it reports it pmi_not_extracted as an error: true, and the honest outcome. Drawing it (a face finish symbol) is not ported in either: a gap recorded in docs/next-session.md, not a draftwright behaviour to match."
+  "evidence": "A surface texture requirement (haecceity's writer, quiddity-rust decision 5 of 2026-10-09; #6708-#6727 on feature 9's shape aspect #6529, the two faces of the profile tolerance: Ra 0.8 and Rz 4, material removal required). draftwright never sees it: OpenCascade's XCAF has no surface texture (quiddity-rust docs/step-ap242.md, known_pmi_write.json 'occt': 'its two surface textures (XCAF has none; not-applicable)'), so its census holds no source and its drawing silently lacks it. The port reads it as a face finish record (draftwright-rust #18) and would draw its ISO 1302 symbol on a leader from its face's edge line, but one of its faces is neither planar nor cylindrical, so no edge-on view shows it and it is refused (pmi_not_lowered, an error): the honest outcome, never a guessed attachment. The part-wide texture (surface_texture:0:0, Ra 3.2) is now drawn as the default finish symbol beside the title block, so it no longer differs."
  },
  {
   "code": "pmi_not_lowered",

@@ -1011,7 +1011,7 @@ fn settable(
     let base = match item.item.kind.as_str() {
         "dimension" => format!("dimensions/{}", items::key(id)),
         "view" => format!("views/{}", items::key(id.trim_start_matches("v:"))),
-        "control_frame" | "datum_feature" | "label" | "note"
+        "control_frame" | "datum_feature" | "label" | "surface_finish" | "note"
             if item.item.kind != "note" || id.starts_with("n:f:blend:") =>
         {
             format!("annotations/{}", items::key(id))

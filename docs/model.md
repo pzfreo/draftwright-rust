@@ -99,7 +99,9 @@ edited.
   them; or `refused` with the reason when a file naming semantic PMI cannot be read. Absent when
   the file has none (presentation alone is counted). `plan` lowers it (below); older analyses
   read with none. Manufacturing requirements (threads and knurls with their structured fields
-  and faces, general tolerances, surface texture and edge notes), surface labels and common
+  and faces, general tolerances, surface texture and edge notes; AP242 surface textures, a
+  part's as a default `surface_texture`, a face's as a `surface_finish` with its material removal
+  condition and parameters in `fields`), surface labels and common
   labels are records too; a surface or common label carries its proven sites (`geometry`, below)
   and is drawn as a label; the drawing-wide requirements are the sheet's (below); a thread or
   knurl carries its cylinders (`geometry.cylinders`) and is printed on its owner's callout
@@ -794,8 +796,8 @@ placement and rules) live there too; the notes block is draftwright's single-col
 
 `src/pmi_lowering.rs` lowers the Analysis's PMI as draftwright's `build_pmi_features` does, and
 `src/dims/gdt.rs` places and draws it. Plan items (`gdt`): `{id: "pmi:<identity>", kind:
-"control_frame" | "datum_feature", view, side, source, faces, cells, modifiers?, default, basis,
-placed}`.
+"control_frame" | "datum_feature" | "label" | "surface_finish", view, side, source, faces, cells,
+modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-rust #18).
 
 - **A feature control frame** for each geometric tolerance read without blockers: its
   characteristic, magnitude (`_fmt_pmi_magnitude`), the zone's `⌀` or `S⌀`, `Ⓜ` or `Ⓛ`, the
@@ -810,6 +812,14 @@ placed}`.
   plane goes to the plan when the side view is not drawn), on the side its outward normal points
   to (a cylinder's: its site's), from a proven site on its first face. Drawn as ISO 5459 draws it:
   the filled triangle on the surface, a line along the normal, the letter in a square frame.
+- **A surface texture symbol** (`surface_finish`) for each face's AP242 surface texture (ISO
+  10303-1110, which draftwright does not read): attached as a datum's symbol is (its faces all
+  planes or all cylinders on one principal plane or axis, from a proven site on the face's edge
+  line in the view that sees it edge-on, on its outward side), drawn as ISO 1302's symbol
+  standing on its leader's shelf, the leader's arrowhead on the edge line, the material removal
+  condition's bar or circle, and its parameters under the bar, one per cell and line (`Ra 0.8`,
+  µm). A face no principal view shows edge-on (a cone, a tilted plane) is `pmi_not_lowered`; one
+  whose view is not drawn is `pmi_not_drawn`. It keeps its strip, as a datum does.
 - **Placement**: in its strip beyond every dimension of its view there, nearest tier first,
   clear of the sheet's edge, the views, the title block, other labels and leaders; a frame with
   no clear tier tries draftwright's other strips, a datum keeps its side; one with no clear place
@@ -893,7 +903,9 @@ source, text, carrier, basis, placed?}`. The part's one general tolerance fills 
 block's tolerance cell (`carrier: title_block`) unless the spec states one, which wins (a
 different PMI one is `step_general_tolerance_disagreement`, a warning); its one `Ra <v> µm unless
 otherwise specified` is ISO 1302's symbol at the left end of the band above the title block
-(`sheet`, its collisions reported as a dimension's); each edge condition on no face is a general
+(`sheet`, its collisions reported as a dimension's), as is an AP242 surface texture on the part
+itself (F2: read as that default, its material removal condition drawn as ISO 1302's bar or
+circle, `placed.arcs` holding the circle; the field is absent otherwise); each edge condition on no face is a general
 note `pmi:<identity>` after the spec's notes (`notes`). Two of one default are ambiguous and
 neither is drawn (`pmi_not_lowered`). Each is an annotation of the drawing by its ID, over the
 runs that state it. A turned part keeps a view a PMI item is drawn in (draftwright's

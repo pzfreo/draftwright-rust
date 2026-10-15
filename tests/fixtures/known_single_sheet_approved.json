@@ -1,5 +1,29 @@
 {
   "cases": {
+    "parts/manufacturing_pmi.step:default": {
+      "pdf": "d8a4852a2d5866642c2e79956b06ba7c7cb9c7f723ece82cad0dce0df14f5b48",
+      "plan": "beb46d51d241253cb00d78e5a098d7331d98473e58a854f78efc0f0f6e2dbe9f",
+      "png": {
+        "macos": "5d47e1d7f066556aea5da4df5dad139d767c734bb07ff830d2e6ccab07f307d2"
+      },
+      "svg": "7c82a7e733bdfe051d3a724a272b31dd3898c03ab61f7d94f21aa2b8e80c436b"
+    },
+    "parts/manufacturing_pmi.step:spec:7f63f1f930c349e423b0cb908ab2c2a7beefdf64ab0c56e4c5df7be507577c84": {
+      "pdf": "3c76fe9109e27ee4fd5b163eb205c16624f845efba0c2f1f8b99e142f684e3ff",
+      "plan": "99ee0cb71b0ccc50ac766ceda2afad44ee1d15daa3baa131feab1caaf3508ab5",
+      "png": {
+        "macos": "37c1cb81a35a90304902f97b2786e5e5a08ce2584fccd068cd07e1d553f0c50c"
+      },
+      "svg": "5a6d2d0b89b806d8813a2dba3515ef4cbd410fa6f6249327e2e1cd0fdb4f57cf"
+    },
+    "parts/manufacturing_pmi.step:spec:ccfff0e43bf73f7f0177a622df2748c7573df300d97e3ef3007508f90708ae9f": {
+      "pdf": "1ba61e69336a7631abc19a3b138bde35532fe33b84cfb8e4c4d4e1e12fd0ca9a",
+      "plan": "3279f0be35d2798a7aba57c6dd1ec94b34e2d7aaac186046e85746ec67213b5e",
+      "png": {
+        "macos": "533821895d93f32bfa0fa75e4df97e909b808fca18b7a7290c03d56678b81624"
+      },
+      "svg": "cb4cc47abc0ed921ce99528c64ba15710da6c0f28f22406a3aba3dbe21baec34"
+    },
     "pmi/step/assembly_plate_pin.step:default": {
       "pdf": "90dad928624bc4cae5cc066ef819e7bbc56de9d1d47948f098b14006c5036bc8",
       "plan": "0f32be17ecf466906602c218882fded5c521ca5b2fbbeb64b419ac3770c2bcba",
@@ -44,6 +68,14 @@
         "macos": "b75e16da7975a2571c828801fce5eca22af677b61eb5a8cbdb4fd2ac10d4cae0"
       },
       "svg": "e3cbf1122a44687841db0c53b4c0ca537b8ff693f3ec3e1508b0b494f1844c8f"
+    },
+    "pmi/step/hw_every_kind.step:default": {
+      "pdf": "1d0113b1146d0b63d3a90d035e589f71694e87594b9615539c59de8e9093054c",
+      "plan": "3af1bb7f6508a6689f57b22744ae8925239990b1f85bcff957b24ca1f69c9c48",
+      "png": {
+        "macos": "6f19d9f9c01749d4adb5b31583248d4694e0afe38fe376fae9a96dfd1d1b6bbe"
+      },
+      "svg": "2ec3927f621ab9b5422a2f12251c1f97d527ca5ea4f99e54335e0683374446ae"
     }
   },
   "note": "Exact replacements for deliberate drawing changes merged after I1's single-sheet oracle. Each case keeps every format exact; the stream that changed it is named in streams. Applied after known_single_sheet_main_pins.json.",
@@ -57,6 +89,10 @@
     "g3-draw-assembly-part": {
       "cases": 5,
       "note": "The D4 warning assembly_drawn_whole: an assembly drawn whole (no part chosen) gains one plan problem naming its parts. Only the plan changes; SVG, PDF and PNG are byte-identical. Plan hashes re-recorded on the f3-problem-language merge (its problem wording applies to these plans too)."
+    },
+    "f2-surface-texture": {
+      "cases": 4,
+      "note": "F2 (#18): an AP242 part-wide surface texture (ISO 10303-1110) is the default finish: its ISO 1302 symbol and 'Ra 3.2' are drawn beside the title block, and the pmi_not_extracted problems for the read textures go (hw_every_kind's face texture is refused instead: its face is neither planar nor cylindrical). Plan diff: one requirement added, the not-projected problems replaced, sheet fill/basis; SVG diff: the symbol's three strokes, its glyphs and its text run only. macOS PNG hashes recorded; Linux PNG (and hw_every_kind's Linux pdf/svg, whose stale platform override is removed) to be recorded by CI's record_single_sheet job."
     }
   }
 }
