@@ -48,6 +48,16 @@ Use different drawing references for independent branches/tasks.
 | `get_spec` | Optional version/Spec, or drawing head | Spec and its immutable version hash |
 | `analyse` | `step`, optional `features` | One-shot full Analysis document |
 | `render` | `step`/`part_ref`, optional `features`, `format` (`png`/`pdf`), `sheet`, PNG region/overlay/dpi | One-shot render artifact metadata |
+| `parts` | `step` | The file's distinct parts: `{parts: [{part, name, product_id, faces, instances}]}` |
+
+**Assemblies.** `inspect_part`, `analyse` and `render` take an optional `part` with `step`: the
+index of one part of an assembly, as `parts` lists it, drawn alone in its own frame with its PMI
+only. A part registered alone has its own key, `<STEP SHA-256>_p<part>-<engine SHA-256>`; a
+`part_ref` already names its part, so `part` beside one is refused. Without `part` an assembly
+is drawn whole and its plan warns `assembly_drawn_whole`. `serve` offers the tool as
+`mcp_parts`, and its batch operations (`analyse`, `plan`, `render`, `review`, `open`) take the
+same `part`, with a `parts` operation; the compatibility `draftwright-mcp` server has a `parts`
+tool and a `part` argument too (docs/model.md, "Assemblies: one chosen part").
 
 Tool input and output schemas are standalone draft-2020-12 files under `schemas/mcp/`.
 Both adapters serve exactly those documents in `tools/list`, with `outputSchema` and

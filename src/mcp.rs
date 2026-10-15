@@ -10,7 +10,7 @@ use crate::session::{Delta, ItemAnswer, ItemFilter, ProblemFilter};
 use crate::stateless::{Cache, PAGE_BYTES, spec_hash};
 use serde_json::{Value, json};
 
-pub const TOOLS: [&str; 12] = [
+pub const TOOLS: [&str; 13] = [
     "inspect_part",
     "list_items",
     "get_item",
@@ -23,6 +23,7 @@ pub const TOOLS: [&str; 12] = [
     "get_spec",
     "analyse",
     "render",
+    "parts",
 ];
 const CORRECTION_ATTEMPTS: usize = 8;
 
@@ -32,7 +33,7 @@ pub const INSTRUCTIONS: &str = "Register STEP with inspect_part {step}; keep par
 fn description(tool: &str) -> &'static str {
     match tool {
         "inspect_part" => {
-            "Register a local STEP path (optional recognition JSON in features) and obtain part_ref and initial spec_version. Summary includes key_items (envelope sizes and a size/representative item per feature, bounded; list_items finds the rest). problem_filter optionally returns a paged problem_page with fixes in this same call. With part_ref, summarize the Spec's sheet, views, item/problem counts; multi-sheet results add sheets and sheet_details (number, size, scale, page). detail=true adds a lossless plan_ref readable with resources/read."
+            "Register a local STEP path (optional recognition JSON in features; optional part, the index of one part of an assembly from the parts tool, to draw it alone) and obtain part_ref and initial spec_version. Summary includes key_items (envelope sizes and a size/representative item per feature, bounded; list_items finds the rest). problem_filter optionally returns a paged problem_page with fixes in this same call. With part_ref, summarize the Spec's sheet, views, item/problem counts; multi-sheet results add sheets and sheet_details (number, size, scale, page). detail=true adds a lossless plan_ref readable with resources/read."
         }
         "list_items" => {
             "List stable item IDs, labels, views, kinds, sheet numbers (absent means sheet 1) and typed states for part_ref plus spec or spec_version. Filter by view/kind/state/feature or near an ID/region. Follow next_cursor with the same input. detail=true adds placement and anchors; default omits geometry."
@@ -67,6 +68,9 @@ fn description(tool: &str) -> &'static str {
         "render" => {
             "One-shot PNG or PDF render from a local STEP path (optional features) or registered part_ref, with optional spec/spec_version. format is png or pdf; sheet selects one page (default 1). PNG accepts region, overlay_ids (boolean or ID list) and dpi. Returns artifact metadata; read it via resources/read or use view_sheet for MCP image content."
         }
+        "parts" => {
+            "List the distinct parts of a local STEP path: each one's index (part), name, product_id, face count and number of placements (instances). Pass an index as part to inspect_part, analyse or render to draw that part of an assembly alone; without it an assembly is drawn whole, with an assembly_drawn_whole warning."
+        }
         _ => unreachable!("published tool"),
     }
 }
@@ -85,7 +89,8 @@ pub fn schema(tool: &str, output: bool) -> Option<Value> {
         "render_pdf",
         "get_spec",
         "analyse",
-        "render"
+        "render",
+        "parts"
     )?;
     Some(serde_json::from_str(text).expect("published schema"))
 }
@@ -430,6 +435,9 @@ fn corrective_error(
 }
 
 fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
+    if tool == "parts" {
+        return Ok(json!({ "parts": crate::api::parts(Path::new(text(args, "step")?))? }));
+    }
     let registered;
     let part_ref = if let Some(step) = args["step"].as_str() {
         if !["inspect_part", "analyse", "render"].contains(&tool) {
@@ -442,9 +450,18 @@ fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
                 "provide step to register or part_ref to query, rather than both",
             ));
         }
-        registered = cache.register(Path::new(step), args["features"].as_str().map(Path::new))?;
+        registered = cache.register_part(
+            Path::new(step),
+            args["features"].as_str().map(Path::new),
+            crate::api::request_part(tool, args)?,
+        )?;
         &registered
     } else {
+        if args.get("part").is_some_and(|p| !p.is_null()) {
+            return Err(Error::invalid(
+                "part is chosen when the STEP is registered: pass step with part (part_ref already names its part)",
+            ));
+        }
         text(args, "part_ref")?
     };
     let given = spec(cache, args)?;
