@@ -371,6 +371,10 @@ pub struct Plan {
     /// Canonical widths for the editor's snap guide; not part of the drawing document.
     #[serde(skip)]
     pub(crate) callout_widths: BTreeMap<String, f64>,
+    /// Each callout's automatic leader tip and view, the origin of an offset pin (#12): the
+    /// canonical plan's, held to the current frames; not part of the drawing document.
+    #[serde(skip)]
+    pub(crate) callout_tips: BTreeMap<String, (String, [f64; 2])>,
     /// Dimensions the spec leaves out, and why (ADR4-8: an authored omission says so).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub omitted: Vec<Omitted>,
@@ -417,6 +421,12 @@ impl Plan {
     /// callouts or a deserialised Plan: this metadata is retained only by planning.
     pub fn canonical_callout_width(&self, view: &str) -> Option<f64> {
         self.callout_widths.get(view).copied()
+    }
+    /// A callout's automatic leader tip `(view, [x, y])` in paper mm, from which a pinned
+    /// `place.offset` is measured. None for a non-callout, one with no automatic placement, or
+    /// a deserialised Plan: this metadata is retained only by planning.
+    pub fn automatic_callout_tip(&self, id: &str) -> Option<(&str, [f64; 2])> {
+        self.callout_tips.get(id).map(|(v, t)| (v.as_str(), *t))
     }
 }
 
@@ -3099,6 +3109,19 @@ fn plan_with_presentation(
     if inactive.is_empty() {
         spec.binding = Some(analysis.binding.clone());
     }
+    let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
+    let callout_tips = if canonical.is_some() {
+        &held
+    } else {
+        &dimensions
+    }
+    .iter()
+    .filter(|d| d.kind == "callout")
+    .filter_map(|d| {
+        let tip = d.placed.as_ref()?.lines.first()?[0];
+        Some((d.id.clone(), (d.view.clone(), tip)))
+    })
+    .collect();
     let mut plan = Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
@@ -3121,6 +3144,7 @@ fn plan_with_presentation(
             }
             widths
         },
+        callout_tips,
         dimensions,
         omitted,
         notes,

@@ -1409,6 +1409,65 @@ pub(super) fn intent_tip(frame: &Frame, sites: &[(super::P3, f64)], elbow: P2) -
     rim_tip(nearest(&page_sites(frame, sites), elbow), elbow)
 }
 
+/// A pinned callout whose bend is `offset` (paper mm) from its automatic leader tip, `held`'s
+/// first point (#12). The bend may sit inside the view. The leader still attaches radially to the
+/// site that tip lies on, so a bend dragged round the feature keeps a radial shaft; the label
+/// reads on the side the leader runs to, as an automatic callout's does. At the automatic bend
+/// it is the automatic ink itself. Without an automatic placement in this view the offset is
+/// taken from the first site's centre and the leader goes to the nearest site. The pin is never
+/// slid: crossings and contacts are reported against it.
+pub(super) fn offset_intent(
+    frame: &Frame,
+    w: &Want,
+    offset: P2,
+    held: Option<(&Placed, &[String])>,
+) -> Option<Placed> {
+    let Shape::Callout { sites } = &w.shape else {
+        return None;
+    };
+    let sites = page_sites(frame, sites);
+    let held = held.and_then(|(p, terms)| Some((p, *p.lines.first()?, terms)));
+    let anchor = match held {
+        Some((_, [tip, _], _)) => tip,
+        None => sites.first()?.0,
+    };
+    let elbow = [anchor[0] + offset[0], anchor[1] + offset[1]];
+    let tip = match held {
+        Some((_, [tip, _], _)) => {
+            let on = |s: &(P2, f64)| ((s.0[0] - tip[0]).hypot(s.0[1] - tip[1]) - s.1).abs();
+            let site = *sites.iter().min_by(|a, b| on(a).total_cmp(&on(b)))?;
+            rim_tip(site, elbow)
+        }
+        None => rim_tip(nearest(&sites, elbow), elbow),
+    };
+    let near = |a: P2, b: P2| (a[0] - b[0]).abs() < 1e-6 && (a[1] - b[1]).abs() < 1e-6;
+    if let Some((p, [t, e], terms)) = held
+        && near(t, tip)
+        && near(e, elbow)
+    {
+        return Some(super::placement::relabel(p, terms, w));
+    }
+    let right = if (elbow[0] - tip[0]).abs() > 1e-9 {
+        elbow[0] > tip[0]
+    } else {
+        // A vertical leader keeps the automatic label's side, else reads to the right.
+        held.is_none_or(|(p, _, _)| p.lines.get(1).is_none_or(|s| s[1][0] >= s[0][0]))
+    };
+    let end = [
+        elbow[0] + if right { SHOULDER } else { -SHOULDER },
+        elbow[1],
+    ];
+    let ink = label_ink(&w.terms, font());
+    let (label_at, label_box) = label_geometry(elbow, end, right, ink.min, ink.max);
+    Some(Placed {
+        lines: vec![[tip, elbow], [elbow, end]],
+        arrows: vec![arrow(tip, elbow)],
+        label_at,
+        rotation: 0.0,
+        label_box,
+    })
+}
+
 /// Keep a prescribed strip and lane. Prefer its station; shift only to reduce feature
 /// crossings without increasing contacts with other prescribed pins. A pin keeps its ink;
 /// the finished-plan audit reports its feature crossings. Free ink yields later.

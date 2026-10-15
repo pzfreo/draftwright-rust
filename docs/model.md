@@ -295,7 +295,8 @@ old documents read with single-sheet defaults.
 #### Placement (`place`, S3)
 
 Dimensions (linear dimensions and callouts, including holes, fillets and chamfers) and PMI
-frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`:
+frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`; callouts
+also take `offset` (below):
 
 | Field | Meaning |
 | --- | --- |
@@ -303,6 +304,7 @@ frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`:
 | `side` | `above`, `below`, `left` or `right` of the carrying view's projected envelope. A linear dimension uses the two sides parallel to its measured span; incompatible sides are refused with the choices. |
 | `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; callout columns on the left/right use the widest canonical label on that view plus shoulder and clearance, so labels at the same along position have distinct columns; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
+| `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
 
 A pinned callout above or below a view puts its text on the side its leader runs to:
@@ -311,6 +313,18 @@ right. Left/right columns keep their stated side. A pinned callout's bend and la
 never slid to avoid a feature crossing. The existing `leader_through_feature` warning
 names the callout and crossed feature in `subjects`, also names the callout in `refs`,
 and explains that the pinned label's leader crosses part features and keeps its position.
+
+A pinned `offset` (#12) can put a callout's label anywhere, including the open space inside its
+view, where the automatic solver often puts it and side/lane/along cannot. The bend goes at the
+automatic leader tip plus the offset. That tip is the canonical plan's (the part's default
+plan, as a bare pin keeps), moved with its view when packing moves the view, so unrelated edits
+cannot move the pin. The leader re-attaches radially to the site the automatic tip lies on, so
+a bend dragged round its hole keeps a radial shaft, and the text reads on the side the leader
+runs to (a vertical leader keeps the automatic side). With the automatic offset it is the
+automatic ink exactly: pinning a callout where it is moves nothing. Without an automatic
+placement in that view, the offset is taken from the callout's first site centre and the leader
+goes to the nearest site. The bend and label are never slid; a crossing is the
+`leader_through_feature` warning above, and a label over the view is `annotation_over_view`.
 
 Existing angular PMI keeps its measured sector: `lane` increases the radius in paper steps and
 `along` selects a fraction of its arc. A requested `side` is reported as
@@ -1210,10 +1224,16 @@ item addresses, and refuses non-callouts. Re-read it after applying an edit to a
 view, sheet or this callout's text. It describes explicit exterior `side/lane/along`
 placement. Automatic labels can lie inside the view or use the automatic solver's
 other exterior candidates; read their actual geometry through `item`/`plan`.
-A bare pin retains that automatic geometry. Dragging a pinned label into an
-interior blank region still needs a separate Spec design decision (issue #12's
-comment); these guides do not add that authoring operation. This Rust session query
-is available to editor bindings; it adds no MCP tool or JSON-lines operation.
+A bare pin retains that automatic geometry. To pin a label dragged anywhere, including into
+the view's open space, use `place.offset`: `Session::callout_offset(address)` returns
+`CalloutOffset { view, tip, bend, offset }` (paper mm), where `tip` is the automatic leader tip
+the offset is measured from, `bend` the bend as drawn now and `offset = bend - tip`. Pinning a
+drop at `b` is `{"offset": b - tip, "pinned": true}`; pinning the returned `offset` keeps the
+callout exactly where it is. It reads planning metadata only and refuses non-callouts and a
+callout with no automatic placement. Editors with their own Plan read the same tip with
+`plan.automatic_callout_tip(id) -> Option<(view, [x, y])>` (`None` on a deserialised Plan).
+These Rust session queries are available to editor bindings; they add no MCP tool or
+JSON-lines operation.
 
 Editors that keep their own session can call public
 `dims::label_rows(&analysis, view, width)` directly. Pass the greater of the

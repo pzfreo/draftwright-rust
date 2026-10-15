@@ -7134,3 +7134,28 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
     schema budget 40,750 to 41,300 bytes (the field adds 540 across twelve tools).
   - Found, not pursued: this file ends with a stray `||||||| d95f5709` merge marker from an
     earlier integration.
+
+- From stream f5-pinned-in-view (#12's comment: a pinned callout inside its view), base bd12d46e:
+  - **`place.offset`** (`[dx, dy]` paper mm, callouts only, needs `pinned: true`, excludes
+    side/lane/along; refused otherwise). The bend goes at the automatic leader tip plus the
+    offset; the tip is the canonical plan's (as a bare pin's ink), held to the current frames.
+    The leader re-attaches radially to the site that tip lies on; text reads on the side the
+    leader runs to. At the automatic offset the automatic ink is returned unchanged
+    (`dims::leaders::offset_intent`). Pins are never slid; crossings are the existing
+    `leader_through_feature` warning, a label over the view `annotation_over_view`.
+  - **Session API:** `Session::callout_offset(address) -> CalloutOffset {view, tip, bend,
+    offset}` and `Plan::automatic_callout_tip(id)` (non-wire planning metadata, like
+    `canonical_callout_width`). `item_options.settable` lists `…/place/offset` for callouts
+    (`range` [-1000, 1000]); the MCP `place` schema gains `offset`. Wire format: additive only.
+  - Editor sample plate `hole_pattern:1`: automatic bend (78.7, 99.8); pinned with its offset
+    (-0.868, -6.946) the plan's ink is identical (base: a bare side/lane pin moved it to
+    (38.9, 85)). Interior drop (90.6, 100.7) draws there with no problem; a drop on the ⌀8 bore
+    is kept and reported.
+  - Judgement calls (overturnable): the origin is the automatic *tip*, not the site centre, as
+    the brief named; a pattern's leader stays on the hole the automatic leader used rather than
+    jumping to the nearest; with no automatic placement in the view the origin is the first
+    site's centre. `callout_offset` on a plan without pins reports the tip of that plan, which
+    equals the canonical tip unless text edits (tolerances, fits) moved the free leader; pinning
+    then lands relative to the canonical tip (a small jump in that case only). Offset on
+    annotations (PMI) is refused for now.
+  - Default output byte-identical (single-sheet guard 28/28, no approvals).

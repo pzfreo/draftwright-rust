@@ -18,6 +18,10 @@ pub struct Place {
     pub lane: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub along: Option<Along>,
+    /// A pinned callout's bend relative to its automatic leader tip, `[dx, dy]` in paper mm
+    /// (y up). It can put the label inside the view; it excludes side, lane and along.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<[f64; 2]>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub pinned: bool,
 }
@@ -142,6 +146,28 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
                 format!("The placement view of {id} must be a principal view."),
                 ["front", "plan", "side"].map(String::from).to_vec(),
             ));
+        }
+        if let Some(o) = p.offset {
+            if s.annotations.contains_key(id) {
+                return Err(error(
+                    format!("The placement offset of {id} applies only to callouts."),
+                    ["side", "lane", "along"].map(String::from).to_vec(),
+                ));
+            }
+            if p.side.is_some() || p.lane.is_some() || p.along.is_some() || !p.pinned {
+                return Err(error(
+                    format!(
+                        "The placement offset of {id} is a pinned form of its own: set pinned, and no side, lane or along."
+                    ),
+                    vec!["offset, pinned".into(), "side, lane, along".into()],
+                ));
+            }
+            if o.iter().any(|v| !v.is_finite() || v.abs() > 1000.0) {
+                return Err(error(
+                    format!("The placement offset of {id} must be within ±1000 paper mm."),
+                    vec!["-1000..1000".into()],
+                ));
+            }
         }
         if p.lane.is_some_and(|n| n > 1000) {
             return Err(error(
@@ -676,7 +702,7 @@ pub(crate) fn finish(plan: &mut Plan, analysis: &Analysis) {
 }
 
 pub(crate) fn automatic_pin(p: &Place) -> bool {
-    p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none()
+    p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() && p.offset.is_none()
 }
 
 pub(crate) fn anchor_delta(base: &Plan, views: &[PlannedView], view: &str) -> Option<[f64; 2]> {
