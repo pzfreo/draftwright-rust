@@ -487,6 +487,11 @@ impl Reader {
     /// The reading to put in `Analysis::pmi`. Identical bytes do not parse again.
     /// Keep one reader per immutable part; replace it when the geometry changes.
     pub fn attach(&mut self, bytes: &[u8], part: &Part) -> Option<Reading> {
+        let bytes = match crate::model::step_bytes(bytes) {
+            Ok(b) => b,
+            Err(e) => return Some(Reading::Refused(e)),
+        };
+        let bytes = &*bytes;
         let source = Sha256::digest(bytes).into();
         if self.source != Some(source) {
             self.reads += 1;
@@ -555,6 +560,7 @@ pub fn read(bytes: &[u8], part: &Part) -> Result<Report, String> {
 /// [`read`], where the drawing's *part* is part *chosen* of the file's parts read alone
 /// (`haecceity::StepFile::part`), when given ([`report_part`]).
 pub fn read_part(bytes: &[u8], part: &Part, chosen: Option<usize>) -> Result<Report, String> {
+    let bytes = &*crate::model::step_bytes(bytes)?;
     let defs = read_part_definitions(bytes).map_err(|e| format!("cannot read the parts: {e}"))?;
     read_with(bytes, part, &defs, chosen)
 }

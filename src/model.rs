@@ -621,6 +621,27 @@ fn unanalysed(failed: bool, message: String) -> Unanalysed {
     Unanalysed { failed, message }
 }
 
+/// The STEP text of *bytes*: decompressed in memory when they are gzip (they begin with its
+/// magic bytes `1f 8b`, whatever the file is called), else as given. Every hash or binding of a
+/// STEP file is of these bytes, so a `.step` and its `.step.gz` bind identically.
+pub fn step_bytes(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, String> {
+    if !bytes.starts_with(&[0x1f, 0x8b]) {
+        return Ok(std::borrow::Cow::Borrowed(bytes));
+    }
+    let mut text = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::MultiGzDecoder::new(bytes), &mut text)
+        .map_err(|e| format!("it is gzip but cannot be decompressed: {e}"))?;
+    Ok(std::borrow::Cow::Owned(text))
+}
+
+/// The STEP text of the file at *path* ([`step_bytes`]: gzip is decompressed).
+pub fn read_step_file(path: &Path) -> Result<Vec<u8>, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    step_bytes(&bytes)
+        .map(std::borrow::Cow::into_owned)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))
+}
+
 /// Reads the STEP file at *path*: the part, and its analysis, without features.
 pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_with(path, None)
@@ -629,7 +650,9 @@ pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
 /// The distinct parts of the STEP file *bytes* (named *path*, for messages), in haecceity's
 /// order: what [`analyse_step_part`]'s *part* indexes.
 pub fn parts(path: &Path, bytes: &[u8]) -> Result<Vec<FilePart>, Unanalysed> {
-    let defs = haecceity::step::read_part_definitions(bytes).map_err(|e| step_refused(path, e))?;
+    let bytes = step_bytes(bytes)
+        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
+    let defs = haecceity::step::read_part_definitions(&bytes).map_err(|e| step_refused(path, e))?;
     Ok(file_parts(&defs))
 }
 
@@ -682,8 +705,7 @@ pub fn analyse_with_part(
     recognition: Option<&Path>,
     part: Option<usize>,
 ) -> Result<(Part, Analysis), Unanalysed> {
-    let bytes = std::fs::read(path)
-        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
+    let bytes = read_step_file(path).map_err(|e| unanalysed(false, e))?;
     let (part, mut analysis) = analyse_step_part(path, &bytes, part)?;
     if let Some(r) = recognition {
         let json = std::fs::read_to_string(r)
@@ -724,9 +746,20 @@ pub fn analyse_step_part(
     bytes: &[u8],
     chosen: Option<usize>,
 ) -> Result<(Part, Analysis), Unanalysed> {
+    let bytes = &*step_bytes(bytes)
+        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
     // The file's part definitions are read in both cases (the PMI reading needs them too, and
-    // is given these rather than reading them again).
+    // is given these rather than reading them again). A gzipped file's name is its STEP name
+    // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let stem = || {
+        let plain = path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("gz"));
+        let path = if plain {
+            Path::new(path.file_stem().unwrap_or_default())
+        } else {
+            path
+        };
         path.file_stem().map_or(String::new(), |s| {
             s.to_string_lossy().trim_end_matches(".step").to_string()
         })
