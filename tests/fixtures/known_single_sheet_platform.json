@@ -2956,10 +2956,6 @@
       "pdf": "8d3ce2435225ec645daf1b0597dc4b76200ea740784978708c8730c0cad85c53",
       "svg": "fb20007d5dce3e0c298cba1c81cc98dd432a3b7f90613aa2ce20673b18807086"
     },
-    "pmi/step/hw_spool_fits_intent.step:default": {
-      "pdf": "3e7d5bcb494feba13b9e70f827a99deb91111a231ca9a7489f2647632f854f8e",
-      "svg": "1f173476d564cf7e84df5f55b42777d34147cd078176443a0b7a7660674b427b"
-    },
     "pmi/step/hw_thread_removed.step:default": {
       "pdf": "111385cc9ce41947f9355de350861d2fb2a9647a0b271b2f039b05be79b4f5af",
       "svg": "05239e492b82ae222becded4c12021d19d55722f6a425c8bc578433c8dc1e411"
@@ -2970,9 +2966,6 @@
     },
     "pmi/step/hw_thumbwheel_notes_add.step:default": {
       "svg": "5e7bbc5d04d3be96571493d469cea460073165d3e1a0fcf4e5e51c7872410a84"
-    },
-    "pmi/step/hw_thumbwheel_thread_knurl_intent.step:default": {
-      "svg": "d442a46be81ee3a69123d7aef20a4024a099857b4e46d4ea7087e463974eb024"
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:00ac8b427572c9f0e40a33966fcbc33ab1828f7e26068db901755920313a35f3": {
       "pdf": "42f6cd6d5053b5d3606247c953b1d8273505edf272607ef38313b4b0882cac06",

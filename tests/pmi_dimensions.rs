@@ -816,6 +816,49 @@ fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
 }
 
 #[test]
+fn a_shaft_fit_is_printed_on_its_turned_diameter_with_its_iso_286_limits() {
+    // #30: the editor's spindle states its ø15 journal as LIMITS_AND_FITS('g','shaft','6')
+    // with no limits; the turned step prints the class and its ISO 286-2 limits, as a hole fit
+    // prints on its bore's callout (`ø 4 H7 (+0.012/0) THRU` on the same part).
+    let bytes = gunzip(
+        &std::fs::read(root().join("tests/fixtures/samples/spindle_shaft_fit.step.gz")).unwrap(),
+    );
+    let (_, a) = analysed("spindle_shaft_fit.step", &bytes);
+    let fit = records(&a)
+        .iter()
+        .find(|r| r.fit.as_deref() == Some("g6"))
+        .unwrap();
+    assert_eq!(fit.blockers, Vec::<String>::new());
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label.starts_with("ø15"))
+        .unwrap();
+    assert_eq!(d.label, "ø15 g6 (-0.006/-0.017)");
+    assert!(d.placed.is_some());
+    assert!(d.basis.contains("lower_ap242_external_diameter_tolerances"));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| REFUSALS.contains(&p.code.as_str()) && p.refs.contains(&fit.source_id)),
+        "the g6 fit is drawn, not refused"
+    );
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.label.contains("H7 (+0.012/0)")),
+        "the hole fit still prints"
+    );
+    // `sheet/fit_limits: false` drops the limits and keeps the class, as for a hole fit.
+    let mut quiet = Spec::default();
+    quiet.sheet.fit_limits = Some(false);
+    let plan = model::plan(&a, &quiet).unwrap();
+    assert!(plan.dimensions.iter().any(|d| d.label == "ø15 g6"));
+}
+
+#[test]
 fn the_same_part_gives_the_same_plan_and_bytes() {
     for stem in ["assembly_plate_pin", "nist_ftc_10_asme1_ap242-e2"] {
         let (part, a, plan) = planned(stem);

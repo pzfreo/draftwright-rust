@@ -2742,6 +2742,7 @@ Logs are in `target/d1-fix-logs/`.
 - Still refused: PMI shaft classes without limits on bosses (`g6` on the spool and pin), which
   are not lowered for other reasons (`symbolic_bore` is bores only). Their limits are now
   computable from the same table if they are lowered later.
+  (Superseded by J3 below: a shaft class on a turned diameter is now printed with its limits.)
 
 ## One span, one dimension for PMI (maintainer's request, 2026-10-11)
 
@@ -7169,3 +7170,35 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   cosmetic, the strip is the only one the face allows).
 - Integration removed the stray `||||||| d95f5709` merge marker both streams found at the end of
   this file.
+
+## J3: ISO shaft fits on turned diameters (draftwright-rust #30)
+
+- **Change** (`src/dims/pmi_dimensions.rs`): a PMI diameter stated by an ISO 286 class alone
+  is symbolic when the class matches its cylinders: an upper-case hole class on proven internal
+  cylinders (as before) or a lower-case shaft class on proven external ones (new; a mixed-case
+  class is neither). A symbolic shaft fit's `stated without limits` blocker is cleared as a
+  bore's is, its limits come from the existing ISO 286 table (`tolerance::deviations`, which
+  already held h, g, f, js, k, n, p), and it rides the existing external-diameter band path
+  (`Outcome::Band`, `lower_ap242_external_diameter_tolerances`), printing
+  `⌀15 g6 (-0.006/-0.017)` (or the class alone under `sheet/fit_limits: false`). With no unique
+  turned owner it is refused ("a symbolic shaft fit requires a uniquely matched recognised
+  turned diameter"), never drawn standalone, mirroring the bore rule. A shaft class on a bore
+  stays refused (`tests/editor_session.rs`' h7-on-a-bore check).
+- **Fixture**: `tests/fixtures/samples/spindle_shaft_fit.step.gz` (the editor's CNC-review
+  spindle), kept outside the byte guard's directories.
+- **Changed sheets**: hw_spool_fits_intent (2× ø130 g6, ø70 f7 OD) and
+  hw_thumbwheel_thread_knurl_intent (ø10 f7); approved under stream `j3-shaft-fits`; their stale
+  Linux overrides were removed: **record Linux with `record_single_sheet`** on the PR. The
+  known PMI dimension/drawing lists now carry these as `rust-correct` label differences
+  (draftwright drops the class), and the coverage list loses their refusals.
+- **Judgement calls (overturnable)**:
+  - The sheet prints ASCII hyphens in the limits (`(-0.006/-0.017)`), as the existing hole-fit
+    path and draftwright's `fits._fmt_dev` do; the issue's typographic minus is not used.
+  - A symbolic shaft fit with no unique turned owner is refused, not drawn as a standalone
+    leader (the bore rule's choice); a hole class on an external cylinder is refused.
+  - **Leader routing not fixed here**: the longer labels sometimes send the turned diameter's
+    leader straight along its own silhouette to a shelf above or below the view (the spindle's
+    ø15 g6, the spool's ø70 f7 OD). The main leader placer (`leaders.rs`) has no check for a
+    shaft running along model line-work (only the refinement pass and centre strokes have one),
+    and the semantic-PMI legacy floor ignores feature crossings. Fixing it changes the leader
+    objective for every callout (guard churn, cost), so it is left for a placement stream.

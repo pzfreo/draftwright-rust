@@ -1395,6 +1395,22 @@
       },
       "svg": "2ec3927f621ab9b5422a2f12251c1f97d527ca5ea4f99e54335e0683374446ae"
     },
+    "pmi/step/hw_spool_fits_intent.step:default": {
+      "pdf": "3dd631974a297beff8b2fbebef998997672ea49ffdea09bb99830d5e22fe3e69",
+      "plan": "cb6b5038894270c6c2aad532dac57ccd8d6f66c0cace1b412f3d84d6c628e867",
+      "png": {
+        "macos": "ccaf834665afe3187433aad88cdb006a2c2a7f0dc88bc519b5f94003794d985e"
+      },
+      "svg": "91cdc2e25f710e27ea61d831a8a2b9c0ae569764cce0576751eb71dd0e73bdc1"
+    },
+    "pmi/step/hw_thumbwheel_thread_knurl_intent.step:default": {
+      "pdf": "24d84b082a6e3e856228a0260d550f517c52e1f9367fb6a86898a5a7cb3ef273",
+      "plan": "1e1074054bd064736dc32d72455a4635c2b35649ada66c3f76b9d1d28c31bc41",
+      "png": {
+        "macos": "38ae0e1ba7ee7cf43c55025fb71f78e9102f55631fa9c44ea035c379ddf66d6a"
+      },
+      "svg": "79f97ab726c0fc0befe058a887f930543b22a65ca50b554072da022f73a8c9be"
+    },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:00ac8b427572c9f0e40a33966fcbc33ab1828f7e26068db901755920313a35f3": {
       "pdf": "0765ec05a1f966ffc8cf3493a9177e47a84fbb4fa695110960d834a54ac5d492",
       "plan": "1289ca88b0e38e76846ce7d1420dfc32f73255758177d0d319901cc7f1a54a38",
@@ -1478,6 +1494,10 @@
     "g3-draw-assembly-part": {
       "cases": 5,
       "note": "The D4 warning assembly_drawn_whole: an assembly drawn whole (no part chosen) gains one plan problem naming its parts. Only the plan changes; SVG, PDF and PNG are byte-identical. Plan hashes re-recorded on the f3-problem-language merge (its problem wording applies to these plans too)."
+    },
+    "j3-shaft-fits": {
+      "cases": 2,
+      "note": "J3 (#30): an AP242 shaft fit stated as a class alone (LIMITS_AND_FITS('g','shaft','6') etc.) is printed on the turned diameter that states its size, with its ISO 286 limits, as a hole fit is on its bore's callout: hw_spool_fits_intent's 2× ø130 gains 'g6 (-0.014/-0.039)' and its ø70 OD 'f7 (-0.030/-0.060)', hw_thumbwheel_thread_knurl_intent's ø10 'f7 (-0.013/-0.028)', and their 'stated without limits' pmi_not_lowered problems go. Plan diff: those labels, bases and claims, and the placements the longer labels move (the front view's dimension band grows 2 mm on the spool; the spool's ø70 leader now runs along its silhouette, and three new leader-crosses-hole findings); SVG/PDF follow. macOS PNG hashes recorded; their stale Linux plan/svg/pdf overrides are removed, and Linux PNG (and any Linux byte override) is to be recorded by CI's record_single_sheet job."
     }
   }
 }
