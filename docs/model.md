@@ -899,8 +899,12 @@ to take the frame). Every item that states a PMI dimension claims it (a measurem
 (`pmi_not_lowered`; when the spec's is withheld, the label states neither and the report says
 so), and an omitted item's PMI is `pmi_not_drawn`. Not drawn, with the reason: reading blockers, faces in
 several placements, faces that prove no witness (`pmi_not_lowered`); angles, oblique lengths,
-non-principal cylinders (`pmi_dimensions_not_ported`). The open questions (supplemental geometry,
-an ISO 286 class without limits) stay refused. Compared record by record on the 14 AP242 files
+non-principal cylinders (`pmi_dimensions_not_ported`). An ISO 286 class stated without limits is
+printed with its limits from draftwright's table on the item that owns its size: a hole class
+on proven internal cylinders on the one bore callout they match, a shaft class (`g6`) on proven
+external cylinders on the one turned diameter they match (`⌀15 g6 (-0.006/-0.017)`, #30); with
+no unique owner, or a class of the other kind for the cylinder, it stays refused. The open
+question of supplemental geometry stays refused. Compared record by record on the 14 AP242 files
 (`tests/pmi_dimensions.rs`, `tests/fixtures/known_pmi_dimensions.json`).
 
 **PMI coverage lint** (`src/lint/pmi_coverage.rs`, draftwright's `linting/pmi_coverage.py`): lint

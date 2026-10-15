@@ -195,18 +195,33 @@ fn requirement(r: &Record, value: f64) -> Option<Req> {
 }
 
 // A stated ISO class without limits: the class, whose limits the plan prints from the table.
+// A hole class is upper case (`H7`), a shaft class lower case (`g6`, `js6`); mixed case is
+// neither (ISO 286's letters are case-significant).
 fn symbolic_fit(r: &Record) -> Option<([u8; 2], u8)> {
     let code = r.fit.as_deref()?;
     let (letters, grade) = tolerance::fit(code).ok()?;
     let mut chars = [0; 2];
-    if letters.len() > chars.len() || !letters.bytes().all(|b| b.is_ascii_uppercase()) {
+    if letters.len() > chars.len()
+        || !(letters.bytes().all(|b| b.is_ascii_uppercase())
+            || letters.bytes().all(|b| b.is_ascii_lowercase()))
+    {
         return None;
     }
     chars[..letters.len()].copy_from_slice(letters.as_bytes());
     Some((chars, grade as u8))
 }
 
+/// Whether a symbolic fit's class is a shaft class (lower case, `g6`).
+fn shaft_class(r: &Record) -> bool {
+    symbolic_fit(r).is_some_and(|(letters, _)| letters[0].is_ascii_lowercase())
+}
+
+/// Whether the record is a diameter stated by an ISO 286 class alone, which the plan prints
+/// with its limits from the table: a hole class on a bore's internal cylinders, or a shaft
+/// class on a turned diameter's external ones (#30). A class on the other kind of cylinder (a
+/// shaft class on a bore) is not one, and stays undrawn with its reading's blocker.
 pub(super) fn symbolic_bore(r: &Record) -> bool {
+    let shaft = shaft_class(r);
     r.kind == "diameter"
         && r.lower_tol.is_none()
         && r.upper_tol.is_none()
@@ -221,7 +236,7 @@ pub(super) fn symbolic_bore(r: &Record) -> bool {
                 && !g.cylinders.is_empty()
                 && g.cylinders
                     .iter()
-                    .all(|c| c.internal && c.principal().is_some())
+                    .all(|c| c.internal != shaft && c.principal().is_some())
         })
 }
 
@@ -818,7 +833,7 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
                     return Outcome::Hole(i, members, band);
                 }
             }
-            if symbolic {
+            if symbolic && internal {
                 return Outcome::Refused(not_lowered(
                     "a symbolic fit requires a uniquely matched recognised bore callout",
                 ));
@@ -838,6 +853,13 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
                     Some(Err(refusal)) => return Outcome::Refused(refusal),
                     None => {}
                 }
+            }
+            // A shaft fit is printed on the turned diameter that states its size, as a hole
+            // fit is on its bore's callout; with no such owner it is not drawn standalone.
+            if symbolic {
+                return Outcome::Refused(not_lowered(
+                    "a symbolic shaft fit requires a uniquely matched recognised turned diameter",
+                ));
             }
             // draftwright's `_standalone_cylinder_blocker`: one leader names one cylinder.
             let first = &g.cylinders[0];
@@ -1262,6 +1284,70 @@ mod tests {
         };
         shaft.print(&mut w).unwrap();
         assert_eq!(w.terms, ["2×", "⌀35", "-0.009 -0.025", "THRU"]);
+    }
+
+    #[test]
+    fn shaft_fits_take_their_iso_286_limits() {
+        // A diameter stated by a shaft class alone (#30), its limits from ISO 286-2.
+        let record = |code: &str, value: f64| Record {
+            source_id: "dimension:#1".into(),
+            category: Category::Dimension,
+            kind: "diameter".into(),
+            type_code: None,
+            part: 0,
+            part21_id: 1,
+            value: Some(value),
+            upper_tol: None,
+            lower_tol: None,
+            lower_bound: None,
+            upper_bound: None,
+            fit: Some(code.into()),
+            label: format!("ø{value} {code}"),
+            datum_refs: Vec::new(),
+            gtol_modifiers: Vec::new(),
+            basic: false,
+            faces: Vec::new(),
+            face_ids: Vec::new(),
+            face_groups: Vec::new(),
+            edge_groups: Vec::new(),
+            edges: Vec::new(),
+            ref_bbox: None,
+            dominant_axis: "Z".into(),
+            instances: Vec::new(),
+            blockers: Vec::new(),
+            fields: Vec::new(),
+            geometry: None,
+        };
+        let step = |value: f64| Want {
+            id: "d:f:turned_step:1/step.diameter".into(),
+            views: vec!["front"],
+            value,
+            terms: vec![format!("⌀{value}")],
+            measurements: Vec::new(),
+            basis: String::new(),
+            shape: Shape::Callout { sites: Vec::new() },
+            turning: None,
+        };
+        for (code, value, upper, lower, printed) in [
+            ("g6", 15.0, -0.006, -0.017, "g6 (-0.006/-0.017)"),
+            ("h7", 20.0, 0.0, -0.021, "h7 (0/-0.021)"),
+            ("f7", 25.0, -0.020, -0.041, "f7 (-0.020/-0.041)"),
+            ("k6", 30.0, 0.015, 0.002, "k6 (+0.015/+0.002)"),
+            ("js6", 10.0, 0.0045, -0.0045, "js6 (+0.0045/-0.0045)"),
+        ] {
+            let q = requirement(&record(code, value), value).expect(code);
+            assert!(
+                (q.upper - upper).abs() < 1e-9 && (q.lower - lower).abs() < 1e-9,
+                "{code}"
+            );
+            assert!(q.limits.is_none());
+            let mut w = step(value);
+            let note = q.print(&mut w).unwrap();
+            assert_eq!(note.band, printed);
+            assert_eq!(w.terms.join(" "), format!("⌀{value} {printed}"));
+        }
+        // ISO 286's letters are case-significant: a mixed-case class is neither kind.
+        assert!(requirement(&record("Js6", 10.0), 10.0).is_none());
     }
 
     #[test]
