@@ -7095,4 +7095,42 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   dimension_rules 19, dims_grooves_flats 7, placement_intent 13, wording unit 2; fmt; strict
   release Clippy; Python quality 40 and CI acceptance 21; schema generation no diff; scripted
   MCP 7/7 with `tasks.json` and the scripted answers unchanged. No quality.py run: no SVG changed.
-||||||| d95f5709
+
+- From stream f4-page-fit-projection (#13: page fit and a projection setting), base 19a969c9:
+  - **Fit judged as the search judges.** A spec pinning both `sheet/size` and `sheet/scale` keeps
+    `page_fit_uncertain` only when the finished drawing does not fit (`model::recover`'s pinned
+    branch: `drawn_items_fit` as planned, else after `sheet_fit::correct_estimate`, the same
+    correction each automatic candidate gets). Pinning the automatic pair now draws the
+    automatic sheet (plate A4 2:1, byte for byte in its views). The editor's sample plate
+    (`tests/fixtures/samples/editor-plate.step`, a copy of draftwright-editor's
+    `public/samples/plate.step`; outside `parts/` so the guard's case set is unchanged) at A3 2:1
+    raises nothing. Our own `parts/plate.step` never raised it at A3 2:1 on base.
+  - **The fix.** A real misfit carries `fix` ops and a message clause (`…; A4 at 1:1 fits.`):
+    the pinned sheet at the scale `recover` picks for it, else the pinned scale on the smallest
+    sheet that holds it (estimate), else the automatic pair; each verified by planning it pinned.
+    Judgement call (overturnable): keep the sheet before keeping the scale. Cost only on a real
+    misfit: about 170M more instructions per plan (editor plate A4 10:1: 1.60G to 1.77G with
+    analysis; GRM-03 0.89G to 1.06G).
+  - **`sheet/projection`** (`first` | `third`, default third and byte-identical). First angle
+    mirrors the packed third-angle blocks (`layout::geometry`, `Request::first_angle`): plan below
+    the front, right side left of it, sections still right of the row; the front's and side's
+    tops and the side's left get at least DIM_PAD as free edges. Symbol: the cone turned end for
+    end in the same band (`title_block::projection(block, first_angle)`, method `first-angle`).
+    Judgement calls: the values are `first`/`third` (the brief's), not the old design note's
+    `first-angle`; continuation sheets carry no projected views, so the setting arranges sheet 1
+    only. Observed, not changed: on plate the side's block keeps the column's wide left band
+    beside the front (the plan's location band, shared by the column), so the side-to-front gap
+    is wider than a draftsman would leave; the automatic search picks A4 1:1 for plate in first
+    angle (A4 2:1 has six hard findings there) where third angle gets A4 2:1.
+  - **Single-sheet guard:** 153 plan-only approvals under stream `f4-page-fit-projection`
+    (102 lose `page_fit_uncertain` with no other change, 51 gain its fix; before/after plans
+    were dumped for all 1,677 cases and differ only in that problem and the basis clause; no SVG,
+    PDF or PNG changed). 62 of them have Linux plan overrides in
+    `known_single_sheet_platform.json`, which are now stale: **re-record Linux** with the
+    `record_single_sheet` workflow before the guard passes on Linux CI.
+  - Tests changed: `tests/issue_drafting.rs::a_sheet_the_spec_names_is_never_escalated` still
+    requires the pinned pair kept; a misfit the finished drawing disproves is now withdrawn
+    (GRM-03 at 10:1), and a kept one may differ only by its fix. `tests/engine_version.rs`'s
+    schema budget 40,750 to 41,300 bytes (the field adds 540 across twelve tools).
+  - Found, not pursued: this file ends with a stray `||||||| d95f5709` merge marker from an
+    earlier integration.

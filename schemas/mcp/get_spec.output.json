@@ -103,6 +103,13 @@
                     "boolean",
                     "null"
                   ]
+                },
+                "projection": {
+                  "enum": [
+                    null,
+                    "first",
+                    "third"
+                  ]
                 }
               },
               "additionalProperties": false
