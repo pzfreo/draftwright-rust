@@ -626,3 +626,41 @@ fn the_threads_leader_meets_the_silhouette_at_an_angle() {
         );
     }
 }
+
+/// A thread and a fit (J3, #30) on one part: the threaded diameter prints only its thread's
+/// designation, which carries the thread's own tolerance class, and a fit or band given to it
+/// is withheld and reported rather than spliced into the designation; a plain diameter keeps its
+/// shaft fit with its ISO 286 limits.
+#[test]
+fn a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit() {
+    let gz = root().join("tests/fixtures/pmi/step/hw_thumbwheel_thread_knurl_intent.step.gz");
+    let (_, a) = analysed_bytes(
+        "hw_thumbwheel_thread_knurl_intent.step",
+        &gunzip(&std::fs::read(gz).unwrap()),
+    );
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let labels: Vec<&str> = plan.dimensions.iter().map(|d| d.label.as_str()).collect();
+    assert!(labels.contains(&"ø10 f7 (-0.013/-0.028)"), "{labels:?}");
+    assert!(
+        labels.contains(&"M5 x 0.8-6g RH, FULL AVAILABLE LENGTH"),
+        "{labels:?}"
+    );
+
+    let (_, a) = external_thread();
+    let id = "d:f:turned_step:1/step.diameter";
+    let spec: Spec = serde_json::from_value(serde_json::json!({
+        "schema": "draftwright.spec/2",
+        "dimensions": { id: { "tolerance": "+0 -0.1" } }
+    }))
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+    assert_eq!(d.label, "M10 x 1.5-6g RH, FULL AVAILABLE LENGTH");
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "tolerance_withheld" && p.subjects == [id]),
+        "{:?}",
+        plan.problems
+    );
+}
