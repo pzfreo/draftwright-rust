@@ -820,9 +820,12 @@ pub(crate) fn plan_anchored(
                 code: "pmi_not_drawn".into(),
                 severity: "warning".into(),
                 message: format!(
-                    "{} ({}) is drawn in the {} view, which is not on the sheet; it stays in the plan undrawn. Restore the view (remove views/{}/omit).",
-                    item.id,
-                    planned.cells.join(" "),
+                    "{} is drawn in the {} view, which is not on the sheet; it stays in the plan undrawn. Restore the view (remove views/{}/omit).",
+                    crate::wording::capital(&crate::wording::item(
+                        &item.id,
+                        "",
+                        &planned.cells.join(" ")
+                    )),
                     item.view,
                     item.view
                 ),
@@ -1057,6 +1060,8 @@ pub(crate) fn plan_anchored(
 pub fn proxy(g: &PlannedGdt) -> Option<PlannedDimension> {
     let p = g.placed.as_ref()?;
     Some(PlannedDimension {
+        reference: false,
+        determined_by: Vec::new(),
         region: None,
         id: g.id.clone(),
         kind: "callout".into(),
@@ -1085,6 +1090,8 @@ pub fn proxy(g: &PlannedGdt) -> Option<PlannedDimension> {
 pub fn finish_proxy(r: &crate::pmi_lowering::PlannedRequirement) -> Option<PlannedDimension> {
     let p = r.placed.as_ref()?;
     Some(PlannedDimension {
+        reference: false,
+        determined_by: Vec::new(),
         region: None,
         id: r.id.clone(),
         kind: "symbol".into(),

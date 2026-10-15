@@ -1078,7 +1078,7 @@ pub(super) fn yield_to_spec(
                 severity: "error".into(),
                 message: format!(
                     "PMI dimension {s} ({band} on {}) is not drawn: the spec gives that size its own {what}, and a requirement already authored on a size wins over an imported one (draftwright's lower_ap242_hole_tolerances){label}.",
-                    w.id
+                    super::wording_of(w)
                 ),
                 subjects: vec![w.id.clone()],
                 refs: vec![s.clone()],
@@ -1124,7 +1124,8 @@ pub(super) fn omitted(
                 severity: "warning".into(),
                 message: format!(
                     "PMI dimension {source} is not drawn: the plan leaves out {}, which states it ({}).",
-                    o.id, o.basis
+                    if o.label.is_empty() { "the dimension" } else { &o.label },
+                    crate::wording::left_out(&o.state)
                 ),
                 subjects: vec![o.id.clone()],
                 refs: vec![source.to_string()],

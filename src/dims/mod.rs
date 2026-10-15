@@ -204,7 +204,7 @@ fn chosen_views(
                 severity: "warning".into(),
                 message: format!(
                     "The spec places {} in the {v} view, which is {why}, so {outcome}. {how}",
-                    w.id
+                    wording_of(w)
                 ),
                 subjects: vec![w.id.clone()],
                 fix,
@@ -281,6 +281,15 @@ pub struct PlannedDimension {
     /// Its ink on the page; absent when it cannot be drawn, and a problem says why.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub placed: Option<Placed>,
+    /// A reference dimension, drawn in brackets (`(12)`): other dimensions determine it, so it
+    /// is for information only (#26). Absent (false) for a controlling dimension.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reference: bool,
+    /// For a reference dimension, the IDs of the dimensions that determine it (a chain's stated
+    /// total and its other members; a slot's width and location), as its basis names them.
+    /// Absent when none is recorded (a pinned reference kept after its chain was edited).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub determined_by: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -410,6 +419,12 @@ struct Want {
     /// For a turned part's diameter: its turning axis. The diameter is then drawn across
     /// whichever radial axis the carrying view shows.
     turning: Option<usize>,
+}
+
+/// A wanted item as a problem's message names it: by the terms it prints
+/// ([`crate::wording::item`]), never by its ID.
+fn wording_of(w: &Want) -> String {
+    crate::wording::item(&w.id, "", &w.terms.join(" "))
 }
 
 /// A dimension's ID, `d:<feature>/<parameter>`: what it measures, never the view that carries
@@ -579,7 +594,8 @@ fn not_ported(analysis: &Analysis) -> Vec<Problem> {
                 severity: "info".into(),
                 message: format!(
                     "{} is not dimensioned: no dimensions for {} are ported yet.",
-                    f.id, f.kind
+                    crate::wording::capital(&crate::wording::feature(f)),
+                    f.kind.replace('_', " ")
                 ),
                 subjects: vec![f.id.clone()],
                 ..Default::default()
@@ -605,9 +621,9 @@ fn unsupported(f: &crate::bridge::Feature) -> Option<Problem> {
         code: code.into(),
         severity: "warning".into(),
         message: format!(
-            "angled step {} is not represented by Draftwright dimensions; review and define its \
+            "{} is not represented by Draftwright dimensions; review and define its \
              manufacturing geometry outside automatic drawing approval.",
-            f.id
+            crate::wording::capital(&crate::wording::feature(f))
         ),
         subjects: vec![f.id.clone()],
         ..Default::default()
@@ -1007,7 +1023,7 @@ pub(crate) fn plan_inventory(
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
     share_pmi(&mut kept, &mut given, &mut omitted);
-    redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    let references = redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
     // Then everything the part would have is placed: each item's lane, and where its label
@@ -1074,7 +1090,7 @@ pub(crate) fn plan_inventory(
                 .and_then(|e| e.place.as_ref())
                 .is_some_and(|p| p.side.is_some())
         {
-            problems.push(Problem {id:format!("p:placement_side_not_applicable:{}",w.id),code:"placement_side_not_applicable".into(),severity:"warning".into(),message:format!("{} keeps its measured angular sector; place it with lane and along, without a side.",w.id),subjects:vec![w.id.clone()],fix:vec![Op::remove(format!("dimensions/{}/place/side",crate::items::key(&w.id)))],..Default::default()});
+            problems.push(Problem {id:format!("p:placement_side_not_applicable:{}",w.id),code:"placement_side_not_applicable".into(),severity:"warning".into(),message:format!("{} keeps its measured angular sector; place it with lane and along, without a side.",crate::wording::capital(&wording_of(w))),subjects:vec![w.id.clone()],fix:vec![Op::remove(format!("dimensions/{}/place/side",crate::items::key(&w.id)))],..Default::default()});
         }
         if let Some(p) = spec.dimensions.get(&w.id).and_then(|e| e.place.as_ref())
             && let (Shape::Linear { axis, .. }, Some(side), Some(v)) = (&w.shape, p.side, chosen[i])
@@ -1345,6 +1361,8 @@ pub(crate) fn plan_inventory(
                 })
                 .map(|_| CandidateRegion::Interior);
             Some(PlannedDimension {
+                reference: false,
+                determined_by: Vec::new(),
                 region,
                 id: w.id.clone(),
                 kind: match w.shape {
@@ -1395,7 +1413,7 @@ pub(crate) fn plan_inventory(
                 id: format!("p:pinned_reference_chain_changed:{}", w.id),
                 code: "pinned_reference_chain_changed".into(),
                 severity: "warning".into(),
-                message: format!("{} stays reference to preserve its pinned ink, but its controlling chain was edited. Release the pin to make it controlling, or restore the chain.", w.id),
+                message: format!("{} stays reference to preserve its pinned ink, but its controlling chain was edited. Release the pin to make it controlling, or restore the chain.", crate::wording::capital(&wording_of(&w))),
                 subjects: vec![w.id.clone()],
                 fix: vec![Op::remove(format!("dimensions/{}/place", crate::items::key(&w.id)))],
                 ..Default::default()
@@ -1445,7 +1463,16 @@ pub(crate) fn plan_inventory(
         if region.is_some() {
             basis += interior::BASIS;
         }
+        // Drawn in brackets: a reference, with what determines it where consolidation said.
+        let reference = matches!(&w.terms[..], [t] if t.starts_with('(') && t.ends_with(')'));
+        let determined_by = if reference {
+            references.get(&w.id).cloned().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         out.push(PlannedDimension {
+            reference,
+            determined_by,
             region,
             id: w.id,
             kind: match w.shape {

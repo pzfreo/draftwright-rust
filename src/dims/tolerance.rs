@@ -407,10 +407,9 @@ pub(super) fn apply(
                         "tolerance_withheld",
                         &w.id,
                         format!(
-                            "{} is not printed on {}: a band of nothing ({text}) states no tolerance (ARCH0019-2). Give it a band, or remove {}.",
+                            "{} is not printed on {}: a band of nothing ({text}) states no tolerance (ARCH0019-2). Give it a band, or remove the tolerance.",
                             t.trim(),
-                            w.id,
-                            path(&w.id)
+                            super::wording_of(w)
                         ),
                         vec![w.id.clone()],
                     )
@@ -439,17 +438,15 @@ pub(super) fn apply(
         };
         // A collapsed mark whose members do not all have one fit states none (ARCH0019-3).
         if member_fits.iter().any(Option::is_some) && band.is_none() {
-            let told: Vec<String> = members
-                .iter()
-                .zip(&member_fits)
-                .map(|(m, f)| format!("{m} {}", f.unwrap_or("none")))
-                .collect();
+            // Each member's fit, in the order of the problem's subjects, which name the
+            // members: the message carries no ID (#24).
+            let told: Vec<&str> = member_fits.iter().map(|f| f.unwrap_or("none")).collect();
             problems.push(problem(
                 "tolerance_withheld",
                 &w.id,
                 format!(
-                    "No fit is printed on {}: its {} members do not all have the same fit ({}), and one label would claim it of every member (ARCH0019-3). Give them all the same fit, or none.",
-                    w.id,
+                    "No fit is printed on {}: its {} members do not all have the same fit ({}, in the order of the problem's subjects), and one label would claim it of every member (ARCH0019-3). Give them all the same fit, or none.",
+                    super::wording_of(w),
                     members.len(),
                     told.join(", ")
                 ),
@@ -468,7 +465,7 @@ pub(super) fn apply(
                         &w.id,
                         format!(
                             "{text} is not printed on {}: its label states no value for it to follow.",
-                            w.id
+                            super::wording_of(w)
                         ),
                         vec![w.id.clone()],
                     ));
@@ -494,9 +491,13 @@ pub(super) fn apply(
                     "tolerance_not_shown",
                     id,
                     format!(
-                        "The tolerance of {id} is not printed: the plan leaves the dimension out ({}). Remove {} or bring the dimension back.",
-                        o.basis,
-                        path(id)
+                        "The tolerance of {} is not printed: the plan leaves the dimension out ({}). Remove the tolerance or bring the dimension back.",
+                        if o.label.is_empty() {
+                            crate::wording::dimension_id(analysis, id)
+                        } else {
+                            o.label.clone()
+                        },
+                        crate::wording::left_out(&o.state)
                     ),
                     vec![id.clone()],
                 )
@@ -511,7 +512,8 @@ pub(super) fn apply(
                     "tolerance_not_shown",
                     id,
                     format!(
-                        "The fit {code} of {id} is not printed: no dimension in the plan states its size."
+                        "The fit {code} of {} is not printed: no dimension in the plan states its size.",
+                        crate::wording::feature_id(analysis, id)
                     ),
                     vec![id.to_string()],
                 )

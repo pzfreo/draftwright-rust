@@ -156,7 +156,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                         severity: "info".into(),
                         message: format!(
                             "{} is called out blind to its recognised depth ({}), but recognition did not establish its bottom ({}); check whether it is through.",
-                            f.id,
+                            crate::wording::capital(&crate::wording::feature(f)),
                             fmt(h.depth.expect("a blind hole has its depth")),
                             bottom.unwrap_or("none given")
                         ),
@@ -170,7 +170,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 id: format!("p:feature_not_dimensioned:{}", f.id),
                 code: "feature_not_dimensioned".into(),
                 severity: "warning".into(),
-                message: format!("{} is not dimensioned: {why}.", f.id),
+                message: format!(
+                    "{} is not dimensioned: {why}.",
+                    crate::wording::capital(&crate::wording::feature(f))
+                ),
                 subjects: vec![f.id.clone()],
                 ..Default::default()
             }),
@@ -491,7 +494,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 code: "location_on_datum".into(),
                 severity: "info".into(),
                 message: format!(
-                    "{owner} lies on the part's {} face, so its {} location measures nothing and is not dimensioned.",
+                    "{} lies on the part's {} face, so its {} location measures nothing and is not dimensioned.",
+                    crate::wording::capital(&crate::wording::feature_id(cx.analysis, &owner)),
                     ["left", "front", "bottom"][k],
                     AXES[k]
                 ),

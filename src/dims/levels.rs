@@ -535,7 +535,7 @@ pub(super) fn ownership<'a>(cx: &Context<'a>) -> Ownership<'a> {
         severity: "warning".into(),
         message: format!(
             "{} is not dimensioned: {what}, so the step ladder cannot tell whether it states a level.",
-            f.id
+            crate::wording::capital(&crate::wording::feature(f))
         ),
         subjects: vec![f.id.clone()],
         ..Default::default()
@@ -581,7 +581,10 @@ pub(super) fn ownership<'a>(cx: &Context<'a>) -> Ownership<'a> {
                 id: format!("p:feature_not_dimensioned:{}", f.id),
                 code: "feature_not_dimensioned".into(),
                 severity: "warning".into(),
-                message: format!("{} is not dimensioned: {why}.", f.id),
+                message: format!(
+                    "{} is not dimensioned: {why}.",
+                    crate::wording::capital(&crate::wording::feature(f))
+                ),
                 subjects: vec![f.id.clone()],
                 ..Default::default()
             }),

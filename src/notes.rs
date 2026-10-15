@@ -497,7 +497,7 @@ pub(crate) fn radius_notes(
                 severity: "error".into(),
                 message: format!(
                     "{} cannot be placed relative to the omitted {view_name} view.",
-                    n.id
+                    crate::wording::capital(&crate::wording::note(&n.text))
                 ),
                 subjects: vec![n.id.clone()],
                 ..Default::default()
@@ -542,7 +542,7 @@ pub(crate) fn radius_notes(
                 severity: "warning".into(),
                 message: format!(
                     "{} lies outside the sheet at its requested placement.",
-                    n.id
+                    crate::wording::capital(&crate::wording::note(&n.text))
                 ),
                 subjects: vec![n.id.clone()],
                 ..Default::default()
@@ -587,6 +587,8 @@ pub(crate) fn plan_radii(
 /// A notes block is an obstacle to blocks placed after it, just as a table is.
 pub(crate) fn proxy(block: &NotesBlock) -> PlannedDimension {
     PlannedDimension {
+        reference: false,
+        determined_by: Vec::new(),
         region: None,
         id: "notes".into(),
         kind: "notes".into(),

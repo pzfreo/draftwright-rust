@@ -563,7 +563,7 @@ fn features_with_no_ported_dimensions_are_reported() {
         .unwrap();
     assert!(
         step.message
-            .ends_with("no dimensions for unported_test_feature are ported yet."),
+            .ends_with("no dimensions for unported test feature are ported yet."),
         "{}",
         step.message
     );

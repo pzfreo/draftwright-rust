@@ -768,7 +768,7 @@ pub(super) fn place_with_obstacles(
 /// Geometry findings are rebuilt when a refinement replaces their route.
 fn route_reports(item: &Want, view_name: &str, outline: [f64; 4], shaft: [P2; 2]) -> Vec<Problem> {
     let mut problems = Vec::new();
-    let named = format!("{} ({})", item.id, item.terms.join(" "));
+    let named = super::wording_of(item);
     let view = format!("v:{}", view_name);
     if reenters(shaft, outline) {
         let subjects = vec![item.id.clone(), view.clone()];
@@ -777,8 +777,9 @@ fn route_reports(item: &Want, view_name: &str, outline: [f64; 4], shaft: [P2; 2]
                 code: "annotation_line_over_view".into(),
                 severity: "warning".into(),
                 message: format!(
-                    "The leader of {} runs back across its own {view} view: every place it had was blocked.",
-                    named
+                    "The leader of {} runs back across its own view, {}: every place it had was blocked.",
+                    named,
+                    crate::wording::view(&view)
                 ),
                 subjects,
                 ..Default::default()
