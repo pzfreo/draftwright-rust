@@ -2,7 +2,7 @@
   "cases": {},
   "note": "Exact replacements for deliberate drawing changes merged after I1's single-sheet oracle. Each case keeps every format exact; the stream that changed it is named in streams. Applied after known_single_sheet_main_pins.json.",
   "rebaseline": {
-    "change": "f1-ext-threads-knurl",
+    "change": "j1-projsym-basic",
     "folded_streams": {
       "f2-surface-texture": {
         "cases": 4,
