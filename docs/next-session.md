@@ -7195,7 +7195,7 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   `M10 x 1.5-6g RH, FULL AVAILABLE LENGTH` meets the ⌀10 band at an angle from outside the part
   at its default A4 1:1 and at A3 2:1. Quality over 30 parts matches ci-quality-baseline.
 - Single-sheet: re-baselined (`DRAFTWRIGHT_REBASELINE_SINGLE_SHEET=f1-ext-threads-knurl`) against
-  main 9db4d1a3. 136 of 1,876 cases differ from main: 103 plan-only (an unchosen candidate
+  main 9be5aa8b (J1 merged). 136 of 1,876 cases differ from main: 103 plan-only (an unchosen candidate
   sheet's fill figure in `sheet.basis`), 33 drawn. Drawn: GRM-03 ×13 (⌀6 off the shoulder edge,
   two specs one leader crossing fewer), nist_ctc_05 ×4 (⌀304.8 angled), turned ×2 (⌀16 off the
   outline), thread/knurl parts ×10 (F1's own thin lines and designation), and

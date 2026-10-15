@@ -2,21 +2,8 @@
   "cases": {},
   "note": "Exact replacements for deliberate drawing changes merged after I1's single-sheet oracle. Each case keeps every format exact; the stream that changed it is named in streams. Applied after known_single_sheet_main_pins.json.",
   "rebaseline": {
-    "change": "j1-projsym-basic",
-    "folded_streams": {
-      "f2-surface-texture": {
-        "cases": 4,
-        "note": "F2 (#18): an AP242 part-wide surface texture (ISO 10303-1110) is the default finish: its ISO 1302 symbol and 'Ra 3.2' are drawn beside the title block, and the pmi_not_extracted problems for the read textures go (hw_every_kind's face texture is refused instead: its face is neither planar nor cylindrical). Plan diff: one requirement added, the not-projected problems replaced, sheet fill/basis; SVG diff: the symbol's three strokes, its glyphs and its text run only. macOS PNG hashes recorded; Linux PNG (and hw_every_kind's Linux pdf/svg, whose stale platform override is removed) to be recorded by CI's record_single_sheet job."
-      },
-      "f4-page-fit-projection": {
-        "cases": 153,
-        "note": "#13: a pinned sheet and scale are judged as the automatic search judges its candidates. 102 cases lose page_fit_uncertain because their finished drawing's items and views all fit the sheet (pinned placements on the canonical sheet, GRM-03 at A3/A4 10:1, mounting_plate at A3 2:1 and A4 1:1, ...); 51 keep it and gain a fix (the nearest size and/or scale that fits) and its message clause. Only the plan changes: before/after plans differ in that one problem (and, where withdrawn, the basis clause 'the views may not fit' becoming 'the finished drawing fits'); SVG, PDF and PNG are byte-identical. Linux plan overrides for 62 of these cases need re-recording with record_single_sheet."
-      },
-      "g3-draw-assembly-part": {
-        "cases": 5,
-        "note": "The D4 warning assembly_drawn_whole: an assembly drawn whole (no part chosen) gains one plan problem naming its parts. Only the plan changes; SVG, PDF and PNG are byte-identical. Plan hashes re-recorded on the f3-problem-language merge (its problem wording applies to these plans too)."
-      }
-    },
+    "change": "f1-ext-threads-knurl",
+    "folded_streams": {},
     "note": "known_single_sheet.json was re-recorded whole for this change; the main pins and these streams' replacements were folded into it.",
     "os": "macos"
   },
