@@ -157,9 +157,11 @@ fn third_angle_is_the_default() {
         serde_json::to_value(&default).unwrap(),
         serde_json::to_value(&third).unwrap()
     );
-    let refused =
-        model::plan_recovered(&analysis, &spec(json!({"sheet": {"projection": "second"}})))
-            .unwrap_err();
+    // Refused when the spec is read; a spec built in code is refused by the plan, with choices.
+    assert!(serde_json::from_value::<Spec>(json!({"sheet": {"projection": "second"}})).is_err());
+    let mut second = Spec::default();
+    second.sheet.projection = Some("second".into());
+    let refused = model::plan_recovered(&analysis, &second).unwrap_err();
     assert_eq!(refused.choices, ["first", "third"]);
 }
 

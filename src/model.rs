@@ -316,9 +316,24 @@ pub struct SheetSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fit_limits: Option<bool>,
     /// ISO 5456-2's projection method, `first` or `third` (angle): where the plan and side sit
-    /// about the front, and the symbol beside the title block. Third angle unless set.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// about the front, and the symbol beside the title block. Third angle unless set. Any
+    /// other value is refused when the spec is read, before the part is (ISSUE-1514-a).
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "projection_method"
+    )]
     pub projection: Option<String>,
+}
+
+fn projection_method<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let p = Option::<String>::deserialize(d)?;
+    match p.as_deref() {
+        Some(m) if !PROJECTIONS.contains(&m) => Err(serde::de::Error::custom(format!(
+            "{m:?} is not a projection method; the methods are {}",
+            PROJECTIONS.join(", ")
+        ))),
+        _ => Ok(p),
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
