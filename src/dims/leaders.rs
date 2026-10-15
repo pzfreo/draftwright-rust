@@ -92,6 +92,10 @@ const MIN_LEADER: f64 = 6.0;
 /// The longest leader taken while any shorter one is free of hard blockers, mm: a longer one
 /// counts as one (draftwright's longest on its captured sheets is 73.5 mm, connector109's).
 const MAX_LEADER: f64 = 75.0;
+/// The least angle a leader to a turned step's silhouette makes with it, degrees: closer to
+/// parallel, it reads as lying on the part's edge (ISO 128-22 has leaders meet the outline at an
+/// angle; it states no figure).
+const GRAZING: f64 = 15.0;
 /// The step between candidate rows (beside a view) and columns (above and below it), mm.
 const STEP: f64 = 1.0;
 /// At most this many rows or columns are tried on each side of a view, however large the view.
@@ -450,6 +454,9 @@ struct Job<'a> {
     /// The view's reserved area (box and bands), when the sheet has it.
     area: Option<[f64; 4]>,
     sites: Vec<(P2, f64)>,
+    /// For a turned step's diameter, whose sites lie on its silhouette: the silhouette's
+    /// direction on the page ([`grazing`]).
+    silhouette: Option<P2>,
     ink_min: P2,
     ink_max: P2,
     /// Below, above, left, right: the distance past that edge clear of the strip's dimensions.
@@ -585,6 +592,7 @@ pub(super) fn place_with_obstacles(
                 outline: f.outline(),
                 area: page.area(view),
                 sites: page_sites(f, sites),
+                silhouette: grazing(f, w),
                 ink_min: ink.min,
                 ink_max: ink.max,
                 beyond,
@@ -1156,6 +1164,7 @@ pub(super) fn refine(
             outline: frame.outline(),
             area: page.area(view),
             sites: page_sites.clone(),
+            silhouette: grazing(frame, w),
             ink_min: label.min,
             ink_max: label.max,
             beyond: [CLEAR; 4],
@@ -1360,6 +1369,18 @@ fn along_interval(a: [P2; 2], b: [P2; 2]) -> Option<(f64, f64)> {
         }
     }
     (hi > lo).then_some((lo, hi))
+}
+
+/// The page direction of a turned step's silhouette, for its diameter's callout (*w* with a
+/// turning axis), unless the view looks along the axis.
+fn grazing(f: &Frame, w: &Want) -> Option<P2> {
+    let t = w.turning?;
+    let mut e = [0.0; 3];
+    e[t] = 1.0;
+    let (a, b) = (f.page([0.0; 3]), f.page(e));
+    let d = [b[0] - a[0], b[1] - a[1]];
+    let n = d[0].hypot(d[1]);
+    (n > 1e-9 * f.scale()).then(|| [d[0] / n, d[1] / n])
 }
 
 /// A callout's sites on the page, at most [`MAX_SITES`]. A silhouette site (radius 0) that lands
@@ -1834,6 +1855,14 @@ fn measure_at_bounds(
     if shaft > MAX_LEADER {
         hard += 1;
     }
+    // A leader along the silhouette it points at lies on the part's edge: ISO 128-22's leader
+    // meets the outline at an angle.
+    if let Some(u) = job.silhouette {
+        let d = [elbow[0] - tip[0], elbow[1] - tip[1]];
+        if (u[0] * d[1] - u[1] * d[0]).abs() < GRAZING.to_radians().sin() * shaft {
+            hard += 1;
+        }
+    }
     let bounds = [
         tip[0].min(elbow[0]).min(end[0]).min(lb[0]),
         tip[1].min(elbow[1]).min(lb[1]),
@@ -2077,6 +2106,7 @@ pub fn clear_routes(
         outline: f.outline(),
         area: page.area(view),
         sites: page_sites(f, sites),
+        silhouette: grazing(f, w),
         ink_min: ink.min,
         ink_max: ink.max,
         beyond: [CLEAR; 4],

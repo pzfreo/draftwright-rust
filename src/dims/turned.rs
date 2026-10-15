@@ -317,7 +317,7 @@ fn diameters(
                 shape: Shape::Callout {
                     sites: members.iter().flat_map(|(_, c)| sites(c)).collect(),
                 },
-                turning: None,
+                turning: Some(b.axis),
             }
         })
         .collect()

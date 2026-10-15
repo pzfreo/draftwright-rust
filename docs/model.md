@@ -897,7 +897,11 @@ length, and a knurl's band over the middle half of its length (lines along the a
 straight knurl, crossed at 30° for a diamond one, the pitch apart on paper but at least 3 mm).
 The thread's limit is the step's own end (ownership requires the stated length to be the step's
 cylinder or span), so the shoulder edge is its limit line and the step length dimensions it. The
-plan is unchanged: these lines are render furniture, not plan items.
+plan is unchanged: these lines are render furniture, not plan items. In the session's SVG
+fragments they travel in their view's fragment (layer `thin`), not in `furniture`, so they move
+with the view. A turned step's diameter callout is led to the silhouette at 15° or more to it: a
+leader along the silhouette would lie on the part's edge (ISO 128-22), so the placer counts one as
+a hard blocker.
 
 **IDs and views.** A dimension's ID names what it measures, never the view that carries it
 (`draftwright.spec/2`; version 1 added `@<view>`). The view is the item's `view`. Omitting that

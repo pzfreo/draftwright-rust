@@ -567,3 +567,62 @@ fn a_knurl_is_drawn_as_a_band_of_thin_lines_over_its_face() {
         }
     }
 }
+
+/// The editor's fragments: a thread's and knurl's thin lines belong to their view's fragment,
+/// so they move with it, and none are left in the furniture; together the fragments still hold
+/// every line of the sheet.
+#[test]
+fn thread_and_knurl_lines_travel_in_their_views_fragment() {
+    let (part, a) = external_thread();
+    let s = draftwright::session::Session::new(part, a, Spec::default()).unwrap();
+    let full = s.drawing().svg();
+    let fragments = s.svg_fragments(None);
+    assert_eq!(
+        full.matches("<line ").count(),
+        fragments
+            .values()
+            .map(|f| f.matches("<line ").count())
+            .sum::<usize>()
+    );
+    let total = thin_lines(&full).len();
+    let front = thin_lines(&fragments["v:front"]).len();
+    assert!(front > 0 && front < total, "{front} of {total}");
+    assert_eq!(
+        fragments
+            .iter()
+            .filter(|(id, _)| id.starts_with("v:"))
+            .map(|(_, f)| thin_lines(f).len())
+            .sum::<usize>(),
+        total
+    );
+    assert!(thin_lines(&fragments["furniture"]).is_empty());
+}
+
+/// The thread's callout is led to the ⌀10 band's silhouette at an angle, not along it: a leader
+/// lying on the part's edge is ambiguous (ISO 128-22). The spindle turns about z, which its
+/// profile views draw upright, so the silhouette is vertical on the page; the default sheet and
+/// a Spec-named A3 at 2:1 (where the leader once ran down the outline) are both checked.
+#[test]
+fn the_threads_leader_meets_the_silhouette_at_an_angle() {
+    let (_, a) = external_thread();
+    let a3: Spec = serde_json::from_value(serde_json::json!({
+        "schema": "draftwright.spec/2",
+        "sheet": { "size": "A3", "scale": "2:1" }
+    }))
+    .unwrap();
+    for spec in [Spec::default(), a3] {
+        let plan = model::plan(&a, &spec).unwrap();
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.label.starts_with("M10 x 1.5-6g"))
+            .expect("the thread's callout");
+        let [tip, elbow] = d.placed.as_ref().expect("placed").lines[0];
+        let (dx, dy) = ((elbow[0] - tip[0]).abs(), (elbow[1] - tip[1]).abs());
+        assert!(
+            dx.atan2(dy).to_degrees() >= 15.0 - 1e-9,
+            "{}: {tip:?} {elbow:?}",
+            plan.sheet.basis
+        );
+    }
+}

@@ -585,6 +585,21 @@ impl Session {
             problems: Vec::new(),
             spec: None,
         };
+        // A thread's or knurl's thin lines move with their view, so they travel in its fragment.
+        let thin = drawing.layers.iter().position(|l| l.name == "thin");
+        let manufacturing = thin.map(|_| crate::pmi_lowering::manufacturing(self.analysis()));
+        let thin_ink = |id: &str| -> Vec<crate::output::Item> {
+            let (Some(m), Some(v)) = (
+                &manufacturing,
+                self.plan().views.iter().find(|v| v.id == id),
+            ) else {
+                return Vec::new();
+            };
+            crate::cosmetic::ink(self.analysis(), m, v)
+                .into_iter()
+                .map(crate::output::Item::Edge)
+                .collect()
+        };
         for (id, geometry) in &self.state.geometry.views {
             if !on_sheet(id)
                 || delta.is_some_and(|d| !d.geometry.views.iter().any(|(v, _)| v == id))
@@ -594,6 +609,9 @@ impl Session {
             let mut d = blank();
             d.layers[0].items = geometry.visible.clone();
             d.layers[1].items = geometry.hidden.clone();
+            if let Some(k) = thin {
+                d.layers[k].items = thin_ink(id);
+            }
             out.insert(id.clone(), d.svg());
         }
         for (id, item) in &self.state.annotations {
@@ -650,6 +668,9 @@ impl Session {
             d.layers[0].items.drain(..visible);
             d.layers[1].items.drain(..hidden);
             d.layers[2].items.drain(..ink);
+            if let Some(k) = thin {
+                d.layers[k].items.clear();
+            }
             d.text.drain(..text);
             out.insert("furniture".into(), d.svg());
         }
