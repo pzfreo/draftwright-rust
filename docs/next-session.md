@@ -7316,7 +7316,7 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   `faces/<face>/controls` (`src/spec_gdt.rs`, docs/model.md "Datums and controls authored in
   the Spec"). Each is lowered into the same `pmi::Record` an AP242 datum or tolerance is read
   into and merged into the Analysis's PMI reading (`spec_gdt::effective`, at the plan entry
-  points and in `lint::lint` from the drawing's embedded spec), so lowering, placement, band
+  points and in `api::review` before lint, which reads no spec: ADR1-9), so lowering, placement, band
   reservation, drawing and lint are unchanged. The Spec wins over the file's PMI
   (`spec_overrides_pmi`, warning); an undeclared datum letter is `datum_undeclared` (warning).
 - **Attachment without a part**: `plan` has only the Analysis, so the Analysis now carries

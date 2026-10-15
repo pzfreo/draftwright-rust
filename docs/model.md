@@ -919,7 +919,7 @@ A part whose STEP carries no AP242 PMI can still carry datums and feature contro
 - **Lowering.** Each is lowered into the same record (`pmi::Record`) an AP242 datum or geometric
   tolerance on those faces is read into, its attachment measured as `src/pmi.rs` measures it,
   from the Analysis's `face_attachments` (below), and merged into the Analysis's PMI reading
-  (`spec_gdt::effective`, once per plan, and again by lint from the drawing's embedded spec).
+  (`spec_gdt::effective`, once per plan, and again by `api::review` for lint, which reads no spec).
   Lowering, placement, band reservation, drawing and lint then treat it as the file's own: its
   item is `pmi:<identity>`, `annotations/<id>` places or omits it, its `source` is
   `spec:<path>` (`spec:faces/bottom/datum`), its basis says `spec-authored` and it is not a

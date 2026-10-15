@@ -49,9 +49,13 @@ fn gdt<'a>(plan: &'a Plan, kind: &str) -> Vec<&'a draftwright::dims::gdt::Planne
     plan.gdt.iter().filter(|g| g.kind == kind).collect()
 }
 
-/// The drawing's PMI lint findings.
+/// The drawing's PMI lint findings, against *a* with the datums and controls of the spec the
+/// drawing embeds merged in, as `api::review` lints (lint itself reads no spec).
 fn pmi_lint(a: &Analysis, d: &draftwright::output::Drawing) -> Vec<String> {
-    draftwright::lint::lint(a, d)
+    let s: Spec = serde_json::from_str(d.spec.as_deref().expect("the drawing embeds its spec"))
+        .expect("the embedded spec reads");
+    let merged = draftwright::spec_gdt::effective(a, &s).expect("the plan accepted the spec");
+    draftwright::lint::lint(&merged, d)
         .into_iter()
         .filter(|i| i.code.starts_with("pmi_") || i.code.starts_with("datum"))
         .map(|i| format!("{}: {}", i.code, i.message))
