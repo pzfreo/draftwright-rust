@@ -1160,6 +1160,35 @@ pub(crate) fn plan_inventory(
             placement::intent(&frames[v], w, p, sides[i]?, lane[i], callout_width)
         })
         .collect();
+    // #32: an explicit side/lane (as a proposed fix sets) re-runs its side's stack spacing, so
+    // two dimensions never share one dimension line; automatic linear items hold their lanes.
+    let places: Vec<_> = all
+        .iter()
+        .map(|w| spec.dimensions.get(&w.id).and_then(|e| e.place.as_ref()))
+        .collect();
+    let mut occupied: BTreeMap<&'static str, Vec<Vec<[P2; 2]>>> = BTreeMap::new();
+    for (i, w) in all.iter().enumerate() {
+        if intended[i].is_none()
+            && owner[i].is_none()
+            && matches!(w.shape, Shape::Linear { .. })
+            && let (Some(v), Some(side)) = (chosen[i], sides[i])
+            && let Some(p) = placement::place(&frames[v], w, side, lane[i])
+        {
+            occupied.entry(v).or_default().push(p.lines);
+        }
+    }
+    let page = placement::Page::new(analysis, sheet, views);
+    placement::respace(
+        &frames,
+        &all,
+        &chosen,
+        &places,
+        &sides,
+        &lane,
+        &mut occupied,
+        &page,
+        &mut intended,
+    );
     let prescribed = intended.clone();
     let pin_ink: Vec<_> = all
         .iter()
@@ -1245,7 +1274,6 @@ pub(crate) fn plan_inventory(
                 .is_some_and(|p| p.pinned)
         })
         .collect();
-    let page = placement::Page::new(analysis, sheet, views);
     placement::avoid_fixed(
         &frames,
         &all,

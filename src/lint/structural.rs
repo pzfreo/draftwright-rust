@@ -39,6 +39,11 @@
 //!   inside on purpose.
 //! - `view_overlap` and `view_out_of_bounds` (`_lint_view_shapes`, its box part): two views'
 //!   boxes overlapping (warning), a view's box past the drawable area (error, once per side).
+
+//!
+//! The port's own (#32): `dimension_line_shared` (two linear dimensions on one dimension line
+//! over overlapping spans) and `dimension_text_stray` (a linear dimension's text more than a text
+//! height from its own line). Errors.
 //!
 //! Not ported here: `label_vs_measured` and `nominal_rounded` (the drawing does not record a
 //! dimension's measured path or its scale), `interior_label_on_narrow_material` and
@@ -102,6 +107,7 @@ pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     issues.extend(annotation_items(drawing));
     issues.extend(annotation_pairs(drawing));
     issues.extend(fixed_ink_contacts(drawing));
+    issues.extend(dimension_lines(drawing));
     issues.extend(annotation_bounds(drawing));
     issues.extend(view_annotations(drawing));
     issues.extend(view_boxes(drawing));
@@ -599,6 +605,60 @@ fn fixed_ink_contacts(drawing: &Drawing) -> Vec<LintIssue> {
             i.annotation = Some(d.name.clone());
             i.related = vec![fixed.name.clone()];
             i.fix = Some("move the annotation clear of the fixed ink".into());
+            issues.push(i);
+        }
+    }
+    issues
+}
+
+/// #32, the port's own (draftwright has neither): `dimension_line_shared`, two linear dimensions
+/// drawn on one dimension line over overlapping spans, and `dimension_text_stray`, a linear
+/// dimension's text further than a text height from its own line. Both errors: the sheet reads
+/// wrongly whatever else a move cleared. A linear dimension is read from its ink alone (no elbow;
+/// two extension lines, then the line across them).
+fn dimension_lines(drawing: &Drawing) -> Vec<LintIssue> {
+    let linear: Vec<&Drawn> = drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|d| d.kind == Kind::Dimension && d.elbow.is_none())
+        .collect();
+    let mut issues = Vec::new();
+    for (k, a) in linear.iter().enumerate() {
+        for b in &linear[k + 1..] {
+            if crate::output::shared_dimension_line(&a.lines, &b.lines) {
+                let mut i = issue(
+                    format!("l:dimension_line_shared:{}+{}", a.name, b.name),
+                    "dimension_line_shared",
+                    Severity::Error,
+                    format!(
+                        "'{}' and '{}' are drawn on one dimension line over overlapping spans",
+                        called(drawing, a),
+                        called(drawing, b)
+                    ),
+                );
+                i.annotation = Some(a.name.clone());
+                i.related = vec![b.name.clone()];
+                i.fix = Some("move one of them to a lane of its own".into());
+                issues.push(i);
+            }
+        }
+        if let Some(gap) = a
+            .label
+            .and_then(|l| crate::output::label_gap(&a.lines, l))
+            .filter(|g| *g > crate::output::STRAY_TEXT)
+        {
+            let mut i = issue(
+                format!("l:dimension_text_stray:{}", a.name),
+                "dimension_text_stray",
+                Severity::Error,
+                format!(
+                    "the text of '{}' lies {gap:.1} mm from its dimension line",
+                    called(drawing, a)
+                ),
+            );
+            i.annotation = Some(a.name.clone());
+            i.fix = Some("set the text beside its own dimension line".into());
             issues.push(i);
         }
     }

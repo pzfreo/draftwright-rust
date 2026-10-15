@@ -306,7 +306,7 @@ also take `offset` (below):
 | `view` | `front`, `plan` or `side`; a dimension must be visible across that view. `place.view` takes precedence over the earlier `dimensions/<id>/view`. |
 | `side` | `above`, `below`, `left` or `right` of the carrying view's projected envelope. A linear dimension uses the two sides parallel to its measured span; incompatible sides are refused with the choices. |
 | `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; callout columns on the left/right use the widest canonical label on that view plus shoulder and clearance, so labels at the same along position have distinct columns; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
-| `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
+| `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span; at `outside` it sits just past the line's far end, the dimension line run on to it, as a span too short for its label has it (#32: 1.25 of a long span stranded the text). Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
 
@@ -380,6 +380,17 @@ hole items that ordinary drop-and-escalate would withdraw. A covered measurement
 `omit: false` and a pin do not bypass consolidation or repeat information. A pin that cannot be
 drawn has `pinned_item_not_drawn`, alongside the reason in its typed state. Pinned view collisions
 and overruns have `pinned_view_overlap` and `pinned_view_off_sheet`.
+
+An explicit (unpinned) side or lane for a linear dimension, such as a proposed fix sets, re-runs
+that side's stack spacing (#32, `dims::placement::respace`): when its line would share a
+dimension line with another linear dimension over an overlapping span (an automatic item at
+its lane, or another explicit one), it moves out lane by lane to the nearest lane of its own
+that fits the page (else the nearest free lane, its overrun reported), shorter spans inside.
+An item that collides with nothing keeps its requested lane. Two lines sharing one offset over
+overlapping spans are `dimension_line_shared` (error, both IDs), and a linear label more than a
+text height (3 mm) from its own dimension line is `dimension_text_stray` (error); structural
+lint reports the same two codes from the drawn ink. A fix that leaves either is therefore a new
+problem in the edit's delta, not a resolved one.
 
 Placement problems provide `edit` operations addressing `place`. Resetting an annotation's
 `place` to `{}` releases it to automatic placement; removing a view's `place` restores automatic
