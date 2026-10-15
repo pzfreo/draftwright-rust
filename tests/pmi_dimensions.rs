@@ -743,6 +743,62 @@ fn a_basic_dimension_is_boxed_in_every_format_and_searchable() {
     assert!(!drawing.png(100.0).unwrap().is_empty());
 }
 
+/// #34: the editor's spindle with a reviewer's PMI (`samples/cnc-review-spindle.step.gz`): the
+/// ⌀4 cross hole's 23 from datum A (the end face) is basic. A z plane to an x bore's axis was not
+/// proven (draftwright proves an x or y plane to a z bore only), so the default location stood in,
+/// drawn plain. The PMI dimension now draws it, boxed, in the side view that sees the hole end on,
+/// and no unboxed 23 is drawn.
+#[test]
+fn a_basic_location_of_a_turned_parts_cross_hole_is_boxed() {
+    let raw =
+        std::fs::read(root().join("tests/fixtures/samples/cnc-review-spindle.step.gz")).unwrap();
+    let (part, a) = analysed("cnc-review-spindle.step", &gunzip(&raw));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let basic = |d: &PlannedDimension| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("pmi:") && m.parameter.ends_with(".basic"))
+    };
+    let drawn: Vec<&PlannedDimension> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.label == "23" && d.placed.is_some())
+        .collect();
+    assert_eq!(drawn.len(), 1, "{drawn:?}");
+    let d = drawn[0];
+    assert!(basic(d), "{d:?}");
+    assert_eq!(d.view, "v:side");
+    // It claims the default location it conveys.
+    assert!(
+        d.measurements
+            .iter()
+            .any(|m| m.feature == "f:hole:2" && m.parameter == "location.length.z"),
+        "{d:?}"
+    );
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| REFUSALS.contains(&p.code.as_str()) && p.message.contains("(23)")),
+        "{:?}",
+        plan.problems
+    );
+    // The box is drawn: the plan's ink is more than the same plan with the basic status taken off.
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let mut bare = plan.clone();
+    for d in &mut bare.dimensions {
+        d.measurements.iter_mut().for_each(|m| {
+            if let Some(kind) = m.parameter.strip_suffix(".basic") {
+                m.parameter = kind.to_string();
+            }
+        });
+    }
+    let boxed = model::render(&part, &a, &plan, &font).unwrap();
+    let unboxed = model::render(&part, &a, &bare, &font).unwrap();
+    assert!(boxed.svg().len() > unboxed.svg().len(), "the box adds ink");
+}
+
 #[test]
 fn what_the_faces_do_not_prove_is_reported_not_guessed() {
     let (_, a, _) = planned("nist_stc_10_asme1_ap242-e2");

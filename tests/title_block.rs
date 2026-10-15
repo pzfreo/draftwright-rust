@@ -131,15 +131,17 @@ fn projection_symbol_states_third_angle_and_clears_the_reserved_band() {
         ends.sort_by(|a, b| a[0][0].total_cmp(&b[0][0]));
         assert_eq!(symbol.lines.len(), 5);
         assert_eq!(ends.len(), 2);
-        let far = (ends[0][1][1] - ends[0][0][1]).abs();
-        let near = (ends[1][1][1] - ends[1][0][1]).abs();
+        // ISO 5456-2's third-angle figure (#31): the circles left, the cone right of them, its
+        // narrow end (the left one) towards them.
+        let near = (ends[0][1][1] - ends[0][0][1]).abs();
+        let far = (ends[1][1][1] - ends[1][0][1]).abs();
         assert!(
             (near / far - 0.6).abs() < 1e-9,
             "third-angle: narrow end faces circles"
         );
         assert!((far - 2.0 * circles[0].1).abs() < 1e-9);
         assert!((ends[1][0][0] - ends[0][0][0] - 1.3 * far).abs() < 1e-9);
-        assert!((circles[0].0[0] - circles[0].1 - ends[1][0][0] - 0.5 * far).abs() < 1e-9);
+        assert!((ends[0][0][0] - (circles[0].0[0] + circles[0].1) - 0.5 * far).abs() < 1e-9);
         let round_trip: Plan =
             serde_json::from_value(serde_json::to_value(&plan).unwrap()).unwrap();
         let (part, a) = plate();

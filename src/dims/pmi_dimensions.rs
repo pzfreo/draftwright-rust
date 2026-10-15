@@ -939,8 +939,9 @@ fn own(
 
 /// A length between its two proven stations, along world axis *k*, where draftwright draws it
 /// (`_pmi_front_linear` and the y branch of `_place_pmi_record`): x and z in the front view (x in
-/// the plan when only the plan's witness is proven), y in the side view, else the plan. Its ends
-/// sit across the axis where draftwright's witness does (`_pmi_witness_from_bbox`): the faces'
+/// the plan when only the plan's witness is proven), y in the side view, else the plan. A z
+/// length to an x bore's axis is drawn in the side view, which sees the bore end on (#34; not in
+/// draftwright, whose plane-to-bore witness is z bores only). Its ends sit across the axis where draftwright's witness does (`_pmi_witness_from_bbox`): the faces'
 /// box's middle in the front and side views, the stations' mean in the plan (for y, when it lies
 /// on the faces).
 fn linear(ids: &Identities, r: &Record, g: &crate::pmi::Geometry, k: usize, value: f64) -> Want {
@@ -968,6 +969,7 @@ fn linear(ids: &Identities, r: &Record, g: &crate::pmi::Geometry, k: usize, valu
     let (views, at): (Vec<&'static str>, [f64; 3]) = match k {
         0 if plan => (vec!["plan"], [0.0, mean(1), mid(2)]),
         0 => (vec!["front"], [0.0, mean(1), mid(2)]),
+        2 if g.view.as_deref() == Some("side") => (vec!["side"], [mean(0), mid(1), 0.0]),
         2 => (vec!["front"], [mid(0), mean(1), 0.0]),
         _ => {
             let x = mean(0);
