@@ -550,6 +550,34 @@
     "evidence": "draftwright keeps an XCAF occurrence of datum B that it could not project onto the datum's Part 21 definition (\"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable; datum occurrence support cannot be matched to Part21 definition\"), beside its record for the datum (datum_definition:#6538); the port reads one record per datum from Part 21: datum:#6513 is paired with that record. The datum's face is #129, a CONICAL_SURFACE (every_kind puts its items on faces by index to exercise each kind, quiddity-rust crates/haecceity/tests/pmi_write.rs written_cases), so neither side can draw it: draftwright refuses each occurrence, the port refuses datum:#6513 once (pmi_not_lowered: \"one datum reference is neither planar nor cylindrical; datum reference surface is unavailable\"). The same pattern as nist_stc_06's datum B occurrences (rust-correct)."
   },
   {
+    "file": "hw_every_kind.step.gz",
+    "record": "manufacturing_requirement:#6703",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "surface_texture",
+      "label": "Ra 3.2 µm unless otherwise specified"
+    },
+    "verdict": "rust-correct",
+    "evidence": "draftwright reads no AP242 surface texture (ISO 10303-1110 surface_texture_representation, ISO 1302): its Part 21 overlays read requirements in words only, so it has no record. The port reads haecceity's SurfaceTexture as a record (draftwright-rust #18, PartReader::semantic_textures): the part's own texture, Ra 3.2 µm 'any process allowed' (#6703, on the product definition shape #4), is its default finish, labelled as draftwright's text route states one and drawn as draftwright draws that (its DefaultSurfaceFinish beside the title block)."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
+    "record": "manufacturing_requirement:#6715",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "surface_finish",
+      "label": "Ra 0.8 µm, Rz 4 µm"
+    },
+    "verdict": "rust-correct",
+    "evidence": "draftwright reads no AP242 surface texture (ISO 10303-1110 surface_texture_representation, ISO 1302): its Part 21 overlays read requirements in words only, so it has no record. The port reads haecceity's SurfaceTexture as a record (draftwright-rust #18, PartReader::semantic_textures): the texture on shape aspect #6529 (Ra 0.8 µm and Rz 4 µm, 'material removal required') is a face finish (draftwright's kind surface_finish). Its face is neither planar nor cylindrical (every_kind puts its items on faces by index to exercise each kind), so the port refuses to draw it (pmi_not_lowered), never guessing an attachment."
+  },
+  {
     "file": "hw_thumbwheel_notes_add.step.gz",
     "record": "dimension:0:1:4:1",
     "port": "dimension:#651",

@@ -4366,6 +4366,17 @@ fn render_annotations_with_cuts(
         for [a, b] in &p.strokes {
             dims.push(Item::Edge(Curve::Line(*a, *b)));
         }
+        // A material removal condition's circle (`no material removal`), when it has one.
+        for a in &p.arcs {
+            dims.push(Item::Edge(Curve::Conic {
+                centre: [a[0], a[1]],
+                radii: [a[2], a[2]],
+                x_axis: [1.0, 0.0],
+                y_axis: [0.0, 1.0],
+                t0: a[3].to_radians(),
+                t1: a[4].to_radians(),
+            }));
+        }
         let run = (r.text.as_str(), title_block::FONT, title_block::TEXT);
         let at = label(
             title_block::lay(&r.text, title_block::TEXT),
