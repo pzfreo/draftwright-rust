@@ -753,12 +753,24 @@ fn lanes_uncached(
             .iter()
             .any(|m| m.parameter == "thickness.length")
     };
-    let owner = if wants.iter().any(plate) {
+    // #33: a turned band's length that a baseline from the datum conveys is planned only so a
+    // spec naming it still reads; it draws no ink, so it reserves no lane of its own either.
+    let baseline = wants
+        .iter()
+        .any(|w| w.id.ends_with("/step_position.length"));
+    let conveyed = |w: &Want| baseline && w.id.ends_with("/step.length");
+    let owner = if wants.iter().any(plate) || baseline {
         let merged = placement::owners(analysis, &wants, &chosen);
         wants
             .iter()
             .enumerate()
-            .map(|(i, w)| if plate(w) { merged[i] } else { None })
+            .map(|(i, w)| {
+                if plate(w) || conveyed(w) {
+                    merged[i]
+                } else {
+                    None
+                }
+            })
             .collect()
     } else {
         vec![None; wants.len()]
