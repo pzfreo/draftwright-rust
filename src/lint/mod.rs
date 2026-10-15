@@ -183,6 +183,17 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 
 /// Every ported rule's findings on *drawing*, a drawing of the part *analysis* describes.
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
+    // The requirements include the datums and controls the drawing's spec authors, merged into
+    // the PMI reading as the plan merged them ([`crate::spec_gdt`]); a spec that cannot be read
+    // or merged adds none (the plan would have been refused).
+    let spec = drawing
+        .spec
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<crate::model::Spec>(s).ok());
+    let merged = spec
+        .as_ref()
+        .and_then(|spec| crate::spec_gdt::effective(analysis, spec).ok());
+    let analysis = merged.as_deref().unwrap_or(analysis);
     let mut marks = marks(drawing);
     let sites: std::collections::BTreeMap<_, _> = crate::bridge::holes::read(analysis)
         .into_iter()

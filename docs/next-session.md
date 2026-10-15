@@ -7276,3 +7276,38 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
 - **Spindle sheet, by eye**: the 23 is boxed in the side view and the hole's callout moved above
   the view; its leader now crosses the ⌖ frame's leader (reported `annotation_leader_crossing`),
   where before it ran up through the base into the hole from below. Cosmetic; not chased.
+
+## K1: datums and GD&T controls authored in the Spec (#43 item 1) (2026-10-15, unattended; overturnable)
+
+- **What**: `features/<id>/datum`, `features/<id>/controls`, `faces/<face>/datum`,
+  `faces/<face>/controls` (`src/spec_gdt.rs`, docs/model.md "Datums and controls authored in
+  the Spec"). Each is lowered into the same `pmi::Record` an AP242 datum or tolerance is read
+  into and merged into the Analysis's PMI reading (`spec_gdt::effective`, at the plan entry
+  points and in `lint::lint` from the drawing's embedded spec), so lowering, placement, band
+  reservation, drawing and lint are unchanged. The Spec wins over the file's PMI
+  (`spec_overrides_pmi`, warning); an undeclared datum letter is `datum_undeclared` (warning).
+- **Attachment without a part**: `plan` has only the Analysis, so the Analysis now carries
+  `face_attachments` (per face: box, surface, principal axis/support, proven sites, normal,
+  exact cylinder axis). `pmi::datum_geometry` and `tolerance_geometry` were refactored to read
+  the same per-face record, so the file's PMI and the Spec's attach by one code path (PMI
+  fixtures unchanged). Cost: analyse +0.13% instructions on nist_ctc_01, +0.4% on plate; the
+  Analysis JSON about +1%. Default plans byte-identical (ftc_06, ctc_01, plate compared; guard).
+- **Judgement calls (overturnable)**:
+  - `face_attachments` was added to `draftwright.analysis/7` as an optional field rather than
+    bumping to /8 (wire compatibility: add fields, don't rename). An older Analysis refuses
+    Spec GD&T with "analyse again".
+  - Faces are named by box side (`bottom` = -z, `top`, `left` = -x, `right`, `front` = -y,
+    `back`) or `face:<n>`; a side takes every outward planar face lying on that side of the box.
+  - On a feature with cylinders the datum or control applies to its cylinders only (its axis),
+    else to all its faces; a hole pattern's control applies to all its holes' cylinders.
+  - Conflict = a datum of the same letter, or a tolerance of the same characteristic on the same
+    face set. Severity warning (deliberate intent, not a defect).
+  - A ⌀ zone is accepted on straightness, angularity, perpendicularity, parallelism, position
+    and concentricity (draftwright offers it on position and concentricity only); modifier `P`
+    is refused, as the drawing does not draw a projected zone for AP242 PMI either.
+  - Datum letters: one to three capitals; lower case is refused with the capital as the choice.
+- **By eye** (plate.step, A4 2:1): datum A's triangle on the front view's bottom edge, letter
+  below; the ⌖ ⌀0.1 A frame above the plan view. The frame's leader lands at the centre of the
+  holes' box (between the holes), as the PMI path places every multi-face frame (unchanged
+  here); a draftsman would rather hang it on the hole callout. Both leaders cross a dimension
+  line (reported `annotation_leader_crossing`). Flatness on `top` draws ⏥ 0.05 above the side view.

@@ -985,8 +985,10 @@ impl Session {
     }
     fn placement_choices(&self) -> BTreeMap<String, Value> {
         let mut choices = crate::dims::placement_options(&self.analysis, &self.plan().views);
+        // The Spec's datums and controls are placed as the file's PMI is ([`crate::spec_gdt`]).
+        let merged = crate::spec_gdt::effective(&self.analysis, &self.plan().spec);
         choices.extend(crate::dims::gdt::placement_options(
-            &self.analysis,
+            merged.as_deref().unwrap_or(&self.analysis),
             &self.plan().views,
         ));
         for n in &self.plan().notes {
@@ -1199,6 +1201,35 @@ fn settable(
             descriptor["paths"] = json!(paths);
         }
         fields.insert(paths[0].clone(), descriptor);
+    }
+    // A datum letter and feature control frames qualify a feature or hole pattern
+    // ([`crate::spec_gdt`]); a face takes them at faces/<side or face:n>/….
+    let patterns = session
+        .analysis()
+        .recognition
+        .as_ref()
+        .map_or(&[][..], |r| r.patterns.as_slice());
+    // The feature the item's ID names (a hole's callout its hole, a hole pattern's its pattern),
+    // once: offering every measured feature would outgrow the reply's wire budget.
+    let named = item
+        .item
+        .id
+        .strip_prefix("d:")
+        .and_then(|s| s.rsplit_once('/'))
+        .map(|(f, _)| f.to_string());
+    if let Some(feature) = &named {
+        let known = session.analysis().features.iter().any(|f| &f.id == feature)
+            || patterns.iter().any(|p| &p.id == feature);
+        if known {
+            let base = format!("features/{}", items::key(feature));
+            fields.insert(format!("{base}/datum"), json!({"forms":["A"]}));
+            fields.insert(
+                format!("{base}/controls"),
+                json!({
+                    "fields": ["characteristic", "tolerance", "datums", "diameter", "modifier"],
+                }),
+            );
+        }
     }
     if item.item.kind == "sheet" {
         fields.insert(

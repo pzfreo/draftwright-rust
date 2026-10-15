@@ -219,7 +219,11 @@ or `third`) is a spec path like `sheet/size` and `sheet/scale`, and the regenera
 (inclusive, with `integer` where needed), tolerance `forms`, or title `fields`. A
 fit descriptor with `paths` applies to all listed feature paths. Fits list only classes
 valid for the feature kind and recognised size in the engine's ISO 286 table. Tolerances
-are strings (`±T` or `+U -L`); fits use `features/<id>/fit`. View keys are bare (`iso`)
+are strings (`±T` or `+U -L`); fits use `features/<id>/fit`. A feature's item also lists
+`features/<id>/datum` (`forms`: a letter) and `features/<id>/controls` (`fields`; the 14
+characteristics are in `docs/model.md`) for the feature its ID names; a face takes the
+same at `faces/<bottom|top|left|right|front|back|face:n>/…` (`docs/model.md`, "Datums and
+controls authored in the Spec"; the Spec schema's `faces` in `schemas/mcp/`). View keys are bare (`iso`)
 and the drawing number is `sheet/title/number`. Compatible view/side pairs remain in
 `placements`; candidates require preview/apply, and a view relation needs both
 `relative_to` and `side`. Set several subfields by setting their complete `place` object.
