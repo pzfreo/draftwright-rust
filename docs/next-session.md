@@ -7205,3 +7205,41 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
     editor-plate, GRM-03, cgb203 and nist_ftc_06 keeps its ink, the plan equals the bare pin's,
     and a 2 × 1.5 mm drag lands exactly. Judgement call: a bare pin (and so an automatic offset)
     still lets one other dimension re-settle on some parts, as E1 left it; not changed here.
+
+## J1: ISO third-angle symbol layout (#31) and a turned part's basic cross-hole location (#34) (2026-10-15, unattended; overturnable)
+
+- **#31, symbol** (`src/title_block.rs` `projection`): the third-angle symbol was already
+  geometrically third angle (small end towards the circles) but drew the circles on the right,
+  which is ISO 5456-2 / ISO 128-3's first-angle *layout*, so readers going by left/right misread
+  it. It now draws ISO's figure: circles left, cone right, small end (left) towards the circles,
+  in the same reserved band with the same overall extent. First angle is unchanged. **Python
+  draftwright (build123d_drafting's `ProjectionSymbol`) still draws the old third-angle layout:
+  a deliberate divergence.** The issue's claim that the old symbol was "the first-angle form" is
+  mistaken (maintainer's finding); only the layout changed.
+- **#34, basic 23 drawn plain**: the spindle's PMI 23 (basic, datum A end face to the ⌀4 cross
+  hole's axis) was refused, "plane-to-bore location has no proven face-supported axis witness",
+  because `plane_to_bore` (draftwright's `_planar_bore_axis_witness`) proves only an x or y plane
+  to a z bore. The default `location.length.z` then stood in, drawn unboxed. The witness is now
+  proved the same way for any principal plane across any principal bore axis (z bores keep
+  draftwright's witness and the plan view; an x bore is drawn in the side view, a y bore in the
+  front), so the PMI dimension is drawn, boxed, in the side view and conveys the default
+  (one span, one dimension). Divergence from Python, which still refuses these. No AP242 fixture
+  of the Python comparison changed (`tests/pmi_dimensions.rs` 15/15, `pmi_lowering`, `pmi`).
+  Basic PMI dimensions that are lowered were already boxed wherever drawn; a basic record still
+  refused for another reason stays reported `pmi_not_lowered` (not drawn), and a default of the
+  same span is then drawn plain. Judgement call: the default is not boxed on the refused record's
+  say-so, because the refusal means the faces did not prove the span the default draws.
+- **Fixture**: `tests/fixtures/samples/cnc-review-spindle.step.gz`, the editor's spindle with the
+  reviewer's PMI (g6 on ⌀15, datums A/B, ⌖ on the ⌀4 cross hole, heights from A), outside
+  `parts/` so the single-sheet case set is unchanged.
+- **Single-sheet re-baseline** (`DRAFTWRIGHT_REBASELINE_SINGLE_SHEET=j1-projsym-basic`): every
+  rendered case's title block changes (1,677 plans, SVGs, PDFs). Proof before re-recording: with
+  a temporary hook (removed) that swapped each plan's symbol for the base commit's
+  `projection` output, the unmodified guard passed on macOS against the old record in plan, SVG,
+  PDF and PNG, so the symbol's curves are the only change in any guard case (including the
+  plane-to-bore generalisation, which moves none). Case set and 199 refusals unchanged. The mode
+  cleared the platform overrides: **Linux must be re-recorded** with the `record_single_sheet`
+  workflow on the PR before the guard passes on Linux CI.
+- **Spindle sheet, by eye**: the 23 is boxed in the side view and the hole's callout moved above
+  the view; its leader now crosses the ⌖ frame's leader (reported `annotation_leader_crossing`),
+  where before it ran up through the base into the hole from below. Cosmetic; not chased.

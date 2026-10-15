@@ -132,18 +132,75 @@ fn first_angle_swaps_the_views_and_the_symbol() {
         let symbol = |p: &Plan| p.sheet.projection_symbol.clone().unwrap();
         assert_eq!(symbol(&third).method, "third-angle");
         assert_eq!(symbol(&first).method, "first-angle");
-        // The cone's two end lines: third angle's large end left, first angle's right.
-        let ends = |p: &Plan| {
-            let s = symbol(p);
-            let len = |i: usize| match &s.curves[i] {
-                draftwright::output::Curve::Line(a, b) => (a[1] - b[1]).abs(),
-                _ => panic!("an end line"),
-            };
-            (len(0), len(1))
-        };
-        assert!(ends(&third).0 > ends(&third).1);
-        assert!(ends(&first).0 < ends(&first).1);
+        // The circles left of the cone and its small end towards them in third angle; right
+        // of it, its large end towards them, in first angle (ISO 5456-2; #31).
+        let (third, first) = (
+            symbol_layout(&symbol(&third)),
+            symbol_layout(&symbol(&first)),
+        );
+        assert!(third.circles_left && third.nearer_end_smaller, "{third:?}");
+        assert!(
+            !first.circles_left && !first.nearer_end_smaller,
+            "{first:?}"
+        );
     }
+}
+
+/// How a projection symbol is laid out: whether its circles' centre is left of the cone, and
+/// whether the cone's end nearer the circles is the smaller.
+#[derive(Debug)]
+struct SymbolLayout {
+    circles_left: bool,
+    nearer_end_smaller: bool,
+}
+
+fn symbol_layout(s: &draftwright::title_block::ProjectionPlaced) -> SymbolLayout {
+    use draftwright::output::Curve;
+    let centre = s
+        .curves
+        .iter()
+        .find_map(|c| match c {
+            Curve::Conic { centre, .. } => Some(*centre),
+            _ => None,
+        })
+        .expect("the end view's circles");
+    // The cone's two end lines: the vertical lines (the centre line is horizontal).
+    let ends: Vec<(f64, f64)> = s
+        .curves
+        .iter()
+        .filter_map(|c| match c {
+            Curve::Line(a, b) if (a[0] - b[0]).abs() < 1e-9 => Some((a[0], (a[1] - b[1]).abs())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ends.len(), 2, "{:?}", s.curves);
+    let cone_x = 0.5 * (ends[0].0 + ends[1].0);
+    let (near, far) = if (ends[0].0 - centre[0]).abs() < (ends[1].0 - centre[0]).abs() {
+        (ends[0], ends[1])
+    } else {
+        (ends[1], ends[0])
+    };
+    SymbolLayout {
+        circles_left: centre[0] < cone_x,
+        nearer_end_smaller: near.1 < far.1,
+    }
+}
+
+/// #31: the symbol a default (third-angle) sheet draws, and first angle's, are ISO 5456-2's
+/// figures, both inside the band right of the scale note, in the same place either way.
+#[test]
+fn the_third_angle_symbol_puts_the_circles_left() {
+    use draftwright::title_block::projection;
+    let block = [200.0, 10.0, 400.0, 50.0];
+    let (third, first) = (projection(block, false), projection(block, true));
+    let (t, f) = (symbol_layout(&third), symbol_layout(&first));
+    assert!(t.circles_left && t.nearer_end_smaller, "{t:?}");
+    assert!(!f.circles_left && !f.nearer_end_smaller, "{f:?}");
+    // The same extent: the centre line, end to end, is the same line.
+    assert_eq!(third.curves[4], first.curves[4]);
+    let default = planned(&plate(), json!({}));
+    let s = symbol_layout(&default.sheet.projection_symbol.unwrap());
+    assert!(s.circles_left && s.nearer_end_smaller, "{s:?}");
 }
 
 /// `third` is the default spelled out: the same plan apart from the spec it echoes.

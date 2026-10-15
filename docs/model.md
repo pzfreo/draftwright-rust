@@ -203,7 +203,8 @@ The design also includes `views/sections` and feature `anchor`/`note`
 plan is then byte for byte what it was before the field existed (`third` set explicitly differs only
 in the spec it echoes). First angle puts the plan below the front and the right side view left of
 it, the same blocks and bands mirrored within the packed group, and draws the first-angle symbol
-(the cone's large end beside the circles) where the third-angle symbol goes;
+(cone left, circles right, the cone's large end beside them) where the third-angle symbol
+(circles left, cone right, its small end beside them) goes, both ISO 5456-2's figures;
 `sheet.projection_symbol.method` says `first-angle` or `third-angle`, and the views' bases say
 which side each sits. The session's `item_options` for `sheet` lists the choices. Other sheets of a
 multi-sheet drawing carry no projected views, so the setting only arranges sheet 1.
