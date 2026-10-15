@@ -395,8 +395,10 @@ reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG
   as it would print (`omitted[].label`), a frame's compartments joined by ` | ` (`gdt[].label`),
   a datum's letter, a requirement's text, a note's rows, a balloon's tag.
 - **Every problem names its subjects** and, where one exists, an edit that would fix it.
-  `subjects` are live item IDs only: the plan's items (the sheet as `sheet`) and the Analysis's
-  features. What else a problem names is in `refs`: a PMI record's source (its Part 21
+  `subjects` are live item IDs only: the plan's items (the sheet as `sheet`), the Analysis's
+  features and, for geometry no feature claims (`unclaimed_geometry`), the part's faces as
+  `face:<index>`. `sheet` is the subject only of a problem about the paper, the scale, what fits
+  on the sheet or the title block drawn on it (#25). What else a problem names is in `refs`: a PMI record's source (its Part 21
   provenance), a source not read, a recogniser family, a view not drawn (`v:section_aa`), the
   height ladder (`step_level`), the whole part (`part`, for PMI not read), a title-block cell (`title_block/<field>`, the sheet its
   subject), a spec entry not applied, a thread a schedule states. `fix` is a list of `edit`
@@ -410,6 +412,13 @@ reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG
   `tests/items.rs` (the isometric's in `tests/views.rs`), and the problem is gone. Where the
   turned-part rule, not the spec, dropped a view, the message says so and gives no fix (restoring
   an omission the spec never made would fail).
+- **A problem's message is in drawing language** (#24; `src/wording.rs`): it names a dimension
+  by the text it prints (`2× 30`), a feature by what a draftsman sees of it (`the ⌀8 hole`), a
+  view by its name (`the plan view`), a note by its text; never by an internal ID (`d:`, `f:`,
+  `v:`, `pmi:`, `n:`, `t:`, `face:`), which stay in `subjects` and `refs`. A PMI record not
+  drawn is still named by its source (`dimensional_size:#123`), as it is no item. Messages are
+  for people; nothing should parse them. `tests/problem_wording.rs` scans every message of the
+  test parts and AP242 fixtures.
 - **Nothing the plan approves vanishes silently.** An item that can't be drawn is reported
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.
@@ -515,7 +524,7 @@ radial leader leaving its own hole along that hole's centre-mark arm is exempt.
 
 `src/dims/` plans the dimensions draftwright's defaults would state for the families ported
 so far, each a Plan item `{id, kind, view, value, label, terms, measurements, default, from_spec,
-basis, placed}`:
+basis, placed, reference?, determined_by?}`:
 
 - **Overall extents:** `d:envelope/width.length` (in the front view), `depth.length` (side),
   `height.length` (front) for a prismatic part (each falling back to the plan or side view when
@@ -609,7 +618,13 @@ and counted/compound statements retain their existing ownership contracts. Refer
 choice does not change when another member gains a tolerance. Omission can make an
 unpinned reference controlling, reflowing its text at the same centre and witnesses.
 A pinned reference keeps its ink and raises `pinned_reference_chain_changed` if its
-controlling chain is edited; its offered fix releases the pin. A flush boss height is credited from
+controlling chain is edited; its offered fix releases the pin. A dimension drawn in brackets
+carries `reference: true` and, in `determined_by`, the IDs of the dimensions that determine it,
+in the order its basis names them: a chain's stated total and other members, the stated overall
+and slot length for a floor interval, a slot's width and location for a shoulder on its wall
+(#26; `tests/problem_wording.rs`). Both fields are optional on the wire and absent on a
+controlling dimension; a pinned reference kept after its chain was edited has `reference: true`
+and no `determined_by`. A flush boss height is credited from
 the same stated envelope interval, without reading the omission.
 
 The Plan also carries `status` (`clear` or `needs_attention`) and `completeness`:

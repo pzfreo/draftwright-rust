@@ -372,7 +372,10 @@ pub(crate) fn views(
             let mut p = problem(
                 &id,
                 "placement_anchor_not_shown",
-                format!("The placement anchor of {id} is not shown; its intent is retained."),
+                format!(
+                    "The placement anchor of {} is not shown; its intent is retained.",
+                    crate::wording::view(&id)
+                ),
                 &format!("views/{name}/place"),
             );
             if !views.iter().any(|v| v.id == id) {
@@ -525,7 +528,7 @@ pub(crate) fn views(
                     "pinned_view_off_sheet",
                     format!(
                         "{} is pinned outside the drawing area and is kept there.",
-                        v.id
+                        crate::wording::capital(&crate::wording::view(&v.id))
                     ),
                     &path,
                 ));
@@ -544,7 +547,7 @@ pub(crate) fn views(
                 "pinned_view_overlap",
                 format!(
                     "{} overlaps another view or the title block and is kept at its pinned position.",
-                    v.id
+                    crate::wording::capital(&crate::wording::view(&v.id))
                 ),
                 &path,
             ));
@@ -570,7 +573,7 @@ pub(crate) fn obstacles(
         .collect()
 }
 
-pub(crate) fn finish(plan: &mut Plan, _analysis: &Analysis) {
+pub(crate) fn finish(plan: &mut Plan, analysis: &Analysis) {
     let pins: BTreeMap<String, String> = plan
         .spec
         .dimensions
@@ -595,9 +598,15 @@ pub(crate) fn finish(plan: &mut Plan, _analysis: &Analysis) {
                         .any(|d| d.id == **id && d.kind == "callout")
             })
         {
+            let label = plan
+                .dimensions
+                .iter()
+                .find(|d| d.id == **id)
+                .map_or_else(String::new, |d| d.label.clone());
             p.message = format!(
-                "The pinned label's leader crosses part features: {} crosses {}. Its bend and label are kept at the prescribed position.",
-                id, p.subjects[1]
+                "The pinned label's leader crosses part features: the leader of {} crosses {}. Its bend and label are kept at the prescribed position.",
+                crate::wording::item(id, "callout", &label),
+                crate::wording::feature_id(analysis, &p.subjects[1])
             );
             p.refs.push(id.clone());
         }
@@ -641,15 +650,20 @@ pub(crate) fn finish(plan: &mut Plan, _analysis: &Analysis) {
         }
     }
     for (id, path) in pins {
-        let state = crate::items::items(plan)
-            .into_iter()
-            .find(|i| i.id == id)
-            .map(|i| i.state);
+        let item = crate::items::items(plan).into_iter().find(|i| i.id == id);
+        let named = item.as_ref().map_or_else(
+            || "a pinned item no longer in the plan".to_string(),
+            |i| crate::wording::item(&id, &i.kind, i.label.as_deref().unwrap_or("")),
+        );
+        let state = item.map(|i| i.state);
         if !matches!(state, Some(crate::items::State::Shown)) {
             let mut p = problem(
                 &id,
                 "pinned_item_not_drawn",
-                format!("{id} cannot be drawn at its pinned anchor; its placement is retained."),
+                format!(
+                    "{} cannot be drawn at its pinned anchor; its placement is retained.",
+                    crate::wording::capital(&named)
+                ),
                 &path,
             );
             if state.is_none() {

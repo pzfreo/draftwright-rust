@@ -2,7 +2,7 @@
 //! - every plan item, drawn or left out, has a typed state, consistent with what the plan did
 //!   with it (drawn when shown; a problem naming it when it is not drawable);
 //! - every problem's subjects are live items (the plan's items, the sheet, the Analysis's
-//!   features), and a problem's fix is an edit that resolves it;
+//!   features, the part's faces), and a problem's fix is an edit that resolves it;
 //! - the editor's drawing review (`src/model/drawing-review.ts` at the editor's thin-slice
 //!   branch, which reads an item's state from its basis sentence) can be written from the typed
 //!   states alone, with no string matching, and classifies every item as it does;
@@ -137,11 +137,13 @@ fn specs(a: &Analysis) -> Vec<(String, Spec)> {
         .collect()
 }
 
-/// The IDs a problem may name: the plan's items (the sheet among them) and the Analysis's
-/// features and hole patterns.
+/// The IDs a problem may name: the plan's items (the sheet among them), the Analysis's
+/// features and hole patterns, and the part's faces (`face:<index>`, for geometry no feature
+/// claims).
 fn live(plan: &Plan, a: &Analysis) -> BTreeSet<String> {
     let mut out: BTreeSet<String> = items::items(plan).into_iter().map(|i| i.id).collect();
     out.extend(a.features.iter().map(|f| f.id.clone()));
+    out.extend((0..a.binding.face_count).map(|i| format!("face:{i}")));
     if let Some(r) = &a.recognition {
         out.extend(r.patterns.iter().map(|p| p.id.clone()));
     }

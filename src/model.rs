@@ -1622,7 +1622,9 @@ fn plan_escalated_uncached(
             let selection = crate::hole_table::select(analysis, &p);
             if selection.tables.is_empty() && spec.hole_table == crate::hole_table::Setting::Always
                 && p.dimensions.iter().any(|d| d.measurements.iter().any(|m| m.parameter == "bore.diameter")) {
-                p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"A hole table was requested, but no eligible holes have a proven datum corner in a carrying view; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
+                // About the holes, not the sheet (#25): its subjects are the hole callouts kept.
+                let callouts = p.dimensions.iter().filter(|d| d.measurements.iter().any(|m| m.parameter == "bore.diameter")).map(|d| d.id.clone()).collect();
+                p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"A hole table was requested, but no eligible holes have a proven datum corner in a carrying view; the original dimensions are kept.".into(), subjects:callouts, ..Default::default() });
             }
             if !selection.tables.is_empty() {
                 let mut scheduled =
@@ -1835,9 +1837,10 @@ fn plan_with_presentation(
                 code: "spec_entries_inactive".into(),
                 severity: "warning".into(),
                 message: format!(
-                    "The spec was made for a different revision of {}, and its entries for features and PMI ({}) cannot be matched to this one's until revisions are rebound: they are kept in the spec but not applied, and the spec stays bound to its revision while they remain. Remove them (then set what is wanted by this revision's IDs), or edit the spec's binding to this revision's to apply them as they are.",
+                    "The spec was made for a different revision of {}, and its {} entr{} for features and PMI (this problem's refs) cannot be matched to this one's until revisions are rebound: they are kept in the spec but not applied, and the spec stays bound to its revision while they remain. Remove them (then set what is wanted by this revision's IDs), or edit the spec's binding to this revision's to apply them as they are.",
                     b.part,
-                    inactive.join(", ")
+                    inactive.len(),
+                    if inactive.len() == 1 { "y" } else { "ies" }
                 ),
                 subjects: Vec::new(),
                 refs: inactive.clone(),
@@ -2847,7 +2850,10 @@ fn plan_with_presentation(
                 id: format!("p:notes_not_placed:{}", note.id),
                 code: "notes_not_placed".into(),
                 severity: "error".into(),
-                message: format!("{} {RADIUS_DEFAULT_WITHDRAWN}", note.id),
+                message: format!(
+                    "{} {RADIUS_DEFAULT_WITHDRAWN}",
+                    crate::wording::capital(&crate::wording::note(&note.text))
+                ),
                 subjects: vec![note.id.clone()],
                 ..Default::default()
             });
@@ -2864,7 +2870,8 @@ fn plan_with_presentation(
                 severity: "warning".into(),
                 message: format!(
                     "{} is not dimensioned: {} cannot safely state its radius.",
-                    m.feature, note.id
+                    crate::wording::capital(&crate::wording::feature_id(analysis, &m.feature)),
+                    crate::wording::note(&note.text)
                 ),
                 subjects: vec![m.feature.clone()],
                 ..Default::default()
@@ -2988,7 +2995,11 @@ fn plan_with_presentation(
                     id: format!("p:annotation_off_sheet:{}", w.id),
                     code: "annotation_off_sheet".into(),
                     severity: "error".into(),
-                    message: format!("{} extends past the drawable area; choose a larger sheet or a smaller scale.", w.id),
+                    message: format!(
+                        "{} in {} extends past the drawable area; choose a larger sheet or a smaller scale.",
+                        crate::wording::capital(&crate::wording::line_work(&w.kind)),
+                        crate::wording::view(&v.id)
+                    ),
                     subjects: vec![v.id.clone()],
                     refs: vec![w.id.clone()],
                     ..Default::default()

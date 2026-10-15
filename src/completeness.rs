@@ -234,11 +234,18 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         }
     }
     if claimed.len() < analysis.binding.face_count {
+        // About the faces, not the sheet (#25): its subjects are the unclaimed faces themselves,
+        // `face:<index>`, as no feature has them. The ID keeps its old form, so an editor that
+        // remembers the problem still knows it.
+        let unclaimed = (0..analysis.binding.face_count)
+            .filter(|i| !claimed.contains(i))
+            .map(|i| format!("face:{i}"))
+            .collect();
         plan.problems.push(Problem {
             id: "p:unclaimed_geometry:sheet".into(), code: "unclaimed_geometry".into(),
             severity: severity.into(),
             message: format!("Analysis {} claim {} of {} faces; {} faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.", if claimed.len()>feature_claims {"features and dimensioned stock"} else {"features"}, claimed.len(), analysis.binding.face_count, analysis.binding.face_count - claimed.len()),
-            subjects: vec!["sheet".into()], ..Default::default()
+            subjects: unclaimed, ..Default::default()
         });
     }
     for id in unplanned {
@@ -253,7 +260,7 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         }) {
             plan.problems.push(Problem {
                 id: format!("p:feature_unplanned:{id}"), code: "feature_not_dimensioned".into(),
-                severity: severity.into(), message: format!("{id} has no dimension drawn or carried by the hole table; review its omitted or undrawable items."),
+                severity: severity.into(), message: format!("{} has no dimension drawn or carried by the hole table; review its omitted or undrawable items.", crate::wording::capital(&crate::wording::feature_id(analysis, &id))),
                 subjects: vec![id], ..Default::default()
             });
         }

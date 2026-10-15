@@ -1641,6 +1641,11 @@ pub(super) fn collisions(
     )
 }
 
+/// A placed item as a problem's message names it ([`crate::wording::item`]).
+fn named(d: &PlannedDimension) -> String {
+    crate::wording::item(&d.id, &d.kind, &d.label)
+}
+
 pub(crate) fn collisions_cached(
     analysis: &Analysis,
     dims: &[PlannedDimension],
@@ -1708,16 +1713,16 @@ pub(crate) fn collisions_cached(
                         code: code.into(),
                         severity: "warning".into(),
                         message: format!(
-                            "The {} {} of {} ({}) crosses {}.",
+                            "The {} of {} crosses {}.",
                             if d.kind == "callout" {
-                                "leader shaft"
+                                "leader"
+                            } else if n == 0 {
+                                "first extension line"
                             } else {
-                                "dimension extension"
+                                "second extension line"
                             },
-                            n + 1,
-                            d.id,
-                            d.label,
-                            subjects[1]
+                            named(d),
+                            crate::wording::feature_id(analysis, &subjects[1])
                         ),
                         subjects,
                         ..Default::default()
@@ -1742,8 +1747,9 @@ pub(crate) fn collisions_cached(
                     "info",
                     vec![d.id.clone(), d.view.clone()],
                     format!(
-                        "{} ({}) runs up to {past:.1} mm past the area reserved for the {} view and its bands; it may crowd what lies beyond.",
-                        d.id, d.label, d.view
+                        "{} runs up to {past:.1} mm past the area reserved for {} and its bands; it may crowd what lies beyond.",
+                        crate::wording::capital(&named(d)),
+                        crate::wording::view(&d.view)
                     ),
                 );
             }
@@ -1762,7 +1768,10 @@ pub(crate) fn collisions_cached(
                 "annotation_off_sheet",
                 "error",
                 vec![d.id.clone()],
-                format!("{} ({}) runs off the sheet's drawing area.", d.id, d.label),
+                format!(
+                    "{} runs off the sheet's drawing area.",
+                    crate::wording::capital(&named(d))
+                ),
             );
         }
         let tb = sheet.title_block;
@@ -1771,7 +1780,10 @@ pub(crate) fn collisions_cached(
                 "annotation_over_title_block",
                 "warning",
                 vec![d.id.clone()],
-                format!("{} ({}) runs into the title block.", d.id, d.label),
+                format!(
+                    "{} runs into the title block.",
+                    crate::wording::capital(&named(d))
+                ),
             );
         }
         for (view, b) in &outlines {
@@ -1788,8 +1800,9 @@ pub(crate) fn collisions_cached(
                     "warning",
                     vec![d.id.clone(), view.to_string()],
                     format!(
-                        "The label of {} ({}) lies over the {view} view.",
-                        d.id, d.label
+                        "The label of {} lies over {}.",
+                        named(d),
+                        crate::wording::view(view)
                     ),
                 );
             }
@@ -1800,8 +1813,9 @@ pub(crate) fn collisions_cached(
                     "warning",
                     vec![d.id.clone(), view.to_string()],
                     format!(
-                        "A line of {} ({}) runs across the {view} view.",
-                        d.id, d.label
+                        "A line of {} runs across {}.",
+                        named(d),
+                        crate::wording::view(view)
                     ),
                 );
             }
@@ -1814,10 +1828,7 @@ pub(crate) fn collisions_cached(
                     "annotation_overlap",
                     "warning",
                     vec![a.id.clone(), b.id.clone()],
-                    format!(
-                        "The labels of {} ({}) and {} ({}) overlap.",
-                        a.id, a.label, b.id, b.label
-                    ),
+                    format!("The labels of {} and {} overlap.", named(a), named(b)),
                 );
             }
         }
@@ -1833,8 +1844,9 @@ pub(crate) fn collisions_cached(
                     "warning",
                     vec![a.id.clone(), b.id.clone()],
                     format!(
-                        "A line of {} ({}) runs through the label of {} ({}).",
-                        a.id, a.label, b.id, b.label
+                        "A line of {} runs through the label of {}.",
+                        named(a),
+                        named(b)
                     ),
                 );
             }
@@ -1852,10 +1864,7 @@ pub(crate) fn collisions_cached(
                     "annotation_leader_crossing",
                     "warning",
                     vec![a.id.clone(), b.id.clone()],
-                    format!(
-                        "The leader of {} ({}) crosses a line of {} ({}).",
-                        a.id, a.label, b.id, b.label
-                    ),
+                    format!("The leader of {} crosses a line of {}.", named(a), named(b)),
                 );
             }
         }
@@ -1930,6 +1939,8 @@ mod tests {
         }))
         .unwrap();
         let item = |id: &str, kind: &str, placed: Placed| PlannedDimension {
+            reference: false,
+            determined_by: Vec::new(),
             region: None,
             id: id.into(),
             kind: kind.into(),
