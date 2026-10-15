@@ -7095,7 +7095,6 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   dimension_rules 19, dims_grooves_flats 7, placement_intent 13, wording unit 2; fmt; strict
   release Clippy; Python quality 40 and CI acceptance 21; schema generation no diff; scripted
   MCP 7/7 with `tasks.json` and the scripted answers unchanged. No quality.py run: no SVG changed.
-||||||| d95f5709
 
 - From stream f4-page-fit-projection (#13: page fit and a projection setting), base 19a969c9:
   - **Fit judged as the search judges.** A spec pinning both `sheet/size` and `sheet/scale` keeps

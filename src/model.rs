@@ -544,10 +544,10 @@ const VIEWS: [(&str, [f64; 3], [f64; 3]); 4] = [
 pub const SECTION: &str = "section_aa";
 const LOADER: &str = concat!("haecceity via draftwright ", env!("CARGO_PKG_VERSION"));
 
-/// A scale as printed: `n:1` or `1:n`.
 /// The Spec's projection methods (`sheet/projection`), ISO 5456-2's first and third angle.
 pub const PROJECTIONS: [&str; 2] = ["first", "third"];
 
+/// A scale as printed: `n:1` or `1:n`.
 pub(crate) fn scale_name(s: f64) -> String {
     if s >= 1.0 {
         format!("{}:1", fmt_ratio(s))
