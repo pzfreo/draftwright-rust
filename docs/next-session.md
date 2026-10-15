@@ -7178,6 +7178,35 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   tests raced on one file). The merge's test-count change moved two of these tests into one
   shard, which exposed the race (test 3/5: NotFound on remove_file).
 
+## F1 fix round 2: grazing is a cost, not a block (2026-10-15, unattended; overturnable)
+
+- The fix round's hard block (no turned-step diameter leader within 15° of its silhouette) is
+  replaced by a steer in `dims/leaders.rs` `inventory`: only when a callout's best route grazes
+  does grazing cost anything, and then every route except an angled one that crosses no more of
+  the view's model line-work (edges, hidden included, and square-on cylinder silhouettes, via the
+  shared `view_ink`) and passes through no more features than the grazing route costs 20 mm of
+  ink (`GRAZE`). No such route, or room for it only at more than 20 mm of the neighbours' ink: the
+  grazing route stands, as on main. Judgement calls: 20 mm (a hard tier sent GRM-05's C1 leader
+  65 mm round the part and moved nist_ctc_05's ⌀558.8 onto the 25.4 dimension line); "no more
+  crossings than the grazing route" rather than "none" (none forces nist_ctc_05's ⌀304.8 onto a
+  clean but 7 mm longer route, which the leader-routes gate rejects).
+- Result: `check_leader_routes.py` passes (nist_ctc_05's ⌀304.8 now leaves the band at an angle,
+  through the same flange edges, 0 hidden, within length). The spindle's
+  `M10 x 1.5-6g RH, FULL AVAILABLE LENGTH` meets the ⌀10 band at an angle from outside the part
+  at its default A4 1:1 and at A3 2:1. Quality over 30 parts matches ci-quality-baseline.
+- Single-sheet: re-baselined (`DRAFTWRIGHT_REBASELINE_SINGLE_SHEET=f1-ext-threads-knurl`) against
+  main 9db4d1a3. 136 of 1,876 cases differ from main: 103 plan-only (an unchosen candidate
+  sheet's fill figure in `sheet.basis`), 33 drawn. Drawn: GRM-03 ×13 (⌀6 off the shoulder edge,
+  two specs one leader crossing fewer), nist_ctc_05 ×4 (⌀304.8 angled), turned ×2 (⌀16 off the
+  outline), thread/knurl parts ×10 (F1's own thin lines and designation), and
+  assembly_plate_pin ×3 + hw_assembly_plate_pin_intent ×2, whose default sheet goes A4 1:5 →
+  A2 1:1. That flip (overturnable): at A2 1:1 the pin's ⌀6 no longer runs down the pin through two
+  ⌀6.6 holes, so A4 1:5 now "adds a material crossing" against the valid A2 estimate and the
+  search keeps the estimate; findings fall (one extension through a feature, two leader
+  crossings) and the 100 mm plate is no longer drawn at 1:5 on A4. bolt_thread_knurl's leaders
+  are now main's (no angled route was room-neutral); the hard block's long cross-part leaders
+  are gone, its grazing ⌀6.2 remains.
+
 - From stream f4-page-fit-projection (#13: page fit and a projection setting), base 19a969c9:
   - **Fit judged as the search judges.** A spec pinning both `sheet/size` and `sheet/scale` keeps
     `page_fit_uncertain` only when the finished drawing does not fit (`model::recover`'s pinned
