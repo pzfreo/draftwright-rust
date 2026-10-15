@@ -38,6 +38,13 @@ fn tools() -> Value {
         "Path of Python quiddity's feature recognition JSON for the same STEP file \
          (tools/recognise.py); without it the analysis has no features.",
     );
+    let part = json!({
+        "type": "integer",
+        "minimum": 0,
+        "description": "Draw one part of an assembly alone, in its own frame and with its PMI \
+            only: its index, as the parts tool lists them. Without it the whole file is drawn as \
+            one part, and an assembly's plan warns (assembly_drawn_whole).",
+    });
     let analysis = json!({
         "type": "object",
         "description": "The Analysis the analyse tool returned for this same STEP file, passed back \
@@ -53,7 +60,11 @@ fn tools() -> Value {
                 or render's analysis so they need not analyse the STEP again.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "step": path("Path of the STEP file."), "features": features },
+                "properties": {
+                    "step": path("Path of the STEP file."),
+                    "features": features,
+                    "part": part,
+                },
                 "required": ["step"],
             },
         },
@@ -77,6 +88,7 @@ fn tools() -> Value {
                     "features": features,
                     "analysis": analysis,
                     "spec": spec,
+                    "part": part,
                 },
                 "required": [],
             },
@@ -138,6 +150,7 @@ fn tools() -> Value {
                     "features": features,
                     "analysis": analysis,
                     "spec": spec,
+                    "part": part,
                     "output": path("Output path; each format's extension is appended (a drawing format's extension \
                     already on it is replaced)."),
                     "formats": {
@@ -168,6 +181,7 @@ fn tools() -> Value {
                     "features": features,
                     "analysis": analysis,
                     "spec": spec,
+                    "part": part,
                 },
                 "required": ["step"],
             },
@@ -180,6 +194,17 @@ fn tools() -> Value {
                 "type": "object",
                 "properties": { "drawing": path("Path of a drawing that draftwright rendered.") },
                 "required": ["drawing"],
+            },
+        },
+        {
+            "name": "parts",
+            "description": "List the distinct parts of a STEP file: each one's index (part), name, \
+                product_id, face count and number of placements (instances). Pass an index as \
+                part to analyse, plan, review or render to draw that part of an assembly alone.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "step": path("Path of the STEP file.") },
+                "required": ["step"],
             },
         },
     ])

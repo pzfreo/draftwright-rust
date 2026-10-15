@@ -114,6 +114,24 @@ pub struct Cache {
 struct Registration {
     name: String,
     features: Option<String>,
+    /// The part of an assembly registered alone (its index); absent for the whole file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    part: Option<usize>,
+}
+
+/// The STEP SHA-256 a part_ref's first half carries: `<sha>`, or `<sha>_p<k>` for part *k* of
+/// an assembly registered alone.
+fn source_of(key: &str) -> Option<&str> {
+    let sha = match key.split_once("_p") {
+        Some((sha, k)) if !k.is_empty() && k.bytes().all(|b| b.is_ascii_digit()) => sha,
+        Some(_) => return None,
+        None => key,
+    };
+    (sha.len() == 64
+        && sha
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
+    .then_some(sha)
 }
 #[derive(Serialize)]
 pub struct Applied {
@@ -133,13 +151,9 @@ impl Cache {
     }
     fn dir(&self, part_ref: &str) -> Result<PathBuf, Error> {
         let version = ENGINE_VERSION;
-        let valid = part_ref.split_once('-').is_some_and(|(sha, engine)| {
-            sha.len() == 64
-                && sha
-                    .bytes()
-                    .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-                && engine == version
-        });
+        let valid = part_ref
+            .split_once('-')
+            .is_some_and(|(sha, engine)| source_of(sha).is_some() && engine == version);
         if !valid {
             return Err(Error::invalid(
                 "unknown part_ref or engine version; register the STEP with inspect_part {step: <path>} to obtain this engine's content key",
@@ -165,14 +179,39 @@ impl Cache {
         Ok(file)
     }
     pub fn register(&self, step: &Path, features: Option<&Path>) -> Result<String, Error> {
+        self.register_part(step, features, None)
+    }
+    /// [`Cache::register`] of part *part* of an assembly alone, when given: its own key,
+    /// `<sha>_p<part>-<engine>`. Refused, naming the parts, when the file has no such part.
+    pub fn register_part(
+        &self,
+        step: &Path,
+        features: Option<&Path>,
+        part: Option<usize>,
+    ) -> Result<String, Error> {
         let bytes = fs::read(step).map_err(|e| {
             Error::invalid(format!(
                 "cannot read {}: {e}; provide an existing STEP path",
                 step.display()
             ))
         })?;
+        if let Some(k) = part {
+            let parts = crate::model::parts(step, &bytes)?;
+            if k >= parts.len() {
+                return Err(Error {
+                    choices: (0..parts.len()).map(|p| p.to_string()).collect(),
+                    ..Error::invalid(format!(
+                        "{} has {} part(s) ({}); there is no part {k}",
+                        step.display(),
+                        parts.len(),
+                        crate::model::part_list(&parts)
+                    ))
+                });
+            }
+        }
         let version = ENGINE_VERSION;
-        let key = format!("{}-{version}", hash(&bytes));
+        let suffix = part.map_or(String::new(), |k| format!("_p{k}"));
+        let key = format!("{}{suffix}-{version}", hash(&bytes));
         let dir = self.root.join("parts").join(&key);
         fs::create_dir_all(&dir).map_err(io)?;
         let _lock = Self::lock(&dir)?;
@@ -195,6 +234,7 @@ impl Cache {
                         .to_string_lossy()
                         .into_owned(),
                     features: feature_text,
+                    part,
                 }),
             )?;
         }
@@ -207,7 +247,7 @@ impl Cache {
             .file_name()
             .and_then(|n| n.to_str())
             .and_then(|n| n.split_once('-'))
-            .is_none_or(|(sha, _)| sha != source_hash)
+            .is_none_or(|(key, _)| source_of(key) != Some(source_hash.as_str()))
         {
             return Err(Error::invalid(
                 "cached STEP differs from part_ref; remove the damaged entry and register the original STEP again",
@@ -223,17 +263,30 @@ impl Cache {
                     "cached Analysis differs from the registered STEP or engine; remove analysis.json and register again",
                 ));
             }
-            let part = crate::haecceity::read_step(&source).map_err(|e| {
+            let part = match registration.part {
+                None => crate::haecceity::read_step(&source),
+                Some(k) => crate::haecceity::step::StepFile::read(&source).and_then(|file| {
+                    if k < file.parts.len() {
+                        file.part(k)
+                    } else {
+                        Err(crate::haecceity::step::StepError::Unsupported(format!(
+                            "there is no part {k}"
+                        )))
+                    }
+                }),
+            }
+            .map_err(|e| {
                 Error::failed(format!(
                     "cannot load cached STEP: {e}; register a valid STEP"
                 ))
             })?;
             (part, analysis)
         } else {
+            let name = Path::new(&registration.name);
             let (part, mut analysis) = if registration.features.is_some() {
-                crate::model::analyse_step(Path::new(&registration.name), &source)?
+                crate::model::analyse_step_part(name, &source, registration.part)?
             } else {
-                crate::model::analyse_native_step(Path::new(&registration.name), &source)?
+                crate::model::analyse_native_step_part(name, &source, registration.part)?
             };
             if let Some(features) = registration.features {
                 crate::model::recognise(&part, &mut analysis, &features).map_err(Error::invalid)?;

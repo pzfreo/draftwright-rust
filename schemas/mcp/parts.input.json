@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "step": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "step"
+  ],
+  "additionalProperties": false
+}
