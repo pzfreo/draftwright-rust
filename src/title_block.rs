@@ -274,32 +274,39 @@ pub struct ProjectionPlaced {
 }
 
 /// ISO 5456-2's cone elevation and concentric end view, as build123d_drafting's
-/// `ProjectionSymbol`: large diameter h, small diameter 0.6h, length 1.3h and gap 0.5h.
-/// Third angle puts the small end next to the circles; first angle (*first_angle*, the Spec's
-/// `sheet/projection`) the large end, the cone turned end for end in the same place. The 3 mm
-/// symbol and its 0.15 mm stroke fit inside the reserved band, right of the scale note, as
-/// Python places them.
+/// `ProjectionSymbol`: large diameter h, small diameter 0.6h, length 1.3h and gap 0.5h. Both
+/// are ISO 5456-2's figures (and ISO 128-3's), the cone's small end on its left: first angle
+/// (*first_angle*, the Spec's `sheet/projection`) puts the cone on the left and the circles on
+/// the right, its large end towards them; third angle puts the circles on the left and the cone
+/// on the right, its small end towards them (#31: draftwright, and this port before, drew third
+/// angle with the circles on the right, the cone turned end for end, which is geometrically
+/// third angle but reads as first angle's layout). The 3 mm symbol and its 0.15 mm stroke fit
+/// inside the reserved band, right of the scale note, as Python places them.
 pub fn projection(block: [f64; 4], first_angle: bool) -> ProjectionPlaced {
     let h = TEXT;
     let (big, small, len) = (0.5 * h, 0.3 * h, 1.3 * h);
-    // The cone's diameters at its left (x = 0) and right (x = len) ends.
-    let (left, right) = if first_angle {
-        (small, big)
+    // The cone's diameters at its left and right ends (the small end left in either method),
+    // where it starts, and the circles' centre: the same overall extent either way.
+    let (left, right) = (small, big);
+    let far = len + 0.5 * h + big;
+    let end = far + big;
+    let (x0, cx) = if first_angle {
+        (0.0, far)
     } else {
-        (big, small)
+        (end - len, big)
     };
-    let cx = len + 0.5 * h + big;
+    let x1 = x0 + len;
     let at = [
-        block[2] - 3.0 - PROJECTION_LINE / 2.0 - (cx + big + 0.25 * h),
+        block[2] - 3.0 - PROJECTION_LINE / 2.0 - (end + 0.25 * h),
         top(block) + FURNITURE_GAP + PROJECTION_LINE / 2.0 + big,
     ];
     let m = |p: P| [p[0] + at[0], p[1] + at[1]];
     let mut curves: Vec<Curve> = [
-        [[0.0, -left], [0.0, left]],
-        [[len, -right], [len, right]],
-        [[0.0, left], [len, right]],
-        [[0.0, -left], [len, -right]],
-        [[-0.25 * h, 0.0], [cx + big + 0.25 * h, 0.0]],
+        [[x0, -left], [x0, left]],
+        [[x1, -right], [x1, right]],
+        [[x0, left], [x1, right]],
+        [[x0, -left], [x1, -right]],
+        [[-0.25 * h, 0.0], [end + 0.25 * h, 0.0]],
     ]
     .into_iter()
     .map(|[a, b]| Curve::Line(m(a), m(b)))

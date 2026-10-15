@@ -1307,7 +1307,7 @@ fn linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
             {
                 stations = bore.0;
                 plane_axis = Some(bore.1);
-                g.view = Some("plan".into());
+                g.view = Some(bore.2.into());
             } else if r.kind == "linear" && faces_only && mixed(part, groups) {
                 g.reasons.extend(
                     stations_proof(stations, value, None)
@@ -1471,14 +1471,18 @@ fn mixed(part: &Part, groups: &[Vec<usize>]) -> bool {
     kinds == [1, 2] || kinds == [2, 1]
 }
 
-/// A location from a principal x or y plane to a z bore's axis (draftwright's
+/// A location from a principal plane to a principal bore's axis across it (draftwright's
 /// `_planar_bore_axis_witness`): the stations, at the plane and at the axis, on one point of the
-/// plane's face beside the axis halfway up their common height; and the plane's normal.
+/// plane's face beside the axis halfway along their common extent down the bore; the plane's
+/// normal; and the view that sees the bore end on. draftwright proves only an x or y plane to a
+/// z bore, seen in plan; any other pair is proved the same way here (#34: a turned part's cross
+/// hole located from its end face, seen in the side or front view), and the z bore keeps
+/// draftwright's witness and view.
 fn plane_to_bore(
     part: &Part,
     groups: &[Vec<usize>],
     boxes: &[Vec<[f64; 6]>],
-) -> Option<([[f64; 3]; 2], usize)> {
+) -> Option<([[f64; 3]; 2], usize, &'static str)> {
     if !mixed(part, groups) {
         return None;
     }
@@ -1493,25 +1497,24 @@ fn plane_to_bore(
     let Surface::Cylinder { frame: bore, .. } = &part.faces[groups[bore_i][0]].surface else {
         return None;
     };
-    let axis = exact_axis(plane.z).filter(|&k| k < 2)?;
-    if exact_axis(bore.z) != Some(2) {
-        return None;
-    }
+    let axis = exact_axis(plane.z)?;
+    // The bore's axis, across the plane's normal.
+    let along = exact_axis(bore.z).filter(|&j| j != axis)?;
     let (pb, bb) = (boxes[plane_i][0], boxes[bore_i][0]);
-    let (z0, z1) = (pb[2].max(bb[2]), pb[5].min(bb[5]));
+    let (z0, z1) = (pb[along].max(bb[along]), pb[along + 3].min(bb[along + 3]));
     if z1 - z0 <= 1e-6 || pb[axis + 3] - pb[axis] > 1e-5 {
         return None;
     }
     let centre = bore.origin;
     let mut witness = centre;
     witness[axis] = 0.5 * (pb[axis] + pb[axis + 3]);
-    witness[2] = 0.5 * (z0 + z1);
+    witness[along] = 0.5 * (z0 + z1);
     if !on_face(part, groups[plane_i][0], witness) {
         return None;
     }
     let mut points = [witness, witness];
     points[bore_i][axis] = centre[axis];
-    Some((points, axis))
+    Some((points, axis, ["side", "front", "plan"][along]))
 }
 
 /// draftwright's `_linear_reference_stations`: the axis two stations are measured along (their
