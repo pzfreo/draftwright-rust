@@ -49,55 +49,31 @@
   "file": "hw_spool_fits_intent.step",
   "record": "dimension:0:1:4:3",
   "port": "dimension:#6398",
-  "field": "outcome",
-  "python": {
-   "detail": "2× ⌀130",
-   "outcome": "absorbed"
-  },
-  "rust": {
-   "detail": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6398 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6370 'ø130 -0.014/-0.039', drawn by the port). draftwright states the plain size ('2× ⌀130', absorbed by a recognised feature's callout) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6398 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
+  "field": "label",
+  "python": "2× ⌀130",
+  "rust": "2× ⌀130 g6 (-0.014/-0.039)",
+  "verdict": "rust-correct",
+  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6398 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
  },
  {
   "file": "hw_spool_fits_intent.step",
   "record": "dimension:0:1:4:4",
   "port": "dimension:#6404",
-  "field": "outcome",
-  "python": {
-   "detail": "2× ⌀130",
-   "outcome": "absorbed"
-  },
-  "rust": {
-   "detail": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6404 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6380 'ø130 -0.014/-0.039', drawn by the port). draftwright states the plain size ('2× ⌀130', absorbed by a recognised feature's callout) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6404 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
+  "field": "label",
+  "python": "2× ⌀130",
+  "rust": "2× ⌀130 g6 (-0.014/-0.039)",
+  "verdict": "rust-correct",
+  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6404 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
  },
  {
   "file": "hw_spool_fits_intent.step",
   "record": "dimension:0:1:4:5",
   "port": "dimension:#6410",
-  "field": "outcome",
-  "python": {
-   "detail": "⌀70 OD",
-   "outcome": "absorbed"
-  },
-  "rust": {
-   "detail": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6410 (ø70) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6390 'ø70 -0.03/-0.06', drawn by the port). draftwright states the plain size ('⌀70 OD', absorbed by a recognised feature's callout) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6410 (ø70) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
+  "field": "label",
+  "python": "⌀70 OD",
+  "rust": "⌀70 f7 (-0.030/-0.060) OD",
+  "verdict": "rust-correct",
+  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6410 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
  },
  {
   "file": "hw_thumbwheel_notes_add.step",
@@ -122,19 +98,11 @@
   "file": "hw_thumbwheel_thread_knurl_intent.step",
   "record": "dimension:0:1:4:1",
   "port": "dimension:#685",
-  "field": "outcome",
-  "python": {
-   "detail": "⌀10",
-   "outcome": "absorbed"
-  },
-  "rust": {
-   "detail": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#685 (ø10) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (thumbwheel_thread_knurl.step dimension:#651 'ø10 -0.013/-0.028', drawn by the port). draftwright states the plain size ('⌀10', absorbed by a recognised feature's callout) and drops the class. The port refuses rather than drop or compute the class: \"PMI dimension dimension:#685 (ø10) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
+  "field": "label",
+  "python": "⌀10",
+  "rust": "⌀10 f7 (-0.013/-0.028)",
+  "verdict": "rust-correct",
+  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#685 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",

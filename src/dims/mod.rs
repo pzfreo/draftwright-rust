@@ -2035,7 +2035,8 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
         .collect()
 }
 
-/// A readable symbolic class on proven internal cylinders, with no numeric limits inferred.
+/// A readable symbolic class with no numeric limits stated: a hole class on proven internal
+/// cylinders, or a shaft class on proven external ones (#30).
 pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
     pmi_dimensions::symbolic_bore(r)
 }
