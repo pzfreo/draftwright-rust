@@ -7157,3 +7157,23 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   a separate change.
 - Linux single-sheet hashes for every approved case of this stream still need CI's
   `record_single_sheet` workflow; stale Linux overrides of the changed cases were removed.
+
+## f1-ext-threads-knurl integration: not merged (2026-10-15, unattended)
+
+- PR #35 CI: `tools/check_leader_routes.py` (the quality-pins jobs) fails on
+  `nist_ctc_05_asme1_rd: d:f:turned_step:2/step.diameter: hidden 0 -> 1`. That comes from the
+  stream's fix round, not from the merge. With leaders within 15° of a turned silhouette blocked, the ⌀304.8
+  leader now runs inward and down across the flange's visible edges and a hidden line, where it
+  used to lie on the outline. The stream did not run this gate.
+- One fix was tried and reverted: a hard block on a silhouette leader's shaft crossing any model edge
+  (visible or hidden). It gives a clean horizontal leader square to the silhouette on
+  nist_ctc_05, but (a) the route is 7 mm longer than the recorded one, so the same gate fails on
+  length (21.2 -> 28.2 mm > base + 2), and (b) it moves 152 single-sheet cases, against the
+  46 that were reviewed. That is a placer change needing its own review and a deliberate
+  leader_routes.json approval, so it was not committed. Next: a fix round on the stream with
+  silhouette routes that do not cross the part's edges, and a reviewed, deliberate update of the
+  nist_ctc_05 entry in tests/fixtures/leader_routes.json (length).
+- Kept on the integration branch: `tests/pmi_lowering.rs` scratch directories are now per
+  process (nextest runs each test in its own process, where the counter restarts at 0, so two
+  tests raced on one file). The merge's test-count change moved two of these tests into one
+  shard, which exposed the race (test 3/5: NotFound on remove_file).
