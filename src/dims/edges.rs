@@ -188,7 +188,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 id: format!("p:feature_not_dimensioned:{}", f.id),
                 code: "feature_not_dimensioned".into(),
                 severity: "warning".into(),
-                message: format!("{} is not dimensioned: {why}.", f.id),
+                message: format!(
+                    "{} is not dimensioned: {why}.",
+                    crate::wording::capital(&crate::wording::feature(f))
+                ),
                 subjects: vec![f.id.clone()],
                 ..Default::default()
             }),

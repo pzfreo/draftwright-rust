@@ -363,8 +363,8 @@ pub fn plan(
                     code: "table_not_placed".into(),
                     severity: "error".into(),
                     message: format!(
-                        "Table {} ({w:.1} × {h:.1} mm) has no place on the sheet clear of the views, their dimensions, the title block, the general notes and the tables before it; it stays in the plan undrawn. Shorten its cells, or choose a larger sheet (sheet/size) or a smaller scale (sheet/scale).",
-                        t.id
+                        "{} ({w:.1} × {h:.1} mm) has no place on the sheet clear of the views, their dimensions, the title block, the general notes and the tables before it; it stays in the plan undrawn. Shorten its cells, or choose a larger sheet (sheet/size) or a smaller scale (sheet/scale).",
+                        crate::wording::capital(&crate::wording::block(&t.id))
                     ),
                     subjects: vec![t.id.clone()],
                     ..Default::default()
@@ -513,6 +513,8 @@ pub fn manufacturing(
 pub fn proxy(t: &PlannedTable) -> Option<PlannedDimension> {
     let p = t.placed.as_ref()?;
     Some(PlannedDimension {
+        reference: false,
+        determined_by: Vec::new(),
         region: None,
         id: t.id.clone(),
         kind: "table".into(),

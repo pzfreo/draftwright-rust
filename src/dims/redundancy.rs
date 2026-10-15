@@ -7,6 +7,10 @@ use crate::model::Analysis;
 
 type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 
+/// The reference dimensions [`consolidate`] made, each by its ID with the IDs of the dimensions
+/// that determine it, in the order its basis names them (#26: the plan's `determined_by`).
+pub(super) type References = std::collections::BTreeMap<String, Vec<String>>;
+
 fn interval(analysis: &Analysis, w: &Want) -> Option<Span> {
     if w.id.starts_with("d:pmi:") {
         return None;
@@ -41,9 +45,10 @@ pub(super) fn consolidate(
     kept: &mut Vec<Kept>,
     given: &mut Vec<Vec<String>>,
     omitted: &mut Vec<Omitted>,
-) {
+) -> References {
+    let mut references = References::new();
     if a.solid_count.is_some_and(|n| n > 1) {
-        return;
+        return references;
     }
     let mut gone = std::collections::BTreeSet::new();
     // A functional outside diameter or A/F statement owns an equal overall span only
@@ -153,11 +158,9 @@ pub(super) fn consolidate(
                 );
                 gone.insert(i);
             } else {
-                let carriers = route
-                    .iter()
-                    .map(|j| kept[*j].0.id.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let by: Vec<String> = route.iter().map(|j| kept[*j].0.id.clone()).collect();
+                let carriers = by.join(", ");
+                references.insert(kept[i].0.id.clone(), by);
                 let w = &mut kept[i].0;
                 w.terms = vec![format!("({})", w.terms.join(" "))];
                 w.basis += &format!(
@@ -216,13 +219,15 @@ pub(super) fn consolidate(
             && route.len() > 1
             && route.iter().all(|j| kept[*j].2.is_some())
         {
+            let by = route.iter().map(|j| kept[*j].0.id.clone()).collect();
+            references.insert(kept[i].0.id.clone(), by);
             let w = &mut kept[i].0;
             w.terms = vec![format!("({})", w.terms.join(" "))];
             w.basis +=
                 "; reference: the stated overall and slot length determine this floor interval";
         }
     }
-    shoulders_on_slot_walls(a, kept, given, &gone);
+    shoulders_on_slot_walls(a, kept, given, &gone, &mut references);
     let mut i = 0;
     given.retain(|_| {
         let keep = !gone.contains(&i);
@@ -235,6 +240,7 @@ pub(super) fn consolidate(
         i += 1;
         keep
     });
+    references
 }
 /// Ladder shoulders standing on a slot's walls close against the slot's stated width: with its
 /// centre-line location also stated, every such shoulder is determined; otherwise, of two
@@ -244,6 +250,7 @@ fn shoulders_on_slot_walls(
     kept: &mut [Kept],
     given: &[Vec<String>],
     gone: &std::collections::BTreeSet<usize>,
+    references: &mut References,
 ) {
     use crate::lint::redundancy::slot_walls;
     let reference = |w: &Want| w.terms.len() == 1 && w.terms[0].starts_with('(');
@@ -295,12 +302,13 @@ fn shoulders_on_slot_walls(
         } else {
             rungs.retain(|r| r.2);
         }
-        let carriers = std::iter::once(width)
+        let by: Vec<String> = std::iter::once(width)
             .chain(across)
             .map(|j| kept[j].0.id.clone())
-            .collect::<Vec<_>>()
-            .join(", ");
+            .collect();
+        let carriers = by.join(", ");
         for (i, ..) in rungs {
+            references.insert(kept[i].0.id.clone(), by.clone());
             let w = &mut kept[i].0;
             w.terms = vec![format!("({})", w.terms.join(" "))];
             w.basis += &format!(

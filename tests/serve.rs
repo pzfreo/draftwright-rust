@@ -124,7 +124,7 @@ fn the_service_answers_each_line() {
         json!({
             "id": "p:unclaimed_geometry:sheet", "code": "unclaimed_geometry", "severity": "warning",
             "message": "Analysis features and dimensioned stock claim 6 of 10 faces; 4 faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.",
-            "subjects": ["sheet"]
+            "subjects": ["face:2", "face:3", "face:7", "face:8"]
         })
     );
     assert_eq!(problems[0]["code"], "general_tolerance_missing");

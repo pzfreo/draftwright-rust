@@ -253,9 +253,9 @@ fn drop_item(plan: &mut Plan, i: usize, kind: Dropped) {
     };
     d.state = crate::items::State::not_drawable(code);
     let message = format!(
-        "The {what} {id} ({}) is dropped from the {} view: placed, its ink ran off the sheet's drawing area, so it is not drawn{off_axis}. A larger sheet or a smaller scale may give it room.",
+        "The {what} {} is dropped from {}: placed, its ink ran off the sheet's drawing area, so it is not drawn{off_axis}. A larger sheet or a smaller scale may give it room.",
         d.label,
-        d.view.trim_start_matches("v:")
+        crate::wording::view(&d.view)
     );
     let mut subjects = vec![id.clone()];
     for m in &d.measurements {
@@ -602,7 +602,12 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) 
                 matches!(p.code.as_str(), "callout_dropped" | "location_ref_dropped")
                     && p.subjects.first().is_some_and(|s| resolved.contains(s))
             })
-            .map(|p| p.subjects[0].clone())
+            .map(|p| {
+                plan.dimensions
+                    .iter()
+                    .find(|d| d.id == p.subjects[0])
+                    .map_or_else(|| "hole item".into(), |d| d.label.clone())
+            })
             .collect();
         plan.problems.retain(|p| {
             !(matches!(p.code.as_str(), "callout_dropped" | "location_ref_dropped")
@@ -613,7 +618,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) 
             code: "hole_table_escalated".into(),
             severity: "info".into(),
             message: format!(
-                "Hole items had no place on the sheet, so the plan view's {} holes outside a pattern are tabulated ({ID}) and ballooned; the table replaces {} callouts and locations{}.",
+                "Hole items had no place on the sheet, so the plan view's {} holes outside a pattern are tabulated and ballooned; the table replaces {} callouts and locations{}.",
                 t.rows.len(),
                 resolved.len(),
                 if cleared.is_empty() {

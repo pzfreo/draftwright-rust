@@ -297,8 +297,8 @@ fn a_record_that_cannot_be_stated_is_reported() {
     assert_eq!(
         messages,
         [
-            "f:flat:1 is not dimensioned: its axis_direction does not lie along its axis x.",
-            "f:flat:2 is not dimensioned: its record gives no positive across.",
+            "The 2.4 flat is not dimensioned: its axis_direction does not lie along its axis x.",
+            "The flat is not dimensioned: its record gives no positive across.",
         ]
     );
 

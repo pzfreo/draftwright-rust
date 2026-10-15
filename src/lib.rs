@@ -32,6 +32,7 @@ pub use session::Session;
 pub mod tables;
 pub mod text;
 pub mod title_block;
+pub mod wording;
 
 pub mod mcp;
 pub mod stateless;
