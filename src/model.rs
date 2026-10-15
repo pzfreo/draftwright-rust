@@ -703,7 +703,7 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
 /// [`analyse_step`], of one part of the file when *part* is given: part *k* of [`parts`], read
 /// alone in its own frame (`haecceity::StepFile::part`, its first placement's shape with no
 /// placement applied), its PMI only (other parts' records are dropped). The binding names the
-/// part and its index. With none, the whole file is read as one part, as it always was; an
+/// part and its index. Part 0 of a file of one part is the whole file, read as with none. With none, the whole file is read as one part, as it always was; an
 /// assembly's parts are then listed in `parts` and the plan warns that they are drawn together.
 /// Refused, naming the parts, when there is no part *k*.
 pub fn analyse_step_part(
@@ -713,31 +713,43 @@ pub fn analyse_step_part(
 ) -> Result<(Part, Analysis), Unanalysed> {
     // The file's part definitions are read in both cases (the PMI reading needs them too, and
     // is given these rather than reading them again).
+    let stem = || {
+        path.file_stem().map_or(String::new(), |s| {
+            s.to_string_lossy().trim_end_matches(".step").to_string()
+        })
+    };
+    let mut chosen = chosen;
     let (part, defs, name) = match chosen {
         None => (
             haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?,
             haecceity::step::read_part_definitions(bytes)
                 .map_err(|e| format!("cannot read the parts: {e}")),
-            path.file_stem().map_or(String::new(), |s| {
-                s.to_string_lossy().trim_end_matches(".step").to_string()
-            }),
+            stem(),
         ),
         Some(k) => {
             let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(path, e))?;
-            if k >= file.parts.len() {
-                return Err(unanalysed(
-                    false,
-                    format!(
-                        "{} has {} part(s) ({}); there is no part {k}",
-                        path.display(),
-                        file.parts.len(),
-                        part_list(&file_parts(&file.parts))
-                    ),
-                ));
+            if k == 0 && file.parts.len() == 1 {
+                // Part 0 of a file of one part is the whole file: drawn, titled (by the file's
+                // stem, not the product's name) and bound exactly as without a part chosen.
+                chosen = None;
+                let part = haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?;
+                (part, Ok(file.parts), stem())
+            } else {
+                if k >= file.parts.len() {
+                    return Err(unanalysed(
+                        false,
+                        format!(
+                            "{} has {} part(s) ({}); there is no part {k}",
+                            path.display(),
+                            file.parts.len(),
+                            part_list(&file_parts(&file.parts))
+                        ),
+                    ));
+                }
+                let part = file.part(k).map_err(|e| step_refused(path, e))?;
+                let name = file.parts[k].name.clone();
+                (part, Ok(file.parts), name)
             }
-            let part = file.part(k).map_err(|e| step_refused(path, e))?;
-            let name = file.parts[k].name.clone();
-            (part, Ok(file.parts), name)
         }
     };
     let b = part.bounds();
