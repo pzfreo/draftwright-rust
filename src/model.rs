@@ -2866,6 +2866,9 @@ fn plan_with_presentation(
                 | "annotation_leader_crossing"
                 | "leader_through_feature"
                 | "extension_through_feature"
+                // #32: judged again on the settled ink below, as the collisions are.
+                | "dimension_line_shared"
+                | "dimension_text_stray"
         ) || !p
             .subjects
             .iter()

@@ -7205,3 +7205,36 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
     editor-plate, GRM-03, cgb203 and nist_ftc_06 keeps its ink, the plan equals the bare pin's,
     and a 2 × 1.5 mm drag lands exactly. Judgement call: a bare pin (and so an automatic offset)
     still lets one other dimension re-settle on some parts, as E1 left it; not changed here.
+
+## J2: applying proposed leader fixes re-spaces the dimension stack (draftwright-rust #32, 2026-10-15, unattended; overturnable)
+
+- **Problem:** on the editor's spindle (`tests/fixtures/samples/spindle-pmi.step.gz`, the
+  reviewer's PMI) the two `annotation_leader_crossing` fixes for datum B both set
+  `{"side":"left","lane":0,"along":"outside"}`; applied together, 52 and 22 shared one line at
+  x 20 and the 52's text sat 13 mm past its line (1.25 of its span), while the problem count fell.
+- **Changes:** `dims::placement::respace` (called from `dims::plan` after the intents): an
+  unpinned explicit side/lane on a linear dimension whose line would share an offset line over an
+  overlapping span with another linear dimension (automatic at its lane, or explicit) moves out
+  lane by lane, nearest page-fitting lane first, shorter spans inside; no collision, no change.
+  `along: "outside"` on a linear dimension now sets the label just past the far end with the line
+  run on (as a short span does). New problems `dimension_line_shared` and `dimension_text_stray`
+  (both `error`, re-judged after settle in `model.rs`) and the same two structural lint codes.
+  The proposed fix ops are unchanged (wire format untouched).
+- **Result on the spindle:** both fixes applied: crossings gone, 22 at lane 0 and 52 at lane 1 on
+  the left, each label on its own line, no new warning/error problem or lint error. The extra
+  left lane does not fit A4 1:1 (52's label 0.13 mm past the drawable edge), so the automatic
+  sheet choice recovers to A3 1:1 (`layout_replanned`, info). With the sheet pinned at A4 1:1 the
+  plan instead reports `annotation_off_sheet` for 52: an honest overrun, not met for that case.
+- **Guard:** default output byte-identical (all default cases). 118 saved-spec cases change
+  (stream `j2-fix-relayout` in `known_single_sheet_approved.json`; 9 of them update entries of
+  earlier streams in place): 89 plan-only (new `dimension_line_shared` on pinned pairs that
+  really share a line), 29 move an explicitly laned dimension off a shared line (looked at:
+  ctc01 slot:2 635 no longer printed over 120; 10127 hole:2 21.4 no longer merged into "2144.7",
+  now against the side view with `annotation_over_view` reported). Linux PNGs and 22 removed stale
+  Linux overrides need CI's `record_single_sheet`.
+- **Judgement calls:** (1) the new codes are `error` but not in `model::HARD_LAYOUT`, so they
+  never drive sheet/scale recovery (a sheet change cannot fix them); (2) "one line" is offsets
+  within 0.5 mm with spans overlapping by more than 0.5 mm (chained dimensions meeting at an
+  extension line are fine); "stray" is more than one text height (3 mm) from the line; (3) pinned
+  and offset placements are never re-spaced, only reported; (4) the editor may pin the sheet: if
+  so the spindle needs a bigger sheet, a smaller scale, or the datum B symbol moved instead.

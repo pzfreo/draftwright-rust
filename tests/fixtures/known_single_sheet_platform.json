@@ -936,9 +936,6 @@
     "corpus/mfcadpp/10127.step:spec:164f18257699c828ff7a879a45dd8548e0245bc1a3fa5ba071e327174cfae3b5": {
       "svg": "5e6d79eb670a59f8b72328d85601db35503722162132e2a52188751853fedb83"
     },
-    "corpus/mfcadpp/10127.step:spec:1784f2e71c4a91c38c3deb8fbc7a0509d297e40edfe2024d43db243fecfcab1d": {
-      "svg": "84754d70a5bd97e652936822bc09539986469c77ca156bb9bd1554c1a279aba5"
-    },
     "corpus/mfcadpp/10127.step:spec:1921368047208e30f39b8f6807664089b46f51cabc05e8458cee4fd0861d7183": {
       "svg": "5c243806f227756e073854308f2a6264ff6eebf571b7edfca85fa16febe2620c"
     },
@@ -959,9 +956,6 @@
     },
     "corpus/mfcadpp/10127.step:spec:1c8de6a31158cf77e5848734330f8b60d998f910f00100ae4968925b020c7330": {
       "svg": "b7067724b83c96ca8927454bc909b4d8cb3e84d4594f8e789a6783ab3ae1b27c"
-    },
-    "corpus/mfcadpp/10127.step:spec:1e11967835ab835bd3eaed8a8af99c2ebd93554eb37d49ce33f19061758f6636": {
-      "svg": "302e90fc989d47df8e4e8e0acb3561763b1addccc54a97777136914d76f5d0c3"
     },
     "corpus/mfcadpp/10127.step:spec:1ee65e362203ac1234cdf2070e1e3088c7319be13588958985cd9dcc25160f83": {
       "svg": "50909ba32608493eb30e42f6392fa2eb9cae3d531c214e6e122f90c3ecae83f8"
@@ -1067,9 +1061,6 @@
     },
     "corpus/mfcadpp/10127.step:spec:414b33601c5e3d7dc28e13fa5706ccce99f7966dc65aaf20c75d3caaaaef27bd": {
       "svg": "8c3d9b456ad6193c92b19e7b350bd4250f14e7d47fbd5e8330131fb4f158a77b"
-    },
-    "corpus/mfcadpp/10127.step:spec:41634191c660e09e3b08e1df45ee555e52933dcd09147a645793126a4ad5a023": {
-      "svg": "b76cf29b22f238381f2f38587f94fd986ab3c0afe1d343f466a13980670b9213"
     },
     "corpus/mfcadpp/10127.step:spec:43320e4373b956d8e2f2c951938fc1012a9e2e9a80ee0ec765fd1f227f4a9ec9": {
       "svg": "70faf4d147475d432626f30b32837e2e4ec287cac506ca596ab58960832a895c"
@@ -1260,9 +1251,6 @@
     "corpus/mfcadpp/10127.step:spec:937ef293d12ac7c6421206a81f51fe58859142d132b43a65fd29ea4d45b787a0": {
       "svg": "d8076274f8e2a351475e828d6e7d44997575989fe2fa06cf3730a1ab9ebad440"
     },
-    "corpus/mfcadpp/10127.step:spec:9515eff20220d56a2b5d5865fb2c19baed92b14e9ef953b5037cc8246e1b6e2e": {
-      "svg": "a5907dea97590111463f63e140d32e267e05afae6c2fbd38723cdec0407fb5c1"
-    },
     "corpus/mfcadpp/10127.step:spec:9525528690f0ef3bd4bd5a6cfb721f2c0e21266b54920ca0570b3cf7aed02f9e": {
       "svg": "289b02928656a7fda72a7288d6ecbb9115be7908154a2ea037d48bccc1c29b11"
     },
@@ -1312,14 +1300,8 @@
       "plan": "783580c422b9f426e8c1a0ccb061c8f702f553f90431c994fa26bdc3857e01d8",
       "svg": "c7bcb83595aab457b80e511ddb6b078127c45fc9b9f3d591fc13c389294d9da4"
     },
-    "corpus/mfcadpp/10127.step:spec:acd24c521bbc2a11bb31bd18d8e9c9640444a2cddfb1af3e0997eca63556a18a": {
-      "svg": "62167d357b2a1d7aa57ad810195a1fa37634b9387b57b578d417e1f434c613a1"
-    },
     "corpus/mfcadpp/10127.step:spec:ad85d53864afee23085f3ee63aaf2578072e0eb8ebae191ffc571259bc6c69b5": {
       "svg": "80d0fa9274e75cf7dada5c671c82aaeb854048fd07fd4b9ed5a066be5876d846"
-    },
-    "corpus/mfcadpp/10127.step:spec:adcf1cd2407b7a651433e39b9e7544cba40832c534e7c8e17991f4203a9dbebe": {
-      "svg": "da15dd1154a38503147b38e5b8bbd2e9fd6f82521b608a5db4461c7e47ddc571"
     },
     "corpus/mfcadpp/10127.step:spec:af434ab9a59f4416ba830b5c4bc28b24dcf08aac1e0b6c64e98487df9920bf98": {
       "svg": "cddbae4be1f374af74ab14f13a43bdac7bd0409d93cb72fe13898e34853e878e"
@@ -1329,9 +1311,6 @@
     },
     "corpus/mfcadpp/10127.step:spec:b07fa50ee055320e8df08ae2913c916709e53bcbaf568dd8bf5c815ea6ab802f": {
       "svg": "7f54f7ebd6c9b3e049b4792a203d035efb6814b31627653d915821d624246845"
-    },
-    "corpus/mfcadpp/10127.step:spec:b085751d59774576d3cf2be0e202551f4443818e74609dc528389a61204c350e": {
-      "svg": "a0666daadb6084da4369ebf0275c5e324e56aca5e926dfb5b167d8c5516d2a00"
     },
     "corpus/mfcadpp/10127.step:spec:b0ba56ccf20ebf567e89a832ce44f964b575e258292977859b354685ddd697d0": {
       "svg": "2181cd0a8b1c15812f11aa1f0a1af57091f9fcd9ef382f64f9a5140f07e8e47e"
@@ -1483,9 +1462,6 @@
     "corpus/mfcadpp/10127.step:spec:f48321a91dea21362c0b16a92c30a41c30421bb76ad75274a21694eb222abdad": {
       "svg": "358a9b83fabbf8988eb5e41f20b3a11d62892066e707605b55bb460fb526b78a"
     },
-    "corpus/mfcadpp/10127.step:spec:f64920e7cebf54b332567673b25e434dc0640ea481d7a42d3b1835e50409db80": {
-      "svg": "7de65bcf691e8334751dabc7b6de7d5d57b623fde2a04aa40e39574352928f17"
-    },
     "corpus/mfcadpp/10127.step:spec:f66af641d8fb3a45dc0bee1d6a3383609e1e1f0b5ee24460581a179b17b83737": {
       "svg": "5e055a71466e153c403b091e9276f2ff829a5386a81868303657f162afbf2400"
     },
@@ -1500,9 +1476,6 @@
     },
     "corpus/mfcadpp/10127.step:spec:f8278d0d40417329c234d75510daf83e61c3b7f6ca1b9d59ded347bdb3183f6e": {
       "svg": "5139f4191c4ff41ab62e33d3ef9ffdae7b811dfa9c1a40148e9cc93c2f27ce86"
-    },
-    "corpus/mfcadpp/10127.step:spec:ff195d9aa3d62f1a3abb7f25243da8b6344f2beac19417c84b2f6da4ff09e302": {
-      "svg": "a9868ede376c26f9fe37b0399818a36d6cbf5f4b63425bc7af9a16476e0b7a4e"
     },
     "corpus/mfcadpp/10127.step:spec:ff880eefa5b9fbe4e9f8c8f07aee31155ecb7c203ffb731bbd18291695e4c68d": {
       "svg": "51f94f2137276b748ff6b839cd25abb0651eb60f74087ac3a0454db0757a5d42"
@@ -1542,9 +1515,6 @@
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:14afadc0289911ce539bc49920a365d6903ae0f65ffdb2eef90315487de52fb5": {
       "svg": "8f88bad00c1572780b712f43e6d670b81c65c324a2914a82255f9cebfaf93709"
     },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:14b2b46fa1108564c118501c0139c3b7896055393443bf559b0f0d8a2d332416": {
-      "svg": "93f5b56769926a1f70b5f4df57e0da0f2eed89484928882c08aaddac4021bf32"
-    },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:15652740d3e2da85d3e7f92ec30b5db34664eca6ce2a3f6c6b7f283dc2450ef8": {
       "svg": "bc7829c7b576471a71035a3c31d1faaa95aa4fe7270e7f406a3674a0afcc8ae7"
     },
@@ -1575,9 +1545,6 @@
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:1c8de6a31158cf77e5848734330f8b60d998f910f00100ae4968925b020c7330": {
       "svg": "61eab31bb95a8d0e26e17f09f8529cd3277c04927132d537157eaeef674699f6"
     },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:1cd640006fff122df678bae1575af2103e2e3080dae51519b822e5a87da17178": {
-      "svg": "4de69aba3b6b08edddb83c834b0a853bb3b03eb29d96da0593768531e9f9eb0c"
-    },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:2316ee4acb23e0e87e64954edac7b2ddb9c3d13d80697c0ba95ea5094d7364fa": {
       "svg": "aedf8f81b7e417be5172b15af81cbc757415fef2115ce242eab44bfb496218b4"
     },
@@ -1592,9 +1559,6 @@
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:271a25a942d98d031db50afef559eb5e6167bc741b4c9c2d3122762939dff212": {
       "svg": "b3cc2c6fad1350d4d70eac2c76735328192427a605483837a3f92098e05afa2a"
-    },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:282664490f7ce8d4eb4e9cbcf9f912063f519a86cd5ff0865f4bde073e96d35d": {
-      "svg": "bf138eb5e2ed79f1bb47bcd3f0095600c46dbb7c81b6922a60c09edb7f8dbe4c"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:289cf17a5495872b7a56c9faac332b7d3e2f03f971445b851402007b7be7beef": {
       "svg": "08d04a5b01b28f6bc8dc7b8daef184b7165e5edd7d6e4cfbeecb4b5b5490a7e0"
@@ -1635,9 +1599,6 @@
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:35ce6d46ea05cc8e10f6bf81664c0f3e01d679ffceeb909ff21a716b23a551a0": {
       "svg": "2da676484d87ea1fd6f17d4510cacf7372141dcafd2d6c69b67f53a821cf37da"
     },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:35d3a9f74455528f1f665806a0f67a32d847bb4bbee10fb42918e91d6a7e6cef": {
-      "svg": "641b69e1ba9056dbae5cd67d5be45fb6f1dbcd1d5efa5e844736adc7345ea842"
-    },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:389c61ae04669d9ad4fb42fabbafdd4f609880a3534213d7ad6c4954a8e2b940": {
       "svg": "be91f3ab91192ffc5f93a41a36804382b6aa1fb67b5da841342ddf86efb2ead7"
     },
@@ -1670,9 +1631,6 @@
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:4227793245e4b37d14c1a97855a28da12c9c0c327f3ba16ad696f1d644ca6575": {
       "svg": "7f4b10a322c29d1c83d6805c250b15d0ecbd31a097fd7e945cee09c814e6d704"
-    },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:42c2cdfe3065ae9b7b59a34f85d289689141f69118af7a43b3fac647fac7203a": {
-      "svg": "ca93a4fd874ff57454643f4249f11ab844bc9a40ef96227b84cf941a63f35468"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:4305b0e930e8c994b4a84203f72bf5ed4da54bf7808d84601dd9606d48381b60": {
       "svg": "a464dc43a3a5c215fcf30a8b8a2222a2560f3c13cb1696f4a27f5a1a543828db"
@@ -1813,9 +1771,6 @@
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:76539254967655dbcfc60929461939f5e40db55c6ca13d431b2a3c45c864b272": {
       "svg": "3208652da30018f75f5ba482bf67c857c8816297cafe75874133d201c0c03f4c"
     },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:76f7e0511d2fc90d5801ee4f338de99f812acf1996b4b622b98812a43d66ab5a": {
-      "svg": "e84caf014d06a8e6cc41cded6ab34110af2148eca54f98dbe22ac0d89935c7ef"
-    },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:77ea25950c51ac81fffe67ed04059399e663f057dda0760c708791dd0504a83a": {
       "svg": "372e7023e5d547b16e0ca376a5e4212bde9cb8e356f2a82769a93cbc82d40955"
     },
@@ -1843,9 +1798,6 @@
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:7fe5c82656be6ee45578168096d9b7f7f82e2f9098b747572de19b303e425869": {
       "svg": "4dfbfafed78f69f43ddc4f80d556dfd63dc0b4fa3ce231350e7910159e69f192"
     },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:80426b5a3046971207edfae56e10e6676aa38152265522dee4a2bb57f6b3de0a": {
-      "svg": "166981d78929e3d661620ee7e2ecf3633b930bc939d4de4a3b368db817ff394b"
-    },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:80a7aa368826a94850e70195001722c273e1c7672e1df4b6145e651ddee8a801": {
       "svg": "fa5476eb96b2aaeb7b933e68f3bc65582b4fe2ff94197fac1b972e774bf7b192"
     },
@@ -1869,9 +1821,6 @@
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:88b490f932048f0cdc6fa558d5c1b19dfc4c7f8e9835d5078a957823e217a59b": {
       "svg": "bab0b4f288533030573c900039b431344d696945d2464f76eda23dac37ba7733"
-    },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:890b9b43905f403704000af289d889445e58dbd7720a86743b6dabb074ab91a7": {
-      "svg": "c9e74337c5e898653fb451bcd816c0effda1763fd0360ff7576e3d9f6a0ee8e8"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:8b3d7d4062ed9d9fdd3cb50acc5b7b97d2536f52a0abc74c79350ba427c6e6ef": {
       "svg": "82261258f66ecac78f7bde7c571ad6dd340d4feb15087468ee3a253261f17ca8"
@@ -1905,23 +1854,14 @@
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:90afd6738d7fc1dcb847a0ea5c7f5ca185122e33665668147475e1033aa2d824": {
       "svg": "6e02488854d1c33847c32805b36d56ec6a2365dff787ac6d34e01abf61826e0c"
     },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:90b4bbebe551aac3621f964dcb4788b8c482820f4f53f768e723c221672d3900": {
-      "svg": "445fc99c680fde152e87408eeb5b71056d99f8a93f80b06506ec98f506c2abbe"
-    },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:91510822a861d936e9a040357b76a4dc4a44d8e44ca5fe74026f51e61f981604": {
       "svg": "51dcacbe84dfb14ea5b0117121936381f84d1f99b872397f7727bf6b9459663f"
-    },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:92593004eb1ad9e64e591753eb90342c9e88b9ec925490bf0bcab2adcac696f2": {
-      "svg": "160a8d58d22b2315eca81a9c93b56b3b41dad24fb6669c662a276e7b9bc49139"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:926768f3cb3f605aa87bad4dc504fd5d8bf90d86e77282ea4f9ca1dbcd13a1dd": {
       "svg": "37ed5997d5f5a9d288906153810b14426736256a24ec5cb241f64b5217697cfa"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:96ef0592233a4833d5e7ffdcc372a0df65a9f27b026f8bf76d504f989665b247": {
       "svg": "d86008d33d69c43b5042c31eb60636fcbe8ec8c72f16fcd0568871958b8f5d45"
-    },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:970cf3123fbf81dd8a91951ba70f9a633c7b460ded3db36bec87e3f979e846cb": {
-      "svg": "90e654af62c51c18ec164d40af37f6bf5bc7fa8a00083eb999b39d927cfe63ab"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:98b212c87ea554fccd5c5ab09e0a2ccda984042808500ae025dc3c5d441b0b8b": {
       "svg": "e1b74e4c58427f80d08b2cd2907a8739cd53aadf31e23b52fd14cae134c104e7"
@@ -2135,9 +2075,6 @@
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:f6bfad94c8dd0fb607bf81813e5fc43665f568c9b52ca102b7ec637fe4942122": {
       "pdf": "0274df4eaf44bd910e54fd105cfc44bdbbeb5e4108dddc30e02216e04660155a",
       "svg": "53449926c054b402d34ec725a6d4c6a4e470d7b08a87d51d1078c93a7a5f514f"
-    },
-    "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:f775fcd75be31f2a31c44850d875f3707df61aba29bb7b323cad860ea773a735": {
-      "svg": "7bd83af7b66afdfe3c9b8511148ce75f666f90718994278d9ddb3bd1060f4ba0"
     },
     "corpus/nist/nist_ctc_01_asme1_rd.stp:spec:f87e5c89e085792483483f433e8977d5bc4a6eb38bc1b156024bb9bfcd3d3874": {
       "svg": "1f01e77470e4f83b5150004b3b02b2cf1e7b4dd29ad84fd935cbf5ac79ccb779"
@@ -2976,7 +2913,6 @@
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:00ac8b427572c9f0e40a33966fcbc33ab1828f7e26068db901755920313a35f3": {
       "pdf": "42f6cd6d5053b5d3606247c953b1d8273505edf272607ef38313b4b0882cac06",
-      "plan": "866627a050b9f5f617c6f52f0e7a82566025d65e54d5e48ce778e5d6599246e7",
       "svg": "83584e28e2a8182a5fa76296fb0355c6c5572d2c6a7794e8a1061f3a2f06dbf2"
     },
     "pmi/step/nist_ctc_01_asme1_ap242-e1.stp:spec:1f8d5f59100f2fcd3fd8436b50369ae49c65e914d192807e1d5086c5abd14fe7": {
