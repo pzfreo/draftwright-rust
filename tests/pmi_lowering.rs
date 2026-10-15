@@ -80,13 +80,14 @@ fn json_gz(path: &Path) -> Value {
 }
 
 /// The part and its Analysis, without features, from *bytes* (written to a scratch file of its
-/// own, as `analyse` reads a path and the tests run in parallel).
+/// own, as `analyse` reads a path and the tests run in parallel: threads of one process, or
+/// separate processes under nextest, hence the process id as well as the counter).
 fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_lowering")
-        .join(n.to_string());
+        .join(format!("{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
     std::fs::write(&path, bytes).unwrap();
