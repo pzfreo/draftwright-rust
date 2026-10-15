@@ -281,8 +281,13 @@ fn overridden(spec: &crate::model::Spec, given: &crate::model::Spec, id: &str) -
                 .get(id)
                 .and_then(|d| d.place.as_ref())
                 .is_some_and(|p| {
-                    p.view.is_some() || p.side.is_some() || p.lane.is_some() || p.along.is_some()
+                    p.view.is_some()
+                        || p.side.is_some()
+                        || p.lane.is_some()
+                        || p.along.is_some()
                 })
+            // An offset at the automatic bend is planned as a bare pin (#12).
+            || s.place.as_ref().is_some_and(|p| p.offset.is_some())
     })
 }
 

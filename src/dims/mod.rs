@@ -1093,6 +1093,18 @@ pub(crate) fn plan_inventory(
         {
             problems.push(Problem {id:format!("p:placement_side_not_applicable:{}",w.id),code:"placement_side_not_applicable".into(),severity:"warning".into(),message:format!("{} keeps its measured angular sector; place it with lane and along, without a side.",crate::wording::capital(&wording_of(w))),subjects:vec![w.id.clone()],fix:vec![Op::remove(format!("dimensions/{}/place/side",crate::items::key(&w.id)))],..Default::default()});
         }
+        if spec
+            .dimensions
+            .get(&w.id)
+            .and_then(|e| e.place.as_ref())
+            .is_some_and(|p| p.offset.is_some())
+            && !matches!(w.shape, Shape::Callout { .. })
+        {
+            return Err(Invalid {
+                message: format!("The placement offset of {} applies only to callouts.", w.id),
+                choices: vec!["side".into(), "lane".into(), "along".into()],
+            });
+        }
         if let Some(p) = spec.dimensions.get(&w.id).and_then(|e| e.place.as_ref())
             && let (Shape::Linear { axis, .. }, Some(side), Some(v)) = (&w.shape, p.side, chosen[i])
             && placement::across(&frames[v], *axis).is_some_and(|h| {
@@ -1122,6 +1134,14 @@ pub(crate) fn plan_inventory(
         .map(|(i, w)| {
             let p = spec.dimensions.get(&w.id)?.place.as_ref()?;
             let v = chosen[i]?;
+            // #12: an offset pin is measured from the automatic leader tip in this view.
+            if let Some(offset) = p.offset {
+                let held = held
+                    .iter()
+                    .find(|d| d.id == w.id && d.view == format!("v:{v}"))
+                    .and_then(|d| Some((d.placed.as_ref()?, d.terms.as_slice())));
+                return leaders::offset_intent(&frames[v], w, offset, held);
+            }
             if crate::placement_intent::automatic_pin(p)
                 && let Some(d) = held
                     .iter()

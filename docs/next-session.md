@@ -7251,3 +7251,39 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   cosmetic, the strip is the only one the face allows).
 - Integration removed the stray `||||||| d95f5709` merge marker both streams found at the end of
   this file.
+
+- From stream f5-pinned-in-view (#12's comment: a pinned callout inside its view), base bd12d46e:
+  - **`place.offset`** (`[dx, dy]` paper mm, callouts only, needs `pinned: true`, excludes
+    side/lane/along; refused otherwise). The bend goes at the automatic leader tip plus the
+    offset; the tip is the canonical plan's (as a bare pin's ink), held to the current frames.
+    The leader re-attaches radially to the site that tip lies on; text reads on the side the
+    leader runs to. At the automatic offset the automatic ink is returned unchanged
+    (`dims::leaders::offset_intent`). Pins are never slid; crossings are the existing
+    `leader_through_feature` warning, a label over the view `annotation_over_view`.
+  - **Session API:** `Session::callout_offset(address) -> CalloutOffset {view, tip, bend,
+    offset}` and `Plan::automatic_callout_tip(id)` (non-wire planning metadata, like
+    `canonical_callout_width`). `item_options.settable` lists `…/place/offset` for callouts
+    (`range` [-1000, 1000]); the MCP `place` schema gains `offset`. Wire format: additive only.
+  - Editor sample plate `hole_pattern:1`: automatic bend (78.7, 99.8); pinned with its offset
+    (-0.868, -6.946) the plan's ink is identical (base: a bare side/lane pin moved it to
+    (38.9, 85)). Interior drop (90.6, 100.7) draws there with no problem; a drop on the ⌀8 bore
+    is kept and reported.
+  - Judgement calls (overturnable): the origin is the automatic *tip*, not the site centre, as
+    the brief named; a pattern's leader stays on the hole the automatic leader used rather than
+    jumping to the nearest; with no automatic placement in the view the origin is the first
+    site's centre. `callout_offset` on a plan without pins reports the tip of that plan, which
+    equals the canonical tip unless text edits (tolerances, fits) moved the free leader; pinning
+    then lands relative to the canonical tip (a small jump in that case only). Offset on
+    annotations (PMI) is refused for now.
+  - Default output byte-identical (single-sheet guard 28/28, no approvals).
+  - Fix round (review): (1) `callout_offset` read the tip in the pre-packing frame and the bend
+    after `sheet_fit` moved the views (GRM-03: every callout jumped +62.42 mm in y, hole:1's
+    label off the sheet). Tips are now kept relative to their view's origin. (2) An offset equal
+    to the canonical bend now clears to a bare pin in the effective Spec
+    (`placement_intent::automatic_offset`), so non-radial automatic leaders (cgb203 hole:1,
+    boss:1; ftc_06 boss:1) and fillet grouping (ftc_06 fillet:6) no longer change; `blends`
+    reads the offset from the effective Spec. New test
+    `pinning_every_callout_at_its_reported_offset_moves_nothing`: every leadered callout on
+    editor-plate, GRM-03, cgb203 and nist_ftc_06 keeps its ink, the plan equals the bare pin's,
+    and a 2 × 1.5 mm drag lands exactly. Judgement call: a bare pin (and so an automatic offset)
+    still lets one other dimension re-settle on some parts, as E1 left it; not changed here.
