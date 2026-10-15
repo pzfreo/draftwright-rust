@@ -7012,3 +7012,28 @@ Judgements, each the conservative choice:
 - Linux recorded by workflow run 38625399679 (record-single-sheet): it only added Linux PNG
   hashes and rebuilt the Linux overrides, which again cover 915 cases (913 SVG, 307 PDF,
   11 plan), the same counts as before the re-baseline.
+
+## G3: one chosen part of an assembly (2026-10-15, unattended; overturnable)
+
+- quiddity and haecceity are pinned by `rev = "0d601d207495dea60b1b6a7109bd3abd109bf745"`
+  (quiddity-rust main with haecceity assemblies slice 1: `PartDefinition.product_id`) in place
+  of tag `v0.1.0-alpha.3`. The next tagged quiddity-rust release replaces the rev pin.
+- Slice 3 of the assemblies design: `draftwright parts STEP`, `--part K`, serve/MCP `parts` and
+  `part` (docs/model.md "Assemblies: one chosen part", docs/mcp.md). Judgement calls:
+  - The existing entry points keep their signatures (`analyse_step`, `analyse_with`,
+    `analyse_native*`, `api::*_from`, `Session::open`, `Cache::register`); the part is threaded
+    through new `_part` siblings they delegate to with `None`, so concurrent streams and the
+    editor's vendored copy need no call-site changes.
+  - An Analysis of one part records its index (`binding.part_index`) so a passed-back Analysis
+    re-reads the same part; an assembly read whole lists `parts` (2 or more only). No analysis
+    schema bump: both fields are optional and absent for single-part files.
+  - The D4 warning is a plan problem, `assembly_drawn_whole` (warning), so it reaches the CLI,
+    serve and MCP alike. It is the only change to existing output: the two multi-part PMI
+    fixtures (`pmi/step/assembly_plate_pin`, `hw_assembly_plate_pin_intent`) gain it in their
+    plans; their drawings are unchanged.
+  - A part drawn alone keeps record IDs with `:p<k>` (the file still has several parts), so a
+    spec entry made on the whole assembly's PMI item applies to the part drawing too.
+  - Its material fills the title block (`pmi::Report::drawn`): one part's material is that
+    part's drawing's.
+  - The stateless MCP keys a part as `<sha>_p<k>-<engine>`; `part` beside a `part_ref` is
+    refused.

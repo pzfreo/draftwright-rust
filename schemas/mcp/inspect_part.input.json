@@ -147,6 +147,10 @@
     "features": {
       "type": "string"
     },
+    "part": {
+      "type": "integer",
+      "minimum": 0
+    },
     "detail": {
       "type": "boolean"
     },

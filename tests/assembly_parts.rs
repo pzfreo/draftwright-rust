@@ -1,0 +1,277 @@
+//! One chosen part of an assembly (draftwright-rust #8, slice 3), driven through the command line
+//! and the service as a caller drives them. The fixture is the editor's `assembly.step`: a plate
+//! (part 0) and a pin (part 1) placed twice, at x = ±30. `assembly_pin_pmi.step.gz` is the same
+//! file with PMI written onto the pin alone by haecceity (quiddity-rust's
+//! `editor_assembly_pin_alone`): datums A and B, a position and a circular runout.
+
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
+use serde_json::{Value, json};
+
+fn assembly() -> String {
+    fixture("assembly.step").display().to_string()
+}
+
+fn fixture(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/assembly")
+        .join(name)
+}
+
+fn scratch(name: &str) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("assembly_parts");
+    std::fs::create_dir_all(&dir).unwrap();
+    dir.join(name)
+}
+
+/// The assembly with the pin's PMI, unpacked.
+fn pin_pmi() -> String {
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(fixture("assembly_pin_pmi.step.gz")).unwrap())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    let path = scratch("assembly_pin_pmi.step");
+    std::fs::write(&path, bytes).unwrap();
+    path.display().to_string()
+}
+
+/// The command line's exit code and the JSON it printed.
+fn run(args: &[&str]) -> (Option<i32>, Value) {
+    let out = Command::new(env!("CARGO_BIN_EXE_draftwright"))
+        .args(args)
+        .output()
+        .unwrap();
+    let json = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|e| panic!("{args:?}: {e}: {}", String::from_utf8_lossy(&out.stdout)));
+    (out.status.code(), json)
+}
+
+fn problems<'a>(plan: &'a Value, code: &str) -> Vec<&'a Value> {
+    plan["problems"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|p| p["code"] == code)
+        .collect()
+}
+
+#[test]
+fn parts_lists_the_plate_and_the_pin_placed_twice() {
+    let (code, out) = run(&["parts", &assembly()]);
+    assert_eq!(code, Some(0), "{out}");
+    assert_eq!(
+        out,
+        json!({ "parts": [
+            { "part": 0, "name": "plate", "product_id": "plate", "faces": 13, "instances": 1 },
+            { "part": 1, "name": "pin", "product_id": "pin", "faces": 7, "instances": 2 },
+        ]})
+    );
+}
+
+#[test]
+fn part_one_is_the_pin_alone_in_its_own_frame() {
+    let (code, a) = run(&["analyse", &assembly(), "--part", "1", "--no-features"]);
+    assert_eq!(code, Some(0), "{a}");
+    assert_eq!(a["binding"]["face_count"], 7);
+    assert_eq!(a["binding"]["part"], "pin");
+    assert_eq!(a["binding"]["part_index"], 1);
+    // The pin's own origin, not either placement at x = ±30.
+    let e = &a["envelope"];
+    for k in 0..2 {
+        let (lo, hi) = (e[0][k].as_f64().unwrap(), e[1][k].as_f64().unwrap());
+        assert!((lo + hi).abs() < 1e-6, "axis {k} not centred: {e}");
+        assert!(
+            (hi - lo - 10.0).abs() < 1e-6,
+            "axis {k} is not the pin's ø10: {e}"
+        );
+    }
+}
+
+#[test]
+fn render_part_one_draws_one_pin() {
+    let out = scratch("pin");
+    let (code, r) = run(&[
+        "render",
+        &assembly(),
+        "--part",
+        "1",
+        "-o",
+        out.to_str().unwrap(),
+        "--formats",
+        "svg",
+    ]);
+    assert_eq!(code, Some(0), "{r}");
+    assert!(problems(&r, "assembly_drawn_whole").is_empty(), "{r}");
+    let svg = std::fs::read_to_string(out.with_extension("svg")).unwrap();
+    // One pin: its overall length and diameter, and the title the part names; nothing of the
+    // plate (100 × 60) or of the pins' 60 mm spacing.
+    let (_, plan) = run(&["plan", &assembly(), "--part", "1"]);
+    let labels: Vec<&str> = plan["dimensions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|d| d["label"].as_str())
+        .collect();
+    assert!(labels.contains(&"32"), "{labels:?}");
+    assert!(labels.contains(&"ø10"), "{labels:?}");
+    for whole in ["100", "60", "42"] {
+        assert!(!labels.contains(&whole), "{whole} in {labels:?}");
+    }
+    assert!(svg.contains(">PIN<"), "the title block names the pin");
+}
+
+#[test]
+fn the_pins_pmi_is_drawn_and_the_plates_drawing_drops_it() {
+    let step = pin_pmi();
+    let (code, plan) = run(&["plan", &step, "--part", "1"]);
+    assert_eq!(code, Some(0), "{plan}");
+    // Whole, each of these is refused as drawn in two placements; alone, each is drawn once.
+    assert!(
+        !plan["problems"]
+            .to_string()
+            .contains("placements of the part"),
+        "{}",
+        plan["problems"]
+    );
+    let shown: Vec<String> = plan["gdt"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|a| a["state"]["kind"] == "shown")
+        .filter_map(|a| a["id"].as_str().map(String::from))
+        .collect();
+    for kind in [
+        "geometric_tolerance.position",
+        "geometric_tolerance.circular_runout",
+    ] {
+        assert!(
+            shown
+                .iter()
+                .any(|id| id.starts_with(&format!("pmi:{kind}"))),
+            "{kind} not shown: {shown:?}"
+        );
+    }
+    for letter in ["A", "B"] {
+        assert!(
+            shown
+                .iter()
+                .any(|id| id.starts_with("pmi:datum") && id.ends_with(&format!(":t={letter}"))),
+            "datum {letter} not shown: {shown:?}"
+        );
+    }
+    // The pin's material is its own drawing's.
+    assert_eq!(
+        plan["sheet"]["title"]["material"], "Steel C45",
+        "{}",
+        plan["sheet"]
+    );
+
+    // The plate alone: the pin's records are dropped, not refused.
+    let (code, a) = run(&["analyse", &step, "--part", "0", "--no-features"]);
+    assert_eq!(code, Some(0), "{a}");
+    assert_eq!(a["binding"]["face_count"], 13);
+    let report = &a["pmi"]["read"];
+    assert!(report.is_object(), "the plate's PMI reading: {}", a["pmi"]);
+    assert_eq!(report["drawn"], 0);
+    assert_eq!(report["records"], json!([]));
+    assert!(report.get("materials").is_none(), "{report}");
+}
+
+#[test]
+fn no_part_draws_the_whole_assembly_and_warns_naming_the_parts() {
+    let (code, a) = run(&["analyse", &assembly(), "--no-features"]);
+    assert_eq!(code, Some(0), "{a}");
+    assert_eq!(a["binding"]["face_count"], 27);
+    assert!(a["binding"].get("part_index").is_none());
+    assert_eq!(a["parts"].as_array().unwrap().len(), 2);
+    let (code, plan) = run(&["plan", &assembly(), "--no-features"]);
+    assert_eq!(code, Some(0), "{plan}");
+    let warned = problems(&plan, "assembly_drawn_whole");
+    assert_eq!(warned.len(), 1, "{}", plan["problems"]);
+    let message = warned[0]["message"].as_str().unwrap();
+    assert_eq!(warned[0]["severity"], "warning");
+    assert!(message.contains("0: plate, 1: pin"), "{message}");
+    assert!(message.contains("--part"), "{message}");
+}
+
+#[test]
+fn a_part_the_file_does_not_have_is_refused_naming_the_parts() {
+    let (code, out) = run(&["analyse", &assembly(), "--part", "2", "--no-features"]);
+    assert_eq!(code, Some(2), "{out}");
+    let message = out["error"]["message"].as_str().unwrap();
+    assert!(message.contains("0: plate, 1: pin"), "{message}");
+}
+
+#[test]
+fn a_file_of_one_part_carries_no_part_fields() {
+    let plate = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/plate.step");
+    let (code, a) = run(&["analyse", plate.to_str().unwrap(), "--no-features"]);
+    assert_eq!(code, Some(0), "{a}");
+    assert!(a.get("parts").is_none());
+    assert!(a["binding"].get("part_index").is_none());
+}
+
+/// The replies to *lines*, sent to one `draftwright serve` until its stdin closes.
+fn serve(lines: &[Value]) -> Vec<Value> {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_draftwright"))
+        .arg("serve")
+        .env("DRAFTWRIGHT_CACHE", scratch("cache"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for line in lines {
+        writeln!(stdin, "{line}").unwrap();
+    }
+    drop(stdin);
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success());
+    String::from_utf8(out.stdout)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect()
+}
+
+#[test]
+fn the_service_and_mcp_list_parts_and_take_a_part() {
+    let step = assembly();
+    let replies = serve(&[
+        json!({ "id": 1, "op": "parts", "step": step }),
+        json!({ "id": 2, "op": "analyse", "step": step, "part": 1 }),
+        json!({ "id": 3, "op": "plan", "step": step }),
+        json!({ "id": 4, "op": "mcp_parts", "arguments": { "step": step } }),
+        json!({ "id": 5, "op": "mcp_inspect_part", "arguments": { "step": step, "part": 1 } }),
+        json!({ "id": 6, "op": "analyse", "step": step, "part": "pin" }),
+    ]);
+    assert_eq!(
+        replies[0]["result"]["parts"][1]["name"], "pin",
+        "{}",
+        replies[0]
+    );
+    assert_eq!(
+        replies[1]["result"]["binding"]["face_count"], 7,
+        "{}",
+        replies[1]
+    );
+    assert_eq!(replies[1]["result"]["binding"]["part_index"], 1);
+    assert_eq!(
+        problems(&replies[2]["result"], "assembly_drawn_whole").len(),
+        1,
+        "{}",
+        replies[2]
+    );
+    assert_eq!(replies[3]["result"]["parts"], replies[0]["result"]["parts"]);
+    let summary = &replies[4]["result"];
+    assert_eq!(summary["face_count"], 7, "{}", replies[4]);
+    assert_eq!(summary["part"], "pin");
+    assert!(
+        summary["part_ref"].as_str().unwrap().contains("_p1-"),
+        "{summary}"
+    );
+    assert_eq!(replies[5]["ok"], false);
+    assert_eq!(replies[5]["error"]["code"], "invalid");
+}

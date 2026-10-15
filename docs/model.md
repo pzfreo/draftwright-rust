@@ -104,6 +104,23 @@ edited.
   and is drawn as a label; the drawing-wide requirements are the sheet's (below); a thread or
   knurl carries its cylinders (`geometry.cylinders`) and is printed on its owner's callout
   (below).
+- **Assemblies: one chosen part** (draftwright-rust #8, slice 3; no schema bump, every field is
+  optional and absent for a file of one part, whose Analysis is byte-identical). A STEP file's
+  distinct parts are listed by `draftwright parts part.step` (serve/MCP `parts`):
+  `{"parts": [{"part": 0, "name": "plate", "product_id": "plate", "faces": 13, "instances": 1},
+  …]}`, in haecceity's order (`read_part_definitions`). A part is chosen by its **index**
+  (`--part K`; `"part": K` in a request), with the name and product id reported beside it (the
+  maintainer's D1). Part K is read alone, in its own frame (`haecceity::StepFile::part`: its
+  first placement's shape with no placement applied), so a part placed twice is drawn once.
+  Its `binding.part` is the part's name and `binding.part_index` is K; `face_count` and
+  `envelope` are the part's own. Its PMI is the part's only: other parts' records, findings and
+  material are dropped, not refused (`pmi.drawn` = K), and a material it states fills the title
+  block. With no part chosen an assembly is read whole, as before (D4): the Analysis lists the
+  file's parts in `parts` (only when there are two or more) and `plan` warns
+  `assembly_drawn_whole`, naming the parts and how to choose one. An Analysis made from one
+  part is re-read from that part when passed back (`--analysis`), and a `part` beside it must be
+  the same. An index the file does not have is refused (`invalid`), naming the parts. Nested
+  sub-assemblies are flattened to their leaf parts; a sub-assembly is not selectable (D2).
 
 - **Feature IDs** are stable within one file. They are anchored on face indices and derived
   from the feature's kind and faces, never from the order it was found in.

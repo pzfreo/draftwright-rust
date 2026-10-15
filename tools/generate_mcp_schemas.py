@@ -41,7 +41,7 @@ common={'part_ref':S,'spec':ref('spec'),'spec_version':S,'drawing_ref':S}
 paging={'cursor':I,'limit':{'type':'integer','minimum':1,'maximum':100},'detail':B}
 artifact=obj({'artifact_ref':S,'mime_type':{'enum':['image/png','application/pdf']},'bytes':I,'spec_version':S},['artifact_ref','mime_type','bytes','spec_version'])
 tools={
-'inspect_part':(obj({**common,'step':S,'features':S,'detail':B,'problem_filter':problem_filter}),obj({**summary['properties'],'problem_page':paged({'anyOf':[ref('problem_small'),ref('stub')]})},summary['required'])),
+'inspect_part':(obj({**common,'step':S,'features':S,'part':I,'detail':B,'problem_filter':problem_filter}),obj({**summary['properties'],'problem_page':paged({'anyOf':[ref('problem_small'),ref('stub')]})},summary['required'])),
 'list_items':(obj({**common,**paging,'filter':filter_},['part_ref']),paged(row_item)),
 'get_item':(obj({**common,'id':S,'detail':B},['part_ref','id']),obj({'item':{'anyOf':[ref('item'), obj({**compact['properties'],'basis':S,'value':nullable(N),'operations':arr(S)},[*compact['required'],'basis','value','operations'])]}},['item'])),
 'list_problems':(obj({**common,**paging,'filter':problem_filter},['part_ref']),paged(row_problem)),
@@ -51,8 +51,9 @@ tools={
 'view_sheet':(obj({**common,'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}},['part_ref']),artifact),
 'render_pdf':(obj({**common,'sheet':SHEET},['part_ref']),artifact),
 'get_spec':(obj(common,['part_ref']),obj({'spec_version':S,'spec':ref('spec')},['spec_version','spec'])),
-'analyse':(obj({'step':S,'features':S},['step']),obj({'schema':{'const':'draftwright.analysis/7'},'binding':obj({'source_sha256':S,'part':S,'face_count':I,'loader':S},['source_sha256','part','face_count','loader']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'features':arr({'type':'object'}),'iso_bounds':rectangle},['schema','binding','envelope','iso_bounds'],True)),
-'render':(obj({**common,'step':S,'features':S,'format':{'enum':['png','pdf']},'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}}),artifact),
+'analyse':(obj({'step':S,'features':S,'part':I},['step']),obj({'schema':{'const':'draftwright.analysis/7'},'binding':obj({'source_sha256':S,'part':S,'face_count':I,'loader':S,'part_index':I},['source_sha256','part','face_count','loader']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'features':arr({'type':'object'}),'iso_bounds':rectangle},['schema','binding','envelope','iso_bounds'],True)),
+'render':(obj({**common,'step':S,'features':S,'part':I,'format':{'enum':['png','pdf']},'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}}),artifact),
+'parts':(obj({'step':S},['step']),obj({'parts':arr(obj({'part':I,'name':S,'product_id':S,'faces':I,'instances':I},['part','name','product_id','faces','instances']))},['parts'])),
 }
 def inline_single_use(schema, keep=()):
     """A one-use local definition costs a reference and key without sharing any shape."""

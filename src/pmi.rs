@@ -207,6 +207,11 @@ pub struct Report {
     /// The material each part states (draftwright's `material_facts`), in part order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub materials: Vec<Material>,
+    /// The part drawn, when the drawing is of one part of several read alone
+    /// ([`report_part`]): the records, sources and materials are then that part's only.
+    /// Absent when the whole file is drawn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drawn: Option<usize>,
 }
 
 /// A part's material as the file states it (CAx-IF's 'material name' property: draftwright's
@@ -375,12 +380,19 @@ impl Report {
     /// The material the title block states when the caller gives none (draftwright's
     /// `_resolve_title_document_defaults`): the file's one material, if usable. Several are
     /// ambiguous; one of a file of several parts is not the drawing's part's (draftwright's 'not
-    /// owned by the single shaped source product definition'); an empty designation is unusable.
+    /// owned by the single shaped source product definition'), unless that part is the one
+    /// drawn alone ([`Report::drawn`]); an empty designation is unusable.
     pub fn title_material(&self) -> Option<&Material> {
         match self.materials.as_slice() {
-            [m] if self.parts.len() == 1 && !m.designation.trim().is_empty() => Some(m),
+            [m] if self.owns(m) && !m.designation.trim().is_empty() => Some(m),
             _ => None,
         }
+    }
+
+    /// Whether *m* is the drawing's part's material: the file has one part, or *m* is the part
+    /// drawn alone.
+    pub fn owns(&self, m: &Material) -> bool {
+        self.parts.len() == 1 || self.drawn == Some(m.part)
     }
 }
 
@@ -476,7 +488,7 @@ impl Reader {
         let source = Sha256::digest(bytes).into();
         if self.source != Some(source) {
             self.reads += 1;
-            self.reading = attached(bytes, part);
+            self.reading = attached(bytes, read(bytes, part));
             self.source = Some(source);
         }
         self.reading.clone()
@@ -491,8 +503,24 @@ pub fn attach(bytes: &[u8], part: &Part) -> Option<Reading> {
     Reader::default().attach(bytes, part)
 }
 
-fn attached(bytes: &[u8], part: &Part) -> Option<Reading> {
-    match read(bytes, part) {
+/// [`attach`], given the file's part definitions (`read_part_definitions` of *bytes*, or why
+/// they could not be read) and, when the drawing is of one part of several, which
+/// ([`read_part`]).
+pub(crate) fn attach_with(
+    bytes: &[u8],
+    part: &Part,
+    defs: Result<&[PartDefinition], &str>,
+    chosen: Option<usize>,
+) -> Option<Reading> {
+    attached(
+        bytes,
+        defs.map_err(str::to_string)
+            .and_then(|defs| read_with(bytes, part, defs, chosen)),
+    )
+}
+
+fn attached(bytes: &[u8], read: Result<Report, String>) -> Option<Reading> {
+    match read {
         Ok(r) => {
             let a = &r.accounting;
             let any = !r.records.is_empty()
@@ -519,10 +547,25 @@ fn attached(bytes: &[u8], part: &Part) -> Option<Reading> {
 /// do not match *part*'s faces; everything within a part that cannot be read is a source with a
 /// reason.
 pub fn read(bytes: &[u8], part: &Part) -> Result<Report, String> {
+    read_part(bytes, part, None)
+}
+
+/// [`read`], where the drawing's *part* is part *chosen* of the file's parts read alone
+/// (`haecceity::StepFile::part`), when given ([`report_part`]).
+pub fn read_part(bytes: &[u8], part: &Part, chosen: Option<usize>) -> Result<Report, String> {
     let defs = read_part_definitions(bytes).map_err(|e| format!("cannot read the parts: {e}"))?;
+    read_with(bytes, part, &defs, chosen)
+}
+
+fn read_with(
+    bytes: &[u8],
+    part: &Part,
+    defs: &[PartDefinition],
+    chosen: Option<usize>,
+) -> Result<Report, String> {
     let doc = Document::parse(bytes.to_vec()).map_err(|e| format!("cannot read Part 21: {e}"))?;
-    let read = pmi::read(&doc, &defs).map_err(|e| e.to_string())?;
-    report(&doc, &defs, part, &read)
+    let read = pmi::read(&doc, defs).map_err(|e| e.to_string())?;
+    report_part(&doc, defs, part, &read, chosen)
 }
 
 /// The report of a haecceity reading *read* of *doc* (whose parts are *defs*), on the drawing's
@@ -533,10 +576,27 @@ pub fn report(
     part: &Part,
     read: &pmi::PmiRead,
 ) -> Result<Report, String> {
-    let drawing = Drawing::new(part, defs)?;
+    report_part(doc, defs, part, read, None)
+}
+
+/// [`report`], where the drawing's *part* is part *chosen* of *defs* read alone, when given:
+/// only that part's records, findings and material are reported, and the other parts' are
+/// dropped (they are not on this drawing). Its records keep their part's index in *defs*.
+pub fn report_part(
+    doc: &Document,
+    defs: &[PartDefinition],
+    part: &Part,
+    read: &pmi::PmiRead,
+    chosen: Option<usize>,
+) -> Result<Report, String> {
+    let drawing = Drawing::new(part, defs, chosen)?;
+    let drawn = |p: usize| chosen.is_none_or(|k| k == p);
     let mut records = Vec::new();
     let mut sources = Vec::new();
     for (p, (pmi, prov)) in read.parts.iter().zip(&read.provenance.parts).enumerate() {
+        if !drawn(p) {
+            continue;
+        }
         let r = PartReader {
             doc,
             p,
@@ -567,6 +627,10 @@ pub fn report(
         }
     }
     for (f, _) in read.findings.iter().zip(&attached).filter(|(_, a)| !**a) {
+        // A finding on another part than the one drawn is that part's.
+        if f.part.is_some_and(|p| !drawn(p.0)) {
+            continue;
+        }
         let subject = f.ids.first().copied().unwrap_or(0);
         sources.push(Source {
             id: format!("finding:#{subject}"),
@@ -623,6 +687,7 @@ pub fn report(
         .iter()
         .zip(&read.provenance.parts)
         .enumerate()
+        .filter(|(p, _)| drawn(*p))
         .filter_map(|(p, (pmi, prov))| {
             // Kept even when unusable (an empty designation), so the lint reports it rather than
             // the file seeming to state no material; named as the census names it when the
@@ -645,6 +710,7 @@ pub fn report(
     Ok(Report {
         schema: PMI_SCHEMA.into(),
         parts: defs.iter().map(|d| d.name.clone()).collect(),
+        drawn: chosen,
         sources: record_sources,
         records,
         accounting: Accounting {
@@ -667,7 +733,10 @@ struct Drawing<'a> {
 }
 
 impl<'a> Drawing<'a> {
-    fn new(part: &'a Part, defs: &[PartDefinition]) -> Result<Self, String> {
+    /// *part* indexed, checked to be read from the file whose parts are *defs*: all of them in
+    /// every placement (`haecceity::read_step`), or part *chosen* alone, read once
+    /// (`haecceity::StepFile::part`).
+    fn new(part: &'a Part, defs: &[PartDefinition], chosen: Option<usize>) -> Result<Self, String> {
         let mut faces: BTreeMap<u64, Vec<(usize, usize)>> = BTreeMap::new();
         for f in 0..part.faces.len() {
             let s = part.face_source(f).ok_or_else(|| {
@@ -681,10 +750,13 @@ impl<'a> Drawing<'a> {
                 edges.entry(s.entity).or_default().push((s.instance, e));
             }
         }
-        let counted: usize = defs
-            .iter()
-            .map(|d| d.faces.len() * d.placements.len())
-            .sum();
+        let counted: usize = match chosen {
+            Some(k) => defs.get(k).map_or(0, |d| d.faces.len()),
+            None => defs
+                .iter()
+                .map(|d| d.faces.len() * d.placements.len())
+                .sum(),
+        };
         if counted != part.faces.len() {
             return Err(format!(
                 "the file's parts have {counted} placed faces and the drawing's part {}: they \
