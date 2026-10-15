@@ -338,6 +338,29 @@ pub struct FinishPlaced {
     /// The whole symbol's box.
     #[serde(rename = "box")]
     pub glyph: [f64; 4],
+    /// Circles, `[cx, cy, r, from, to]` (degrees): the circle of `no material removal`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub arcs: Vec<[f64; 5]>,
+}
+
+/// ISO 1302's mark of a material removal condition (ISO 10303-1110's term), about the symbol's
+/// tip at the origin, its short leg *short* tall: `material removal required` closes the short
+/// leg with a bar (the expanded symbol, a triangle); `no material removal` inscribes a circle
+/// in it; any other draws nothing (the basic symbol). The strokes and the circles.
+pub(crate) fn removal_marks(removal: &str, short: f64) -> (Vec<[P; 2]>, Vec<[f64; 5]>) {
+    let cot = 1.0 / 3f64.sqrt();
+    match removal {
+        "material removal required" => (
+            vec![[[-short * cot, short], [short * cot, short]]],
+            Vec::new(),
+        ),
+        // The incircle of the triangle the legs make at the short leg's height.
+        "no material removal" => (
+            Vec::new(),
+            vec![[0.0, 2.0 * short / 3.0, short / 3.0, 0.0, 360.0]],
+        ),
+        _ => (Vec::new(), Vec::new()),
+    }
 }
 
 /// The default surface finish *text* (`Ra 3.2`) as its symbol, at the left end of the band
@@ -345,7 +368,7 @@ pub struct FinishPlaced {
 /// scale note and the projection symbol take the band's right end). draftwright's glyph
 /// (build123d_drafting's `SurfaceFinish`) draws one leg at 60° and a vertical stub, not
 /// ISO 1302's two legs; the port draws ISO 1302's.
-pub fn default_finish(block: [f64; 4], text: &str) -> FinishPlaced {
+pub fn default_finish(block: [f64; 4], text: &str, removal: &str) -> FinishPlaced {
     let laid = lay(text, TEXT);
     let w = laid.max[0] - laid.min[0];
     let cot = 1.0 / 3f64.sqrt();
@@ -358,12 +381,22 @@ pub fn default_finish(block: [f64; 4], text: &str) -> FinishPlaced {
     let at = [block[0] - short_top[0], top(block) + FURNITURE_GAP];
     let m = |p: P| [p[0] + at[0], p[1] + at[1]];
     let centre = m([left + w / 2.0, long - gap - TEXT / 2.0]);
+    let (marks, circles) = removal_marks(removal, short);
+    let mut strokes = vec![
+        [m(short_top), m([0.0, 0.0])],
+        [m([0.0, 0.0]), m(long_top)],
+        [m(long_top), m([end, long])],
+    ];
+    strokes.extend(marks.iter().map(|[a, b]| [m(*a), m(*b)]));
     FinishPlaced {
-        strokes: vec![
-            [m(short_top), m([0.0, 0.0])],
-            [m([0.0, 0.0]), m(long_top)],
-            [m(long_top), m([end, long])],
-        ],
+        strokes,
+        arcs: circles
+            .iter()
+            .map(|c| {
+                let [x, y] = m([c[0], c[1]]);
+                [x, y, c[2], c[3], c[4]]
+            })
+            .collect(),
         text_at: centre,
         label_box: [
             centre[0] - w / 2.0,

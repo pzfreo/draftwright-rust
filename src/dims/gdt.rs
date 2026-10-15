@@ -15,6 +15,12 @@
 //!   square frame two text heights wide holding the letter. draftwright hangs its `DatumFeature`
 //!   glyph (triangle, line and frame together) off an arrowed leader's shelf instead, so its
 //!   triangle sits beside the frame in mid-air, not on the surface.
+//! - **A surface texture symbol** (a face's AP242 surface texture) is ISO 1302's graphical
+//!   symbol, as the default finish beside the title block draws it, standing on its leader's
+//!   shelf, its parameters (`Ra 0.8`) under the bar: its leader runs from a proven site on its
+//!   face's edge line along the face's outward normal, as a datum's does, with an arrowhead at
+//!   the site (draftwright's `Finish`, a `SurfaceFinish` glyph on a `Leader`, which only
+//!   draftwright's face-finish lowering for one external cylinder makes).
 //! - **A label** (a surface or common label: `A`, `F1.1`, `2X R`) is its text at the
 //!   dimensions' text height, unframed, hung from a leader as a frame is (draftwright's `Note`,
 //!   a `TextBlock` callout on a `Leader`).
@@ -374,6 +380,74 @@ fn label(s: &str) -> Laid {
     laid
 }
 
+/// A face's ISO 1302 surface texture symbol laid out from its lower left corner, which is the
+/// left end of the reference line it stands on (its leader's shelf): the short and long legs at
+/// 60° to a tip on that line (1.4 and 3 text heights tall, as the default finish beside the title
+/// block draws them, [`crate::title_block::default_finish`]), the material removal condition's
+/// mark ([`crate::title_block::removal_marks`]), the bar from the long leg's top, and the
+/// parameters under it, one per line (ISO 1302's positions a and b). The reference line itself
+/// is the leader's ([`candidate`]), as long as the glyph is wide.
+fn finish_symbol(lines: &[String], removal: &str) -> Laid {
+    let cot = 1.0 / 3f64.sqrt();
+    let gap = 0.3 * TEXT;
+    let short = 1.4 * TEXT;
+    let long = (3.0 * TEXT).max(lines.len() as f64 * (TEXT + gap));
+    let tip = [gap + short * cot, 0.0];
+    let at = |p: P2| [p[0] + tip[0], p[1] + tip[1]];
+    let long_top = at([long * cot, long]);
+    let tw = lines
+        .iter()
+        .map(|l| width(l, TEXT))
+        .fold(0.5 * TEXT, f64::max);
+    let left = long_top[0] + gap;
+    let end = left + tw + gap;
+    let mut laid = Laid {
+        strokes: vec![
+            [at([-short * cot, short]), tip],
+            [tip, long_top],
+            [long_top, [end, long]],
+        ],
+        ..Laid::default()
+    };
+    let (marks, circles) = crate::title_block::removal_marks(removal, short);
+    laid.strokes
+        .extend(marks.iter().map(|[a, b]| [at(*a), at(*b)]));
+    laid.arcs.extend(circles.iter().map(|c| {
+        let [x, y] = at([c[0], c[1]]);
+        [x, y, c[2], c[3], c[4]]
+    }));
+    for (i, l) in lines.iter().enumerate() {
+        let c = [
+            left + tw / 2.0,
+            long - gap - TEXT / 2.0 - i as f64 * (TEXT + gap),
+        ];
+        laid.letters.push(text(l, c, TEXT));
+        laid.runs.push(text(l, c, TEXT));
+    }
+    laid.size = [end, long];
+    laid
+}
+
+/// How an item hangs from its site: a feature control frame or label from its leader's shelf,
+/// a datum feature symbol's triangle on its surface, or a surface texture symbol standing on its
+/// leader's shelf.
+#[derive(Clone, Copy, PartialEq)]
+enum Shape {
+    Frame,
+    Datum,
+    Finish,
+}
+
+impl Shape {
+    fn of(glyph: &Glyph) -> Shape {
+        match glyph {
+            Glyph::Datum { .. } => Shape::Datum,
+            Glyph::Finish { .. } => Shape::Finish,
+            Glyph::ControlFrame { .. } | Glyph::Label { .. } => Shape::Frame,
+        }
+    }
+}
+
 /// The outward direction of strip *side*.
 fn outward(side: &str) -> P2 {
     match side {
@@ -400,10 +474,36 @@ struct Candidate {
     elbow: P2,
 }
 
-fn candidate(datum: bool, tip: P2, side: &str, pos: f64, size: P2) -> Candidate {
+fn candidate(shape: Shape, tip: P2, side: &str, pos: f64, size: P2) -> Candidate {
     let d = outward(side);
     let horizontal = d[0] == 0.0;
-    if datum {
+    if shape == Shape::Finish {
+        // The symbol stands on its shelf, which runs from the leader's end under it: above or
+        // below the view the shelf is the box's bottom edge (*pos* the box's middle), the
+        // leader rising or falling to its left end; beside the view the leader runs straight
+        // out to *pos* and on under the symbol, which stands on it.
+        let (elbow, x0) = if horizontal {
+            ([tip[0], pos - size[1] / 2.0], tip[0])
+        } else if d[0] > 0.0 {
+            ([pos, tip[1]], pos)
+        } else {
+            ([pos, tip[1]], pos - size[0])
+        };
+        let shelf = if elbow[0] > x0 {
+            [x0, elbow[1]]
+        } else {
+            [x0 + size[0], elbow[1]]
+        };
+        return Candidate {
+            lines: vec![[tip, elbow], [elbow, shelf]],
+            arrows: vec![placement::arrow(tip, elbow)],
+            fills: Vec::new(),
+            label_box: [x0, elbow[1], x0 + size[0], elbow[1] + size[1]],
+            origin: [x0, elbow[1]],
+            elbow,
+        };
+    }
+    if shape == Shape::Datum {
         let centre = if horizontal {
             [tip[0], pos]
         } else {
@@ -457,9 +557,16 @@ fn candidate(datum: bool, tip: P2, side: &str, pos: f64, size: P2) -> Candidate 
 /// An item's extent across strip *side* from its site, page mm: a frame's or label's leader,
 /// shelf and box above or below its view, its box centred on the leader left or right; a datum's
 /// frame centred on its line.
-fn span(datum: bool, side: &str, size: P2) -> [f64; 2] {
-    if datum {
+fn span(shape: Shape, side: &str, size: P2) -> [f64; 2] {
+    if shape == Shape::Datum {
         [-TEXT, TEXT]
+    } else if shape == Shape::Finish {
+        // From its leader: rightwards above or below the view, upwards beside it.
+        if outward(side)[0] == 0.0 {
+            [0.0, size[0]]
+        } else {
+            [0.0, size[1]]
+        }
     } else if outward(side)[0] == 0.0 {
         [0.0, SHELF + size[0]]
     } else {
@@ -473,7 +580,7 @@ fn span(datum: bool, side: &str, size: P2) -> [f64; 2] {
 /// arrowhead or the datum's triangle. A dimension elsewhere along the strip does not push it
 /// out (draftwright's lateral tier reuse, `_adjust_strip_candidate_labels`): its tier is free
 /// there.
-fn first_tier(datum: bool, side: &str, tip: P2, o: [f64; 4], ink: &[[P2; 2]], size: P2) -> f64 {
+fn first_tier(shape: Shape, side: &str, tip: P2, o: [f64; 4], ink: &[[P2; 2]], size: P2) -> f64 {
     let d = outward(side);
     let horizontal = d[0] == 0.0;
     let edge = match side {
@@ -483,7 +590,7 @@ fn first_tier(datum: bool, side: &str, tip: P2, o: [f64; 4], ink: &[[P2; 2]], si
         _ => o[2],
     };
     let across = |p: P2| if horizontal { p[0] } else { p[1] };
-    let [a, b] = span(datum, side, size).map(|v| across(tip) + v);
+    let [a, b] = span(shape, side, size).map(|v| across(tip) + v);
     let base = ink
         .iter()
         .filter(|[p, q]| {
@@ -494,7 +601,9 @@ fn first_tier(datum: bool, side: &str, tip: P2, o: [f64; 4], ink: &[[P2; 2]], si
         .filter(|v| *v > edge)
         .fold(edge, f64::max);
     let along = dot(tip, d);
-    let (from_base, from_tip) = if datum {
+    // A surface texture symbol's box starts at its leader's end beside the view, as a frame's
+    // would without its shelf, so the same clearances hold.
+    let (from_base, from_tip) = if shape == Shape::Datum {
         (CLEAR + TEXT, 0.9 * TRIANGLE + 0.8 * TEXT + TEXT)
     } else if horizontal {
         (CLEAR + size[1] / 2.0, ARROW + 1.0 + size[1] / 2.0)
@@ -507,10 +616,12 @@ fn first_tier(datum: bool, side: &str, tip: P2, o: [f64; 4], ink: &[[P2; 2]], si
 }
 
 /// The step between tiers along the strip.
-fn step(datum: bool, side: &str, size: P2) -> f64 {
+fn step(shape: Shape, side: &str, size: P2) -> f64 {
     let horizontal = outward(side)[0] == 0.0;
-    if datum || horizontal {
+    if shape == Shape::Datum || horizontal {
         size[1] + CLEAR
+    } else if shape == Shape::Finish {
+        size[0] + CLEAR
     } else {
         size[0] + SHELF + CLEAR
     }
@@ -599,10 +710,12 @@ pub fn demand(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> Vec<crate::l
     items
         .iter()
         .map(|item| {
-            let datum = matches!(item.glyph, Glyph::Datum { .. });
+            let shape = Shape::of(&item.glyph);
+            let datum = shape == Shape::Datum;
             let size = match &item.glyph {
                 Glyph::Datum { .. } => [H, H],
                 Glyph::Label { text } => label(text).size,
+                Glyph::Finish { lines, removal, .. } => finish_symbol(lines, removal).size,
                 g => control_frame(g).0.size,
             };
             let horizontal = outward(item.side)[0] == 0.0;
@@ -613,6 +726,8 @@ pub fn demand(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> Vec<crate::l
                 H
             } else if horizontal {
                 size[1]
+            } else if shape == Shape::Finish {
+                size[0]
             } else {
                 SHELF + size[0]
             };
@@ -620,7 +735,7 @@ pub fn demand(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> Vec<crate::l
                 view: item.view,
                 side: item.side,
                 at: if horizontal { p[0] } else { p[1] },
-                span: span(datum, item.side, size),
+                span: span(shape, item.side, size),
                 ends: if horizontal {
                     [o[0], o[2]]
                 } else {
@@ -698,7 +813,7 @@ pub(crate) fn plan_anchored(
             }
             if let Some(side) = p.side {
                 item.side = side.name();
-            } else if matches!(item.glyph, Glyph::Datum { .. })
+            } else if matches!(item.glyph, Glyph::Datum { .. } | Glyph::Finish { .. })
                 && let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi
                 && let Some(record) = report.records.iter().find(|r| r.source_id == item.source)
                 && let Some((_, sides)) = placement_choices(item, record, views)
@@ -762,10 +877,12 @@ pub(crate) fn plan_anchored(
         .collect();
     let mut out = Vec::new();
     for item in items {
-        let datum = matches!(item.glyph, Glyph::Datum { .. });
+        let shape = Shape::of(&item.glyph);
+        let datum = shape == Shape::Datum;
         let (laid, cells) = match &item.glyph {
             Glyph::Datum { letter, .. } => (datum_frame(letter), vec![letter.clone()]),
             Glyph::Label { text } => (label(text), vec![text.clone()]),
+            Glyph::Finish { lines, removal, .. } => (finish_symbol(lines, removal), lines.clone()),
             g => control_frame(g),
         };
         let modifiers: Vec<String> = match &item.glyph {
@@ -778,7 +895,7 @@ pub(crate) fn plan_anchored(
                 .filter(|(_, on)| *on)
                 .map(|(m, _)| m.to_string())
                 .collect(),
-            Glyph::Datum { .. } | Glyph::Label { .. } => Vec::new(),
+            Glyph::Datum { .. } | Glyph::Label { .. } | Glyph::Finish { .. } => Vec::new(),
         };
         let mut planned = PlannedGdt {
             id: item.id.clone(),
@@ -786,6 +903,7 @@ pub(crate) fn plan_anchored(
                 Glyph::Datum { .. } => "datum_feature",
                 Glyph::Label { .. } => "label",
                 Glyph::ControlFrame { .. } => "control_frame",
+                Glyph::Finish { .. } => "surface_finish",
             }
             .into(),
             view: format!("v:{}", item.view),
@@ -906,7 +1024,10 @@ pub(crate) fn plan_anchored(
             labels: labels.clone(),
             lines: lines.clone(),
         };
-        let sides: Vec<&str> = if datum || intent.is_some_and(|p| p.side.is_some()) {
+        // A datum's and a surface finish's leader stand on their face's edge line, along its
+        // outward normal: no other strip can carry them.
+        let sides: Vec<&str> = if shape != Shape::Frame || intent.is_some_and(|p| p.side.is_some())
+        {
             vec![item.side]
         } else {
             std::iter::once(item.side)
@@ -922,7 +1043,7 @@ pub(crate) fn plan_anchored(
         let tiers = |side: &str, tip: P2| {
             let pinned = intent.is_some_and(|p| p.pinned);
             let first = first_tier(
-                datum,
+                shape,
                 side,
                 tip,
                 frame.outline(),
@@ -931,7 +1052,7 @@ pub(crate) fn plan_anchored(
             );
             let d = outward(side);
             let sign = if d[0] + d[1] < 0.0 { -1.0 } else { 1.0 };
-            let step = step(datum, side, laid.size);
+            let step = step(shape, side, laid.size);
             let lane = intent.and_then(|p| p.lane).unwrap_or(0);
             let count = if intent.is_some_and(|p| p.pinned) {
                 1
@@ -952,7 +1073,7 @@ pub(crate) fn plan_anchored(
                         let k = usize::from(outward(side)[0] != 0.0);
                         anchor[k] = o[k] + along.fraction() * (o[k + 2] - o[k]);
                     }
-                    let mut c = candidate(datum, anchor, side, pos, laid.size);
+                    let mut c = candidate(shape, anchor, side, pos, laid.size);
                     if datum && intent.and_then(|p| p.along).is_some() {
                         for fill in &mut c.fills {
                             for q in fill {
@@ -1262,7 +1383,9 @@ fn placement_choices(
                 Glyph::ControlFrame { .. } | Glyph::Label { .. } => {
                     (name == item.view).then(|| (name, vec!["above", "below", "left", "right"]))
                 }
-                Glyph::Datum { surface, .. } if surface == "plane" => {
+                Glyph::Datum { surface, .. } | Glyph::Finish { surface, .. }
+                    if surface == "plane" =>
+                {
                     let normal = record.geometry.as_ref()?.normal?;
                     let dot: f64 = normal.iter().zip(view.direction).map(|(a, b)| a * b).sum();
                     if dot.abs() > 1e-6 {
@@ -1278,7 +1401,9 @@ fn placement_choices(
                     };
                     Some((name, vec![side]))
                 }
-                Glyph::Datum { .. } => (name == item.view).then(|| (name, vec![item.side])),
+                Glyph::Datum { .. } | Glyph::Finish { .. } => {
+                    (name == item.view).then(|| (name, vec![item.side]))
+                }
             }
         })
         .collect()
