@@ -371,8 +371,9 @@ pub struct Plan {
     /// Canonical widths for the editor's snap guide; not part of the drawing document.
     #[serde(skip)]
     pub(crate) callout_widths: BTreeMap<String, f64>,
-    /// Each callout's automatic leader tip and view, the origin of an offset pin (#12): the
-    /// canonical plan's, held to the current frames; not part of the drawing document.
+    /// Each callout's automatic leader tip, relative to its view's origin, and view: the origin
+    /// of an offset pin (#12), the canonical plan's when there is one; not part of the drawing
+    /// document.
     #[serde(skip)]
     pub(crate) callout_tips: BTreeMap<String, (String, [f64; 2])>,
     /// Dimensions the spec leaves out, and why (ADR4-8: an authored omission says so).
@@ -426,7 +427,9 @@ impl Plan {
     /// `place.offset` is measured. None for a non-callout, one with no automatic placement, or
     /// a deserialised Plan: this metadata is retained only by planning.
     pub fn automatic_callout_tip(&self, id: &str) -> Option<(&str, [f64; 2])> {
-        self.callout_tips.get(id).map(|(v, t)| (v.as_str(), *t))
+        let (view, t) = self.callout_tips.get(id)?;
+        let at = self.views.iter().find(|v| v.id == *view)?.at;
+        Some((view.as_str(), [at[0] + t[0], at[1] + t[1]]))
     }
 }
 
@@ -1918,6 +1921,16 @@ fn plan_with_presentation(
         effective.sheet.size = Some(base.sheet.size.clone());
         effective.sheet.scale = Some(base.sheet.scale.clone());
         for (id, d) in &mut effective.dimensions {
+            // #12: an offset that puts the bend where the canonical plan has it pins the
+            // automatic placement, so it is planned as a bare pin: the ink stays as it is.
+            if let Some(p) = d.place.as_mut()
+                && p.view.is_none()
+                && d.view.is_none()
+                && p.offset
+                    .is_some_and(|o| crate::placement_intent::automatic_offset(base, id, o))
+            {
+                p.offset = None;
+            }
             if let Some(p) = d.place.as_mut()
                 && p.pinned
                 && p.view.is_none()
@@ -3109,19 +3122,22 @@ fn plan_with_presentation(
     if inactive.is_empty() {
         spec.binding = Some(analysis.binding.clone());
     }
-    let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
-    let callout_tips = if canonical.is_some() {
-        &held
-    } else {
-        &dimensions
+    // Relative to the view's origin: later packing (sheet_fit) moves a view and its ink
+    // together, and the canonical plan's frame is not this one's.
+    let (tip_dimensions, tip_views) = canonical
+        .as_ref()
+        .map_or((&dimensions, &views), |p| (&p.dimensions, &p.views));
+    let mut callout_tips = BTreeMap::new();
+    for d in tip_dimensions.iter().filter(|d| d.kind == "callout") {
+        if let Some(tip) = d.placed.as_ref().and_then(|p| Some(p.lines.first()?[0]))
+            && let Some(v) = tip_views.iter().find(|v| v.id == d.view)
+        {
+            // The first drawing of the callout, as automatic_offset reads it.
+            callout_tips
+                .entry(d.id.clone())
+                .or_insert((d.view.clone(), [tip[0] - v.at[0], tip[1] - v.at[1]]));
+        }
     }
-    .iter()
-    .filter(|d| d.kind == "callout")
-    .filter_map(|d| {
-        let tip = d.placed.as_ref()?.lines.first()?[0];
-        Some((d.id.clone(), (d.view.clone(), tip)))
-    })
-    .collect();
     let mut plan = Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),

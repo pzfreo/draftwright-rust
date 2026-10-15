@@ -1413,7 +1413,7 @@ pub(super) fn intent_tip(frame: &Frame, sites: &[(super::P3, f64)], elbow: P2) -
 /// first point (#12). The bend may sit inside the view. The leader still attaches radially to the
 /// site that tip lies on, so a bend dragged round the feature keeps a radial shaft; the label
 /// reads on the side the leader runs to, as an automatic callout's does. At the automatic bend
-/// it is the automatic ink itself. Without an automatic placement in this view the offset is
+/// it is the automatic ink itself, whatever that leader's direction. Without an automatic placement in this view the offset is
 /// taken from the first site's centre and the leader goes to the nearest site. The pin is never
 /// slid: crossings and contacts are reported against it.
 pub(super) fn offset_intent(
@@ -1432,6 +1432,12 @@ pub(super) fn offset_intent(
         None => sites.first()?.0,
     };
     let elbow = [anchor[0] + offset[0], anchor[1] + offset[1]];
+    let near = |a: P2, b: P2| (a[0] - b[0]).abs() < 1e-6 && (a[1] - b[1]).abs() < 1e-6;
+    if let Some((p, [_, e], terms)) = held
+        && near(e, elbow)
+    {
+        return Some(super::placement::relabel(p, terms, w));
+    }
     let tip = match held {
         Some((_, [tip, _], _)) => {
             let on = |s: &(P2, f64)| ((s.0[0] - tip[0]).hypot(s.0[1] - tip[1]) - s.1).abs();
@@ -1440,13 +1446,6 @@ pub(super) fn offset_intent(
         }
         None => rim_tip(nearest(&sites, elbow), elbow),
     };
-    let near = |a: P2, b: P2| (a[0] - b[0]).abs() < 1e-6 && (a[1] - b[1]).abs() < 1e-6;
-    if let Some((p, [t, e], terms)) = held
-        && near(t, tip)
-        && near(e, elbow)
-    {
-        return Some(super::placement::relabel(p, terms, w));
-    }
     let right = if (elbow[0] - tip[0]).abs() > 1e-9 {
         elbow[0] > tip[0]
     } else {

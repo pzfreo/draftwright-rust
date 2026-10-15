@@ -5,7 +5,10 @@ use draftwright::items::{Op, key};
 use draftwright::model::{Problem, Spec};
 use draftwright::{Session, api};
 use serde_json::json;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+#[path = "common/corpus.rs"]
+mod corpus;
 
 const ID: &str = "d:f:hole_pattern:1/bore.diameter";
 
@@ -179,4 +182,74 @@ fn offset_is_a_pinned_callout_form_of_its_own() {
     assert!(fields.contains_key(&format!("{path}/offset")));
     let fields = s.options("d:envelope/width.length").unwrap().settable;
     assert!(!fields.keys().any(|k| k.ends_with("/place/offset")));
+}
+
+/// Every callout drawn with a leader on several parts, pinned at the offset callout_offset
+/// reports: its ink is the automatic ink, the whole plan is the bare pin's, and the reported
+/// offset is unchanged. One callout per part is then dragged, and its bend lands where it was
+/// put. GRM-03's views move after packing, the frame the review found the reported tip in.
+#[test]
+fn pinning_every_callout_at_its_reported_offset_moves_nothing() {
+    let Some(dir) = corpus::dir() else {
+        return;
+    };
+    let parts: Vec<PathBuf> = vec![
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/samples/editor-plate.step"),
+        dir.join("gramel/GRM-03_thumbwheel_drive_screw.step"),
+        dir.join("cadgenbench_inputs/cgb203.step"),
+        dir.join("nist/nist_ftc_06_asme1_rd.stp"),
+    ];
+    let open = |part: &Path| Session::open(part, api::Features::Native, Spec::default()).unwrap();
+    let placed = |s: &Session, id: &str| -> Placed {
+        s.plan()
+            .dimensions
+            .iter()
+            .find(|d| d.id == id)
+            .and_then(|d| d.placed.clone())
+            .unwrap()
+    };
+    let set = |s: &mut Session, id: &str, place: serde_json::Value| {
+        s.apply(
+            &[Op::set(format!("dimensions/{}/place", key(id)), place)],
+            true,
+        )
+        .unwrap();
+    };
+    for part in &parts {
+        let base = open(part);
+        let ids: Vec<String> = base
+            .plan()
+            .dimensions
+            .iter()
+            .filter(|d| d.kind == "callout" && d.placed.is_some())
+            .map(|d| d.id.clone())
+            .collect();
+        assert!(!ids.is_empty(), "{part:?}");
+        for (n, id) in ids.iter().enumerate() {
+            let at = base.callout_offset(id).unwrap();
+            assert_eq!(at.bend, placed(&base, id).lines[0][1], "{part:?} {id}");
+            let mut s = open(part);
+            set(&mut s, id, json!({"offset": at.offset, "pinned": true}));
+            assert_eq!(placed(&s, id), placed(&base, id), "{part:?} {id} jumped");
+            assert_eq!(s.callout_offset(id).unwrap(), at, "{part:?} {id}");
+            let mut bare = open(part);
+            set(&mut bare, id, json!({"pinned": true}));
+            assert_eq!(
+                s.plan().dimensions,
+                bare.plan().dimensions,
+                "{part:?} {id}: an offset at the automatic bend is a bare pin"
+            );
+            if n == 0 {
+                let drag = [at.offset[0] + 2.0, at.offset[1] + 1.5];
+                set(&mut s, id, json!({"offset": drag, "pinned": true}));
+                let bend = placed(&s, id).lines[0][1];
+                let want = [at.bend[0] + 2.0, at.bend[1] + 1.5];
+                assert!(
+                    (bend[0] - want[0]).abs() < 1e-6 && (bend[1] - want[1]).abs() < 1e-6,
+                    "{part:?} {id}: bend {bend:?}, put at {want:?}"
+                );
+                assert_eq!(s.callout_offset(id).unwrap().offset, drag, "{part:?} {id}");
+            }
+        }
+    }
 }

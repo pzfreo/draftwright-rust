@@ -7159,3 +7159,14 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
     then lands relative to the canonical tip (a small jump in that case only). Offset on
     annotations (PMI) is refused for now.
   - Default output byte-identical (single-sheet guard 28/28, no approvals).
+  - Fix round (review): (1) `callout_offset` read the tip in the pre-packing frame and the bend
+    after `sheet_fit` moved the views (GRM-03: every callout jumped +62.42 mm in y, hole:1's
+    label off the sheet). Tips are now kept relative to their view's origin. (2) An offset equal
+    to the canonical bend now clears to a bare pin in the effective Spec
+    (`placement_intent::automatic_offset`), so non-radial automatic leaders (cgb203 hole:1,
+    boss:1; ftc_06 boss:1) and fillet grouping (ftc_06 fillet:6) no longer change; `blends`
+    reads the offset from the effective Spec. New test
+    `pinning_every_callout_at_its_reported_offset_moves_nothing`: every leadered callout on
+    editor-plate, GRM-03, cgb203 and nist_ftc_06 keeps its ink, the plan equals the bare pin's,
+    and a 2 × 1.5 mm drag lands exactly. Judgement call: a bare pin (and so an automatic offset)
+    still lets one other dimension re-settle on some parts, as E1 left it; not changed here.

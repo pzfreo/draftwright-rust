@@ -320,10 +320,13 @@ automatic leader tip plus the offset. That tip is the canonical plan's (the part
 plan, as a bare pin keeps), moved with its view when packing moves the view, so unrelated edits
 cannot move the pin. The leader re-attaches radially to the site the automatic tip lies on, so
 a bend dragged round its hole keeps a radial shaft, and the text reads on the side the leader
-runs to (a vertical leader keeps the automatic side). With the automatic offset it is the
-automatic ink exactly: pinning a callout where it is moves nothing. Without an automatic
-placement in that view, the offset is taken from the callout's first site centre and the leader
-goes to the nearest site. The bend and label are never slid; a crossing is the
+runs to (a vertical leader keeps the automatic side). An offset that puts the bend where the
+canonical plan has it is planned as a bare pin, so it is the automatic ink exactly whatever that
+leader's direction: pinning a callout where it is moves nothing. A callout drawn without a
+leader (no automatic placement, e.g. a pattern given by a hole table) has no tip to pin from:
+`callout_offset` refuses it. With `place.view` naming a view other than the canonical one, the
+offset is taken from the callout's first site centre in that view and the leader goes to the
+nearest site; `callout_offset` reports only the canonical view and refuses the callout there. The bend and label are never slid; a crossing is the
 `leader_through_feature` warning above, and a label over the view is `annotation_over_view`.
 
 Existing angular PMI keeps its measured sector: `lane` increases the radius in paper steps and
@@ -1229,8 +1232,9 @@ the view's open space, use `place.offset`: `Session::callout_offset(address)` re
 `CalloutOffset { view, tip, bend, offset }` (paper mm), where `tip` is the automatic leader tip
 the offset is measured from, `bend` the bend as drawn now and `offset = bend - tip`. Pinning a
 drop at `b` is `{"offset": b - tip, "pinned": true}`; pinning the returned `offset` keeps the
-callout exactly where it is. It reads planning metadata only and refuses non-callouts and a
-callout with no automatic placement. Editors with their own Plan read the same tip with
+callout exactly where it is. `tip` is kept relative to its view's origin, so it is in the same
+frame as the drawn bend after packing moves views. It reads planning metadata only and refuses
+non-callouts, a callout drawn without a leader, and one pinned into a non-canonical view. Editors with their own Plan read the same tip with
 `plan.automatic_callout_tip(id) -> Option<(view, [x, y])>` (`None` on a deserialised Plan).
 These Rust session queries are available to editor bindings; they add no MCP tool or
 JSON-lines operation.

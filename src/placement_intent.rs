@@ -705,6 +705,19 @@ pub(crate) fn automatic_pin(p: &Place) -> bool {
     p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() && p.offset.is_none()
 }
 
+/// Whether `offset` puts callout `id`'s bend where `base` draws it, from its leader tip: the
+/// offset [`crate::session::Session::callout_offset`] reports for an automatic callout (#12).
+pub(crate) fn automatic_offset(base: &Plan, id: &str, offset: [f64; 2]) -> bool {
+    base.dimensions
+        .iter()
+        .find(|d| d.id == id && d.kind == "callout")
+        .and_then(|d| d.placed.as_ref()?.lines.first().copied())
+        .is_some_and(|[tip, bend]| {
+            (bend[0] - tip[0] - offset[0]).abs() < 1e-6
+                && (bend[1] - tip[1] - offset[1]).abs() < 1e-6
+        })
+}
+
 pub(crate) fn anchor_delta(base: &Plan, views: &[PlannedView], view: &str) -> Option<[f64; 2]> {
     let before = base.views.iter().find(|v| v.id == view)?;
     let after = views.iter().find(|v| v.id == view)?;
