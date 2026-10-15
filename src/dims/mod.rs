@@ -65,7 +65,6 @@ mod label_lanes;
 mod leaders;
 pub(crate) use label_lanes::settle_inventory;
 pub(crate) use placement::collisions_cached as label_collisions;
-pub(crate) use placement::{STRAY_TEXT, label_gap, shared_dimension_line};
 pub(crate) mod levels;
 mod placement;
 mod plates;

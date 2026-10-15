@@ -626,7 +626,7 @@ fn dimension_lines(drawing: &Drawing) -> Vec<LintIssue> {
     let mut issues = Vec::new();
     for (k, a) in linear.iter().enumerate() {
         for b in &linear[k + 1..] {
-            if crate::dims::shared_dimension_line(&a.lines, &b.lines) {
+            if crate::output::shared_dimension_line(&a.lines, &b.lines) {
                 let mut i = issue(
                     format!("l:dimension_line_shared:{}+{}", a.name, b.name),
                     "dimension_line_shared",
@@ -645,8 +645,8 @@ fn dimension_lines(drawing: &Drawing) -> Vec<LintIssue> {
         }
         if let Some(gap) = a
             .label
-            .and_then(|l| crate::dims::label_gap(&a.lines, l))
-            .filter(|g| *g > crate::dims::STRAY_TEXT)
+            .and_then(|l| crate::output::label_gap(&a.lines, l))
+            .filter(|g| *g > crate::output::STRAY_TEXT)
         {
             let mut i = issue(
                 format!("l:dimension_text_stray:{}", a.name),

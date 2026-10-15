@@ -1792,6 +1792,71 @@ fn pdf_curve(c: &mut pdf_writer::Content, curve: &Curve) {
     }
 }
 
+// #32: the ink geometry of a linear dimension, shared by the layout (`dims`) and the structural
+// lint, which may read only the rendered drawing (`lint::guard`).
+
+/// #32: two parallel dimension lines closer than this, mm, read as one line.
+const SAME_LINE: f64 = 0.5;
+/// #32: a linear label further than this from its own dimension line, mm (one text height),
+/// no longer reads as that line's. The layout keeps it within `dims::LIFT` across the line and,
+/// beyond a short span's end, 1 mm past the line run on to it. Equal to the dimension text
+/// height (`dims::TEXT`).
+pub(crate) const STRAY_TEXT: f64 = 3.0;
+
+/// A linear dimension read from its ink alone, in the layout's (and the drawing's) order: the two
+/// extension lines across, then the dimension line. The page axis the line runs along (0: x),
+/// its offset across, the span between the extension lines and the line's drawn extent.
+pub(crate) struct LinearInk {
+    pub(crate) k: usize,
+    pub(crate) offset: f64,
+    pub(crate) span: [f64; 2],
+    pub(crate) extent: [f64; 2],
+}
+
+pub(crate) fn linear_ink(lines: &[[P; 2]]) -> Option<LinearInk> {
+    let [e0, e1, d] = lines else {
+        return None;
+    };
+    let k = (0..2)
+        .find(|&k| (d[0][1 - k] - d[1][1 - k]).abs() < 1e-6 && (d[0][k] - d[1][k]).abs() > 1e-6)?;
+    if [e0, e1].iter().any(|e| (e[0][k] - e[1][k]).abs() > 1e-6)
+        || (e0[0][k] - e1[0][k]).abs() < 1e-6
+    {
+        return None;
+    }
+    let (a, b) = (e0[0][k], e1[0][k]);
+    Some(LinearInk {
+        k,
+        offset: d[0][1 - k],
+        span: [a.min(b), a.max(b)],
+        extent: [d[0][k].min(d[1][k]), d[0][k].max(d[1][k])],
+    })
+}
+
+/// #32: whether two linear dimensions (by their lines) are drawn on one dimension line over
+/// overlapping spans, so their arrows and extension lines run into each other. Chained
+/// dimensions meeting at one extension line do not overlap.
+pub(crate) fn shared_dimension_line(a: &[[P; 2]], b: &[[P; 2]]) -> bool {
+    let (Some(p), Some(q)) = (linear_ink(a), linear_ink(b)) else {
+        return false;
+    };
+    p.k == q.k
+        && (p.offset - q.offset).abs() < SAME_LINE
+        && p.span[1].min(q.span[1]) - p.span[0].max(q.span[0]) > SAME_LINE
+}
+
+/// #32: how far a linear dimension's label box lies from its own dimension line, mm (0 on it or
+/// touching it); none when *lines* are not a linear dimension's.
+pub(crate) fn label_gap(lines: &[[P; 2]], label: [f64; 4]) -> Option<f64> {
+    let l = linear_ink(lines)?;
+    let (k, c) = (l.k, 1 - l.k);
+    let along = (l.extent[0] - label[k + 2])
+        .max(label[k] - l.extent[1])
+        .max(0.0);
+    let across = (label[c] - l.offset).max(l.offset - label[c + 2]).max(0.0);
+    Some(along.hypot(across))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
