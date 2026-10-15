@@ -277,3 +277,62 @@ fn unavailable_legible_scale_is_a_warning() {
     );
     assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
 }
+
+fn gz_part(name: &str) -> Analysis {
+    use std::io::Read as _;
+    let bytes = std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/pmi/step")
+            .join(format!("{name}.gz")),
+    )
+    .unwrap();
+    let mut step = Vec::new();
+    flate2::read::GzDecoder::new(bytes.as_slice())
+        .read_to_end(&mut step)
+        .unwrap();
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("large-sheets")
+        .join(format!(
+            "{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
+    std::fs::write(&path, step).unwrap();
+    model::analyse_native(&path).unwrap().1
+}
+
+/// Maintainer rule, 2026-10-15: A2 and larger are for parts that need them at 1:1. A part about
+/// 100 mm across, whose views fit A3 at 1:1, never takes a large sheet by default, even when its
+/// first estimate is A2 and A2 would score fewer findings (assembly_plate_pin: its ladder
+/// estimate is A2 at 1:1). A named large sheet is still the user's to choose.
+#[test]
+fn a_part_about_100_mm_never_gets_a2_or_larger_by_default() {
+    for name in [
+        "assembly_plate_pin.step",
+        "hw_assembly_plate_pin_intent.step",
+    ] {
+        let a = gz_part(name);
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert!(
+            matches!(p.sheet.size.as_str(), "A4" | "A3"),
+            "{name}: {} at {}: {}",
+            p.sheet.size,
+            p.sheet.scale,
+            p.sheet.basis
+        );
+        let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
+        let p = model::recover(&a, &Spec::default(), first).unwrap();
+        assert!(
+            matches!(p.sheet.size.as_str(), "A4" | "A3"),
+            "{name} from an A2 estimate: {}",
+            p.sheet.basis
+        );
+    }
+    let a = part();
+    let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
+    let mut s = Spec::default();
+    s.sheet.size = Some("A2".into());
+    assert_eq!(model::recover(&a, &s, first).unwrap().sheet.size, "A2");
+}

@@ -1331,6 +1331,35 @@ fn fit_fix(
     Ok(None)
 }
 
+/// The first of the large sheets ([`layout::PAGES`]): A2 and larger are for parts that need
+/// them at 1:1 (maintainer, 2026-10-15).
+const LARGE_SHEET: usize = 2;
+
+/// Whether the part's views fit A3 at 1:1 (maintainer, 2026-10-15): drawn full size, the row of
+/// views (the front with the side and any sections beside it) is no wider than A3's usable
+/// paper and the column (the plan above the front) no taller. Annotation bands are not counted:
+/// they shrink with a smaller scale, the views do not. Such a part never takes A2 or larger by
+/// default.
+fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
+    let (_, w, h) = layout::PAGES[LARGE_SHEET - 1];
+    let size = |v: &PlannedView| {
+        let view = View::new(v.direction, v.up).expect("planned view");
+        extent(analysis, &view).0
+    };
+    let views: Vec<&PlannedView> = first.views.iter().filter(|v| v.id != "v:iso").collect();
+    let row: f64 = views
+        .iter()
+        .filter(|v| v.id != "v:plan")
+        .map(|v| size(v)[0])
+        .sum();
+    let column: f64 = views
+        .iter()
+        .filter(|v| v.id == "v:plan" || v.id == "v:front")
+        .map(|v| size(v)[1])
+        .sum();
+    row <= w - 2.0 * layout::MARGIN && column <= h - 2.0 * layout::MARGIN
+}
+
 fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
     let min_legible_scale = crate::sheets::floor(spec).map_or_else(
@@ -1385,6 +1414,21 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     }
     let seed_clean =
         findings(&first).clean() && undrawn_gdt(&first) == 0 && drawn_items_fit(analysis, &first);
+    // A2 and larger only for a part whose views do not fit A3 at 1:1; asked at most once, and
+    // only when a large sheet is in play (a named sheet is the user's choice).
+    let mut small_part: Option<bool> = None;
+    let is_small = |small: &mut Option<bool>| -> Result<bool, Invalid> {
+        if spec.sheet.size.is_some() {
+            return Ok(false);
+        }
+        Ok(*small.get_or_insert_with(|| fits_a3_at_full_size(analysis, &first)))
+    };
+    let first_large = layout::PAGES
+        .iter()
+        .position(|(n, _, _)| *n == first.sheet.size)
+        .is_some_and(|i| i >= LARGE_SHEET);
+    // A large first estimate of a small part is no sheet to keep: it vetoes nothing.
+    let seed_kept = seed_clean && !(first_large && is_small(&mut small_part)?);
     let required = carried(&first);
     let mut tried = Vec::new();
     let mut candidates = Vec::new();
@@ -1396,6 +1440,12 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             continue;
         }
         if smallest.is_some_and(|(j, _)| i > j + 1) {
+            break;
+        }
+        if i >= LARGE_SHEET && is_small(&mut small_part)? {
+            tried.push(format!(
+                "{name} and larger (the views fit A3 at 1:1; large sheets are for larger parts)"
+            ));
             break;
         }
         for scale in layout::SCALES
@@ -1553,12 +1603,32 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     }
     let keys: Vec<_> = candidates.iter().map(|(c, _)| *c).collect();
     let Some((choice, (i, s))) =
-        crate::sheet_fit::choose(&keys, spec.sheet.size.is_some(), seed_clean)
+        crate::sheet_fit::choose(&keys, spec.sheet.size.is_some(), seed_kept)
     else {
         // No valid complete pair: keep the initial drawing and its findings, on its own paper.
         // Only a seed below the absolute floor (1:10, the smallest scale the automatic choice
         // ever offers) is redrawn at that floor; a seed between it and the feature floor is
         // kept and the shortfall reported, as no legible candidate drew more validly.
+        // A small part's large first estimate is not kept even so: it is redrawn on A3 at 1:1,
+        // which holds its views (maintainer, 2026-10-15).
+        if first_large && is_small(&mut small_part)? {
+            let mut named = spec.clone();
+            named.sheet.size = Some(layout::PAGES[LARGE_SHEET - 1].0.into());
+            named.sheet.scale = Some(scale_name(1.0));
+            first = plan_escalated_with(analysis, &named, true, None)?;
+            first.sheet.default = true;
+            first.spec = spec.clone();
+            first.sheet.basis = format!(
+                "{} at 1:1: the views fit A3 at 1:1, so no larger sheet is used",
+                first.sheet.size
+            ) + first
+                .sheet
+                .basis
+                .rsplit_once("; drawn-item fill ")
+                .map(|(_, f)| format!("; drawn-item fill {f}"))
+                .unwrap_or_default()
+                .as_str();
+        }
         let floor = crate::sheet_fit::ABSOLUTE_FLOOR;
         if first.sheet.scale_factor < floor && crate::sheets::floor(spec).is_none_or(|f| floor >= f)
         {
