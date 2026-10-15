@@ -210,7 +210,10 @@ representative feature sizes/dimensions. Use `list_items` for the complete list.
 `inspect_part.problem_filter` batches opening and a problem query; its `problem_page`
 has the same paging contract as `list_problems`. A problem filter's `feature` matches
 all associated item subjects and the feature itself; `subject` remains exact and all
-filter fields combine. Default problem rows now carry `fix` ops.
+filter fields combine. Default problem rows now carry `fix` ops. A `page_fit_uncertain` row's fix
+sets the nearest sheet size and/or scale that fit (`docs/model.md`); `sheet/projection` (`first`
+or `third`) is a spec path like `sheet/size` and `sheet/scale`, and the regenerated schemas
+(`schemas/mcp/`) list it.
 
 `item_options.settable` maps escaped Spec paths to accepted `choices`, numeric `range`
 (inclusive, with `integer` where needed), tolerance `forms`, or title `fields`. A

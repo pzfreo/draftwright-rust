@@ -7,8 +7,9 @@
 //! The arithmetic is held to draftwright's own calls by `tests/layout.rs`, which replays the
 //! layout calls recorded from Python builds (`tools/capture_layout.py`).
 //!
-//! Not ported: the first-angle convention and the rear view (draftwright composes both through
-//! relative projection origins), and the automatic `auto` arrangement (not a production choice).
+//! Not ported: the rear view (draftwright composes it through relative projection origins), and
+//! the automatic `auto` arrangement (not a production choice). First angle (`Request::first_angle`)
+//! mirrors the packed third-angle row and column (`geometry`), rather than draftwright's origins.
 
 /// Page mm. The sheet edge margin, the title block's inset and height, the annotation text
 /// height and its padding.
@@ -629,6 +630,9 @@ pub struct Request {
     pub iso_scale_factor: Option<f64>,
     /// Blank gutters between the views' bands (draftwright's protected-gutter layout profiles).
     pub view_gutters: bool,
+    /// ISO 5456-2 first angle (the Spec's `sheet/projection`): the plan below the front and the
+    /// right side left of it. Third angle, draftwright's, when false.
+    pub first_angle: bool,
 }
 
 impl Request {
@@ -648,6 +652,7 @@ impl Request {
             include_iso,
             iso_scale_factor: None,
             view_gutters: false,
+            first_angle: false,
         }
     }
 
@@ -861,6 +866,14 @@ fn geometry_with(
         merge(&mut sv, measured.side);
     }
 
+    if req.first_angle {
+        // First angle turns outward the edges third angle keeps inside the group: the front's
+        // and the side's tops face the sheet's top edge, and the side's left its left edge, so
+        // each keeps at least the band a free edge gets.
+        fv.top = fv.top.max(DIM_PAD);
+        sv.top = sv.top.max(DIM_PAD);
+        sv.left = sv.left.max(DIM_PAD);
+    }
     let Principals {
         front: has_front,
         plan: has_plan,
@@ -1034,6 +1047,50 @@ fn geometry_with(
         section_x = clear_of(edge, section_x, |x| {
             section_block.footprint(x, section_y)[0]
         });
+    }
+    // ISO 5456-2 first angle: the same blocks, mirrored within the packed group. The plan's
+    // block takes the column's foot and the front stacks on it; the side's block takes the row's
+    // left end and the front/plan column abuts it; sections stay right of the row. The verdicts
+    // below are judged on these placed blocks. Third angle (the default) is left untouched.
+    let (mut fv_x, mut pv_x) = (fv_x, pv_x);
+    if req.first_angle {
+        if has_front && has_plan {
+            let foot = fv.footprint(fv_x, fv_y)[1];
+            let plan_y = foot + pv.bottom + pv.hh;
+            let edge = pv.footprint(pv_x, plan_y)[3] + vertical_gutter;
+            let front_y = clear_of(edge, edge + fv.bottom + fv.hh, |y| fv.footprint(fv_x, y)[1]);
+            let dy = front_y - fv_y;
+            (fv_y, pv_y) = (front_y, plan_y);
+            sv_y += dy;
+            section_y += dy;
+        }
+        if has_column && has_side {
+            // The column's extent at x: of every block (`all`), or only of those level with the
+            // side, which is all the side must clear (the plan's bands lie below it).
+            let side = sv.footprint(sv_x, sv_y);
+            let column = |x: f64, all: bool| {
+                [(fv, fv_y, has_front), (pv, pv_y, has_plan)]
+                    .iter()
+                    .filter(|v| v.2)
+                    .map(|(b, y, _)| b.footprint(x, *y))
+                    .filter(|r| all || (r[1] < side[3] && side[1] < r[3]))
+                    .fold([f64::INFINITY, f64::NEG_INFINITY], |a, r| {
+                        [a[0].min(r[0]), a[1].max(r[2])]
+                    })
+            };
+            let start = column(fv_x, true)[0];
+            let row_end = side[2];
+            let side_x = start + sv.left + sv.hw;
+            let edge = sv.footprint(side_x, sv_y)[2] + side_gutter;
+            let level = column(fv_x, false)[0];
+            let column_x = if level.is_finite() {
+                clear_of(edge, fv_x + edge - level, |x| column(x, false)[0])
+            } else {
+                fv_x
+            };
+            (fv_x, pv_x, sv_x) = (column_x, column_x, side_x);
+            section_x += column(fv_x, true)[1] - row_end;
+        }
     }
     // draftwright's stride between sections (`2 hw + DIM_PAD`): the plan draws only the first.
     let section_at = |i: usize, x: f64, y: f64| {

@@ -144,6 +144,8 @@ fn request(c: &Value) -> Request {
         include_iso: c["include_iso"].as_bool().unwrap(),
         iso_scale_factor: c["iso_scale_factor"].as_f64(),
         view_gutters: c["view_gutters"].as_bool().unwrap(),
+        // The recorded calls are all third angle (asserted above).
+        first_angle: false,
     }
 }
 

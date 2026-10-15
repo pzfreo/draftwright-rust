@@ -1162,6 +1162,10 @@ fn settable(
             json!({"fields":crate::title_block::KEYS.map(|k|k.0),"forms":["text"]}),
         );
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
+        fields.insert(
+            "sheet/projection".into(),
+            choices(json!(model::PROJECTIONS)),
+        );
     }
     fields
 }
