@@ -25,7 +25,9 @@ for all defaults. Use the spec from the plan or the edit tool's result. Shape: {
 \"DWG-001\", \"material\": \"6082-T6\"}}, \"views\": {\"iso\": {\"omit\": true}}, \
 \"dimension_source\": \"auto\", \"dimensions\": {\"d:envelope/width.length\": {\"omit\": \
 true}, \"d:envelope/height.length\": {\"tolerance\": \"±0.05\"}}, \"features\": \
-{\"f:hole:1\": {\"fit\": \"H7\"}}, \"notes\": [{\"id\": \"n:1\", \"text\": \"BREAK ALL SHARP \
+{\"f:hole:1\": {\"fit\": \"H7\"}, \"f:hole_pattern:1\": {\"controls\": [{\"characteristic\": \
+\"position\", \"tolerance\": 0.1, \"datums\": [\"A\"]}]}}, \"faces\": {\"bottom\": {\"datum\": \
+\"A\"}}, \"notes\": [{\"id\": \"n:1\", \"text\": \"BREAK ALL SHARP \
 EDGES\"}], \"tables\": [{\"id\": \"t:1\", \"rows\": [[\"REV\", \"DESCRIPTION\"], [\"A\", \
 \"INITIAL RELEASE\"]], \"prefer\": \"tr\"}]} (a table's row 0 is its header; prefer is the corner \
 it goes towards: tr, tl, br or bl). Unknown fields are refused.";
@@ -111,7 +113,12 @@ fn tools() -> Value {
                 dimensions/d:envelope~1width.length/omit), dimensions/<id>/tolerance \
                 (printed after its value: \"±0.05\", or \"+0.1 -0.02\" for an upper and a lower \
                 deviation), features/<id>/fit (an ISO 286 class on a hole, H7, G7, F8, or a \
-                cylindrical boss, h6, g6, js6, k6, n6, p6; grades 5 to 11), dimensions/<id>/view (front, \
+                cylindrical boss, h6, g6, js6, k6, n6, p6; grades 5 to 11), features/<id>/datum and \
+                faces/<bottom|top|left|right|front|back|face:n>/datum (a datum letter, A), \
+                features/<id>/controls and faces/<face>/controls (feature control frames, a list \
+                of {\"characteristic\": \"position\", \"tolerance\": 0.1, \"datums\": [\"A\"], \
+                \"diameter\"?: true, \"modifier\"?: \"M\"|\"L\"}; add appends one), \
+                dimensions/<id>/view (front, \
                 plan or side: the view that carries it, among those that can). An ID never names \
                 a view, so it stays when the dimension moves to another view or the sheet or \
                 scale changes; a PMI item's ID is its record's identity (pmi:<category>.<kind>:…). \

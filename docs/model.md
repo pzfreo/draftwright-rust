@@ -191,7 +191,8 @@ The design also includes `views/sections` and feature `anchor`/`note`
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
   `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
-  spelling), `annotations/<id>` (`omit`, `place`), `features/<id>/fit`, `notes` and `tables`.
+  spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`),
+  `faces/<face>` (`datum`, `controls`: "Datums and controls authored in the Spec", below), `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
 - **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
   resolved against the part and its anchors on every plan. Measured values and resolved paper
@@ -888,6 +889,59 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
 
 Compared item by item with draftwright on 14 AP242 files (`tests/pmi_lowering.rs`,
 `tests/fixtures/known_pmi_lowering.json`).
+
+### Datums and controls authored in the Spec
+
+A part whose STEP carries no AP242 PMI can still carry datums and feature control frames
+(`src/spec_gdt.rs`, draftwright-rust #43 item 1; Python draftwright's `Sheet.datum` and
+`Sheet.control` are the reference):
+
+```json
+"faces":    { "bottom": { "datum": "A" } },
+"features": { "f:hole_pattern:1": { "controls": [
+  { "characteristic": "position", "tolerance": 0.1, "datums": ["A"] } ] } }
+```
+
+- **Targets.** `features/<id>` names a recognised feature or hole pattern by its ID, as
+  `features/<id>/fit` does; a datum or control on a feature with cylinders applies to its
+  cylinders (its axis, as draftwright's `gdt_target` takes a feature's), else to all its faces.
+  `faces/<face>` names a face by the side of the part's box it lies on, facing out (`bottom`,
+  `top`, `left`, `right`, `front`, `back`: -z, +z, -x, +x, -y, +y; every planar face lying
+  there), or by its index, `face:<n>`, as the plan's problems name faces.
+- **`datum`**: a datum letter, one to three capitals (ISO 5459).
+- **`controls`**: a list of `{characteristic, tolerance, datums?, diameter?, modifier?}`: one of
+  draftwright's 14 characteristics (`straightness`, `flatness`, `circularity`, `cylindricity`,
+  `profile_line`, `profile_surface`, `angularity`, `perpendicularity`, `parallelism`,
+  `position`, `concentricity`, `symmetry`, `circular_runout`, `total_runout`), a positive
+  magnitude in mm, the datum letters in precedence order (none on a form tolerance), a `⌀` zone
+  (the default for position and concentricity; accepted on straightness and the orientation
+  characteristics too, refused on the others) and `M` or `L`. `add` appends a control.
+- **Lowering.** Each is lowered into the same record (`pmi::Record`) an AP242 datum or geometric
+  tolerance on those faces is read into, its attachment measured as `src/pmi.rs` measures it,
+  from the Analysis's `face_attachments` (below), and merged into the Analysis's PMI reading
+  (`spec_gdt::effective`, once per plan, and again by lint from the drawing's embedded spec).
+  Lowering, placement, band reservation, drawing and lint then treat it as the file's own: its
+  item is `pmi:<identity>`, `annotations/<id>` places or omits it, its `source` is
+  `spec:<path>` (`spec:faces/bottom/datum`), its basis says `spec-authored` and it is not a
+  default.
+- **The Spec wins.** Where the file's PMI states the same (a datum of the same letter; a
+  tolerance of the same characteristic on the same faces), the file's record is not drawn and a
+  `spec_overrides_pmi` warning names both (`refs`: the AP242 source, then the spec's). The same
+  requirement on the same faces keeps its item ID, so its placement carries over.
+- **Reported:** a control referring to a letter neither the spec nor the file declares is drawn
+  with a `datum_undeclared` warning (draftwright's `_validate_datums`); an attachment the faces
+  do not prove is `pmi_not_lowered`, as for the file's records. **Refused** (`invalid`): an
+  unknown feature (with the nearest IDs) or face, a characteristic, letter or modifier not listed
+  (`P`, a projected zone, is not drawn for AP242 PMI either), a tolerance not positive, one letter
+  on two targets, two controls of one characteristic on the same faces, and an Analysis without
+  face attachments (analyse again). Across a revision, the entries are inactive like the other
+  feature-keyed entries.
+
+The Analysis carries `face_attachments` (added to version 7 as an optional field): per face,
+its box, its surface (`plane` or `cylinder`), principal axis and support, its proven sites
+(first, then up to eight spread over it), a plane's outward normal and a cylinder's exact
+principal axis: what `pmi::datum_geometry` and `tolerance_geometry` read of the part, which they
+now read through the same record for the file's own PMI. `tests/spec_gdt.rs`.
 
 ### Toleranced and basic dimensions (PMI)
 
