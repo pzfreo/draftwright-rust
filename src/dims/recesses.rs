@@ -65,19 +65,23 @@ fn not_dimensioned(f: &Feature, why: &str) -> Problem {
         id: format!("p:feature_not_dimensioned:{}", f.id),
         code: "feature_not_dimensioned".into(),
         severity: "warning".into(),
-        message: format!("{} is not dimensioned: {why}.", f.id),
+        message: format!(
+            "{} is not dimensioned: {why}.",
+            crate::wording::capital(&crate::wording::feature(f))
+        ),
         subjects: vec![f.id.clone()],
         ..Default::default()
     }
 }
 
-fn on_datum(owner: &str, k: usize) -> Problem {
+fn on_datum(a: &crate::model::Analysis, owner: &str, k: usize) -> Problem {
     Problem {
         id: format!("p:location_on_datum:{owner}/{}", AXES[k]),
         code: "location_on_datum".into(),
         severity: "info".into(),
         message: format!(
-            "{owner} is located on the part's {} face, so its {} location measures nothing and is not dimensioned.",
+            "{} is located on the part's {} face, so its {} location measures nothing and is not dimensioned.",
+            crate::wording::capital(&crate::wording::feature_id(a, owner)),
             ["left", "front", "bottom"][k],
             AXES[k]
         ),
@@ -210,7 +214,7 @@ fn pocket_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) 
         }
         for k in axes {
             if (at[k] - lo[k]).abs() <= 1e-6 {
-                problems.push(on_datum(&f.id, k));
+                problems.push(on_datum(cx.analysis, &f.id, k));
                 continue;
             }
             let parameter = if p.depth_axis == 2 {
@@ -384,7 +388,7 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
         let face = |k: usize| ["left", "front", "bottom"][k];
         for k in (0..3).filter(|&k| k != axis) {
             if (first.centre[k] - lo[k]).abs() <= 1e-9 {
-                problems.push(on_datum(&first.feature.id, k));
+                problems.push(on_datum(cx.analysis, &first.feature.id, k));
                 continue;
             }
             out.push(location(
@@ -409,7 +413,7 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
         let along = profile_views(axis)[0];
         for s in &members {
             if (s.centre[axis] - lo[axis]).abs() <= 1e-9 {
-                problems.push(on_datum(&s.feature.id, axis));
+                problems.push(on_datum(cx.analysis, &s.feature.id, axis));
                 continue;
             }
             out.push(location(

@@ -881,7 +881,10 @@ fn pack_with_overflow(
                     "sheet_renumbered",
                     "info",
                     &view.id,
-                    format!("Empty sheets closed: {} is on sheet {n}.", view.id),
+                    format!(
+                        "Empty sheets closed: {} is on sheet {n}.",
+                        crate::wording::view(&view.id)
+                    ),
                     vec![Op::set(
                         format!("views/{}/sheet", view.id.trim_start_matches("v:")),
                         json!(n),
@@ -898,7 +901,10 @@ fn pack_with_overflow(
                     "sheet_renumbered",
                     "info",
                     &table.id,
-                    format!("Empty sheets closed: {} is on sheet {n}.", table.id),
+                    format!(
+                        "Empty sheets closed: {} is on sheet {n}.",
+                        crate::wording::block(&table.id)
+                    ),
                     vec![Op::set(format!("tables/{i}/sheet"), json!(n))],
                 ));
             }
@@ -1373,7 +1379,11 @@ fn check_with_search(plan: &Plan, blocked: bool) -> Vec<Problem> {
                     "annotation_off_sheet",
                     "error",
                     id,
-                    format!("{id} is outside sheet {}.", sheet.number),
+                    format!(
+                        "{} is outside sheet {}.",
+                        crate::wording::capital(&crate::wording::block(id)),
+                        sheet.number
+                    ),
                     vec![],
                 ));
             }
@@ -1382,7 +1392,11 @@ fn check_with_search(plan: &Plan, blocked: bool) -> Vec<Problem> {
                     "view_on_title_block",
                     "error",
                     id,
-                    format!("{id} overlaps sheet {}'s title block.", sheet.number),
+                    format!(
+                        "{} overlaps sheet {}'s title block.",
+                        crate::wording::capital(&crate::wording::block(id)),
+                        sheet.number
+                    ),
                     vec![],
                 ));
             }
@@ -1392,7 +1406,12 @@ fn check_with_search(plan: &Plan, blocked: bool) -> Vec<Problem> {
                         "views_overlap",
                         "error",
                         id,
-                        format!("{id} overlaps {other} on sheet {}.", sheet.number),
+                        format!(
+                            "{} overlaps {} on sheet {}.",
+                            crate::wording::capital(&crate::wording::block(id)),
+                            crate::wording::block(other),
+                            sheet.number
+                        ),
                         vec![],
                     );
                     p.refs.push(other.clone());

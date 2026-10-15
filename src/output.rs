@@ -1391,9 +1391,10 @@ pub fn undrawn(counts: &BTreeMap<String, usize>) -> Vec<Problem> {
             code: "edges_not_drawn".into(),
             severity: "info".into(),
             message: format!(
-                "{n} projected edge piece{} in {view} had no length to draw (an exact curve's \
+                "{n} projected edge piece{} in {} had no length to draw (an exact curve's \
                  stretch of no span or off its curve, or fewer than two points) and {} left out.",
                 if *n == 1 { "" } else { "s" },
+                crate::wording::view(view),
                 if *n == 1 { "was" } else { "were" }
             ),
             subjects: vec![view.clone()],

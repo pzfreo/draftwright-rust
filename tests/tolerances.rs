@@ -158,17 +158,22 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
         ["d:f:boss:6/boss.diameter", "f:boss:6", "f:boss:8"]
     );
     assert!(
-        unequal.message.contains("f:boss:6 h6, f:boss:8 h7"),
+        unequal
+            .message
+            .contains("(h6, h7, in the order of the problem's subjects)"),
         "{}",
         unequal.message
     );
     let nothing = problem(&plan, "p:tolerance_withheld:d:envelope/height.length").unwrap();
+    // The message says what to do; the path it acts on is the fix's (the message names no ID).
     assert!(
-        nothing
-            .message
-            .contains("dimensions/d:envelope~1height.length/tolerance"),
+        nothing.message.contains("remove the tolerance"),
         "{}",
         nothing.message
+    );
+    assert_eq!(
+        serde_json::to_value(&nothing.fix).unwrap(),
+        serde_json::json!([{ "op": "remove", "path": "dimensions/d:envelope~1height.length/tolerance" }])
     );
     assert!(codes(&plan, "tolerance_not_shown").is_empty());
 }

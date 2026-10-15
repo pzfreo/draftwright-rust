@@ -7012,3 +7012,55 @@ Judgements, each the conservative choice:
 - Linux recorded by workflow run 38625399679 (record-single-sheet): it only added Linux PNG
   hashes and rebuilt the Linux overrides, which again cover 915 cases (913 SVG, 307 PDF,
   11 plan), the same counts as before the re-baseline.
+
+## F3 problem language, subjects and reference flag (2026-10-15, unattended; overturnable)
+
+Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
+
+- **#24 wording.** Every plan problem message names a dimension by its printed label (`2× 30`),
+  a feature by what is seen of it (`the ⌀8 hole`, `the R3 blend`, `the 6 wide slot`, `the 6×
+  ⌀6.6 hole pattern`), a view by its name (`the plan view`, `section A–A`), a note by its text.
+  The shared helper is `src/wording.rs`; IDs stay in `subjects`/`refs` as before. Problem IDs
+  and codes are unchanged. Judgement calls:
+  - PMI records not drawn are still named by their Part 21 source (`dimensional_size:#45`): they
+    are no item, and that source is how a CAD user finds them. Only item/feature IDs (`d:`, `f:`,
+    `v:`, `pmi:`, `n:`, `t:`, `face:`) are banned from messages.
+  - Spec paths that contain an item ID (`dimensions/d:…/tolerance`) were dropped from messages;
+    the problem's `fix` carries the same path. Paths without IDs (`views/plan/omit`,
+    `sheet/title/tolerance`) stay, as before.
+  - `tolerance_withheld` for unequal member fits now lists the fits in the order of the problem's
+    subjects (`(h6, h7, in the order of the problem's subjects)`), not as `f:boss:6 h6, …`.
+  - A message that would start with a bare label reads `The dimension 30.1 runs …`.
+  - Features of one kind and size read the same (`the ⌀6 hole`); the subjects tell them apart.
+  - `LintIssue` messages (review's `lint`/`structural` findings, not plan problems) are
+    unchanged: they are not shown by the editor and mirror Python draftwright's catalogue.
+  - `Invalid` refusal messages (a request refused) still name the IDs they refuse: they answer
+    the caller's own request by its keys.
+- **#25 subjects.** `unclaimed_geometry` now has the unclaimed faces as subjects, `face:<index>`
+  (no feature has them, by definition), and keeps its ID `p:unclaimed_geometry:sheet` so an
+  editor that remembers it still matches. A part with many unclaimed faces lists them all (153 on
+  one corpus part); the editor labels unknown IDs "Related item", so it may want to collapse face
+  subjects. `hole_table_unavailable` when no hole has a proven datum corner names the hole
+  callouts. Title-block problems (general tolerance, material, field overflow, sheet label) keep
+  `sheet`: the title block is drawn on the sheet and their fixes edit `sheet/title/…`. The
+  liveness check in `tests/items.rs` accepts `face:<n>` below the part's face count.
+- **#26 reference flag.** `PlannedDimension` gains optional `reference: true` (a single bracketed
+  term) and `determined_by` (the IDs consolidation names in the basis). Both are skipped when
+  false/empty, so existing plans and the editor read unchanged. A pinned reference kept after its
+  chain was edited is `reference: true` with no `determined_by`.
+- **Fixture.** `tests/fixtures/samples/specify-sample-spindle.step.gz` is the editor's spindle
+  sample (origin/main `public/samples/specify-sample-spindle.step`), outside `parts/` so the
+  single-sheet guard's case set is unchanged.
+- **Single-sheet re-baseline** (`DRAFTWRIGHT_REBASELINE_SINGLE_SHEET=f3-problem-language`).
+  All 1,677 cases were dumped on base d95f5709 and on this branch with a temporary hook
+  (removed). 1,594 plans changed; 0 SVGs changed (so PDF/PNG ink is unchanged); every changed
+  plan is identical once problem `message`/`subjects` and the dimensions' `reference`/
+  `determined_by` are set aside (problem IDs, codes, severities, refs and fixes unchanged).
+  238 dimensions carry `reference: true`. The mode cleared the platform overrides, so **Linux
+  must be re-recorded** with the `record_single_sheet` workflow on this branch before the guard
+  passes on Linux CI.
+- Checks: `tests/problem_wording.rs` 5/5 (each fails on base: 2,879 messages carried IDs over
+  the test parts and AP242 fixtures; 0 now), sheets 28, items 5, model 15, tolerances 9, serve 4,
+  dimension_rules 19, dims_grooves_flats 7, placement_intent 13, wording unit 2; fmt; strict
+  release Clippy; Python quality 40 and CI acceptance 21; schema generation no diff; scripted
+  MCP 7/7 with `tasks.json` and the scripted answers unchanged. No quality.py run: no SVG changed.

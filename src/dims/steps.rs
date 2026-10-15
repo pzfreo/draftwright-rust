@@ -39,7 +39,10 @@ fn not_dimensioned(f: &Feature, why: &str) -> Problem {
         id: format!("p:feature_not_dimensioned:{}", f.id),
         code: "feature_not_dimensioned".into(),
         severity: "warning".into(),
-        message: format!("{} is not dimensioned: {why}.", f.id),
+        message: format!(
+            "{} is not dimensioned: {why}.",
+            crate::wording::capital(&crate::wording::feature(f))
+        ),
         subjects: vec![f.id.clone()],
         ..Default::default()
     }
@@ -202,6 +205,22 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     }
     for (s, owners) in &o.legacy {
         let f = s.feature;
+        // The owners are named by their plates' IDs, so two plates of one thickness stay
+        // apart; the message names a plate's thickness by its size (#24).
+        let owners: Vec<String> = owners
+            .iter()
+            .map(|o| match o.strip_suffix("'s thickness") {
+                Some(plate) => {
+                    let p = cx.analysis.features.iter().find(|f| f.id == plate);
+                    let size = |name: &str| p.and_then(|p| p.parameters.get(name)?.as_f64());
+                    match size("hi").zip(size("lo")) {
+                        Some((hi, lo)) => format!("the {} plate thickness", fmt(hi - lo)),
+                        None => "a plate's thickness".into(),
+                    }
+                }
+                None => o.clone(),
+            })
+            .collect();
         let named = match owners.split_last() {
             Some((last, [])) => last.clone(),
             Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
@@ -213,7 +232,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             severity: "info".into(),
             message: format!(
                 "{} is not dimensioned as a through step: as in draftwright, its legs are stated by {named}, but those dimensions do not claim it.",
-                f.id
+                crate::wording::capital(&crate::wording::feature(f))
             ),
             subjects: vec![f.id.clone()],
             ..Default::default()

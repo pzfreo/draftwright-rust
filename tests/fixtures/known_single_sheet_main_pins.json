@@ -1,7 +1,7 @@
 {
   "base_commit": "0419fa6c1ebc81226cb577639276ea45eb9df3a1",
-  "base_portable_sha256": "87d20f7f890a787419ed2aaffaf98255580ea41f3f3fdc7ce24859754801a914",
+  "base_portable_sha256": "0fe4597a11cba488411491b77f088198cece3522bd4d6308e1712e9ca41c3bea",
   "cases": {},
-  "rebaselined_for": "quiddity-alpha3: draftwright 0.1.0-alpha.2 on quiddity-rust v0.1.0-alpha.3 (plan-only: the loader version and the features_not_recognised warning; SVG, PDF and PNG unchanged)",
+  "rebaselined_for": "f3-problem-language",
   "upstream_commit": "d1193921abbe3ab9035f54df1e298beb042a7569"
 }
