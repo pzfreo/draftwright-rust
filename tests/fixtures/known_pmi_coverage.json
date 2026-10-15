@@ -1087,60 +1087,6 @@
  },
  {
   "code": "pmi_not_extracted",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6398",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6398 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6370 'ø130 -0.014/-0.039', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6398 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6404",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6404 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6380 'ø130 -0.014/-0.039', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6404 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6410",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6410 (ø70) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6390 'ø70 -0.03/-0.06', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6410 (ø70) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6398",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6398 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6370 'ø130 -0.014/-0.039', drawn by the port). draftwright draws the plain size (no finding). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6398 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6404",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6404 (ø130) as the class g6 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6380 'ø130 -0.014/-0.039', drawn by the port). draftwright draws the plain size (no finding). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6404 (ø130) is not drawn: the ISO 286 class g6 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_spool_fits_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#6410",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#6410 (ø70) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (spool_fits.step dimension:#6390 'ø70 -0.03/-0.06', drawn by the port). draftwright draws the plain size (no finding). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#6410 (ø70) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_extracted",
   "file": "hw_string_post_tapped_intent.step",
   "python": {
    "id": "dimension:0:1:4:3",
@@ -1216,24 +1162,6 @@
   "source": "finding:#825",
   "verdict": "rust-correct",
   "evidence": "Not a draftwright requirement (specify-core's 'pmi-assist answers' property, which haecceity does not model); draftwright's census does not hold it, the port reports it as info, as the plan does (as string_post_tapped.step's finding:#3221, rust-correct). port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#685",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#685 (ø10) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (thumbwheel_thread_knurl.step dimension:#651 'ø10 -0.013/-0.028', drawn by the port). draftwright extracts the plain size from XCAF (no finding); the port's reading keeps the class and marks the source partially extracted (pmi_not_extracted). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#685 (ø10) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#685",
-  "verdict": "undetermined",
-  "evidence": "Open maintainer question (an ISO 286 class stated without limits, docs/next-session.md; the same cause as known_pmi_dimensions.json's nist_ftc_10 dimension:0:1:4:123, undetermined): haecceity's writer states dimension:#685 (ø10) as the class f7 alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values; quiddity-rust 694dc17 tests/fixtures/ap242/write/, written by haecceity's PMI writer), where specify-core's Python writer stated the limits (thumbwheel_thread_knurl.step dimension:#651 'ø10 -0.013/-0.028', drawn by the port). draftwright draws the plain size (no finding). The port refuses rather than drop or compute the class: \"PMI dimension dimension:#685 (ø10) is not drawn: the ISO 286 class f7 is stated without limits; they are not computed\"."
  },
  {
   "code": "pmi_not_extracted",

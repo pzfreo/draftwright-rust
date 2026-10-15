@@ -1,5 +1,24 @@
 {
-  "cases": {},
+  "cases": {
+    "pmi/step/hw_spool_fits_intent.step:default": {
+      "pdf": "652d4c4a269b7820331359f97cb45322f296344518de1f9ba8c4953cec54e7a7",
+      "plan": "db67b83237be0820772493e9e1d407c0257d85e740f0218f861b58f09e5aecaf",
+      "png": {
+        "linux": "d544520f06acc3cf775e2089b41f99c2ad85d18feda5aaa485f6bac16fb3a1bc",
+        "macos": "d544520f06acc3cf775e2089b41f99c2ad85d18feda5aaa485f6bac16fb3a1bc"
+      },
+      "svg": "e115c94823d025425072629deb50b7c28d07a3c990b9d747151bf880e0303351"
+    },
+    "pmi/step/hw_thumbwheel_thread_knurl_intent.step:default": {
+      "pdf": "6a029360938806169aa3f03e3e4d7f791aa941dc471143566f4c40eac8989b3a",
+      "plan": "c2c327fc8341e922a13d8568ecfe7b39d6fa007cd3bccf03d0f2bf307a23868e",
+      "png": {
+        "linux": "c244eba6eb4585357dc47f65f38e7efdb02e8673857f06a0fca6f0b23c763468",
+        "macos": "c244eba6eb4585357dc47f65f38e7efdb02e8673857f06a0fca6f0b23c763468"
+      },
+      "svg": "cef6f12f87c6d7301c2045a1a328d2bca1cf31b975d07238c4a15838d36d19fb"
+    }
+  },
   "note": "Exact replacements for deliberate drawing changes merged after I1's single-sheet oracle. Each case keeps every format exact; the stream that changed it is named in streams. Applied after known_single_sheet_main_pins.json.",
   "rebaseline": {
     "change": "f1-ext-threads-knurl",
@@ -7,5 +26,10 @@
     "note": "known_single_sheet.json was re-recorded whole for this change; the main pins and these streams' replacements were folded into it.",
     "os": "macos"
   },
-  "streams": {}
+  "streams": {
+    "j3-shaft-fits": {
+      "cases": 2,
+      "note": "J3 (#30): an AP242 shaft fit stated as a class alone (LIMITS_AND_FITS('g','shaft','6') etc.) is printed on the turned diameter that states its size, with its ISO 286 limits, as a hole fit is on its bore's callout: hw_spool_fits_intent's 2× ø130 gains 'g6 (-0.014/-0.039)' and its ø70 OD 'f7 (-0.030/-0.060)', hw_thumbwheel_thread_knurl_intent's ø10 'f7 (-0.013/-0.028)', and their 'stated without limits' pmi_not_lowered problems go. Plan diff: those labels, bases and claims, and the placements the longer labels move (the front view's dimension band grows 2 mm on the spool; the spool's ø70 leader now runs along its silhouette, and three new leader-crosses-hole findings); SVG/PDF follow. macOS PNG hashes recorded; their stale Linux plan/svg/pdf overrides are removed, and Linux PNG (and any Linux byte override) is to be recorded by CI's record_single_sheet job. Re-recorded on the merged tree after J1's re-baseline (projection symbol) folded the earlier record."
+    }
+  }
 }
