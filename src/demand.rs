@@ -481,14 +481,32 @@ pub fn size(
             strips: strips.clone(),
             ..request.clone()
         };
-        layout::choose(
+        let pick = layout::choose(
             &req,
             &none,
             scale,
             page,
             &layout::AUTOMATIC_ARRANGEMENTS,
             None,
-        )
+        );
+        if scale.is_none() && page.is_none() && pick.scale < d.lanes.recess_chain_scale {
+            let readable = layout::SCALES
+                .iter()
+                .copied()
+                .rev()
+                .find(|s| *s >= d.lanes.recess_chain_scale)
+                .unwrap_or(layout::SCALES[0]);
+            layout::choose(
+                &req,
+                &none,
+                Some(readable),
+                None,
+                &layout::AUTOMATIC_ARRANGEMENTS,
+                None,
+            )
+        } else {
+            pick
+        }
     };
     let count = |s: f64| legible(d, base, s);
     let (mut pick, mut strips, n) =

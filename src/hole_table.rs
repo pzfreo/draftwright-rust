@@ -1778,15 +1778,27 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
     // placement add or remove a whole table. A bare pin on a scalar already covered by the
     // default table does not resurrect its ladder. Callout pins remain additive, so a visible
     // authored callout is never replaced.
-    let canonical = crate::placement_intent::has_pins(&plan.spec)
-        .then(|| {
-            let mut base = crate::model::Spec::default();
-            base.sheet.size = plan.spec.sheet.size.clone();
-            base.sheet.scale = plan.spec.sheet.scale.clone();
-            base.hole_table = plan.spec.hole_table;
-            crate::model::plan_recovered(analysis, &base).ok()
+    let canonical = if crate::placement_intent::has_pins(&plan.spec) {
+        let mut base = crate::model::Spec::default();
+        base.sheet.size = plan.spec.sheet.size.clone();
+        base.sheet.scale = plan.spec.sheet.scale.clone();
+        base.hole_table = plan.spec.hole_table;
+        crate::model::plan_recovered(analysis, &base).ok()
+    } else if plan.spec.hole_table == Setting::Auto
+        && plan.gdt.is_empty()
+        && plan.dimensions.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
         })
-        .flatten();
+    {
+        // New recess dimensions must not turn an established hole schedule
+        // back into a ladder of locations and displace unrelated callouts.
+        // Eligibility, authored/pinned items and installation are still checked.
+        crate::model::established_drawing(analysis, &plan.spec).ok()
+    } else {
+        None
+    };
     let covered_pins: BTreeSet<String> = canonical
         .iter()
         .flat_map(|p| &p.omitted)

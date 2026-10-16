@@ -408,6 +408,11 @@ pub(crate) fn tabulate_obstructed(
     gdt: &[crate::dims::gdt::PlannedGdt],
     problems: &mut Vec<Problem>,
 ) -> Option<RadiusTable> {
+    let recesses = dimensions.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
     let mut indices = Vec::new();
     let mut rows = Vec::new();
     for (i, d) in dimensions.iter().enumerate() {
@@ -418,9 +423,12 @@ pub(crate) fn tabulate_obstructed(
                 .dimensions
                 .get(&d.id)
                 .is_some_and(|s| s.place.is_some() || s.tolerance.is_some())
-            || !problems
-                .iter()
-                .any(|p| p.subjects.contains(&d.id) && leader_problem(&p.code))
+            || !problems.iter().any(|p| {
+                p.subjects.contains(&d.id) && leader_problem(&p.code)
+                    // A clear leader beyond an estimated band stays visible. A
+                    // reservation warning alone does not justify a radius table.
+                    && (!recesses || p.code != "annotation_outside_area")
+            })
         {
             continue;
         }

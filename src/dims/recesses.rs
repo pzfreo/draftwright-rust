@@ -28,7 +28,7 @@
 //!   around their faces) are counted once (`2× HEX …`), as draftwright batches them. draftwright locates no hexagonal pocket, and nor
 //!   does the port (a maintainer question in `docs/next-session.md`).
 //! - **A circular seat** (a part-cylindrical channel open at both ends): `øD × L LONG × A° ARC`
-//!   in the view along it, the leader to the middle of its arc; coaxial seats with the same label
+//!   in the view along it, the leader to its arc's middle or quarter stations; coaxial seats with the same label
 //!   project onto one arc and are counted once (`2× ø…`), as draftwright groups them. Its axis is
 //!   located from the part's box to the axis's midpoint along x, y and z
 //!   (`seat_location.location.<axis>`): across the seat in the view along it, along it in the
@@ -180,6 +180,38 @@ fn pocket_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) 
             c[k] += s * 0.5 * if k == p.width_axis { p.width } else { p.length };
             (c, 0.0)
         };
+        // Mid-wall anchors alone can box a small pocket's leader between its
+        // own two centre-location witnesses. Quarter stations on the proven
+        // straight wall leave the solver a real attachment away from that cross.
+        let mut sites = vec![
+            wall(p.width_axis, -1.0),
+            wall(p.width_axis, 1.0),
+            wall(p.long_axis, -1.0),
+            wall(p.long_axis, 1.0),
+        ];
+        // Captured bridge drawings retain the matching-axis midpoint contract.
+        // Native recognition supplies the additional wall geometry used by the
+        // joint solve for newly drawn recesses.
+        if cx
+            .analysis
+            .recognition
+            .as_ref()
+            .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
+        {
+            for (normal, tangent, length) in [
+                (p.width_axis, p.long_axis, p.length),
+                (p.long_axis, p.width_axis, p.width),
+            ] {
+                let straight = (length * 0.5 - p.corner_radius.unwrap_or(0.0)).max(0.0);
+                for side in [-1.0, 1.0] {
+                    for station in [-0.5, 0.5] {
+                        let (mut at, radius) = wall(normal, side);
+                        at[tangent] += station * straight;
+                        sites.push((at, radius));
+                    }
+                }
+            }
+        }
         out.push(Want {
             id: want_id(&f.id, "pocket_width.length"),
             views: vec![view],
@@ -196,12 +228,7 @@ fn pocket_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) 
                 }
             ),
             shape: Shape::Callout {
-                sites: vec![
-                    wall(p.width_axis, -1.0),
-                    wall(p.width_axis, 1.0),
-                    wall(p.long_axis, -1.0),
-                    wall(p.long_axis, 1.0),
-                ],
+                sites,
             },
         });
         if p.edge_anchored {
@@ -384,7 +411,21 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
                     .into()
             },
             shape: Shape::Callout {
-                sites: members.iter().map(|s| (s.anchor, 0.0)).collect(),
+                sites: members.iter().flat_map(|s| {
+                    // All stations are on the measured arc, away from its open
+                    // ends. A fixed midpoint can force a new seat leader across
+                    // an existing datum tower even when a quarter is clear.
+                    let axes: Vec<_> = (0..3).filter(|k| *k != s.run_axis).collect();
+                    let (u, v) = (axes[0], axes[1]);
+                    let radial = [s.anchor[u] - s.centre[u], s.anchor[v] - s.centre[v]];
+                    [0.0_f64, -0.25, 0.25].map(|fraction| {
+                        let (sin, cos) = (fraction * s.sweep.to_radians()).sin_cos();
+                        let mut point = s.anchor;
+                        point[u] = s.centre[u] + cos * radial[0] - sin * radial[1];
+                        point[v] = s.centre[v] + sin * radial[0] + cos * radial[1];
+                        (point, 0.0)
+                    })
+                }).collect(),
             },
         });
         let owners: Vec<&Feature> = members.iter().map(|s| s.feature).collect();
@@ -394,7 +435,7 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
                 problems.push(on_datum(cx.analysis, &first.feature.id, k));
                 continue;
             }
-            out.push(location(
+            let mut located = location(
                 &owners,
                 &format!("seat_location.location.{}", AXES[k]),
                 first.centre,
@@ -411,7 +452,23 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
                         ""
                     }
                 ),
-            ));
+            );
+            if cx
+                .analysis
+                .recognition
+                .as_ref()
+                .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
+            {
+                // The axis coordinate is also visible in the other orthogonal
+                // profile. Prefer the opening view, but let a joint held-ink
+                // solve use that profile when its existing bands are clearer.
+                for candidate in profile_views(k) {
+                    if !located.views.contains(&candidate) {
+                        located.views.push(candidate);
+                    }
+                }
+            }
+            out.push(located);
         }
         let along = profile_views(axis)[0];
         for s in &members {
@@ -419,7 +476,7 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
                 problems.push(on_datum(cx.analysis, &s.feature.id, axis));
                 continue;
             }
-            out.push(location(
+            let mut located = location(
                 &[s.feature],
                 &format!("seat_location.location.{}", AXES[axis]),
                 s.centre,
@@ -431,7 +488,16 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
                     AXES[axis],
                     face(axis)
                 ),
-            ));
+            );
+            if cx
+                .analysis
+                .recognition
+                .as_ref()
+                .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
+            {
+                located.views = profile_views(axis).to_vec();
+            }
+            out.push(located);
         }
     }
 }
@@ -717,6 +783,96 @@ pub(super) fn consolidate(
     given: &mut Vec<Vec<String>>,
     omitted: &mut Vec<super::Omitted>,
 ) {
+    // Identical, independently located seats in one projection use one counted
+    // form callout. Keep every diameter/run/sweep claim and all real attachment
+    // stations; their individual axis locations are consolidated separately.
+    let seat_form = |k: &Kept| {
+        let w = &k.0;
+        let first = w.measurements.first()?;
+        if first.parameter != "seat_diameter.diameter" {
+            return None;
+        }
+        let form = [
+            "seat_diameter.diameter",
+            "seat_run.length",
+            "seat_sweep.angle",
+        ]
+        .map(|parameter| {
+            w.measurements
+                .iter()
+                .find(|m| m.parameter == parameter)
+                .map(|m| m.value)
+        });
+        Some((k.2.unwrap_or(w.views[0]), form))
+    };
+    let mut seat_gone = std::collections::BTreeSet::new();
+    for i in 0..kept.len() {
+        let Some(form) = seat_form(&kept[i]) else {
+            continue;
+        };
+        if seat_gone.contains(&i) {
+            continue;
+        }
+        let peers: Vec<_> = (i + 1..kept.len())
+            .filter(|&j| {
+                !seat_gone.contains(&j)
+                    && seat_form(&kept[j]).is_some_and(|other| {
+                        other.0 == form.0
+                            && other.1.iter().zip(form.1).all(|(a, b)| {
+                                a.zip(b).is_some_and(|(a, b)| {
+                                    (a - b).abs() <= crate::lint::redundancy::TOL
+                                })
+                            })
+                    })
+                    && kept[i].0.terms == kept[j].0.terms
+                    && given[i] == given[j]
+            })
+            .collect();
+        for j in peers {
+            let claims = kept[j].0.measurements.clone();
+            kept[i].0.measurements.extend(claims);
+            let more = match &kept[j].0.shape {
+                Shape::Callout { sites } => sites.clone(),
+                _ => Vec::new(),
+            };
+            if let Shape::Callout { sites } = &mut kept[i].0.shape {
+                sites.extend(more);
+            }
+            let by = kept[i].0.id.clone();
+            omitted.push(super::Omitted {
+                id: kept[j].0.id.clone(), label: kept[j].0.terms.join(" "),
+                basis: format!("conveyed by {by}: identical located seats in one projection, explicitly counted"),
+                state: crate::items::State::Covered { by },
+            });
+            seat_gone.insert(j);
+        }
+        let count = kept[i]
+            .0
+            .measurements
+            .iter()
+            .map(|m| &m.feature)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
+        if count > 1 {
+            if kept[i].0.terms.first().is_some_and(|t| t.ends_with('×')) {
+                kept[i].0.terms.remove(0);
+            }
+            kept[i].0.terms.insert(0, format!("{count}×"));
+            kept[i].0.basis += "; identical seats share one counted form statement, retaining every diameter, run, sweep and axis location";
+        }
+    }
+    let mut index = 0;
+    kept.retain(|_| {
+        let keep = !seat_gone.contains(&index);
+        index += 1;
+        keep
+    });
+    let mut index = 0;
+    given.retain(|_| {
+        let keep = !seat_gone.contains(&index);
+        index += 1;
+        keep
+    });
     // Equal channel widths in one projection can share a counted size statement.
     // Their stations remain fixed by the wall scheme; retain every independent
     // width claim and the covered IDs for edits and completeness.

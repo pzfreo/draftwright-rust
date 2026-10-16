@@ -192,6 +192,21 @@ fn m10046_pocket_is_called_out_and_located_in_the_view_that_looks_into_it() {
             ("pocket_width.length", "front", "5.0 × 11.7 × 10.6 DEEP"),
         ])
     );
+    // A sloping witness still passes through its arrow tip, including the
+    // two-millimetre overshoot beyond the dimension line.
+    for d in &plan.dimensions {
+        if let Some(p) = &d.placed
+            && p.arrows.len() == 2
+            && p.lines.len() >= 3
+        {
+            for (witness, arrow) in p.lines[..2].iter().zip(&p.arrows) {
+                let [a, b] = *witness;
+                let t = arrow[0];
+                let cross = (t[0] - a[0]) * (b[1] - a[1]) - (t[1] - a[1]) * (b[0] - a[0]);
+                assert!(cross.abs() < 1e-6, "{}: arrow misses witness", d.id);
+            }
+        }
+    }
     drawn_and_claimed(&plan, &a);
     assert_eq!(not_ported(&plan, &a).len(), recesses(&a).len() - 1);
 }
@@ -427,4 +442,74 @@ fn recess_items_can_be_omitted_by_id_and_planning_is_deterministic() {
         serde_json::to_string(&plan).unwrap(),
         serde_json::to_string(&model::plan(&a, &Spec::default()).unwrap()).unwrap()
     );
+}
+
+/// A counted form must retain separately located seats, including when its
+/// carrier is omitted and a remaining seat has to carry its own full form.
+#[test]
+fn identical_located_seats_keep_all_claims_and_promote_a_survivor() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (mut a, _, original) = twinned(&corpus);
+    let twin = a
+        .features
+        .iter_mut()
+        .find(|f| f.id == "f:section_recess:99")
+        .unwrap();
+    let run = twin.parameters["geometry"]["frame"]["run"]
+        .as_array()
+        .unwrap();
+    let across = run
+        .iter()
+        .position(|c| c.as_f64().unwrap().abs() < 0.5)
+        .unwrap();
+    let x = &mut twin.parameters["geometry"]["frame"]["origin"][across];
+    *x = serde_json::json!(x.as_f64().unwrap() + 5.0);
+    let full = model::plan(&a, &Spec::default()).unwrap();
+    let carrier = full
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == original && m.parameter == "seat_diameter.diameter")
+        })
+        .unwrap();
+    assert_eq!(carrier.label, "2× ø2 × 12.6 LONG × 180° ARC");
+    for feature in [&original[..], "f:section_recess:99"] {
+        for parameter in [
+            "seat_diameter.diameter",
+            "seat_run.length",
+            "seat_sweep.angle",
+        ] {
+            assert_eq!(
+                carrier
+                    .measurements
+                    .iter()
+                    .filter(|m| m.feature == feature && m.parameter == parameter)
+                    .count(),
+                1
+            );
+        }
+        assert!(full.dimensions.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == feature && m.parameter.starts_with("seat_location."))
+        }));
+    }
+    assert!(full.omitted.iter().any(|o| o.id == "d:f:section_recess:99/seat_diameter.diameter"
+        && matches!(&o.state, draftwright::items::State::Covered { by } if by == &carrier.id)));
+    let mut spec = Spec::default();
+    spec.dimensions.entry(carrier.id.clone()).or_default().omit = true;
+    let edited = model::plan(&a, &spec).unwrap();
+    let promoted = edited
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements.iter().any(|m| {
+                m.feature == "f:section_recess:99" && m.parameter == "seat_diameter.diameter"
+            })
+        })
+        .unwrap();
+    assert_eq!(promoted.label, "ø2 × 12.6 LONG × 180° ARC");
+    assert!(promoted.placed.is_some());
 }

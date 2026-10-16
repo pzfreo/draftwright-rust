@@ -1202,9 +1202,20 @@ fn said(f: layout::Findings, dropped: usize) -> String {
 
 /// Material crossings are counted by leader/feature pair and by witness line, as quality.py.
 fn feature_crossings(plan: &Plan) -> usize {
+    feature_crossings_where(plan, |_| true)
+}
+
+fn existing_feature_crossings(plan: &Plan) -> usize {
+    feature_crossings_where(plan, |owner| !owner.starts_with("d:f:section_recess:"))
+}
+
+fn feature_crossings_where(plan: &Plan, include: impl Fn(&str) -> bool) -> usize {
     let mut leaders = BTreeSet::new();
     let mut extensions = BTreeSet::new();
     for p in &plan.problems {
+        if !p.subjects.first().is_some_and(|owner| include(owner)) {
+            continue;
+        }
         if p.code == "leader_through_feature" {
             leaders.insert(p.subjects.clone());
         }
@@ -1479,8 +1490,86 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     row <= w - 2.0 * layout::MARGIN && column <= h - 2.0 * layout::MARGIN
 }
 
+/// The established automatic presentation, shared by scale and hole-table
+/// decisions. This comparison never replaces the full native final inventory.
+pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("presentation inputs serialize");
+    let reference = crate::planning::memo(analysis, "established-drawing", key, || {
+        let mut reference = analysis.clone();
+        reference.features.retain(|f| f.kind != "section_recess");
+        let mut base = Spec {
+            hole_table: spec.hole_table,
+            ..Spec::default()
+        };
+        base.sheet.projection = spec.sheet.projection.clone();
+        crate::planning::with(&reference, || {
+            // Preserve the established presentation when reserving old routes.
+            // The actual drawing may move an occluded circular statement to its
+            // visible profile after those other routes have claimed their ink.
+            crate::planning::store(&reference, "canonical-circular-recipes", Vec::new(), true);
+            plan_recovered(&reference, &base)
+        })
+    });
+    if let Ok(plan) = &reference {
+        crate::planning::store(analysis, "established-route-policy", Vec::new(), true);
+        let interior: BTreeSet<_> = plan
+            .dimensions
+            .iter()
+            .filter(|d| d.region == Some(crate::dims::CandidateRegion::Interior))
+            .map(|d| d.id.clone())
+            .collect();
+        crate::planning::store(
+            analysis,
+            "canonical-interior-statements",
+            Vec::new(),
+            interior,
+        );
+    }
+    reference
+}
+
 fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
+    // Adding a recess must not enlarge all existing witnesses and leaders merely
+    // to fill the page. Use the established drawing's scale as an automatic cap;
+    // the finished solve still includes every new recess and may spend more paper.
+    let established_plan = if spec.sheet.scale.is_none()
+        && first.dimensions.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        }) {
+        Some(established_drawing(analysis, spec)?)
+    } else {
+        None
+    };
+    let established = established_plan.as_ref().map(|reference| {
+        (
+            reference.sheet.scale_factor,
+            reference
+                .views
+                .iter()
+                .find(|v| v.id == "v:iso")
+                .map(|v| v.scale),
+            crate::dims::extension_contacts(&reference.dimensions),
+            existing_feature_crossings(reference),
+        )
+    });
+    let established_scale = established.map(|e| e.0);
+    let orientation_cap = established.and_then(|e| e.1);
+    let corridor_budget = established.map(|e| e.2);
+    let existing_crossing_budget = established.map(|e| e.3);
+    let extra_existing_crossings = |p: &Plan| {
+        existing_crossing_budget.map_or(0, |budget| {
+            existing_feature_crossings(p).saturating_sub(budget)
+        })
+    };
+    let extra_corridors = |p: &Plan| {
+        corridor_budget.map_or(0, |budget| {
+            crate::dims::extension_contacts(&p.dimensions).saturating_sub(budget)
+        })
+    };
     let min_legible_scale = crate::sheets::floor(spec).map_or_else(
         || crate::sheet_fit::min_legible_scale(analysis),
         |floor| floor.max(crate::sheet_fit::min_legible_scale(analysis)),
@@ -1529,6 +1618,23 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         return Ok(first);
     }
     if !first.hole_tables.is_empty() {
+        if let Some(reference) = &established_plan
+            && established_scale.is_some_and(|cap| first.sheet.scale_factor <= cap)
+            && findings(&first).clean()
+            && undrawn_gdt(&first) == 0
+            && drawn_items_fit(analysis, &first)
+            && carried(reference).is_subset(&carried(&first))
+            && extra_corridors(&first) == 0
+            && extra_existing_crossings(&first) == 0
+            && ink_findings(&first) <= ink_findings(reference)
+            && over_views(&first) <= over_views(reference)
+        {
+            // The settled table already retains the established information and
+            // has no additional annotation defects. Re-expanding its rows into
+            // inline ladders merely to search for another scale can displace
+            // old items and repeats the dense corridor solve unnecessarily.
+            return Ok(first);
+        }
         return recover_tables(analysis, spec, first);
     }
     let seed_clean =
@@ -1547,7 +1653,11 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         .position(|(n, _, _)| *n == first.sheet.size)
         .is_some_and(|i| i >= LARGE_SHEET);
     // A large first estimate of a small part is no sheet to keep: it vetoes nothing.
-    let mut seed_kept = seed_clean && !(first_large && is_small(&mut small_part)?);
+    let mut seed_kept = seed_clean
+        && !(first_large && is_small(&mut small_part)?)
+        && established_scale.is_none_or(|s| first.sheet.scale_factor <= s)
+        && extra_corridors(&first) == 0
+        && extra_existing_crossings(&first) == 0;
     let required = carried(&first);
     let mut tried = Vec::new();
     let mut candidates = Vec::new();
@@ -1573,10 +1683,9 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 cut = true;
                 break;
             }
-            for scale in layout::SCALES
-                .into_iter()
-                .filter(|s| *s >= min_legible_scale)
-            {
+            for scale in layout::SCALES.into_iter().filter(|s| {
+                *s >= min_legible_scale && established_scale.is_none_or(|cap| *s <= cap)
+            }) {
                 // On the one larger sheet only an enlargement of the smallest fit is allowed.
                 if smallest.is_some_and(|fit| !crate::sheet_fit::allowed(fit, i, scale)) {
                     continue;
@@ -1599,32 +1708,41 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 let mut named = spec.clone();
                 named.sheet.size = Some((*name).into());
                 named.sheet.scale = Some(scale_name(scale));
-                let mut p =
-                    if first.sheet.size == *name && first.sheet.scale_factor == scale && seed_clean
-                    {
-                        first.clone()
-                    } else {
-                        match plan_escalated_with(analysis, &named, true, None) {
-                            Ok(p) => p,
-                            Err(e)
-                                if spec.iso_scale_factor.is_some()
-                                    && e.message == INFEASIBLE_ISO_SCALE =>
-                            {
-                                tried.push(format!("{name} {} ({})", scale_name(scale), e.message));
-                                continue;
-                            }
-                            Err(e) => return Err(e),
+                let mut p = if first.sheet.size == *name
+                    && first.sheet.scale_factor == scale
+                    && seed_clean
+                    && extra_corridors(&first) == 0
+                {
+                    first.clone()
+                } else {
+                    match plan_escalated_with(analysis, &named, true, None) {
+                        Ok(p) => p,
+                        Err(e)
+                            if spec.iso_scale_factor.is_some()
+                                && e.message == INFEASIBLE_ISO_SCALE =>
+                        {
+                            tried.push(format!("{name} {} ({})", scale_name(scale), e.message));
+                            continue;
                         }
-                    };
+                        Err(e) => return Err(e),
+                    }
+                };
                 // A failed seed must not restrict the complete drawing to its first arrangement.
                 // Try the other established arrangement, with no new leader-routing strategy.
-                if !seed_clean {
+                if !seed_clean
+                    || (established_scale.is_some()
+                        && (!findings(&p).clean()
+                            || extra_corridors(&p) > 0
+                            || extra_existing_crossings(&p) > 0))
+                {
                     let quality = |p: &Plan| {
                         let f = findings(p);
                         (
                             f.hard,
                             f.dropped,
                             over_views(p),
+                            extra_corridors(p),
+                            extra_existing_crossings(p),
                             ink_findings(p),
                             feature_crossings(p),
                         )
@@ -1703,6 +1821,21 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     iso.basis += "; the smallest fit's orientation scale kept while dimensioned views enlarge";
                 }
                 crate::sheet_fit::correct_estimate(analysis, &mut p);
+                if spec.iso_scale_factor.is_none()
+                    && !spec.views.contains_key("iso")
+                    && let (Some(cap), Some(iso)) = (
+                        orientation_cap,
+                        p.views.iter_mut().find(|v| v.id == "v:iso"),
+                    )
+                    && iso.scale > cap
+                {
+                    let b = analysis.iso_bounds;
+                    for k in 0..2 {
+                        iso.at[k] += (iso.scale - cap) * 0.5 * (b[k] + b[k + 2]);
+                    }
+                    iso.scale = cap;
+                    iso.basis += "; established orientation scale retained beside the new recess annotations";
+                }
                 crate::iso_caption::refresh(analysis, &mut p);
                 // An estimate's iso budget can refuse a sheet whose finished drawing fits.
                 // Only discharge that estimate when all actual item bounds and reserved views fit.
@@ -1726,9 +1859,23 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     ink_findings(&p),
                     p.sheet.arrangement
                 ));
+                let corridor_extra = extra_corridors(&p);
+                let existing_extra = extra_existing_crossings(&p);
+                if corridor_extra > 0 {
+                    tried.last_mut().expect("candidate trace").push_str(&format!(
+                        "; {corridor_extra} extra leader/extension corridors beyond the established drawing"));
+                }
+                if existing_extra > 0 {
+                    tried
+                        .last_mut()
+                        .expect("candidate trace")
+                        .push_str(&format!(
+                            "; {existing_extra} extra material crossings in existing dimensions"
+                        ));
+                }
                 // Valid and complete: no hard finding, nothing dropped or undrawn, and no more
                 // annotations over another view than the seed (the port's own gate).
-                if !f.clean() || over > 0 {
+                if !f.clean() || over > 0 || corridor_extra > 0 || existing_extra > 0 {
                     continue;
                 }
                 if smallest.is_none() {
@@ -1762,10 +1909,16 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 && let Some(plan) =
                     crate::sheets::small_fallback(analysis, spec, &first, &mut tried)
             {
-                return Ok(plan);
+                if extra_corridors(&plan) == 0 && extra_existing_crossings(&plan) == 0 {
+                    return Ok(plan);
+                }
+                tried.push(
+                    "practical-sheet allocation still obstructs established corridors".into(),
+                );
             }
             rule = false;
-            seed_kept = seed_clean;
+            seed_kept =
+                seed_clean && extra_corridors(&first) == 0 && extra_existing_crossings(&first) == 0;
             first_sheet = LARGE_SHEET;
             continue;
         }
@@ -1830,6 +1983,29 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         first.status = crate::completeness::status(&first.problems);
         return Ok(first);
     };
+    // When new recess information needs more paper, preserve the established
+    // dimensioned-view scale on the already permitted neighbouring sheet before
+    // shrinking old geometry merely to improve the fill percentage. All these
+    // candidates have passed the same validity, coverage and corridor gates.
+    let retained = established_scale.and_then(|scale| {
+        if choice.is_some_and(|j| keys[j].scale >= scale) {
+            return None;
+        }
+        candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, (c, _))| {
+                c.scale == scale
+                    && (!seed_kept || c.extra_crossings == 0)
+                    && (spec.sheet.size.is_some()
+                        || (c.sheet == i && c.scale == s)
+                        || (c.sheet == i + 1
+                            && crate::sheet_fit::allowed((i, s), c.sheet, c.scale)))
+            })
+            .min_by_key(|(_, (c, p))| (c.sheet, ink_findings(p), feature_crossings(p)))
+            .map(|(j, _)| j)
+    });
+    let choice = retained.or(choice);
     let estimate = format!(
         "first estimate {} at {} ({})",
         first.sheet.size,
@@ -1856,6 +2032,9 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         FILL_BAND[1] * 100.0,
         tried.join("; ")
     );
+    if retained.is_some() {
+        chosen.sheet.basis += "; the established dimensioned-view scale retained while making room for recess information";
+    }
     chosen.sheet.default = true;
     chosen.spec = first.spec;
     if chosen.sheet.size != first.sheet.size || chosen.sheet.scale != first.sheet.scale {
@@ -1866,8 +2045,9 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             // The measured fill stays in the sheet basis: an edit that moves it by a fraction
             // must not churn this problem in an edit's delta.
             message: format!(
-                "Sheet choice changed from {} at {} to {} at {} by drawn-item fill; the sheet basis lists the candidates.",
+                "Sheet choice changed from {} at {} to {} at {} {}; the sheet basis lists the candidates.",
                 first.sheet.size, first.sheet.scale, chosen.sheet.size, chosen.sheet.scale,
+                if retained.is_some() { "to retain the established dimensioned-view scale" } else { "by drawn-item fill" },
             ),
             subjects: vec!["sheet".into()],
             ..Default::default()
@@ -1887,7 +2067,12 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
-    crate::planning::with(analysis, || crate::sheets::allocate(analysis, spec))
+    crate::planning::with(analysis, || {
+        if spec.sheet.scale.is_none() && crate::dims::has_recess_dimensions(analysis) {
+            established_drawing(analysis, spec)?;
+        }
+        crate::sheets::allocate(analysis, spec)
+    })
 }
 
 fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
@@ -1962,9 +2147,14 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
-    let mut plan = plan_escalated_with(analysis, spec, false, None)?;
-    crate::iso_caption::refresh(analysis, &mut plan);
-    Ok(plan)
+    crate::planning::with(analysis, || {
+        if spec.sheet.scale.is_none() && crate::dims::has_recess_dimensions(analysis) {
+            established_drawing(analysis, spec)?;
+        }
+        let mut plan = plan_escalated_with(analysis, spec, false, None)?;
+        crate::iso_caption::refresh(analysis, &mut plan);
+        Ok(plan)
+    })
 }
 
 fn plan_escalated_with(
@@ -2025,10 +2215,13 @@ fn plan_escalated_uncached(
             p.table_outcome = crate::hole_table::escalate(analysis, &mut p,
                 spec.sheets.as_ref().and_then(|s| s.hole_table).filter(|n| *n > 1));
             if p.dimensions.iter().any(|d| d.measurements.iter().any(|m| m.feature.starts_with("f:section_recess:")))
-                && p.problems.iter().any(|q| q.code == "annotation_outside_area")
+                && p.problems.iter().any(|q| matches!(q.code.as_str(), "annotation_outside_area" | "page_fit_uncertain" | "views_do_not_fit"))
                 && let Some(packed) = crate::sheet_fit::pack_gdt(analysis, &p, &p)
             {
                 p = packed;
+            }
+            if let Some(stable) = crate::dims::retain_established(analysis, spec, &p) {
+                p = stable;
             }
             crate::completeness::report(analysis, &mut p);
             p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
@@ -2040,11 +2233,21 @@ fn plan_escalated_uncached(
     };
     let first = escalated(spec, false, false)?;
     let misplaced = gdt_misplaced(&first);
-    if misplaced == (0, 0) {
+    let shared = !first.gdt.is_empty()
+        && first.dimensions.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        });
+    let grade = |p: &Plan| {
+        let g = gdt_misplaced(p);
+        (g.0, if shared { findings(p).hard } else { 0 }, g.1)
+    };
+    if misplaced == (0, 0) && (!shared || findings(&first).hard == 0) {
         return Ok(first);
     }
     let again = escalated(spec, true, false)?;
-    let mut best = if gdt_misplaced(&again) < misplaced {
+    let mut best = if grade(&again) < grade(&first) {
         again
     } else {
         first.clone()
@@ -2052,14 +2255,14 @@ fn plan_escalated_uncached(
     // New annotation ink can consume a frame's old corridor. Compare a bounded
     // reduction on the same paper before keeping a frame over a view or beyond
     // its band. Every measurement and placed GD&T item must survive the trial.
-    if spec.sheet.scale.is_none() && analysis.features.iter().any(|f| f.kind == "section_recess") {
+    if spec.sheet.scale.is_none() && shared {
         let required = carried(&best);
         for _ in 0..2 {
-            let Some(scale) = layout::SCALES
-                .iter()
-                .copied()
-                .find(|s| *s < best.sheet.scale_factor && *s >= crate::sheet_fit::ABSOLUTE_FLOOR)
-            else {
+            let Some(scale) = layout::SCALES.iter().copied().find(|s| {
+                *s < best.sheet.scale_factor
+                    && *s >= crate::sheet_fit::ABSOLUTE_FLOOR
+                    && crate::sheets::floor(spec).is_none_or(|floor| *s >= floor)
+            }) else {
                 break;
             };
             let mut trial_spec = spec.clone();
@@ -2074,7 +2277,7 @@ fn plan_escalated_uncached(
                 trial.sheet.scale,
                 trial.sheet.fill * 100.0
             );
-            if gdt_misplaced(&trial) >= gdt_misplaced(&best)
+            if grade(&trial) >= grade(&best)
                 || findings(&trial).hard > findings(&best).hard
                 || drops(&trial) > drops(&best)
                 || undrawn_gdt(&trial) > undrawn_gdt(&best)
@@ -2083,19 +2286,16 @@ fn plan_escalated_uncached(
                 break;
             }
             best = trial;
-            if gdt_misplaced(&best) == (0, 0) {
+            if gdt_misplaced(&best) == (0, 0) && findings(&best).hard == 0 {
                 break;
             }
         }
     }
-    if gdt_misplaced(&best) < misplaced {
+    if grade(&best) < grade(&first) {
         best.sheet.basis += &format!(
-            "; the GD&T's room reserved beyond every dimension lane of its strips, as reserved within \
-             draftwright's estimate, on {} at {}, {} of its items had no place on the sheet \
-             off the other views",
-            first.sheet.size,
-            first.sheet.scale,
-            misplaced.0 + misplaced.1
+            "; the GD&T's room reserved beyond every dimension lane of its strips; the shared corridors \
+             improve on {} at {} while retaining every carried measurement and frame",
+            first.sheet.size, first.sheet.scale,
         );
     }
     Ok(best)
@@ -2136,7 +2336,7 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    plan_with(analysis, spec, false, false, None)
+    crate::planning::with(analysis, || plan_with(analysis, spec, false, false, None))
 }
 
 /// [`plan`], the GD&T's room reserved beyond every dimension lane of its strips when
@@ -2797,6 +2997,55 @@ fn plan_with_presentation(
             Vec::new(),
         ));
     }
+    if demand.lanes.recess_lanes
+        && spec.iso_scale_factor.is_none()
+        && spec.views.get("iso").is_none_or(|v| v.place.is_none())
+        && let Some(i) = views.iter().position(|v| v.id == "v:iso")
+    {
+        let v = &views[i];
+        let bounds = [
+            v.at[0] + v.scale * analysis.iso_bounds[0],
+            v.at[1] + v.scale * analysis.iso_bounds[1],
+            v.at[0] + v.scale * analysis.iso_bounds[2],
+            v.at[1] + v.scale * analysis.iso_bounds[3],
+        ];
+        let [w, h] = pick.page;
+        let page = [
+            request.margins.left + 0.1,
+            request.margins.bottom + 0.1,
+            w - request.margins.right - 0.1,
+            h - request.margins.top - 0.1,
+        ];
+        let mut delta = [0.0; 2];
+        let mut fits = true;
+        for k in 0..2 {
+            let lo = page[k] - bounds[k];
+            let hi = page[k + 2] - bounds[k + 2];
+            if lo > hi {
+                fits = false;
+                break;
+            }
+            delta[k] = 0.0f64.clamp(lo, hi);
+        }
+        let moved = [
+            bounds[0] + delta[0],
+            bounds[1] + delta[1],
+            bounds[2] + delta[0],
+            bounds[3] + delta[1],
+        ];
+        if fits
+            && delta != [0.0; 2]
+            && !rect_overlap(moved, g.title_block)
+            && views
+                .iter()
+                .enumerate()
+                .all(|(j, other)| j == i || !rect_overlap(moved, other.area))
+        {
+            views[i].at[0] += delta[0];
+            views[i].at[1] += delta[1];
+            views[i].basis += "; translated inside the drawing area at its existing scale";
+        }
+    }
     let mut title = spec.sheet.title.clone();
     title
         .entry("title".into())
@@ -3105,13 +3354,31 @@ fn plan_with_presentation(
             &base,
             &sheet,
             &views,
-            &[],
+            &furniture_ink,
             &[],
             &footprint_cache,
             &excluded,
         )?;
         let before = natural.clone();
-        crate::dims::settle_inventory(analysis, &base, &sheet, &views, &mut natural, &reserved);
+        let mut natural_fixed = reserved.clone();
+        natural_fixed.extend(furniture_ink.iter().cloned());
+        crate::dims::settle_inventory(
+            analysis,
+            &base,
+            &sheet,
+            &views,
+            &mut natural,
+            &natural_fixed,
+        );
+        crate::dims::refine_inventory(
+            analysis,
+            &base,
+            &sheet,
+            &views,
+            &mut natural,
+            &natural_fixed,
+            &footprint_cache,
+        );
         for d in &mut inventory {
             if spec
                 .dimensions
@@ -3124,17 +3391,7 @@ fn plan_with_presentation(
                 b.id == d.id
                     && b.terms == d.terms
                     && b.view == d.view
-                    && b.placed
-                        .as_ref()
-                        .zip(d.placed.as_ref())
-                        .is_some_and(|(a, b)| {
-                            a.arrows == b.arrows
-                                && a.lines.iter().take(2).map(|l| l[0]).eq(b
-                                    .lines
-                                    .iter()
-                                    .take(2)
-                                    .map(|l| l[0]))
-                        })
+                    && b.measurements == d.measurements
             });
             let settled = natural.iter().find(|b| b.id == d.id);
             if original.is_some()
@@ -3183,6 +3440,63 @@ fn plan_with_presentation(
     for d in &mut dimensions {
         if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
             d.placed = settled.placed.clone();
+        }
+    }
+    if !crate::placement_intent::has_pins(spec)
+        && inventory.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        })
+    {
+        if spec.dimension_source == DimensionSource::Authored
+            || spec.dimensions.values().any(|d| d.omit)
+        {
+            // An omission leaves its original paper reservation behind. Restored
+            // aliases must not resize unrelated views.
+            let mut full = spec.clone();
+            full.dimension_source = DimensionSource::Auto;
+            for d in full.dimensions.values_mut() {
+                d.omit = false;
+            }
+            full.dimensions
+                .retain(|_, d| *d != DimensionSpec::default());
+            let reference = plan_with_presentation(
+                analysis,
+                &full,
+                gdt_beyond_lanes,
+                automatic_pair,
+                candidate_arrangement,
+                presentation,
+            )?;
+            let mut stable = BTreeSet::new();
+            for view in &mut views {
+                if let Some(before) = reference
+                    .views
+                    .iter()
+                    .find(|v| v.id == view.id && v.at == view.at && v.scale == view.scale)
+                {
+                    view.area = before.area;
+                    stable.insert(view.id.clone());
+                }
+            }
+            for d in dimensions.iter_mut().chain(&mut inventory) {
+                if stable.contains(&d.view)
+                    && let Some(before) = reference.dimensions.iter().find(|b| {
+                        b.id == d.id
+                            && b.view == d.view
+                            && b.terms == d.terms
+                            && b.measurements == d.measurements
+                    })
+                {
+                    d.placed = before.placed.clone();
+                    d.region = before.region;
+                }
+            }
+        } else {
+            crate::sheet_fit::reserve_annotation_bounds(
+                analysis, &sheet, &mut views, &inventory, &gdt,
+            );
         }
     }
     let settled_ids: BTreeSet<&str> = dimensions
@@ -5690,3 +6004,7 @@ fn pdf_spec(text: &str) -> Result<Option<String>, String> {
 mod projection_store;
 
 pub mod projected_ink;
+
+#[cfg(test)]
+#[path = "model_recovery_tests.rs"]
+mod recovery_tests;

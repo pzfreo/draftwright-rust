@@ -311,8 +311,8 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
 }
 
 /// The same on the quality parts (`tools/quality_parts.txt`, from the corpus), planned as the
-/// command line plans them: the dense NIST parts drop hole items off the sheet, which are kept
-/// and not drawable.
+/// command line plans them. Reserved recess lanes keep every default item drawable;
+/// an explicitly starved sheet still exercises the loss/state-machine audit.
 #[test]
 fn on_the_quality_parts_too() {
     let Some(dir) = corpus::dir() else {
@@ -341,7 +341,20 @@ fn on_the_quality_parts_too() {
             .filter(|d| matches!(d.state, State::NotDrawable { .. }))
             .count();
     }
-    assert!(dropped > 0, "no item was dropped");
+    assert_eq!(dropped, 0, "the default quality drawings retain every item");
+    let a = model::analyse_native(&dir.join("nist/nist_ftc_08_asme1_rc.stp"))
+        .unwrap()
+        .1;
+    let starved = spec(json!({"sheet": {"size": "A4", "scale": "1:1"}, "hole_table": "never"}));
+    let mut plan = model::plan(&a, &starved).unwrap();
+    draftwright::hole_table::escalate(&a, &mut plan, None);
+    consistent("explicitly starved FTC08", &plan, &a, &starved);
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| matches!(d.state, State::NotDrawable { .. })),
+        "the explicitly starved drawing still exercises not-drawable states"
+    );
 }
 
 /// The editor's drawing review, as `drawing-review.ts` classifies an item.

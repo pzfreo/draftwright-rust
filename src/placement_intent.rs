@@ -319,12 +319,13 @@ pub(crate) fn views(
                 Side::Right => b[2] + p.gap - a[0],
                 Side::Left => b[0] - p.gap - a[2],
             };
+            let exact = |d: f64| if d.abs() < 1e-9 { 0.0 } else { d };
             shift(
                 &mut views[i],
                 if horizontal {
-                    [out, offset]
+                    [exact(out), exact(offset)]
                 } else {
-                    [offset, out]
+                    [exact(offset), exact(out)]
                 },
             );
             // The isometric's area is a reserved region, not a dimensioned projection frame.

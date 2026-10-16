@@ -28,45 +28,10 @@
   "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): plan items above and beside the plan (locations, pitches) and front items below the front run past them; the front's polygonal boss height (6.9 mm) past the front's band. No callout is left past its band: the front callouts (2× ⌀20 ↧ 45, 2× C5) that stood 2.1 mm below the front now stand inside its area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 20 before stream d-placement-fit, 15 before d-callout-leaders. 11 before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the location that ran off the sheet now has a lane on it."
  },
  {
-  "part": "ftc06",
-  "code": "annotation_outside_area",
-  "count": 14,
-  "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only), and the port's fixed lanes stack past them (plan and front items). The side items stay within the side's bands outward (tests/placement.rs checks it) and run past its area only along their lanes: boss-height labels moved beyond the near end of their short spans to clear the depth's extension lines, the step shoulder d:step_level/step_position.length.y46_99, and two channel widths (d:f:section_recess:7 and :8, dims::recesses). Also the plan's step shoulders x136_525 and x168_275 (stream d-dims-steps-levels) and the front's width (in the one lane above the front, an overall extent's first claim). Two front callouts (2× ⌀6.3 ↧ 12.7, 2× ø31.8, 2.1 mm each). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 28 before stream d-placement-fit, 26 before d-callout-leaders (its callouts' labels ran right along their lanes), 18 before d-quality-repeated-dims (each pair of side-view boss heights on one span, 12.1 and 16.3, is now one counted item, src/dims/mod.rs::share, so two of these four items are gone). G2 adds a counted plate statement and routes the two front callouts inside their area. The exact remaining fourteen overruns are checked by tests/placement.rs; no outside-area finding is waived."
- },
- {
-  "part": "m1000",
-  "code": "annotation_outside_area",
-  "count": 3,
-  "verdict": "rust-wrong",
-  "reason": "G2 review fix: the wall now uses solid plan-profile edges and its added plan lane reserves the shared linear band. The seat-diameter callout's new 2.1 mm front overrun is fixed. The three pre-existing side-band overruns remain: overall depth (4.7 mm), HEX 1.9 A/F × 2.1 DEEP (14.5 mm) and seat Y location (10.7 mm). Exact findings remain rust-wrong; no severity or checking tolerance changes."
- },
- {
-  "part": "m10046",
-  "code": "annotation_outside_area",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "The pocket's callout d:f:section_recess:4/pocket_width.length (5.0 × 11.7 × 10.6 DEEP, dims::recesses), its label long, stands beside the front where src/dims/leaders.rs places it and runs past the front's band (draftwright's estimate, sized for lanes, not for leaders beside the view). 25.9 mm past before stream d-callout-leaders, in the callout lanes."
- },
- {
-  "part": "m10127",
-  "code": "annotation_outside_area",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "Two callouts beside their views run a little past the bands (draftwright's estimates): the front's d:f:hole:2/bore.diameter (2.1 mm) and the hexagonal pocket's d:f:section_recess:1/polygon_across_flats.length (2.2 mm); the side's d:f:hole:1/bore.diameter, 4.3 mm past before, now stands inside the side's area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 5 before stream d-callout-leaders (the callouts' labels ran along their lanes, the hex pocket's 45.7 mm past)."
- },
- {
   "part": "string_post",
   "code": "annotation_outside_area",
   "count": 2,
   "verdict": "rust-wrong",
   "reason": "Two step lengths below the front (d:f:turned_step:1 and :3/step.length@front, dims::turned) run along their lanes past the front's band (draftwright's estimate); the cross hole's callout d:f:hole:1/bore.diameter, 2.0 mm below the front's band before, now stands inside the front's area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 5 before stream d-callout-leaders, with the turned steps' diameter callouts stacked in the lanes below the front; they now stand beside the view."
- },
- {
-  "part": "ftc06",
-  "code": "annotation_leader_crossing",
-  "count": 1,
-  "verdict": "rust-wrong",
-  "reason": "G6 fixed centre furniture reroutes boss:5, clearing its directional leader contact with hole:11. The reverse hole:11 to boss:5 contact remains reported and rust-wrong. tests/leaders.rs independently measures the remaining contact; tests/placement.rs retains exact per-code count equality and rejects stale entries. The fourteen existing band overruns are unchanged. This captured-recognition residual is separate from the native no-worse quality gate. Verified after the Stage G rebase; target/g6-carry/rebase-tests.log and final corpus-required tests.log."
  }
 ]

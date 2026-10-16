@@ -1148,5 +1148,65 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The seat axis lies on the part's far X datum: Python draws its 48.4 location as well as the 48.4 overall width. The port now states that support-plane interval once, on d:envelope/width.length, retaining the seat_location.location.x measurement claim and an addressable covered ledger row. The stations agree within the source record's 0.01 mm publication grid and the approved labels agree; this is not a lost location. tests/native_recesses.rs::a_recess_location_on_the_far_datum_uses_the_overall_span_once verifies the carrier and that omitting the overall promotes the independent seat location. The physical recess statement comparisons in tests/dims_recesses.rs still require 48.4 in the front view."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "recess",
+    "view": "front",
+    "label": "3.1",
+    "count": 2,
+    "verdict": "rust-correct",
+    "reason": "Equal channel widths in this projection share an explicitly counted linear carrier. Python prints two separate 3.1 labels; Rust prints 2× 3.1. No physical width is omitted: ftc06_channels_state_their_widths_in_the_view_along_them checks all seven independent width claims, their distinct feature owners and the exact counted labels; native_equal_channel_widths_keep_all_claims_and_promote_an_omitted_carrier verifies promotion when a carrier is omitted."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "recess",
+    "view": "front",
+    "label": "2× 3.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Equal channel widths in this projection share an explicitly counted linear carrier. Python prints two separate 3.1 labels; Rust prints 2× 3.1. No physical width is omitted: ftc06_channels_state_their_widths_in_the_view_along_them checks all seven independent width claims, their distinct feature owners and the exact counted labels; native_equal_channel_widths_keep_all_claims_and_promote_an_omitted_carrier verifies promotion when a carrier is omitted."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "recess",
+    "view": "plan",
+    "label": "12.7",
+    "count": 2,
+    "verdict": "rust-correct",
+    "reason": "Equal channel widths in this projection share an explicitly counted linear carrier. Python prints two separate 12.7 labels; Rust prints 2× 12.7. No physical width is omitted: ftc06_channels_state_their_widths_in_the_view_along_them checks all seven independent width claims, their distinct feature owners and the exact counted labels; native_equal_channel_widths_keep_all_claims_and_promote_an_omitted_carrier verifies promotion when a carrier is omitted."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "recess",
+    "view": "plan",
+    "label": "2× 12.7",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Equal channel widths in this projection share an explicitly counted linear carrier. Python prints two separate 12.7 labels; Rust prints 2× 12.7. No physical width is omitted: ftc06_channels_state_their_widths_in_the_view_along_them checks all seven independent width claims, their distinct feature owners and the exact counted labels; native_equal_channel_widths_keep_all_claims_and_promote_an_omitted_carrier verifies promotion when a carrier is omitted."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "recess",
+    "view": "side",
+    "label": "3.1",
+    "count": 2,
+    "verdict": "rust-correct",
+    "reason": "Equal channel widths in this projection share an explicitly counted linear carrier. Python prints two separate 3.1 labels; Rust prints 2× 3.1. No physical width is omitted: ftc06_channels_state_their_widths_in_the_view_along_them checks all seven independent width claims, their distinct feature owners and the exact counted labels; native_equal_channel_widths_keep_all_claims_and_promote_an_omitted_carrier verifies promotion when a carrier is omitted."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "recess",
+    "view": "side",
+    "label": "2× 3.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Equal channel widths in this projection share an explicitly counted linear carrier. Python prints two separate 3.1 labels; Rust prints 2× 3.1. No physical width is omitted: ftc06_channels_state_their_widths_in_the_view_along_them checks all seven independent width claims, their distinct feature owners and the exact counted labels; native_equal_channel_widths_keep_all_claims_and_promote_an_omitted_carrier verifies promotion when a carrier is omitted."
   }
 ]

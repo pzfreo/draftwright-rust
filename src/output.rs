@@ -1844,12 +1844,17 @@ pub(crate) fn linear_ink(lines: &[[P; 2]]) -> Option<LinearInk> {
     };
     let k = (0..2)
         .find(|&k| (d[0][1 - k] - d[1][1 - k]).abs() < 1e-6 && (d[0][k] - d[1][k]).abs() > 1e-6)?;
-    if [e0, e1].iter().any(|e| (e[0][k] - e[1][k]).abs() > 1e-6)
-        || (e0[0][k] - e1[0][k]).abs() < 1e-6
-    {
+    // A witness may be oblique. Its intersection with the dimension line is
+    // the measured station; its overshooting endpoint is not an arrow tip.
+    let station = |e: &[P; 2]| {
+        let run = e[1][1 - k] - e[0][1 - k];
+        (run.abs() > 1e-9)
+            .then(|| e[0][k] + (d[0][1 - k] - e[0][1 - k]) * (e[1][k] - e[0][k]) / run)
+    };
+    let (a, b) = (station(e0)?, station(e1)?);
+    if (a - b).abs() < 1e-6 {
         return None;
     }
-    let (a, b) = (e0[0][k], e1[0][k]);
     Some(LinearInk {
         k,
         offset: d[0][1 - k],
@@ -1886,6 +1891,29 @@ pub(crate) fn label_gap(lines: &[[P; 2]], label: [f64; 4]) -> Option<f64> {
 mod tests {
     use super::*;
     use haecceity::hlr::Exact;
+
+    #[test]
+    fn oblique_witnesses_still_reserve_their_measured_span() {
+        let oblique = [
+            [[0., 0.], [5.5, 11.]],
+            [[10., 0.], [15.5, 11.]],
+            [[5., 10.], [15., 10.]],
+        ];
+        let ink = linear_ink(&oblique).unwrap();
+        assert_eq!(ink.span, [5., 15.]);
+        let crossing = [
+            [[12., 0.], [12., 12.]],
+            [[18., 0.], [18., 12.]],
+            [[12., 10.], [18., 10.]],
+        ];
+        assert!(shared_dimension_line(&oblique, &crossing));
+        let beside = [
+            [[16., 0.], [16., 12.]],
+            [[20., 0.], [20., 12.]],
+            [[16., 10.], [20., 10.]],
+        ];
+        assert!(!shared_dimension_line(&oblique, &beside));
+    }
 
     /// The pieces' points, densely.
     fn trace(pieces: &[Vec<[f64; 3]>]) -> Vec<P> {

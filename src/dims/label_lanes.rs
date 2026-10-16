@@ -74,10 +74,21 @@ fn contacts(p: &Placed, q: &PlannedDimension) -> u8 {
     if boxes_overlap(p.label_box, qp.label_box) {
         hits |= 1 << 0;
     }
-    if p.lines.iter().any(|l| crosses(*l, qp.label_box)) {
+    if p.lines
+        .iter()
+        .copied()
+        .chain(p.arrows.iter().flat_map(|h| super::leaders::head(*h)))
+        .any(|l| crosses(l, qp.label_box))
+    {
         hits |= 1 << 1;
     }
-    if qp.lines.iter().any(|l| crosses(*l, p.label_box)) {
+    if qp
+        .lines
+        .iter()
+        .copied()
+        .chain(qp.arrows.iter().flat_map(|h| super::leaders::head(*h)))
+        .any(|l| crosses(l, p.label_box))
+    {
         hits |= 1 << 2;
     }
     if q.kind == "callout"
@@ -206,7 +217,48 @@ fn label_at(p: &Placed, at: f64) -> Placed {
     c
 }
 
+/// Outside arrows can carry short text centred over their measured span.
+/// Lift it half a millimetre to leave paper above the outward arrowheads.
+pub(super) fn centered_short(p: &Placed) -> Option<Placed> {
+    if p.arrows.len() != 2 || p.lines.len() < 3 {
+        return None;
+    }
+    let k = axis(p);
+    let (lo, hi) = tips(p);
+    if !p
+        .arrows
+        .iter()
+        .any(|[_, tail]| tail[k] < lo || tail[k] > hi)
+    {
+        return None;
+    }
+    let width = p.label_box[k + 2] - p.label_box[k];
+    let mut c = label_at(p, 0.5 * (lo + hi - width));
+    let normal = 1 - k;
+    let lift = if k == 0 { 0.5 } else { -0.5 };
+    c.label_at[normal] += lift;
+    c.label_box[normal] += lift;
+    c.label_box[normal + 2] += lift;
+    Some(c)
+}
+
 fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) -> Vec<Placed> {
+    alternatives_placed(
+        p,
+        drawable,
+        &others
+            .iter()
+            .filter_map(|d| d.placed.as_ref())
+            .collect::<Vec<_>>(),
+    )
+    .collect()
+}
+
+pub(super) fn alternatives_placed<'a>(
+    p: &'a Placed,
+    drawable: [f64; 4],
+    others: &[&Placed],
+) -> impl Iterator<Item = Placed> + use<'a> {
     let k = axis(p);
     let (lo, hi) = tips(p);
     let width = p.label_box[k + 2] - p.label_box[k];
@@ -222,7 +274,7 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
         let centre = (0.5 * (lo + hi - width)).clamp(low, high);
         positions.extend([centre, low, high]);
         positions.push(p.label_box[k].clamp(low, high));
-        for q in others.iter().filter_map(|q| q.placed.as_ref()) {
+        for q in others {
             positions.extend([q.label_box[k] - CLEAR - width, q.label_box[k + 2] + CLEAR]);
             for [a, b] in &q.lines {
                 positions.extend([a[k].min(b[k]) - CLEAR - width, a[k].max(b[k]) + CLEAR]);
@@ -247,9 +299,8 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
     positions
         .into_iter()
         .chain(tail)
-        .filter(|at| *at >= drawable[k] && at + width <= drawable[k + 2])
-        .map(|at| label_at(p, at))
-        .collect()
+        .filter(move |at| *at >= drawable[k] && at + width <= drawable[k + 2])
+        .map(move |at| label_at(p, at))
 }
 
 fn promote(p: &Placed, amount: f64) -> Placed {
@@ -362,7 +413,20 @@ pub(crate) fn settle_inventory(
         let next_occupied = others
             .iter()
             .any(|q| contacts(&promote(p, LANE), q) & (1 << 4) != 0);
-        let found = (0..=if next_occupied { 2 } else { 1 })
+        let chained = others.iter().any(|q| {
+            q.view == d.view
+                && super::placement::slot_chain_claims(&d.measurements, &q.measurements)
+                && q.placed
+                    .as_ref()
+                    .is_some_and(|q| super::placement::forms_chain(p, q))
+        });
+        let found = (0..=if chained {
+            0
+        } else if next_occupied {
+            2
+        } else {
+            1
+        })
             .take_while(|n| !outside(&promote(p, *n as f64 * LANE), region))
             .find_map(|n| {
                 let lane = promote(p, n as f64 * LANE);

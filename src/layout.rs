@@ -226,6 +226,8 @@ pub struct Lanes {
     pub recess_callouts: [f64; 3],
     /// Linear recess items use the same full lane budget as their peers.
     pub recess_lanes: bool,
+    /// Minimum readable scale for an existing slot chain beside new recess items.
+    pub recess_chain_scale: f64,
     pub front_below: usize,
     pub front_right: usize,
     pub plate_front_left: usize,
@@ -234,7 +236,7 @@ pub struct Lanes {
     pub plate_side_left: f64,
     pub plate_side_top: f64,
     pub plate_plan_above: usize,
-    /// Plate thicknesses whose witnesses meet the silhouette on a side the fixed map never uses.
+    /// Linear witnesses on an opposite silhouette strip, including table-adjacent locations.
     pub plate_front_above: usize,
     pub plate_plan_right: usize,
     pub plate_plan_below: usize,
@@ -322,6 +324,13 @@ impl Strips {
         widen(&mut self.sv_bottom, lanes.side_below);
         widen(&mut self.sv_top, lanes.side_above);
         widen(&mut self.sv_right, lanes.side_right);
+        if lanes.recess_lanes {
+            widen(&mut self.sv_top, lanes.side_above.max(1) + 2);
+            if lanes.side_below > 0 {
+                widen(&mut self.sv_bottom, lanes.side_below + 2);
+                self.fv_bottom = self.fv_bottom.max(self.sv_bottom);
+            }
+        }
     }
 
     /// Reserves room at *scale* for the feature control frames, datum feature symbols and labels

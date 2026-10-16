@@ -685,3 +685,78 @@ fn native_equal_channel_widths_keep_all_claims_and_promote_an_omitted_carrier() 
         )
     );
 }
+
+/// A width label and an existing ramp leader must be repaired together. Moving
+/// the leader alone cleared the label but added two real hidden-edge crossings.
+#[test]
+fn recess_locations_do_not_send_an_existing_ramp_leader_through_extra_hidden_edges() {
+    let Some(root) = corpus::dir() else { return };
+    let (part, a) = model::analyse_native(&root.join("mfcadpp/10060.step")).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let mut earlier = a.clone();
+    earlier.features.retain(|f| f.kind != "section_recess");
+    let before = model::plan_recovered(&earlier, &Spec::default()).unwrap();
+    let id = "d:f:paired_ramp_step:1/ramp_angle.angle";
+    let crossings = |a: &Analysis, p: &model::Plan| {
+        use draftwright::output::Item;
+        let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
+        let lines = &d.placed.as_ref().unwrap().lines;
+        let drawing = model::render(&part, a, p, &font()).unwrap();
+        let cross = |s: [[f64; 2]; 2], t: [[f64; 2]; 2]| {
+            let side = |a: [f64; 2], b: [f64; 2], c: [f64; 2]| {
+                (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+            };
+            side(s[0], s[1], t[0]) * side(s[0], s[1], t[1]) < -1e-12
+                && side(t[0], t[1], s[0]) * side(t[0], t[1], s[1]) < -1e-12
+        };
+        drawing
+            .layers
+            .iter()
+            .filter(|l| l.name == "hidden")
+            .flat_map(|l| &l.items)
+            .filter_map(|i| match i {
+                Item::Edge(c) => Some(c),
+                Item::Face(_) => None,
+            })
+            .filter(|c| {
+                if let draftwright::output::Curve::Line(a, b) = c {
+                    return lines.iter().any(|s| cross(*s, [*a, *b]));
+                }
+                let b = c.bbox();
+                let n = ((b[2] - b[0]).hypot(b[3] - b[1]) / 0.002).ceil().max(1.0) as usize;
+                (0..n).any(|i| {
+                    let edge = [c.at(i as f64 / n as f64), c.at((i + 1) as f64 / n as f64)];
+                    lines.iter().any(|s| cross(*s, edge))
+                })
+            })
+            .count()
+    };
+    let old = crossings(&earlier, &before);
+    assert!(
+        old > 0,
+        "the established route has a real hidden-edge crossing"
+    );
+    assert!(
+        crossings(&a, &p) <= old,
+        "new recess ink displaced the existing route"
+    );
+    let claims: Vec<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .flat_map(|d| &d.measurements)
+        .filter(|m| m.feature == "f:section_recess:2")
+        .collect();
+    for parameter in [
+        "pocket_width.length",
+        "pocket_length.length",
+        "pocket_depth.length",
+        "location_pocket.y",
+        "location_pocket.z",
+    ] {
+        assert!(
+            claims.iter().any(|m| m.parameter == parameter),
+            "lost {parameter}"
+        );
+    }
+}
