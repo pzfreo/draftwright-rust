@@ -148,9 +148,10 @@ pub(super) fn labels<'a>(
                 .precision
                 .get(&want_id(&m.feature, &m.parameter))
                 .or_else(|| {
-                    (m.parameter == w.id.rsplit_once('/').map_or("", |(_, p)| p))
-                        .then(|| spec.precision.get(&w.id))
-                        .flatten()
+                    (m.parameter == w.id.rsplit_once('/').map_or("", |(_, p)| p)
+                        || (w.id.starts_with("d:authored:") && m.feature.starts_with("geometry:")))
+                    .then(|| spec.precision.get(&w.id))
+                    .flatten()
                 });
             if let Some(&p) = policy {
                 let text = format(m.value, p);

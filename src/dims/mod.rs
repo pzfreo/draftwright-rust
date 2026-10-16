@@ -56,6 +56,7 @@
 //! [`placement`] places it. A new family is a new planner module and an entry in the list.
 
 pub mod angular;
+pub(crate) mod authored;
 pub(crate) mod blends;
 mod bosses;
 mod edges;
@@ -876,7 +877,8 @@ pub(crate) fn callout_bands(
     }) {
         return Ok(Vec::new());
     }
-    let (wants, ..) = wants(analysis);
+    let (mut wants, ..) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
     let mut kept: Vec<_> = wants
         .into_iter()
         .map(|w| (w, false, None, Vec::new()))
@@ -956,6 +958,7 @@ fn lanes_uncached(
     spec: &Spec,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -967,6 +970,9 @@ fn lanes_uncached(
             )
         })
         .collect();
+    if spec.dimensions.values().any(|d| d.between.is_some()) {
+        problems.extend(chosen_views(&mut wants, spec, &frames)?);
+    }
     plates::prefer_readable(analysis, &mut wants, &frames, None);
     let (chosen, _) = route(&mut wants, &frames, analysis);
     let wants: Vec<_> = wants
@@ -1213,6 +1219,7 @@ pub(crate) fn plan_inventory(
     excluded: &BTreeSet<String>,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter_map(|v| {
@@ -1222,6 +1229,7 @@ pub(crate) fn plan_inventory(
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    let authored_ownership = authored::ownership(analysis, spec, &wants);
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
@@ -1376,6 +1384,14 @@ pub(crate) fn plan_inventory(
                 state: State::OmittedByUser,
             }),
             DimensionSource::Authored if entry.is_none() => {
+                if let Some(by) = authored_ownership.covered.get(&w.id) {
+                    omitted.push(Omitted {
+                        label: w.terms.join(" "), id: w.id,
+                        basis: format!("spec-authored: this quantity is stated by {by}; the unlisted automatic candidate is withheld (one owner)"),
+                        state: State::Covered { by: by.clone() },
+                    });
+                    continue;
+                }
                 // An authored set still keeps the automatic inventory. Surface every
                 // unstated item by name, even when another measurement locates its feature.
                 problems.push(Problem {
@@ -1861,6 +1877,19 @@ pub(crate) fn plan_inventory(
     let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
     for ((mut w, default, chosen, along), mut from_spec) in kept.into_iter().zip(given) {
+        if spec
+            .dimensions
+            .get(&w.id)
+            .is_some_and(|d| d.between.is_some())
+        {
+            from_spec.push("between".into());
+            if spec.dimensions[&w.id].kind.is_some() {
+                from_spec.push("kind".into());
+            }
+            if spec.dimensions[&w.id].along.is_some() {
+                from_spec.push("along".into());
+            }
+        }
         if from_spec.is_empty()
             && spec
                 .dimensions
@@ -1935,6 +1964,12 @@ pub(crate) fn plan_inventory(
         } else {
             Vec::new()
         };
+        if let Some(claims) = authored_ownership.claims.get(&w.id) {
+            w.measurements.extend(claims.iter().cloned());
+            if !claims.is_empty() {
+                basis += "; retains the measured roles of unlisted automatic candidates";
+            }
+        }
         out.push(PlannedDimension {
             reference,
             determined_by,
@@ -2581,7 +2616,18 @@ pub(crate) fn leader_reentry(
 
 /// Geometry-backed placement choices for the editor, including omitted dimensions.
 pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<String, Value> {
+    placement_options_with_spec(analysis, views, &Spec::default())
+}
+
+pub(crate) fn placement_options_with_spec(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    spec: &Spec,
+) -> BTreeMap<String, Value> {
     let (mut wants, ..) = wants(analysis);
+    if authored::append(analysis, spec, &mut wants).is_err() {
+        return BTreeMap::new();
+    }
     let original = wants.clone();
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -2617,6 +2663,9 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
                             }
                         }
                         Shape::Callout { .. } | Shape::Aligned { .. } => {
+                            vec!["above", "below", "left", "right"]
+                        }
+                        Shape::Angular { .. } if probe.id.starts_with("d:authored:") => {
                             vec!["above", "below", "left", "right"]
                         }
                         Shape::Angular { .. } => return None,

@@ -169,7 +169,7 @@ fn sig6(v: f64) -> String {
 
 /// draftwright's `_angular_reference_from_planes`: the common normal-section angle of two planes
 /// (each a point and a unit normal), its half-rays selected by the stations.
-fn from_planes(planes: [(P3, P3); 2], stations: [P3; 2]) -> Result<Angle, &'static str> {
+pub(crate) fn from_planes(planes: [(P3, P3); 2], stations: [P3; 2]) -> Result<Angle, &'static str> {
     let target = [0, 1, 2].map(|i| 0.5 * (stations[0][i] + stations[1][i]));
     let [(pa, na), (pb, nb)] = planes;
     let coupling = dot(na, nb);

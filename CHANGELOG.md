@@ -6,10 +6,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- Geometry-authored dimensions (`dimensions/d:authored:<name>`): principal or true distances,
+  cylindrical/spherical diameters and radii, and planar-face/straight-edge angles, with stable
+  fingerprint references, ordinary tolerance/placement, editor/session operations and independent
+  geometry lint (#76 item 1). Duplicate drawn quantities are refused with their existing owner.
+
 ### WASM API
 
 - Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
+- Spec JSON accepts authored dimension fields; Analysis/7 exposes optional exact
+  dimension-reference evidence. Engine method signatures are unchanged.
+
 
 ## 0.1.0-alpha.4 (2026-10-16)
 

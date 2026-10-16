@@ -285,6 +285,14 @@ impl DimensionSource {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct DimensionSpec {
+    /// Authored quantity; absent means an edit of an automatic dimension.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub between: Option<Vec<String>>,
+    /// x, y, z, or true (the default for an authored linear dimension).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub along: Option<String>,
     /// Leave it off the sheet (in `auto` only; an authored set leaves out by not listing).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub omit: bool,
@@ -2211,6 +2219,7 @@ fn plan_with_presentation(
         ));
     }
     let spec = &migrate(spec, analysis)?;
+    crate::dims::authored::check(spec)?;
     if spec
         .iso_scale_factor
         .is_some_and(|s| !s.is_finite() || s <= 0.0)
@@ -2241,6 +2250,16 @@ fn plan_with_presentation(
         base.sheet.fit_limits = spec.sheet.fit_limits;
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
+        if spec.dimensions.values().any(|d| d.between.is_some()) {
+            base.dimension_source = spec.dimension_source;
+            base.dimensions = spec.dimensions.clone();
+            for d in base.dimensions.values_mut() {
+                d.place = None;
+                d.view = None;
+                d.tolerance = None;
+                d.fit = None;
+            }
+        }
         Some(plan_recovered(analysis, &base)?)
     } else {
         None
@@ -3868,6 +3887,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::sheets::validate(&spec)?;
     crate::dims::check_tolerances(&spec)?;
     crate::spec_gdt::check(&spec)?;
+    crate::dims::authored::check(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
     title_block::check(&spec.sheet.title)?;
@@ -5888,4 +5908,5 @@ fn pdf_spec(text: &str) -> Result<Option<String>, String> {
 
 mod projection_store;
 
+pub mod dimension_geometry;
 pub mod projected_ink;

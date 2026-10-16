@@ -191,7 +191,7 @@ The design also includes `views/sections` and feature `anchor`
 since K1b (below).
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
-  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
+  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
   knurls and notes authored in the Spec", below), `notes` and `tables`.
@@ -1344,6 +1344,98 @@ half omitted, with a `correlated_set_conflict` warning naming the omitted and th
 its fix removing the omission. A turned profile's chain is not such a set. In an edit path, the
 `/` inside a dimension's ID is written `~1`, as in a JSON pointer:
 `{"op": "set", "path": "dimensions/d:envelope~1width.length/omit", "value": true}`.
+
+### Dimensions authored from geometry (#76 item 1)
+
+`dimensions/d:authored:<name>` adds a quantity independently of recognition. The name is
+chosen by the author (letters, digits, `_` and `-`), remains its ID after moving it to another
+view, and must not reuse an automatic dimension ID. For example (replace the abbreviated
+fingerprints with complete keys from the Analysis):
+
+```json
+{
+  "dimensions": {
+    "d:authored:axis_offset": {
+      "between": ["face:v1:<fingerprint>", "axis:face:v1:<fingerprint>"],
+      "along": "x", "view": "front", "tolerance": "±0.1",
+      "place": {"side": "below", "lane": 1, "along": "middle"}
+    },
+    "d:authored:diagonal": {
+      "kind": "linear", "between": ["vertex:v1:<fingerprint>", "vertex:v1:<fingerprint>"],
+      "along": "true", "view": "front"
+    },
+    "d:authored:seat_radius": {
+      "kind": "radius", "between": ["face:v1:<fingerprint>"], "tolerance": "±0.05"
+    },
+    "d:authored:corner": {
+      "kind": "angle", "between": ["edge:v1:<fingerprint>", "edge:v1:<fingerprint>"]
+    }
+  }
+}
+```
+
+- `kind` is `linear` (default), `diameter`, `radius` or `angle`. `between` contains two
+  references for linear/angle, one cylindrical or spherical face for diameter/radius.
+  `along` is `x`, `y`, `z` or `true` (default), for linear dimensions only. It is distinct
+  from `place.along`, which positions the label. No measured value or model/paper point is
+  accepted in the Spec. Existing `tolerance`, `view`, `place`, omission and `precision`
+  policies apply. Linear sizes and diameters also accept `fit` (ISO 286 class, without an
+  explicit tolerance), class-only by default; radius and angle dimensions take explicit bands.
+- **Discover references in `Analysis.edge_ink.references`.** This optional Analysis/7 field
+  maps full `face:v1:<sha256>`, `edge:v1:<sha256>` and `vertex:v1:<sha256>` keys to lists of
+  exact model-space records. A usable key has exactly one record. Plane, cylinder and sphere
+  faces, straight B-rep edges and topological vertices are available. `axis:<face key>`
+  selects a cylinder's axis; `axis:f:hole:3` selects the common cylinder axis of a recognized
+  feature, refusing a feature with several axes. Prefer the face spelling when saving across
+  revisions. Index-based `face:12`, `edge:12`, and page-coordinate references are not accepted.
+  Older Analyses lacking evidence still plan their defaults; authoring requires analysing again.
+- **Fingerprint contract.** The `v1` spelling and its content are fixed: SHA-256 of canonical
+  sorted-key JSON containing the exact analytic record and sorted face-boundary endpoint
+  signatures, with numbers rounded to 1e-6 mm. Plane normals and cylinder axes have their
+  first nonzero component positive; their origins are the nearest point to the model origin
+  on the plane/axis. Edge ends and surface sites are sorted; face traversal indices are absent.
+  Fingerprints therefore survive face/edge/vertex enumeration and edge reversal. They identify
+  unchanged geometry, not a guessed successor after a resize or rigid move. Coincident
+  topological entities remain a multi-record ambiguity and are refused. A future fingerprint
+  algorithm must retain `v1` resolution. A missing key names the reference and tells the author
+  to copy a current Analysis key; it never silently binds to another entity.
+- **Measurement.** Linear references are supporting planes, straight supporting lines (including
+  cylinder axes), or vertices. A principal direction requires a unique station: a plane normal
+  to that direction, an edge/axis perpendicular to it, or a vertex. `true` measures the shortest
+  separation of the supports. Intersecting supports have zero distance and are refused.
+  Angular references are two nonparallel planar faces or two coplanar, nonparallel straight
+  edges; the angle is the smaller angle between their unoriented supports (0–90 degrees).
+  True lengths and angular sectors need a principal view that shows them true; a requested
+  incompatible view is refused with the compatible choices. A size leader can attach to any
+  cylindrical/spherical face, including an oblique cylinder, using exact surface sites.
+- **One quantity, one owner (K6).** A new dimension duplicating a drawn automatic owner is
+  refused, naming that owner ID in the message and choices. Edit its tolerance/view/place
+  instead. Coincident principal spans, identical true spans/angular sectors, and the radius
+  or diameter of a face already sized by its feature owner are duplicates; equal numeric
+  sizes alone are not. A radius and diameter on the same face are one size quantity.
+  In `dimension_source: authored`, only listed automatic IDs are owners; unlisted automatic
+  candidates remain withheld, so a drawing can use entirely geometry-authored dimensions.
+  Omitted dimensions do not own quantities. A replacement retains the matched numeric
+  roles for independent completeness lint. A wholly restated automatic candidate is `covered`
+  by the authored ID, with the basis naming that owner; a compound candidate's THRU, count,
+  depth and other unstated roles remain required and are never inferred from its diameter.
+- **Same planning and lint.** Authored quantities enter the ordinary dimension inventory before
+  view routing, tolerance formatting and band reservation. They use its lanes, arrows, angular
+  arcs, leaders, collision findings and sheet-selection rules. `default` is false, the basis
+  says `spec-authored`, and `from_spec` includes `between`, plus explicit `kind`, `along`,
+  tolerance and placement fields. A drawing claim carries only reference identities and the
+  requested quantity (`geometry:<reference>|<reference>`, `linear.x`/`linear.true`, `diameter`,
+  `radius`, `angle`), not a trusted nominal. Lint remeasures these against the Analysis and
+  checks the leading printed value and size symbol; bad ink or unresolved references report
+  `authored_dimension_invalid` errors. Existing structural and feature-completeness lint still
+  applies; authored dimensions never silence missing manufacturing requirements.
+- **Editing.** Existing `items::Op::set` / `remove` and session preview, apply, undo and redo
+  operate on the entry and its fields, with atomic refusal. Set the complete entry to create
+  it, for example `{"op":"set","path":"dimensions/d:authored:corner","value":{...}}`;
+  remove the entry to delete it. Session/MCP item answers expose its reference anchors,
+  placement options and editable fields. Sheet options describe the creation forms. MCP
+  schemas describe the new fields without adding a tool. Browser bindings accept the same
+  Spec and operations; their method signatures are unchanged.
 
 ## The five operations
 

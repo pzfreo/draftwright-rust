@@ -29,7 +29,7 @@
               "$ref": "#/$defs/D"
             },
             "smallest_scale": {
-              "$ref": "#/$defs/C"
+              "$ref": "#/$defs/B"
             },
             "keep_together": {
               "type": "array",
@@ -53,10 +53,10 @@
           "type": "object",
           "properties": {
             "size": {
-              "$ref": "#/$defs/C"
+              "$ref": "#/$defs/B"
             },
             "scale": {
-              "$ref": "#/$defs/C"
+              "$ref": "#/$defs/B"
             },
             "title": {
               "type": "object",
@@ -96,7 +96,111 @@
           "$ref": "#/$defs/A"
         },
         "dimensions": {
-          "$ref": "#/$defs/A"
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "omit": {
+                "type": "boolean"
+              },
+              "tolerance": {
+                "$ref": "#/$defs/B"
+              },
+              "fit": {
+                "$ref": "#/$defs/B"
+              },
+              "view": {
+                "$ref": "#/$defs/B"
+              },
+              "place": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "view": {
+                    "enum": [
+                      "front",
+                      "plan",
+                      "side"
+                    ]
+                  },
+                  "side": {
+                    "enum": [
+                      "above",
+                      "below",
+                      "left",
+                      "right"
+                    ]
+                  },
+                  "lane": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "along": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "start",
+                          "middle",
+                          "end",
+                          "outside"
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    ]
+                  },
+                  "offset": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "kind": {
+                "enum": [
+                  null,
+                  "linear",
+                  "diameter",
+                  "radius",
+                  "angle"
+                ]
+              },
+              "between": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "maxItems": 2
+              },
+              "along": {
+                "enum": [
+                  null,
+                  "x",
+                  "y",
+                  "z",
+                  "true"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
         },
         "annotations": {
           "$ref": "#/$defs/A"
@@ -121,13 +225,13 @@
           ]
         },
         "notes": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         },
         "tables": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         },
         "gears": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         }
       },
       "additionalProperties": false
@@ -157,10 +261,10 @@
           "$ref": "#/$defs/D"
         },
         "view": {
-          "$ref": "#/$defs/C"
+          "$ref": "#/$defs/B"
         },
         "kind": {
-          "$ref": "#/$defs/C"
+          "$ref": "#/$defs/B"
         },
         "state": {
           "anyOf": [
@@ -222,7 +326,7 @@
           ]
         },
         "feature": {
-          "$ref": "#/$defs/C"
+          "$ref": "#/$defs/B"
         },
         "region": {
           "type": [
@@ -236,7 +340,7 @@
           "maxItems": 4
         },
         "near": {
-          "$ref": "#/$defs/C"
+          "$ref": "#/$defs/B"
         },
         "radius": {
           "type": [
@@ -261,16 +365,16 @@
       "type": "object"
     },
     "B": {
-      "items": {
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "C": {
       "type": [
         "string",
         "null"
       ]
+    },
+    "C": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
     },
     "D": {
       "enum": [
