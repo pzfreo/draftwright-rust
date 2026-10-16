@@ -85,6 +85,11 @@ pub(super) fn labels<'a>(
         choices: Vec::new(),
     };
     for w in wants {
+        // ISO thread designations replace the numeric diameter. Their lengths and table
+        // references are different quantities, even when they happen to equal that diameter.
+        if super::tolerance::thread_designated(w) {
+            continue;
+        }
         // A compound callout's scalar terms are in measurement order. Repeat that mapping
         // for each physical member; all members sharing one printed term must agree.
         let mut replacements: BTreeMap<(usize, usize, usize), String> = BTreeMap::new();
@@ -179,6 +184,34 @@ pub(super) fn leading(spec: &Spec, w: &Want) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn symbolic_threads_and_manufacturing_references_are_not_nominal_terms() {
+        use crate::dims::{Measurement, Shape, Want};
+        use crate::model::Spec;
+        for terms in [vec!["M10", "10 MIN FULL THREAD"], vec!["SEE MFG 10"]] {
+            let mut want = Want {
+                id: "d:f:turned_step:1/step.diameter".into(),
+                views: vec!["front"],
+                value: 10.0,
+                terms: terms.into_iter().map(String::from).collect(),
+                measurements: vec![Measurement {
+                    feature: "f:turned_step:1".into(),
+                    parameter: "step.diameter".into(),
+                    value: 10.0,
+                }],
+                basis: String::new(),
+                shape: Shape::Callout { sites: vec![] },
+                turning: None,
+            };
+            let before = want.terms.clone();
+            let mut spec = Spec::default();
+            spec.precision.insert(want.id.clone(), 3);
+            super::apply(&spec, std::slice::from_mut(&mut want)).unwrap();
+            assert_eq!(want.terms, before);
+            assert_eq!(want.measurements[0].value, 10.0);
+        }
+    }
+
     #[test]
     fn precision_boundaries_and_negative_zero_are_stable() {
         assert_eq!(super::format(1.25, 0), "1");
