@@ -307,9 +307,19 @@ fn internal_section(analysis: &Analysis, holes: &[Hole], centre_y: f64) -> Optio
             .filter(|h| h.axis == Some(0) && !h.through)
             .map(|h| (h.at[1], "transverse_blind_hole")),
     );
+    internal_station(&sites, centre_y)
+}
+
+fn internal_station(sites: &[(f64, &str)], centre_y: f64) -> Option<Section> {
     let mut rows: Vec<f64> = sites
         .iter()
-        .map(|(y, _)| (y * 10.0).round() / 10.0)
+        // Decimal formatting rounds the actual binary value with ties to even,
+        // like Python round(y, 1), without first rounding y * 10.
+        .map(|(y, _)| {
+            format!("{y:.1}")
+                .parse::<f64>()
+                .expect("a formatted coordinate parses")
+        })
         .collect();
     rows.sort_by(f64::total_cmp);
     rows.dedup();
@@ -660,5 +670,30 @@ mod tests {
             layout::legible_steps(&zs, 0.0, 5.0),
             vec![5.0, 7.0, 9.0, 13.0]
         );
+    }
+}
+
+#[cfg(test)]
+mod internal_station_tests {
+    use super::internal_station;
+
+    #[test]
+    fn internal_station_rows_use_python_rounding() {
+        // Python round(y, 1) rounds the actual binary value, with ties to even.
+        // Scaling first also introduces a second rounding for +/-1.15.
+        for (y, expected) in [(1.25, 1.2), (-1.25, -1.2), (1.15, 1.1), (-1.15, -1.1)] {
+            let section = internal_station(
+                &[
+                    (y, "hex_pocket"),
+                    (y, "hex_pocket"),
+                    (y, "circular_channel"),
+                ],
+                y,
+            )
+            .expect("three unlike internal details qualify the station");
+            assert_eq!(section.cut_y, expected, "station at {y}");
+            assert_eq!(section.holes, 3);
+            assert!(section.internal_detail);
+        }
     }
 }

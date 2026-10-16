@@ -3046,8 +3046,8 @@
       - "tests/test_issue_1604_internal_section.py::test_original_frame_section_and_required_slots_survive_script_replay"
     corpus_parts: ["issue_1595_whistle_key_frame.step"]
   status: ported
-  rust_test: "tests/views_layout_rules.rs::internal_stations_require_three_details_of_two_kinds"
-  rust_note: "Python internal_section_rows is ported for recognized Analysis features through the shared section-recess grammars (the original fixture uses the supported recognition bridge): Z hex pockets, Y circular seats and X blind-hole physical members qualify rows within 0.5 mm, at least three details of two kinds. Qualifying bore rows have priority; otherwise the densest internal row wins, nearest the part centre then lowest Y on a tie. The original whistle-frame fixture chooses Y=-7.9 and retains a hatched section and required slot dimensions through direct and recovered planning; one-kind or only two-detail rows do not qualify."
+  rust_test: "tests/views_layout_rules.rs::internal_stations_require_three_details_of_two_kinds; src/demand.rs::internal_station_rows_use_python_rounding"
+  rust_note: "Python internal_section_rows is ported for recognized Analysis features through the shared section-recess grammars (the original fixture uses the supported recognition bridge): Z hex pockets, Y circular seats and X blind-hole physical members qualify rows within 0.5 mm, at least three details of two kinds. Internal rows use Python's decimal round(y, 1), including ties to even and binary-value boundaries. Qualifying bore rows have priority; otherwise the densest internal row wins, nearest the part centre then lowest Y on a tie. The original whistle-frame fixture chooses Y=-7.9 and retains a hatched section and required slot dimensions through direct and recovered planning; one-kind or only two-detail rows do not qualify."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-1612-a
