@@ -1047,10 +1047,6 @@ pub(super) fn avoid_fixed(
     if held.is_empty() {
         return;
     }
-    let callout_pin = items
-        .iter()
-        .zip(fixed)
-        .any(|(w, fixed)| *fixed && matches!(w.shape, Shape::Callout { .. }));
     let blocked = |p: &Placed| {
         held.iter().any(|(q, leader)| {
             boxes_overlap(p.label_box, q.label_box)
@@ -1090,13 +1086,14 @@ pub(super) fn avoid_fixed(
         let candidates = (0..64)
             .map(|n| (side, n))
             .chain((0..64).map(|n| (opposite, n)));
+        // Moving around any pin must preserve distinct peer dimension lines. A linear
+        // pin obstructs the same lanes as a callout pin.
         for (side, lane) in candidates {
             if let Some(p) = place(&frames[view], &items[i], side, lane)
                 && page.fits(&p, view)
                 && !blocked(&p)
                 && !placed.iter().enumerate().any(|(j, q)| {
-                    callout_pin
-                        && drawn[i]
+                    drawn[i]
                         && drawn[j]
                         && j != i
                         && chosen[j] == Some(view)
