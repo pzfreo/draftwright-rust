@@ -22,10 +22,10 @@ Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 10 | 63 | 61 | 26 |
-| `lint.yaml` | 17 | 114 | 15 | 19 |
-| `issues.yaml` | 39 | 74 | 51 | 26 |
-| **All** | **66** | **251** | **127** | **71** |
+| `adr.yaml` | 9 | 64 | 61 | 26 |
+| `lint.yaml` | 12 | 120 | 14 | 19 |
+| `issues.yaml` | 37 | 76 | 51 | 26 |
+| **All** | **58** | **260** | **126** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
@@ -42,6 +42,10 @@ The table-rule batch keeps six verified ported entries, promoting four beyond ma
 LINT-code-manufacturing_reference_unresolved, ISSUE-1144-a, ISSUE-1202-a and ISSUE-1543-c.
 The approved triage is otherwise retained, including ISSUE-883-a's translation. Test
 citations name files and tests found in the merged checkout.
+
+The gear batch ports all eight selected gear rules and promotes the earlier
+`gear_semantics_missing` translation to its exact Python diagnostic. Evidence is in
+`tests/gears.rs`, including the real 13-tooth wheel and a smooth declared blank.
 
 The [pins/lint batch evidence](pins-lint-2026-10-16.md) records its regression pins and
 implementation checks. The [main merge report](pins-lint-main-merge-2026-10-16.md) lists
