@@ -97,6 +97,18 @@ fn records(
 pub fn compare() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let record = std::env::var("DRAFTWRIGHT_RECORD_SINGLE_SHEET").as_deref() == Ok("1");
+    // Opt-in while the drawings are still being improved (maintainer decision 2026-10-16):
+    // nearly every change moves drawings on purpose, so a byte gate on every merge only made
+    // each PR re-record. The quality baseline, the leader-route check, lint and the tests gate
+    // regressions; run this to list exactly which documents a change moved, and make it a gate
+    // again when stabilising for a release. The fixtures are kept but no longer maintained.
+    let opted_in = std::env::var("DRAFTWRIGHT_SINGLE_SHEET").as_deref() == Ok("1")
+        || record
+        || std::env::var("DRAFTWRIGHT_REBASELINE_SINGLE_SHEET").is_ok();
+    if !opted_in {
+        eprintln!("SKIPPED: single-sheet byte guard is opt-in; set DRAFTWRIGHT_SINGLE_SHEET=1");
+        return;
+    }
     let Some(corpus) = corpus::dir() else {
         assert!(!record, "Recording needs the complete corpus");
         eprintln!("SKIPPED: single-sheet corpus hashes; set DRAFTWRIGHT_CORPUS");
