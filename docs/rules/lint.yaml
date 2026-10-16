@@ -392,6 +392,7 @@
     issues: [1229]
     tests: [tests/test_issue_1370_countersink_completeness_evidence.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Lint counts a countersink only on its hole's record (src/lint/holes.rs, the csink term of the hole's callout); a CounterSink record joined to no hole, such as the second seat of a two-sided bore, is neither counted nor reported unverifiable (also ISSUE-1143-e)."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
 - id: LINT-code-hole_requirement_state
@@ -1506,6 +1507,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration (Spec or PMI) and no gear data table; see ARCH0015-3."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_requirement_mismatch
@@ -1518,6 +1520,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no gear data table to compare with an authored gear requirement (ARCH0015-3)."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_semantics_missing
@@ -1544,6 +1547,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no declared gear axis to compare with the repeating profile's (ARCH0015-3)."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 - id: LINT-code-gear_repeat_count_mismatch
@@ -1556,6 +1560,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1176_quality_fidelity.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no declared tooth count to compare with the profile's repeat count (ARCH0015-3)."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 - id: LINT-code-gear_correspondence_unverifiable
@@ -1567,6 +1572,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: with no gear declaration there is no correspondence to verify (ARCH0015-3)."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 # ---------------------------------------------------------------------------------------
@@ -1851,6 +1857,7 @@
     issues: [798]
     tests: [tests/test_issue_798_silhouette_lint.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Lint judges a callout's shaft against the material (leader_crosses_silhouette, src/lint/leaders.rs) only when its view has a recorded transform; an annotation without one (a captured Python sheet) is skipped, not reported unverified. The port's own drawings always record the transform (Sheet::frames), so the case arises only for drawings it did not make."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream leaders-and-tips"
 
 - id: LINT-code-datum_leader_remote
