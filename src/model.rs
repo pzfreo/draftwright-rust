@@ -3831,6 +3831,8 @@ pub struct Projections {
     binding: Option<String>,
     views: HashMap<Vec<u64>, Vec<Projected>>,
     cuts: HashMap<Vec<u64>, Vec<Vec<[f64; 3]>>>,
+    cut_material: HashMap<Vec<u64>, bool>,
+    hatches: HashMap<Vec<u64>, Vec<Item>>,
     geometry: HashMap<Vec<u64>, (Vec<u64>, ViewGeometry)>,
     stats: ProjectionStats,
 }
@@ -3884,6 +3886,8 @@ impl Projections {
         if self.binding.as_ref() != Some(&analysis.binding.source_sha256) {
             self.views.clear();
             self.cuts.clear();
+            self.cut_material.clear();
+            self.hatches.clear();
             self.geometry.clear();
             self.binding = Some(analysis.binding.source_sha256.clone());
         }
@@ -3966,6 +3970,17 @@ impl Projections {
         }?;
         self.views.insert(key, pieces.clone());
         Ok(pieces)
+    }
+
+    fn cut_material(&mut self, part: &Part, cut: &Cut, plane: &Plane) -> Result<bool, Unresolved> {
+        let key = bits(&[&cut.origin, &cut.normal]);
+        if let Some(material) = self.cut_material.get(&key) {
+            return Ok(*material);
+        }
+        let loops = self.cut(part, cut, plane)?;
+        let material = cut_crosses_material(part, plane, &loops);
+        self.cut_material.insert(key, material);
+        Ok(material)
     }
 
     fn cut(
@@ -4289,6 +4304,7 @@ fn render_annotations_with_cuts(
     items: &BTreeMap<String, RenderedItem>,
     remote_sections: &[&PlannedView],
 ) -> Result<Drawing, Unresolved> {
+    projections.bind(analysis);
     // A tangent/gap plane has retained geometry, but no new cut face. Refuse
     // that section's ink and report it, rather than captioning the retained half
     // as a manufactured section (ISSUE-1530-a). The rest of the sheet still draws.
@@ -4312,7 +4328,7 @@ fn render_annotations_with_cuts(
         let at = (0..3).map(|k| plane.normal[k] * cut.origin[k]).sum::<f64>();
         let reason = if at <= limits[0] || at >= limits[1] {
             Some("the plane is not strictly inside the part's open extent")
-        } else if !cut_crosses_material(part, &plane, &projections.cut(part, cut, &plane)?) {
+        } else if !projections.cut_material(part, cut, &plane)? {
             Some("cut_no_intersection: no material crosses the cutting plane")
         } else {
             None
@@ -5462,79 +5478,95 @@ fn section_furniture(
     };
     let view = &View::new(v.direction, v.up).expect("a planned view");
     let (s, centre) = (v.scale, extent(analysis, view).1);
-    let page: Vec<Vec<[f64; 2]>> = projections
-        .cut(part, cut, plane)?
-        .iter()
-        .map(|l| {
-            l.iter()
-                .map(|p| {
-                    let q = view.map(*p);
-                    [
-                        v.at[0] + s * (q[0] - centre[0]),
-                        v.at[1] + s * (q[1] - centre[1]),
-                    ]
-                })
-                .collect()
-        })
-        .collect();
-    // Only material crossing the plane is hatched. Coplanar faces and stray cut
-    // pieces must not flip parity or conceal a boundary inside a candidate span.
-    let faces: Vec<usize> = part
-        .solids
-        .iter()
-        .flat_map(|solid| solid.faces.iter().copied())
-        .collect();
-    let classifier = if faces.is_empty() {
-        Classifier::new(part)
+    // Hatch geometry depends on the part, plane and projection transform, not
+    // annotation text or title fields. Binding changes discard this cache.
+    let hatch_key = bits(&[
+        &v.direction,
+        &v.up,
+        &cut.origin,
+        &cut.normal,
+        &[s],
+        &centre,
+        &v.at,
+    ]);
+    if let Some(ink) = projections.hatches.get(&hatch_key) {
+        out.ink = ink.clone();
     } else {
-        Classifier::for_faces(part, faces)
-    };
-    let n = plane.normal;
-    let to_model = |q: [f64; 2], side: f64| {
-        let (u, w) = (
-            centre[0] + (q[0] - v.at[0]) / s,
-            centre[1] + (q[1] - v.at[1]) / s,
-        );
-        let base = [0, 1, 2].map(|k| view.x[k] * u + view.y[k] * w);
-        let along = (0..3)
-            .map(|k| (cut.origin[k] - base[k]) * n[k])
-            .sum::<f64>()
-            / (0..3).map(|k| view.toward[k] * n[k]).sum::<f64>();
-        [0, 1, 2].map(|k| base[k] + view.toward[k] * along + side * n[k] * 1e-2)
-    };
-    for [a, b] in hatch(&page, HATCH_SPACING, Some(&|_| true)) {
-        let point = |t: f64| [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
-        let (p, q) = (to_model(a, 1.0), to_model(b, 1.0));
-        let length = (0..3).map(|k| (q[k] - p[k]).powi(2)).sum::<f64>().sqrt();
-        let direction = [0, 1, 2].map(|k| (q[k] - p[k]) / length);
-        let mut stops = vec![0.0, 1.0];
-        for side in [-1.0, 1.0] {
-            let hits = classifier
-                .rays()
-                .hits(to_model(a, side), direction, length)
-                .ok_or_else(|| Unresolved {
-                    faces: part
-                        .solids
-                        .iter()
-                        .flat_map(|solid| solid.faces.iter().copied())
-                        .collect(),
-                    edges: Vec::new(),
-                })?;
-            stops.extend(hits.iter().map(|hit| (hit.t / length).clamp(0.0, 1.0)));
-        }
-        stops.sort_by(f64::total_cmp);
-        stops.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
-        for pair in stops.windows(2) {
-            let middle = point((pair[0] + pair[1]) / 2.0);
-            if (pair[1] - pair[0]) * length * s > 0.2
-                && [-1.0, 1.0]
-                    .into_iter()
-                    .all(|side| classifier.classify(to_model(middle, side)) == State::In)
-            {
-                out.ink
-                    .push(Item::Edge(Curve::Line(point(pair[0]), point(pair[1]))));
+        let page: Vec<Vec<[f64; 2]>> = projections
+            .cut(part, cut, plane)?
+            .iter()
+            .map(|l| {
+                l.iter()
+                    .map(|p| {
+                        let q = view.map(*p);
+                        [
+                            v.at[0] + s * (q[0] - centre[0]),
+                            v.at[1] + s * (q[1] - centre[1]),
+                        ]
+                    })
+                    .collect()
+            })
+            .collect();
+        // Only material crossing the plane is hatched. Coplanar faces and stray cut
+        // pieces must not flip parity or conceal a boundary inside a candidate span.
+        let faces: Vec<usize> = part
+            .solids
+            .iter()
+            .flat_map(|solid| solid.faces.iter().copied())
+            .collect();
+        let classifier = if faces.is_empty() {
+            Classifier::new(part)
+        } else {
+            Classifier::for_faces(part, faces)
+        };
+        let n = plane.normal;
+        let to_model = |q: [f64; 2], side: f64| {
+            let (u, w) = (
+                centre[0] + (q[0] - v.at[0]) / s,
+                centre[1] + (q[1] - v.at[1]) / s,
+            );
+            let base = [0, 1, 2].map(|k| view.x[k] * u + view.y[k] * w);
+            let along = (0..3)
+                .map(|k| (cut.origin[k] - base[k]) * n[k])
+                .sum::<f64>()
+                / (0..3).map(|k| view.toward[k] * n[k]).sum::<f64>();
+            [0, 1, 2].map(|k| base[k] + view.toward[k] * along + side * n[k] * 1e-2)
+        };
+        for [a, b] in hatch(&page, HATCH_SPACING, Some(&|_| true)) {
+            let point = |t: f64| [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+            let (p, q) = (to_model(a, 1.0), to_model(b, 1.0));
+            let length = (0..3).map(|k| (q[k] - p[k]).powi(2)).sum::<f64>().sqrt();
+            let direction = [0, 1, 2].map(|k| (q[k] - p[k]) / length);
+            let mut stops = vec![0.0, 1.0];
+            for side in [-1.0, 1.0] {
+                let hits = classifier
+                    .rays()
+                    .hits(to_model(a, side), direction, length)
+                    .ok_or_else(|| Unresolved {
+                        faces: part
+                            .solids
+                            .iter()
+                            .flat_map(|solid| solid.faces.iter().copied())
+                            .collect(),
+                        edges: Vec::new(),
+                    })?;
+                stops.extend(hits.iter().map(|hit| (hit.t / length).clamp(0.0, 1.0)));
+            }
+            stops.sort_by(f64::total_cmp);
+            stops.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
+            for pair in stops.windows(2) {
+                let middle = point((pair[0] + pair[1]) / 2.0);
+                if (pair[1] - pair[0]) * length * s > 0.2
+                    && [-1.0, 1.0]
+                        .into_iter()
+                        .all(|side| classifier.classify(to_model(middle, side)) == State::In)
+                {
+                    out.ink
+                        .push(Item::Edge(Curve::Line(point(pair[0]), point(pair[1]))));
+                }
             }
         }
+        projections.hatches.insert(hatch_key, out.ink.clone());
     }
     out.hatch = out.ink.len();
     let half_h = 0.5 * extent(analysis, view).0[1] * v.scale;
