@@ -4,7 +4,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.1.0-alpha.3 (2026-10-16)
 
 ### Added
 
@@ -18,7 +18,61 @@ All notable changes to draftwright-rust are recorded here, in the style of
   identically (a `.step.gz` is titled by its stem without `.gz`). A gzip that does not
   decompress is refused as invalid input, saying so.
 
+- Draw one chosen assembly part through the CLI (`parts`, `--part`), API, sessions and MCP,
+  with its own geometry, PMI and material; drawing an assembly whole reports it (#28).
+- AP242 external threads replace turned-diameter callouts with their designations; profile
+  views draw thread minor-diameter lines and knurl bands (#35).
+- AP242 surface textures draw as ISO 1302 face symbols or a part-wide default finish (#38).
+- Pinned callouts accept a paper-space `place.offset`, including positions inside their view;
+  sessions report the current offset and pinning it leaves the callout in place (#39).
+- First- and third-angle projection via `sheet/projection` (#37); off-scale isometric views
+  carry `ISO VIEW (NTS)` (#49).
+- ISO shaft fits on turned diameters print their ISO 286 limits; `sheet/fit_limits: false`
+  keeps the class alone (#42).
+- Spec-authored feature and face datums and GD&T controls, sharing the AP242 drawing path;
+  spec entries override STEP PMI and report undeclared datum letters (#47).
+- Spec-authored surface finish, threads, knurls and leadered notes on features and faces,
+  plus `sheet/default_finish`, through the same paths as AP242 PMI (#52).
+- Structural lint checks labels against measured ink, angles against their rays and visible
+  edges, datum-symbol distance, and nominal rounding (#50).
+- Per-body length chains for parallel turned bodies, raised-pad sizes, heights and locations,
+  and counted free-direction slot callouts; lint credits full extents and exact adjoining
+  groups, and ambiguous groove ownership is refused (#55).
+
+### Changed
+
+- The Python-rules catalogue (`docs/rules`) applies the maintainer-approved triage of every
+  pending rule: 12 retired, 91 translated with the Rust mechanism that meets each, 7 already
+  met marked ported, and the 80 left to port tagged with value, size and stream; stale notes
+  describe current Rust. `tests/rules_catalogue.rs` checks that every rule says what backs its
+  status, every cited test exists and the README tables match the files.
+
+- Pinned haecceity and quiddity to quiddity-rust `v0.1.0-alpha.4` (commit `f5ddb726`), from rev `7cb26d85`.
+- Plan problems use drawing language and identify the affected faces and callouts;
+  reference dimensions carry `reference` and `determined_by` (#29).
+- Turned profiles measured from a datum end use baseline shoulder positions; existing band
+  dimension IDs remain covered by those positions (#48).
+- Faster hidden-line rendering through quiddity-rust, with render-tail acceptance budgets
+  for cgb243 and threaded_connector_109 (#51).
+- The single-sheet byte guard is opt-in (`DRAFTWRIGHT_SINGLE_SHEET=1`); its fixtures are kept
+  without maintenance and CI no longer records them. Quality, leader-route, lint and test
+  gates remain (#53).
+- One owner per measurement: authored sets preserve covered items, ladder and shoulder sets
+  are approved or omitted whole unless an explicit member entry conflicts, and closed boss
+  heights become references. Lint reports redundant pattern locations and toleranced
+  references (#57).
+
 ### Fixed
+
+- Pinned sheet size and scale are judged on the finished drawing, with a verified fix for
+  real misfits (#37).
+- The third-angle projection symbol follows ISO 5456-2; basic cross-hole locations work
+  across principal bore axes and replace the plain default with a boxed dimension (#40).
+- Applied leader fixes re-space overlapping dimension lanes and keep outside text beside
+  its line; plan problems and lint report shared lines and stray text (#46).
+- Leader routing and lint share the material re-entry check; pinned callouts report re-entry
+  with an unpin fix, diameter and radius leaders are checked against their targets, and
+  callout arrowhead flares count as collision ink (#54).
 
 - Datum feature symbols try the space inside dimension lanes before outer tiers, can use
   either proven cylinder silhouette, and can stand on drawn planar face extensions. Shared
