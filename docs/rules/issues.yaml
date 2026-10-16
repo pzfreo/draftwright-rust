@@ -485,6 +485,7 @@
       - "tests/test_issue_958_cross_solid_recognition.py::test_channel_geometry_order_does_not_depend_on_compound_child_order"
     corpus_parts: []
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): a recognition lesson (owner: quiddity, when ported). draftwright-rust takes recognition's records as given and does not combine faces across solids itself; quiddity-rust's own per-solid guarantees are its tests. Since stream G3 a file of several parts can be drawn one chosen part at a time (--part), which keeps separate bodies apart on the sheet. Not checked here: no test feeds a detached body and asserts that no slot, pad, pocket or channel spans it."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 - id: ISSUE-1000-a
@@ -533,6 +534,7 @@
       - "tests/test_issue_1058_wheel_profile.py::test_across_flats_cannot_survive_without_the_compound_callout_head"
     corpus_parts: ["issue_1058_wheel_rh.step"]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported for the drawing. Double-D bores are read (src/bridge/native.rs) and linted (LINT-profiled_bore_coverage-double_d: one annotation must claim and print both the diameter and the across-flats), but no planner dimensions them: dims::PLANNERS has none for double_d_bore, so each is a dimensions_not_ported problem and the port's own drawing then carries profiled_bore_not_dimensioned."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
 - id: ISSUE-1058-b
@@ -612,6 +614,7 @@
       - "tests/test_issue_1086_declared_gears.py::test_external_spur_gear_ir_rejects_incomplete_or_invalid_requirements"
     corpus_parts: []
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration and no gear data table (ARCH0015-3)."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream gears"
 
 - id: ISSUE-1086-b
@@ -1989,6 +1992,7 @@
       - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_opposed_coaxial_taps_keep_solver_participation_on_authored_opposite_sides"
     corpus_parts: ["GRM-01"]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Opposed coaxial tapped holes from draftwright's CNC authoritative workflow have no fixture here; the port places every callout in one shared leader assignment (src/dims/leaders.rs), but nothing places opposed holes on authored opposite sides (the Spec places a callout by view, side and lane, not by the hole's entry side)."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 - id: ISSUE-1357-a
@@ -2602,6 +2606,7 @@
       - "tests/test_issue_1485_rounded_pockets.py::test_removing_pattern_pitch_reopens_the_member_location_warning"
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The rounded-pocket grammar reads a corner radius only from four equal tangent quarter arcs and refuses unequal or mixed corners as unsupported, never reporting them as one radius (src/lint/section_recesses.rs::rounded_pocket). Not ported: the corner radius as a requirement (the pocket callout and lint::pockets state and check width, length, depth and location, not the radius), and pitch plus absolute locations for repeated pockets (pocket patterns are not read, LINT-pocket_pattern_coverage-requirements)."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream recess-reader"
 
 - id: ISSUE-1505-a
@@ -3041,6 +3046,7 @@
       - "tests/test_issue_1604_internal_section.py::test_original_frame_section_and_required_slots_survive_script_replay"
     corpus_parts: ["issue_1595_whistle_key_frame.step"]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Section A-A is planned only through the densest row of Z-axis holes whose profile no standard view shows (src/demand.rs::section); a station with several unlike internal details does not earn a section (src/demand.rs says sections on internal-detail rows are not ported)."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-1612-a

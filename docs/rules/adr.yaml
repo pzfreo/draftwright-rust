@@ -1286,6 +1286,7 @@
     issues: [489]
     tests: []
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The automatic search never draws below the legibility floor it reads from the part's smallest opening (src/sheet_fit.rs::min_legible_scale; tests/sheet_fill.rs::automatic_overflow_never_uses_an_illegible_scale), and when no legible complete candidate exists the drawing is kept with a warning naming that floor (layout_recovery_exhausted; tests/sheet_fill.rs::unavailable_legible_scale_is_a_warning). Not ported: a warning when an explicitly pinned scale is below the 10 mm view-legibility floor (a pinned scale is drawn as asked with no legibility finding), and the 0.1 mm render floor as a hard rejection."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream views-and-layout"
 
 - id: ARCH0004-4
@@ -1624,6 +1625,7 @@
     issues: [1086, 1087]
     tests: []
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Neither the Spec nor the PMI path carries a gear declaration, and there is no gear data table. Rust quiddity's repeating_radial_profiles are known to the native reader and not read (src/bridge/native.rs); lint's repeating-profile warning (src/lint/profiles.rs) asks for the outer boundary to be defined by hand and never fills a gear record from the repeat, which keeps the rule's second half by construction."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: ARCH0015-4
