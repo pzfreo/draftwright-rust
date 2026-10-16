@@ -1,0 +1,13 @@
+{
+  "cpu_seconds_ceiling": {
+    "cgb243": 800,
+    "threaded_connector_109": 1200
+  },
+  "format": "draftwright.render-tail-budget/1",
+  "instructions": {
+    "darwin-arm64": {
+      "cgb243": 2682850809429,
+      "threaded_connector_109": 4082111335880
+    }
+  }
+}

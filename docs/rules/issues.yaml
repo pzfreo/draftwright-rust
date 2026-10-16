@@ -921,8 +921,9 @@
       - "tests/test_issue_1153_contradictory_dimensions.py::test_a_tagged_dim_drawn_at_the_wrong_length_still_fails"
       - "tests/test_issue_1153_contradictory_dimensions.py::test_a_uniform_staircase_reports_no_contradiction"
     corpus_parts: []
-  status: pending
-  rust_note: "Not ported: nothing re-measures a drawn dimension's witness span against its label. The label and the span come from the same planned value, but no independent check would catch a contradiction."
+  status: ported
+  rust_test: "tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
+  rust_note: "Stream K7: label_vs_measured (src/lint/fidelity.rs) re-measures each drawn linear dimension's span from its ink, independently of the plan: an error from 5%, a warning past 0.5%. The port's counted labels mean one member (N× v reads v), so a uniform staircase (n× rise) and a pattern's pitch report nothing, and a dimension drawn at the wrong length still does."
   port_note: "Keep: independent post-render check (label value vs measured witness span) -> error problem."
 
 - id: ISSUE-1154-a
@@ -1207,7 +1208,7 @@
     corpus_parts: ["nist_ctc_04_asme1_ap203"]
   status: pending
   rust_test: "tests/issue_trust.rs::diagnostics_are_the_same_every_run"
-  rust_note: "Partly ported: each problem is reported once (problem IDs are unique in every plan checked). Not ported: detail views and per-annotation scales; every annotation is checked at its view's scale."
+  rust_note: "Partly ported: each problem is reported once (problem IDs are unique in every plan checked), and stream K7's label_vs_measured judges each annotation at its own view's recorded scale (Sheet::frames; tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale). Not ported: detail views and their scales."
   port_note: "Keep: single check pass with per-annotation view scale."
 
 - id: ISSUE-1209-a
@@ -1831,7 +1832,7 @@
       - "tests/test_issue_1349_precision_display.py::test_close_diameters_with_distinct_authoritative_text_do_not_deduplicate"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: the spec has no display precision; every value prints at draftwright's default precision (dims::fmt), and an authored tolerance keeps its own digits (ISSUE-1524-a)."
+  rust_note: "Not ported: the spec has no display precision; every value prints at draftwright's default precision (dims::fmt), and an authored tolerance keeps its own digits (ISSUE-1524-a). Stream K7 ported the checks a policy would be judged by (label_vs_measured reads a bare label's own places; nominal_rounded reports where the one-place sheet precision rounds a nominal), so what remains is the Spec setting by measurement ID and its reach into every rendered form, a Spec feature outside K7's lint scope."
   port_note: "Keep: spec precision by measurement ID -> plan label text; scenario test."
 
 - id: ISSUE-1349-b
@@ -1879,7 +1880,7 @@
     corpus_parts: []
   status: pending
   rust_test: tests/dims_blends.rs::a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit
-  rust_note: "Partly ported: prose cannot silence coverage. On draftwright's counterbored block with the callout left out, a general note in draftwright's prose (PROFILED BORE: diameter 14 x 8 DEEP), or even in the callout's own words, changes no finding: lint reads only the drawing's annotations, and general notes (n:<k>, src/notes.rs) are not annotations and carry no claims, so the counterbore's diameter and depth stay missing and ø14 stays feature_not_dimensioned, as in draftwright's test. Not ported: a per-feature structured note with an explicit satisfies claim on a placed feature, and so its other clauses (an unplaced note grants nothing, one note does not cover an identical sibling, duplicates do not multiply). Difference: draftwright calls the omitted requirements suppressed; the port's lint never reads the spec, so they are missing. Stage G3 ports automatic radius-note authority only (explicit satisfies claims, never prose); the general authored per-feature satisfaction API is not ported."
+  rust_note: "Partly ported: prose cannot silence coverage. On draftwright's counterbored block with the callout left out, a general note in draftwright's prose (PROFILED BORE: diameter 14 x 8 DEEP), or even in the callout's own words, changes no finding: lint reads only the drawing's annotations, and general notes (n:<k>, src/notes.rs) are not annotations and carry no claims, so the counterbore's diameter and depth stay missing and ø14 stays feature_not_dimensioned, as in draftwright's test. Not ported: a per-feature structured note with an explicit satisfies claim on a placed feature, and so its other clauses (an unplaced note grants nothing, one note does not cover an identical sibling, duplicates do not multiply). Difference: draftwright calls the omitted requirements suppressed; the port's lint never reads the spec, so they are missing. Stage G3 ports automatic radius-note authority only (explicit satisfies claims, never prose); the general authored per-feature satisfaction API is not ported. Stream K1b adds Spec-authored feature and face notes (features/<id>/note, faces/<face>/note, src/spec_notes.rs): drawn as leadered labels that claim no measurement, so their prose silences nothing either (tests/spec_notes.rs::a_feature_note_and_a_sheet_note_are_drawn); the satisfies claim is still not ported."
   port_note: "Keep: Spec note with explicit satisfies=[measurement IDs]; coverage reads that, never note text."
 
 - id: ISSUE-1352-a
@@ -2002,6 +2003,8 @@
       - "tests/test_issue_1360_thread_depth.py::test_thread_depth_width_estimation_and_rendering_share_one_suffix"
     corpus_parts: []
   status: pending
+  rust_test: tests/spec_notes.rs::m10_and_a_knurl_on_the_spindle_print_after_their_diameters
+  rust_note: "Partly ported (stream K1b, src/spec_notes.rs): a Spec-authored thread's length (features/<id>/thread/length) prints in its callout as the minimum full thread (⌀4.2 ↧ 9.2 M5x0.8-6H; 8 MIN FULL THREAD), and one deeper than its blind hole is reported, not drawn (pmi_not_lowered). Not ported: the tap depth as an addressable dimension ID of its own, and the refusal of a thread depth whose callout head is omitted (an omitted callout leaves the thread undrawn; no test checks what is reported then). A bore fit never leaks onto the counterbore: fits are keyed to the bore diameter's dimension (src/dims/tolerance.rs)."
   port_note: "Keep."
 
 - id: ISSUE-1369-a

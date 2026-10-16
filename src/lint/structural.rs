@@ -45,8 +45,11 @@
 //! over overlapping spans) and `dimension_text_stray` (a linear dimension's text more than a text
 //! height from its own line). Errors.
 //!
-//! Not ported here: `label_vs_measured` and `nominal_rounded` (the drawing does not record a
-//! dimension's measured path or its scale), `interior_label_on_narrow_material` and
+//! Run last, from [`super::fidelity`] (stream K7): `label_vs_measured`, `nominal_rounded`,
+//! `angular_label_vs_geometry`, `angular_geometry_mismatch`, `angular_support_mismatch` and
+//! `datum_leader_remote`, what each label states against what its ink draws.
+//!
+//! Not ported here: `interior_label_on_narrow_material` and
 //! `leader_crosses_silhouette` (they read the view's filled material, which the drawing does not
 //! record), and `missing_principal_dimension` (draftwright's sheet lint never runs it: its one
 //! `lint_drawing` call passes no part box).
@@ -113,6 +116,8 @@ pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     issues.extend(annotation_bounds(drawing));
     issues.extend(view_annotations(drawing));
     issues.extend(view_boxes(drawing));
+    // Stream K7: what each label states against what its ink draws (`super::fidelity`).
+    issues.extend(super::fidelity::check(drawing));
     issues
 }
 

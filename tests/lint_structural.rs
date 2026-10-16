@@ -82,6 +82,18 @@ const CODES: [&str; 12] = [
     "view_out_of_bounds",
 ];
 
+/// Stream K7's codes (`lint::fidelity`, `tests/lint_fidelity.rs`): judged on the port's own
+/// drawings here, never against draftwright's captured reads, which record no view transform
+/// for the checks to measure with.
+const FIDELITY: [&str; 6] = [
+    "label_vs_measured",
+    "nominal_rounded",
+    "angular_label_vs_geometry",
+    "angular_geometry_mismatch",
+    "angular_support_mismatch",
+    "datum_leader_remote",
+];
+
 fn fixture(path: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
@@ -865,6 +877,7 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
         for issue in &issues {
             assert!(
                 CODES.contains(&issue.code.as_str())
+                    || FIDELITY.contains(&issue.code.as_str())
                     || matches!(
                         issue.code.as_str(),
                         "leader_centerline_overlap" | "label_section_furniture_overlap"
@@ -884,7 +897,10 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
             VERDICTS.contains(&k.verdict.as_str()) && !k.reason.is_empty(),
             "{k:?}"
         );
-        assert!(CODES.contains(&k.code.as_str()), "{k:?}");
+        assert!(
+            CODES.contains(&k.code.as_str()) || FIDELITY.contains(&k.code.as_str()),
+            "{k:?}"
+        );
         let old = listed.insert((k.part.clone(), k.code.clone()), k.count);
         assert!(old.is_none(), "{k:?} is listed twice");
     }

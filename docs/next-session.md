@@ -7392,3 +7392,130 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   holes' box (between the holes), as the PMI path places every multi-face frame (unchanged
   here); a draftsman would rather hang it on the hole callout. Both leaders cross a dimension
   line (reported `annotation_leader_crossing`). Flatness on `top` draws ⏥ 0.05 above the side view.
+
+## K7: lint's self-checks on its own output (#43 item 2, 2026-10-16, unattended; overturnable)
+
+- **What:** `src/lint/fidelity.rs`, run last by `lint::structural::check` (so `review`'s
+  `structural` list and `tools/quality.py`'s review read it): `label_vs_measured`,
+  `nominal_rounded`, `angular_label_vs_geometry`, `angular_geometry_mismatch`,
+  `angular_support_mismatch`, `datum_leader_remote`. Drawing-only, from each item's ink, its
+  annotation's text and its view's recorded transform (`Sheet::frames`); no new record, no wire
+  or drawn-output change. Tests: `tests/lint_fidelity.rs` (7, each failing on the base).
+- **Results:** on the 30 quality parts, no `label_vs_measured` or angular finding (391 linear
+  dimensions checked); `nominal_rounded` (info) on 25. On the PMI fixtures, ctc01's `60 ±0.5`
+  passes all three angular checks; `datum_leader_remote` warns on 18 of the 24 PMI fixtures (e.g. the
+  thumbwheel's datum A 222 mm from its surface, ctc01's C 60.5 mm, the editor spindle's B
+  37.5 mm). These are real: datum symbols are set in a strip beside the view rather than near
+  their surface. Left visible, not fixed here (a placement change, outside K7's lint scope).
+- **Judgement calls:** (1) `N× v` is read per member (`v`): every counted linear dimension the
+  port draws spans one member, unlike draftwright's untagged span reading; a span drawn across all
+  N would now be reported loudly. (2) An `INCH` PMI label is compared in millimetres at its own
+  printed places (before this, all inch labels on stc06/stc09/ftc07 read as 96% wrong).
+  (3) Precision floor is the port's one decimal place (`dims::fmt`). (4) Angular supports are
+  judged against the drawn view's straight visible edges, not the registry's roster; a quantity
+  mark on an angle is refused outright (the port draws none). (5) Datum symbols are recognised by
+  the PMI name prefix `pmi:datum.`; K1's Spec-authored datums are lowered into the same records
+  and named the same way (`pmi:<identity>`), so they are judged too. (6) The new codes are kept out of `tests/lint_structural.rs`'s comparison with
+  draftwright's captured reads (no frames there) and listed in `known_structural.json` for the
+  corpus drawings (7 × `nominal_rounded`).
+- **Not done:** `interior_label_on_narrow_material` (needs a material field the drawing does not
+  record) and ISSUE-1349-a (needs a Spec display-precision setting) stay pending with notes.
+
+## K2: the render-time tail, cgb243 and threaded_connector_109 (#43 item 3) (2026-10-16, unattended; overturnable)
+
+- **Finding: the tail is the render, not the plan.** `draftwright plan` takes threaded_connector_109
+  0.255 trillion instructions (nearly all analysis) and cgb243 0.613 trillion (23 s); the 197 s
+  and >300 s in #43 were renders. Both spend nearly all of it in haecceity's `hlr::draw` for one
+  view, the top view seen along the part's axis (threaded_connector_109: 158 s of a 162 s
+  render; cgb243: front 61 s, top 1,726 s under load). Seen along the axis a thread's turns (or
+  cgb243's comb teeth) stack up: 2.3 million curve crossings (20,000 in the front view), each
+  stretch judged by a ray that crosses every turn. Profiles (macOS `sample`): B-spline ray
+  solves in `clear_of_own_faces` (64%) and `RayCaster::any_hit`; on cgb243 also
+  `FaceDomain::crossing_parity` on comb faces with 15,000 boundary segments, 8,000 in one bin.
+- **Fix, in haecceity** (quiddity-rust branch `k/k2-hlr-speed`, commit `7cb26d8`, on its
+  `origin/main` 0d601d2; **not pushed**): every saving gives the same answer by construction,
+  so every drawing is byte-identical. The edge's own faces asked alone (`RayCaster::hits_on`)
+  and the other faces only up to the clearance with an early exit (`RayCaster::other_hit`),
+  falling back to the full list wherever a banded crossing or an unintersectable face could
+  change the answer; a ray stopped from past the own faces' last meeting is stopped from any
+  earlier start, so the faces are not asked again; a visible silhouette's check leaves out its
+  own face; within one stretch's judgement a B-spline face's hits along a ray already asked are
+  reused (thread-local, scoped to the judgement); traversal takes nearer boxes first; an
+  unsplit grid cell is tested against its padded box before its triangles; a basis and its
+  derivative come from one pass, small degrees in short arrays; face-domain bins leave out
+  segments parallel to the parity ray and stop below the ray's start.
+- **Figures** (retired instructions, darwin-arm64, `tools/check_render_tail.py`): render of
+  threaded_connector_109 23.502 → 4.083 trillion (5.76×); cgb243 12.716 → 2.683 trillion
+  (4.74×). Processor time 1,577 → 283 s and 1,092 → 201 s. The 63-part plan survey 2.960 →
+  2.632 trillion (cgb241 −43%, cgb203 −32%, cgb207 −20%, from the face-domain bins; no part up
+  by more than 0.3%), so `tools/plan-time-budget.json` is re-recorded downward. Guard 28/28 with
+  no approvals; the 30-part quality run equals `tools/ci-quality-baseline.json` in all 300
+  cells; both tail sheets byte-identical to the base commit's.
+- **Regression bound**: `tools/check_render_tail.py` (CI job `render-tail`) renders both parts;
+  on Darwin each must stay within 15% of its recorded instructions
+  (`tools/render-tail-budget.json`), elsewhere within a processor-time ceiling (cgb243 800 s,
+  threaded_connector_109 1,200 s). Against the base binary it fails on both (12.7 and 23.5
+  trillion instructions).
+- **Counter fix**: Darwin's `waitid` reports a stopped child even without `WSTOPPED`, so
+  `check_plan_time.counted` read the count of a run cut short whenever a load governor paused
+  the process (SIGSTOP); it now waits for the exit itself. Paused long renders read 3 million
+  to 13 billion instructions before; a test pauses a child three times and checks the count.
+- Judgement calls (overturnable): (1) "5× fewer instructions" is measured on the render, where
+  the 197 s was; the plan was never slow. (2) The fix is in haecceity, where the cost is; this
+  branch's `Cargo.toml` pins quiddity-rust `7cb26d8`, which exists only in the local
+  quiddity-rust worktree: **the quiddity-rust branch must be pushed (or merged and the rev
+  updated) before CI can build this branch.** (3) On Linux the bound is processor seconds,
+  coarse ceilings below the old cost on the development machine; no Linux figure was measured.
+- Not done: cgb243's render is nearly serial now (201 processor s, 160 s wall under the
+  governor): one curve's stretches dominate the top view; splitting a curve's stretches across
+  threads would shorten the wall time but not the instructions.
+- **Integration judgement call (2026-10-16, overturnable):** to unblock CI, the integrator pushed
+  quiddity-rust `k/k2-hlr-speed` and merged it through quiddity-rust PR #12 (merge commit, CI
+  green) before the draftwright merge, rather than leaving the dependency for the maintainer. The
+  merge commit keeps 7cb26d8 reachable from quiddity-rust main, so the pin was not changed.
+
+## K1b: finish, threads, knurls and notes authored in the Spec (#43 item 1) (2026-10-16, unattended; overturnable)
+
+- **What**: `features/<id>/finish|thread|knurl|note`, `faces/<face>/finish|note`,
+  `sheet/default_finish` (`src/spec_notes.rs`, docs/model.md "Finish, threads, knurls and notes
+  authored in the Spec"). Each is lowered into the record the AP242 path reads (`surface_finish`,
+  `internal_thread`/`external_thread`, `knurl`, a surface label of kind `note`, the part's
+  `surface_texture`) and merged by `spec_gdt::effective` beside K1's datums and controls, so the
+  existing F2 symbol, thread/knurl callout, label and default-finish paths draw them. The Spec
+  wins (`spec_overrides_pmi`). Default plans are unchanged: `effective` returns the Analysis
+  itself when the spec authors none of these.
+- **Shared code touched (minimal, commented)**: `pmi_lowering::owners` lists established hole
+  patterns as owners of kind `pattern` (no AP242 cylinder matches them, `owns`); `manufacturing`
+  sends a `spec:` record to `authored` (its owner is the feature it names, checked against the
+  callouts' owners); `dims::holes` computes `manufacturing` before the patterns and prints a
+  pattern's spec thread before its pattern suffix; the label, face-finish and default-finish
+  bases and the hole/turned callouts' thread clauses say `spec-authored`/`the spec's` for a
+  spec record (text unchanged for the file's).
+- **Judgement calls (overturnable)**:
+  - General tolerance needs no new path: `sheet/title/tolerance` already fills the title block
+    and wins over the file's. A sheet note is the existing `notes`; the acceptance test for it
+    is combined with the feature note's (the sheet note alone passed on the base).
+  - Thread length prints in the existing vocabulary, `M10; 15 MIN FULL THREAD` (for holes and
+    turned diameters alike), not `↧ 15`. A through hole's thread does not take the bore's `THRU`
+    (`4× ⌀6 THRU M6 (2×2)`, draftwright's `ø2.5 THRU M3x0.5`).
+  - Designations: ISO metric only, printed as written. Checks: a hole from nominal less 1.5
+    pitches to the nominal (+0.01; a cosmetic thread modelled at its major diameter is accepted),
+    an external thread's nominal equal to its diameter (0.01, as the AP242 owner match), a length
+    within a blind hole's depth or a step's length. With no pitch, ISO 261's coarse pitch.
+  - A thread on a pattern member is refused (pointing at the pattern) rather than splitting the
+    pattern's callout. A finish on a hole pattern (cylinders on several axes) is reported as the
+    PMI path reports such a record (`pmi_not_lowered`), not drawn on one member.
+  - A spec thread and knurl on one feature both print (they do not claim faces against each
+    other); against the file's PMI the Spec's replaces any thread or knurl sharing a face.
+  - A note's view follows the label rule (front, or side when its faces' box is longest in y),
+    so a note on a vertical hole hangs in the front view; a note leader ends in an arrowhead
+    (the label path's), where ISO 128-22 would end a leader inside an outline with a dot.
+  - The MCP schema budget in tests/engine_version.rs rose 41,700 -> 42,200 bytes for
+    `sheet/default_finish` across the twelve spec-carrying tools (41,972 measured).
+- **By eye**: plate (A4): Ra 0.8 above the front view's top edge, `4× ⌀6 THRU M6 (2×2)`, DEBURR
+  on the front face; with `sheet/default_finish` alone the recovered sheet is A4 1:1 instead of
+  A4 2:1 (the default-finish symbol beside the title block gives A4 2:1 two hard findings in the
+  existing sheet policy; the same happens for an AP242 default finish, not chased). Spindle (A3
+  2:1, unchanged): `ø10 M10; 15 MIN FULL THREAD`, `ø24 DIAMOND KNURL P0.8` on the overall
+  diameter, the note on the ⌀4.2 hole above the front view, Ra 1.6 on the ø15 step (its leader
+  crosses the 22 and 52 dimension lines: cosmetic).
