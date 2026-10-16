@@ -937,6 +937,11 @@ pub(super) fn body_chains(
                 .into_iter()
                 .find(|v| *v != view)
                 .unwrap_or(view);
+            // With both longitudinal views present, another body's chain can be carried
+            // by the other view. A restoration fix is meaningful only for an absent view.
+            if frames.contains_key(alternate) {
+                continue;
+            }
             problems.push(Problem{id:format!("p:turned_profile_superimposed:{}",items[first].id),code:"turned_profile_superimposed".into(),severity:"warning".into(),
                 message:format!("The turned profile on axis {} at {:?} is superimposed on another profile in the {view} view. Restore the {alternate} view to separate its chain.", ["X","Y","Z"][k],b.on),
                 subjects:group.iter().map(|&i|items[i].id.clone()).collect(),

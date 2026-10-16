@@ -223,7 +223,7 @@ fn issue(
         evidence,
         fix: Some(
             "Call out each double-D bore with its major diameter and its size across flats in one \
-             callout (`⌀D THRU, F A/F`), in the view along its axis."
+             callout (`⌀D THRU DOUBLE-D F A/F` for a through bore; state the depth for a blind bore), in the view along its axis."
                 .into(),
         ),
     }

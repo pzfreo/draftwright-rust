@@ -498,3 +498,24 @@ fn independent_outer_profile_evidence_retains_every_undrawn_corner_requirement()
         );
     }
 }
+
+#[test]
+fn a_present_longitudinal_view_is_never_offered_as_a_restoration_fix() {
+    let mut a = shafts(&[-50., 0., 50.]);
+    for (n, at) in [[0., 0., 0.], [0., 100., 0.], [100., 0., 0.]]
+        .iter()
+        .enumerate()
+    {
+        for f in &mut a.features[2 * n..2 * n + 2] {
+            f.parameters["profile"]["axis_origin"] = json!(at);
+        }
+    }
+    a.envelope = [[-15., -15., 0.], [115., 115., 40.]];
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        !p.problems
+            .iter()
+            .any(|p| p.code == "turned_profile_superimposed"),
+        "both longitudinal views are already available"
+    );
+}

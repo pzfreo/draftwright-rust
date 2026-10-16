@@ -1208,7 +1208,11 @@ fn spread(naturals: &[f64], gap: f64, lo: f64, hi: f64) -> Vec<f64> {
 /// spread along them at the strip spacing and kept off what is placed (the module's doc).
 /// Maximum-cardinality, minimum-cost assignment to capacitated bands. Residual reverse
 /// edges let a later constrained member displace an earlier flexible one (Python ADR0014).
-fn assign_bands(costs: &[Vec<Option<f64>>], capacities: &[usize]) -> Vec<Option<usize>> {
+fn assign_bands(
+    costs: &[Vec<Option<f64>>],
+    capacities: &[usize],
+    preference: f64,
+) -> Vec<Option<usize>> {
     #[derive(Clone)]
     struct Edge {
         to: usize,
@@ -1243,7 +1247,12 @@ fn assign_bands(costs: &[Vec<Option<f64>>], capacities: &[usize]) -> Vec<Option<
         }
     }
     for (k, &capacity) in capacities.iter().enumerate() {
-        add(&mut graph, bands + k, sink, capacity, 0.);
+        if capacity > 0 && preference > 0. {
+            add(&mut graph, bands + k, sink, 1, -preference);
+            add(&mut graph, bands + k, sink, capacity - 1, 0.);
+        } else {
+            add(&mut graph, bands + k, sink, capacity, 0.);
+        }
     }
     loop {
         let mut dist = vec![f64::INFINITY; sink + 1];
@@ -1471,7 +1480,8 @@ fn place_balloons(
                 .map(move |w| (w.hole[1 - b.axis] - b.line).abs())
         })
         .fold(0.0f64, f64::max);
-    let optional_penalty = (max_cost + 1.) * (wanted.len() + 1) as f64;
+    let preference = if perimeter { extent } else { 0. };
+    let optional_penalty = (max_cost + preference + 1.) * (wanted.len() + 1) as f64;
     let costs: Vec<Vec<Option<f64>>> = wanted
         .iter()
         .map(|w| {
@@ -1486,7 +1496,7 @@ fn place_balloons(
                 .collect()
         })
         .collect();
-    let assignment = assign_bands(&costs, &capacities);
+    let assignment = assign_bands(&costs, &capacities, preference);
     let mut planned: Vec<Option<(usize, f64)>> = vec![None; wanted.len()];
     for (k, b) in bands.iter().enumerate() {
         let mut members: Vec<usize> = (0..wanted.len())
@@ -1611,11 +1621,19 @@ mod tests {
     fn balloon_band_assignment_maximises_cardinality_before_leader_length() {
         // Greedy nearest puts the flexible first hole on the only band the second can use.
         let costs = vec![vec![Some(1.), Some(3.)], vec![Some(2.), None]];
-        assert_eq!(assign_bands(&costs, &[1, 1]), vec![Some(1), Some(0)]);
-        // A remote band gets no occupancy bonus: a nearby band with room keeps both holes.
+        assert_eq!(assign_bands(&costs, &[1, 1], 0.), vec![Some(1), Some(0)]);
+        // The bounded perimeter preference cannot justify a remote band.
         let costs = vec![vec![Some(1.), Some(100.)], vec![Some(2.), Some(100.)]];
-        assert_eq!(assign_bands(&costs, &[2, 2]), vec![Some(0), Some(0)]);
-        assert_eq!(assign_bands(&costs, &[1, 0]).iter().flatten().count(), 1);
+        assert_eq!(assign_bands(&costs, &[2, 2], 25.), vec![Some(0), Some(0)]);
+        assert_eq!(
+            assign_bands(&costs, &[1, 0], 25.).iter().flatten().count(),
+            1
+        );
+        // Python's bounded perimeter preference can justify a nearby band, not a remote one.
+        let nearby = vec![vec![Some(1.), Some(20.)]; 3];
+        let assigned = assign_bands(&nearby, &[3, 3], 25.);
+        assert_eq!(assigned.iter().filter(|&&b| b == Some(0)).count(), 2);
+        assert_eq!(assigned.iter().filter(|&&b| b == Some(1)).count(), 1);
     }
 
     #[test]
