@@ -706,6 +706,17 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     name_slot_members(&mut others)?;
     check_oriented_slot_patterns(&others, &oriented_patterns)?;
     super::recess_patterns::append(part, &IDENTITY, &mut others, &recess_patterns)?;
+    // Match the bridge's stable record order; provider family order is not its order.
+    let key = |r: &super::Record| {
+        (
+            r.family.clone(),
+            r.subtype.clone(),
+            r.faces.clone(),
+            Value::Object(r.parameters.clone()).to_string(),
+        )
+    };
+    evidence.sort_by_cached_key(key);
+    refusals.sort_by_cached_key(key);
     Ok(Native {
         recogniser: format!(
             "{} {} ({})",

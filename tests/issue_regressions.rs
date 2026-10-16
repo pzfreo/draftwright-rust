@@ -759,13 +759,21 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
     let locations: Vec<_> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/seat_location.location."))
+        .filter(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter.starts_with("seat_location.location."))
+        })
         .collect();
     assert_eq!(locations.len(), 5);
     assert_eq!(
         locations
             .iter()
-            .map(|d| d.measurements.len())
+            .map(|d| d
+                .measurements
+                .iter()
+                .filter(|m| m.parameter.starts_with("seat_location.location."))
+                .count())
             .sum::<usize>(),
         9
     );
@@ -793,15 +801,42 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
     }
     let z = locations
         .iter()
-        .find(|d| d.id.ends_with("/seat_location.location.z") && d.view == "v:front")
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == "seat_location.location.z")
+                && d.view == "v:front"
+        })
         .unwrap();
-    assert_eq!((z.label.as_str(), z.measurements.len()), ("11.1", 3));
+    assert_eq!(
+        (
+            z.label.as_str(),
+            z.measurements
+                .iter()
+                .filter(|m| m.parameter == "seat_location.location.z")
+                .count()
+        ),
+        ("11.1", 3)
+    );
     assert!((z.measurements[0].value - 11.1).abs() < 3e-4);
     let x = locations
         .iter()
-        .find(|d| d.id.ends_with("/seat_location.location.x"))
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == "seat_location.location.x")
+        })
         .unwrap();
-    assert_eq!((x.label.as_str(), x.measurements.len()), ("15.6", 3));
+    assert_eq!(
+        (
+            x.label.as_str(),
+            x.measurements
+                .iter()
+                .filter(|m| m.parameter == "seat_location.location.x")
+                .count()
+        ),
+        ("15.6", 3)
+    );
 }
 
 /// Lint's findings on *drawing* as `code feature parameter`, one per requirement they name.

@@ -67,6 +67,14 @@ pub fn read<'a>(a: &'a Analysis, f: &'a Feature) -> Result<Pattern<'a>, String> 
     }) {
         return Err("pattern pockets do not have one specification".into());
     }
+    if placed.iter().enumerate().any(|(i, q)| {
+        !same(q.centre[p.depth_axis], p.centre[p.depth_axis])
+            || placed[..i]
+                .iter()
+                .any(|r| (0..3).all(|k| same(q.centre[k], r.centre[k])))
+    }) {
+        return Err("pattern members repeat a position or do not share one depth station".into());
+    }
     let centre = std::array::from_fn(|k| {
         placed.iter().map(|p| p.centre[k]).sum::<f64>() / placed.len() as f64
     });

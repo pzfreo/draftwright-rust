@@ -152,39 +152,89 @@ fn rounded_pocket_corner_radius_reaches_native_ink_and_lint() {
     let group = lint::pocket_patterns::read(&a, p).unwrap();
     let radius = group.pocket.corner_radius.unwrap();
     assert!((radius - 3.94).abs() < 1e-6);
-    let plan = model::plan(&a, &Spec::default()).unwrap();
-    let d = plan
+    let placed = lint::pockets::placed(&a);
+    let mut aliases = Vec::new();
+    for (f, p) in &placed {
+        let owners = lint::pockets::corner_blends(&a, f, p.as_ref().unwrap());
+        assert_eq!(owners.len(), 4);
+        aliases.extend(owners.into_iter().map(|f| f.id.clone()));
+    }
+    aliases.sort();
+    aliases.dedup();
+    assert_eq!(aliases.len(), 20);
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let radius = plan
         .dimensions
         .iter()
-        .find(|d| {
-            d.measurements
-                .iter()
-                .any(|m| m.parameter.starts_with("pocket_corner_radius.radius."))
-        })
+        .find(|d| d.id.contains("pocket_corner_radius"))
         .unwrap();
+    assert_eq!(radius.label, "20× R3.9");
+    assert_eq!(
+        radius
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "blend.radius")
+            .count(),
+        20
+    );
     assert!(
-        d.label
-            .contains(&format!("R{}", draftwright::dims::fmt(radius)))
+        !plan.notes.iter().any(|n| n.text.contains("R3.9")),
+        "pattern corners have one physical carrier"
     );
     let drawing = model::render(&part, &a, &plan, &font()).unwrap();
     let mut marks = lint::marks(&drawing);
+    assert!(
+        lint::blends::coverage(&a, &marks)
+            .iter()
+            .all(|i| !i.requirements.iter().any(|r| aliases.contains(&r.feature))),
+        "{:#?}",
+        lint::blends::coverage(&a, &marks)
+    );
+    assert!(marks.iter().any(|m| {
+        m.text.contains("R3.9")
+            && m.claims
+                .iter()
+                .filter(|c| aliases.contains(&c.feature))
+                .count()
+                == 20
+    }));
+    marks.retain(|m| !m.claims.iter().any(|c| aliases.contains(&c.feature)));
+    let missing: Vec<_> = lint::blends::coverage(&a, &marks)
+        .into_iter()
+        .filter(|i| i.requirements.iter().any(|r| aliases.contains(&r.feature)))
+        .collect();
+    assert_eq!(missing.len(), 20);
+    assert!(
+        missing
+            .iter()
+            .all(|i| i.code == "blend_requirement_missing")
+    );
+    // A provider without separate corner blends still retains four physical requirements
+    // per published rounded profile, with one counted radius carrier.
+    let mut fallback = a.clone();
+    fallback.features.retain(|f| !aliases.contains(&f.id));
+    let plan = model::plan_recovered(&fallback, &Spec::default()).unwrap();
+    let radius = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id.contains("pocket_corner_radius"))
+        .unwrap();
+    assert_eq!(radius.measurements.len(), 20);
+    assert_eq!(radius.label, "20× R3.9");
+    let drawing = model::render(&part, &fallback, &plan, &font()).unwrap();
+    let mut marks = lint::marks(&drawing);
+    assert!(lint::pockets::corner_coverage(&fallback, &marks).is_empty());
     marks.retain(|m| {
         !m.claims
             .iter()
-            .any(|c| c.parameter.starts_with("pocket_corner_radius.radius."))
+            .any(|c| c.parameter.starts_with("pocket_corner_radius."))
     });
-    let missing = lint::pockets::corner_coverage(&a, &marks);
+    let missing = lint::pockets::corner_coverage(&fallback, &marks);
     assert_eq!(missing.len(), 20);
     assert!(
         missing
             .iter()
             .all(|i| i.code == "pocket_corner_requirement_missing")
-    );
-    assert!(
-        lint::lint(&a, &drawing)
-            .iter()
-            .all(|i| !(i.code.starts_with("pocket_pattern_requirement_")
-                || i.code.starts_with("pocket_corner_requirement_")))
     );
 }
 
@@ -300,6 +350,15 @@ mod corpus;
 fn native_passages_pockets_and_source_refusals_reach_lint() {
     let Some(root) = corpus::dir() else { return };
     let (_, a) = model::analyse_native(&root.join("mfcadpp/1000.step")).unwrap();
+    let recognition = a.recognition.as_ref().unwrap();
+    for records in [&recognition.evidence, &recognition.refusals] {
+        assert!(
+            records
+                .windows(2)
+                .all(|p| (&p[0].family, &p[0].subtype, &p[0].faces)
+                    <= (&p[1].family, &p[1].subtype, &p[1].faces))
+        );
+    }
     let found = lint::section_recesses::coverage(&a, &[]);
     assert!(
         found
@@ -369,6 +428,36 @@ fn native_reader_refuses_bad_recess_fields_local_coordinates_and_pattern_links()
             .insert("members".into(), members);
         assert!(native::read(&part, &bad).is_err());
     }
+}
+
+#[test]
+fn a_grid_with_a_repeated_position_cannot_claim_a_complete_lattice() {
+    let (_, mut a) = read("recesses/grid.step.gz");
+    let pattern = a
+        .features
+        .iter()
+        .find(|f| f.kind == "pocket_pattern")
+        .unwrap()
+        .clone();
+    assert!(lint::pocket_patterns::read(&a, &pattern).is_ok());
+    let ids = pattern.parameters["members"].as_array().unwrap();
+    let first = a
+        .features
+        .iter()
+        .find(|f| Some(f.id.as_str()) == ids[0].as_str())
+        .unwrap()
+        .parameters["geometry"]
+        .clone();
+    let last = a
+        .features
+        .iter_mut()
+        .find(|f| Some(f.id.as_str()) == ids.last().unwrap().as_str())
+        .unwrap();
+    last.parameters.insert("geometry".into(), first);
+    assert!(lint::pocket_patterns::read(&a, &pattern).is_err());
+    let issues = lint::pocket_patterns::coverage(&a, &[]);
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].code, "pocket_pattern_requirement_unverifiable");
 }
 
 #[test]

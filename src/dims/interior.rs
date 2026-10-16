@@ -457,10 +457,12 @@ fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedVie
     let Shape::Callout { sites } = &w.shape else {
         return Vec::new();
     };
-    let radial = w
-        .measurements
-        .iter()
-        .any(|m| m.parameter == "bore.diameter");
+    let radial = w.measurements.iter().any(|m| {
+        matches!(
+            m.parameter.as_str(),
+            "bore.diameter" | "slot_end_radius.radius"
+        )
+    });
     let ink = label_ink(&w.terms, font());
     let ray = old
         .lines
@@ -469,15 +471,7 @@ fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedVie
         .unwrap_or([1.0, 0.0]);
     let n = ray[0].hypot(ray[1]).max(1e-12);
     let u = [ray[0] / n, ray[1] / n];
-    let slot_radius = w
-        .measurements
-        .iter()
-        .any(|m| m.parameter == "slot_end_radius.radius");
-    let mut attachments = if slot_radius {
-        Vec::new()
-    } else {
-        vec![old.lines[0][0]]
-    };
+    let mut attachments = vec![old.lines[0][0]];
     if !radial {
         // Physical arc anchors, rather than the absent half of a construction circle.
         'sites: for (centre, radius) in sites {
@@ -516,25 +510,6 @@ fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedVie
             attachments.clone()
         };
         for tip in tips {
-            // A radius tip belongs to a proved physical arc and its shaft points through
-            // that arc's centre. A fixed physical anchor must not inherit an unrelated ray.
-            let d = if slot_radius {
-                let centre = sites
-                    .iter()
-                    .filter_map(|(c, r)| {
-                        let c = frame.page(*c);
-                        let d = [tip[0] - c[0], tip[1] - c[1]];
-                        let n = d[0].hypot(d[1]);
-                        ((n - r * frame.scale()).abs() <= 1e-5 && n > 1e-9).then_some((c, n))
-                    })
-                    .min_by(|a, b| a.1.total_cmp(&b.1));
-                let Some((c, n)) = centre else {
-                    continue;
-                };
-                [(tip[0] - c[0]) / n, (tip[1] - c[1]) / n]
-            } else {
-                d
-            };
             let outline = frame.outline();
             let exit = (0..2)
                 .filter_map(|k| {

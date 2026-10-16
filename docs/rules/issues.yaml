@@ -2606,7 +2606,7 @@
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
   status: ported
   rust_test: "tests/native_recesses.rs::rounded_pocket_corner_radius_reaches_native_ink_and_lint"
-  rust_note: "The tuner fixture retains five rounded profiles, their 3.94 mm corner radius, one grouped pocket callout, pitch and absolute locations. A shared radius callout owns four corner measurements per occurrence; removing it reopens all twenty physical corner requirements. Removing pitch reopens the member location warning. Unequal or mixed tangent corners remain unsupported by the existing grammar."
+  rust_note: "The tuner fixture retains five rounded profiles, their 3.94 mm corner radius, one grouped pocket callout, pitch and absolute locations. The explicit counted pattern-corner callout carries matching blend claims, and those blends do not also generate a blanket radius note. Lone pockets reuse matching blend carriers; without blend evidence the callout owns four corner measurements per occurrence. Removing the carrier reopens all twenty physical corner requirements, on both the recognised-blend and fallback paths. Removing pitch reopens the member location warning. Unequal or mixed tangent corners remain unsupported by the existing grammar."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream recess-reader"
 
 - id: ISSUE-1505-a

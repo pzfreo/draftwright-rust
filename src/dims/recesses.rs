@@ -45,7 +45,7 @@
 //!   are the plates' and the overall extents', as in draftwright.
 //!
 //! Unified pocket patterns share one callout, pitches and centre locations. Rounded pockets
-//! retain four corner-radius measurements under a shared radius callout. A recess location
+//! retain four corner-radius measurements through existing blend owners or a shared radius callout. A recess location
 //! coinciding with a hole's or slot's is not merged (ARCH0009-6).
 
 use super::envelope::profile_views;
@@ -650,6 +650,11 @@ fn corner_wants(cx: &Context, out: &mut Vec<Want>) {
         if let Ok(p) = p
             && let Some(r) = p.corner_radius
         {
+            if !crate::lint::pocket_patterns::member(cx.analysis, &f.id)
+                && !pockets::corner_blends(cx.analysis, f, p).is_empty()
+            {
+                continue;
+            }
             if let Some((_, _, members)) = groups
                 .iter_mut()
                 .find(|(axis, radius, _)| *axis == p.depth_axis && (*radius - r).abs() < 1e-6)
@@ -665,6 +670,15 @@ fn corner_wants(cx: &Context, out: &mut Vec<Want>) {
         let mut measurements = Vec::new();
         let mut sites = Vec::new();
         for (f, p) in &members {
+            measurements.extend(
+                pockets::corner_blends(cx.analysis, f, p)
+                    .into_iter()
+                    .map(|f| Measurement {
+                        feature: f.id.clone(),
+                        parameter: "blend.radius".into(),
+                        value: r,
+                    }),
+            );
             for (corner, (u, v)) in [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)]
                 .into_iter()
                 .enumerate()
@@ -724,6 +738,17 @@ pub(super) fn consolidate(
         let Some(s) = span(&kept[i]) else { continue };
         let winner = (0..kept.len())
             .filter(|&j| j != i && !gone.contains(&j))
+            // Hole and slot locations have independent point identities and table cells.
+            // A coincident distance must not turn their pure location carrier into a
+            // mixed recess statement (ARCH0009-6).
+            .filter(|&j| {
+                !kept[j].0.measurements.iter().any(|m| {
+                    m.feature.starts_with("f:hole:")
+                        || m.feature.starts_with("f:hole_pattern:")
+                        || m.feature.starts_with("f:slot:")
+                        || m.feature.starts_with("f:oriented_slot:")
+                })
+            })
             .filter(|&j| !recess_location(&kept[j].0) || kept[j].0.id < kept[i].0.id)
             .filter(|&j| {
                 span(&kept[j]).is_some_and(|t| {

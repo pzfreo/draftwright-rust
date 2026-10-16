@@ -17,12 +17,13 @@ pub(crate) use crate::lint::blends::{RADIUS_TABLE, RELIEF_NOTE};
 type ViewSites<'a> = BTreeMap<(&'static str, usize), Vec<([f64; 3], &'a Feature)>>;
 
 fn groups(a: &Analysis) -> Vec<Vec<&Feature>> {
+    let pocket_corners = crate::lint::pockets::pattern_corner_blends(a);
     let mut groups = BTreeMap::<String, Vec<&Feature>>::new();
-    for f in a
-        .features
-        .iter()
-        .filter(|f| f.kind == "blend" && !crate::lint::blends::is_relief(a, f))
-    {
+    for f in a.features.iter().filter(|f| {
+        f.kind == "blend"
+            && !crate::lint::blends::is_relief(a, f)
+            && !pocket_corners.contains(&f.id)
+    }) {
         if let Some(r) = radius(f) {
             groups.entry(fmt(r)).or_default().push(f);
         }
@@ -299,10 +300,11 @@ pub(crate) fn consolidate(
     given: &crate::model::Spec,
 ) {
     for i in 0..dimensions.len() {
-        if !dimensions[i]
-            .measurements
-            .iter()
-            .any(|m| m.parameter == "blend.radius")
+        if dimensions[i].measurements.is_empty()
+            || !dimensions[i]
+                .measurements
+                .iter()
+                .all(|m| m.parameter == "blend.radius")
             || overridden(spec, given, &dimensions[i].id)
         {
             continue;

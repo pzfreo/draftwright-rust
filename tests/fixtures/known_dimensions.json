@@ -1138,5 +1138,15 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "m1000",
+    "side": "python",
+    "family": "location.x",
+    "view": "front",
+    "label": "48.4",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The seat axis lies on the part's far X datum: Python draws its 48.4 location as well as the 48.4 overall width. The port now states that support-plane interval once, on d:envelope/width.length, retaining the seat_location.location.x measurement claim and an addressable covered ledger row. The stations agree within the source record's 0.01 mm publication grid and the approved labels agree; this is not a lost location. tests/native_recesses.rs::a_recess_location_on_the_far_datum_uses_the_overall_span_once verifies the carrier and that omitting the overall promotes the independent seat location. The physical recess statement comparisons in tests/dims_recesses.rs still require 48.4 in the front view."
   }
 ]

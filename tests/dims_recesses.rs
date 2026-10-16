@@ -383,8 +383,21 @@ fn recess_items_can_be_omitted_by_id_and_planning_is_deterministic() {
         .iter()
         .filter(|d| d.id.starts_with("d:f:section_recess:"))
         .map(|d| d.id.clone())
+        .chain(
+            plan.omitted
+                .iter()
+                .filter(|o| {
+                    o.id.starts_with("d:f:section_recess:")
+                        && matches!(o.state, draftwright::items::State::Covered { .. })
+                })
+                .map(|o| o.id.clone()),
+        )
         .collect();
-    assert_eq!(ids.len(), 8, "{ids:?}");
+    assert_eq!(
+        ids.len(),
+        8,
+        "all eight recess items remain addressable, including the location conveyed by the overall span: {ids:?}"
+    );
     for id in &ids {
         let mut spec = Spec::default();
         spec.dimensions.insert(

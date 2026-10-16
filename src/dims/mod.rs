@@ -1891,6 +1891,16 @@ fn share_statements(
     let level = |p: &str| p.starts_with("step_height.length.");
     let span = |(w, _, view, _): &(Want, bool, Option<&'static str>, Vec<&'static str>)| {
         let parameter = &w.measurements.first()?.parameter;
+        // The recess consolidator owns these spans, including claims transferred to a
+        // level or envelope carrier. Keep them out of point-location sharing so a hole's
+        // table cells and a slot's independent datum identity remain intact.
+        if w.measurements.iter().any(|m| {
+            m.parameter.starts_with("seat_location.")
+                || m.parameter.starts_with("location_pocket.")
+                || m.parameter.starts_with("location_pocket_pattern.")
+        }) {
+            return None;
+        }
         if !(SHARED.iter().any(|(p, _)| p == parameter)
             || cross_family && (coordinate(parameter) || diameter(parameter)))
         {

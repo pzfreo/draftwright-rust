@@ -14,8 +14,11 @@ members are refused. The drawing verifies member sizes and the lattice before
 crediting a grouped callout, count, pitch and absolute centre locations. Pattern
 members retain their source records and share one requirement set. Missing pitch
 reopens the member-location finding. Rounded pockets retain four corner-radius
-requirements per occurrence under a shared radius callout, independently of their
-size/depth annotation.
+requirements per occurrence, independently of their size/depth annotation. Pattern corners use one counted radius callout carrying their matching blend
+claims; the same blends are excluded from blanket radius notes. Lone pockets
+reuse four matching vertical blend owners through their note, callout or located
+table. Without such records, a counted pocket-radius callout owns all four corners.
+Matching uses faces, axis and radius and prevents duplicate physical statements.
 
 Python has no location compiler owner for non-Z pocket patterns; those remain
 explicitly unverifiable here too. Lattices outside the drawing's principal axes
