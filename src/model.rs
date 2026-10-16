@@ -5118,19 +5118,21 @@ fn render_annotations_with_cuts(
             items: ink,
         });
     }
-    for d in &plan.dimensions {
-        let role = d.id.rsplit_once('/').map_or("", |(_, p)| p);
-        if let Some(p) = plan.spec.precision.get(&d.id).or_else(|| {
-            d.measurements
-                .iter()
-                .filter(|m| m.parameter == role)
-                .find_map(|m| {
-                    plan.spec
-                        .precision
-                        .get(&format!("d:{}/{}", m.feature, m.parameter))
-                })
-        }) {
-            sheet.precision.insert(d.id.clone(), *p);
+    if !plan.spec.precision.is_empty() {
+        for d in &plan.dimensions {
+            let role = d.id.rsplit_once('/').map_or("", |(_, p)| p);
+            if let Some(p) = plan.spec.precision.get(&d.id).or_else(|| {
+                d.measurements
+                    .iter()
+                    .filter(|m| m.parameter == role)
+                    .find_map(|m| {
+                        plan.spec
+                            .precision
+                            .get(&format!("d:{}/{}", m.feature, m.parameter))
+                    })
+            }) {
+                sheet.precision.insert(d.id.clone(), *p);
+            }
         }
     }
     Ok(Drawing {

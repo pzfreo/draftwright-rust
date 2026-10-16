@@ -45,6 +45,9 @@ pub fn format(value: f64, places: u8) -> String {
 }
 
 pub(super) fn apply(spec: &Spec, wants: &mut [Want]) -> Result<(), Invalid> {
+    if spec.precision.is_empty() {
+        return Ok(());
+    }
     let bad = |message| Invalid {
         message,
         choices: Vec::new(),
@@ -74,6 +77,9 @@ pub(super) fn labels<'a>(
     spec: &Spec,
     wants: impl IntoIterator<Item = &'a mut Want>,
 ) -> Result<(), Invalid> {
+    if spec.precision.is_empty() {
+        return Ok(());
+    }
     let bad = |message| Invalid {
         message,
         choices: Vec::new(),
