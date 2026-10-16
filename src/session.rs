@@ -1032,6 +1032,7 @@ impl Session {
     }
     fn options_for(&self, item: ItemAnswer, choices: &BTreeMap<String, Value>) -> Options {
         let id = item.item.id.as_str();
+        let angular = item.dimension_kind.as_deref() == Some("angular");
         let placements: Vec<Place> = choices
             .get(id)
             .into_iter()
@@ -1041,10 +1042,13 @@ impl Session {
                         .as_array()
                         .into_iter()
                         .flatten()
-                        .filter_map(|side| {
+                        .map(Some)
+                        .chain(angular.then_some(None))
+                        .filter_map(move |side| {
                             Some(Place {
                                 view: Some(v["view"].as_str()?.into()),
-                                side: serde_json::from_value(side.clone()).ok(),
+                                side: side
+                                    .and_then(|side| serde_json::from_value(side.clone()).ok()),
                                 lane: None,
                                 along: Some(Along::Slot(Slot::Middle)),
                                 offset: None,

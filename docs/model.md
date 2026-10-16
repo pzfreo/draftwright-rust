@@ -1405,9 +1405,11 @@ fingerprints with complete keys from the Analysis):
   to that direction, an edge/axis perpendicular to it, or a vertex. `true` measures the shortest
   separation of the supports. Intersecting supports have zero distance and are refused.
   Angular references are two nonparallel planar faces or two coplanar, nonparallel straight
-  edges; the angle is the smaller angle between their unoriented supports (0–90 degrees).
+  edges; as for PMI, the actual face stations or edge ends select the half-rays and their
+  minor included sector (0–180 degrees). Obtuse included angles remain obtuse.
   True lengths and angular sectors need a principal view that shows them true; a requested
-  incompatible view is refused with the compatible choices. A size leader can attach to any
+  incompatible view is refused with the compatible choices. Angular placement uses view,
+  radial lane and along; a side does not choose another measured sector. A size leader can attach to any
   cylindrical/spherical face, including an oblique cylinder, using exact surface sites.
 - **One quantity, one owner (K6).** A new dimension duplicating a drawn automatic owner is
   refused, naming that owner ID in the message and choices. Edit its tolerance/view/place
@@ -1435,7 +1437,10 @@ fingerprints with complete keys from the Analysis):
   it, for example `{"op":"set","path":"dimensions/d:authored:corner","value":{...}}`;
   remove the entry to delete it. Session/MCP item answers expose its reference anchors,
   placement options and editable fields. Sheet options describe the creation forms. MCP
-  schemas describe the new fields without adding a tool. Browser bindings accept the same
+  schemas describe the new fields without adding a tool. `get_spec` output declares the authored
+  fields once; inputs retain the established sparse per-ID object maps and use the same Spec
+  and geometry validators. Equivalent shared object-type constraints keep the 26 standalone
+  schemas within the unchanged 42,500-byte session budget. Browser bindings accept the same
   Spec and operations; their method signatures are unchanged.
 
 ## The five operations

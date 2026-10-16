@@ -80,6 +80,13 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
         }
     }
     for (i, f) in part.faces.iter().enumerate() {
+        if !matches!(
+            f.surface,
+            Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. }
+        ) {
+            continue;
+        }
+        let needs_sites = !matches!(f.surface, Surface::Plane { .. });
         let b = part.face_bounds(i);
         let bounds = [b.min, b.max];
         let mut boundary = Vec::new();
@@ -92,25 +99,27 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
                 serde_json::to_string(&ends.map(|p| p.map(|v| (v * 1e6).round() / 1e6 + 0.0)))
                     .unwrap(),
             );
-            sites.extend(ends);
-            if !matches!(edge.curve, Curve::Line { .. }) {
-                // Sample in a canonical direction too: reversed traversal of a circle
-                // otherwise visits equivalent parameters with different last-bit sines.
-                let sense = if edge.is_closed() {
-                    true
-                } else if ends[0] == edge.start {
-                    edge.same_sense
-                } else {
-                    !edge.same_sense
-                };
-                let (a, b) = haecceity::sampling::edge_interval(
-                    &edge.curve,
-                    ends[0],
-                    ends[1],
-                    sense,
-                    edge.is_closed(),
-                );
-                sites.extend((1..16).map(|j| edge.curve.value(a + (b - a) * j as f64 / 16.0)));
+            if needs_sites {
+                sites.extend(ends);
+                if !matches!(edge.curve, Curve::Line { .. }) {
+                    // Sample in a canonical direction too: reversed traversal of a circle
+                    // otherwise visits equivalent parameters with different last-bit sines.
+                    let sense = if edge.is_closed() {
+                        true
+                    } else if ends[0] == edge.start {
+                        edge.same_sense
+                    } else {
+                        !edge.same_sense
+                    };
+                    let (a, b) = haecceity::sampling::edge_interval(
+                        &edge.curve,
+                        ends[0],
+                        ends[1],
+                        sense,
+                        edge.is_closed(),
+                    );
+                    sites.extend((1..16).map(|j| edge.curve.value(a + (b - a) * j as f64 / 16.0)));
+                }
             }
         }
         boundary.sort();
@@ -194,7 +203,7 @@ fn midpoint(b: [P; 2]) -> P {
 pub struct Measurement {
     pub value: f64,
     pub witnesses: Option<[P; 2]>,
-    pub directions: Option<[P; 2]>,
+    pub angle: Option<crate::dims::angular::Angle>,
     pub sites: Vec<P>,
 }
 
@@ -209,6 +218,9 @@ impl Analysis {
             .unwrap_or_else(|| EMPTY.get_or_init(BTreeMap::new))
     }
     pub fn dimension_reference(&self, key: &str) -> Result<Reference, String> {
+        if self.dimension_references().is_empty() {
+            return Err("This Analysis records no dimension references; analyse the STEP again, then copy stable keys from Analysis.edge_ink.references.".into());
+        }
         if let Some(id) = key.strip_prefix("axis:") {
             let candidates: Vec<_> = if id.starts_with("face:") {
                 vec![self.dimension_reference(id)?]
@@ -245,7 +257,7 @@ impl Analysis {
                     let c = midpoint(bounds);
                     let p = add(origin, mul(axis, dot(sub(c, origin), axis)));
                     lines.push(Reference::Edge {
-                        ends: [p, add(p, axis)],
+                        ends: [sub(p, axis), add(p, axis)],
                     });
                 }
             }
@@ -281,7 +293,7 @@ impl Analysis {
         let mut out = Measurement {
             value: 0.0,
             witnesses: None,
-            directions: None,
+            angle: None,
             sites: vec![],
         };
         if along.is_some_and(|v| kind != "linear" || !["x", "y", "z", "true"].contains(&v)) {
@@ -298,15 +310,32 @@ impl Analysis {
                 if matches!(a, Reference::Plane { .. }) != matches!(b, Reference::Plane { .. }) {
                     return Err("An angle needs two planar faces or two straight edges.".into());
                 }
-                if matches!(a, Reference::Edge { .. }) {
-                    let cross = [da[1]*db[2]-da[2]*db[1], da[2]*db[0]-da[0]*db[2], da[0]*db[1]-da[1]*db[0]];
-                    if unit(cross).is_some_and(|n| dot(sub(pb,pa),n).abs() > 1e-6) {
+                let angle = if matches!(a, Reference::Plane { .. }) {
+                    crate::dims::angular::from_planes([(pa, da), (pb, db)], [pa, pb])
+                        .map_err(String::from)?
+                } else {
+                    let coupling = dot(da, db);
+                    let determinant = 1.0 - coupling * coupling;
+                    if determinant <= 1e-12 {
+                        return Err("Parallel edges have no angular sector; choose nonparallel straight edges.".into());
+                    }
+                    let delta = sub(pb, pa);
+                    let first = (dot(delta, da) - coupling * dot(delta, db)) / determinant;
+                    let second = coupling * first - dot(delta, db);
+                    let vertex = add(pa, mul(da, first));
+                    if dot(sub(vertex, add(pb, mul(db, second))), sub(vertex, add(pb, mul(db, second)))) > 1e-12 {
                         return Err("Skew edges do not meet; choose coplanar straight edges.".into());
                     }
-                }
-                out.value = dot(da, db).abs().clamp(0.0, 1.0).acos().to_degrees();
-                out.witnesses = Some([pa, pb]);
-                out.directions = Some([da, db]);
+                    let witness = |r: &Reference| {
+                        let Reference::Edge { ends } = r else { unreachable!() };
+                        *ends.iter().max_by(|a, b| {
+                            dot(sub(**a, vertex), sub(**a, vertex)).total_cmp(&dot(sub(**b, vertex), sub(**b, vertex)))
+                        }).expect("two endpoints")
+                    };
+                    crate::dims::angular::Angle { vertex, first: witness(a), second: witness(b) }
+                };
+                out.value = angle.degrees().ok_or("The angular supports are degenerate; choose distinct half-rays.")?;
+                out.angle = Some(angle);
             }
             ("linear", [a, b]) => {
                 let axis = ["x", "y", "z"].iter().position(|s| Some(*s) == along);

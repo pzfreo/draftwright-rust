@@ -1,5 +1,5 @@
 //! Spec-authored quantities use the ordinary Want -> lanes -> placement -> ink pipeline.
-use super::{Measurement, Shape, Want, angular, fmt};
+use super::{Measurement, Shape, Want, fmt};
 use crate::model::dimension_geometry::{Reference, dot, sub, unit};
 use crate::model::{Analysis, Invalid, Spec};
 
@@ -118,37 +118,7 @@ pub(super) fn append(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<()
                 }
             }
             "angle" => {
-                let [p, q] = m.witnesses.unwrap();
-                let [u, v] = m.directions.unwrap();
-                let ra = a.dimension_reference(&refs[0]).map_err(invalid)?;
-                let mut angle = if matches!(ra, Reference::Plane { .. }) {
-                    angular::from_planes([(p, u), (q, v)], [p, q]).map_err(invalid)?
-                } else {
-                    let c = dot(u, v);
-                    let delta = sub(q, p);
-                    let den = 1.0 - c * c;
-                    if den < 1e-10 {
-                        return Err(invalid(format!(
-                            "{id}: parallel edges have no angular sector."
-                        )));
-                    }
-                    let t = (dot(delta, u) - c * dot(delta, v)) / den;
-                    let t2 = c * t - dot(delta, v);
-                    let vertex = [0, 1, 2].map(|k| p[k] + t * u[k]);
-                    if (0..3).any(|k| (vertex[k] - (q[k] + t2 * v[k])).abs() > 1e-6) {
-                        return Err(invalid(format!(
-                            "{id}: skew edges do not meet; choose coplanar edges."
-                        )));
-                    }
-                    angular::Angle {
-                        vertex,
-                        first: [0, 1, 2].map(|k| vertex[k] + u[k]),
-                        second: [0, 1, 2].map(|k| vertex[k] + v[k]),
-                    }
-                };
-                if angle.degrees().is_some_and(|v| v > 90.0 + 1e-7) {
-                    angle.second = [0, 1, 2].map(|k| 2.0 * angle.vertex[k] - angle.second[k]);
-                }
+                let angle = m.angle.unwrap();
                 let views = angle
                     .principal()
                     .map(|k| vec![super::end_on(k)])

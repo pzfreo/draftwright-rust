@@ -2665,9 +2665,7 @@ pub(crate) fn placement_options_with_spec(
                         Shape::Callout { .. } | Shape::Aligned { .. } => {
                             vec!["above", "below", "left", "right"]
                         }
-                        Shape::Angular { .. } if probe.id.starts_with("d:authored:") => {
-                            vec!["above", "below", "left", "right"]
-                        }
+                        Shape::Angular { .. } if probe.id.starts_with("d:authored:") => Vec::new(),
                         Shape::Angular { .. } => return None,
                     };
                     Some(serde_json::json!({"view": name, "sides": sides}))

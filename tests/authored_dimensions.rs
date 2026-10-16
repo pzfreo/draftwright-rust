@@ -457,3 +457,84 @@ fn saved_v1_reference_keys_keep_resolving() {
     assert_eq!(d.label, "60 ±0.1");
     assert!(d.placed.is_some());
 }
+
+#[test]
+fn obtuse_face_and_edge_angles_keep_the_physical_included_sector() {
+    let (_, mut a) = plate();
+    let height = 5.0 * 3.0f64.sqrt();
+    let records = a.edge_ink.as_mut().unwrap();
+    records.references.insert(
+        "face:test-horizontal".into(),
+        vec![Reference::Plane {
+            origin: [0.0; 3],
+            normal: [0.0, 0.0, 1.0],
+            bounds: [[0.0, -1.0, 0.0], [10.0, 1.0, 0.0]],
+        }],
+    );
+    records.references.insert(
+        "face:test-inclined".into(),
+        vec![Reference::Plane {
+            origin: [0.0; 3],
+            normal: [3.0f64.sqrt() / 2.0, 0.0, 0.5],
+            bounds: [[-5.0, -1.0, 0.0], [0.0, 1.0, height]],
+        }],
+    );
+    records.references.insert(
+        "edge:test-horizontal".into(),
+        vec![Reference::Edge {
+            ends: [[0.0; 3], [10.0, 0.0, 0.0]],
+        }],
+    );
+    records.references.insert(
+        "edge:test-inclined".into(),
+        vec![Reference::Edge {
+            ends: [[-5.0, 0.0, height], [0.0; 3]],
+        }],
+    );
+    for prefix in ["face", "edge"] {
+        let refs = vec![
+            format!("{prefix}:test-horizontal"),
+            format!("{prefix}:test-inclined"),
+        ];
+        assert!((a.measure_references(&refs, "angle", None).unwrap().value - 120.0).abs() < 1e-9);
+        let s = parse(
+            json!({"dimensions":{"d:authored:obtuse":{"kind":"angle","between":refs,"view":"front"}}}),
+        );
+        let p = model::plan_recovered(&a, &s).unwrap();
+        let d = p
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:authored:obtuse")
+            .unwrap();
+        assert!((d.value - 120.0).abs() < 1e-9);
+        assert_eq!(d.label, "120°");
+        assert!(d.placed.is_some());
+    }
+}
+
+#[test]
+fn angular_editor_options_offer_radial_placement_without_inapplicable_sides() {
+    let (part, a) = plate();
+    let x = planes(&a, 0);
+    let z = planes(&a, 2);
+    let s = parse(
+        json!({"dimensions":{"d:authored:angle":{"kind":"angle","between":[x[0].0,z.last().unwrap().0],"view":"front"}}}),
+    );
+    let session = Session::new(part, a, s).unwrap();
+    let options = session.options("d:authored:angle").unwrap();
+    assert!(!options.placements.is_empty());
+    assert!(
+        options
+            .placements
+            .iter()
+            .all(|p| p.side.is_none() && p.view.as_deref() == Some("front"))
+    );
+    assert_eq!(
+        options.settable["dimensions/d:authored:angle/place/side"]["choices"],
+        json!([])
+    );
+    assert_eq!(
+        options.settable["dimensions/d:authored:angle/place/view"]["choices"],
+        json!(["front"])
+    );
+}
