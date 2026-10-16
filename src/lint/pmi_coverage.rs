@@ -19,8 +19,8 @@
 //!   blockers, its modifiers or its attachment stop it, a surface or common label has no proven
 //!   site, a drawing-wide requirement ([`sheet_requirements`]) is ambiguous or not a supported
 //!   default, a thread or knurl no one feature owns ([`manufacturing`]: its text disagrees with
-//!   its cylinder, or no feature or several prove it), or it is a face finish (read, not drawn
-//!   yet); a dimension that does not lower ([`dimension`]). Error; a manufacturing requirement of
+//!   its cylinder, or no feature or several prove it); a dimension that does not lower
+//!   ([`dimension`]). Error; a manufacturing requirement of
 //!   a kind draftwright does not support is a warning.
 //! - `pmi_not_rendered`: a record [`lower`] or [`sheet_requirements`] lowers, a thread or knurl
 //!   [`manufacturing`] gives to its owner (its owner's callout claims it), or a dimension that
@@ -38,14 +38,12 @@
 //!   Warnings.
 //!
 //! Python's `pmi_present_but_ignored` is not-applicable: the port has no switch that ignores a
-//! part's PMI. Its other codes wait on the drawing or on a decision: of the manufacturing notes,
-//! finish symbols and requirement table that `pmi_source_text_mismatch`, `pmi_source_site_mismatch`
-//! and `manufacturing_reference_unresolved` check, the port draws the drawing-wide notes, the
-//! default finish and the threads and knurls (on their callouts or in their table), not a face's
-//! finish, and checks none of their text yet; and the title block's material
-//! and general tolerance against the file (`step_material_mismatch` and `_disagreement`,
-//! `step_general_tolerance_*`) turn on whether the caller authored the field, which only the Spec
-//! says.
+//! part's PMI. Source-site fidelity is checked by [`source_sites`] against the finished leader
+//! and the independently recorded face attachments, including census-only sources with no typed
+//! record. Text fidelity (`pmi_source_text_mismatch`) and manufacturing-reference reconciliation
+//! still wait on their own checks. The title block's material and general tolerance against the
+//! file (`step_material_mismatch`, `_disagreement`, `step_general_tolerance_*`) also depend on
+//! whether the caller authored the field.
 
 use std::collections::BTreeSet;
 

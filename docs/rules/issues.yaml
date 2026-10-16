@@ -1232,9 +1232,10 @@
       - "tests/test_issue_1209_linear_pmi_witnesses.py::test_linear_witness_uses_stations_while_bbox_supplies_only_transverse_support"
       - "tests/test_issue_1209_linear_pmi_witnesses.py::test_oblique_linear_support_renders_its_exact_projected_span"
     corpus_parts: ["nist_ctc_03_asme1_ap242", "nist_ctc_04_asme1_ap242"]
-  status: pending
-  rust_test: "tests/pmi_dimensions.rs::what_the_faces_do_not_prove_is_reported_not_guessed"
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: a linear or thickness dimension is drawn only from its two proven stations (the faces' group centres, parallel planes' normal and witness view, a plane-to-bore witness), between them along x, y or z; coincident stations, a span off the nominal, a relationship outside a principal plane and a missing group are `pmi_not_lowered` with draftwright's reasons; an oblique span in a principal plane is `pmi_dimensions_not_ported` (no aligned dimension yet)."
+  status: ported
+  owner: draftwright
+  rust_test: "tests/pmi_dimensions.rs::oblique_pmi_draws_its_exact_projected_station_span"
+  rust_note: "Proven linear/thickness stations in a principal plane now draw an aligned dimension in the preserving front, plan or side projection, including Python's transverse-noise tolerance. The witness endpoints, dimension line, arrows, rotated label and reservation use that exact projected span. The existing geometric proof still refuses incomplete, coincident, wrong-nominal and nonprincipal relationships; tests/pmi_dimensions.rs::what_the_faces_do_not_prove_is_reported_not_guessed pins those refusals. Ownership is unchanged."
   port_note: "Keep: scenario CTC-04 AP242 -> two untruthful records as problems; witness spans equal PMI value."
 
 - id: ISSUE-1215-a
@@ -1250,9 +1251,9 @@
       - "tests/test_issue_1215_envelope_tolerance.py::test_a_limit_pair_prints_both_limits"
       - "tests/test_issue_1215_envelope_tolerance.py::test_the_tolerance_reaches_the_exported_ink"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/issue_drafting.rs::an_envelope_tolerance_prints_on_its_own_extent"
-  rust_note: "Partial: a tolerance set on one extent's ID (dimensions/<id>/tolerance, src/dims/tolerance.rs) prints on that extent's label and drawn text run only, a symmetric band and a pair of deviations as draftwright prints them (5 ±0.05, 5 +0.2 -0.1); checked on plate for each of the three extents. Not ported: a bare envelope tolerance folded onto every extent (the spec has no envelope-wide entry; each extent's ID takes its own) and a fit class on an extent (a fit is set on a hole or a cylindrical boss only)."
+  status: ported
+  rust_test: "tests/issue_drafting.rs::envelope_wide_bands_and_extent_fits_reach_the_ink"
+  rust_note: "Spec.envelope_tolerance supplies every overall extent's band. Per-extent tolerance or fit overrides the fallback; an ISO 286 class on an extent prints its code and, under the existing fit_limits setting, its limits. Tests inspect the planned label and the rendered text runs, with the other extents bare for a per-extent fit. Existing per-extent deviation pairs and bounds tests remain."
   port_note: "Keep: scenario test spec envelope tolerance -> plan label text includes it; render glyph check."
 
 - id: ISSUE-1215-b
@@ -1839,8 +1840,9 @@
       - "tests/test_issue_1349_precision_display.py::test_automatic_default_formatting_is_unchanged_without_an_explicit_policy"
       - "tests/test_issue_1349_precision_display.py::test_close_diameters_with_distinct_authoritative_text_do_not_deduplicate"
     corpus_parts: []
-  status: pending
-  rust_note: "Not ported: the spec has no display precision; every value prints at draftwright's default precision (dims::fmt), and an authored tolerance keeps its own digits (ISSUE-1524-a). Stream K7 ported the checks a policy would be judged by (label_vs_measured reads a bare label's own places; nominal_rounded reports where the one-place sheet precision rounds a nominal), so what remains is the Spec setting by measurement ID and its reach into every rendered form, a Spec feature outside K7's lint scope."
+  status: ported
+  rust_test: "tests/precision.rs::requested_precision_reaches_extents_chains_ladders_and_locations"
+  rust_note: "Spec.precision is a map from semantic measurement IDs to decimal places. It formats each nominal from its original numeric value before placement, including compound callout roles, chains, ladders and locations; the same terms are measured and drawn, preserving tolerance digits, symbolic thread/reference text and numeric provenance. Compound terms, reservations, close diameters, and zero-place lint are additionally pinned in tests/precision.rs. Existing shared dimension owners are retained: conflicting text policies on a shared term or coincident span are refused as Python's shared_location_text does, without changing ownership."
   port_note: "Keep: spec precision by measurement ID -> plan label text; scenario test."
 
 - id: ISSUE-1349-b
@@ -1853,9 +1855,10 @@
       - "tests/test_issue_1349_precision_display.py::test_invalid_precision_is_refused_at_both_public_inputs"
       - "tests/test_issue_1349_precision_display.py::test_precision_boundaries_and_negative_zero_are_stable"
     corpus_parts: []
-  status: pending
-  rust_test: formatting_rounds_negative_zero_without_a_sign
-  rust_note: "Not ported: the spec has no precision; numbers print by draftwright's _fmt (dims::fmt), which prints negative zero as 0. Stage G1: negative rounded zero prints without a sign (tests/completeness.rs::formatting_rounds_negative_zero_without_a_sign). Precision conflicts are moot until the Spec has a precision."
+  status: ported
+  owner: draftwright
+  rust_test: "tests/precision.rs::invalid_and_conflicting_precision_fail_closed_at_both_inputs"
+  rust_note: "Precision is an integer from 0 to 15, checked by Spec deserialization and model::edit, also checked for programmatically constructed Specs at planning. Conflicting repeated JSON keys and coincident measurement policies fail closed. tests/precision.rs::coincident_measurements_require_matching_explicit_precision and dims::precision::tests::precision_boundaries_and_negative_zero_are_stable pin conflicts, boundaries, retained zeroes and negative zero."
   port_note: "Keep."
 
 - id: ISSUE-1350-a
@@ -1886,9 +1889,10 @@
       - "tests/test_issue_1351_structured_note_coverage.py::test_callout_and_note_on_one_diameter_do_not_cover_an_identical_sibling"
       - "tests/test_issue_1351_structured_note_coverage.py::test_duplicate_notes_do_not_multiply_one_requirement_identity_into_physical_count"
     corpus_parts: []
-  status: pending
-  rust_test: tests/dims_blends.rs::a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit
-  rust_note: "Partly ported: prose cannot silence coverage. On draftwright's counterbored block with the callout left out, a general note in draftwright's prose (PROFILED BORE: diameter 14 x 8 DEEP), or even in the callout's own words, changes no finding: lint reads only the drawing's annotations, and general notes (n:<k>, src/notes.rs) are not annotations and carry no claims, so the counterbore's diameter and depth stay missing and ø14 stays feature_not_dimensioned, as in draftwright's test. Not ported: a per-feature structured note with an explicit satisfies claim on a placed feature, and so its other clauses (an unplaced note grants nothing, one note does not cover an identical sibling, duplicates do not multiply). Difference: draftwright calls the omitted requirements suppressed; the port's lint never reads the spec, so they are missing. Stage G3 ports automatic radius-note authority only (explicit satisfies claims, never prose); the general authored per-feature satisfaction API is not ported. Stream K1b adds Spec-authored feature and face notes (features/<id>/note, faces/<face>/note, src/spec_notes.rs): drawn as leadered labels that claim no measurement, so their prose silences nothing either (tests/spec_notes.rs::a_feature_note_and_a_sheet_note_are_drawn); the satisfies claim is still not ported."
+  status: ported
+  owner: draftwright
+  rust_test: "tests/spec_notes.rs::structured_feature_notes_cover_only_explicit_roles_of_their_placed_owner"
+  rust_note: "FeatureSpec.note_satisfies names explicit measurement roles of its note's owner. Unknown roles are refused. The rendered annotation carries satisfaction claims separately from measurements; lint accepts them only for a source-resolved, placed leadered feature note with surviving text in its view. Coverage removes only the exact satisfied identities: prose, an unplaced/removed note, a sibling and implicit THRU/count gain nothing. Set membership prevents duplicate authority multiplying physical counts. Existing notes and datum/GD&T placement are unchanged."
   port_note: "Keep: Spec note with explicit satisfies=[measurement IDs]; coverage reads that, never note text."
 
 - id: ISSUE-1352-a

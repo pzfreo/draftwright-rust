@@ -12,7 +12,8 @@
 //!   no tolerance, is stated by it; a plain length between a turned step's two shoulders is
 //!   stated by the step's length;
 //! - **stands beside them**, drawn as its own dimension (draftwright's standalone fallback): a
-//!   length along x, y or z between its two proven stations, in the front view (x and z; the plan
+//!   length between its two proven stations (aligned for an oblique span in a principal plane),
+//!   along x, y or z in the front view (x and z; the plan
 //!   when only the plan's witness is proven), or the side then the plan (y); a diameter by a
 //!   leader to its cylinder where it is seen end-on; a radius by a leader to a proven point of
 //!   its arc; an angle about the vertex of its two planar sides, in the view that shows it true
@@ -20,8 +21,8 @@
 //!   dimension's is boxed. It is an ordinary planned dimension, placed with the others;
 //! - **or is not drawn, and says why**: a record whose reading left blockers, whose faces lie in
 //!   several placements of the part, or whose faces prove no witness (`pmi_not_lowered`, with
-//!   draftwright's reasons); a kind the port does not draw yet: a length oblique to
-//!   the views' axes, a diameter or radius not along x, y or z, a bolt circle whose holes carry
+//!   draftwright's reasons); a kind the port does not draw yet: a diameter or radius not along
+//!   x, y or z, a bolt circle whose holes carry
 //!   different requirements (draftwright splits it; the port splits count groups, grids and
 //!   lines), a counted turned diameter a record names only one of (`pmi_dimensions_not_ported`).
 //!

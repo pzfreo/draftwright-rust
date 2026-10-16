@@ -17,8 +17,8 @@
 //!   `N× ⌀d` counts d-diameter features, as draftwright reads it.
 //! - `nominal_rounded` (`_lint_display_precision`): once per sheet, info, the dimensions whose
 //!   correctly rounded label prints a nominal the model does not have (by more than 0.0005 mm),
-//!   naming the largest. The port's spec has no display precision to raise, so the message says
-//!   so instead of draftwright's `.format(decimals=…)` advice.
+//!   naming the largest. The Spec can raise precision by semantic measurement ID; the drawing
+//!   records the approved policy alongside the ink for this independent check.
 //! - `angular_label_vs_geometry` (`lint_angular_geometry`): an angular dimension's degrees
 //!   against the angle between its drawn rays (its two extension lines, from their meeting point,
 //!   the vertex), within half its last printed place. Never the planned angle.

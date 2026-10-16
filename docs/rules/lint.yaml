@@ -1982,9 +1982,10 @@
     lint_code: "pmi_source_site_mismatch"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_pmi_manufacturing_finish.py]
-  status: pending
+  status: ported
+  rust_test: "tests/surface_texture.rs::a_finish_leader_must_stay_on_its_source_face"
+  rust_note: "Source-site lint reads the finished leader tip, its recorded view transform and the source record's exact face attachments. Planar finishes must lie on that face's edge line; cylindrical finishes on its silhouette. A source-scoped general note must name a document-note source. A known census source without a typed finish/note record is rejected, rather than borrowing its mere census presence. The Rust annotation identity resolves directly to a record (unknown claims are pmi_source_unknown), so no separate, losable Part21/source_id declaration pair exists. No datum or GD&T placement was changed."
   port_note: "Keep if PMI is ported."
-  rust_note: "Not ported: the check reads where a face-finish symbol is anchored and which source a general note claims. The reading holds the requirements and their faces; the port draws document-wide notes (`pmi:<source>`) and the default finish beside the title block, which have no face site, but no face-finish symbol, so there is no anchored carrier to check. Obsolete until face-finish symbols are drawn (rules assessment of 2026-10-11); kept pending to revive with them."
 
 - id: LINT-code-pmi_unreconciled
   statement: "Content claiming an AP242 origin with no source census available is reported as unverified, never as satisfied."
