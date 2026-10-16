@@ -41,6 +41,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- The Python-rules catalogue (`docs/rules`) applies the maintainer-approved triage of every
+  pending rule: 12 retired, 91 translated with the Rust mechanism that meets each, 7 already
+  met marked ported, and the 80 left to port tagged with value, size and stream; stale notes
+  describe current Rust. `tests/rules_catalogue.rs` checks that every rule says what backs its
+  status, every cited test exists and the README tables match the files.
+
 - Pinned haecceity and quiddity to quiddity-rust `v0.1.0-alpha.4` (commit `f5ddb726`), from rev `7cb26d85`.
 - Plan problems use drawing language and identify the affected faces and callouts;
   reference dimensions carry `reference` and `determined_by` (#29).
