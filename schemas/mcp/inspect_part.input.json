@@ -90,11 +90,25 @@
                 "null"
               ]
             },
-            "^(fit_limits|fit_deviations)$": {
+            "^(fit_limits|fit_deviations|hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
               "type": [
                 "boolean",
                 "null"
               ]
+            }
+          }
+        },
+        "views": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "patternProperties": {
+              "^(hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
             }
           }
         },
@@ -114,7 +128,7 @@
       },
       "additionalProperties": false,
       "patternProperties": {
-        "^(views|dimensions|annotations|features|faces)$": {
+        "^(dimensions|annotations|features|faces)$": {
           "additionalProperties": {
             "type": "object"
           },

@@ -688,7 +688,7 @@ impl Session {
         // Planned captions participate in the furniture collection diff, including removal.
         let furniture_changed = delta.is_none_or(|d| {
             d.plan.fields.keys().any(|k| k != "spec")
-                || (!self.plan().sheets.is_empty() && d.plan.collections.contains_key("views"))
+                || d.plan.collections.contains_key("views")
                 || d.plan.collections.keys().any(|k| {
                     !matches!(
                         k.as_str(),
@@ -1101,6 +1101,9 @@ fn settable(
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
         if item.item.kind == "view" {
+            for field in crate::linework::FIELDS {
+                fields.insert(format!("{base}/{field}"), choices(json!([false, true])));
+            }
             // Preserve default single-sheet answers until the author enables sheet controls.
             if session.spec().sheets.is_some() {
                 let name = id.trim_start_matches("v:");
@@ -1229,6 +1232,11 @@ fn settable(
             descriptor["paths"] = json!(paths);
         }
         fields.insert(paths[0].clone(), descriptor);
+    }
+    if item.item.kind == "sheet" {
+        for field in crate::linework::FIELDS {
+            fields.insert(format!("sheet/{field}"), choices(json!([false, true])));
+        }
     }
     // A datum letter and feature control frames qualify a feature or hole pattern
     // ([`crate::spec_gdt`]); a face takes them at faces/<side or face:n>/….
@@ -1426,6 +1434,8 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 });
                 a.basis = v.basis.clone();
                 a.operations = ["omit", "place", "pin"].map(String::from).into();
+                a.operations
+                    .extend(crate::linework::FIELDS.map(String::from));
                 if plan.spec.sheets.is_some() {
                     a.operations.push("move_to_sheet".into());
                 }
@@ -1621,6 +1631,7 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
                         || a.direction != b.direction
                         || a.up != b.up
                         || a.cut != b.cut
+                        || a.line_style != b.line_style
                 })
             })
             .cloned()
