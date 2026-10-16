@@ -75,13 +75,7 @@ impl Text {
         Ok(())
     }
 
-    /// Read the live value-bearing body, checking the authored wrapper rather than trusting it.
-    pub(crate) fn body(&self, label: &str, reference: bool) -> Option<String> {
-        let label = if reference {
-            label.strip_prefix('(')?.strip_suffix(')')?
-        } else {
-            label
-        };
+    pub(crate) fn wording(&self, reference: bool) -> crate::output::LabelWording {
         let (before, after) = self
             .template
             .as_deref()
@@ -90,23 +84,16 @@ impl Text {
                 self.prefix.as_deref().unwrap_or(""),
                 self.suffix.as_deref().unwrap_or(""),
             ));
-        let mut body = label;
-        if !before.trim().is_empty() {
-            body = body.strip_prefix(before.trim())?.strip_prefix(' ')?;
+        crate::output::LabelWording {
+            prefix: before.trim().into(),
+            suffix: after.trim().into(),
+            reference,
+            count: count_prefix(before).map(|(n, _)| n),
         }
-        if !after.trim().is_empty() {
-            body = body.strip_suffix(after.trim())?.strip_suffix(' ')?;
-        }
-        if body.trim().is_empty() {
-            return None;
-        }
-        // Counts remain live evidence for independent feature-count lint.
-        let body = if let Some((n, _)) = count_prefix(before) {
-            format!("{n}× {body}")
-        } else {
-            body.into()
-        };
-        Some(if reference { format!("({body})") } else { body })
+    }
+
+    fn body(&self, label: &str, reference: bool) -> Option<String> {
+        self.wording(reference).body(label)
     }
 
     pub(crate) fn terms(&self, id: &str, terms: &[String]) -> Result<Vec<String>, Invalid> {
@@ -211,24 +198,6 @@ pub(crate) fn note_body<'a>(
         )
 }
 
-/// The annotation's live generated terms, if its compiled wording wrapper is still present.
-pub(crate) fn drawn_body(
-    drawing: &crate::output::Drawing,
-    annotation: &crate::output::Annotation,
-) -> Option<String> {
-    let text = annotation
-        .runs
-        .iter()
-        .filter_map(|&i| drawing.text.get(i))
-        .map(|r| r.text.as_str())
-        .collect::<Vec<_>>()
-        .join(" ");
-    match drawing.sheet.label_text.get(&annotation.name) {
-        Some((policy, reference)) => policy.body(&text, *reference),
-        None => Some(text),
-    }
-}
-
 /// Compile wording evidence independently of the live searchable runs.
 pub(crate) fn capture(plan: &crate::model::Plan, sheet: &mut crate::output::Sheet) {
     if !plan.spec.dimensions.values().any(|d| d.text.is_some())
@@ -242,7 +211,7 @@ pub(crate) fn capture(plan: &crate::model::Plan, sheet: &mut crate::output::Shee
         {
             sheet
                 .label_text
-                .insert(id.clone(), (text.clone(), d.reference));
+                .insert(id.clone(), text.wording(d.reference));
         }
     }
     for note in &plan.notes {
@@ -273,14 +242,12 @@ pub(crate) fn capture(plan: &crate::model::Plan, sheet: &mut crate::output::Shee
             };
             sheet.label_text.insert(
                 note.id.clone(),
-                (
-                    crate::label_text::Text {
-                        prefix: Some(prefix),
-                        suffix: Some(after.trim().into()),
-                        template: None,
-                    },
-                    false,
-                ),
+                Text {
+                    prefix: Some(prefix),
+                    suffix: Some(after.trim().into()),
+                    template: None,
+                }
+                .wording(false),
             );
         }
     }

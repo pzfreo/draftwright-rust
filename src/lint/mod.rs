@@ -177,7 +177,7 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
                 .sheet
                 .label_text
                 .get(&a.name)
-                .map(|(policy, reference)| policy.body(&drawn_text, *reference));
+                .map(|wording| wording.body(&drawn_text));
             let claims =
                 if !matches!(body, Some(None)) && schedule_evidence::verified(a, &drawn_text) {
                     a.claims.clone()
@@ -269,7 +269,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         .iter()
         .filter(|a| !a.satisfies.is_empty())
         .filter(|a| {
-            let Some(text) = crate::label_text::drawn_body(drawing, a) else {
+            let Some(text) = crate::output::drawn_body(drawing, a) else {
                 return false;
             };
             let Some((_, radius)) = text.split_once("ALL UNSPECIFIED RADII R") else {
@@ -307,7 +307,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                     })
         })
         .flat_map(|a| {
-            let text = crate::label_text::drawn_body(drawing, a).expect("verified note wrapper");
+            let text = crate::output::drawn_body(drawing, a).expect("verified note wrapper");
             let radius = text
                 .split_once("ALL UNSPECIFIED RADII R")
                 .unwrap()

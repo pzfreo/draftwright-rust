@@ -133,7 +133,7 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                     .sheet
                     .label_text
                     .get(&d.name)
-                    .map(|(policy, reference)| policy.body(text, *reference));
+                    .map(|wording| wording.body(text));
                 let text = match &body {
                     Some(Some(body)) if label_value(body).is_some() => {
                         body.trim_start_matches('(').trim_end_matches(')')

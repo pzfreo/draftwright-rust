@@ -97,7 +97,7 @@ pub(crate) fn relief_stated(a: &Analysis, drawing: &crate::output::Drawing) -> b
             n.name == RELIEF_NOTE
                 && n.claims.is_empty()
                 && n.satisfies.is_empty()
-                && crate::label_text::drawn_body(drawing, n)
+                && crate::output::drawn_body(drawing, n)
                     .is_some_and(|text| text.ends_with("SHALLOW RELIEF PROFILES PER MODEL"))
         })
 }
