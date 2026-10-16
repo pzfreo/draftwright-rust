@@ -91,7 +91,6 @@
                 "state": {
                   "anyOf": [
                     {
-                      "type": "object",
                       "properties": {
                         "kind": {
                           "enum": [
@@ -107,7 +106,6 @@
                       "additionalProperties": false
                     },
                     {
-                      "type": "object",
                       "properties": {
                         "kind": {
                           "const": "covered"
@@ -123,7 +121,6 @@
                       "additionalProperties": false
                     },
                     {
-                      "type": "object",
                       "properties": {
                         "kind": {
                           "const": "not_drawable"
@@ -138,7 +135,8 @@
                       ],
                       "additionalProperties": false
                     }
-                  ]
+                  ],
+                  "type": "object"
                 },
                 "basis": {
                   "type": "string"
