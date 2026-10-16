@@ -634,3 +634,59 @@ fn saved_template_reexpands_when_the_authoritative_measurement_changes() {
     assert_eq!(d.label, format!("{} AFTER PLATING", expected.label));
     assert_ne!(d.label, old.label);
 }
+
+#[test]
+fn large_mcp_options_keep_all_structured_and_resource_details_within_the_wire_budget() {
+    let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("label-text-options-wire");
+    let _ = std::fs::remove_dir_all(&directory);
+    let cache = draftwright::stateless::Cache::new(directory);
+    let summary = draftwright::mcp::call(
+        &cache,
+        "inspect_part",
+        &json!({
+            "step":root().join("tests/fixtures/parts/mounting_plate.step"),
+            "features":root().join("tools/mcp-eval/features/plate.features.json")
+        }),
+    )
+    .unwrap();
+    let mut resources = 0;
+    for item in summary["key_items"].as_array().unwrap() {
+        let response = draftwright::mcp::reply(&cache,&json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+            "name":"item_options", "arguments":{"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"id":item["id"]}
+        }})).unwrap();
+        assert_eq!(response["result"]["isError"], false, "{response}");
+        assert!(serde_json::to_vec(&response).unwrap().len() < 4096);
+        let full = &response["result"]["structuredContent"];
+        assert!(
+            full["settable"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .any(|p| p.ends_with("/text"))
+        );
+        assert!(
+            full["settable"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .any(|p| p.ends_with("/style"))
+        );
+        let text: serde_json::Value =
+            serde_json::from_str(response["result"]["content"][0]["text"].as_str().unwrap())
+                .unwrap();
+        if let Some(reference) = text["detail_ref"].as_str() {
+            let resource = draftwright::mcp::reply(&cache,&json!({"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":format!("draftwright:{reference}")}})).unwrap();
+            let restored: serde_json::Value =
+                serde_json::from_str(resource["result"]["contents"][0]["text"].as_str().unwrap())
+                    .unwrap();
+            assert_eq!(&restored, full);
+            resources += 1;
+        } else {
+            assert_eq!(&text, full);
+        }
+    }
+    assert!(
+        resources > 0,
+        "the complete large option map exercised resource-backed text"
+    );
+}

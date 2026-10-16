@@ -1876,3 +1876,8 @@ original measured claims. It does not infer a new value from authored prose or t
 approved nominal instead of the drawn text. Damaged wrappers or missing values lose claim
 proof; linear fidelity compares the live numeric text against the drawn witnesses. Wording
 never acknowledges or suppresses a lint finding.
+
+Large MCP `item_options` replies keep the complete descriptor map in `structuredContent`.
+When repeating it as text would exceed the existing 4,096-byte reply cap, the text channel
+contains an `id`/`detail_ref` stub. Text-only clients read the identical complete JSON with
+`resources/read {"uri":"draftwright:<detail_ref>"}`. Native/session options keep every field.

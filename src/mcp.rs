@@ -45,7 +45,7 @@ fn description(tool: &str) -> &'static str {
             "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Default rows include corrective Spec ops; detail=true adds explanations. Use filter.feature for one query covering a whole feature."
         }
         "item_options" => {
-            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Datums and GD&T frames use features/<feature-id>/datum (a letter) and features/<feature-id>/controls (a list of {characteristic, tolerance, datums?, diameter?, modifier?}); finish {ra, removal?}, thread {designation, length?}, knurl {pattern, pitch} and note (text) sit beside them, and sheet/default_finish on the sheet. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Options are candidates; preview_ops checks their effects."
+            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Datums and GD&T frames use features/<feature-id>/datum (a letter) and features/<feature-id>/controls (a list of {characteristic, tolerance, datums?, diameter?, modifier?}); finish {ra, removal?}, thread {designation, length?}, knurl {pattern, pitch} and note (text) sit beside them, and sheet/default_finish on the sheet. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Options are candidates; preview_ops checks their effects. Large replies keep full structuredContent; the text channel gives a lossless detail_ref readable with resources/read {uri:draftwright:<detail_ref>}."
         }
         "preview_ops" => {
             "Try up to 32 Spec ops without saving or changing the drawing head. Supply part_ref and spec or spec_version. Ops are set/add {path,value} or remove {path}, with RFC6901 escaping (~1 for a slash inside an ID). Returns paged change/problem events and lossless delta_ref."
@@ -714,6 +714,18 @@ pub fn reply(cache: &Cache, request: &Value) -> Option<Value> {
             };
             let mut content =
                 vec![json!({"type":"text","text":serde_json::to_string(&result).unwrap()})];
+            // Keep every option in structuredContent. Avoid duplicating a large descriptor
+            // map in the text channel; text-only clients can read its lossless resource.
+            if tool == "item_options"
+                && !failed
+                && value_bytes(
+                    &json!({"content":content,"structuredContent":result,"isError":false}),
+                ) + 128
+                    > PAGE_BYTES
+                && let Ok(detail) = small(cache, result.clone())
+            {
+                content[0]["text"] = json!(detail.to_string());
+            }
             if tool == "view_sheet"
                 && !failed
                 && let Ok(bytes) = cache.artifact_bytes(result["artifact_ref"].as_str().unwrap())

@@ -14,6 +14,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   plans expose the overrides and lint still reads live measured text (#76, item 5).
 - Session/editor text and style options use existing Spec operations, preview and history;
   saved Specs round-trip and stale/merged label IDs are refused with a correction.
+  Large MCP option replies retain full structured data and a lossless text-channel resource.
 - WASM API: additive Spec text/style fields and annotation/note `from_spec` JSON provenance
   through the existing session methods; no new JavaScript methods or signatures.
 
