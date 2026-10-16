@@ -11,30 +11,43 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 | `issues.yaml` | the 142 issue-numbered regression test files (`test_issue_*.py`) | 190 | 93 | 85 | 3 | 9 |
 | **All** | | **515** | **271** | **179** | **16** | **49** |
 
-Status, as brought up to date from the rules assessment of 2026-10-11 and the Stage G
-integration of 2026-10-12 (G1 completeness, G2 plates, G5 title block) and the Stage H
-integration of 2026-10-12 (H1 tables, H3 label settlement, H6 sheet fit, H7 interior,
-G3 blends, G6 centre lines), stream K7 (2026-10-16: lint's self-checks of label against ink,
-angle against rays and datum symbol against surface, `src/lint/fidelity.rs`), stream K1b
-(Spec-authored finish, threads, knurls and notes: ARCH0011-1 ported) and stream K4
-(2026-10-16: leader tips on the rims and arcs they name, one material re-entry predicate shared
-by the router and lint, `src/lint/leaders.rs` and `src/material.rs`) and stream K5
-(2026-10-16: dimensioning completeness: a chain per turned body on its own silhouette, raised
-pads, oriented slot callouts, any end-to-end span carrying an extent, exact grouped lengths,
-`tests/completeness_rules.rs`) and the PMI/source and precision batch
-(2026-10-16: exact aligned PMI witnesses, face-source checks, extent fits and bands, semantic
-display precision and explicit feature-note authority):
+Status after the maintainer-approved triage of 2026-10-16, including the earlier Stage G/H
+and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
+(K6, one owner per measurement), PR #61 (datum follow-up), the pins/lint batch
+(nine rules ported with tests), and PR #64 (table-rule ports). The table-rule batch adds
+verified schedule and manufacturing evidence, transactional hole-table guards and
+drawing-consumer checks. The PMI/source and precision batch retains its six verified ports
+(exact aligned PMI, source-site fidelity, extent bands and fits, display precision and structured
+feature-note authority). Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 46 | 56 | 33 | 25 |
-| `lint.yaml` | 42 | 110 | 0 | 13 |
-| `issues.yaml` | 96 | 67 | 6 | 21 |
-| **All** | **184** | **233** | **39** | **59** |
+| `adr.yaml` | 10 | 62 | 62 | 26 |
+| `lint.yaml` | 16 | 115 | 15 | 19 |
+| `issues.yaml` | 35 | 78 | 51 | 26 |
+| **All** | **61** | **255** | **128** | **71** |
 
-The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
-Rules it found done but with no test to name, or with a real remainder, stay pending with a
-`rust_note` saying so.
+The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
+The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
+group, seven rules already met in Rust are marked ported with verified test citations:
+ARCH0015-1, LINT-_registry-structured_note_satisfaction, LINT-schedule_evidence-verified_cells,
+LINT-turned_step_coverage-length_and_od, ISSUE-917-a, ISSUE-1215-f and ISSUE-1296-a.
+At triage, the other 91 were translated into the Rust model; the 12 retirements carry the
+approved reason.
+
+PR #57 now supplies the K6 evidence that was unavailable at triage: ARCH0015-2 and
+ISSUE-1154-a are ported, and ADR1-8, ADR4-U1 and ISSUE-1505-b gain evidence for their
+implemented portions. ISSUE-1505-a retains K6's updated assessment and remains pending.
+The table-rule batch keeps six verified ported entries, promoting four beyond main's triage:
+LINT-code-manufacturing_reference_unresolved, ISSUE-1144-a, ISSUE-1202-a and ISSUE-1543-c.
+The approved triage is otherwise retained, including ISSUE-883-a's translation. Test
+citations name files and tests found in the merged checkout.
+
+The [pins/lint batch evidence](pins-lint-2026-10-16.md) records its regression pins and
+implementation checks. The [main merge report](pins-lint-main-merge-2026-10-16.md) lists
+retained batch statuses, main's catalogue decisions and merged validation results.
+The [PMI/precision merge report](pmi-precision-main-merge-2026-10-16.md) records this batch’s
+six retained ports, the entries inherited from main, final counts and required checks.
 
 ## An entry
 
@@ -64,8 +77,11 @@ Rules it found done but with no test to name, or with a real remainder, stay pen
 When a rule is ported, its status becomes `ported` and it gains `rust_test:`, the test that
 checks it. A rule ported only in part stays `pending`, with `rust_test:` for the part that is
 checked and `rust_note:` saying what is ported and what is not. When it is translated, it gains
-`rust_rule:`, the rule it became. When it is retired, it gains `why:`. A rule
-ported in full may also carry `rust_note:`, saying what the port does differently.
+`rust_rule:`, the rule it became, and `rust_note:` describing its Rust mechanism and limits,
+with `rust_test:` when a test or test suite is named. When it is retired, it gains `why:`;
+the 2026-10-16 triage also records the reason and dated maintainer approval in `rust_note:`.
+A rule ported in full may also carry `rust_note:`, saying what the port does differently.
+Multiple test citations use a semicolon-separated scalar, as in the existing catalogue.
 
 ## Review
 
@@ -88,6 +104,7 @@ classifications and port notes are judgement calls. Settled with the maintainer 
     - `draftwright` when the drawing must say that recognition refused or was unsure, rather
       than guess.
 
-H7 (2026-10-12) revives ADR2-17 and LINT-code-interior_label_on_narrow_material
-as pending with tests for the implemented portion; both were retired only because
-the port formerly placed no interior labels.
+H7 (2026-10-12) revived ADR2-17 and LINT-code-interior_label_on_narrow_material
+with tests for the implemented portion; both were retired only because the port formerly
+placed no interior labels. The 2026-10-16 triage translates ADR2-17's placement rule;
+the independent narrow-material lint check remains pending.

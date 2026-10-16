@@ -464,6 +464,7 @@ fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
 /// box about its baseline origin, and how far past each edge the strip's dimensions reach.
 struct Job<'a> {
+    side: Option<crate::placement_intent::Side>,
     view: &'a str,
     footprints: &'a Footprints,
     outline: [f64; 4],
@@ -506,6 +507,7 @@ fn side_index(side: Side) -> usize {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place(
     analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
     cache: &super::footprints::Cache,
     views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
@@ -517,6 +519,7 @@ pub(super) fn place(
 ) -> Vec<Problem> {
     place_with_obstacles(
         analysis,
+        spec,
         cache,
         views,
         frames,
@@ -532,6 +535,7 @@ pub(super) fn place(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_with_obstacles(
     analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
     cache: &super::footprints::Cache,
     views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
@@ -628,6 +632,11 @@ pub(super) fn place_with_obstacles(
         jobs.push((
             i,
             Job {
+                side: spec
+                    .dimensions
+                    .get(&w.id)
+                    .and_then(|d| d.place.as_ref())
+                    .and_then(crate::placement_intent::side_hint),
                 view,
                 footprints: &footprints[view],
                 outline: f.outline(),
@@ -1130,6 +1139,7 @@ pub(super) fn refine(
         // Fewest contacts first, then the least movement: the nearest acceptable route wins.
         candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
         let job = Job {
+            side: None,
             view,
             footprints: &footprints[view],
             outline: frame.outline(),
@@ -1217,7 +1227,7 @@ type ViewInk = (Vec<[P2; 2]>, Vec<[f64; 4]>);
 
 /// A view's model line-work on the page (edges and square-on cylinder silhouettes), and the
 /// boxes whose ink is not known as lines (the isometric view, section views, other curved faces).
-fn view_ink(
+pub(super) fn view_ink(
     analysis: &crate::model::Analysis,
     ink: &crate::model::projected_ink::EdgeInk,
     v: &crate::model::PlannedView,
@@ -1771,6 +1781,15 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
             }
         }
     }
+    if let Some(side) = job.side {
+        use crate::placement_intent::Side;
+        raw.retain(|(_, elbow, _)| match side {
+            Side::Left => elbow[0] < o[0],
+            Side::Right => elbow[0] > o[2],
+            Side::Above => elbow[1] > o[3],
+            Side::Below => elbow[1] < o[1],
+        });
+    }
     let mut measured: Vec<Candidate> = Vec::new();
     for (tip, elbow, side) in raw {
         // The label reads on the side the leader runs to; a vertical leader may take either.
@@ -2283,6 +2302,7 @@ pub fn clear_routes(
     let ink = label_ink(&d.terms, font());
     let footprints = Footprints::new(analysis, f, view);
     let job = Job {
+        side: None,
         view,
         footprints: &footprints,
         outline: f.outline(),

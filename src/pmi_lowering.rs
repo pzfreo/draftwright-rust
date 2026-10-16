@@ -1072,7 +1072,17 @@ fn edge_on(
         view,
         side,
         site,
-        alternatives: g.map(|g| g.alternatives.clone()).unwrap_or_default(),
+        // Symbols that must retain their side (notably finishes) use only that silhouette.
+        // Datum placement also reads the face attachments to try the opposite proven side.
+        alternatives: g
+            .map(|g| {
+                g.alternatives
+                    .iter()
+                    .copied()
+                    .filter(|p| planar || (p[across] - site[across]).abs() <= 1e-6)
+                    .collect()
+            })
+            .unwrap_or_default(),
         surface,
         axis: axis.to_string(),
         how,

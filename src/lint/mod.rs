@@ -73,6 +73,7 @@ pub mod prismatic;
 pub mod profiled_bores;
 pub mod profiles;
 pub mod redundancy;
+pub mod schedule_evidence;
 pub mod section_recesses;
 pub mod slots;
 pub mod steps;
@@ -168,17 +169,19 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
     drawing
         .annotations
         .iter()
-        .map(|a| Mark {
-            name: a.name.clone(),
-            view: a.view.clone(),
-            text: a
-                .runs
-                .iter()
-                .filter_map(|&i| drawing.text.get(i))
-                .map(|r| r.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" "),
-            claims: a.claims.clone(),
+        .map(|a| {
+            let text = schedule_evidence::text(drawing, a);
+            let claims = if schedule_evidence::verified(a, &text) {
+                a.claims.clone()
+            } else {
+                Vec::new()
+            };
+            Mark {
+                name: a.name.clone(),
+                view: a.view.clone(),
+                text,
+                claims,
+            }
         })
         .collect()
 }
@@ -213,6 +216,13 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
             mark.claims.clear();
         }
     }
+    // Withdraw a damaged scheduled size cell as a unit, including its THRU/count riders.
+    // The requirement inventory remains in the Analysis and still reports the missing ink.
+    for mark in &mut marks {
+        if !holes::verified_schedule_size(analysis, mark) {
+            mark.claims.clear();
+        }
+    }
     let marks: Vec<_> = marks
         .into_iter()
         .filter(|m| blends::verified_row(analysis, m))
@@ -222,7 +232,11 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         relief_issues.push(LintIssue {
             sheet: None,
             code: "relief_profile_requirement_missing".into(),
-            severity: Severity::Warning,
+            severity: if analysis.solid_count.is_some_and(|n| n > 1) {
+                Severity::Info
+            } else {
+                Severity::Warning
+            },
             message: "Grouped shallow relief profiles have no placed model-governing note.".into(),
             subjects: vec![blends::RELIEF_NOTE.into()],
             id: "l:relief_profile_requirement_missing".into(),
@@ -382,6 +396,8 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         })
         .chain(relief_issues)
         .collect();
+    issues.extend(schedule_evidence::check(drawing));
+    issues.extend(pmi_coverage::manufacturing_references(analysis, drawing));
     issues.extend(coverage::drawn_centre_marks(analysis, drawing));
     // Stream K4: each callout's tip against the edge it names, and its shaft against the
     // material (`leaders`).
@@ -471,12 +487,26 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(plates::coverage(analysis, marks));
     issues.extend(polygonal::stock_coverage(analysis, marks));
     issues.extend(pockets::coverage(analysis, marks));
-    issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(envelope::coverage(analysis, marks));
     issues.extend(turned::coverage(analysis, marks));
     issues.extend(hole_patterns::coverage(analysis, marks));
+    assembly_coverage(analysis, &mut issues);
+    issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(redundancy::coverage(analysis, marks));
+    issues.extend(redundancy::references(analysis, marks));
     issues
+}
+
+/// Missing-feature coverage on a general arrangement is informational. Keep this policy at
+/// the collection boundary so every family uses the same solid-count decision.
+fn assembly_coverage(analysis: &Analysis, issues: &mut [LintIssue]) {
+    if analysis.solid_count.is_some_and(|n| n > 1) {
+        for issue in issues {
+            if issue.severity == Severity::Warning {
+                issue.severity = Severity::Info;
+            }
+        }
+    }
 }
 
 /// A bounded coverage finding; several solids retain Python's informational severity.

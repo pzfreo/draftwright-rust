@@ -647,13 +647,13 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
             .collect();
         let id = wants[i].id.clone();
         let q = *reqs.values().next().expect("a band");
-        // An external thread's designation stands in place of the diameter (ISO 6410) and
+        // A positively identified thread designation stands in place of the diameter (ISO 6410) and
         // carries its own tolerance class: a band or fit on that diameter has no term to ride,
         // and is reported, not appended to the designation.
         if tolerance::thread_designated(&wants[i]) {
             for &j in &js {
                 outcomes[j] = Outcome::Refused(not_lowered(format!(
-                    "{id} is stated by its external thread's designation, which carries the thread's own tolerance class; a diameter tolerance or fit is not printed on it"
+                    "{id} is stated by its thread designation, which carries the thread's own tolerance class; a diameter tolerance or fit is not printed on it"
                 )));
             }
             continue;

@@ -266,15 +266,16 @@ fn parameter(id: &str) -> &str {
     id.rsplit_once('/').map_or(id, |(_, p)| p)
 }
 
-/// Whether *w* is a diameter whose label states no diameter (no `ø` or `⌀` term): an external
-/// thread's designation stands in its place (ISO 6410) and carries the thread's own tolerance
-/// class, so no band or fit is printed on it.
+/// Whether the nominal term is a supported thread designation in place of a plain
+/// diameter. A missing diameter glyph alone says nothing about a thread. A tapping
+/// drill printed before the designation remains the value that takes a bore tolerance.
 pub(super) fn thread_designated(w: &super::Want) -> bool {
     parameter(&w.id).ends_with("diameter")
-        && !w
-            .terms
-            .iter()
-            .any(|t| t.starts_with('ø') || t.starts_with('⌀'))
+        && value_term(&w.terms).is_some_and(|i| {
+            // Manufacturing suffixes append depth/length prose after a comma or semicolon.
+            let designation = w.terms[i].split([',', ';']).next().unwrap_or_default();
+            crate::spec_notes::metric(designation).is_ok()
+        })
 }
 
 /// The term a band follows: the first that states a number and is not a count (`4×`).
@@ -515,7 +516,7 @@ pub(super) fn apply(
                 "tolerance_withheld",
                 &w.id,
                 format!(
-                    "{text} is not printed on {}: its external thread's designation states the diameter and carries the thread's own tolerance class.",
+                    "{text} is not printed on {}: its thread designation states the nominal size and carries the thread's own tolerance class.",
                     super::wording_of(w)
                 ),
                 vec![w.id.clone()],
@@ -795,6 +796,72 @@ mod tests {
             serde_json::from_value(serde_json::json!({"tolerance": "±0"})).unwrap(),
         );
         assert_eq!(authored(&spec, &step), Some(("tolerance", false)));
+    }
+
+    #[test]
+    fn thread_designations_are_positive_and_a_tapped_hole_is_not_called_external() {
+        let (_, analysis) = crate::model::analyse(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap();
+        let id = "d:f:hole:1/bore.diameter";
+        let want = |terms: &[&str]| Want {
+            id: id.into(),
+            views: vec!["plan"],
+            value: 6.0,
+            terms: terms.iter().map(|t| t.to_string()).collect(),
+            measurements: vec![super::super::Measurement {
+                feature: "f:hole:1".into(),
+                parameter: "bore.diameter".into(),
+                value: 6.0,
+            }],
+            basis: String::new(),
+            shape: super::super::Shape::Callout { sites: Vec::new() },
+            turning: None,
+        };
+        let spec: Spec = serde_json::from_value(serde_json::json!({
+            "dimensions": {id: {"tolerance": "±0.1"}}
+        }))
+        .unwrap();
+        // No drill diameter: the designation carries a thread class, not an ISO 286 bore band.
+        let tapped = want(&["2×", "M6x1-6H", "THRU"]);
+        assert!(thread_designated(&tapped));
+        let mut kept = vec![(tapped, true, Some("plan"), Vec::new())];
+        let mut problems = Vec::new();
+        apply(&analysis, &spec, &mut kept, &[], &mut problems).unwrap();
+        assert_eq!(kept[0].0.terms, ["2×", "M6x1-6H", "THRU"]);
+        let withheld = problems
+            .iter()
+            .find(|p| p.code == "tolerance_withheld")
+            .unwrap();
+        assert!(withheld.message.contains("thread designation"));
+        assert!(
+            !withheld.message.contains("external"),
+            "{}",
+            withheld.message
+        );
+        // A plain numeric nominal is not a thread, with or without a diameter glyph.
+        // When a drill size precedes a thread, the band belongs to the drill size.
+        for terms in [
+            &["6", "THRU"][..],
+            &["5", "THRU", "M6x1-6H"][..],
+            &["⌀5", "THRU", "M6x1-6H"][..],
+        ] {
+            let plain = want(terms);
+            assert!(!thread_designated(&plain));
+            let mut kept = vec![(plain, true, Some("plan"), Vec::new())];
+            let mut problems = Vec::new();
+            apply(&analysis, &spec, &mut kept, &[], &mut problems).unwrap();
+            assert_eq!(kept[0].0.terms[1], "±0.1");
+            assert!(
+                !problems.iter().any(|p| p.code == "tolerance_withheld"),
+                "{problems:?}"
+            );
+        }
+        assert!(thread_designated(&want(&[
+            "M10 x 1.5-6g RH, FULL AVAILABLE LENGTH"
+        ])));
     }
 
     #[test]

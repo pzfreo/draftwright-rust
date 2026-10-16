@@ -112,6 +112,7 @@ pub(super) fn labels<'a>(
                     if !suffix.starts_with('×')
                         && !prefix.ends_with(['+', '-', 'M', 'P'])
                         && !prefix.contains('(')
+                        && !prefix.contains("SEE MFG ")
                         && (a == 0 || prefix.ends_with(['⌀', 'ø', ' ', 'R']))
                         && let Ok(value) = term[a..j].parse::<f64>()
                     {
@@ -191,7 +192,15 @@ mod tests {
     fn symbolic_threads_and_manufacturing_references_are_not_nominal_terms() {
         use crate::dims::{Measurement, Shape, Want};
         use crate::model::Spec;
-        for terms in [vec!["M10", "10 MIN FULL THREAD"], vec!["SEE MFG 10"]] {
+        for (terms, expected) in [
+            (
+                vec!["M10", "10 MIN FULL THREAD"],
+                vec!["M10", "10 MIN FULL THREAD"],
+            ),
+            (vec!["SEE MFG 10"], vec!["SEE MFG 10"]),
+            (vec!["10", "SEE MFG 10"], vec!["10.000", "SEE MFG 10"]),
+            (vec!["⌀10", "SEE MFG 10"], vec!["⌀10.000", "SEE MFG 10"]),
+        ] {
             let mut want = Want {
                 id: "d:f:turned_step:1/step.diameter".into(),
                 views: vec!["front"],
@@ -206,11 +215,10 @@ mod tests {
                 shape: Shape::Callout { sites: vec![] },
                 turning: None,
             };
-            let before = want.terms.clone();
             let mut spec = Spec::default();
             spec.precision.insert(want.id.clone(), 3);
             super::apply(&spec, std::slice::from_mut(&mut want)).unwrap();
-            assert_eq!(want.terms, before);
+            assert_eq!(want.terms, expected);
             assert_eq!(want.measurements[0].value, 10.0);
         }
     }
