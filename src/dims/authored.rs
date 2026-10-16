@@ -279,10 +279,25 @@ fn duplicate(a: &Analysis, w: &Want, o: &Want, refs: &[String], kind: &str) -> b
         let Ok(r) = a.dimension_reference(&refs[0]) else {
             return false;
         };
-        let bounds = match r {
-            Reference::Cylinder { bounds, .. } | Reference::Sphere { bounds, .. } => bounds,
+        let (bounds, radius) = match &r {
+            Reference::Cylinder { bounds, radius, .. }
+            | Reference::Sphere { bounds, radius, .. } => (*bounds, *radius),
             _ => return false,
         };
+        let states_size = |m: &Measurement| {
+            (m.parameter.contains("diameter") && close(m.value, 2.0 * radius))
+                || (m.parameter.contains("radius") && close(m.value, radius))
+        };
+        if let (Reference::Cylinder { origin, axis, .. }, Some(k)) = (&r, o.turning)
+            && axis[k].abs() > 1.0 - 1e-8
+            && (0..3)
+                .all(|j| j == k || close(origin[j], 0.5 * (a.envelope[0][j] + a.envelope[1][j])))
+            && o.measurements
+                .iter()
+                .any(|m| m.feature == "envelope" && m.parameter == "od.diameter" && states_size(m))
+        {
+            return true;
+        }
         let faces: Vec<_> = a
             .face_attachments
             .iter()
@@ -296,7 +311,7 @@ fn duplicate(a: &Analysis, w: &Want, o: &Want, refs: &[String], kind: &str) -> b
             })
             .collect();
         return o.measurements.iter().any(|m| {
-            (m.parameter.contains("diameter") || m.parameter.contains("radius"))
+            states_size(m)
                 && a.features
                     .iter()
                     .find(|f| f.id == m.feature)
@@ -377,4 +392,60 @@ pub(super) fn ownership(a: &Analysis, s: &Spec, wants: &[Want]) -> Ownership {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_feature_owns_only_the_surface_sizes_its_label_actually_states() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let mut s = crate::model::Spec::default();
+        let (mut wants, ..) = super::super::wants(&a);
+        let (key, radius, owner) = a
+            .dimension_references()
+            .iter()
+            .find_map(|(key, rs)| {
+                let [crate::model::dimension_geometry::Reference::Cylinder { radius, .. }] =
+                    rs.as_slice()
+                else {
+                    return None;
+                };
+                let d: crate::model::DimensionSpec =
+                    serde_json::from_value(serde_json::json!({"kind":"diameter","between":[key]}))
+                        .unwrap();
+                s.dimensions.insert("d:authored:test".into(), d);
+                super::append(&a, &s, &mut wants.clone())
+                    .err()
+                    .and_then(|e| e.choices.first().cloned())
+                    .map(|id| (key.clone(), *radius, id))
+            })
+            .unwrap();
+        s.dimension_source = crate::model::DimensionSource::Authored;
+        super::append(&a, &s, &mut wants).unwrap();
+        let authored = wants.iter().find(|w| w.id == "d:authored:test").unwrap();
+        let mut automatic = wants.iter().find(|w| w.id == owner).unwrap().clone();
+        assert!(super::duplicate(
+            &a,
+            authored,
+            &automatic,
+            std::slice::from_ref(&key),
+            "diameter"
+        ));
+        for m in &mut automatic.measurements {
+            if m.parameter.contains("diameter") || m.parameter.contains("radius") {
+                m.value = radius * 7.0;
+            }
+        }
+        assert!(!super::duplicate(
+            &a,
+            authored,
+            &automatic,
+            &[key],
+            "diameter"
+        ));
+    }
 }

@@ -441,3 +441,19 @@ fn authored_linear_fit_is_class_only_and_requires_one_tolerance_owner() {
     s.dimensions.get_mut("d:authored:width").unwrap().tolerance = Some("±0.1".into());
     assert!(model::plan_recovered(&a, &s).is_err());
 }
+
+#[test]
+fn saved_v1_reference_keys_keep_resolving() {
+    let (_, a) = plate();
+    let saved: Spec =
+        serde_json::from_str(include_str!("fixtures/identity/authored.spec2.json")).unwrap();
+    let p = model::plan_recovered(&a, &saved).unwrap();
+    let d = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:authored:width")
+        .unwrap();
+    assert_eq!(d.value, 60.0);
+    assert_eq!(d.label, "60 ±0.1");
+    assert!(d.placed.is_some());
+}
