@@ -415,6 +415,9 @@ pub struct Drawn {
     pub ink: [f64; 4],
     pub label: Option<[f64; 4]>,
     pub lines: Vec<[P; 2]>,
+    /// Filled arrowhead outlines, kept separate from dimension-reading line grammar.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heads: Vec<[P; 2]>,
     pub elbow: Option<P>,
     /// Placed inside its view on purpose, clear of the view's edges (draftwright's `interior`
     /// placement region), retained from the Plan's proven candidate provenance.

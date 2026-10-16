@@ -18,14 +18,19 @@ and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
 verified schedule and manufacturing evidence, transactional hole-table guards and
 drawing-consumer checks. The PMI/source and precision batch retains its six verified ports
 (exact aligned PMI, source-site fidelity, extent bands and fits, display precision and structured
-feature-note authority). Counts are computed from the merged YAML entries:
+feature-note authority). The coverage/holes stream retains its nine ported rules (body-local
+corridors, prismatic shoulders, countersink seats, compound double-D callouts, pattern
+counts and balloon assignment). Automatic profile-angle placement remains pending after
+failing the unchanged drawing-quality bar. The rules-text merge retains its two completed
+ports and pending blockers ([merge report](text-main-merge-2026-10-16.md)).
+Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 9 | 63 | 62 | 26 |
-| `lint.yaml` | 11 | 121 | 14 | 19 |
-| `issues.yaml` | 33 | 80 | 51 | 26 |
-| **All** | **53** | **264** | **127** | **71** |
+| `adr.yaml` | 7 | 66 | 61 | 26 |
+| `lint.yaml` | 9 | 123 | 14 | 19 |
+| `issues.yaml` | 27 | 86 | 51 | 26 |
+| **All** | **43** | **275** | **126** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
@@ -52,6 +57,11 @@ implementation checks. The [main merge report](pins-lint-main-merge-2026-10-16.m
 retained batch statuses, main's catalogue decisions and merged validation results.
 The [PMI/precision merge report](pmi-precision-main-merge-2026-10-16.md) records this batch’s
 six retained ports, the entries inherited from main, final counts and required checks.
+The [coverage/holes merge report](coverage-holes-main-merge-2026-10-16.md) records its nine
+retained ports, main's remaining decisions, final counts and validation results.
+
+The [fit-label integration report](pmi-precision-fit-main-merge-2026-10-16.md) records the
+latest merge, composed precision/fit behavior, catalogue audit and validation.
 
 ## An entry
 

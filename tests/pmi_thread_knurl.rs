@@ -640,7 +640,7 @@ fn a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit() {
     );
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let labels: Vec<&str> = plan.dimensions.iter().map(|d| d.label.as_str()).collect();
-    assert!(labels.contains(&"ø10 f7 (-0.013/-0.028)"), "{labels:?}");
+    assert!(labels.contains(&"ø10 f7"), "{labels:?}");
     assert!(
         labels.contains(&"M5 x 0.8-6g RH, FULL AVAILABLE LENGTH"),
         "{labels:?}"

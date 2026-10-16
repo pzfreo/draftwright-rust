@@ -101,6 +101,7 @@ fn callout(name: &str, claims: &[(&str, &str)], tip: P, elbow: P) -> (Annotation
             ..Annotation::default()
         },
         Drawn {
+            heads: Vec::new(),
             name: name.into(),
             kind: Kind::Dimension,
             ink: [

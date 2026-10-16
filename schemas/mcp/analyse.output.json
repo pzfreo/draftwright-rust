@@ -2,7 +2,6 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "schema": {
           "const": "draftwright.analysis/7"
@@ -72,7 +71,6 @@
       ]
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",

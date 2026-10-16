@@ -23,6 +23,17 @@ the public `pzfreo/quiddity-rust`, pinned in `Cargo.lock`, so no secret is neede
 cargo build --release      # target/release/draftwright and target/release/draftwright-mcp
 ```
 
+## Browser WASM package
+
+`crates/draftwright-wasm` packages the live session as `draftwright-wasm`, with JSON-string
+operations, SVG/PDF bytes and TypeScript declarations. Each published `v*` GitHub release
+builds a web-target package and attaches `draftwright-wasm-<version>.tgz` and its SHA-256
+checksum. It is not published to npm. The native package and binaries remain at the workspace
+root; plain `cargo build` and `cargo test` keep their existing scope.
+
+See [docs/wasm.md](docs/wasm.md) for the API, local build, measured sizes, parity test and
+editor migration.
+
 ## Using it
 
 A drawing is three JSON documents: the Analysis, the Spec and the Plan. Five stateless

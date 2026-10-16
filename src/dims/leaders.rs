@@ -124,6 +124,14 @@ const DESCENT: usize = 50;
 /// The clearance a callout's label keeps from other labels, mm (draftwright stacks callout rows
 /// a text height and two `pad_around_text` apart; half a pad keeps them visibly apart here).
 const LABEL_PAD: f64 = 1.0;
+/// Extra readable paper for compound fit/tolerance labels beside strokes and arrow flares.
+const STROKE_PAD: f64 = 2.0;
+
+/// The first side shelf: full ink, elbow, shoulder, text gap and paper to the border.
+pub(super) fn shelf_width(ink: &super::LabelInk) -> f64 {
+    ink.max[0] - ink.min[0] + CLEAR + SHOULDER + 1.0 + STROKE_PAD
+}
+
 /// The weights of the objective's tiers, above any length in micrometres on a sheet.
 /// Each tier's weight exceeds the most the tier below it reaches on one candidate.
 const HARD: i64 = 1_000_000_000_000_000;
@@ -167,6 +175,8 @@ struct Candidate {
     furniture: u32,
     furniture_hard: u32,
     furniture_text: u32,
+    /// Near strokes within the desired text clearance, after actual ink contacts.
+    clearance: u32,
     /// Of the centre strokes it meets, those it runs along or close beside ([`BESIDE`]).
     beside: u32,
     /// Whether its shaft grazes the turned silhouette it points at (1) or not (0).
@@ -256,6 +266,7 @@ impl Candidate {
                     + i64::from(self.outside) * AREA
                     + self.cost
             }
+            + i64::from(self.clearance) * (TEXT_INK / 10)
             + i64::from(self.furniture) * 100_000
             + i64::from(self.beside) * BESIDE
             + i64::from(self.astray) * GRAZE
@@ -266,6 +277,7 @@ impl Candidate {
         self.hard == 0
             && self.crossings == 0
             && self.furniture == 0
+            && self.clearance == 0
             && (!self.aware || self.feature_crossings == 0)
     }
 
@@ -482,8 +494,26 @@ struct Job<'a> {
     steer: std::cell::Cell<Option<(usize, usize)>>,
     ink_min: P2,
     ink_max: P2,
+    stroke_pad: f64,
     /// Below, above, left, right: the distance past that edge clear of the strip's dimensions.
     beyond: [f64; 4],
+}
+
+/// Compound requirements need paper around their extra signs and smaller stacked figures.
+/// Ordinary labels retain their established corridors; all labels still test actual strokes.
+fn stroke_clearance(terms: &[String]) -> f64 {
+    let qualified = terms
+        .iter()
+        .flat_map(|t| t.split(|c: char| c.is_whitespace() || matches!(c, '(' | ')')))
+        .any(|word| {
+            word == "-"
+                || word
+                    .strip_prefix('±')
+                    .is_some_and(|n| n.parse::<f64>().is_ok())
+                || (word.starts_with(['+', '-']) && word.parse::<f64>().is_ok())
+                || super::tolerance::fit(word).is_ok()
+        });
+    if qualified { STROKE_PAD } else { 0.0 }
 }
 
 fn side_index(side: Side) -> usize {
@@ -647,6 +677,7 @@ pub(super) fn place_with_obstacles(
                 steer: std::cell::Cell::new(None),
                 ink_min: ink.min,
                 ink_max: ink.max,
+                stroke_pad: stroke_clearance(&w.terms),
                 beyond,
             },
         ));
@@ -867,6 +898,127 @@ fn route_reports(
             });
     }
     problems
+}
+
+/// Retry free callouts hit by furniture placed after the initial joint solve. Only an
+/// actual text contact triggers the full side/row/tier search; unaffected routes stay fixed.
+pub(crate) fn settle_after_furniture(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+    items: &mut [PlannedDimension],
+    obstacles: &[PlannedDimension],
+    cache: &super::footprints::Cache,
+) -> BTreeMap<String, Vec<Problem>> {
+    let contact = |a: &Placed, b: &Placed| {
+        boxes_overlap(a.label_box, b.label_box)
+            || super::placement::ink_through(a, b.label_box)
+            || super::placement::ink_through(b, a.label_box)
+    };
+    let mut updated = BTreeMap::new();
+    let mut wants = None;
+    let page = Page::new(analysis, sheet, views);
+    for i in 0..items.len() {
+        let d = &items[i];
+        if d.kind != "callout"
+            || spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|e| e.place.is_some())
+        {
+            continue;
+        }
+        let Some(old) = &d.placed else { continue };
+        if !obstacles
+            .iter()
+            .filter_map(|d| d.placed.as_ref())
+            .any(|p| contact(old, p))
+        {
+            continue;
+        }
+        let Some(w) = wants
+            .get_or_insert_with(|| super::wants(analysis).0)
+            .iter()
+            .find(|w| w.id == d.id)
+        else {
+            continue;
+        };
+        let (Shape::Callout { sites }, Some(v)) = (&w.shape, views.iter().find(|v| v.id == d.view))
+        else {
+            continue;
+        };
+        let frame = Frame::new(analysis, v);
+        let view = v.id.trim_start_matches("v:");
+        let ink = label_ink(&d.terms, font());
+        let footprint = cache.get(analysis, v);
+        let model = analysis
+            .edge_ink
+            .as_ref()
+            .filter(|_| grazing(&frame, w).is_some())
+            .map(|ink| view_ink(analysis, ink, v).0);
+        let job = Job {
+            side: spec
+                .dimensions
+                .get(&d.id)
+                .and_then(|e| e.place.as_ref())
+                .and_then(crate::placement_intent::side_hint),
+            view,
+            footprints: &footprint,
+            outline: frame.outline(),
+            area: page.area(view),
+            sites: page_sites(&frame, sites),
+            silhouette: grazing(&frame, w),
+            model: model.as_deref(),
+            steer: std::cell::Cell::new(None),
+            ink_min: ink.min,
+            ink_max: ink.max,
+            stroke_pad: stroke_clearance(&d.terms),
+            beyond: [CLEAR; 4],
+        };
+        let others: Vec<_> = items
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .map(|(_, d)| d)
+            .chain(obstacles)
+            .collect();
+        let fixed = Fixed::new(
+            others
+                .iter()
+                .enumerate()
+                .filter_map(|(j, d)| Some((j, d.placed.as_ref()?))),
+        );
+        let [tip, elbow] = old.lines[0];
+        let end = old.lines[1][1];
+        let Some(before) = measure_at(&job, tip, elbow, end, end[0] >= elbow[0], &fixed, &page)
+        else {
+            continue;
+        };
+        let (candidates, ..) = inventory(&job, &fixed, &page, false);
+        let Some(next) = candidates
+            .into_iter()
+            .filter(|c| {
+                c.text < before.text
+                    && c.hard <= before.hard
+                    && c.crossings <= before.crossings
+                    && c.feature_crossings <= before.feature_crossings
+                    && c.furniture <= before.furniture
+                    && page.fits(&c.placed(), view)
+            })
+            .min_by_key(Candidate::score)
+        else {
+            continue;
+        };
+        let mut printed = w.clone();
+        printed.terms.clone_from(&d.terms);
+        updated.insert(
+            d.id.clone(),
+            route_reports(&printed, view, footprint.solids(), [next.tip, next.elbow]),
+        );
+        items[i].placed = Some(next.placed());
+    }
+    updated
 }
 
 /// Local callout refinement after interior placement, with the rest of the ink held fixed
@@ -1150,6 +1302,7 @@ pub(super) fn refine(
             steer: std::cell::Cell::new(None),
             ink_min: label.min,
             ink_max: label.max,
+            stroke_pad: stroke_clearance(&w.terms),
             beyond: [CLEAR; 4],
         };
         let mut fixed = Fixed::new(
@@ -2089,6 +2242,7 @@ fn measure_at_bounds(
         furniture: 0,
         furniture_hard: 0,
         furniture_text: 0,
+        clearance: 0,
         beside: 0,
         grazing: u32::from(grazing),
         astray: 0,
@@ -2119,17 +2273,14 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         lb[2] + LABEL_PAD,
         lb[3] + LABEL_PAD,
     ];
-    let near = [
-        bounds[0] - LABEL_PAD,
-        bounds[1] - LABEL_PAD,
-        bounds[2] + LABEL_PAD,
-        bounds[3] + LABEL_PAD,
-    ];
+    let stroke_box = grow(lb, job.stroke_pad);
+    let near = grow(bounds, job.stroke_pad.max(LABEL_PAD));
     // The items whose lines the leader crosses, and those whose ink and the label's text meet
     // (a line through either label, or the labels together): each pair one problem, as the
     // plan's collision checks report them.
     let mut crossed: Vec<usize> = Vec::new();
     let mut text: Vec<usize> = Vec::new();
+    let mut clearance = Vec::new();
     let mut furniture = Vec::new();
     let mut furniture_hard = 0;
     let mut furniture_text = Vec::new();
@@ -2174,7 +2325,15 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
                 crossed.push(*i);
             }
         }
-        if crosses(*f, lb) {
+        let through_text = crosses(*f, lb);
+        if job.stroke_pad > 0.0
+            && !through_text
+            && !fixed.furniture.contains_key(i)
+            && crosses(*f, stroke_box)
+        {
+            clearance.push(*i);
+        }
+        if through_text {
             text.push(*i);
             if fixed.furniture.contains_key(i) {
                 hard += 1;
@@ -2185,8 +2344,12 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     });
     fixed.grid.near(2, near, |n| {
         let (i, e) = &fixed.heads[n];
-        if segment_near(*e, near) && crosses(*e, lb) {
-            text.push(*i);
+        if segment_near(*e, near) {
+            if crosses(*e, lb) {
+                text.push(*i);
+            } else if job.stroke_pad > 0.0 && crosses(*e, stroke_box) {
+                clearance.push(*i);
+            }
         }
     });
     let own_head = head(arrow(tip, elbow));
@@ -2219,6 +2382,7 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     for v in [
         &mut crossed,
         &mut text,
+        &mut clearance,
         &mut furniture,
         &mut furniture_text,
         &mut besides,
@@ -2234,6 +2398,7 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     c.furniture_text = furniture_text.len() as u32;
     c.beside = besides.len() as u32;
     c.text = text.len() as u32;
+    c.clearance = clearance.len() as u32;
     c.fixed_measured = true;
     if c.ignore_furniture {
         c.without_furniture();
@@ -2313,6 +2478,7 @@ pub fn clear_routes(
         steer: std::cell::Cell::new(None),
         ink_min: ink.min,
         ink_max: ink.max,
+        stroke_pad: stroke_clearance(&d.terms),
         beyond: [CLEAR; 4],
     };
     let rest = || {
@@ -2982,6 +3148,7 @@ mod tests {
             furniture: 0,
             furniture_hard: 0,
             furniture_text: 0,
+            clearance: 0,
             beside: 0,
             grazing: 0,
             astray: 0,

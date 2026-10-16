@@ -1,0 +1,64 @@
+name: Release browser WASM
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  wasm:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_BUILD_JOBS: "8"
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Check the tag and package versions agree
+        run: |
+          python3 - <<'PYTHON'
+          import os, tomllib
+          version = os.environ["RELEASE_TAG"].removeprefix("v")
+          for manifest in ["Cargo.toml", "crates/draftwright-wasm/Cargo.toml"]:
+              with open(manifest, "rb") as source:
+                  actual = tomllib.load(source)["package"]["version"]
+              if actual != version:
+                  raise SystemExit(f"{manifest}: {actual} does not match release {version}")
+          PYTHON
+      - run: rustup toolchain install && rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: wasm
+      - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
+        with:
+          tool: wasm-pack@0.15.0
+      - run: wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --locked
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: cargo build --locked --release --example wasm_reference
+      - run: node --test tools/wasm-parity.test.mjs
+      - run: python3 tools/wasm_size.py crates/draftwright-wasm/pkg/draftwright_wasm_bg.wasm
+      - name: Package and checksum
+        shell: bash
+        run: |
+          version="${RELEASE_TAG#v}"
+          asset="draftwright-wasm-${version}.tgz"
+          cp LICENSE fonts/LICENSE-IBMPlexMono-OFL.txt fonts/LICENSE-IBMPlexSansCondensed-OFL.txt crates/draftwright-wasm/pkg/
+          tar -czf "$asset" -C crates/draftwright-wasm pkg
+          sha256sum "$asset" > "$asset.sha256"
+      - name: Attach the package to this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${RELEASE_TAG#v}"
+          asset="draftwright-wasm-${version}.tgz"
+          gh release upload "$RELEASE_TAG" "$asset" "$asset.sha256" --clobber

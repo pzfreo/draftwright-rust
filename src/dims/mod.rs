@@ -7,6 +7,7 @@
 //! - **whole-part polygonal stock**: its size across flats and its length, in place of the extents;
 //! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
+//! - **double-D bores**: one compound major-diameter and across-flats callout;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
 //!   pitches that locate a pattern's members;
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
@@ -68,6 +69,7 @@ pub(crate) mod interior;
 mod label_lanes;
 mod leaders;
 pub(crate) use label_lanes::settle_inventory;
+pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
 mod oriented_slots;
@@ -76,6 +78,7 @@ mod placement;
 mod plates;
 mod pmi_dimensions;
 pub mod precision;
+mod profiled_bores;
 mod recesses;
 mod redundancy;
 mod slots;
@@ -496,7 +499,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 16] = [
+const PLANNERS: [Planner; 17] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -513,6 +516,7 @@ const PLANNERS: [Planner; 16] = [
     plates::PLANNER,
     pads::PLANNER,
     oriented_slots::PLANNER,
+    profiled_bores::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's
@@ -939,8 +943,7 @@ pub(crate) fn lanes_excluding(
     excluded: &BTreeSet<String>,
     spec: &Spec,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
-    let key =
-        serde_json::to_vec(&(views, excluded, &spec.precision)).expect("lane inputs serialize");
+    let key = serde_json::to_vec(&(views, excluded, spec)).expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
         lanes_uncached(analysis, views, excluded, spec)
     })
@@ -952,7 +955,7 @@ fn lanes_uncached(
     excluded: &BTreeSet<String>,
     spec: &Spec,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
-    let (mut wants, ..) = wants(analysis);
+    let (mut wants, mut problems, notes) = wants(analysis);
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -1006,6 +1009,31 @@ fn lanes_uncached(
     {
         plates::default_terms(analysis, &mut wants, &chosen);
     }
+    // Resolve the printed terms before measuring reservation, using placement's lowering order.
+    let mut kept: Vec<_> = wants
+        .iter()
+        .cloned()
+        .zip(chosen.iter().copied())
+        .map(|(w, view)| (w, true, view, Vec::new()))
+        .collect();
+    let mut omitted = Vec::new();
+    plates::consolidate(analysis, &mut kept, &mut omitted);
+    bosses::consolidate(analysis, &mut kept, &mut omitted);
+    pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
+    pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
+    if let Ok(mut given) = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems) {
+        holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+        plates::share(analysis, &mut kept, &mut given, &mut omitted);
+        share_statements(&mut kept, &mut given, &mut omitted, true);
+        share_pmi(&mut kept, &mut given, &mut omitted);
+        redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    }
+    for w in &mut wants {
+        if let Some((printed, ..)) = kept.iter().find(|(p, ..)| p.id == w.id) {
+            w.terms.clone_from(&printed.terms);
+        }
+    }
     let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
     let mut bands = placement::band_lanes(
         chosen
@@ -1049,7 +1077,18 @@ fn lanes_uncached(
     {
         bands.plate_front_below = bands.plate_front_below.max(front_linear);
     }
+    // A turned diameter can leave either side of the profile. Keep its full alternate shelf
+    // available to the ordinary side/row/tier search, including tall fit deviations.
     for (i, w) in wants.iter().enumerate() {
+        if chosen[i] == Some("front")
+            && matches!(w.shape, Shape::Callout { .. })
+            && w.measurements
+                .iter()
+                .any(|m| m.parameter == "step.diameter")
+        {
+            let ink = label_ink(&w.terms, font());
+            bands.callout_front_left = bands.callout_front_left.max(leaders::shelf_width(&ink));
+        }
         if owner[i].is_some()
             || !w
                 .measurements
@@ -1642,6 +1681,26 @@ pub(crate) fn plan_inventory(
             &page,
         );
     }
+    let body_fixed: Vec<bool> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            fixed[i]
+                || spec
+                    .dimensions
+                    .get(&w.id)
+                    .is_some_and(|entry| entry.place.is_some())
+        })
+        .collect();
+    problems.extend(placement::body_chains(
+        analysis,
+        &frames,
+        &all,
+        &chosen,
+        &body_fixed,
+        &mut placed,
+        &page,
+    ));
     angular::place(&frames, &all, &chosen, &mut placed, &page);
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.

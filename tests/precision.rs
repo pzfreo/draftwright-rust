@@ -334,3 +334,71 @@ fn requested_precision_survives_hole_schedule_cells_and_their_ink() {
         }
     }
 }
+
+/// Precision formats only the extent nominal; fit classes follow the sheet's shared recipe.
+/// Each display mode must reserve the full label and preserve searchable rendered text.
+#[test]
+fn extent_precision_composes_with_default_and_stacked_fit_labels() {
+    let (part, a) = analysed("plate");
+    let font = draftwright::text::Font::open(&root().join("fonts").join(dims::FONT)).unwrap();
+    let ids = [
+        "d:envelope/width.length",
+        "d:envelope/depth.length",
+        "d:envelope/height.length",
+    ];
+    for id in ids {
+        for sheet in [
+            json!({}),
+            json!({"fit_deviations":true}),
+            json!({"fit_deviations":false,"fit_limits":true}),
+        ] {
+            let stacked = sheet.get("fit_deviations").and_then(|v| v.as_bool()) == Some(true);
+            let spec: Spec = serde_json::from_value(json!({
+                "precision": {id:3},
+                "envelope_tolerance":"±0.05",
+                "dimensions": {id:{"fit":"h7"}},
+                "sheet":sheet,
+            }))
+            .unwrap();
+            let plan = model::plan(&a, &spec).unwrap();
+            let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+            let nominal = format!("{} h7", dims::precision::format(d.value, 3));
+            if stacked {
+                assert!(
+                    d.label.starts_with(&format!("{nominal} 0\n-")),
+                    "{}",
+                    d.label
+                );
+                assert!(!d.label.contains('/'), "{}", d.label);
+            } else {
+                assert_eq!(d.label, nominal);
+            }
+            assert!(!d.label.contains("±0.05"));
+            for other in plan
+                .dimensions
+                .iter()
+                .filter(|d| ids.contains(&d.id.as_str()) && d.id != id)
+            {
+                assert!(other.label.ends_with(" ±0.05"), "{}", other.label);
+            }
+            let drawing = model::render(&part, &a, &plan, &font).unwrap();
+            let anno = drawing.annotations.iter().find(|a| a.name == id).unwrap();
+            assert!(anno.runs.iter().any(|&i| drawing.text[i].text == d.label));
+            let ink = dims::label_ink(&d.terms, &font);
+            let placed = d.placed.as_ref().unwrap();
+            let (width, height) = (ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]);
+            let (width, height) = if placed.rotation.abs() % 180.0 == 90.0 {
+                (height, width)
+            } else {
+                (width, height)
+            };
+            assert!(placed.label_box[2] - placed.label_box[0] >= width - 1e-6);
+            assert!(placed.label_box[3] - placed.label_box[1] >= height - 1e-6);
+            assert!(
+                !draftwright::lint::structural::check(&drawing)
+                    .iter()
+                    .any(|i| i.code == "label_vs_measured")
+            );
+        }
+    }
+}

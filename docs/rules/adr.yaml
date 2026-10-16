@@ -1391,10 +1391,9 @@
     adr: "archive 0009 Amendments 4-5"
     issues: [318, 381]
     tests: ["test_prismatic_central_hole_callout_not_lifted"]
-  status: translated
-  rust_test: "tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes"
-  rust_note: "Turned half: coaxial bore callouts kept off the axis by the leader router (src/dims/leaders.rs centrelines::runs_beside/leader_conflict; src/dims/holes.rs skips holes on the turning axis) and checked by lint label_centerline_overlap/leader_centerline_overlap (tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes). Prismatic 'view-centre row, not lifted >3 mm' is a hint to Python's strip-row packer, which Rust does not have."
-  rust_rule: "Turned half: coaxial bore callouts kept off the axis by the leader router (src/dims/leaders.rs centrelines::runs_beside/leader_conflict; src/dims/holes.rs skips holes on the turning axis) and checked by lint label_centerline_overlap/leader_centerline_overlap (tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes)."
+  status: ported
+  rust_test: "tests/rules_text.rs::prismatic_central_bores_keep_their_row_and_turned_bores_clear_axis_ink; src/dims/interior.rs::tests::a_blocked_centre_row_keeps_safe_interior_alternatives"
+  rust_note: "Rules-text audit, 2026-10-16: Ported in src/dims/interior.rs: a central prismatic bore prefers horizontal rim-normal interior alternatives with its text midpoint within one font height of the view centre. Preference is ranked after all clearance checks; when the centre row is blocked, other safe interior alternatives remain eligible. The existing 64-alternative budget, material/ink/feature/furniture clearance, authored placement and no-drop fallback remain. Turning-profile records or an analytic surface of revolution spanning the transverse envelope exclude the prismatic hint; this also covers plain cylinders that publish no turned_step. Existing centreline/extension clearance pushes round-view coaxial text off-axis. The regression uses Python's through-hole block, axial cylinder and stepped-shaft shapes, two additional block proportions, actual rendered ink crossings and centre-row bounds. Anchoring remains a spacing hint rather than drop immunity; the blocked-row regression fails with a hard row filter and passes with post-clearance ranking."
   port_note: "Keep: planner rule keyed on part classification from Analysis."
 
 - id: ARCH0009-4
@@ -1565,10 +1564,10 @@
     adr: "archive 0014 Decision 'Assign'"
     issues: [516, 901, 125]
     tests: []
-  status: pending
+  status: ported
   port_note: "triage 2026-10-16: PORT, value low, size M, stream tables"
-  rust_test: tests/hole_tables.rs::an_escalated_table_is_whole_on_the_sheet_with_a_balloon_per_row
-  rust_note: "Partly ported (src/hole_table.rs::place_balloons): bands left, right, above and below the plan view beyond its deepest placed annotation and along its reserved area, free stretches carved around what is placed, strip spacing and least-squares spreading near each hole; a balloon that does not land is reported (balloon_dropped). Simplified: each hole goes out of the side of the view nearest it that has a band, its band's members spread in order (not draftwright's min-cost max-flow with perimeter preference); no halo is reserved by the layout; a ring that overlaps another, or a leader crossing a label, another view, the title block, a table or another leader, is retried on every band half a strip step at a time either way, the nearest clear place taken. Leaders crossing other items' lines are not checked."
+  rust_test: "src/hole_table.rs::tests::balloon_band_assignment_maximises_cardinality_before_leader_length; tests/hole_tables.rs::balloon_leaders_do_not_cross_the_drawings_dimension_or_extension_lines; tests/hole_tables.rs::a_table_without_every_balloon_is_withdrawn_whole"
+  rust_note: "Band assignment now uses residual min-cost max-flow: maximum cardinality first, certifying row keys before optional markers, then actual leader distance to the bands, with deterministic ties. Members keep their geometric order and are spread within free-stretch capacity. Perimeter spreading has Python's bounded halo credit, so a remote band cannot win merely to occupy it. Final candidates reject crossings of dimension and extension lines as well as labels, furniture and other balloons. Capacity or routing loss is still balloon_dropped and the table transaction rolls back whole."
 
 - id: ARCH0014-6
   statement: "An optional, not-yet-committed section cannot veto a required leader; the section checks its final cutting-plane ink, makes at most one bounded end-symbol repair, and yields if a conflict remains."
@@ -2022,9 +2021,9 @@
     adr: "archive 0020 §5"
     issues: [354]
     tests: ["test_issue_1357_plural_turned_profiles.py"]
-  status: pending
-  rust_test: "tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette"
-  rust_note: "Stream K5 (src/dims/turned.rs::own_body, src/dims/placement.rs::body_strip): on a part of several turned bodies along one axis each body's chain is its own (one item per band, so equal lengths on parallel shafts keep separate marks), drawn in the profile view that separates its axis line, its witnesses starting at its own silhouette (the outer corner of each shoulder) on the side of the view its body is nearer, in that side's strip, so it never stands on a sibling's outline (draftwright's turned-step-compound.step: before, the left shaft's chain stood beside the right shaft with witnesses from the view's outline). Not ported: a body between two others (its nearer side still has a sibling between it and the strip), a strip that overflows to the other side (fall_through), and draftwright's drop with a required-outcome diagnostic when no conflict-free lane exists (the port draws and reports collisions instead, R1)."
+  status: ported
+  rust_test: "tests/coverage_holes.rs::a_middle_turned_body_uses_its_own_corridor_and_falls_through_to_the_clear_side; tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette"
+  rust_note: "Body-local chains are placed in the corridor beside their own silhouette, including a body between siblings. Both sides are tried against sibling silhouettes and the page. If neither fits, Policy B retains the chain and reports turned_chain_no_clear_lane plus its actual collisions, rather than silently dropping it. Measurement ownership is unchanged."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream dimensioning-coverage"
 
 - id: ARCH0020-3

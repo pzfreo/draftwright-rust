@@ -631,3 +631,33 @@ fn retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks() {
         }
     }
 }
+
+#[test]
+fn balloon_leaders_do_not_cross_the_drawings_dimension_or_extension_lines() {
+    let (_, p) = forced();
+    assert!(
+        p.hole_table.is_some(),
+        "the scenario must retain its whole table"
+    );
+    let cross = |a: [[f64; 2]; 2], b: [[f64; 2]; 2]| {
+        let side = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| {
+            (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+        };
+        side(a[0], a[1], b[0]) * side(a[0], a[1], b[1]) < 0.
+            && side(b[0], b[1], a[0]) * side(b[0], b[1], a[1]) < 0.
+    };
+    for balloon in &p.balloons {
+        if let Some(leader) = balloon.leader {
+            for d in &p.dimensions {
+                if let Some(placed) = &d.placed {
+                    assert!(
+                        !placed.lines.iter().any(|l| cross(leader, *l)),
+                        "{} crosses {}",
+                        balloon.id,
+                        d.id
+                    );
+                }
+            }
+        }
+    }
+}

@@ -92,6 +92,12 @@
                 "null"
               ]
             },
+            "fit_deviations": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "projection": {
               "enum": [
                 null,
