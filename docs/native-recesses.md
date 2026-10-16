@@ -55,3 +55,6 @@ this drawing reader are `oriented_chamfers`, `circular_face_patterns`,
 `thin_wall_bodies`, `interior_voids`, `sheet_metal_bodies`,
 `repeating_radial_profiles`, and `freeform_surfaces`. Their per-part records remain
 reported; this change does not imply drafting grammars for them.
+
+Verification and the remaining merge blockers are recorded in
+[native-recesses-qa.md](native-recesses-qa.md).
