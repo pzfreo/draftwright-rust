@@ -921,8 +921,9 @@
       - "tests/test_issue_1153_contradictory_dimensions.py::test_a_tagged_dim_drawn_at_the_wrong_length_still_fails"
       - "tests/test_issue_1153_contradictory_dimensions.py::test_a_uniform_staircase_reports_no_contradiction"
     corpus_parts: []
-  status: pending
-  rust_note: "Not ported: nothing re-measures a drawn dimension's witness span against its label. The label and the span come from the same planned value, but no independent check would catch a contradiction."
+  status: ported
+  rust_test: "tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
+  rust_note: "Stream K7: label_vs_measured (src/lint/fidelity.rs) re-measures each drawn linear dimension's span from its ink, independently of the plan: an error from 5%, a warning past 0.5%. The port's counted labels mean one member (N× v reads v), so a uniform staircase (n× rise) and a pattern's pitch report nothing, and a dimension drawn at the wrong length still does."
   port_note: "Keep: independent post-render check (label value vs measured witness span) -> error problem."
 
 - id: ISSUE-1154-a
@@ -1207,7 +1208,7 @@
     corpus_parts: ["nist_ctc_04_asme1_ap203"]
   status: pending
   rust_test: "tests/issue_trust.rs::diagnostics_are_the_same_every_run"
-  rust_note: "Partly ported: each problem is reported once (problem IDs are unique in every plan checked). Not ported: detail views and per-annotation scales; every annotation is checked at its view's scale."
+  rust_note: "Partly ported: each problem is reported once (problem IDs are unique in every plan checked), and stream K7's label_vs_measured judges each annotation at its own view's recorded scale (Sheet::frames; tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale). Not ported: detail views and their scales."
   port_note: "Keep: single check pass with per-annotation view scale."
 
 - id: ISSUE-1209-a
@@ -1831,7 +1832,7 @@
       - "tests/test_issue_1349_precision_display.py::test_close_diameters_with_distinct_authoritative_text_do_not_deduplicate"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: the spec has no display precision; every value prints at draftwright's default precision (dims::fmt), and an authored tolerance keeps its own digits (ISSUE-1524-a)."
+  rust_note: "Not ported: the spec has no display precision; every value prints at draftwright's default precision (dims::fmt), and an authored tolerance keeps its own digits (ISSUE-1524-a). Stream K7 ported the checks a policy would be judged by (label_vs_measured reads a bare label's own places; nominal_rounded reports where the one-place sheet precision rounds a nominal), so what remains is the Spec setting by measurement ID and its reach into every rendered form, a Spec feature outside K7's lint scope."
   port_note: "Keep: spec precision by measurement ID -> plan label text; scenario test."
 
 - id: ISSUE-1349-b
