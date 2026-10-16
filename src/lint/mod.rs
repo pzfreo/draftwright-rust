@@ -364,7 +364,11 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     let mut issues: Vec<_> = check(analysis, &marks)
         .into_iter()
         .filter_map(|mut i| {
-            if i.requirements.is_empty() {
+            if !i
+                .requirements
+                .iter()
+                .any(|r| satisfied.contains(&(&r.feature, &r.parameter)))
+            {
                 return Some(i);
             }
             i.requirements

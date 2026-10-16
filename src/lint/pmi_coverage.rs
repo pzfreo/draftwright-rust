@@ -475,10 +475,7 @@ pub(super) fn source_sites(
     let ids = report.identities();
     let mut out = Vec::new();
     for a in &drawing.annotations {
-        let Some(source) = ids.source(&a.name) else {
-            continue;
-        };
-        let Some(r) = report.records.iter().find(|r| r.source_id == source) else {
+        let Some(source) = ids.source(&a.name).or_else(|| a.name.strip_prefix("pmi:")) else {
             continue;
         };
         let ink = drawing.sheet.items.iter().find(|i| i.name == a.name);
@@ -489,11 +486,46 @@ pub(super) fn source_sites(
             .map(|r| r.text.as_str())
             .collect::<Vec<_>>()
             .join(" ");
-        let finish_carrier =
-            a.view.is_some() && ink.is_some_and(|i| i.kind == Kind::Gdt) && text.starts_with("Ra ");
+        let finish_carrier = a.view.is_some()
+            && ink.is_some_and(|i| i.kind == Kind::Gdt)
+            && ["Ra ", "Rz ", "Rq "]
+                .iter()
+                .any(|prefix| text.starts_with(prefix));
+        let general_note = a.view.is_none()
+            && drawing.sheet.items.iter().any(|i| {
+                i.kind == Kind::Notes
+                    && i.name == "general_notes"
+                    && a.runs
+                        .iter()
+                        .filter_map(|&j| drawing.text.get(j))
+                        .any(|run| {
+                            (0..2).all(|k| {
+                                i.ink[k] - 0.05 <= run.at[k] && run.at[k] <= i.ink[k + 2] + 0.05
+                            })
+                        })
+            });
+        let Some(r) = report.records.iter().find(|r| r.source_id == source) else {
+            if (finish_carrier || general_note) && report.sources.iter().any(|s| s.id == source) {
+                let mut finding = sourced(
+                    "pmi_source_site_mismatch",
+                    source,
+                    Severity::Error,
+                    format!(
+                        "{} claims source {source}, whose census entry has no resolved face-finish or document-note record",
+                        a.name
+                    ),
+                );
+                finding.id = format!("l:pmi_source_site_mismatch:{}", a.name);
+                finding.annotation = Some(a.name.clone());
+                finding.view = a.view.clone();
+                out.push(finding);
+            }
+            continue;
+        };
         let valid = if r.kind == "surface_finish" || finish_carrier {
             r.kind == "surface_finish"
-                && finish_carrier
+                && a.view.is_some()
+                && ink.is_some_and(|i| i.kind == Kind::Gdt)
                 && (|| {
                     let tip = ink?.lines.first()?.first()?;
                     let frame = drawing
@@ -565,20 +597,7 @@ pub(super) fn source_sites(
                     )
                 })()
                 .unwrap_or(false)
-        } else if a.view.is_none()
-            && drawing.sheet.items.iter().any(|i| {
-                i.kind == Kind::Notes
-                    && i.name == "general_notes"
-                    && a.runs
-                        .iter()
-                        .filter_map(|&j| drawing.text.get(j))
-                        .any(|run| {
-                            (0..2).all(|k| {
-                                i.ink[k] - 0.05 <= run.at[k] && run.at[k] <= i.ink[k + 2] + 0.05
-                            })
-                        })
-            })
-        {
+        } else if general_note {
             matches!(
                 r.kind.as_str(),
                 "edge_condition" | "datum_scheme" | "model_representation"

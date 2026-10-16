@@ -196,6 +196,35 @@ fn a_finish_leader_must_stay_on_its_source_face() {
             .collect::<Vec<_>>()
     };
     assert!(findings(&drawing).is_empty(), "{:?}", findings(&drawing));
+    let mut forged = drawing.clone();
+    let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
+        unreachable!()
+    };
+    let unresolved = report
+        .sources
+        .iter()
+        .find(|s| !report.records.iter().any(|r| r.source_id == s.id))
+        .expect("a census source without a typed record");
+    let false_name = format!("pmi:{}", unresolved.id);
+    forged
+        .annotations
+        .iter_mut()
+        .find(|a| a.name == name)
+        .unwrap()
+        .name = false_name.clone();
+    forged
+        .sheet
+        .items
+        .iter_mut()
+        .find(|i| i.name == name)
+        .unwrap()
+        .name = false_name;
+    let mismatches = findings(&forged);
+    assert_eq!(mismatches.len(), 1);
+    assert_eq!(
+        mismatches[0].sources.as_slice(),
+        std::slice::from_ref(&unresolved.id)
+    );
     let item = drawing
         .sheet
         .items
