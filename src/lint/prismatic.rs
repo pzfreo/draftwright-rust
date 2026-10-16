@@ -298,9 +298,6 @@ fn shoulder_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 else {
                     return false;
                 };
-                if run == 2 {
-                    return false;
-                }
                 let Some(mut point) = crate::bridge::holes::point(p.get("at")) else {
                     return false;
                 };
