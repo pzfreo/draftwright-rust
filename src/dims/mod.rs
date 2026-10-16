@@ -77,6 +77,7 @@ mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
+pub mod precision;
 mod profiled_bores;
 mod recesses;
 mod redundancy;
@@ -97,8 +98,8 @@ use crate::model::{Analysis, DimensionSource, Invalid, PlannedSheet, PlannedView
 use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
 pub use leaders::clear_routes;
-pub use placement::LabelRows;
 pub use placement::label_rows;
+pub use placement::{AlignedDemand, LabelRows};
 use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
 pub(crate) use tolerance::{check as check_tolerances, choices as fit_choices};
@@ -138,7 +139,7 @@ fn carries(w: &Want, v: &str) -> bool {
                     || w.turning
                         .is_some_and(|t| (0..3).any(|j| j != t && j != *axis && toward[j] == 0.0))
             }
-            Shape::Callout { .. } | Shape::Angular { .. } => true,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => true,
         }
 }
 
@@ -409,6 +410,8 @@ enum Shape {
         /// Its lane order: sizes 0, locations 1, overall extents 2.
         order: u8,
     },
+    /// An exact span between two proven stations in a principal projection plane.
+    Aligned { a: P3, b: P3 },
     /// A leader to one of these circles (centre, radius), world mm.
     Callout { sites: Vec<(P3, f64)> },
     /// An angle between two sides, drawn about its vertex ([`angular`]).
@@ -878,6 +881,7 @@ pub(crate) fn callout_bands(
         .into_iter()
         .map(|w| (w, false, None, Vec::new()))
         .collect();
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
     tolerance::apply(analysis, spec, &mut kept, &[], &mut Vec::new())?;
     Ok(kept
         .iter()
@@ -929,6 +933,8 @@ pub(crate) fn callout_bands(
 /// ink 11 to 13 and 9 to 11; `docs/quality-2026-10-09.md`, "After merged-away lanes").
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
     lanes_excluding(analysis, views, &BTreeSet::new(), &Spec::default())
+        .expect("default display policy cannot conflict")
+        .0
 }
 
 pub(crate) fn lanes_excluding(
@@ -936,7 +942,7 @@ pub(crate) fn lanes_excluding(
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
     spec: &Spec,
-) -> crate::layout::Lanes {
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let key = serde_json::to_vec(&(views, excluded, spec)).expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
         lanes_uncached(analysis, views, excluded, spec)
@@ -948,7 +954,7 @@ fn lanes_uncached(
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
     spec: &Spec,
-) -> crate::layout::Lanes {
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
@@ -1015,6 +1021,7 @@ fn lanes_uncached(
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
     pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
     if let Ok(mut given) = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems) {
         holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
         plates::share(analysis, &mut kept, &mut given, &mut omitted);
@@ -1114,7 +1121,24 @@ fn lanes_uncached(
             _ => {}
         }
     }
-    bands
+    let mut aligned = Vec::new();
+    for (i, w) in wants.iter().enumerate() {
+        if !matches!(w.shape, Shape::Aligned { .. }) || owner[i].is_some() {
+            continue;
+        }
+        if let (Some(view), Some(side)) = (chosen[i], sides[i]) {
+            let mut display = w.clone();
+            precision::labels(spec, std::iter::once(&mut display))?;
+            aligned.push(AlignedDemand::new(
+                &frames[view],
+                &display,
+                view,
+                side,
+                lane[i],
+            ));
+        }
+    }
+    Ok((bands, aligned))
 }
 
 /// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
@@ -1201,6 +1225,34 @@ pub(crate) fn plan_inventory(
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
+    // Display intent may not silently undo the established one-owner span grouping.
+    let display_owners = if spec.precision.is_empty() {
+        Vec::new()
+    } else {
+        placement::owners(analysis, &wants, &chosen)
+    };
+    precision::apply(spec, &mut wants)?;
+    for (i, owner) in display_owners.iter().enumerate() {
+        if let Some(j) = owner
+            && (precision::leading(spec, &wants[i]).is_some()
+                || precision::leading(spec, &wants[*j]).is_some())
+            && precision::leading(spec, &wants[i]).map_or_else(
+                || fmt(wants[i].value),
+                |p| precision::format(wants[i].value, p),
+            ) != precision::leading(spec, &wants[*j]).map_or_else(
+                || fmt(wants[*j].value),
+                |p| precision::format(wants[*j].value, p),
+            )
+        {
+            return Err(Invalid {
+                message: format!(
+                    "conflicting precision for coincident dimensions {} and {}; shared measurements require matching display precision",
+                    wants[i].id, wants[*j].id
+                ),
+                choices: vec![],
+            });
+        }
+    }
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
     // bug, checked in every build.
@@ -1353,6 +1405,7 @@ pub(crate) fn plan_inventory(
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
     pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
@@ -1778,7 +1831,7 @@ pub(crate) fn plan_inventory(
                 region,
                 id: w.id.clone(),
                 kind: match w.shape {
-                    Shape::Linear { .. } => "linear",
+                    Shape::Linear { .. } | Shape::Aligned { .. } => "linear",
                     Shape::Callout { .. } => "callout",
                     Shape::Angular { .. } => "angular",
                 }
@@ -1888,7 +1941,7 @@ pub(crate) fn plan_inventory(
             region,
             id: w.id,
             kind: match w.shape {
-                Shape::Linear { .. } => "linear",
+                Shape::Linear { .. } | Shape::Aligned { .. } => "linear",
                 Shape::Callout { .. } => "callout",
                 Shape::Angular { .. } => "angular",
             }
@@ -2175,7 +2228,7 @@ fn share_statements(
                 w.value,
                 pmi_dimensions::basic(&w.measurements),
             )),
-            Shape::Callout { .. } | Shape::Angular { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
         }
     };
     let same = |s: &Span, t: &Span| {
@@ -2295,7 +2348,7 @@ fn share_pmi(
                 a[axis].min(b[axis]),
                 a[axis].max(b[axis]),
             )),
-            Shape::Callout { .. } | Shape::Angular { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
         };
     let mut gone = BTreeSet::new();
     let order: Vec<usize> = {
@@ -2563,7 +2616,9 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
                                 vec!["left", "right"]
                             }
                         }
-                        Shape::Callout { .. } => vec!["above", "below", "left", "right"],
+                        Shape::Callout { .. } | Shape::Aligned { .. } => {
+                            vec!["above", "below", "left", "right"]
+                        }
                         Shape::Angular { .. } => return None,
                     };
                     Some(serde_json::json!({"view": name, "sides": sides}))
@@ -2594,9 +2649,42 @@ pub(crate) fn recheck(analysis: &Analysis, plan: &crate::model::Plan) -> Vec<Pro
         .collect()
 }
 
+/// Semantic roles available to a feature note, including compound callout terms.
+pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
+    wants(analysis)
+        .0
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| want_id(&m.feature, &m.parameter))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn side_only_callout_corridors_grow_with_authored_precision() {
+        let (_, analysis) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap();
+        let id = "d:f:hole_pattern:1/bore.diameter";
+        for side in ["left", "right"] {
+            let mut spec: Spec = serde_json::from_value(serde_json::json!({
+                "dimensions": {id: {"place": {"view": "plan", "side": side}}}
+            }))
+            .unwrap();
+            let bare = callout_bands(&analysis, &spec).unwrap();
+            assert_eq!(bare.len(), 1);
+            spec.precision.insert(id.into(), 15);
+            let precise = callout_bands(&analysis, &spec).unwrap();
+            assert_eq!(precise.len(), 1);
+            assert_eq!(precise[0].side, side);
+            assert!(precise[0].depth > bare[0].depth + 20.0);
+        }
+    }
 
     type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 

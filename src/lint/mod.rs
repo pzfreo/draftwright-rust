@@ -330,16 +330,71 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         })
         .map(|c| (&c.feature, &c.parameter))
         .collect();
+    let mut satisfied = satisfied;
+    // Authored feature notes grant only their exact, explicitly named physical identities.
+    // No prose, synthetic through/count authority, or sibling propagation is involved.
+    if let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi {
+        let ids = report.identities();
+        for a in &drawing.annotations {
+            let record = ids
+                .source(&a.name)
+                .and_then(|id| report.records.iter().find(|r| r.source_id == id));
+            let Some(r) = record.filter(|r| r.kind == "note") else {
+                continue;
+            };
+            let Some(owner) = r
+                .source_id
+                .strip_prefix("spec:features/")
+                .and_then(|s| s.strip_suffix("/note"))
+            else {
+                continue;
+            };
+            if a.view.as_deref().is_none_or(|v| {
+                !drawing
+                    .sheet
+                    .frames
+                    .contains_key(v.trim_start_matches("v:"))
+            }) || !drawing.sheet.items.iter().any(|i| {
+                i.name == a.name && i.kind == crate::output::Kind::Gdt && !i.lines.is_empty()
+            }) || !a.runs.iter().any(|&i| {
+                drawing
+                    .text
+                    .get(i)
+                    .is_some_and(|r| !r.text.trim().is_empty())
+            }) {
+                continue;
+            }
+            for c in &a.satisfies {
+                if c.feature == owner
+                    && (analysis.features.iter().any(|f| f.id == owner)
+                        || analysis
+                            .recognition
+                            .as_ref()
+                            .is_some_and(|r| r.patterns.iter().any(|p| p.id == owner)))
+                {
+                    satisfied.insert((&c.feature, &c.parameter));
+                }
+            }
+        }
+    }
     let mut issues: Vec<_> = check(analysis, &marks)
         .into_iter()
-        .filter(|i| {
-            !matches!(
-                i.code.as_str(),
-                "blend_requirement_missing" | "fillet_requirement_missing"
-            ) || !i
+        .filter_map(|mut i| {
+            if !i
                 .requirements
                 .iter()
-                .all(|r| satisfied.contains(&(&r.feature, &r.parameter)))
+                .any(|r| satisfied.contains(&(&r.feature, &r.parameter)))
+            {
+                return Some(i);
+            }
+            i.requirements
+                .retain(|r| !satisfied.contains(&(&r.feature, &r.parameter)));
+            if i.requirements.is_empty() {
+                return None;
+            }
+            i.subjects
+                .retain(|id| i.requirements.iter().any(|r| &r.feature == id));
+            Some(i)
         })
         .chain(relief_issues)
         .collect();
@@ -350,6 +405,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     // Stream K4: each callout's tip against the edge it names, and its shaft against the
     // material (`leaders`).
     issues.extend(leaders::check(analysis, drawing));
+    issues.extend(pmi_coverage::source_sites(analysis, drawing));
     issues
 }
 
@@ -380,6 +436,10 @@ pub fn lint_sheets(analysis: &Analysis, drawings: &[Drawing]) -> Vec<LintIssue> 
             .items
             .extend(drawing.sheet.items.iter().cloned());
         combined.sheet.frames.extend(drawing.sheet.frames.clone());
+        combined
+            .sheet
+            .precision
+            .extend(drawing.sheet.precision.clone());
         for (view, centres) in &drawing.sheet.centre_marks {
             combined
                 .sheet

@@ -261,6 +261,12 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
                 ));
             }
         }
+        if !f.note_satisfies.is_empty() && f.note.is_none() {
+            return Err(invalid(
+                format!("{base}/note_satisfies needs a feature note."),
+                vec![],
+            ));
+        }
         if let Some(n) = &f.note {
             note(&format!("{base}/note"), n)?;
         }
@@ -494,4 +500,41 @@ pub(crate) fn overrides(s: &Record, pmi: &Record) -> bool {
             k if thread(k) => thread(&pmi.kind) && shares(),
             _ => false,
         }
+}
+
+/// Refuse unknown roles rather than allowing a typo to suppress unrelated coverage.
+pub(crate) fn check_claims(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
+    if spec.features.values().all(|f| f.note_satisfies.is_empty()) {
+        return Ok(());
+    }
+    let ids = crate::dims::measurement_ids(analysis);
+    for (id, f) in &spec.features {
+        for role in &f.note_satisfies {
+            if !ids.contains(&format!("d:{id}/{role}")) {
+                return Err(invalid(
+                    format!("{role:?} is not a measurement role of {id}."),
+                    vec![],
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn satisfaction(spec: &Spec, source: &str) -> Vec<crate::output::Claim> {
+    let Some(id) = source
+        .strip_prefix("spec:features/")
+        .and_then(|s| s.strip_suffix("/note"))
+    else {
+        return vec![];
+    };
+    spec.features
+        .get(id)
+        .into_iter()
+        .flat_map(|f| &f.note_satisfies)
+        .map(|p| crate::output::Claim {
+            feature: id.into(),
+            parameter: p.clone(),
+        })
+        .collect()
 }

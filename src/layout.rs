@@ -634,6 +634,8 @@ pub struct Request {
     /// The part's extents along x, y and z, mm.
     pub size: [f64; 3],
     pub strips: Strips,
+    /// Exact aligned-dimension ink, measured separately at each candidate scale.
+    pub aligned: Vec<crate::dims::AlignedDemand>,
     /// The number of section views beside the side view.
     pub sections: usize,
     /// Keep the section aligned when view-dependent annotation corridors are reserved.
@@ -663,6 +665,7 @@ impl Request {
             candidate_arrangement: None,
             size,
             strips: Strips::without_features(),
+            aligned: Vec::new(),
             sections: 0,
             section_row_fixed: false,
             table_sizes: Vec::new(),
@@ -805,6 +808,9 @@ fn geometry_with(
 ) -> Geometry {
     let [x_size, y_size, z_size] = req.size;
     let mut strips = req.strips.clone();
+    for aligned in &req.aligned {
+        aligned.reserve(&mut strips, scale);
+    }
     // The Y-hole leader band is spent only when a derived view could claim it.
     if !scaled.derived.is_empty() && strips.front_hole_below > strips.fv_bottom {
         strips.fv_bottom = strips.front_hole_below;

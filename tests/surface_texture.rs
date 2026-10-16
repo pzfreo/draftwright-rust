@@ -17,16 +17,16 @@ fn root() -> PathBuf {
 
 /// The fixture *stem*'s part and Analysis, read from a scratch file of its own.
 fn analysed(stem: &str) -> (Part, Analysis) {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let instance = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let gz = root().join(format!("tests/fixtures/surface_texture/{stem}.step.gz"));
     let mut bytes = Vec::new();
     flate2::read::GzDecoder::new(std::fs::File::open(gz).unwrap())
         .read_to_end(&mut bytes)
         .unwrap();
-    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let call = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("surface_texture")
-        .join(format!("{}-{call}-{stem}", std::process::id()));
+        .join(format!("{}-{stem}-{instance}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(format!("{stem}.step"));
     std::fs::write(&path, bytes).unwrap();
@@ -175,6 +175,70 @@ fn material_removal_is_drawn_on_the_symbol() {
         let p = g.placed.as_ref().unwrap();
         assert_eq!((p.strokes.len(), p.arcs.len()), (strokes, arcs), "{term}");
     }
+}
+
+#[test]
+fn a_finish_leader_must_stay_on_its_source_face() {
+    let (part, a) = analysed("plate_face_ra0_8");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let mut drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let name = plan
+        .gdt
+        .iter()
+        .find(|g| g.kind == "surface_finish")
+        .unwrap()
+        .id
+        .clone();
+    let findings = |d: &draftwright::output::Drawing| {
+        draftwright::lint::lint(&a, d)
+            .into_iter()
+            .filter(|i| i.code == "pmi_source_site_mismatch")
+            .collect::<Vec<_>>()
+    };
+    assert!(findings(&drawing).is_empty(), "{:?}", findings(&drawing));
+    let mut forged = drawing.clone();
+    let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
+        unreachable!()
+    };
+    let unresolved = report
+        .sources
+        .iter()
+        .find(|s| !report.records.iter().any(|r| r.source_id == s.id))
+        .expect("a census source without a typed record");
+    let false_name = format!("pmi:{}", unresolved.id);
+    forged
+        .annotations
+        .iter_mut()
+        .find(|a| a.name == name)
+        .unwrap()
+        .name = false_name.clone();
+    forged
+        .sheet
+        .items
+        .iter_mut()
+        .find(|i| i.name == name)
+        .unwrap()
+        .name = false_name;
+    let mismatches = findings(&forged);
+    assert_eq!(mismatches.len(), 1);
+    assert_eq!(
+        mismatches[0].sources.as_slice(),
+        std::slice::from_ref(&unresolved.id)
+    );
+    let item = drawing
+        .sheet
+        .items
+        .iter_mut()
+        .find(|i| i.name == name)
+        .unwrap();
+    item.lines[0][0][1] += 8.0;
+    let found = findings(&drawing);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].annotation.as_deref(), Some(name.as_str()));
+    assert_eq!(found[0].severity, draftwright::lint::Severity::Error);
+    assert_eq!(found[0].sources.len(), 1);
 }
 
 /// Source-scoped face finishes are checked against the Analysis parameter, even when the

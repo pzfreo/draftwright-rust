@@ -232,6 +232,16 @@ pub struct Spec {
     /// Per dimension, by its ID (`d:<feature>/<parameter>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub dimensions: BTreeMap<String, DimensionSpec>,
+    /// A band on all overall extents; an extent's own tolerance or fit takes precedence.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub envelope_tolerance: Option<String>,
+    /// Decimal places (0–15) by measurement ID, including compound callout roles.
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "crate::dims::precision::read"
+    )]
+    pub precision: BTreeMap<String, u8>,
     /// Placement and omission of semantic PMI frames, datums and labels, by stable ID.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub annotations: BTreeMap<String, crate::placement_intent::AnnotationSpec>,
@@ -282,6 +292,9 @@ pub struct DimensionSpec {
     /// rules; ARCH0011-1).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<String>,
+    /// ISO 286 class on this extent; `sheet/fit_deviations` adds stacked deviations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fit: Option<String>,
     /// The view that carries it (`front`, `plan` or `side`), where the default would put it
     /// elsewhere: no longer part of its ID (`draftwright.spec/2`). One that cannot carry it is
     /// refused; one that is omitted leaves it in its default view, with a warning.
@@ -323,6 +336,9 @@ pub struct FeatureSpec {
     /// A note on a leader to the feature (draftwright's `note`) ([`crate::spec_notes`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Roles this placed feature note explicitly satisfies; never inferred from its prose.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub note_satisfies: Vec<String>,
 }
 
 impl Default for Spec {
@@ -337,6 +353,8 @@ impl Default for Spec {
             dimension_source: DimensionSource::Auto,
             hole_table: crate::hole_table::Setting::Auto,
             dimensions: BTreeMap::new(),
+            envelope_tolerance: None,
+            precision: BTreeMap::new(),
             features: BTreeMap::new(),
             faces: BTreeMap::new(),
             annotations: BTreeMap::new(),
@@ -2205,6 +2223,7 @@ fn plan_with_presentation(
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     crate::sheets::validate(spec)?;
+    crate::spec_notes::check_claims(analysis, spec)?;
     crate::dims::check_views(spec)?;
     crate::placement_intent::check(spec)?;
     title_block::check(&spec.sheet.title)?;
@@ -2286,6 +2305,9 @@ fn plan_with_presentation(
             .collect::<Vec<_>>();
         effective
             .dimensions
+            .retain(|id, _| !id.starts_with("d:f:") && !id.starts_with("d:pmi:"));
+        effective
+            .precision
             .retain(|id, _| !id.starts_with("d:f:") && !id.starts_with("d:pmi:"));
         effective.annotations.clear();
         effective.features.clear();
@@ -2427,7 +2449,8 @@ fn plan_with_presentation(
         .filter(|(name, ..)| shown(name))
         .copied()
         .collect();
-    demand.lanes = crate::dims::lanes_excluding(analysis, &shown_views, &excluded, spec);
+    let (lanes, aligned) = crate::dims::lanes_excluding(analysis, &shown_views, &excluded, spec)?;
+    demand.lanes = lanes;
     // Full printed extents reserve ink, but an authored linear tolerance must not recenter
     // every projection and its unrelated dimensions (ARCH0003-2). Keep the established
     // linear anchor bands separately; the placed blocks below still use the full extents.
@@ -2436,7 +2459,8 @@ fn plan_with_presentation(
         for d in nominal.dimensions.values_mut() {
             d.tolerance = None;
         }
-        let before = crate::dims::lanes_excluding(analysis, &shown_views, &excluded, &nominal);
+        let (before, _) =
+            crate::dims::lanes_excluding(analysis, &shown_views, &excluded, &nominal)?;
         let mut anchors = demand.lanes;
         anchors.plate_front_top = before.plate_front_top;
         anchors.plate_side_top = before.plate_side_top;
@@ -2550,6 +2574,7 @@ fn plan_with_presentation(
         principals,
         shown("iso"),
     );
+    request.aligned = aligned;
     request.automatic_pair = automatic_pair;
     request.candidate_arrangement = candidate_arrangement;
     request.first_angle = first_angle;
@@ -5358,6 +5383,16 @@ fn render_annotations_with_cuts(
         runs,
         claims: Vec::new(),
     }));
+    // Rendered feature notes retain their explicit authority, separately from measurements.
+    for a in &mut annotations {
+        if let Some(g) = plan
+            .gdt
+            .iter()
+            .find(|g| g.id == a.name && g.placed.is_some())
+        {
+            a.satisfies = crate::spec_notes::satisfaction(&plan.spec, &g.source);
+        }
+    }
     // Authored plate omissions are consumer provenance, with no ink or claimed value.
     annotations.extend(
         plan.omitted
@@ -5415,6 +5450,23 @@ fn render_annotations_with_cuts(
             style,
             items: ink,
         });
+    }
+    if !plan.spec.precision.is_empty() {
+        for d in &plan.dimensions {
+            let role = d.id.rsplit_once('/').map_or("", |(_, p)| p);
+            if let Some(p) = plan.spec.precision.get(&d.id).or_else(|| {
+                d.measurements
+                    .iter()
+                    .filter(|m| m.parameter == role)
+                    .find_map(|m| {
+                        plan.spec
+                            .precision
+                            .get(&format!("d:{}/{}", m.feature, m.parameter))
+                    })
+            }) {
+                sheet.precision.insert(d.id.clone(), *p);
+            }
+        }
     }
     // The cell annotations were bound above from the compiler's row measurements. Retain
     // those identities separately from the live claims, just as approved text is retained

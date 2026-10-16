@@ -1779,3 +1779,22 @@ Same-face boss/blend precedence uses one shared predicate for planning and lint.
 proven blend radius replaces that face's duplicate boss diameter; the independent boss height
 remains required. Missing or ambiguous face evidence never deduplicates by scalar equality.
 The differences and verdicts are recorded in `tests/fixtures/known_blends.json`.
+
+Precision is a display policy in `precision`, a map from measurement IDs such as
+`d:envelope/width.length` or `d:f:hole:1/counterbore.depth` to decimal places (0–15).
+It retains trailing zeroes in the label and its measured reservation, without changing the
+nominal or tolerance. Conflicting explicit policies for a shared printed term are refused;
+they require separate dimension owners. Without a policy, formatting is unchanged.
+
+`envelope_tolerance` supplies a band to all three overall extents. A dimension's own
+`tolerance` or `fit` overrides that fallback. An extent fit uses the existing ISO 286 table
+and prints the class alone by default. `sheet/fit_deviations: true` adds stacked upper/lower
+deviations; the legacy `sheet/fit_limits` alias is supported, with the new setting taking
+precedence. Authored precision controls the extent nominal in both modes and leaves the
+fit deviations and explicit tolerance digits unchanged.
+
+A feature note can explicitly satisfy its own measurement roles with
+`features/<id>/note_satisfies`, for example `["counterbore.diameter", "counterbore.depth"]`.
+Only its placed leadered note grants authority. This is separate from dimension claims:
+prose grants no coverage, a diameter role implies neither THRU nor count, and sibling
+features need their own explicit claims.

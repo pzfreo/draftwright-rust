@@ -136,10 +136,10 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
 
 ## What alpha 1 does not do
 
-- **PMI, not drawn yet:** lengths oblique to the views' axes, a cone's angle (an angle no view
+- **PMI, not drawn yet:** a cone's angle (an angle no view
   shows true), diameters or radii not along x, y or z, a size several faces state together that
   draftwright gives its own step, and bolt circles whose holes carry different requirements
-  (`pmi_dimensions_not_ported`). A thread or knurl on a boss, face-finish requirements, datum
+  (`pmi_dimensions_not_ported`). A thread or knurl on a boss, datum
   scheme and model representation notes are read but not drawn; each is reported
   (`pmi_not_lowered`). A record haecceity could read only in part (NIST CTC-02's
   composite_shape_aspect groups, for example) is reported, not drawn, where draftwright draws

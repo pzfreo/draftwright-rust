@@ -458,6 +458,8 @@ pub struct DrawnReference {
 /// format.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sheet {
+    /// Approved display precision of each dimension's leading value. Ink is still checked.
+    pub precision: BTreeMap<String, u8>,
     /// Remote section addresses, verified against printed text by structural lint.
     pub references: Vec<DrawnReference>,
     /// The drawable area, inside the border (`[x0, y0, x1, y1]`); none when no border is drawn.

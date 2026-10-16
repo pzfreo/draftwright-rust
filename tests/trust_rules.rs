@@ -242,34 +242,51 @@ fn the_hash_and_the_geometry_come_from_one_read() {
     use std::sync::mpsc;
     use std::time::Duration;
 
-    let pipe = scratch("snapshot.step");
-    let _ = std::fs::remove_file(&pipe);
-    assert!(
-        std::process::Command::new("mkfifo")
-            .arg(&pipe)
-            .status()
-            .unwrap()
-            .success()
-    );
+    // Publish a different FIFO before closing the first writer. EOF on the original
+    // descriptor must precede any second open: a delayed reader can never concatenate
+    // the two documents, even if the writer's fallback timeout expires under load.
     let first = std::fs::read(fixture("parts/turned.step")).unwrap();
     let second = std::fs::read(fixture("parts/prismatic.step")).unwrap();
-    let (done, analysed) = mpsc::channel::<()>();
-    let to = pipe.clone();
-    let bytes = first.clone();
-    std::thread::spawn(move || {
-        let give = |b: &[u8]| {
-            if let Ok(mut f) = std::fs::OpenOptions::new().write(true).open(&to) {
-                let _ = f.write_all(b);
-            }
-        };
-        give(&bytes);
-        // A second open while the analysis is under way gets the other file.
-        if analysed.recv_timeout(Duration::from_secs(5)).is_err() {
-            give(&second);
+    let changing_file = |name: &str| {
+        let dir = fresh(&format!("snapshot-{}-{name}", std::process::id()));
+        let pipe = dir.join("snapshot.step");
+        let next = dir.join("next.step");
+        for path in [&pipe, &next] {
+            assert!(
+                std::process::Command::new("mkfifo")
+                    .arg(path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
         }
-    });
+        let (done, analysed) = mpsc::channel::<()>();
+        let (offered, offer) = mpsc::channel();
+        let to = pipe.clone();
+        let bytes = first.clone();
+        let replacement = second.clone();
+        let writer = std::thread::spawn(move || {
+            let mut f = std::fs::OpenOptions::new().write(true).open(&to).unwrap();
+            f.write_all(&bytes).unwrap();
+            std::fs::rename(next, &to).unwrap();
+            drop(f);
+            // A second open while the analysis is under way gets the other file.
+            let again = analysed.recv_timeout(Duration::from_secs(5)).is_err();
+            offered.send(again).unwrap();
+            if again {
+                let mut f = std::fs::OpenOptions::new().write(true).open(&to).unwrap();
+                f.write_all(&replacement).unwrap();
+            }
+        });
+        (pipe, done, offer, writer)
+    };
+    let (pipe, done, offer, writer) = changing_file("analysis");
     let (_, analysis) = model::analyse(&pipe).unwrap();
     let _ = done.send(());
+    if offer.recv().unwrap() {
+        assert_eq!(std::fs::read(&pipe).unwrap(), second);
+    }
+    writer.join().unwrap();
 
     let (_, direct) = model::analyse(&fixture("parts/turned.step")).unwrap();
     let hash: String = Sha256::digest(&first)
@@ -287,6 +304,24 @@ fn the_hash_and_the_geometry_come_from_one_read() {
         !text.contains(&dir),
         "the analysis records where the file was"
     );
+
+    // Negative control: code that opens twice really receives two different documents.
+    // The complete first stream also proves the replacement cannot reach its reader.
+    let (pipe, done, offer, writer) = changing_file("two-reads");
+    let mut original = std::fs::File::open(&pipe).unwrap();
+    let mut bytes = vec![0; first.len()];
+    original.read_exact(&mut bytes).unwrap();
+    assert_eq!(bytes, first);
+    // Deliberately leave EOF unread until the second writer is offered. Reusing the
+    // original FIFO would append the replacement here and fail this assertion.
+    assert!(offer.recv().unwrap());
+    let mut trailing = Vec::new();
+    original.read_to_end(&mut trailing).unwrap();
+    assert!(trailing.is_empty());
+    drop(original);
+    assert_eq!(std::fs::read(&pipe).unwrap(), second);
+    let _ = done.send(());
+    writer.join().unwrap();
 }
 
 /// ADR5-D2: no document infers manufacturing intent. With the default spec, every plan's title

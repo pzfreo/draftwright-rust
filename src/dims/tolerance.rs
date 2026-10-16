@@ -220,7 +220,27 @@ pub(super) fn deviation(v: f64) -> String {
 /// Checks every tolerance and fit the spec authors reads as one: the form, never the part (that
 /// is [`apply`]'s). A refusal names the entry.
 pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
+    if let Some(t) = &spec.envelope_tolerance {
+        tolerance(t).map_err(|why| Invalid {
+            message: format!("The envelope tolerance cannot be read: {why}."),
+            choices: FORMS.map(String::from).to_vec(),
+        })?;
+    }
     for (id, entry) in &spec.dimensions {
+        if let Some(code) = &entry.fit {
+            fit(code).map_err(|why| Invalid {
+                message: why,
+                choices: vec![],
+            })?;
+            if !id.starts_with("d:envelope/") || entry.tolerance.is_some() {
+                return Err(Invalid {
+                    message: format!(
+                        "The fit of {id} belongs to an overall extent with no per-extent tolerance."
+                    ),
+                    choices: vec![],
+                });
+            }
+        }
         if let Some(t) = &entry.tolerance {
             tolerance(t).map_err(|why| Invalid {
                 message: format!("The tolerance of {id:?} cannot be read: {why}."),
@@ -390,7 +410,16 @@ pub(super) fn apply(
                 stated.insert(*k);
             }
         }
-        let authored = spec.dimensions.get(&w.id).and_then(|e| e.tolerance.clone());
+        let extent_fit = spec.dimensions.get(&w.id).and_then(|e| e.fit.as_deref());
+        let authored = spec
+            .dimensions
+            .get(&w.id)
+            .and_then(|e| e.tolerance.clone())
+            .or_else(|| {
+                (w.id.starts_with("d:envelope/") && extent_fit.is_none())
+                    .then(|| spec.envelope_tolerance.clone())
+                    .flatten()
+            });
         if authored.is_some() && member_fits.iter().any(Option::is_some) {
             let fitted: Vec<&str> = members
                 .iter()
@@ -408,7 +437,21 @@ pub(super) fn apply(
                 choices: vec![],
             });
         }
-        let band = if let Some(t) = authored {
+        let band = if let Some(code) = extent_fit {
+            let limits = deviations(code, w.value).ok_or_else(|| Invalid {
+                message: format!(
+                    "The fit {code} of {} is outside the ISO 286 table at {} mm.",
+                    w.id, w.value
+                ),
+                choices: vec![],
+            })?;
+            given.push("fit".into());
+            Some(if limits_shown(spec) {
+                with_limits(code, limits)
+            } else {
+                code.into()
+            })
+        } else if let Some(t) = authored {
             let (text, nothing) = tolerance(&t).expect("checked");
             if nothing {
                 problems.push(Problem {
@@ -548,6 +591,18 @@ pub(super) fn apply(
 /// members' `fit`, and whether that is printed (a band of nothing, or a fit the members do not
 /// all share, is withheld). None when the spec gives it neither.
 pub(super) fn authored(spec: &Spec, w: &Want) -> Option<(&'static str, bool)> {
+    if spec.dimensions.get(&w.id).is_some_and(|e| e.fit.is_some()) {
+        return Some(("fit", true));
+    }
+    if w.id.starts_with("d:envelope/")
+        && spec
+            .dimensions
+            .get(&w.id)
+            .is_none_or(|e| e.tolerance.is_none())
+        && let Some(t) = &spec.envelope_tolerance
+    {
+        return Some(("tolerance", tolerance(t).is_ok_and(|(_, nothing)| !nothing)));
+    }
     if let Some(t) = spec
         .dimensions
         .get(&w.id)
