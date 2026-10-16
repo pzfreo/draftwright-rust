@@ -208,6 +208,9 @@ fn a_face_finish_text_cannot_disagree_with_its_source() {
     drawing.text[runs[0]].text = "Ra 9.9".into();
     let found = mismatch(&drawing);
     assert_eq!(found.len(), 1);
-    assert_eq!(found[0].sources, [finish.source.clone()]);
+    assert_eq!(
+        found[0].sources.as_slice(),
+        std::slice::from_ref(&finish.source)
+    );
     assert_eq!(found[0].annotation.as_deref(), Some(finish.id.as_str()));
 }

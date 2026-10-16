@@ -316,18 +316,18 @@ fn manufacturing_text(report: &Report, marks: &[Mark], ids: &Identities) -> Vec<
                     .collect();
                 // ISO 1302's parameter labels carry values in micrometres. An arbitrary
                 // number somewhere in a label cannot stand for the named parameter.
-                !parameters.is_empty()
-                    && words.len() == 2 * parameters.len()
-                    && parameters.iter().zip(words.chunks_exact(2)).all(
-                        |((name, expected), pair)| {
-                            pair[0] == *name
-                                && expected.is_finite()
-                                && *expected > 0.0
-                                && pair[1]
-                                    .parse::<f64>()
-                                    .is_ok_and(|v| v.is_finite() && v == *expected)
-                        },
-                    )
+                let mut printed = words.iter().copied();
+                let states = !parameters.is_empty()
+                    && parameters.iter().all(|(name, expected)| {
+                        name.split_whitespace()
+                            .all(|word| printed.next() == Some(word))
+                            && expected.is_finite()
+                            && printed
+                                .next()
+                                .and_then(|word| word.parse::<f64>().ok())
+                                .is_some_and(|value| value.is_finite() && value == *expected)
+                    });
+                states && printed.next().is_none()
             }
             _ => continue,
         };
@@ -733,5 +733,17 @@ mod tests {
             claims: vec![],
         });
         assert_eq!(mismatches(&wrong).len(), 2);
+        // Structured AP242 textures may also name a multi-word length parameter.
+        let mut multi = report.clone();
+        multi.records[1]
+            .fields
+            .push(("sampling length".into(), Field::Length(0.25)));
+        let mark = Mark {
+            name: "pmi:surface_texture:#3".into(),
+            view: None,
+            text: "Ra 0.80 sampling length 250".into(),
+            claims: vec![],
+        };
+        assert!(manufacturing_text(&multi, &[mark], &multi.identities()).is_empty());
     }
 }
