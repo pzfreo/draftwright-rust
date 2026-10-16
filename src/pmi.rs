@@ -415,7 +415,7 @@ pub struct Geometry {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sites: Vec<[f64; 3]>,
     /// Other proven sites on a datum's first face, ranked as draftwright ranks its choice and
-    /// spread over the face (on a cylinder, on the first site's side): where the port's placement
+    /// spread over the face (on a cylinder, on either proven silhouette): where the port's placement
     /// may attach the symbol when the first site's has no clear place.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub alternatives: Vec<[f64; 3]>,
@@ -2956,6 +2956,16 @@ fn face_sites(part: &Part, f: usize, b: &Bounds, kind: &str, k: usize) -> Vec<[f
         let mut out = vec![first];
         for t in [0.3, 0.7, 0.15, 0.85, 0.05, 0.95] {
             if let Some(s) = on(b.min[k] + t * (b.max[k] - b.min[k]), sign) {
+                out.push(s);
+            }
+        }
+        // Keep the original ranking, then prove the other silhouette against the same
+        // trimmed domain. Mirroring an attachment alone would be invalid on a partial face.
+        for station in stations
+            .into_iter()
+            .chain([0.3, 0.7, 0.15, 0.85, 0.05, 0.95].map(|t| b.min[k] + t * (b.max[k] - b.min[k])))
+        {
+            if let Some(s) = on(station, -sign) {
                 out.push(s);
             }
         }

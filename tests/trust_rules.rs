@@ -570,7 +570,36 @@ fn every_planned_dimension_can_be_addressed() {
         assert!(!all.is_empty(), "{name}");
         for id in &all {
             let without = model::plan(analysis, &omitting(&[id])).unwrap();
-            let expected: Vec<&str> = all.iter().copied().filter(|i| i != id).collect();
+            // ARCH0015-2 (stream K6): omitting a ladder rung omits its whole set (the height
+            // ladder, or the shoulders along one axis), each recorded as omitted with it.
+            let set = |i: &str| {
+                let heights = "d:step_level/step_height.length";
+                if i.starts_with(heights) {
+                    return Some(heights.to_string());
+                }
+                i.strip_prefix("d:step_level/step_position.length.")
+                    .and_then(|r| r.get(..1))
+                    .map(|axis| format!("d:step_level/step_position.length.{axis}"))
+            };
+            let with: Vec<&str> = all
+                .iter()
+                .copied()
+                .filter(|i| i != id && set(i).is_some() && set(i) == set(id))
+                .collect();
+            for i in &with {
+                assert!(
+                    without
+                        .omitted
+                        .iter()
+                        .any(|o| o.id == *i && o.state == draftwright::items::State::OmittedByUser),
+                    "{name}: omitting {id} omits {i} with its set"
+                );
+            }
+            let expected: Vec<&str> = all
+                .iter()
+                .copied()
+                .filter(|i| i != id && !with.contains(i))
+                .collect();
             let mut promoted: Vec<&str> = plan
                 .omitted
                 .iter()
@@ -651,7 +680,7 @@ fn every_planned_dimension_can_be_addressed() {
             );
             assert_eq!(
                 without.omitted.len(),
-                1 + plan.omitted.len() - back.len(),
+                1 + with.len() + plan.omitted.len() - back.len(),
                 "{name}: {id}"
             );
 
@@ -663,7 +692,20 @@ fn every_planned_dimension_can_be_addressed() {
                 .dimensions
                 .insert(id.to_string(), DimensionSpec::default());
             let alone = model::plan(analysis, &alone).unwrap();
-            assert_eq!(ids(&alone), [*id], "{name}");
+            // An authored set listing one rung approves its whole set (ARCH0015-2): every
+            // member is drawn, those the default plan covers by another item included, since
+            // that owner is not in this set.
+            let drawn = ids(&alone);
+            assert!(drawn.contains(id), "{name}: {id}");
+            for i in &with {
+                assert!(drawn.contains(i), "{name}: listing {id} approves {i}");
+            }
+            for d in &drawn {
+                assert!(
+                    d == id || (set(d).is_some() && set(d) == set(id)),
+                    "{name}: listing {id} draws {d}"
+                );
+            }
         }
     }
 }

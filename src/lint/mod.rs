@@ -421,6 +421,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     assembly_coverage(analysis, &mut issues);
     issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(redundancy::coverage(analysis, marks));
+    issues.extend(redundancy::references(analysis, marks));
     issues
 }
 

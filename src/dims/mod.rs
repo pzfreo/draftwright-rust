@@ -1222,8 +1222,59 @@ pub(crate) fn plan_inventory(
     let owner = placement::owners(analysis, &all, &chosen);
     let mut omitted = Vec::new();
     let mut kept = Vec::new();
+    // The default consolidation of every item, independent of the spec: what an omission or an
+    // authored set is measured against (lanes, reference ink, authored-set parity).
+    let default_plan = (spec.dimension_source == DimensionSource::Authored
+        || spec.dimensions.values().any(|d| d.omit))
+    .then(|| {
+        let mut defaults: Vec<_> = all
+            .iter()
+            .cloned()
+            .zip(chosen.iter().copied())
+            .map(|(w, view)| (w, true, view, Vec::new()))
+            .collect();
+        let mut unused = Vec::new();
+        plates::consolidate(analysis, &mut defaults, &mut unused);
+        bosses::consolidate(analysis, &mut defaults, &mut unused);
+        let mut nominal = vec![Vec::new(); defaults.len()];
+        holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
+        share_statements(&mut defaults, &mut nominal, &mut unused, true);
+        share_pmi(&mut defaults, &mut nominal, &mut unused);
+        redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        (defaults, unused)
+    });
+    // A rung the defaults hand to an item outside its set (a height the overall extent conveys)
+    // is not the set's to approve: an authored set that leaves that owner out leaves it out too.
+    let conveyed: BTreeSet<&str> = default_plan
+        .as_ref()
+        .map(|(_, unused)| {
+            unused
+                .iter()
+                .filter(|u| {
+                    matches!(&u.state, State::Covered { by }
+                        if correlated_set(by) != correlated_set(&u.id))
+                })
+                .map(|u| u.id.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    let (with_set, set_problems) = correlated_sets(spec, &wants, &conveyed);
+    problems.extend(set_problems);
     for ((w, view), along) in wants.into_iter().zip(chosen.iter().copied()).zip(end_on) {
         let entry = spec.dimensions.get(&w.id);
+        if let Some(basis) = with_set.get(&w.id) {
+            match spec.dimension_source {
+                DimensionSource::Auto => omitted.push(Omitted {
+                    label: w.terms.join(" "),
+                    id: w.id,
+                    basis: basis.clone(),
+                    state: State::OmittedByUser,
+                }),
+                DimensionSource::Authored => kept.push((w, true, view, along)),
+            }
+            continue;
+        }
         match spec.dimension_source {
             DimensionSource::Auto if entry.is_some_and(|e| e.omit) => omitted.push(Omitted {
                 label: w.terms.join(" "),
@@ -1259,31 +1310,13 @@ pub(crate) fn plan_inventory(
     // included); one the spec omits keeps its default label and its place, so it leaves a gap.
     // An item the defaults merge away (a height the overall extent conveys among them) takes no
     // lane: it shares its survivor's.
-    let labels: BTreeMap<&str, &[String]> = kept
-        .iter()
-        .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
-        .collect();
     // Omission changes a reference back to a controlling dimension, but not its
     // witness lane or text centre. Reserve the default reference's ink during layout.
     let mut reference_terms = BTreeMap::new();
-    if spec.dimension_source == DimensionSource::Authored
-        || spec.dimensions.values().any(|d| d.omit)
-    {
-        let mut defaults: Vec<_> = all
-            .iter()
-            .cloned()
-            .zip(chosen.iter().copied())
-            .map(|(w, view)| (w, true, view, Vec::new()))
-            .collect();
-        let mut unused = Vec::new();
-        plates::consolidate(analysis, &mut defaults, &mut unused);
-        bosses::consolidate(analysis, &mut defaults, &mut unused);
-        let mut nominal = vec![Vec::new(); defaults.len()];
-        holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
-        plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
-        share_statements(&mut defaults, &mut nominal, &mut unused, true);
-        share_pmi(&mut defaults, &mut nominal, &mut unused);
-        redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+    if let Some((defaults, unused)) = default_plan {
+        if spec.dimension_source == DimensionSource::Authored {
+            redundancy::authored_parity(&all, &defaults, &unused, &mut kept, &mut omitted);
+        }
         reference_terms.extend(defaults.into_iter().filter_map(|(w, ..)| {
             w.terms
                 .first()
@@ -1291,6 +1324,10 @@ pub(crate) fn plan_inventory(
                 .then_some((w.id, w.terms))
         }));
     }
+    let labels: BTreeMap<&str, &[String]> = kept
+        .iter()
+        .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
+        .collect();
     let all: Vec<Want> = all
         .into_iter()
         .map(|mut w| {
@@ -1887,6 +1924,132 @@ fn share(
     omitted: &mut Vec<Omitted>,
 ) {
     share_statements(kept, given, omitted, false);
+}
+
+/// The correlated set a dimension belongs to (ARCH0015-2): the height ladder's rungs (its counted
+/// rise among them), or the ladder's shoulders along one axis. None for any other dimension: a
+/// turned profile's chain is not one, since omitting one link of a chain is ordinary drafting
+/// and its baseline already restores a band's length when a rung is omitted (#33).
+fn correlated_set(id: &str) -> Option<&str> {
+    const HEIGHTS: &str = "d:step_level/step_height.length";
+    if id.starts_with(HEIGHTS) {
+        return Some(HEIGHTS);
+    }
+    let rest = id.strip_prefix("d:step_level/step_position.length.")?;
+    let axis = rest.get(..1).filter(|a| ["x", "y", "z"].contains(a))?;
+    Some(&id[..id.len() - rest.len() + axis.len()])
+}
+
+/// Stream K6 (ARCH0015-2): a correlated set (the step-height ladder, the shoulders along an
+/// axis) is approved or omitted whole, never half a staircase. Each member keeps its own ID
+/// (ADR4-6), so the spec's decision on any member applies to the set: with the automatic source,
+/// omitting one member omits the others too; with an authored set, listing one member approves
+/// the others. An omission never overrides a member the spec decides itself (any entry on it):
+/// that set is left as the spec states it, with a `correlated_set_conflict` warning. Returns, by
+/// ID, each member the decision spreads to with its basis, and an `info` problem per set saying so.
+/// With an authored set, a member in *conveyed* (one the defaults hand to an item outside its
+/// set) is not approved by the set: it stays with its owner, conveyed or not authored as main's
+/// authored-set parity decides.
+fn correlated_sets(
+    spec: &Spec,
+    wants: &[Want],
+    conveyed: &BTreeSet<&str>,
+) -> (BTreeMap<String, String>, Vec<Problem>) {
+    let mut sets: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let auto = spec.dimension_source == DimensionSource::Auto;
+    for w in wants {
+        if !auto && conveyed.contains(w.id.as_str()) {
+            continue;
+        }
+        if let Some(set) = correlated_set(&w.id) {
+            sets.entry(set).or_default().push(&w.id);
+        }
+    }
+    let mut spread = BTreeMap::new();
+    let mut problems = Vec::new();
+    for (set, members) in sets {
+        let decided: Vec<&str> = members
+            .iter()
+            .copied()
+            .filter(|id| spec.dimensions.get(*id).is_some_and(|e| !auto || e.omit))
+            .collect();
+        let rest: Vec<&str> = members
+            .iter()
+            .copied()
+            .filter(|id| !decided.contains(id))
+            .collect();
+        if decided.is_empty() || rest.is_empty() {
+            continue;
+        }
+        let what = if set.contains("step_height") {
+            "the height ladder".to_string()
+        } else {
+            format!("the ladder's shoulders along {}", &set[set.len() - 1..])
+        };
+        let named = decided.join(", ");
+        let restore: Vec<Op> = decided
+            .iter()
+            .map(|id| Op::remove(format!("dimensions/{}/omit", crate::items::key(id))))
+            .collect();
+        // A member the spec decides itself (a tolerance, a view, a place, `omit: false`) keeps
+        // that decision: the omission is not spread over it, and the conflict is reported, its
+        // fix restoring the set (the author's requirement on the member must reach the sheet).
+        let own: Vec<&str> = if auto {
+            rest.iter()
+                .copied()
+                .filter(|id| spec.dimensions.contains_key(*id))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        if !own.is_empty() {
+            let kept = own.join(", ");
+            problems.push(Problem {
+                id: format!("p:correlated_set_conflict:{set}"),
+                code: "correlated_set_conflict".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The spec omits {named} of {what} but states {kept} itself, so half the set is drawn: a correlated set is approved or omitted whole. Remove the omission to draw the set, or omit every member."
+                ),
+                subjects: decided.iter().chain(&own).map(|s| s.to_string()).collect(),
+                fix: restore,
+                ..Default::default()
+            });
+            continue;
+        }
+        let (basis, message, fix) = if auto {
+            (
+                format!(
+                    "authored: omitted with {what}, which the spec omits ({named}): a correlated set is omitted whole"
+                ),
+                format!(
+                    "Omitting {named} omits all of {what}: a correlated set is approved or omitted whole, never half a staircase. Remove the omission to restore the set."
+                ),
+                restore,
+            )
+        } else {
+            (
+                String::new(),
+                format!(
+                    "Listing {named} approves all of {what}: a correlated set is approved or omitted whole, never half a staircase."
+                ),
+                Vec::new(),
+            )
+        };
+        for id in &rest {
+            spread.insert(id.to_string(), basis.clone());
+        }
+        problems.push(Problem {
+            id: format!("p:correlated_set_whole:{set}"),
+            code: "correlated_set_whole".into(),
+            severity: "info".into(),
+            message,
+            subjects: rest.iter().map(|s| s.to_string()).collect(),
+            fix,
+            ..Default::default()
+        });
+    }
+    (spread, problems)
 }
 
 /// One span, one dimension (ARCH0009-6): kept items stating the same [`SHARED`] size or

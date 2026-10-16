@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "docs/status-2026-10-10.md: Stage H second pass (h-chains merged; h-extlines backed out)",
-  "source_commit": "d3c1fec3",
-  "verified_binary_sha256": "2d5d127be8f628d9a700e1214cbf8ad60eb63f60585657994b8242ffe784fdc6"
+  "source": "Datum placement validation on cx/datum-placement; hidden-on-visible improvement also present at base 3836b296",
+  "source_commit": "3836b296",
+  "verified_binary_sha256": "301e5fc0d4a35d28202dc3c69e5f9bc7963e4de5b3260aa462a3439879fa408a"
 }
