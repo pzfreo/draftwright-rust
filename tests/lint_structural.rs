@@ -1248,6 +1248,8 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
         };
         if !i.label.is_empty() {
             annotations.push(draftwright::output::Annotation {
+                approved_claims: Vec::new(),
+                approved_text: None,
                 coordinate_origin: None,
                 satisfies: Vec::new(),
                 name: item_name.clone(),

@@ -562,3 +562,72 @@ fn an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt() {
         held.placed
     );
 }
+
+/// Required leaders surrounding the hole field make every perimeter balloon unsafe.
+#[test]
+fn retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks() {
+    let ((_, analysis), successful) = forced();
+    assert!(successful.hole_table.is_some());
+    let mut p = model::plan(analysis, &Spec::default()).unwrap();
+    let v = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+    let width = analysis.envelope[1][0] - analysis.envelope[0][0];
+    let height = analysis.envelope[1][1] - analysis.envelope[0][1];
+    let [x, y] = v.at;
+    let [w, h] = [width * v.scale * 0.5 + 1.0, height * v.scale * 0.5 + 1.0];
+    let corners = [
+        [x - w, y - h],
+        [x + w, y - h],
+        [x + w, y + h],
+        [x - w, y + h],
+    ];
+    let seed = p
+        .dimensions
+        .iter()
+        .find(|d| d.placed.is_some())
+        .unwrap()
+        .clone();
+    for i in 0..4 {
+        let mut retained = seed.clone();
+        retained.id = format!("d:retained-leader:{i}");
+        retained.view = "v:plan".into();
+        retained.kind = "callout".into();
+        retained.measurements.clear();
+        let ink = retained.placed.as_mut().unwrap();
+        ink.lines = vec![[corners[i], corners[(i + 1) % 4]]];
+        ink.arrows.clear();
+        p.dimensions.push(retained);
+    }
+    let dropped = p
+        .dimensions
+        .iter()
+        .find(|d| d.id.ends_with("/location.length.x") && d.view == "v:plan")
+        .unwrap()
+        .id
+        .clone();
+    stand_in_off_sheet(&mut p, dropped.clone());
+    let before = p.dimensions.clone();
+    let original_drops: Vec<_> = p
+        .problems
+        .iter()
+        .filter(|problem| problem.code == "annotation_off_sheet" && problem.severity != "info")
+        .filter_map(|problem| problem.subjects.first().cloned())
+        .collect();
+    hole_table::escalate(analysis, &mut p, None);
+    assert!(p.hole_table.is_none() && p.balloons.is_empty());
+    assert!(codes(&p).contains(&"table_dropped"));
+    assert!(codes(&p).contains(&"balloon_dropped"));
+    for original in &before {
+        let restored = p.dimensions.iter().find(|d| d.id == original.id).unwrap();
+        if original_drops.contains(&original.id) {
+            assert!(restored.placed.is_none());
+            assert!(
+                p.problems
+                    .iter()
+                    .any(|problem| hole_table::DROPS.contains(&problem.code.as_str())
+                        && problem.subjects.contains(&original.id))
+            );
+        } else {
+            assert_eq!(restored, original, "{}", original.id);
+        }
+    }
+}

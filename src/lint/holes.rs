@@ -534,6 +534,49 @@ impl Callout {
     }
 }
 
+/// Whether the rendered bore term, excluding quantities, tolerances and pitch circles,
+/// states this diameter at the precision actually printed.
+pub fn states_bore(text: &str, diameter: f64) -> bool {
+    Callout::read(text).states("bore.diameter", diameter, false)
+}
+
+/// A scheduled size cell is one physical hole's complete callout. Its physical riders
+/// (THRU and quantity) are usable only while every size it claims is borne out by that
+/// cell's own ink. A pitch-circle diameter or a number in another row proves nothing.
+pub fn verified_schedule_size(analysis: &Analysis, mark: &Mark) -> bool {
+    if !mark.name.starts_with("hole_schedule_") || !mark.name.ends_with("/size") {
+        return true;
+    }
+    let bores: Vec<_> = mark
+        .claims
+        .iter()
+        .filter(|c| c.parameter == "bore.diameter")
+        .collect();
+    if bores.len() != 1 {
+        return false;
+    }
+    let Some(group) = groups(analysis)
+        .into_iter()
+        .find(|g| g.members.contains(&bores[0].feature))
+    else {
+        return false;
+    };
+    let callout = Callout::read(&mark.text);
+    group
+        .requirements()
+        .iter()
+        .filter(|(p, _)| !matches!(*p, "grouping.count" | "bore.through"))
+        .all(|(parameter, value)| {
+            mark.claims
+                .iter()
+                .any(|c| c.feature == bores[0].feature && c.parameter == *parameter)
+                && value.is_some_and(|v| {
+                    callout.states(parameter, v, group.sizes.counterbore.is_some())
+                })
+        })
+        && (!group.sizes.through || says_thru(&mark.text))
+}
+
 /// The holes whose bore diameters *m* claims.
 fn diameters(m: &Mark) -> BTreeSet<&str> {
     m.claims
@@ -634,6 +677,22 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             };
             if match parameter {
                 "grouping.count" => uncounted.is_empty(),
+                // A native grouped callout states the group's shared nominal; quantity is
+                // audited separately. A schedule replaces that statement with physical rows,
+                // so a valid sibling row must not hide one missing or damaged member cell.
+                _ if claiming.iter().any(|m| {
+                    m.name.starts_with("hole_schedule_") || m.name.starts_with("hole_table_plan/")
+                }) =>
+                {
+                    g.members.iter().all(|feature| {
+                        claiming.iter().any(|m| {
+                            m.claims
+                                .iter()
+                                .any(|c| &c.feature == feature && c.parameter == carrier)
+                                && stated(m)
+                        })
+                    })
+                }
                 _ => claiming.iter().any(stated),
             } {
                 continue;
