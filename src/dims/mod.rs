@@ -1016,7 +1016,44 @@ pub(crate) fn plan_inventory(
     let owner = placement::owners(analysis, &all, &chosen);
     let mut omitted = Vec::new();
     let mut kept = Vec::new();
-    let (with_set, set_problems) = correlated_sets(spec, &wants);
+    // The default consolidation of every item, independent of the spec: what an omission or an
+    // authored set is measured against (lanes, reference ink, authored-set parity).
+    let default_plan = (spec.dimension_source == DimensionSource::Authored
+        || spec.dimensions.values().any(|d| d.omit))
+    .then(|| {
+        let mut defaults: Vec<_> = all
+            .iter()
+            .cloned()
+            .zip(chosen.iter().copied())
+            .map(|(w, view)| (w, true, view, Vec::new()))
+            .collect();
+        let mut unused = Vec::new();
+        plates::consolidate(analysis, &mut defaults, &mut unused);
+        bosses::consolidate(analysis, &mut defaults, &mut unused);
+        let mut nominal = vec![Vec::new(); defaults.len()];
+        holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
+        share_statements(&mut defaults, &mut nominal, &mut unused, true);
+        share_pmi(&mut defaults, &mut nominal, &mut unused);
+        redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        (defaults, unused)
+    });
+    // A rung the defaults hand to an item outside its set (a height the overall extent conveys)
+    // is not the set's to approve: an authored set that leaves that owner out leaves it out too.
+    let conveyed: BTreeSet<&str> = default_plan
+        .as_ref()
+        .map(|(_, unused)| {
+            unused
+                .iter()
+                .filter(|u| {
+                    matches!(&u.state, State::Covered { by }
+                        if correlated_set(by) != correlated_set(&u.id))
+                })
+                .map(|u| u.id.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    let (with_set, set_problems) = correlated_sets(spec, &wants, &conveyed);
     problems.extend(set_problems);
     for ((w, view), along) in wants.into_iter().zip(chosen.iter().copied()).zip(end_on) {
         let entry = spec.dimensions.get(&w.id);
@@ -1070,24 +1107,7 @@ pub(crate) fn plan_inventory(
     // Omission changes a reference back to a controlling dimension, but not its
     // witness lane or text centre. Reserve the default reference's ink during layout.
     let mut reference_terms = BTreeMap::new();
-    if spec.dimension_source == DimensionSource::Authored
-        || spec.dimensions.values().any(|d| d.omit)
-    {
-        let mut defaults: Vec<_> = all
-            .iter()
-            .cloned()
-            .zip(chosen.iter().copied())
-            .map(|(w, view)| (w, true, view, Vec::new()))
-            .collect();
-        let mut unused = Vec::new();
-        plates::consolidate(analysis, &mut defaults, &mut unused);
-        bosses::consolidate(analysis, &mut defaults, &mut unused);
-        let mut nominal = vec![Vec::new(); defaults.len()];
-        holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
-        plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
-        share_statements(&mut defaults, &mut nominal, &mut unused, true);
-        share_pmi(&mut defaults, &mut nominal, &mut unused);
-        redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+    if let Some((defaults, unused)) = default_plan {
         if spec.dimension_source == DimensionSource::Authored {
             redundancy::authored_parity(&all, &defaults, &unused, &mut kept, &mut omitted);
         }
@@ -1718,16 +1738,26 @@ fn correlated_set(id: &str) -> Option<&str> {
 /// the others. An omission never overrides a member the spec decides itself (any entry on it):
 /// that set is left as the spec states it, with a `correlated_set_conflict` warning. Returns, by
 /// ID, each member the decision spreads to with its basis, and an `info` problem per set saying so.
-fn correlated_sets(spec: &Spec, wants: &[Want]) -> (BTreeMap<String, String>, Vec<Problem>) {
+/// With an authored set, a member in *conveyed* (one the defaults hand to an item outside its
+/// set) is not approved by the set: it stays with its owner, conveyed or not authored as main's
+/// authored-set parity decides.
+fn correlated_sets(
+    spec: &Spec,
+    wants: &[Want],
+    conveyed: &BTreeSet<&str>,
+) -> (BTreeMap<String, String>, Vec<Problem>) {
     let mut sets: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let auto = spec.dimension_source == DimensionSource::Auto;
     for w in wants {
+        if !auto && conveyed.contains(w.id.as_str()) {
+            continue;
+        }
         if let Some(set) = correlated_set(&w.id) {
             sets.entry(set).or_default().push(&w.id);
         }
     }
     let mut spread = BTreeMap::new();
     let mut problems = Vec::new();
-    let auto = spec.dimension_source == DimensionSource::Auto;
     for (set, members) in sets {
         let decided: Vec<&str> = members
             .iter()

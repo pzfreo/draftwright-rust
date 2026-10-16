@@ -7816,3 +7816,18 @@ known sandbox socket-bind failures; all remaining integration binaries pass.
   as logged: in `auto`, omitting one rung omits the whole ladder (ARCH0015-2's literal reading;
   the alternative, refusing the partial omission and drawing the whole set, is the maintainer's
   to choose).
+- **Integration (PR #57, overturnable judgement calls):** CI's `tests/placement.rs::
+  omitting_one_dimension_moves_no_other` (ARCH0003-2 edit locality, not run by the stream)
+  failed on ftc06 for two reasons.
+  (a) Leaving the envelope height, and the h215_9 rung it conveys, out of an authored set brought
+  h215_9 back through the ladder's whole-set approval. Main's rule that an item left out of an
+  authored set, with what it conveys, brings nothing back now wins. `correlated_sets` no longer
+  approves a rung that the default plan hands to an item outside its set. That rung stays with
+  its owner through `authored_parity`, and the default consolidation is computed once before the
+  spread.
+  (b) In `auto`, omitting one rung omits its ladder (ARCH0015-2). The locality test now treats a
+  correlated set as one item. In auto mode the siblings must be omitted and named by
+  `correlated_set_whole`, and what they conveyed comes back in its survivor's lane. In authored
+  mode a rung left out while its siblings are listed is drawn where it was. Every item outside
+  the set is still checked as fixed. If the maintainer chooses per-rung omission instead, revert
+  (b) with that change.
