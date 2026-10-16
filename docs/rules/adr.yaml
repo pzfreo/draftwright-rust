@@ -1624,8 +1624,9 @@
     adr: "archive 0015 Consequences"
     issues: [1086, 1087]
     tests: []
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Neither the Spec nor the PMI path carries a gear declaration, and there is no gear data table. Rust quiddity's repeating_radial_profiles are known to the native reader and not read (src/bridge/native.rs); lint's repeating-profile warning (src/lint/profiles.rs) asks for the outer boundary to be defined by hand and never fills a gear record from the repeat, which keeps the rule's second half by construction. The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
+  status: ported
+  rust_test: "tests/gears.rs::gear_table_preserves_exact_python_rows_and_exports; tests/gears.rs::repeating_profile_never_invents_gear_semantics"
+  rust_note: "Authored Spec declarations lower to requirements only; native/Python full-wire recognition supplies independent correspondence evidence. Geometry never supplies normative tooth data."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: ARCH0015-4

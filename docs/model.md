@@ -895,6 +895,60 @@ and draws them as draftwright draws its document notes (`render_document_notes`)
   per-feature `note` is drawn as a leadered label since K1b ("Finish, threads, knurls and
   notes authored in the Spec", below); hole tables are not ported here.
 
+### External spur gears
+
+`gears` is an ordered list of authored manufacturing requirements (ISO 21771-1:2024,
+ISO 21771-2:2025, ISO 53:1998, ISO 54:1996 and ISO 1328-1:2013):
+
+```json
+{"gears": [{
+  "on": "f:boss:1",
+  "frame": {"origin": [0, 0, 0], "axis": "z"},
+  "tooth_count": 13, "module": 1.25, "pressure_angle": 20,
+  "profile_shift": 0, "face_width": 10,
+  "tooth_thickness": 1.9634954084936207,
+  "tooth_thickness_tolerance": [-0.03, 0.01],
+  "flank_tolerance_class": 7
+}]}
+```
+
+Every field is required. `on` anchors ownership to a cylindrical `boss`,
+`cylindrical_boss` or `turned_step` feature, a `face:<n>`, or a named stock face
+(`top`, `bottom`, `left`, `right`, `front`, `back`). Use a face anchor for a toothed
+wheel. `frame` explicitly authors the gear centre and principal axis in the part's
+coordinates, in mm; axis letters accept either case. The axial span is the centre
+coordinate on that axis ± half the face width. Anchors on another revision are
+refused until reattached.
+
+Validation follows Python's `ExternalSpurGearFeature`: finite origin; integer tooth
+count 5–1000; positive finite module, face width and tooth thickness; module
+0.5–70 mm; width 4–1200 mm; reference diameter `module × tooth_count` 5–15000 mm;
+finite pressure angle strictly between 0 and 90 degrees; finite profile shift;
+two finite tooth-thickness deviations, lower ≤ upper, retaining a strictly positive
+lower thickness limit; integer flank tolerance class 1–11. Booleans are refused
+as numeric values. Deviations are lower then upper, in mm.
+
+A declaration creates `gear_data_1`, `gear_data_2`, … table items. Each prints the
+header and Python's nine fixed ISO rows with exact authored float formatting,
+units, and signed deviations. These tables reserve space through the sheet rules
+and are placed towards the top right as late furniture, clear of dimensions,
+notes, captions and earlier tables. They carry rendered provenance to `gear:1`,
+`gear:2`, …; they are never recognised from geometry. Edit the whole `gears` list
+with `set`, or append a declaration with `add` on `gears`; the MCP Spec schemas
+expose the same list, like `notes` and `tables`.
+
+Lint reads declarations lowered into the Analysis's independent requirement
+inventory and the actual rendered table text, without reading the embedded Spec.
+It reports missing, ambiguous or stale tables. Full-wire repeating-profile evidence
+from native or Python recognition is matched by centre and axial span (1e-6 mm),
+then audited for axis and repeat count. Missing, displaced or ambiguous evidence
+is `gear_correspondence_unverifiable`; an undeclared repeating profile is
+`gear_semantics_missing`. Arc counts alone never prove correspondence. A smooth
+blank can carry a declaration and table but remains unverifiable, as in Python.
+Python imposes no derived tip-diameter or face-width agreement with a blank;
+the port adds no such refusal. `tests/gears.rs` covers the blank, real wheel,
+validation, export and all reconciliation outcomes.
+
 ### Tables
 
 `src/tables.rs` reads the spec's `tables`, a list of `{id, rows, prefer?}` placed in order, and

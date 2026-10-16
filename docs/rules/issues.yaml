@@ -613,8 +613,9 @@
       - "tests/test_issue_1086_declared_gears.py::test_sheet_script_preserves_every_source_authored_gear_value_exactly"
       - "tests/test_issue_1086_declared_gears.py::test_external_spur_gear_ir_rejects_incomplete_or_invalid_requirements"
     corpus_parts: []
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration and no gear data table (ARCH0015-3). The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
+  status: ported
+  rust_test: "tests/gears.rs::gear_table_preserves_exact_python_rows_and_exports; tests/gears.rs::invalid_gear_requirements_are_refused_one_per_python_validation_rule; tests/gears.rs::gear_anchors_and_editor_preserve_authored_intent"
+  rust_note: "Complete authored declaration, Python validation and exact ISO rows; late table furniture uses the existing sheet/table solver and survives SVG/PDF export."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream gears"
 
 - id: ISSUE-1086-b
@@ -629,8 +630,9 @@
       - "tests/test_issue_1086_declared_gears.py::test_removed_gear_table_is_a_semantic_coverage_failure"
       - "tests/test_issue_1086_declared_gears.py::test_normative_parameter_mutation_cannot_leave_a_stale_table_clean"
     corpus_parts: []
-  status: pending
-  rust_note: "Not ported: no gear declarations, gear data tables or repeating-profile semantics. The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
+  status: ported
+  rust_test: "tests/gears.rs::real_wheel_full_wire_evidence_reconciles_authored_gear; tests/gears.rs::repeating_profile_never_invents_gear_semantics; tests/gears.rs::missing_and_duplicate_gear_tables_fail_coverage"
+  rust_note: "Independent rendered-table and full-wire geometry audit; no normative recognition. Smooth blanks remain unverifiable, as Python does."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream gears"
 
 - id: ISSUE-1116-a
