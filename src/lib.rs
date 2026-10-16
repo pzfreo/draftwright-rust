@@ -17,6 +17,7 @@ pub mod evaluation;
 pub mod gears;
 pub mod hole_table;
 pub mod items;
+pub mod label_text;
 pub mod layout;
 pub mod linework;
 pub mod lint;

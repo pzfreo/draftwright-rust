@@ -191,8 +191,8 @@ The design also includes `views/sections` and feature `anchor`
 since K1b (below).
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
-  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
-  spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
+  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, and the earlier `view`
+  spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
   knurls and notes authored in the Spec", below), `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
@@ -1798,3 +1798,81 @@ A feature note can explicitly satisfy its own measurement roles with
 Only its placed leadered note grants authority. This is separate from dimension claims:
 prose grants no coverage, a diameter role implies neither THRU nor count, and sibling
 features need their own explicit claims.
+
+
+### Label wording and explicit dimension styles (#76, item 5)
+
+Wording is authored under the existing stable dimension or annotation ID. No page
+coordinates or measured values are stored in the Spec. These additive fields work in
+`draftwright.spec/2`; saved Specs without them retain their automatic labels and layout.
+
+```json
+{
+  "dimensions": {
+    "d:envelope/width.length": {
+      "text": {"prefix": "2×", "suffix": "TYP"},
+      "style": "reference"
+    },
+    "d:f:hole:3/bore.diameter": {
+      "text": {"template": "{value} AFTER PLATING"},
+      "style": "basic"
+    }
+  },
+  "annotations": {
+    "pmi:common_label.example": {"text": {"template": "{value} REF"}}
+  }
+}
+```
+
+Use IDs returned by the current Plan or item queries; the example annotation ID is
+illustrative. A dimension callout belongs in `dimensions`; unframed PMI prose labels
+and the automatic radius/relief notes belong in `annotations`. Datum letters, geometric
+tolerance frames and surface texture symbols retain their structured feature edits:
+free wording on those symbols is refused.
+
+`text` takes either `prefix`/`suffix`, or `template` with exactly one `{value}`.
+The placeholder expands to **all generated terms**, including compound diameters,
+depths, angles, counts, thread designations, precision, tolerances and fit classes.
+It is deliberately more than a bare nominal: changing wording cannot remove another
+measured requirement from a callout. Prefix and suffix are separated from the generated
+terms by one space; surrounding literal whitespace is trimmed. For example `REF`,
+`AFTER PLATING` and `(NOM)` are ordinary suffixes. A literal full replacement, even one
+containing today's measured number, is refused: use `{value}` so the saved Spec remains
+truthful when geometry or display precision changes.
+
+Literal wording is one line, at most 240 UTF-8 bytes per field, without control characters,
+extra numeric values, tolerance/measurement symbols or unknown placeholders. The exception
+is one positive leading quantity `N×`; it cannot be added to an already counted label,
+and independent quantity lint still judges it against the part. These rules refuse a
+second nominal or a conflicting value instead of letting prose impersonate a measurement.
+Unknown IDs are refused with current IDs or an explicit removal instruction. An override
+on a merged dimension is refused with its owning label ID; apply wording to that owner.
+
+`style: "reference"` encloses the entire label in parentheses; `style: "basic"` draws a
+box around its full ink. The enum makes these choices mutually exclusive. Remove `style`
+to restore the automatic choice. An imported basic PMI dimension cannot be made reference
+without correcting its source PMI. A newly authored reference has no fabricated
+`determined_by` chain. Basic/reference styling changes no nominal or measurement claim,
+and lint continues checking the resulting output, including redundant controlling sizes.
+
+Wording is applied after automatic ownership/consolidation and precision/tolerance
+formatting, before placement and reservation. Full terms drive ink measurement, leader
+shelves, label clearance and searchable SVG/PDF text. Automatic references keep their
+parentheses around all authored wording. Plans report `text`, `style.reference` or
+`style.basic` in `from_spec`, with the choice explained in `basis`; annotation and automatic
+note wording likewise report `from_spec: ["text"]`. Unmentioned choices keep their defaults,
+including paper/scale policy, automatic views, datum placement and class-only fits.
+
+The existing `items::Op` `set`/`remove` operations, session previews, history and replay
+handle these fields. Escape the slash inside an ID, for example:
+`dimensions/d:envelope~1width.length/text`. Item options expose `text`'s fields/template
+form and the two `style` choices. `get_spec`'s output schema describes the saved text shape;
+other MCP tools retain the existing generic per-item Spec-map input convention. The schema
+generator uses equivalent minimum-property counts for closed objects whose every field is
+required, preserving the existing session byte cap.
+
+Lint reads the live value-bearing text inside the compiled wording wrapper and the
+original measured claims. It does not infer a new value from authored prose or trust an
+approved nominal instead of the drawn text. Damaged wrappers or missing values lose claim
+proof; linear fidelity compares the live numeric text against the drawn witnesses. Wording
+never acknowledges or suppresses a lint finding.

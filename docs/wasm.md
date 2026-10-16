@@ -16,6 +16,7 @@ cargo install wasm-pack --version 0.15.0 --locked
 wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --locked
 cargo build --locked --release --example wasm_reference
 node --test tools/wasm-parity.test.mjs
+python3 tools/check_wasm_api.py
 python3 tools/wasm_size.py crates/draftwright-wasm/pkg/draftwright_wasm_bg.wasm
 ```
 

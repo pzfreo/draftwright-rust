@@ -109,6 +109,7 @@ fn sheet(views: &[(&str, [f64; 4])], items: Vec<Drawn>) -> Drawing {
         text: Vec::new(),
         annotations: Vec::new(),
         sheet: Sheet {
+            label_text: Default::default(),
             precision: Default::default(),
             references: Vec::new(),
             centre_marks: BTreeMap::new(),
@@ -996,6 +997,7 @@ fn structural_checks_on_pythons_sheets_agree_with_pythons_lint() {
             text: Vec::new(),
             annotations: Vec::new(),
             sheet: Sheet {
+                label_text: Default::default(),
                 precision: Default::default(),
                 references: Vec::new(),
                 centre_marks: BTreeMap::new(),
@@ -1346,6 +1348,7 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
         text,
         annotations,
         sheet: Sheet {
+            label_text: Default::default(),
             precision: Default::default(),
             references: Vec::new(),
             centre_marks: BTreeMap::new(),

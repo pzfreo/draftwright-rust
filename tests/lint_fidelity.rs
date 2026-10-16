@@ -66,6 +66,7 @@ fn sheet(scale: f64, edges: Vec<Curve>, items: Vec<(Drawn, &str)>) -> Drawing {
         text,
         annotations,
         sheet: Sheet {
+            label_text: Default::default(),
             precision: Default::default(),
             references: Vec::new(),
             drawable: Some([10.0, 10.0, 410.0, 287.0]),

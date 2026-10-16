@@ -26,8 +26,11 @@ problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':a
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
+label_text=obj({'prefix':S,'suffix':S,'template':S})
+label_entry=obj({'text':ref('x'),'style':{'enum':['reference','basic']}},extra=True)
 spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'})})
-defs={'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
+authored_spec={**spec,'properties':{**spec['properties'], 'dimensions':{'type':'object','additionalProperties':label_entry}, 'annotations':{'type':'object','additionalProperties':obj({'text':ref('x')},extra=True)}}}
+defs={'authored_spec':authored_spec,'x':label_text,'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
 problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op'))},['id','code','severity','subjects'])
 defs.update({'stub':stub, 'problem_small':problem_small})
@@ -50,7 +53,7 @@ tools={
 'apply_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=MAX_OPS),'parent':S},['part_ref','ops','parent']),obj({'spec_version':S,'delta':delta},['spec_version','delta'])),
 'view_sheet':(obj({**common,'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}},['part_ref']),artifact),
 'render_pdf':(obj({**common,'sheet':SHEET},['part_ref']),artifact),
-'get_spec':(obj(common,['part_ref']),obj({'spec_version':S,'spec':ref('spec')},['spec_version','spec'])),
+'get_spec':(obj(common,['part_ref']),obj({'spec_version':S,'spec':ref('authored_spec')},['spec_version','spec'])),
 'analyse':(obj({'step':S,'features':S,'part':I},['step']),obj({'schema':{'const':'draftwright.analysis/7'},'binding':obj({'source_sha256':S,'part':S,'face_count':I,'loader':S,'part_index':I},['source_sha256','part','face_count','loader']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'features':arr({'type':'object'}),'iso_bounds':rectangle},['schema','binding','envelope','iso_bounds'],True)),
 'render':(obj({**common,'step':S,'features':S,'part':I,'format':{'enum':['png','pdf']},'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}}),artifact),
 'parts':(obj({'step':S},['step']),obj({'parts':arr(obj({'part':I,'name':S,'product_id':S,'faces':I,'instances':I},['part','name','product_id','faces','instances']))},['parts'])),
@@ -130,6 +133,20 @@ def short_names(schema):
     if isinstance(schema, list): return [short_names(v) for v in schema]
     return schema
 
+def compact_required(schema, root=True):
+    """A closed object requiring every declared field equivalently requires that field count."""
+    if isinstance(schema, list): return [compact_required(v, False) for v in schema]
+    if not isinstance(schema, dict): return schema
+    schema = {k: compact_required(v, False) for k, v in schema.items()}
+    required = schema.get('required', [])
+    if (not root and required and schema.get('additionalProperties') is False
+            and set(required) == set(schema.get('properties', {}))):
+        # Keep the explicit form unless the equivalent cardinality is strictly smaller.
+        if len(json.dumps({'required':required}, separators=(',', ':'))) > len(json.dumps({'minProperties':len(required)}, separators=(',', ':'))):
+            del schema['required']
+            schema['minProperties'] = len(required)
+    return schema
+
 for tool,(inp,out) in tools.items():
     if tool in ['inspect_part','render']:
         inp['anyOf']=[{'required':['step']},{'required':['part_ref']}]
@@ -155,6 +172,8 @@ for tool,(inp,out) in tools.items():
         for branch in schema.get('anyOf', []):
             if branch.get('type') == schema.get('type'):
                 branch.pop('type', None)
+        if kind == 'output' and tool in ('apply_ops', 'preview_ops'):
+            schema = compact_required(schema)
         schema = short_names(share_repeated(inline_single_use(schema, keep)))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

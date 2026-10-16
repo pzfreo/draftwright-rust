@@ -73,10 +73,8 @@
                                             ]
                                           }
                                         },
-                                        "required": [
-                                          "kind"
-                                        ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "minProperties": 1
                                       },
                                       {
                                         "type": "object",
@@ -88,11 +86,8 @@
                                             "type": "string"
                                           }
                                         },
-                                        "required": [
-                                          "kind",
-                                          "by"
-                                        ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "minProperties": 2
                                       },
                                       {
                                         "type": "object",
@@ -104,11 +99,8 @@
                                             "type": "string"
                                           }
                                         },
-                                        "required": [
-                                          "kind",
-                                          "reason_code"
-                                        ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "minProperties": 2
                                       }
                                     ]
                                   }
@@ -159,17 +151,8 @@
                                     "$ref": "#/$defs/A"
                                   }
                                 },
-                                "required": [
-                                  "item",
-                                  "value",
-                                  "dimension_kind",
-                                  "placement",
-                                  "anchors",
-                                  "features",
-                                  "basis",
-                                  "operations"
-                                ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "minProperties": 8
                               },
                               {
                                 "$ref": "#/$defs/u"
@@ -177,11 +160,8 @@
                             ]
                           }
                         },
-                        "required": [
-                          "change",
-                          "item"
-                        ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "minProperties": 2
                       },
                       {
                         "type": "object",
@@ -193,11 +173,8 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "change",
-                          "id"
-                        ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "minProperties": 2
                       },
                       {
                         "type": "object",
@@ -277,11 +254,8 @@
                             ]
                           }
                         },
-                        "required": [
-                          "change",
-                          "problem"
-                        ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "minProperties": 2
                       },
                       {
                         "$ref": "#/$defs/u"
@@ -301,12 +275,8 @@
                   "minimum": 0
                 }
               },
-              "required": [
-                "items",
-                "total",
-                "next_cursor"
-              ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "minProperties": 3
             },
             "delta_ref": {
               "type": "string"
@@ -316,19 +286,12 @@
               "minimum": 0
             }
           },
-          "required": [
-            "events",
-            "delta_ref",
-            "plans"
-          ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "minProperties": 3
         }
       },
-      "required": [
-        "spec_version",
-        "delta"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 2
     },
     {
       "properties": {
@@ -355,10 +318,8 @@
           "additionalProperties": false
         }
       },
-      "required": [
-        "error"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 1
     }
   ],
   "$defs": {
@@ -375,11 +336,8 @@
           "type": "string"
         }
       },
-      "required": [
-        "id",
-        "detail_ref"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 2
     },
     "op": {
       "anyOf": [
@@ -397,12 +355,8 @@
             },
             "value": {}
           },
-          "required": [
-            "op",
-            "path",
-            "value"
-          ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "minProperties": 3
         },
         {
           "type": "object",
@@ -414,11 +368,8 @@
               "type": "string"
             }
           },
-          "required": [
-            "op",
-            "path"
-          ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "minProperties": 2
         }
       ]
     },

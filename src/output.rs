@@ -458,6 +458,8 @@ pub struct DrawnReference {
 /// format.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sheet {
+    /// Compiled wording wrappers; lint reads the live measured body, never authored numbers.
+    pub label_text: BTreeMap<String, (crate::label_text::Text, bool)>,
     /// Approved display precision of each dimension's leading value. Ink is still checked.
     pub precision: BTreeMap<String, u8>,
     /// Remote section addresses, verified against printed text by structural lint.

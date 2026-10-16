@@ -4,6 +4,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Spec label wording under `dimensions/<id>/text` and prose `annotations/<id>/text`:
+  prefix/suffix or one `{value}` template retain every generated measured term. Explicit
+  dimension `style: reference | basic` draws parentheses or a box. Full ink drives placement;
+  plans expose the overrides and lint still reads live measured text (#76, item 5).
+- Session/editor text and style options use existing Spec operations, preview and history;
+  saved Specs round-trip and stale/merged label IDs are refused with a correction.
+- WASM API: additive Spec text/style fields and annotation/note `from_spec` JSON provenance
+  through the existing session methods; no new JavaScript methods or signatures.
+
 ## 0.1.0-alpha.4 (2026-10-16)
 
 ### Added
