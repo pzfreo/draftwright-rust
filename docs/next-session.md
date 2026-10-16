@@ -7420,3 +7420,56 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   corpus drawings (7 × `nominal_rounded`).
 - **Not done:** `interior_label_on_narrow_material` (needs a material field the drawing does not
   record) and ISSUE-1349-a (needs a Spec display-precision setting) stay pending with notes.
+
+## K2: the render-time tail, cgb243 and threaded_connector_109 (#43 item 3) (2026-10-16, unattended; overturnable)
+
+- **Finding: the tail is the render, not the plan.** `draftwright plan` takes threaded_connector_109
+  0.255 trillion instructions (nearly all analysis) and cgb243 0.613 trillion (23 s); the 197 s
+  and >300 s in #43 were renders. Both spend nearly all of it in haecceity's `hlr::draw` for one
+  view, the top view seen along the part's axis (threaded_connector_109: 158 s of a 162 s
+  render; cgb243: front 61 s, top 1,726 s under load). Seen along the axis a thread's turns (or
+  cgb243's comb teeth) stack up: 2.3 million curve crossings (20,000 in the front view), each
+  stretch judged by a ray that crosses every turn. Profiles (macOS `sample`): B-spline ray
+  solves in `clear_of_own_faces` (64%) and `RayCaster::any_hit`; on cgb243 also
+  `FaceDomain::crossing_parity` on comb faces with 15,000 boundary segments, 8,000 in one bin.
+- **Fix, in haecceity** (quiddity-rust branch `k/k2-hlr-speed`, commit `7cb26d8`, on its
+  `origin/main` 0d601d2; **not pushed**): every saving gives the same answer by construction,
+  so every drawing is byte-identical. The edge's own faces asked alone (`RayCaster::hits_on`)
+  and the other faces only up to the clearance with an early exit (`RayCaster::other_hit`),
+  falling back to the full list wherever a banded crossing or an unintersectable face could
+  change the answer; a ray stopped from past the own faces' last meeting is stopped from any
+  earlier start, so the faces are not asked again; a visible silhouette's check leaves out its
+  own face; within one stretch's judgement a B-spline face's hits along a ray already asked are
+  reused (thread-local, scoped to the judgement); traversal takes nearer boxes first; an
+  unsplit grid cell is tested against its padded box before its triangles; a basis and its
+  derivative come from one pass, small degrees in short arrays; face-domain bins leave out
+  segments parallel to the parity ray and stop below the ray's start.
+- **Figures** (retired instructions, darwin-arm64, `tools/check_render_tail.py`): render of
+  threaded_connector_109 23.502 → 4.083 trillion (5.76×); cgb243 12.716 → 2.683 trillion
+  (4.74×). Processor time 1,577 → 283 s and 1,092 → 201 s. The 63-part plan survey 2.960 →
+  2.632 trillion (cgb241 −43%, cgb203 −32%, cgb207 −20%, from the face-domain bins; no part up
+  by more than 0.3%), so `tools/plan-time-budget.json` is re-recorded downward. Guard 28/28 with
+  no approvals; the 30-part quality run equals `tools/ci-quality-baseline.json` in all 300
+  cells; both tail sheets byte-identical to the base commit's.
+- **Regression bound**: `tools/check_render_tail.py` (CI job `render-tail`) renders both parts;
+  on Darwin each must stay within 15% of its recorded instructions
+  (`tools/render-tail-budget.json`), elsewhere within a processor-time ceiling (cgb243 800 s,
+  threaded_connector_109 1,200 s). Against the base binary it fails on both (12.7 and 23.5
+  trillion instructions).
+- **Counter fix**: Darwin's `waitid` reports a stopped child even without `WSTOPPED`, so
+  `check_plan_time.counted` read the count of a run cut short whenever a load governor paused
+  the process (SIGSTOP); it now waits for the exit itself. Paused long renders read 3 million
+  to 13 billion instructions before; a test pauses a child three times and checks the count.
+- Judgement calls (overturnable): (1) "5× fewer instructions" is measured on the render, where
+  the 197 s was; the plan was never slow. (2) The fix is in haecceity, where the cost is; this
+  branch's `Cargo.toml` pins quiddity-rust `7cb26d8`, which exists only in the local
+  quiddity-rust worktree: **the quiddity-rust branch must be pushed (or merged and the rev
+  updated) before CI can build this branch.** (3) On Linux the bound is processor seconds,
+  coarse ceilings below the old cost on the development machine; no Linux figure was measured.
+- Not done: cgb243's render is nearly serial now (201 processor s, 160 s wall under the
+  governor): one curve's stretches dominate the top view; splitting a curve's stretches across
+  threads would shorten the wall time but not the instructions.
+- **Integration judgement call (2026-10-16, overturnable):** to unblock CI, the integrator pushed
+  quiddity-rust `k/k2-hlr-speed` and merged it through quiddity-rust PR #12 (merge commit, CI
+  green) before the draftwright merge, rather than leaving the dependency for the maintainer. The
+  merge commit keeps 7cb26d8 reachable from quiddity-rust main, so the pin was not changed.
